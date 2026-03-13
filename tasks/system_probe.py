@@ -71,7 +71,6 @@ TEST_TIMEOUTS = {
     "pkg/network/usm$": "55m",
     "pkg/network/usm/tests$": "55m",
 }
-CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 
 is_windows = sys.platform == "win32"
@@ -159,200 +158,12 @@ def ninja_define_ebpf_compiler(
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
-    nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
-
-    nw.rule(
-        name="ebpfcoreclang",
-        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
-        depfile="$out.d",
-    )
-
-
 def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     nw.rule(
         name="exe" + compiler,
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
-
-
-def ninja_ebpf_program(nw: NinjaWriter, infile, outfile, variables=None):
-    outdir, basefile = os.path.split(outfile)
-    basename = os.path.basename(os.path.splitext(basefile)[0])
-    out_base = f"{outdir}/{basename}"
-    nw.build(
-        inputs=[infile],
-        outputs=[f"{out_base}.bc"],
-        rule="ebpfclang",
-        variables=variables,
-    )
-    nw.build(
-        inputs=[f"{out_base}.bc"],
-        outputs=[f"{out_base}.o"],
-        rule="llc",
-    )
-
-
-def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
-    outdir, basefile = os.path.split(outfile)
-    basename = os.path.basename(os.path.splitext(basefile)[0])
-    out_base = f"{outdir}/{basename}"
-    nw.build(
-        inputs=[infile],
-        outputs=[f"{out_base}.bc"],
-        rule="ebpfcoreclang",
-        variables=variables,
-    )
-    nw.build(
-        inputs=[f"{out_base}.bc"],
-        outputs=[f"{out_base}.o"],
-        rule="llc",
-    )
-
-
-def ninja_security_ebpf_programs(
-    nw: NinjaWriter, build_dir: Path, debug: bool, kernel_release: str | None, arch: Arch | None = None
-):
-    security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
-    security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
-    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
-
-    kernel_headers = get_linux_header_dirs(
-        kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION, arch=arch
-    )
-    kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1" if debug else ""
-    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
-
-    outfiles = []
-
-    # basic
-    infile = os.path.join(security_agent_prebuilt_dir, "probe.c")
-    outfile = os.path.join(build_dir, "runtime-security.o")
-    ninja_ebpf_program(
-        nw,
-        infile=infile,
-        outfile=outfile,
-        variables={
-            "flags": security_flags,
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(outfile)
-
-    # syscall wrapper
-    root, ext = os.path.splitext(outfile)
-    syscall_wrapper_outfile = f"{root}-syscall-wrapper{ext}"
-    ninja_ebpf_program(
-        nw,
-        infile=infile,
-        outfile=syscall_wrapper_outfile,
-        variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER",
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(syscall_wrapper_outfile)
-
-    # fentry + syscall wrapper
-    root, ext = os.path.splitext(outfile)
-    syscall_wrapper_outfile = f"{root}-fentry{ext}"
-    ninja_ebpf_program(
-        nw,
-        infile=infile,
-        outfile=syscall_wrapper_outfile,
-        variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER -DUSE_FENTRY",
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(syscall_wrapper_outfile)
-
-    # offset guesser
-    offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
-    ninja_ebpf_program(
-        nw,
-        infile=os.path.join(security_agent_prebuilt_dir, "offset-guesser.c"),
-        outfile=offset_guesser_outfile,
-        variables={
-            "flags": security_flags,
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(offset_guesser_outfile)
-
-    nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
-
-
-def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
-    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
-    root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
-
-def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-    root, ext = os.path.splitext(outfile)
-
-
-def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
-    src_dir = os.path.join("pkg", "ebpf", "c")
-
-    telemetry_co_re_programs = [
-        "lock_contention",
-        "ksyms_iter",
-    ]
-    for prog in telemetry_co_re_programs:
-        infile = os.path.join(src_dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.c")
-
-        co_re_flags = [f"-I{src_dir}"]
-        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
-
-
-def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-    root, ext = os.path.splitext(outfile)
-    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
-
-def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
-    network_bpf_dir = os.path.join("pkg", "network", "ebpf")
-    network_c_dir = os.path.join(network_bpf_dir, "c")
-
-    network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = [
-        "prebuilt/dns",
-        "prebuilt/offset-guess",
-        "tracer",
-        "prebuilt/usm",
-        "prebuilt/usm_events_test",
-        "prebuilt/shared-libraries",
-        "prebuilt/conntrack",
-    ]
-
-    network_co_re_programs = [
-        "tracer",
-        "co-re/tracer-fentry",
-        "runtime/usm",
-        "runtime/shared-libraries",
-        "runtime/conntrack",
-    ]
-
-    for prog in network_programs:
-        infile = os.path.join(network_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
-
-    for prog_path in network_co_re_programs:
-        prog = os.path.basename(prog_path)
-        src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
-        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
-
-        infile = os.path.join(src_dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
 def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
@@ -376,75 +187,6 @@ def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
             rule="cbin",
             variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"},
         )
-
-
-def ninja_test_ebpf_program(nw: NinjaWriter, build_dir, ebpf_c_dir, test_flags, prog):
-    infile = os.path.join(ebpf_c_dir, f"{prog}.c")
-    outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": test_flags})
-
-
-def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
-    ebpf_bpf_dir = os.path.join("pkg", "ebpf")
-    ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
-    test_flags = "-g -DDEBUG=1"
-
-    test_programs = ["logdebug-test", "error_telemetry", "uprobe_attacher-test"]
-
-    for prog in test_programs:
-        ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
-
-    # System-probe ebpf subcommand test programs
-    ebpf_subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
-    ebpf_subcommand_test_programs = ["btf_test"]
-
-    for prog in ebpf_subcommand_test_programs:
-        ninja_test_ebpf_program(nw, build_dir, ebpf_subcommand_test_c_dir, test_flags, prog)
-
-
-def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
-    build_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
-    ninja_test_ebpf_program(nw, build_dir, build_dir, "", "uprobe-trigger")
-
-
-def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
-    gpu_c_dir = gpu_headers_dir / "runtime"
-    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
-    gpu_programs = ["gpu"]
-
-    for prog in gpu_programs:
-        infile = os.path.join(gpu_c_dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
-
-
-def ninja_corecheck_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    corecheck_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
-    corecheck_co_re_flags = f"-I{corecheck_co_re_dir}"
-    corecheck_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "noisy-neighbor"]
-
-    for prog in corecheck_co_re_programs:
-        infile = os.path.join(corecheck_co_re_dir, f"{prog}-kern.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": corecheck_co_re_flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": corecheck_co_re_flags + " -DDEBUG=1"})
-
-
-def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    dir = Path("pkg/dyninst/ebpf")
-    flags = f"-I{dir}"
-    programs = ["event"]
-
-    for prog in programs:
-        infile = os.path.join(dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"dyninst_{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDYNINST_DEBUG=1"})
 
 
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
@@ -649,14 +391,8 @@ def ninja_generate(
     ctx: Context,
     ninja_path,
     arch: str | Arch = CURRENT_ARCH,
-    debug=False,
-    strip_object_files=False,
-    kernel_release: str | None = None,
-    with_unit_test=False,
 ):
     arch = Arch.from_str(arch)
-    build_dir = get_ebpf_build_dir(arch)
-    co_re_build_dir = os.path.join(build_dir, "co-re")
 
     with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
@@ -683,19 +419,11 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+
+            # Native C binaries and runtime bundles (eBPF .o compilation is handled by Bazel)
             ninja_define_binary_compiler(nw)
-            ninja_define_co_re_compiler(nw, arch=arch)
-            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_kernel_bugs_ebpf_programs(nw)
             ninja_kernel_bug_binaries(nw, arch)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
-            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -1176,26 +904,6 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
-def get_kernel_arch() -> Arch:
-    # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
-    kernel_arch = (
-        check_output(
-            '''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
-                -e s/sun4u/sparc64/ \
-                -e s/arm.*/arm/ -e s/sa110/arm/ \
-                -e s/s390x/s390/ -e s/parisc64/parisc/ \
-                -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
-                -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
-                -e s/riscv.*/riscv/''',
-            shell=True,
-        )
-        .decode('utf-8')
-        .strip()
-    )
-
-    return Arch.from_str(kernel_arch)
-
-
 def get_linux_header_dirs(
     kernel_release: str | None = None,
     minimal_kernel_release: tuple[int, int, int] | None = None,
@@ -1374,31 +1082,6 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     return flags
 
 
-def get_co_re_build_flags(arch: Arch | None = None):
-    flags = get_ebpf_build_flags(arch=arch)
-
-    flags.remove('-DCOMPILE_PREBUILT')
-    flags.remove('-DCONFIG_64BIT')
-    flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
-
-    flags.extend(
-        [
-            "-DCOMPILE_CORE",
-            '-emit-llvm',
-            '-g',
-        ]
-    )
-
-    if arch is None:
-        arch = get_kernel_arch()
-
-    arch_define = f"-D__TARGET_ARCH_{arch.kernel_arch}"
-    if arch_define not in flags:
-        flags.append(arch_define)
-
-    return flags
-
-
 def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None, arch: Arch | None = None):
     return [
         f"-isystem{d}"
@@ -1427,22 +1110,10 @@ def run_ninja(
     target="",
     explain=False,
     arch: str | Arch = CURRENT_ARCH,
-    kernel_release=None,
-    debug=False,
-    strip_object_files=False,
-    with_unit_test=False,
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(
-        ctx,
-        nf_path,
-        arch,
-        debug,
-        strip_object_files,
-        kernel_release,
-        with_unit_test,
-    )
+    ninja_generate(ctx, nf_path, arch)
 
     # generate full compilation database for easy clangd integration
     with open("compile_commands.json", "w") as compiledb:
@@ -1553,6 +1224,123 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+# All Bazel eBPF targets, grouped by output directory.
+# Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
+_BAZEL_EBPF_PREBUILT_TARGETS = [
+    "//pkg/network/ebpf/c/prebuilt:dns",
+    "//pkg/network/ebpf/c/prebuilt:dns-debug",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
+    "//pkg/network/ebpf/c/prebuilt:tracer",
+    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm",
+    "//pkg/network/ebpf/c/prebuilt:usm-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
+    "//pkg/network/ebpf/c/prebuilt:conntrack",
+    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+]
+
+_BAZEL_EBPF_CORE_TARGETS = [
+    "//pkg/ebpf/c:lock_contention",
+    "//pkg/ebpf/c:ksyms_iter",
+    "//pkg/network/ebpf/c:tracer",
+    "//pkg/network/ebpf/c:tracer-debug",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+    "//pkg/network/ebpf/c/runtime:usm",
+    "//pkg/network/ebpf/c/runtime:usm-debug",
+    "//pkg/network/ebpf/c/runtime:shared-libraries",
+    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+    "//pkg/network/ebpf/c/runtime:conntrack",
+    "//pkg/network/ebpf/c/runtime:conntrack-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/gpu/ebpf/c/runtime:gpu",
+    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
+    "//pkg/dyninst/ebpf:dyninst_event",
+    "//pkg/dyninst/ebpf:dyninst_event-debug",
+    "//pkg/ebpf/testdata/c:logdebug-test",
+    "//pkg/ebpf/testdata/c:error_telemetry",
+    "//pkg/ebpf/testdata/c:uprobe_attacher-test",
+    "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
+]
+
+# Targets that go to their own source directory, not build_dir/co-re/
+_BAZEL_EBPF_INPLACE_TARGETS = {
+    "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+}
+
+
+def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = True) -> None:
+    """Build eBPF object files using Bazel and copy them to the build directory.
+
+    Bazel always produces unstripped .o files. When strip=True, the copied
+    files are stripped in-place using llvm-strip (same as the old ninja flow).
+    """
+    import shutil
+
+    all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(_BAZEL_EBPF_INPLACE_TARGETS.keys())
+    targets_str = " ".join(all_targets)
+
+    print(f"Building {len(all_targets)} eBPF targets via Bazel...")
+    ctx.run(f"bazelisk build {targets_str}")
+
+    result = ctx.run("bazelisk info bazel-bin", hide=True)
+    bazel_bin = result.stdout.strip()
+
+    co_re_dir = os.path.join(build_dir, "co-re")
+    os.makedirs(build_dir, exist_ok=True)
+    os.makedirs(co_re_dir, exist_ok=True)
+
+    copied_files = []
+
+    def _copy_output(target: str, dest_dir: str):
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        src = os.path.join(bazel_bin, label_path, f"{name}.o")
+        dst = os.path.join(dest_dir, f"{name}.o")
+
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o644)
+            copied_files.append(dst)
+        else:
+            print(f"Warning: expected output {src} not found")
+
+    for target in _BAZEL_EBPF_PREBUILT_TARGETS:
+        _copy_output(target, build_dir)
+
+    for target in _BAZEL_EBPF_CORE_TARGETS:
+        _copy_output(target, co_re_dir)
+
+    for target, dest in _BAZEL_EBPF_INPLACE_TARGETS.items():
+        os.makedirs(dest, exist_ok=True)
+        _copy_output(target, dest)
+
+    if strip:
+        llvm_strip = "/opt/datadog-agent/embedded/bin/llvm-strip"
+        for f in copied_files:
+            ctx.run(f"{llvm_strip} -g {f}")
+            ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
+
+    for f in copied_files:
+        os.chmod(f, 0o444)
+
+    print(f"Copied eBPF objects to {build_dir}")
+
+
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
@@ -1568,20 +1356,19 @@ def build_object_files(
     runtime_dir = get_ebpf_runtime_dir()
 
     if not is_windows:
-        setup_runtime_clang(ctx)
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
-    run_ninja(
-        ctx,
-        explain=True,
-        kernel_release=kernel_release,
-        debug=debug,
-        strip_object_files=strip_object_files,
-        with_unit_test=with_unit_test,
-        arch=arch,
-    )
+        # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
+        sudo = "" if is_root() else "sudo"
+        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
+        ctx.run(f"{sudo} bazelisk run -- @llvm_bpf//:install --destdir=/opt/datadog-agent")
+
+        # Build eBPF .o files via Bazel
+        bazel_build_ebpf(ctx, arch_obj, build_dir)
+
+    run_ninja(ctx, explain=True, arch=arch)
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1642,6 +1429,13 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
 
 
+_BAZEL_CWS_BALOUM_TARGETS = {
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-baloum": "runtime-security.o",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-baloum": "runtime-security-syscall-wrapper.o",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-baloum": "runtime-security-fentry.o",
+}
+
+
 def build_cws_object_files(
     ctx,
     arch: str | Arch = CURRENT_ARCH,
@@ -1651,24 +1445,29 @@ def build_cws_object_files(
     with_unit_test=False,
     bundle_ebpf=False,
 ):
-    run_ninja(
-        ctx,
-        target="cws",
-        debug=debug,
-        strip_object_files=strip_object_files,
-        kernel_release=kernel_release,
-        with_unit_test=with_unit_test,
-    )
+    import shutil
+
+    arch_obj = Arch.from_str(arch)
+    build_dir = get_ebpf_build_dir(arch_obj)
+    bazel_build_ebpf(ctx, arch_obj, str(build_dir))
+
+    if with_unit_test:
+        targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
+        ctx.run(f"bazelisk build {' '.join(targets)}")
+
+        result = ctx.run("bazelisk info bazel-bin", hide=True)
+        bazel_bin = result.stdout.strip()
+
+        for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
+            label_path, name = target.lstrip("/").rsplit(":", 1)
+            src = os.path.join(bazel_bin, label_path, f"{name}.o")
+            dst = os.path.join(str(build_dir), dest_name)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o444)
 
 
-def clean_object_files(ctx, kernel_release=None, debug=False, strip_object_files=False):
-    run_ninja(
-        ctx,
-        task="clean",
-        debug=debug,
-        strip_object_files=strip_object_files,
-        kernel_release=kernel_release,
-    )
+def clean_object_files(ctx):
+    run_ninja(ctx, task="clean")
 
 
 @task
@@ -2030,6 +1829,33 @@ def save_build_outputs(ctx, destfile):
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
                 outfiles.append(outputitem['output'])
+                count += 1
+
+        # Include Bazel-produced eBPF .o files (prebuilt + CO-RE) which are
+        # no longer tracked by the ninja compile database.
+        arch = Arch.local()
+        build_dir = get_ebpf_build_dir(arch)
+        for subdir in ["", "co-re"]:
+            src_dir = os.path.join(str(build_dir), subdir) if subdir else str(build_dir)
+            for obj in glob.glob(os.path.join(src_dir, "*.o")):
+                relpath = os.path.relpath(obj)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(obj, outdir)
+                outfiles.append(relpath)
+                count += 1
+
+        # Include inplace targets (e.g. uprobe-trigger.o) that live in
+        # their source directories rather than the central build dir.
+        for _, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+            for obj in glob.glob(os.path.join(dest_dir, "*.o")):
+                relpath = os.path.relpath(obj)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(obj, outdir)
+                outfiles.append(relpath)
                 count += 1
 
         if count == 0:

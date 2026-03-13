@@ -22,11 +22,20 @@ filegroup(
         ":embedded",
         "//deps:all_deps",
     ] + select({
-        "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
             "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
+            "@curl//:all_files",
             "@freetds//:all_files",
+        ],
+        "//packages/agent:linux_fips": [
+            "//deps/nfsiostat:all_files",
+            "//deps/openscap:all_deps",
+            "@curl//:all_files",
+            "@freetds//:all_files",
+        ],
+        "//packages/agent:linux_heroku": [
+            "@curl//:all_files",
         ],
         "//conditions:default": [
             # This will become "//deps/openscap:all_deps" in the future

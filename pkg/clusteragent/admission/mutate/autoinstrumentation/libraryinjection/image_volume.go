@@ -9,6 +9,7 @@ package libraryinjection
 
 import (
 	"errors"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -67,18 +68,21 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 
 	etcMountInitContainer := addEtcLdSoPreloadVolumeAndMounts(patcher)
 
-	src := asAbsPath(injectorFilePath("ld.so.preload"))
+	preloadPath := asAbsPath(injectorFilePath("launcher.preload.so"))
 	dst := etcMountPath + "/" + ldSoPreloadFileName
 
-	// Init container to copy the ld.so.preload file into /etc/ld.so.preload.
+	// Init container writes /etc/ld.so.preload with the launcher preload path.
 	patcher.AddInitContainer(corev1.Container{
-		Name:  InjectLDPreloadInitContainerName,
-		Image: cfg.Package.FullRef(),
+		Name:    InjectLDPreloadInitContainerName,
+		Image:   cfg.Package.FullRef(),
+		Command: []string{"/bin/sh", "-c", "--"},
+		Args: []string{
+			fmt.Sprintf(`echo %s > %s`, preloadPath, dst),
+		},
 		VolumeMounts: []corev1.VolumeMount{
 			injectorMount,
 			etcMountInitContainer,
 		},
-		Command:         []string{"cp", src, dst},
 		SecurityContext: resolveInitSecurityContext(p.cfg, pod.Namespace),
 		Resources:       requirements,
 	})
