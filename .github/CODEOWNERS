@@ -54,6 +54,7 @@
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
+/rust-toolchain.toml			@DataDog/agent-build
 /Cargo.toml                             @DataDog/agent-build
 /Cargo.lock                             @DataDog/agent-build
 

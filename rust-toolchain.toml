@@ -1,4 +1,3 @@
-toolchain.channel = "1.91"
 toolchain.components = [
   "rust-analyzer",
   "cargo",
