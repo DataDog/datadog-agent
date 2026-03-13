@@ -237,7 +237,7 @@ pkg_files(
         ":curl_bin",
     ],
     attributes = pkg_attributes(mode = "0755"),
-    prefix = "embedded/bin",
+    prefix = "bin",
     renames = {
         "curl_bin": "curl",
     },
@@ -248,14 +248,13 @@ so_symlink(
     src = ":curl",
     attributes = pkg_attributes(mode = "0755"),
     libname = "libcurl",
-    prefix = "embedded",
     version = SO_VERSION,
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/curl",
+    prefix = "include/curl",
 )
 
 pkg_filegroup(
@@ -265,6 +264,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
 )
 
 pkg_install(
