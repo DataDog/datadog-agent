@@ -220,6 +220,16 @@ fn short_uuid(uuid: &str) -> &str {
     if uuid.len() >= 8 { &uuid[..8] } else { uuid }
 }
 
+fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
+    if let Some(sig) = signal {
+        format!("signal {sig}")
+    } else if let Some(code) = exit_code {
+        format!("exit {code}")
+    } else {
+        "-".to_string()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // list
 // ---------------------------------------------------------------------------
@@ -243,6 +253,9 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "pid": p.pid,
                     "command": p.command,
                     "args": p.args,
+                    "restart_count": p.restart_count,
+                    "last_exit_code": p.last_exit_code,
+                    "last_signal": p.last_signal,
                 })
             })
             .collect();
@@ -255,7 +268,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         return Ok(());
     }
 
-    let rows: Vec<[String; 5]> = resp
+    let rows: Vec<[String; 7]> = resp
         .processes
         .iter()
         .map(|p| {
@@ -268,13 +281,23 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 } else {
                     "-".to_string()
                 },
+                p.restart_count.to_string(),
+                format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
             ]
         })
         .collect();
 
-    let headers = ["NAME", "UUID", "STATE", "PID", "COMMAND"];
-    let widths: Vec<usize> = (0..5)
+    let headers = [
+        "NAME",
+        "UUID",
+        "STATE",
+        "PID",
+        "RESTARTS",
+        "LAST EXIT",
+        "COMMAND",
+    ];
+    let widths: Vec<usize> = (0..7)
         .map(|col| {
             rows.iter()
                 .map(|r| r[col].len())
@@ -285,29 +308,37 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         .collect();
 
     println!(
-        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {}",
+        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
         headers[0],
         headers[1],
         headers[2],
         headers[3],
         headers[4],
+        headers[5],
+        headers[6],
         w0 = widths[0],
         w1 = widths[1],
         w2 = widths[2],
         w3 = widths[3],
+        w4 = widths[4],
+        w5 = widths[5],
     );
     for row in &rows {
         println!(
-            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {}",
+            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
             row[0],
             row[1],
             row[2],
             row[3],
             row[4],
+            row[5],
+            row[6],
             w0 = widths[0],
             w1 = widths[1],
             w2 = widths[2],
             w3 = widths[3],
+            w4 = widths[4],
+            w5 = widths[5],
         );
     }
     Ok(())
@@ -344,6 +375,9 @@ async fn cmd_describe(
             "working_dir": detail.working_dir,
             "env": detail.env,
             "restart_policy": detail.restart_policy,
+            "restart_count": detail.restart_count,
+            "last_exit_code": detail.last_exit_code,
+            "last_signal": detail.last_signal,
             "auto_start": detail.auto_start,
             "stdout": detail.stdout,
             "stderr": detail.stderr,
@@ -379,6 +413,11 @@ async fn cmd_describe(
         println!("Working Dir:         {}", detail.working_dir);
     }
     println!("Restart Policy:      {}", detail.restart_policy);
+    println!("Restarts:            {}", detail.restart_count);
+    let exit_str = format_last_exit(detail.last_exit_code, detail.last_signal);
+    if exit_str != "-" {
+        println!("Last Exit:           {}", exit_str);
+    }
     println!("Auto Start:          {}", detail.auto_start);
     println!("Stdout:              {}", detail.stdout);
     println!("Stderr:              {}", detail.stderr);

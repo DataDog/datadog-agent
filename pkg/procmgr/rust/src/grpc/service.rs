@@ -222,6 +222,9 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         command: cfg.command.clone(),
         args: cfg.args.clone(),
         state: proto::ProcessState::from(proc.state()).into(),
+        restart_count: proc.restart_count(),
+        last_exit_code: proc.last_exit_code(),
+        last_signal: proc.last_signal(),
     }
 }
 
@@ -326,6 +329,9 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         condition_path_exists: cfg.condition_path_exists.clone().unwrap_or_default(),
         after: cfg.after.clone(),
         before: cfg.before.clone(),
+        restart_count: proc.restart_count(),
+        last_exit_code: proc.last_exit_code(),
+        last_signal: proc.last_signal(),
     }
 }
 
