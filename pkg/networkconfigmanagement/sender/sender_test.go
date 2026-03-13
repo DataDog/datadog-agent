@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/mock"
@@ -193,4 +194,47 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNCMSender_SendDeviceMetadata(t *testing.T) {
+	mockSender := &mocksender.MockSender{}
+	namespace := "test-namespace"
+	deviceID := "test-namespace:10.0.0.1"
+	deviceIP := "10.0.0.1"
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+
+	err := ncmSender.SendDeviceMetadata(deviceID, deviceIP)
+	assert.NoError(t, err)
+
+	var expectedEvent = []byte(`
+{
+  "namespace": "test-namespace",
+  "integration": "network-configuration-management",
+  "devices": [
+    {
+      "id": "test-namespace:10.0.0.1",
+      "id_tags": null,
+      "tags": null,
+      "ip_address": "10.0.0.1",
+      "status": 0
+    }
+  ],
+  "collect_timestamp": 1754043600
+}
+`)
+
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, expectedEvent)
+	assert.NoError(t, err)
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), eventplatform.EventTypeNetworkDevicesMetadata)
+	mockSender.AssertExpectations(t)
+
+	// Verify the integration constant value
+	assert.Equal(t, integrations.Integration("network-configuration-management"), integrations.NetworkConfigManagement)
 }

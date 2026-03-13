@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/benbjohnson/clock"
 )
@@ -92,6 +94,28 @@ func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
 	}
 	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
 	// TODO: send metrics about the config retrieval?
+	return nil
+}
+
+// SendDeviceMetadata sends device metadata to NDM intake
+func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string) error {
+	payload := devicemetadata.NetworkDevicesMetadata{
+		Namespace:   s.namespace,
+		Integration: integrations.NetworkConfigManagement,
+		Devices: []devicemetadata.DeviceMetadata{
+			{
+				ID:        deviceID,
+				IPAddress: deviceIP,
+			},
+		},
+		CollectTimestamp: s.clock.Now().Unix(),
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("error marshalling device metadata: %w", err)
+	}
+	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	return nil
 }
 
