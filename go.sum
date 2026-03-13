@@ -196,8 +196,6 @@ github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dX
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
 github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/datadog-operator/api v0.0.0-20260311193159-56ca33852447 h1:4/gdB7XTokx5oVumTokJp3eHKP61wRiFGOZ4/fms444=
-github.com/DataDog/datadog-operator/api v0.0.0-20260311193159-56ca33852447/go.mod h1:dMnKkWiv5j5UuRfaRUPXVDHG/79JG4S3llffsX4J+ko=
 github.com/DataDog/datadog-operator/api v0.0.0-20260312201613-877d28ec5510 h1:cUR6Bg/C0XU+M1jVWGXsoJyePqDvW0mSm1/yLBMwHQs=
 github.com/DataDog/datadog-operator/api v0.0.0-20260312201613-877d28ec5510/go.mod h1:IDXBsCFwKxGmq5ScOjs93hDpo1yB7mlXhWTmDp5bGxQ=
 github.com/DataDog/datadog-traceroute v1.0.13 h1:PBkmwNCRqDrjFMXi/W9yTydFOKuxr8fcP08NVKXri1U=
