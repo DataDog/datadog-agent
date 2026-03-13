@@ -1,5 +1,6 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Win32;
 using WixToolset.Dtf.WindowsInstaller;
 using System;
@@ -19,6 +20,7 @@ namespace Datadog.CustomActions
         private const string EtlFileName = "logon_duration.etl";
 
         private static readonly string SessionKeyPath = $@"{AutoLoggerBasePath}\{SessionName}";
+        private const string RollbackDataName = "ConfigureAutoLogger";
 
         private static readonly string[] ProviderGuids =
         {
@@ -74,6 +76,7 @@ namespace Datadog.CustomActions
                 return ActionResult.Success;
             }
 
+            var rollbackDataStore = new RollbackDataStore(session, RollbackDataName);
             try
             {
                 var appDataDir = session.Property("APPLICATIONDATADIRECTORY");
@@ -84,6 +87,9 @@ namespace Datadog.CustomActions
                     session.Log("APPLICATIONDATADIRECTORY is not set");
                     return ActionResult.Failure;
                 }
+
+                // Snapshot the current registry state before making any changes
+                rollbackDataStore.Add(new RegistryKeyRollbackData(SessionKeyPath));
 
                 var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
                 var etlFilePath = Path.Combine(logonDurationDir, EtlFileName);
@@ -107,6 +113,10 @@ namespace Datadog.CustomActions
             {
                 session.Log($"Failed to configure AutoLogger: {e}");
                 return ActionResult.Failure;
+            }
+            finally
+            {
+                rollbackDataStore.Store();
             }
         }
 
@@ -306,7 +316,26 @@ namespace Datadog.CustomActions
 
         public static ActionResult ConfigureAutoLoggerRollback(Session session)
         {
-            return RemoveAutoLogger(new SessionWrapper(session));
+            var wrappedSession = new SessionWrapper(session);
+            var autologgerEnabled = wrappedSession.Property("DD_LOGON_DURATION_AUTOLOGGER");
+            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                wrappedSession.Log("DD_LOGON_DURATION_AUTOLOGGER was not set to true; " +
+                                   "skipping rollback to preserve pre-existing autologger state");
+                return ActionResult.Success;
+            }
+
+            try
+            {
+                var rollbackDataStore = new RollbackDataStore(wrappedSession, RollbackDataName);
+                rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                wrappedSession.Log($"Failed to rollback AutoLogger configuration: {e}");
+            }
+
+            return ActionResult.Success;
         }
 
         public static ActionResult RemoveAutoLogger(Session session)
