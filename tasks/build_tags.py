@@ -62,6 +62,7 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
+    "re2_cgo",  # enables the go-re2 / CRE2 CGo regex engine backed by Google RE2 for logs processing
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
@@ -105,6 +106,7 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
+    "re2_cgo",
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
@@ -309,7 +311,7 @@ DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 UNIT_TEST_TAGS = {"test"}
 
 # List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
+UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap", "re2_cgo"}
 
 # Build type: maps flavor to build tags map
 build_tags = {

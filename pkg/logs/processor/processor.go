@@ -6,9 +6,7 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
@@ -252,51 +250,49 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	rules := append(p.processingRules, extraRules...)
-	for _, rule := range rules {
-		switch rule.Type {
-		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
-				return false
-			}
-			msg.RecordProcessingRule(rule.Type, rule.Name)
-		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
-			}
-		case config.ExcludeTruncated:
-			if msg.IsTruncated {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-
+	for _, rule := range p.processingRules {
+		content = applyRule(rule, msg, content)
+		if content == nil {
+			return false
 		}
 	}
 
+	for _, rule := range extraRules {
+		content = applyRule(rule, msg, content)
+		if content == nil {
+			return false
+		}
+	}
 	msg.SetContent(content)
 	return true // we want to send this message
 }
 
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
+// applyRule applies a single processing rule to content and returns the
+// (possibly modified) content, or nil if the message should be dropped.
+func applyRule(rule *config.ProcessingRule, msg *message.Message, content []byte) []byte {
+	switch rule.Type {
+	case config.ExcludeAtMatch:
+		if re2MatchContent(rule, content) {
+			msg.RecordProcessingRule(rule.GetDesignation())
+			return nil
+		}
+	case config.IncludeAtMatch:
+		if !re2MatchContent(rule, content) {
+			return nil
+		}
+		msg.RecordProcessingRule(rule.GetDesignation())
+	case config.MaskSequences:
+		if result, matched := re2MaskReplace(rule, content); matched {
+			content = result
+			msg.RecordProcessingRule(rule.GetDesignation())
+		}
+	case config.ExcludeTruncated:
+		if msg.IsTruncated {
+			msg.RecordProcessingRule(rule.GetDesignation())
+			return nil
+		}
 	}
-
-	return bytes.Contains(content, []byte(prefix))
+	return content
 }
 
 // GetHostname returns the hostname to applied the given log message

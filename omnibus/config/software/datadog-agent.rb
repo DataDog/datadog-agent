@@ -26,6 +26,7 @@ unless do_repackage?
   dependency 'datadog-agent-prepare'
 
   dependency "python3"
+  dependency "re2" if linux_target?
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
