@@ -1335,7 +1335,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 	// Configure with a short timeout (1s) to keep the test fast.
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	config := integration.Data([]byte("timeout: 1"))
-	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
 
