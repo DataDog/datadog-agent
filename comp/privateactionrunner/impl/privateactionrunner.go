@@ -95,7 +95,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		reqs.Log.Flush()
-		return Provides{}, privateactionrunner.ErrNotEnabled
+		return Provides{}, nil
 	}
 
 	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)

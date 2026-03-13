@@ -10,6 +10,7 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.uber.org/fx"
 )
 
@@ -20,7 +21,8 @@ func Module() fxutil.Module {
 			privateactionrunnerimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[privateactionrunner.Component](),
-		// Force instantiation since no other component depends on privateactionrunner
-		fx.Invoke(func(_ privateactionrunner.Component) {}),
+		// Force instantiation since no other component depends on privateactionrunner.
+		// Uses option.Option so that a nil Component (PAR disabled) does not cause an error.
+		fx.Invoke(func(_ option.Option[privateactionrunner.Component]) {}),
 	)
 }
