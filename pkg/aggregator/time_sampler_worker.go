@@ -117,10 +117,8 @@ func (w *timeSamplerWorker) run() {
 		case matcher := <-w.tagFilterListChan:
 			w.tagFilterList = matcher
 		case trigger := <-w.flushChan:
-			// Drain any pending samples before flushing so that metrics
-			// submitted just before a flush (e.g. during shutdown) are
-			// included in this flush cycle.
-			w.drainSamples()
+			// TODO(SVLS-8771): uncomment once CI confirms the test catches the race
+			// w.drainSamples()
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
 		case trigger := <-w.dumpChan:
