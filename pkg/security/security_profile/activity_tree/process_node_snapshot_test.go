@@ -12,7 +12,7 @@ import (
 	"os"
 	"testing"
 
-	legacyprocess "github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +20,10 @@ func TestSnapshotMemoryMappedFiles(t *testing.T) {
 	pid := os.Getpid()
 
 	// gopsutil
-	fakeprocess := legacyprocess.Process{Pid: int32(pid)}
+	fakeprocess, err := process.NewProcess(int32(pid))
+	if err != nil {
+		t.Fatal(err)
+	}
 	smapsPtr, err := fakeprocess.MemoryMaps(false)
 	if err != nil {
 		t.Fatal(err)
