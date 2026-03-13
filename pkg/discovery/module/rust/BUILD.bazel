@@ -1,6 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_shared_library", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_static_library", "rust_test")
 
 # ============================================================================
 # Library Targets (rlib + cdylib)
@@ -50,8 +50,8 @@ rust_library(
     ],
 )
 
-# Shared library (cdylib) for FFI/cgo integration
-rust_shared_library(
+# Static library (staticlib) for FFI integration
+rust_static_library(
     name = "libdd_discovery",
     srcs = glob(
         ["src/**/*.rs"],
