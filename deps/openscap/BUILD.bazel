@@ -50,7 +50,6 @@ pkg_filegroup(
         "@libyaml//:all_files",
         "@pcre2//:all_files",
         "@popt//:all_files",
-        "@rpm//:all_files",
         "@util-linux//:all_files",
         "@xmlsec//:all_files",
     ],
