@@ -40,7 +40,7 @@ require (
 
 require (
 	go.opentelemetry.io/collector/internal/componentalias v0.147.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
