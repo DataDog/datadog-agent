@@ -26,7 +26,7 @@ require go.opentelemetry.io/collector/config/configoptional v1.53.0 // indirect
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 )
 
 require (
