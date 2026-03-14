@@ -8,7 +8,7 @@
 package kernel
 
 import (
-	gopsutilhost "github.com/DataDog/gopsutil/host"
+	gopsutilhost "github.com/shirou/gopsutil/v4/host"
 
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )

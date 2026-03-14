@@ -57,7 +57,7 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.backport-pr.create-pr
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0 # needed to get the full history of the PR
 
@@ -78,7 +78,7 @@ jobs:
         run: git reset HEAD~1
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         if: steps.cherry-pick.outputs.base != ''
         with:
           token: ${{ steps.octo-sts.outputs.token }}

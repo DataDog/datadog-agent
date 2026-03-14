@@ -442,28 +442,7 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
 	// Act
-	s.WaitForDaemonToStop(func() {
-		_, err := s.StartExperimentCurrentVersion()
-		s.Require().NoError(err, "daemon should stop cleanly")
-		// This returns while the upgrade is still running, so we need to wait for the service to stop
-		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
-		// the service could stop and then restart before we check the status again.
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(100))
-
-	// wait for upgrade to restart the service
-	// this is racy, we'll either catch the new service running briefly before MSI rollback
-	// triggers, or we'll catch the previous service running after MSI rollback completes
-	// The next set of checks quiesce the race.
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
-
-	// Now that the service is running, we know that the stable version has been removed,
-	// so we can wait for the stable version to be placed on disk once again via MSI rollback
-	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
-	s.Require().NoError(err)
-	// and wait again to ensure the stable service is running
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.waitForExperimentMSIRollback()
 
 	// Assert
 
@@ -901,6 +880,34 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")
 
 	return agent, nil
+}
+
+// waitForExperimentMSIRollback starts an experiment and waits for the MSI to roll back
+// and the stable version to be restored. It handles the race conditions inherent in
+// MSI rollback by waiting for the service to restart and the stable version to appear on disk.
+func (s *testAgentUpgradeSuite) waitForExperimentMSIRollback() {
+	s.WaitForDaemonToStop(func() {
+		_, err := s.StartExperimentCurrentVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
+		// This returns while the upgrade is still running, so we need to wait for the service to stop
+		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
+		// the service could stop and then restart before we check the status again.
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(100))
+
+	// wait for upgrade to restart the service
+	// this is racy, we'll either catch the new service running briefly before MSI rollback
+	// triggers, or we'll catch the previous service running after MSI rollback completes
+	// The next set of checks quiesce the race.
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Now that the service is running, we know that the stable version has been removed,
+	// so we can wait for the stable version to be placed on disk once again via MSI rollback
+	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+	// and wait again to ensure the stable service is running
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
 }
 
 // setExperimentMSIArgs stores a list of MSI options for the installer to provide to the MSI when starting an experiment.

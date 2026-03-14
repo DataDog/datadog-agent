@@ -41,14 +41,14 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.update-kubernetes-versions.create-pr
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: true
           token: ${{ steps.octo-sts.outputs.token }}
 
-      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Install dda
         uses: ./.github/actions/install-dda
@@ -90,7 +90,7 @@ jobs:
 
       - name: Log in to AWS ECR
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           registry: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
 
@@ -137,7 +137,7 @@ jobs:
         run: |
           dda inv k8s-versions.update-e2e-yaml
 
-      - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         name: Create pull request
         if: steps.update-yaml.outputs.updated == 'true'
         with:

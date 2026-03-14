@@ -20,8 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	// relying upon fork BootTime behavior
-	"github.com/DataDog/gopsutil/host"
+	"github.com/shirou/gopsutil/v4/host"
 	// using process.AllProcesses()
 	"github.com/DataDog/gopsutil/process"
 )
@@ -976,7 +975,9 @@ func TestBootTimeLocalFS(t *testing.T) {
 	defer probe.Close()
 	expectT, err := host.BootTime()
 	assert.NoError(t, err)
-	assert.Equal(t, expectT, probe.bootTime.Load())
+	// upstream BootTime may use /proc/uptime (float arithmetic) in container environments
+	// rather than the integer btime from /proc/stat, so allow 1 second of difference
+	assert.InDelta(t, float64(expectT), float64(probe.bootTime.Load()), 1.0)
 }
 
 func TestBootTimeRefresh(t *testing.T) {

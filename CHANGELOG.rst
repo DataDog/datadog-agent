@@ -593,6 +593,7 @@ Deprecation Notes
 
 - APM: Removed unused configuration options ``apm_config.service_writer.queue_size``, and ``apm_config.service_writer.connection_limit``. These options were already ignored.
 
+- macOS 11 is not supported anymore, macOS 12 becomes the new minimally supported version.
 
 .. _Release Notes_7.75.0_Bug Fixes:
 

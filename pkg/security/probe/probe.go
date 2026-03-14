@@ -59,6 +59,7 @@ type PlatformProbe interface {
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
 	ReplayEvents()
+	SendCustomEventKillAction(_ model.ActionReport, _ []string)
 }
 
 var probeTelemetry = struct {
@@ -355,6 +356,11 @@ func (p *Probe) GetScrubber() *utils.Scrubber {
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 	p.PlatformProbe.AddDiscarderPushedCallback(cb)
+}
+
+// SendCustomEventKillAction sends a custom remediation-style event for a resolved kill action report.
+func (p *Probe) SendCustomEventKillAction(report model.ActionReport, tags []string) {
+	p.PlatformProbe.SendCustomEventKillAction(report, tags)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler

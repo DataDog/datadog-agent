@@ -133,3 +133,6 @@ func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
 // Walk iterates through the entire tree and call the provided callback on each entry
 func (p *Probe) Walk(_ func(*model.ProcessCacheEntry)) {
 }
+
+// SendCustomEventKillAction is a no-op on unsupported platforms (remediation custom events are Linux-only).
+func (p *Probe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}
