@@ -41,12 +41,12 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 
 	httpMux.HandleFunc("/iis_tags", func(w http.ResponseWriter, req *http.Request) {
 		cache := httpprotocol.GetIISTagsCache()
-		utils.WriteAsJSON(w, cache, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, cache, utils.CompactOutput)
 	})
 
 	httpMux.HandleFunc("/process_cache_tags", func(w http.ResponseWriter, req *http.Request) {
 		tags := nt.tracer.GetProcessCacheTags()
-		utils.WriteAsJSON(w, tags, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, tags, utils.CompactOutput)
 	})
 
 	return nil
