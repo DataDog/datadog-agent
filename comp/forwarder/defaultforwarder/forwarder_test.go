@@ -223,9 +223,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint.Route, transactions[1].Endpoint.Route)
 	assert.Equal(t, endpoint.Route, transactions[2].Endpoint.Route)
 	assert.Equal(t, endpoint.Route, transactions[3].Endpoint.Route)
-	transactions[0].Authorize()
-	assert.Len(t, transactions[0].Headers, 4)
-	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
+	authorizedHeaders := transactions[0].AuthorizedHeaders()
+	assert.Len(t, authorizedHeaders, 4)
+	assert.NotEmpty(t, authorizedHeaders.Get("DD-Api-Key"))
+	assert.Empty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
@@ -267,19 +268,19 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	txNormal[0].Authorize()
-	txNormal[1].Authorize()
-	txBar[0].Authorize()
+	txNormal0Headers := txNormal[0].AuthorizedHeaders()
+	txNormal1Headers := txNormal[1].AuthorizedHeaders()
+	txBar0Headers := txBar[0].AuthorizedHeaders()
 
-	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
+	if txNormal0Headers.Get("DD-Api-Key") == "api-key-1" {
+		assert.Equal(t, txNormal0Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal1Headers.Get("DD-Api-Key"), "api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal0Headers.Get("DD-Api-Key"), "api-key-2")
+		assert.Equal(t, txNormal1Headers.Get("DD-Api-Key"), "api-key-1")
 	}
 
-	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
+	assert.Equal(t, txBar0Headers.Get("DD-Api-Key"), "api-key-3")
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
@@ -320,21 +321,20 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	txNormal[0].Authorize()
-	txNormal[1].Authorize()
+	txNormal0Headers := txNormal[0].AuthorizedHeaders()
+	txNormal1Headers := txNormal[1].AuthorizedHeaders()
+	txBar0Headers := txBar[0].AuthorizedHeaders()
+	txVector0Headers := txVector[0].AuthorizedHeaders()
 
-	txBar[0].Authorize()
-	txVector[0].Authorize()
-
-	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
+	if txNormal0Headers.Get("DD-Api-Key") == "api-key-1" {
+		assert.Equal(t, txNormal0Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal1Headers.Get("DD-Api-Key"), "api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal0Headers.Get("DD-Api-Key"), "api-key-2")
+		assert.Equal(t, txNormal1Headers.Get("DD-Api-Key"), "api-key-1")
 	}
-	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
-	assert.Equal(t, txVector[0].Headers.Get("DD-Api-Key"), "api-key-4")
+	assert.Equal(t, txBar0Headers.Get("DD-Api-Key"), "api-key-3")
+	assert.Equal(t, txVector0Headers.Get("DD-Api-Key"), "api-key-4")
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {

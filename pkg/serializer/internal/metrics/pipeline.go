@@ -99,7 +99,7 @@ func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwar
 				txn.Headers.Set("X-Metrics-Request-Len", strconv.Itoa(len(payloads)))
 			}
 
-			auth.Authorize(txn)
+			auth.Authorize(txn.Headers)
 			err := forwarder.SubmitTransaction(txn)
 			if err != nil {
 				return err

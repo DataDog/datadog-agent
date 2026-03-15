@@ -316,10 +316,11 @@ func TestDeserializedTransactionAuthorize(t *testing.T) {
 		require.Len(t, txns, 1)
 
 		deserialized := txns[0].(*transaction.HTTPTransaction)
-		// Authorize() is called by internalProcess before sending; simulate that here.
-		assert.NotPanics(t, deserialized.Authorize)
-		assert.Equal(t, expectedKey, deserialized.Headers.Get("DD-Api-Key"),
-			"Authorize() should set DD-Api-Key to the key at index %d", wantIdx)
+		// AuthorizedHeaders() is called by internalProcess before sending; simulate that here.
+		authorizedHeaders := deserialized.AuthorizedHeaders()
+		assert.Empty(t, deserialized.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
+		assert.Equal(t, expectedKey, authorizedHeaders.Get("DD-Api-Key"),
+			"AuthorizedHeaders() should set DD-Api-Key to the key at index %d", wantIdx)
 	}
 }
 
@@ -350,8 +351,9 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	gotKeys := make(map[int]string)
 	for _, txn := range txns {
 		d := txn.(*transaction.HTTPTransaction)
-		d.Authorize()
-		gotKeys[d.APIKeyIndex] = d.Headers.Get("DD-Api-Key")
+		authorizedHeaders := d.AuthorizedHeaders()
+		assert.Empty(t, d.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
+		gotKeys[d.APIKeyIndex] = authorizedHeaders.Get("DD-Api-Key")
 	}
 
 	for idx, expectedKey := range expectedKeys {
@@ -393,8 +395,8 @@ func TestDeserializeV2BackwardCompat(t *testing.T) {
 	// The API key placeholder was restored into the application header "Key".
 	r.Equal(apiKey1, deserialized.Headers.Get("Key"))
 
-	// Authorize() must be a safe no-op when Resolver is nil.
-	r.NotPanics(deserialized.Authorize)
+	// AuthorizedHeaders() must be a safe no-op when Resolver is nil (returns a plain clone).
+	r.NotPanics(func() { deserialized.AuthorizedHeaders() })
 }
 
 // TestDeserializeV2 ensures that newer agent versions can sufficiently read files created by the old agent versions.

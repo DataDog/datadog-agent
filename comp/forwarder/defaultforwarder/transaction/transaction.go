@@ -225,7 +225,7 @@ func (d Destination) String() string {
 }
 
 type Authorizer interface {
-	Authorize(apiKeyIdx int, transaction *HTTPTransaction)
+	Authorize(apiKeyIdx int, headers http.Header)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -377,11 +377,15 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 	return nil
 }
 
-func (t *HTTPTransaction) Authorize() {
-	if t.Resolver == nil {
-		return
+// AuthorizedHeaders returns a clone of the transaction's headers with auth applied.
+// The transaction's own Headers field is never mutated, so the API key is only
+// present on the copy used for the outgoing HTTP request.
+func (t *HTTPTransaction) AuthorizedHeaders() http.Header {
+	headers := t.Headers.Clone()
+	if t.Resolver != nil {
+		t.Resolver.Authorize(t.APIKeyIndex, headers)
 	}
-	t.Resolver.Authorize(t.APIKeyIndex, t)
+	return headers
 }
 
 // internalProcess does the  work of actually sending the http request to the specified domain
@@ -392,8 +396,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
-	//t.Resolver.GetAuthorizers()[t.APIKeyIndex].Authorize(t)
-	t.Authorize()
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
@@ -403,8 +405,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req.Header = t.Headers
-	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
+	req.Header = t.AuthorizedHeaders()
+	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), t.Headers)
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -452,17 +454,21 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
-		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
-
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
 		if secrets != nil {
 			_, _ = secrets.Refresh(false)
+			t.ErrorCount++
+			transactionsErrors.Add(1)
+			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
+			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
+		} else {
+			log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
+			TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+			TransactionsDropped.Add(1)
+			TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+			return resp.StatusCode, body, nil
 		}
 
-		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		TransactionsDropped.Add(1)
-		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
-		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)

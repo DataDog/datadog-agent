@@ -10,6 +10,7 @@ package resolver
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -408,9 +409,9 @@ type authHeader struct {
 	key, value string
 }
 
-// Authorize configures required headers on a transaction.
-func (ah authHeader) Authorize(t *transaction.HTTPTransaction) {
-	t.Headers.Set(ah.key, ah.value)
+// Authorize sets the auth header on the provided headers map.
+func (ah authHeader) Authorize(headers http.Header) {
+	headers.Set(ah.key, ah.value)
 }
 
 // GetAuthHeaders returns
@@ -431,8 +432,8 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	return
 }
 
-func (r *domainResolver) Authorize(apiKeyIdx int, transaction *transaction.HTTPTransaction) {
-	r.GetAuthorizers()[apiKeyIdx].Authorize(transaction)
+func (r *domainResolver) Authorize(apiKeyIdx int, headers http.Header) {
+	r.GetAuthorizers()[apiKeyIdx].Authorize(headers)
 }
 
 // GetConfigName returns the base url as it was originally written in the config.
