@@ -65,25 +65,24 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 	//  - n > hashSetSize: sort
 	if tb.Len() > hashSetSize {
 		tb.SortUniq()
-		for _, h := range tb.hash {
-			hash ^= h
+		for _, th := range tb.tags {
+			hash ^= th.Hash
 		}
 	} else if tb.Len() > bruteforceSize {
-		tags := tb.data
-		hashes := tb.hash
+		tagHashes := tb.tags
 
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
 
 		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
 		// close to a power of two, size one up to keep hashset load low.
-		size := min(1<<bits.Len(uint(len(tags)+len(tags)/8)), hashSetSize)
+		size := min(1<<bits.Len(uint(len(tagHashes)+len(tagHashes)/8)), hashSetSize)
 		mask := uint64(size - 1)
 		copy(g.seenIdx[:size], g.empty[:size])
 
-		ntags := len(tags)
+		ntags := len(tagHashes)
 		for i := 0; i < ntags; {
-			h := hashes[i]
+			h := tagHashes[i].Hash
 			j := h & mask // address this hash into the hashset
 			for {
 				if g.seenIdx[j] == blank {
@@ -93,10 +92,9 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 					hash ^= h // add this tag into the hash
 					i++
 					break
-				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
+				} else if g.seen[j] == h && tagHashes[g.seenIdx[j]].Tag == tagHashes[i].Tag {
 					// already seen, we do not want to xor multiple times the same tag
-					tags[i] = tags[ntags-1]
-					hashes[i] = hashes[ntags-1]
+					tagHashes[i] = tagHashes[ntags-1]
 					ntags--
 					break
 				}
@@ -108,16 +106,14 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 		}
 		tb.Truncate(ntags)
 	} else {
-		tags := tb.data
-		hashes := tb.hash
+		tagHashes := tb.tags
 		ntags := tb.Len()
 	OUTER:
 		for i := 0; i < ntags; {
-			h := hashes[i]
+			h := tagHashes[i].Hash
 			for j := 0; j < i; j++ {
-				if g.seen[j] == h && tags[j] == tags[i] {
-					tags[i] = tags[ntags-1]
-					hashes[i] = hashes[ntags-1]
+				if g.seen[j] == h && tagHashes[j].Tag == tagHashes[i].Tag {
+					tagHashes[i] = tagHashes[ntags-1]
 					ntags--
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
@@ -165,12 +161,11 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 
 		ibase := int16(0)
 		for _, tb := range [2]*HashingTagsAccumulator{l, r} {
-			tags := tb.data
-			hashes := tb.hash
-			ntags := len(hashes)
+			tagHashes := tb.tags
+			ntags := len(tagHashes)
 
 			for i := 0; i < ntags; {
-				h := hashes[i]
+				h := tagHashes[i].Hash
 				j := h & mask
 				for {
 					if g.seenIdx[j] == blank {
@@ -180,10 +175,9 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 						break
 					} else if g.seen[j] == h {
 						idx := g.seenIdx[j]
-						if (idx >= ibase && tags[idx-ibase] == tags[i]) ||
-							(idx < ibase && l.data[idx] == tags[i]) {
-							tags[i] = tags[ntags-1]
-							hashes[i] = hashes[ntags-1]
+						if (idx >= ibase && tagHashes[idx-ibase].Tag == tagHashes[i].Tag) ||
+							(idx < ibase && l.tags[idx].Tag == tagHashes[i].Tag) {
+							tagHashes[i] = tagHashes[ntags-1]
 							ntags--
 							break
 						}
@@ -195,18 +189,16 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 			tb.Truncate(ntags)
 		}
 	} else { // ntags <= bruteforceSize
-		ldata := l.data
-		lhash := l.hash
-		lsize := len(ldata)
+		ltags := l.tags
+		lsize := len(ltags)
 
 	L:
 		for i := 0; i < lsize; {
-			h := lhash[i]
+			h := ltags[i].Hash
 			for j := 0; j < i; j++ {
-				if g.seen[j] == h && ldata[j] == ldata[i] {
+				if g.seen[j] == h && ltags[j].Tag == ltags[i].Tag {
 					lsize--
-					ldata[i] = ldata[lsize]
-					lhash[i] = lhash[lsize]
+					ltags[i] = ltags[lsize]
 					continue L
 				}
 			}
@@ -215,25 +207,22 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 		}
 		l.Truncate(lsize)
 
-		rdata := r.data
-		rhash := r.hash
-		rsize := len(rdata)
+		rtags := r.tags
+		rsize := len(rtags)
 	R:
 		for i := 0; i < rsize; {
-			h := rhash[i]
+			h := rtags[i].Hash
 			for j := 0; j < lsize; j++ {
-				if g.seen[j] == h && ldata[j] == rdata[i] {
+				if g.seen[j] == h && ltags[j].Tag == rtags[i].Tag {
 					rsize--
-					rdata[i] = rdata[rsize]
-					rhash[i] = rhash[rsize]
+					rtags[i] = rtags[rsize]
 					continue R
 				}
 			}
 			for j := 0; j < i; j++ {
-				if g.seen[lsize+j] == h && rdata[j] == rdata[i] {
+				if g.seen[lsize+j] == h && rtags[j].Tag == rtags[i].Tag {
 					rsize--
-					rdata[i] = rdata[rsize]
-					rhash[i] = rhash[rsize]
+					rtags[i] = rtags[rsize]
 					continue R
 				}
 			}

@@ -15,20 +15,20 @@ func NewHashedTagsFromSlice(tags []string) HashedTags {
 	return HashedTags{newHashedTagsFromSlice(tags)}
 }
 
-// Get returns the internal slice.
-//
-// NOTE: this returns a mutable reference to data in this immutable data structure.
-// It is still used by comp/core/tagger/tagstore, but new uses should not be added.
+// Get returns the tag strings as a slice.
 func (h HashedTags) Get() []string {
-	return h.data
+	result := make([]string, len(h.tags))
+	for i, th := range h.tags {
+		result[i] = th.Tag
+	}
+	return result
 }
 
 // Slice returns a shared sub-slice of tags from t.
 func (h HashedTags) Slice(i, j int) HashedTags {
 	return HashedTags{
 		hashedTags{
-			data: h.data[i:j],
-			hash: h.hash[i:j],
+			tags: h.tags[i:j],
 		},
 	}
 }

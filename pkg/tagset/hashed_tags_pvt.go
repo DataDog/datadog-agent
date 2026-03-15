@@ -11,44 +11,48 @@ import (
 	"github.com/twmb/murmur3"
 )
 
+// TagHash holds a tag string and its precomputed hash.
+type TagHash struct {
+	Tag  string
+	Hash uint64
+}
+
 // hashedTags is the base type for HashingTagsAccumulator and HashedTags
 type hashedTags struct {
-	data []string
-	hash []uint64
+	tags []TagHash
 }
 
 func newHashedTagsWithCapacity(cap int) hashedTags {
 	return hashedTags{
-		data: make([]string, 0, cap),
-		hash: make([]uint64, 0, cap),
+		tags: make([]TagHash, 0, cap),
 	}
 }
 
-func newHashedTagsFromSlice(tags []string) hashedTags {
-	hash := make([]uint64, 0, len(tags))
-	for _, t := range tags {
-		hash = append(hash, murmur3.StringSum64(t))
+func newHashedTagsFromSlice(strs []string) hashedTags {
+	tags := make([]TagHash, 0, len(strs))
+	for _, t := range strs {
+		tags = append(tags, TagHash{Tag: t, Hash: murmur3.StringSum64(t)})
 	}
-	return hashedTags{
-		data: tags,
-		hash: hash,
-	}
+	return hashedTags{tags: tags}
 }
 
 // Copy returns a new slice with the copy of the tags
 func (h hashedTags) Copy() []string {
-	return append(make([]string, 0, len(h.data)), h.data...)
+	result := make([]string, len(h.tags))
+	for i, th := range h.tags {
+		result[i] = th.Tag
+	}
+	return result
 }
 
 // Len returns number of tags
 func (h hashedTags) Len() int {
-	return len(h.data)
+	return len(h.tags)
 }
 
 // dup returns a full copy of hashedTags
 func (h hashedTags) dup() hashedTags {
 	return hashedTags{
-		data: slices.Clone(h.data),
-		hash: slices.Clone(h.hash),
+		tags: slices.Clone(h.tags),
 	}
 }

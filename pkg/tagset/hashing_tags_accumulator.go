@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.Datadoghq.com/).
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
 package tagset
@@ -24,16 +24,14 @@ type HashingTagsAccumulator struct {
 // Return value: the number of tags removed.
 func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) int {
 	idx := 0
-	oldLen := len(h.data)
-	for arridx, tag := range h.data {
-		if keep(tag) {
-			h.data[idx] = h.data[arridx]
-			h.hash[idx] = h.hash[arridx]
+	oldLen := len(h.tags)
+	for _, th := range h.tags {
+		if keep(th.Tag) {
+			h.tags[idx] = th
 			idx++
 		}
 	}
-	h.data = h.data[0:idx]
-	h.hash = h.hash[0:idx]
+	h.tags = h.tags[0:idx]
 
 	return oldLen - idx
 }
@@ -55,15 +53,13 @@ func NewHashingTagsAccumulatorWithTags(tags []string) *HashingTagsAccumulator {
 // Append appends tags to the builder
 func (h *HashingTagsAccumulator) Append(tags ...string) {
 	for _, t := range tags {
-		h.data = append(h.data, t)
-		h.hash = append(h.hash, murmur3.StringSum64(t))
+		h.tags = append(h.tags, TagHash{Tag: t, Hash: murmur3.StringSum64(t)})
 	}
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
 func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
-	h.data = append(h.data, src.data...)
-	h.hash = append(h.hash, src.hash...)
+	h.tags = append(h.tags, src.tags...)
 }
 
 // SortUniq sorts and remove duplicate in place
@@ -75,54 +71,55 @@ func (h *HashingTagsAccumulator) SortUniq() {
 	sort.Sort(h)
 
 	j := 0
-	for i := 1; i < len(h.data); i++ {
-		if h.hash[i] == h.hash[j] && h.data[i] == h.data[j] {
+	for i := 1; i < len(h.tags); i++ {
+		if h.tags[i].Tag == h.tags[j].Tag {
 			continue
 		}
 		j++
-		h.data[j] = h.data[i]
-		h.hash[j] = h.hash[i]
+		h.tags[j] = h.tags[i]
 	}
 
 	h.Truncate(j + 1)
 }
 
-// Get returns the internal slice
+// Get returns the tag strings as a slice
 func (h *HashingTagsAccumulator) Get() []string {
-	return h.data
+	result := make([]string, len(h.tags))
+	for i, th := range h.tags {
+		result[i] = th.Tag
+	}
+	return result
 }
 
-// Hashes returns the internal slice of tag hashes
+// Hashes returns the tag hashes as a slice
 func (h *HashingTagsAccumulator) Hashes() []uint64 {
-	return h.hash
+	result := make([]uint64, len(h.tags))
+	for i, th := range h.tags {
+		result[i] = th.Hash
+	}
+	return result
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal
 // buffer
 func (h *HashingTagsAccumulator) Reset() {
 	// we keep the internal buffer but reset size
-	h.data = h.data[0:0]
-	h.hash = h.hash[0:0]
+	h.tags = h.tags[0:0]
 }
 
 // Truncate retains first n tags in the buffer without discarding the internal buffer
 func (h *HashingTagsAccumulator) Truncate(len int) {
-	h.data = h.data[0:len]
-	h.hash = h.hash[0:len]
+	h.tags = h.tags[0:len]
 }
 
 // Less implements sort.Interface.Less
 func (h *HashingTagsAccumulator) Less(i, j int) bool {
-	if h.hash[i] == h.hash[j] {
-		return h.data[i] < h.data[j]
-	}
-	return h.hash[i] < h.hash[j]
+	return h.tags[i].Tag < h.tags[j].Tag
 }
 
 // Swap implements sort.Interface.Swap
 func (h *HashingTagsAccumulator) Swap(i, j int) {
-	h.hash[i], h.hash[j] = h.hash[j], h.hash[i]
-	h.data[i], h.data[j] = h.data[j], h.data[i]
+	h.tags[i], h.tags[j] = h.tags[j], h.tags[i]
 }
 
 // Dup returns a complete copy of HashingTagsAccumulator
@@ -136,8 +133,8 @@ func (h *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
 // first.
 func (h *HashingTagsAccumulator) Hash() uint64 {
 	var hash uint64
-	for _, h := range h.hash {
-		hash ^= h
+	for _, th := range h.tags {
+		hash ^= th.Hash
 	}
 	return hash
 }
@@ -147,29 +144,27 @@ func (h *HashingTagsAccumulator) Hash() uint64 {
 // h is not sorted after this function. Does not modify o.
 func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
 	// A sentinel string and NOT matching hash (an impossible combination outside this function)
-	const holeData = ""
+	const holeTag = ""
 	const holeHash = 42
 
-	hlen, olen := len(h.data), len(o.data)
+	hlen, olen := len(h.tags), len(o.tags)
 
 	for i, j := 0, 0; i < hlen && j < olen; {
 		switch {
-		case h.hash[i] == o.hash[j] && h.data[i] == o.data[j]:
-			h.data[i] = holeData
-			h.hash[i] = holeHash
+		case h.tags[i].Tag == o.tags[j].Tag:
+			h.tags[i] = TagHash{Tag: holeTag, Hash: holeHash}
 			i++
-		case h.hash[i] < o.hash[j]:
+		case h.tags[i].Tag < o.tags[j].Tag:
 			i++
-		case h.hash[i] > o.hash[j]:
+		case h.tags[i].Tag > o.tags[j].Tag:
 			j++
 		}
 	}
 
 	for i := 0; i < hlen; {
-		if h.hash[i] == holeHash && h.data[i] == holeData {
+		if h.tags[i].Tag == holeTag && h.tags[i].Hash == holeHash {
 			hlen--
-			h.data[i] = h.data[hlen]
-			h.hash[i] = h.hash[hlen]
+			h.tags[i] = h.tags[hlen]
 		} else {
 			i++
 		}

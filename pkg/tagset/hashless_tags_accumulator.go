@@ -46,7 +46,9 @@ func (h *HashlessTagsAccumulator) AppendHashlessAccumulator(src *HashlessTagsAcc
 
 // AppendHashed appends tags and corresponding hashes to the builder
 func (h *HashlessTagsAccumulator) AppendHashed(src HashedTags) {
-	h.data = append(h.data, src.data...)
+	for _, th := range src.tags {
+		h.data = append(h.data, th.Tag)
+	}
 }
 
 // Get returns the internal slice

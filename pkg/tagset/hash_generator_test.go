@@ -180,8 +180,9 @@ func TestDedup2Rand(t *testing.T) {
 					h2 := l.Hash() ^ r.Hash()
 
 					assert.EqualValues(t, h1, h2)
-					l.data = append(l.data, r.data...)
-					l.hash = append(l.hash, r.hash...)
+					l.tags = append(l.tags, r.tags...)
+
+
 
 					sort.Sort(b)
 					sort.Sort(l)
