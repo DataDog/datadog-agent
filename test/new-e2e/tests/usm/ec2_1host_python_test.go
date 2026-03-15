@@ -6,7 +6,6 @@
 package usm
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ type pythonRemoteTagsLinuxSuite struct {
 }
 
 func TestPythonRemoteTagsLinuxSuite(t *testing.T) {
-	t.Skip("Skip until lower connection capture rate on Linux is resolved")
+	//t.Skip("Skip until lower connection capture rate on Linux is resolved")
 	t.Parallel()
 
 	e2eParams := []e2e.SuiteOption{
@@ -33,7 +32,7 @@ func TestPythonRemoteTagsLinuxSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithAgentConfig("log_level: debug"),
-					agentparams.WithSystemProbeConfig(systemProbeConfigPython),
+					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
 			),
 		)),
@@ -64,10 +63,6 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 	require.NoError(s.T(), err, "HTTP server on port 8081 not responding")
 	_, err = host.Execute(`python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8082/')"`)
 	require.NoError(s.T(), err, "HTTP server on port 8082 not responding")
-
-	// In CI, the provisioner installs the agent built from the current branch.
-	// For local dev, uncomment to deploy locally-built binaries:
-	deployLinuxBinaries(s.T(), host)
 }
 
 func (s *pythonRemoteTagsLinuxSuite) BeforeTest(suiteName, testName string) {
@@ -86,17 +81,5 @@ func (s *pythonRemoteTagsLinuxSuite) TestPythonRemoteServiceTags() {
 
 	const requestsPerPort = 4000
 	sendPythonHTTPRequests(host, "python3", requestsPerPort)
-	fetchAndAssertTaggedConnections(t, host, s.Env().FakeIntake.Client(), "python", requestsPerPort)
-
-	// Download agent logs for debugging.
-	outputDir := s.SessionOutputDir()
-	for _, logFile := range []string{"system-probe.log", "process-agent.log"} {
-		remotePath := "/var/log/datadog/" + logFile
-		tmpPath := "/tmp/" + logFile
-		localPath := filepath.Join(outputDir, logFile)
-		host.MustExecute("sudo cp " + remotePath + " " + tmpPath + " && sudo chmod 644 " + tmpPath)
-		if err := host.GetFile(tmpPath, localPath); err != nil {
-			t.Logf("failed to download %s: %v", logFile, err)
-		}
-	}
+	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "python", requestsPerPort)
 }
