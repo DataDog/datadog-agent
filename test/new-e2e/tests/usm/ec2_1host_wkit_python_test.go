@@ -32,7 +32,7 @@ func TestHTTPRemoteTagsWindowsSuite(t *testing.T) {
 				ec2windows.WithAgentOptions(
 					agentparams.WithAgentConfig("log_level: debug"),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
-					agentparams.WithPipeline("102564312"),
+					agentparams.WithPipeline("102564312"), // TODO: remove once dependency branch is merged to main
 				),
 			),
 		)),
