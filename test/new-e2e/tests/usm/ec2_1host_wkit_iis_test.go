@@ -49,7 +49,6 @@ func iisHostProvisionerWindows() provisioners.PulumiEnvRunFunc[environments.Wind
 			ec2windows.WithAgentOptions(
 				agentparams.WithAgentConfig("log_level: debug"),
 				agentparams.WithSystemProbeConfig(systemProbeConfig),
-				agentparams.WithPipeline("102564312"), // TODO: remove once dependency branch is merged to main
 			),
 		}
 		params := ec2windows.GetRunParams(opts...)
