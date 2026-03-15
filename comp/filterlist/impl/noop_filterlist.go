@@ -7,6 +7,7 @@ package filterlistimpl
 
 import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -41,8 +42,6 @@ func NewNoopTagMatcher() filterlist.TagMatcher {
 	return &noopTagMatcher{}
 }
 
-func (*noopTagMatcher) ShouldStripTags(_ string) (func(tag string) bool, bool) {
-	return func(_ string) bool {
-		return true
-	}, false
+func (*noopTagMatcher) ShouldStripTags(_ string) (*tagset.HashedMetricTagList, bool) {
+	return nil, false
 }

@@ -8,6 +8,7 @@ package filterlistimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/twmb/murmur3"
 )
@@ -29,19 +30,19 @@ func TestNewTagMatcher(t *testing.T) {
 	})
 
 	assert.NotNil(t, matcher)
-	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
-		action: Exclude,
+	assert.Equal(t, matcher.MetricTags["metric1"], tagset.HashedMetricTagList{
+		Tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
+		Action: tagset.Exclude,
 	})
 
-	assert.Equal(t, matcher.MetricTags["metric2"], hashedMetricTagList{
-		tags:   []uint64{},
-		action: Include,
+	assert.Equal(t, matcher.MetricTags["metric2"], tagset.HashedMetricTagList{
+		Tags:   []uint64{},
+		Action: tagset.Include,
 	})
 
-	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("pod")},
-		action: Exclude,
+	assert.Equal(t, matcher.MetricTags["metric3"], tagset.HashedMetricTagList{
+		Tags:   []uint64{murmur3.StringSum64("pod")},
+		Action: tagset.Exclude,
 	})
 }
 
@@ -93,35 +94,35 @@ func TestTagMatcher(t *testing.T) {
 	matcher := newTagMatcher(metrics)
 
 	// Test metric1 tags are excluded
-	keepTagFunc, shouldStrip := matcher.ShouldStripTags("metric1")
+	tagList, shouldStrip := matcher.ShouldStripTags("metric1")
 	assert.True(t, shouldStrip)
 
-	assert.False(t, keepTagFunc("env:prod"))
-	assert.False(t, keepTagFunc("host:server1"))
-	assert.True(t, keepTagFunc("version:1.0"))
+	assert.False(t, tagList.KeepTag("env:prod"))
+	assert.False(t, tagList.KeepTag("host:server1"))
+	assert.True(t, tagList.KeepTag("version:1.0"))
 
 	// Test metric2 tags are included
-	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric2")
+	tagList, shouldStrip = matcher.ShouldStripTags("metric2")
 	assert.True(t, shouldStrip)
 
-	assert.True(t, keepTagFunc("env:prod"))
-	assert.True(t, keepTagFunc("host:server1"))
-	assert.False(t, keepTagFunc("version:1.0"))
+	assert.True(t, tagList.KeepTag("env:prod"))
+	assert.True(t, tagList.KeepTag("host:server1"))
+	assert.False(t, tagList.KeepTag("version:1.0"))
 
 	// Test metric3 tags are all excluded
-	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric3")
+	tagList, shouldStrip = matcher.ShouldStripTags("metric3")
 	assert.True(t, shouldStrip)
 
-	assert.False(t, keepTagFunc("env:prod"))
-	assert.False(t, keepTagFunc("host:server1"))
-	assert.False(t, keepTagFunc("version:1.0"))
+	assert.False(t, tagList.KeepTag("env:prod"))
+	assert.False(t, tagList.KeepTag("host:server1"))
+	assert.False(t, tagList.KeepTag("version:1.0"))
 
 	// Test metric4 tags are all included
-	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric4")
+	tagList, shouldStrip = matcher.ShouldStripTags("metric4")
 	if shouldStrip { // 2 behaviors are acceptable: return true with a function that keeps all tags, or return false
-		assert.True(t, keepTagFunc("env:prod"))
-		assert.True(t, keepTagFunc("host:server1"))
-		assert.True(t, keepTagFunc("version:1.0"))
+		assert.True(t, tagList.KeepTag("env:prod"))
+		assert.True(t, tagList.KeepTag("host:server1"))
+		assert.True(t, tagList.KeepTag("version:1.0"))
 	}
 
 	// metric5 is not configured

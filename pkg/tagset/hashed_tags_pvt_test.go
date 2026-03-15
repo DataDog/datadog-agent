@@ -18,10 +18,11 @@ func TestPvtNewHashedTagsWithCapacity(t *testing.T) {
 }
 
 func TestPvtNewHashedTagsFromSlice(t *testing.T) {
-	ht := newHashedTagsFromSlice([]string{"abc", "def"})
+	ht := newHashedTagsFromSlice([]string{"abc", "def", "env:prod"})
 	assert.Equal(t, []TagHash{
-		{Tag: "abc", Hash: murmur3.StringSum64("abc")},
-		{Tag: "def", Hash: murmur3.StringSum64("def")},
+		{Tag: "abc", Hash: murmur3.StringSum64("abc"), NameHash: murmur3.StringSum64("abc")},
+		{Tag: "def", Hash: murmur3.StringSum64("def"), NameHash: murmur3.StringSum64("def")},
+		{Tag: "env:prod", Hash: murmur3.StringSum64("env:prod"), NameHash: murmur3.StringSum64("env")},
 	}, ht.tags)
 }
 
@@ -44,7 +45,7 @@ func TestPvtHashedTagsDup(t *testing.T) {
 	ht2 := ht.dup()
 	assert.Equal(t, ht.tags, ht2.tags)
 	// check that this is a copy
-	ht2.tags[0] = TagHash{Tag: "XXX", Hash: 999}
+	ht2.tags[0] = TagHash{Tag: "XXX", Hash: 999, NameHash: 0}
 	assert.NotEqual(t, "XXX", ht.tags[0].Tag)
 	assert.NotEqual(t, uint64(999), ht.tags[0].Hash)
 }

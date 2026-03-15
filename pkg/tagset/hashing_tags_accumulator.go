@@ -7,8 +7,6 @@ package tagset
 
 import (
 	"sort"
-
-	"github.com/twmb/murmur3"
 )
 
 // HashingTagsAccumulator allows to build a slice of tags, including the hashes
@@ -19,21 +17,41 @@ type HashingTagsAccumulator struct {
 	hashedTags
 }
 
-// RetainFunc keeps tags if `keep` returns true, otherwise the tag and associated
-// hash removed.
-// Return value: the number of tags removed.
-func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) int {
-	idx := 0
+// RetainFunc filters tags in place using an O(n) sort-merge against the given
+// HashedMetricTagList. Both the accumulator (sorted by NameHash) and the filter's
+// Tags slice are sorted as a side effect. Returns the number of tags removed.
+func (h *HashingTagsAccumulator) RetainFunc(filter *HashedMetricTagList) int {
 	oldLen := len(h.tags)
-	for _, th := range h.tags {
-		if keep(th.Tag) {
-			h.tags[idx] = th
-			idx++
+	if oldLen == 0 {
+		return 0
+	}
+
+	// Sort our tags by NameHash for the O(n) merge.
+	h.sortByName()
+
+	write := 0
+	j := 0 // index into filter.Tags
+	for i := 0; i < len(h.tags); i++ {
+		nameHash := h.tags[i].NameHash
+
+		// Advance j until filter.Tags[j] >= nameHash.
+		for j < len(filter.Tags) && filter.Tags[j] < nameHash {
+			j++
+		}
+
+		matched := j < len(filter.Tags) && filter.Tags[j] == nameHash
+
+		// Keep the tag when:
+		//   Exclude: matched == false  (name is NOT in the remove list)
+		//   Include: matched == true   (name IS in the keep list)
+		if matched != bool(filter.Action) {
+			h.tags[write] = h.tags[i]
+			write++
 		}
 	}
-	h.tags = h.tags[0:idx]
 
-	return oldLen - idx
+	h.tags = h.tags[0:write]
+	return oldLen - write
 }
 
 // NewHashingTagsAccumulator returns a new empty HashingTagsAccumulator
@@ -53,7 +71,7 @@ func NewHashingTagsAccumulatorWithTags(tags []string) *HashingTagsAccumulator {
 // Append appends tags to the builder
 func (h *HashingTagsAccumulator) Append(tags ...string) {
 	for _, t := range tags {
-		h.tags = append(h.tags, TagHash{Tag: t, Hash: murmur3.StringSum64(t)})
+		h.tags = append(h.tags, newTagHash(t))
 	}
 }
 

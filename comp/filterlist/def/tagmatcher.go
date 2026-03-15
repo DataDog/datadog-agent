@@ -7,9 +7,14 @@
 // including any updates from RC.
 package filterlist
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+)
+
+// TagMatcher manages removing tags from metrics with a given name.
 type TagMatcher interface {
-	// ShouldStripTags returns a closure that can be called to check if a tag should be
-	// removed from the given name. The second return will be true if this metric name
-	// has been configured to strip tags.
-	ShouldStripTags(metricName string) (func(tag string) bool, bool)
+	// ShouldStripTags returns the HashedMetricTagList for the given metric name,
+	// or nil if the metric has not been configured to strip tags.
+	// The second return value is true when the metric is configured to strip tags.
+	ShouldStripTags(metricName string) (*tagset.HashedMetricTagList, bool)
 }

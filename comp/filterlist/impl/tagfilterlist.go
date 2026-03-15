@@ -10,13 +10,14 @@ import (
 	"strings"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/twmb/murmur3"
 )
 
-// TagMatcher manages removing tags from metrics with a given name.
+// tagMatcher manages removing tags from metrics with a given name.
 type tagMatcher struct {
-	MetricTags map[string]hashedMetricTagList
+	MetricTags map[string]tagset.HashedMetricTagList
 }
 
 // MetricTagList is for loading the data from the configuration.
@@ -32,22 +33,9 @@ type MetricTagListEntry struct {
 	Tags       []string `mapstructure:"tags"`
 }
 
-type action bool
-
-const (
-	Exclude action = true
-	Include action = false
-)
-
-// HashedMetricTagList contains the list of tags hashed using murmur3.
-type hashedMetricTagList struct {
-	tags   []uint64
-	action action
-}
-
 func NewEmptyTagMatcher() filterlist.TagMatcher {
 	matcher := tagMatcher{
-		MetricTags: map[string]hashedMetricTagList{},
+		MetricTags: map[string]tagset.HashedMetricTagList{},
 	}
 	return &matcher
 }
@@ -57,35 +45,38 @@ func NewTagMatcher(metrics map[string]MetricTagList) filterlist.TagMatcher {
 	return &matcher
 }
 
-// NewTagMatcher creates a new instance of TagMatcher. The function takes
+// newTagMatcher creates a new instance of tagMatcher. The function takes
 // a list of metric names and tags. Those tags are hashed using murmur3.
 // The hashed value is then used to query whether a tag should be removed
 // from a given metric.
 func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
 	// Store a hashed version of the tag list since that will take up
 	// less space and be faster to query.
-	hashed := make(map[string]hashedMetricTagList, len(metrics))
+	hashed := make(map[string]tagset.HashedMetricTagList, len(metrics))
 	for k, v := range metrics {
 		tags := make([]uint64, 0, len(v.Tags))
 		for _, tag := range v.Tags {
 			tags = append(tags, murmur3.StringSum64(tag))
 		}
 
-		var action action
+		// Sort the filter's name hashes so we can walk both lists with two pointers.
+		slices.Sort(tags)
+
+		var act tagset.Action
 		switch v.Action {
 		case "include":
-			action = Include
+			act = tagset.Include
 		case "exclude":
-			action = Exclude
+			act = tagset.Exclude
 		case "":
-			action = Exclude
+			act = tagset.Exclude
 		default:
 			log.Warnf("`metric_tag_filterlist.%s.action` configuration should be either `include` or `exclude`. Defaulting to `exclude`.", v.Action)
-			action = Exclude
+			act = tagset.Exclude
 		}
-		hashed[k] = hashedMetricTagList{
-			tags:   tags,
-			action: action,
+		hashed[k] = tagset.HashedMetricTagList{
+			Tags:   tags,
+			Action: act,
 		}
 	}
 
@@ -96,27 +87,18 @@ func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
 
 // tagName extracts the tag name portion from the tag.
 func tagName(tag string) string {
-	tagNamePos := strings.Index(tag, ":")
-	if tagNamePos < 0 {
-		tagNamePos = len(tag)
+	if i := strings.IndexByte(tag, ':'); i >= 0 {
+		return tag[:i]
 	}
-
-	return tag[:tagNamePos]
+	return tag
 }
 
-// ShouldStripTags returns true if it has been configured to strip tags
-// from the given metric name. The returned tag list will be used to query
-// the tag.
-func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, bool) {
+// ShouldStripTags returns the HashedMetricTagList for the given metric name,
+// or nil if the metric has not been configured to strip tags.
+func (m *tagMatcher) ShouldStripTags(metricName string) (*tagset.HashedMetricTagList, bool) {
 	tm, ok := m.MetricTags[metricName]
 	if !ok {
 		return nil, false
 	}
-
-	keepTag := func(tag string) bool {
-		hashedTag := murmur3.StringSum64(tagName(tag))
-		return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
-	}
-
-	return keepTag, ok
+	return &tm, true
 }

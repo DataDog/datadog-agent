@@ -111,43 +111,62 @@ func TestFilterTags(t *testing.T) {
 	tests := []struct {
 		name         string
 		inputTags    []string
-		keepFunc     func(string) bool
+		filter       *HashedMetricTagList
 		expectedTags []string
 	}{
 		{
-			name:         "filter all tags",
+			name:         "include with empty list removes all tags",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
-			keepFunc:     func(_ string) bool { return false },
+			filter:       &HashedMetricTagList{Tags: []uint64{}, Action: Include},
 			expectedTags: []string{},
 		},
 		{
-			name:         "keep all tags",
+			name:         "exclude with empty list keeps all tags",
 			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
-			keepFunc:     func(_ string) bool { return true },
+			filter:       &HashedMetricTagList{Tags: []uint64{}, Action: Exclude},
 			expectedTags: []string{"env:prod", "host:server1", "version:1.0"},
 		},
 		{
-			name:      "filter some tags",
+			name:      "include keeps only matching tag names",
 			inputTags: []string{"env:prod", "host:server1", "version:1.0", "region:us-east"},
-			keepFunc: func(tag string) bool {
-				return tag == "env:prod" || tag == "version:1.0"
+			filter: &HashedMetricTagList{
+				Tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("version")},
+				Action: Include,
+			},
+			expectedTags: []string{"env:prod", "version:1.0"},
+		},
+		{
+			name:      "exclude removes matching tag names",
+			inputTags: []string{"env:prod", "host:server1", "version:1.0", "region:us-east"},
+			filter: &HashedMetricTagList{
+				Tags:   []uint64{murmur3.StringSum64("host"), murmur3.StringSum64("region")},
+				Action: Exclude,
 			},
 			expectedTags: []string{"env:prod", "version:1.0"},
 		},
 		{
 			name:         "no tags to filter",
 			inputTags:    []string{},
-			keepFunc:     func(_ string) bool { return true },
+			filter:       &HashedMetricTagList{Tags: []uint64{}, Action: Exclude},
 			expectedTags: []string{},
+		},
+		{
+			name:      "multiple tags with same name are all kept or removed together",
+			inputTags: []string{"env:prod", "env:staging", "host:server1"},
+			filter: &HashedMetricTagList{
+				Tags:   []uint64{murmur3.StringSum64("env")},
+				Action: Exclude,
+			},
+			expectedTags: []string{"host:server1"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			acc := NewHashingTagsAccumulatorWithTags(tt.inputTags)
-			removed := acc.RetainFunc(tt.keepFunc)
+			removed := acc.RetainFunc(tt.filter)
 
-			assert.Equal(t, tt.expectedTags, acc.Get())
+			assert.ElementsMatch(t, tt.expectedTags, acc.Get())
 			assert.Equal(t, len(tt.inputTags)-len(tt.expectedTags), removed)
 			testTagsMatchHash(t, acc)
 		})

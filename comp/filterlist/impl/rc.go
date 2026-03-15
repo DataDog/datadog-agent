@@ -10,6 +10,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/twmb/murmur3"
@@ -164,8 +165,8 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 // by the following rules:
 // - If the action is the same for both metrics, the list of tags is merged.
 // - If the action is different, always take the exclude list.
-func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]hashedMetricTagList, []MetricTagListEntry) {
-	tags := make(map[string]hashedMetricTagList)
+func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]tagset.HashedMetricTagList, []MetricTagListEntry) {
+	tags := make(map[string]tagset.HashedMetricTagList)
 	tagEntries := make(map[string]MetricTagListEntry)
 
 	for _, update := range tagFilterListUpdates {
@@ -185,15 +186,15 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 				tagEntries[metric.Name] = entry
 			} else {
 				hashedTags := hashTags(metric.Tags)
-				var rcAction action
+				var rcAction tagset.Action
 				if metric.ExcludeTag {
-					rcAction = Exclude
+					rcAction = tagset.Exclude
 				} else {
-					rcAction = Include
+					rcAction = tagset.Include
 				}
-				tags[metric.Name] = hashedMetricTagList{
-					action: rcAction,
-					tags:   hashedTags,
+				tags[metric.Name] = tagset.HashedMetricTagList{
+					Action: rcAction,
+					Tags:   hashedTags,
 				}
 
 				// Store unhashed entry
@@ -216,23 +217,23 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 
 // mergeMetricTagListEntry merges the given metric entry with the current entry.
 // It needs to merge with both the hashed and unhashed variants.
-func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (hashedMetricTagList, MetricTagListEntry) {
+func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed tagset.HashedMetricTagList, currentEntry MetricTagListEntry) (tagset.HashedMetricTagList, MetricTagListEntry) {
 
-	if (currentHashed.action == Exclude) == metric.ExcludeTag {
+	if (currentHashed.Action == tagset.Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
-		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+		currentHashed.Tags = append(currentHashed.Tags, hashTags(metric.Tags)...)
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
 		return currentHashed, currentEntry
-	} else if currentHashed.action == Include {
+	} else if currentHashed.Action == tagset.Include {
 		// We always prefer the exclude tag, overwrite the existing config with this one.
 		hashedTags := hashTags(metric.Tags)
 
 		// Overwrite unhashed entry with exclude
-		hashed := hashedMetricTagList{
-			action: Exclude,
-			tags:   hashedTags,
+		hashed := tagset.HashedMetricTagList{
+			Action: tagset.Exclude,
+			Tags:   hashedTags,
 		}
 
 		entry := MetricTagListEntry{
