@@ -33,7 +33,7 @@ func TestPythonRemoteTagsLinuxSuite(t *testing.T) {
 				scenec2.WithAgentOptions(
 					agentparams.WithAgentConfig("log_level: debug"),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
-					agentparams.WithPipeline("102560690"),
+					agentparams.WithPipeline("102564312"),
 				),
 			),
 		)),
