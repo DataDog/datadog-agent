@@ -25,62 +25,44 @@ func getNetworkID(_ *http.Client) (string, error) {
 	return network.GetNetworkID(context.Background())
 }
 
-// fetchIISTagsCache retrieves the IIS tags cache from system-probe's /iis_tags endpoint.
-// Returns a map of "localPort-remotePort" -> []string tags, or nil on failure.
-func fetchIISTagsCache(client *http.Client) map[string][]string {
+// fetchFromSystemProbe fetches JSON from a system-probe module endpoint and decodes into T.
+// Returns the zero value of T on any failure.
+func fetchFromSystemProbe[T any](client *http.Client, path string) T {
+	var zero T
 	ctx, cancel := context.WithTimeout(context.Background(), defaultFetchTimeout)
 	defer cancel()
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/iis_tags")
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, path)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		log.Debugf("failed to create IIS tags request: %v", err)
-		return nil
+		log.Debugf("failed to create request for %s: %v", path, err)
+		return zero
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Debugf("failed to fetch IIS tags from system-probe: %v", err)
-		return nil
+		log.Debugf("failed to fetch %s from system-probe: %v", path, err)
+		return zero
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Debugf("IIS tags request failed with status %d", resp.StatusCode)
-		return nil
+		log.Debugf("%s request failed with status %d", path, resp.StatusCode)
+		return zero
 	}
-	var result map[string][]string
+	var result T
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.Debugf("failed to decode IIS tags response: %v", err)
-		return nil
+		log.Debugf("failed to decode %s response: %v", path, err)
+		return zero
 	}
 	return result
 }
 
+// fetchIISTagsCache retrieves the IIS tags cache from system-probe's /iis_tags endpoint.
+func fetchIISTagsCache(client *http.Client) map[string][]string {
+	return fetchFromSystemProbe[map[string][]string](client, "/iis_tags")
+}
+
 // fetchProcessCacheTags retrieves process cache tags from system-probe's /process_cache_tags endpoint.
-// Returns a map of PID (as uint32) -> []string tags, or nil on failure.
 func fetchProcessCacheTags(client *http.Client) map[uint32][]string {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultFetchTimeout)
-	defer cancel()
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/process_cache_tags")
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		log.Debugf("failed to create process cache tags request: %v", err)
-		return nil
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Debugf("failed to fetch process cache tags from system-probe: %v", err)
-		return nil
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		log.Debugf("process cache tags request failed with status %d", resp.StatusCode)
-		return nil
-	}
-	var result map[uint32][]string
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.Debugf("failed to decode process cache tags response: %v", err)
-		return nil
-	}
-	return result
+	return fetchFromSystemProbe[map[uint32][]string](client, "/process_cache_tags")
 }
 
 // getRemoteProcessTags returns process tags for a remote PID using the system-probe process cache.

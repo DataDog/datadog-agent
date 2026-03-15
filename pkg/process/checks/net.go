@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -188,9 +189,17 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
-	iisTags := fetchIISTagsCache(c.sysprobeClient)
-	procCacheTags := fetchProcessCacheTags(c.sysprobeClient)
-	portToPID := getListeningPortToPIDMap()
+
+	// Fetch remote service tag data concurrently — these are independent I/O operations.
+	var iisTags map[string][]string
+	var procCacheTags map[uint32][]string
+	var portToPID map[int32]int32
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); iisTags = fetchIISTagsCache(c.sysprobeClient) }()
+	go func() { defer wg.Done(); procCacheTags = fetchProcessCacheTags(c.sysprobeClient) }()
+	go func() { defer wg.Done(); portToPID = getListeningPortToPIDMap() }()
+	wg.Wait()
 
 	// Supplement portToPID from connections data. system-probe runs as root
 	// and provides both sides of intra-host connections, so server-side
@@ -541,7 +550,7 @@ func batchConnections(
 
 				// Try IIS tags from system-probe ETW cache
 				if iisTags != nil {
-					iisKey := fmt.Sprintf("%d-%d", c.Raddr.Port, c.Laddr.Port)
+					iisKey := strconv.FormatInt(int64(c.Raddr.Port), 10) + "-" + strconv.FormatInt(int64(c.Laddr.Port), 10)
 					if iisCachedTags, ok := iisTags[iisKey]; ok {
 						remoteTags = append(remoteTags, iisCachedTags...)
 					}
