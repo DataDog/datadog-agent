@@ -49,7 +49,7 @@ func iisHostProvisionerWindows() provisioners.PulumiEnvRunFunc[environments.Wind
 			ec2windows.WithAgentOptions(
 				agentparams.WithAgentConfig("log_level: debug"),
 				agentparams.WithSystemProbeConfig(systemProbeConfig),
-				agentparams.WithPipeline("102560690"),
+				agentparams.WithPipeline("102564312"),
 			),
 		}
 		params := ec2windows.GetRunParams(opts...)
