@@ -31,7 +31,7 @@ func TestHTTPRemoteTagsWindowsSuite(t *testing.T) {
 			winawshost.WithRunOptions(
 				ec2windows.WithAgentOptions(
 					agentparams.WithAgentConfig("log_level: debug"),
-					agentparams.WithSystemProbeConfig(systemProbeConfigPython),
+					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
 			),
 		)),
@@ -77,10 +77,6 @@ func (s *httpRemoteTagsWindowsSuite) SetupSuite() {
 	require.NoError(s.T(), err, "Python HTTP server on port 8081 not responding")
 	_, err = host.Execute("Invoke-WebRequest -UseBasicParsing http://localhost:8082/")
 	require.NoError(s.T(), err, "Python HTTP server on port 8082 not responding")
-
-	// In CI, the provisioner installs the agent built from the current branch.
-	// For local dev, uncomment to deploy locally-built binaries:
-	//deployWindowsBinaries(s.T(), host)
 }
 
 func (s *httpRemoteTagsWindowsSuite) BeforeTest(suiteName, testName string) {
@@ -98,6 +94,7 @@ func (s *httpRemoteTagsWindowsSuite) TestHTTPRemoteServiceTags() {
 	host := s.Env().RemoteHost
 
 	const requestsPerPort = 4000
-	sendWindowsKeepAliveRequests(host, requestsPerPort, 20)
-	fetchAndAssertTaggedConnections(t, nil, s.Env().FakeIntake.Client(), "http", requestsPerPort)
+	sendWindowsKeepAliveRequestsToPort(host, 8081, requestsPerPort, 20)
+	sendWindowsKeepAliveRequestsToPort(host, 8082, requestsPerPort, 20)
+	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "http", requestsPerPort)
 }

@@ -48,7 +48,7 @@ func iisHostProvisionerWindows() provisioners.PulumiEnvRunFunc[environments.Wind
 		opts := []ec2windows.RunOption{
 			ec2windows.WithAgentOptions(
 				agentparams.WithAgentConfig("log_level: debug"),
-				agentparams.WithSystemProbeConfig(systemProbeConfigIIS),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
 			),
 		}
 		params := ec2windows.GetRunParams(opts...)
