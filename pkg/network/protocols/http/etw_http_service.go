@@ -283,8 +283,8 @@ var (
 	// Used to expose IIS-specific tags (sitename, app_pool, service, env, version) to the
 	// process-agent for remote service tag enrichment on same-host connections.
 	// Entries expire after iisTagsCacheTTL.
-	iisTagsCacheMu             sync.Mutex
-	iisTagsCacheMap            = make(map[[2]uint16]iisTagsCacheEntry)
+	iisTagsCacheMu            sync.Mutex
+	iisTagsCacheMap           = make(map[[2]uint16]iisTagsCacheEntry)
 	iisTagsEvictSinceLastRead int64
 )
 
