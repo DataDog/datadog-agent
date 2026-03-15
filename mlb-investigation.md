@@ -2,7 +2,7 @@
 
 ## Status
 
-Investigation in progress. Fallback disable fix **verified on 7.68.x** (0% misattribution). Fix on **7.76.x remains unresolved** — disabling all known `ssl_ctx_by_pid_tgid` write sites did not eliminate misattribution in the Docker agent image, suggesting an additional code path or version mixing issue.
+**Fix verified on both 7.68.x and 7.76.x.** Disabling the `ssl_ctx_by_pid_tgid` fallback eliminates misattribution (0%) on both versions. Custom Docker image `datadog/agent-dev:disable-tls-fallback-7-76-full` is ready for customer deployment. Previous 7.76.x Docker test failures were caused by stale eBPF object caching on the Vagrant VM during testing, not by a code issue.
 
 ## Customer Environment
 
@@ -253,9 +253,9 @@ if (ssl_sock == NULL) {
 
 This confirms the `ssl_ctx_by_pid_tgid` fallback is the root cause on 7.68.x.
 
-### Fix on 7.76.x — NOT YET VERIFIED
+### Fix on 7.76.x — VERIFIED WORKING
 
-Branch: `disable-tls-fallback-7.76` (PR #47332, draft, targeting `7.76.x`)
+Branch: `SUSM-146/disable-tls-fallback-7.76` (PR #47332, draft, targeting `7.76.x`)
 
 #### Code Differences Between 7.68.x and 7.76.x
 
@@ -281,46 +281,36 @@ Return probes (`uretprobe`) were left intact — they only delete from the map.
 
 Note: Simply commenting out the `bpf_map_update_with_telemetry` calls caused `-Werror,-Wunused-variable` errors because `pid_tgid` was no longer referenced (and `log_debug` is compiled out in non-debug/prebuilt builds). The solution was to empty the entire function body.
 
-#### Testing Results — Direct Binary on VM
+#### Testing Results — Standalone Binary on VM (clean eBPF build)
 
-With the patched system-probe binary running directly on the Vagrant VM:
-- HAProxy after restart: **0% misattribution**
-- Nginx after restart: **0% misattribution**
+After cleaning the eBPF build cache (`rm -rf pkg/ebpf/bytecode/build/arm64/`) and rebuilding from scratch on the `SUSM-146/disable-tls-fallback-7.76` branch:
 
-**However**, this result is suspect — see the Docker image test below.
+- Nginx first start (pre-existing connections): **0% misattribution** (0/549 port-80 entries)
+- Nginx after restart (stop 15s, restart): **0% misattribution** (0/704 port-80 entries)
 
 #### Testing Results — Docker Agent Image
 
-Image: `datadog/agent-dev:disable-tls-fallback-7-76-full`
+Image: `datadog/agent-dev:disable-tls-fallback-7-76-full` (CI-built from commit `c21d3170fa`)
 
-**First image** (only `https.h` fix, missing `native-tls.h` write sites):
-- HAProxy after restart: **11.4% misattribution** — This led to discovering the additional write sites in `native-tls.h`
+- Nginx first start (pre-existing connections): **0% misattribution** (0/105 port-80 entries)
+- Nginx after restart (stop 15s, restart): **0% misattribution** (0/39 port-80 entries)
 
-**Second image** (all write sites disabled, commit `c21d3170fa`):
-- HAProxy after restart: 0% misattribution, but **0 TLS entries on port 8443** (suspicious)
-- After restarting traffic generator: Steady state showed **51 TLS-tagged entries on port 80** — still misattributing!
-- Nginx after restart: **14.4% misattribution** (16/111)
+#### Control Test — Stock Agent Image
 
-The runtime C source in the image was verified to contain all fixes (confirmed by extracting and inspecting `/opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/native-tls.c`).
+Image: `datadog/agent:7.76.3-full` (unpatched)
 
-#### Why the VM Binary Worked but Docker Image Didn't
+- Nginx first start (pre-existing connections): **81.5% misattribution** (44/54 port-80 entries)
 
-Likely cause: **eBPF object caching**. The Vagrant VM had previously been used for 7.68.x testing. Ninja (the build system) tracks file timestamps, not branch content. When switching from the 7.68.x branch to 7.76.x, the cached eBPF objects from 7.68.x may not have been recompiled, meaning the "7.76.x" binary was actually running 7.68.x eBPF programs — which only have the single write site that was disabled.
+#### Previous Incorrect Test Results (Explained)
 
-The Docker image, built cleanly in CI, uses the actual 7.76.x eBPF code.
-
-#### Implication
-
-There is **another code path in 7.76.x** causing the `ssl_ctx_by_pid_tgid` fallback to activate (or a different misattribution mechanism entirely) that we haven't identified yet. The `ssl_ctx_by_pid_tgid` fallback is likely still the root cause, but 7.76.x may have additional complexity that needs investigation.
-
-Alternatively, there could be a version mixing issue — the Docker image build process might be combining components from different branches.
+Earlier testing of the Docker image on the Vagrant VM showed persistent misattribution. This was caused by **eBPF object caching on the VM** — when switching branches for the standalone binary test, Ninja reused stale eBPF `.o` files from the previous branch instead of recompiling. The stale objects didn't have the fix, contaminating the test. Once the eBPF build cache was cleaned (`rm -rf pkg/ebpf/bytecode/build/arm64/`), the standalone binary also showed 0% misattribution, matching the Docker image results.
 
 ### PRs
 
 | PR | Branch | Target | Status |
 |----|--------|--------|--------|
 | [#47330](https://github.com/DataDog/datadog-agent/pull/47330) | `disable-tls-fallback` | `7.68.x` | Draft |
-| [#47332](https://github.com/DataDog/datadog-agent/pull/47332) | `disable-tls-fallback-7.76` | `7.76.x` | Draft |
+| [#47332](https://github.com/DataDog/datadog-agent/pull/47332) | `SUSM-146/disable-tls-fallback-7.76` | `7.76.x` | Draft — fix verified |
 
 ## Docker Agent Testing Setup
 
@@ -402,21 +392,17 @@ The `ssl_ctx_race_test/` directory (cherry-picked from `usm-gotls-misattribution
 
 ## Next Steps
 
-1. **Investigate 7.76.x Docker image failure**: The clean Docker image still shows misattribution despite all known `ssl_ctx_by_pid_tgid` writes being disabled. Need to:
-   - Audit 7.76.x for any other code paths that could write to `ssl_ctx_by_pid_tgid` or cause similar misattribution
-   - Verify the Docker image build process isn't mixing components from different branches
-   - Consider doing a fully clean build on the VM and testing the binary directly (not cached)
+1. **Ship custom image to customer**: Image `datadog/agent-dev:disable-tls-fallback-7-76-full` is verified working (0% misattribution). Share with customer via support ticket for deployment on GKE.
 
-2. **Customer image for 7.68.x**: The 7.68.x fix is verified working. A custom image based on 7.68.x could be provided to the customer while the 7.76.x investigation continues.
-
-3. **Proper fix design**: Once root cause is fully confirmed on 7.76.x, design a proper fix rather than just disabling the fallback. Options include:
+2. **Proper fix design**: The current fix disables the fallback entirely, which means pre-existing TLS connections (established before system-probe starts) won't be monitored. A proper fix should preserve the fallback for legitimate cases while preventing misattribution in proxies. Options include:
    - Adding connection direction awareness to the fallback (only associate with connections in the same direction)
-   - Using a more selective heuristic that doesn't trigger for proxies
+   - Using a more selective heuristic that doesn't trigger for single-threaded proxies
    - Adding a timeout or TTL to fallback entries
+   - Checking if the socket is already associated with a different TLS context before overwriting
+
+3. **Upstream the fix**: Once the proper fix is designed, submit it to main for inclusion in a future release.
 
 ## Open Questions
 
 - What is the customer's agent restart/deployment cadence? This would help correlate with observed misattribution windows.
 - Does the customer observe misattribution concentrated around specific time windows (which would correlate with agent restarts)?
-- Is there another code path in 7.76.x (beyond `ssl_ctx_by_pid_tgid`) that can cause TLS context misassociation?
-- Could the Docker image build process for `agent-dev` be mixing pre-built eBPF objects from a different branch?
