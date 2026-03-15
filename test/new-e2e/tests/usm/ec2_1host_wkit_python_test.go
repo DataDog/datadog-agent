@@ -53,12 +53,12 @@ func (s *httpRemoteTagsWindowsSuite) SetupSuite() {
 
 	// Find the embedded Python executable.
 	pythonExe := `C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe`
-	out, err := host.Execute(`Test-Path "` + pythonExe + `"`)
+	out, _ := host.Execute(`Test-Path "` + pythonExe + `"`)
 	require.Contains(s.T(), out, "True", "embedded Python not found at %s", pythonExe)
 
 	// Write the shared socket-based HTTP server script.
 	host.MustExecute(`New-Item -ItemType Directory -Force -Path C:\temp | Out-Null`)
-	_, err = host.WriteFile(`C:\temp\httpserver.py`, []byte(httpServerScript))
+	_, err := host.WriteFile(`C:\temp\httpserver.py`, []byte(httpServerScript))
 	require.NoError(s.T(), err, "failed to write HTTP server script")
 
 	// Start servers using WMI to create truly detached processes that survive SSH session cleanup.

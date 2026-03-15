@@ -109,7 +109,7 @@ func getConnectionStats(t *testing.T, cnx *aggregator.ConnectionsAggregator, req
 		tagsByPort:       make(map[int32]map[string]bool),
 	}
 
-	cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+	cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, _ string) {
 		port := conn.Raddr.Port
 		if port != 8081 && port != 8082 {
 			return
