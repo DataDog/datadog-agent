@@ -86,6 +86,10 @@ func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]st
 	return f.NodeAnnotations, f.NodeLabelsErr
 }
 
+func (f *FakeDCAClient) GetNodeInfo(_ string, _ ...string) (*clusteragent.NodeSystemInfo, error) {
+	panic("implement me")
+}
+
 func (f *FakeDCAClient) GetNodeUID(_ string) (string, error) {
 	return f.NodeUID, f.NodeUIDErr
 }

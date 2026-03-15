@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
@@ -35,27 +34,31 @@ const (
 	maxPayloadSizeBytes = 10 * 1000 * 1000
 )
 
-var (
+type orchestratorExporter struct {
+	config OrchestratorConfig
+
 	// manifestCache provides an in-memory cache to avoid sending the same manifest multiple times
 	// within a short period. Uses UID + resourceVersion as the cache key.
-	manifestCache     *gocache.Cache
-	manifestCacheOnce sync.Once
-)
+	manifestCache *gocache.Cache
+}
 
-// getManifestCache returns the singleton manifest cache instance
-func getManifestCache() *gocache.Cache {
-	manifestCacheOnce.Do(func() {
-		manifestCache = gocache.New(manifestCacheTTL, manifestCachePurge)
-	})
-	return manifestCache
+func newOrchestratorExporter(config OrchestratorConfig) orchestratorExporter {
+	exporter := orchestratorExporter{
+		config: config,
+	}
+
+	if config.Enabled {
+		exporter.manifestCache = gocache.New(manifestCacheTTL, manifestCachePurge)
+	}
+	return exporter
 }
 
 // shouldSkipManifest checks if the manifest was already sent recently.
 // Returns true if the manifest should be skipped (cache hit with same resourceVersion).
 // This follows the same pattern as pkg/orchestrator.SkipKubernetesResource.
 // Watch log events always bypass the cache to ensure real-time updates are sent.
-func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool) bool {
-	if manifest == nil || manifest.Uid == "" {
+func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache *gocache.Cache) bool {
+	if cache == nil || manifest == nil || manifest.Uid == "" {
 		return false
 	}
 
@@ -64,7 +67,6 @@ func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool) bool {
 		return false
 	}
 
-	cache := getManifestCache()
 	cacheKey := manifest.Uid
 
 	// Check if we have this resource in cache
@@ -179,7 +181,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 				// Check cache to avoid sending the same manifest multiple times within 3 minutes
 				// Watch events bypass the cache to ensure real-time updates
-				if shouldSkipManifest(manifest, isWatchEvent) {
+				if shouldSkipManifest(manifest, isWatchEvent, e.orchestratorExporter.manifestCache) {
 					e.set.Logger.Debug("Skipping manifest (cache hit)",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
@@ -203,7 +205,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		clusterManifest := logsmapping.CreateClusterManifest(clusterID, nodes, e.set.Logger)
 
 		// Check cache for the cluster manifest too (not a watch event)
-		if !shouldSkipManifest(clusterManifest, false) {
+		if !shouldSkipManifest(clusterManifest, false, e.orchestratorExporter.manifestCache) {
 			manifests = append(manifests, clusterManifest)
 			e.set.Logger.Debug("Added Cluster manifest to payload",
 				zap.String("uid", clusterManifest.Uid),
@@ -211,7 +213,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		}
 	}
 
-	hostname, err := e.orchestratorConfig.Hostname.Get(ctx)
+	hostname, err := e.orchestratorExporter.config.Hostname.Get(ctx)
 	if err != nil || hostname == "" {
 		e.set.Logger.Error("Failed to get hostname from config", zap.Error(err))
 	}
@@ -235,7 +237,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 		payload := logsmapping.ToManifestPayload(chunk, hostname, clusterName, clusterID)
 
-		if err := sendManifestPayload(ctx, e.orchestratorConfig.Endpoint, e.orchestratorConfig.Key, payload, hostname, clusterID, e.set.Logger); err != nil {
+		if err := sendManifestPayload(ctx, e.orchestratorExporter.config.Endpoint, e.orchestratorExporter.config.Key, payload, hostname, clusterID, e.set.Logger); err != nil {
 			e.set.Logger.Error("Failed to send collector manifest chunk",
 				zap.Int("chunk_index", i),
 				zap.Int("chunk_size", len(chunk)),

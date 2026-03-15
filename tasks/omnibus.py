@@ -124,7 +124,7 @@ def get_omnibus_env(
             env[key] = sha1
 
     if sys.platform == 'darwin':
-        env['MACOSX_DEPLOYMENT_TARGET'] = '11.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+        env['MACOSX_DEPLOYMENT_TARGET'] = '12.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 
         if not skip_sign:
             env['SIGN_MAC'] = 'true'

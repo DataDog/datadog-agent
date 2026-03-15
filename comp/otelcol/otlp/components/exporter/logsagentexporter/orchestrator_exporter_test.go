@@ -7,7 +7,6 @@ package logsagentexporter
 
 import (
 	"encoding/json"
-	"sync"
 	"testing"
 	"time"
 
@@ -22,20 +21,8 @@ import (
 	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 )
 
-func TestGetManifestCache(t *testing.T) {
-	cache := getManifestCache()
-	assert.NotNil(t, cache)
-
-	// Test singleton pattern - should return the same instance
-	cache2 := getManifestCache()
-	assert.Equal(t, cache, cache2)
-}
-
 func TestShouldSkipManifest(t *testing.T) {
-	// Reset cache for tests
-	manifestCacheOnce = sync.Once{}
-	manifestCache = nil
-
+	cache := gocache.New(manifestCacheTTL, manifestCachePurge)
 	tests := []struct {
 		name           string
 		manifest       *agentmodel.Manifest
@@ -79,7 +66,6 @@ func TestShouldSkipManifest(t *testing.T) {
 			},
 			isWatchEvent: false,
 			setupCache: func() {
-				cache := getManifestCache()
 				cache.Set("test-uid-2", "v1", manifestCacheTTL)
 			},
 			expectedSkip:   true,
@@ -94,7 +80,6 @@ func TestShouldSkipManifest(t *testing.T) {
 			},
 			isWatchEvent: false,
 			setupCache: func() {
-				cache := getManifestCache()
 				cache.Set("test-uid-3", "v1", manifestCacheTTL)
 			},
 			expectedSkip:   false,
@@ -109,7 +94,6 @@ func TestShouldSkipManifest(t *testing.T) {
 			},
 			isWatchEvent: true,
 			setupCache: func() {
-				cache := getManifestCache()
 				cache.Set("test-uid-4", "v1", manifestCacheTTL)
 			},
 			expectedSkip: false, // Watch events always bypass cache
@@ -131,12 +115,11 @@ func TestShouldSkipManifest(t *testing.T) {
 				tt.setupCache()
 			}
 
-			skip := shouldSkipManifest(tt.manifest, tt.isWatchEvent)
+			skip := shouldSkipManifest(tt.manifest, tt.isWatchEvent, cache)
 			assert.Equal(t, tt.expectedSkip, skip)
 
 			// Verify cache state after the operation (only for non-watch events)
 			if !tt.isWatchEvent && tt.manifest != nil && tt.manifest.Uid != "" && tt.expectedCached {
-				cache := getManifestCache()
 				val, found := cache.Get(tt.manifest.Uid)
 				assert.True(t, found)
 				assert.Equal(t, tt.cachedVersion, val)

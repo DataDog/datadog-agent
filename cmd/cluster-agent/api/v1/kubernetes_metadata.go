@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -29,6 +30,10 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/annotations/node/{nodeName}", api.WithTelemetryWrapper(
 		"getNodeAnnotations",
 		func(w http.ResponseWriter, r *http.Request) { getNodeAnnotations(w, r, wmeta) },
+	)).Methods("GET")
+	r.HandleFunc("/info/node/{nodeName}", api.WithTelemetryWrapper(
+		"getNodeInfo",
+		func(w http.ResponseWriter, r *http.Request) { getNodeInfo(w, r, wmeta) },
 	)).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", api.WithTelemetryWrapper("getPodMetadata", getPodMetadata)).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}", api.WithTelemetryWrapper("getPodMetadataForNode", getPodMetadataForNode)).Methods("GET")
@@ -135,6 +140,45 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	}
 
 	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", finalFilter)
+}
+
+func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
+	cl, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("getNodeInfo: unable to get apiserver: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	nodeCl := cl.Cl.CoreV1().Nodes()
+
+	vars := mux.Vars(r)
+	nodeName := vars["nodeName"]
+
+	node, err := nodeCl.Get(r.Context(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("getNodeInfo: unable to get self node: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if node == nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Could not find node %s", nodeName)
+		return
+	}
+
+	// Marshal whole struct, unmarshal only takes what is needed on caller side.
+	data, err := json.Marshal(&node.Status.NodeInfo)
+	if err != nil {
+		log.Errorf("getNodeInfo: failed to marshal node %s info %+v: %s", nodeName, &node.Status.NodeInfo, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(data) > 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+		return
+	}
 }
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace

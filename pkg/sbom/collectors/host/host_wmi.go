@@ -20,9 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/gopsutil/host"
-
-	host2 "github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/host"
 	"github.com/yusufpapurcu/wmi"
 )
 
@@ -124,12 +122,17 @@ func (c *Collector) Init(_ config.Component, _ option.Option[workloadmeta.Compon
 		return err
 	}
 
-	c.platform, c.family, c.build, err = host.PlatformInformation()
+	c.platform, c.family, _, err = host.PlatformInformation()
 	if err != nil {
 		return err
 	}
 
-	c.arch, err = host2.KernelArch()
+	c.build, err = host.KernelVersion()
+	if err != nil {
+		return err
+	}
+
+	c.arch, err = host.KernelArch()
 	if err != nil {
 		return err
 	}

@@ -3366,7 +3366,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 			if report != nil {
-				p.HandleKillRemediation(rule, ev, report, action)
+				p.HandleKillRemediation(rule, ev, action)
 			}
 
 		case action.Def.CoreDump != nil:
