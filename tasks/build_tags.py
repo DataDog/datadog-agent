@@ -62,7 +62,6 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
-    "re2_cgo",  # enables the go-re2 / CRE2 CGo regex engine backed by Google RE2 for logs processing
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
@@ -106,7 +105,6 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
-    "re2_cgo",
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
@@ -311,7 +309,7 @@ DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 UNIT_TEST_TAGS = {"test"}
 
 # List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap", "re2_cgo"}
+UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
 
 # Build type: maps flavor to build tags map
 build_tags = {
@@ -472,6 +470,11 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
         include = set()
 
     include = include.union(COMMON_TAGS)
+
+    extra_tags = os.getenv("AGENT_EXTRA_BUILD_TAGS", "")
+    if extra_tags:
+        include = include.union(extra_tags.split(","))
+
     return sorted(filter_incompatible_tags(include, platform=platform))
 
 

@@ -39,7 +39,9 @@ build do
         'PATH' => [gopath / 'bin', env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
-        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+        "CGO_CXXFLAGS" => "-I. -I#{install_dir}/embedded/include",
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+        "AGENT_EXTRA_BUILD_TAGS" => "re2_cgo"
     }
 
     unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?

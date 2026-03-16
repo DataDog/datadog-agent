@@ -324,7 +324,7 @@ include("//deps:crates.MODULE.bazel")
 ## C / C++ base libraries  ##
 ##############################
 
-bazel_dep(name = "abseil-cpp", version = "20250814.0")
+bazel_dep(name = "abseil-cpp", version = "20240116.2")
 
 #########################
 ## Native dependencies ##
