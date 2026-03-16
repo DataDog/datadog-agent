@@ -7,70 +7,154 @@ package flightrecorderimpl
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // batcher accumulates metrics and logs in per-type ring buffers and flushes
 // them at a fixed interval via the provided Transport.
+//
+// Metrics use a split-buffer design for minimal RSS:
+//   - A large ring of compact metricPoint structs (32 bytes each) for data
+//     points (the 99.9% fast path after context warm-up).
+//   - A small ring of contextDef structs for first-occurrence context
+//     definitions that carry full name+tags strings.
+//
+// Both use the double-buffer pattern: the "active" buffer receives new items
+// under a lock, while the "draining" buffer is encoded and sent without
+// holding the lock. On flush the two are swapped.
+//
+// Adaptive flushing: in addition to the fixed-interval ticker, an early flush
+// is triggered when any ring buffer exceeds 80% capacity. This eliminates
+// drops at extreme throughput without increasing baseline RSS.
 type batcher struct {
 	transport     Transport
 	flushInterval time.Duration
-	capacity      int
 	counters      *counters
 
-	mu          sync.Mutex
-	metricsBuf  []capturedMetric
-	logsBuf     []capturedLog
-	metricsHead int // write position in metricsBuf (ring)
-	logsHead    int // write position in logsBuf (ring)
-	metricsLen  int // number of valid items in metricsBuf
-	logsLen     int // number of valid items in logsBuf
+	mu sync.Mutex
+
+	// Metrics: compact data-point ring (32 bytes/item).
+	ptCap       int
+	ptsActive   []metricPoint
+	ptsDrain    []metricPoint
+	ptsActiveN  int
+	ptsActiveH  int
+
+	// Metrics: context-definition ring (first-occurrence only).
+	defCap       int
+	defsActive   []contextDef
+	defsDrain    []contextDef
+	defsActiveN  int
+	defsActiveH  int
+
+	// Logs double-buffer (unchanged).
+	logCap      int
+	logsActive  []capturedLog
+	logsDrain   []capturedLog
+	logsActiveN int
+	logsActiveH int
+
+	// FlatBuffers builder pool.
+	builderPool *builderPool
+
+	// seenContexts tracks context keys already sent with full name+tags.
+	// Atomic pointer allows lock-free reads from hook callbacks; swapped to
+	// an empty map on transport reconnect (sidecar lost state).
+	seenContexts atomic.Pointer[sync.Map]
+
+	// Watermark thresholds (80% of capacity). When any ring crosses its
+	// threshold, a non-blocking signal is sent to flushCh.
+	ptWatermark  int
+	defWatermark int
+	logWatermark int
+	flushCh      chan struct{} // capacity 1, non-blocking signal
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
 
-func newBatcher(transport Transport, flushInterval time.Duration, capacity int, c *counters) *batcher {
+func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity int, c *counters) *batcher {
 	b := &batcher{
 		transport:     transport,
 		flushInterval: flushInterval,
-		capacity:      capacity,
 		counters:      c,
-		metricsBuf:    make([]capturedMetric, capacity),
-		logsBuf:       make([]capturedLog, capacity),
-		stopCh:        make(chan struct{}),
+
+		ptCap:     ptCapacity,
+		ptsActive: make([]metricPoint, ptCapacity),
+		ptsDrain:  make([]metricPoint, ptCapacity),
+
+		defCap:     defCapacity,
+		defsActive: make([]contextDef, defCapacity),
+		defsDrain:  make([]contextDef, defCapacity),
+
+		logCap:     logCapacity,
+		logsActive: make([]capturedLog, logCapacity),
+		logsDrain:  make([]capturedLog, logCapacity),
+
+		builderPool:  newBuilderPool(),
+		ptWatermark:  ptCapacity * 4 / 5,
+		defWatermark: defCapacity * 4 / 5,
+		logWatermark: logCapacity * 4 / 5,
+		flushCh:      make(chan struct{}, 1),
+		stopCh:       make(chan struct{}),
 	}
+	b.seenContexts.Store(&sync.Map{})
 	b.wg.Add(1)
 	go b.flushLoop()
 	return b
 }
 
-// AddMetric enqueues a metric sample. When the ring buffer is full the oldest
-// item is overwritten and the drop counter increments.
-func (b *batcher) AddMetric(m capturedMetric) {
+// AddPoint enqueues a compact metric data point (known context, no strings).
+func (b *batcher) AddPoint(p metricPoint) {
 	b.mu.Lock()
-	if b.metricsLen == b.capacity {
-		b.counters.incMetricsDropped(1)
+	if b.ptsActiveN == b.ptCap {
+		b.counters.incMetricsDroppedOverflow(1)
 	} else {
-		b.metricsLen++
+		b.ptsActiveN++
 	}
-	b.metricsBuf[b.metricsHead] = m
-	b.metricsHead = (b.metricsHead + 1) % b.capacity
+	b.ptsActive[b.ptsActiveH] = p
+	b.ptsActiveH = (b.ptsActiveH + 1) % b.ptCap
+	signal := b.ptsActiveN >= b.ptWatermark
 	b.mu.Unlock()
+	if signal {
+		b.signalFlush()
+	}
+}
+
+// AddContextDef enqueues a context definition (first occurrence, with strings).
+func (b *batcher) AddContextDef(d contextDef) {
+	b.mu.Lock()
+	if b.defsActiveN == b.defCap {
+		b.counters.incMetricsDroppedOverflow(1)
+	} else {
+		b.defsActiveN++
+	}
+	b.defsActive[b.defsActiveH] = d
+	b.defsActiveH = (b.defsActiveH + 1) % b.defCap
+	signal := b.defsActiveN >= b.defWatermark
+	b.mu.Unlock()
+	if signal {
+		b.signalFlush()
+	}
 }
 
 // AddLog enqueues a log entry. When the ring buffer is full the oldest item is
 // overwritten and the drop counter increments.
 func (b *batcher) AddLog(l capturedLog) {
 	b.mu.Lock()
-	if b.logsLen == b.capacity {
-		b.counters.incLogsDropped(1)
+	if b.logsActiveN == b.logCap {
+		b.counters.incLogsDroppedOverflow(1)
 	} else {
-		b.logsLen++
+		b.logsActiveN++
 	}
-	b.logsBuf[b.logsHead] = l
-	b.logsHead = (b.logsHead + 1) % b.capacity
+	b.logsActive[b.logsActiveH] = l
+	b.logsActiveH = (b.logsActiveH + 1) % b.logCap
+	signal := b.logsActiveN >= b.logWatermark
 	b.mu.Unlock()
+	if signal {
+		b.signalFlush()
+	}
 }
 
 func (b *batcher) flushLoop() {
@@ -84,7 +168,22 @@ func (b *batcher) flushLoop() {
 			return
 		case <-ticker.C:
 			b.flush()
+		case <-b.flushCh:
+			b.flush()
+			// Drain the ticker if it fired during flush to avoid double-flushing.
+			select {
+			case <-ticker.C:
+			default:
+			}
 		}
+	}
+}
+
+// signalFlush sends a non-blocking signal to the flush loop.
+func (b *batcher) signalFlush() {
+	select {
+	case b.flushCh <- struct{}{}:
+	default: // already signaled, flush loop will pick it up
 	}
 }
 
@@ -95,68 +194,96 @@ func (b *batcher) flush() {
 
 func (b *batcher) flushMetrics() {
 	b.mu.Lock()
-	if b.metricsLen == 0 {
+	if b.ptsActiveN == 0 && b.defsActiveN == 0 {
 		b.mu.Unlock()
 		return
 	}
-	// Drain the ring into a flat slice (oldest-first).
-	count := b.metricsLen
-	samples := make([]capturedMetric, count)
-	// tail (oldest write position) = (head - len + capacity) % capacity
-	tail := (b.metricsHead - count + b.capacity) % b.capacity
-	for i := 0; i < count; i++ {
-		samples[i] = b.metricsBuf[(tail+i)%b.capacity]
-	}
-	b.metricsLen = 0
-	b.metricsHead = 0
+
+	// Swap both metric buffers under one lock.
+	b.ptsActive, b.ptsDrain = b.ptsDrain, b.ptsActive
+	ptCount := b.ptsActiveN
+	ptHead := b.ptsActiveH
+	b.ptsActiveN = 0
+	b.ptsActiveH = 0
+
+	b.defsActive, b.defsDrain = b.defsDrain, b.defsActive
+	defCount := b.defsActiveN
+	defHead := b.defsActiveH
+	b.defsActiveN = 0
+	b.defsActiveH = 0
 	b.mu.Unlock()
 
-	data, err := EncodeMetricBatch(samples)
+	ptTail := (ptHead - ptCount + b.ptCap) % b.ptCap
+	defTail := (defHead - defCount + b.defCap) % b.defCap
+
+	b.counters.setBatchSize("metrics", ptCount+defCount)
+
+	data, err := EncodeSplitMetricBatch(
+		b.builderPool,
+		b.defsDrain, defTail, defCount, b.defCap,
+		b.ptsDrain, ptTail, ptCount, b.ptCap,
+	)
 	if err != nil {
-		b.counters.incMetricsDropped(uint64(len(samples)))
-		returnMetricSlices(samples)
+		b.counters.incMetricsDroppedTransport(uint64(ptCount + defCount))
+		returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 		return
 	}
 	if err := b.transport.Send(data); err != nil {
-		b.counters.incMetricsDropped(uint64(len(samples)))
-		returnMetricSlices(samples)
+		b.counters.incMetricsDroppedTransport(uint64(ptCount + defCount))
+		returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 		return
 	}
-	b.counters.incMetricsSent(uint64(len(samples)))
+	b.counters.incMetricsSent(uint64(ptCount + defCount))
 	b.counters.incBytesSent(uint64(len(data)))
-	returnMetricSlices(samples)
+	returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 }
 
 func (b *batcher) flushLogs() {
 	b.mu.Lock()
-	if b.logsLen == 0 {
+	if b.logsActiveN == 0 {
 		b.mu.Unlock()
 		return
 	}
-	count := b.logsLen
-	entries := make([]capturedLog, count)
-	tail := (b.logsHead - count + b.capacity) % b.capacity
-	for i := 0; i < count; i++ {
-		entries[i] = b.logsBuf[(tail+i)%b.capacity]
-	}
-	b.logsLen = 0
-	b.logsHead = 0
+	b.logsActive, b.logsDrain = b.logsDrain, b.logsActive
+	count := b.logsActiveN
+	head := b.logsActiveH
+	b.logsActiveN = 0
+	b.logsActiveH = 0
 	b.mu.Unlock()
 
-	data, err := EncodeLogBatch(entries)
+	drain := b.logsDrain
+	tail := (head - count + b.logCap) % b.logCap
+
+	b.counters.setBatchSize("logs", count)
+
+	data, err := EncodeLogBatchRing(b.builderPool, drain, tail, count, b.logCap)
 	if err != nil {
-		b.counters.incLogsDropped(uint64(len(entries)))
-		returnLogSlices(entries)
+		b.counters.incLogsDroppedTransport(uint64(count))
+		returnLogSlicesRing(drain, tail, count, b.logCap)
 		return
 	}
 	if err := b.transport.Send(data); err != nil {
-		b.counters.incLogsDropped(uint64(len(entries)))
-		returnLogSlices(entries)
+		b.counters.incLogsDroppedTransport(uint64(count))
+		returnLogSlicesRing(drain, tail, count, b.logCap)
 		return
 	}
-	b.counters.incLogsSent(uint64(len(entries)))
+	b.counters.incLogsSent(uint64(count))
 	b.counters.incBytesSent(uint64(len(data)))
-	returnLogSlices(entries)
+	returnLogSlicesRing(drain, tail, count, b.logCap)
+}
+
+// IsContextKnown returns true if the context key has already been sent to the
+// sidecar with full name+tags. If unknown, it atomically marks it as known.
+func (b *batcher) IsContextKnown(key uint64) bool {
+	m := b.seenContexts.Load()
+	_, loaded := m.LoadOrStore(key, struct{}{})
+	return loaded
+}
+
+// ResetContexts clears the seen-context set, forcing all context definitions
+// to be re-sent. Called on transport reconnect because the sidecar lost state.
+func (b *batcher) ResetContexts() {
+	b.seenContexts.Store(&sync.Map{})
 }
 
 // Stop drains the buffers and stops the flush goroutine.
@@ -165,29 +292,31 @@ func (b *batcher) Stop() {
 	b.wg.Wait()
 }
 
-// returnMetricSlices returns pooled tag slices back to the tag pool.
-func returnMetricSlices(samples []capturedMetric) {
-	for i := range samples {
-		if samples[i].TagPoolSlice != nil {
-			*samples[i].TagPoolSlice = samples[i].Tags[:0]
-			tagPool.Put(samples[i].TagPoolSlice)
-			samples[i].TagPoolSlice = nil
+// returnDefSlicesRing returns pooled tag slices for context definitions.
+func returnDefSlicesRing(buf []contextDef, tail, count, capacity int) {
+	for i := 0; i < count; i++ {
+		idx := (tail + i) % capacity
+		if buf[idx].TagPoolSlice != nil {
+			*buf[idx].TagPoolSlice = buf[idx].Tags[:0]
+			tagPool.Put(buf[idx].TagPoolSlice)
+			buf[idx].TagPoolSlice = nil
 		}
 	}
 }
 
-// returnLogSlices returns pooled content and tag slices back to their pools.
-func returnLogSlices(entries []capturedLog) {
-	for i := range entries {
-		if entries[i].ContentPoolSlice != nil {
-			*entries[i].ContentPoolSlice = entries[i].Content[:0]
-			contentPool.Put(entries[i].ContentPoolSlice)
-			entries[i].ContentPoolSlice = nil
+// returnLogSlicesRing returns pooled content and tag slices for items in a ring buffer segment.
+func returnLogSlicesRing(buf []capturedLog, tail, count, capacity int) {
+	for i := 0; i < count; i++ {
+		idx := (tail + i) % capacity
+		if buf[idx].ContentPoolSlice != nil {
+			*buf[idx].ContentPoolSlice = buf[idx].Content[:0]
+			contentPool.Put(buf[idx].ContentPoolSlice)
+			buf[idx].ContentPoolSlice = nil
 		}
-		if entries[i].TagPoolSlice != nil {
-			*entries[i].TagPoolSlice = entries[i].Tags[:0]
-			tagPool.Put(entries[i].TagPoolSlice)
-			entries[i].TagPoolSlice = nil
+		if buf[idx].TagPoolSlice != nil {
+			*buf[idx].TagPoolSlice = buf[idx].Tags[:0]
+			tagPool.Put(buf[idx].TagPoolSlice)
+			buf[idx].TagPoolSlice = nil
 		}
 	}
 }

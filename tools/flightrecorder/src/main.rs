@@ -77,6 +77,8 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         };
 
         info!("client connected");
+        // New connection — agent will re-send all context definitions.
+        metrics_writer.reset_contexts();
 
         // Read frames from this connection until EOF or shutdown.
         let mut reader = BufReader::new(stream);

@@ -110,8 +110,20 @@ func (rcv *MetricSample) Source() []byte {
 	return nil
 }
 
+func (rcv *MetricSample) ContextKey() uint64 {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(16))
+	if o != 0 {
+		return rcv._tab.GetUint64(o + rcv._tab.Pos)
+	}
+	return 0
+}
+
+func (rcv *MetricSample) MutateContextKey(n uint64) bool {
+	return rcv._tab.MutateUint64Slot(16, n)
+}
+
 func MetricSampleStart(builder *flatbuffers.Builder) {
-	builder.StartObject(6)
+	builder.StartObject(7)
 }
 func MetricSampleAddName(builder *flatbuffers.Builder, name flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(name), 0)
@@ -133,6 +145,9 @@ func MetricSampleAddSampleRate(builder *flatbuffers.Builder, sampleRate float64)
 }
 func MetricSampleAddSource(builder *flatbuffers.Builder, source flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(5, flatbuffers.UOffsetT(source), 0)
+}
+func MetricSampleAddContextKey(builder *flatbuffers.Builder, contextKey uint64) {
+	builder.PrependUint64Slot(6, contextKey, 0)
 }
 func MetricSampleEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

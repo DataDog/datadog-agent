@@ -11,6 +11,10 @@ path = "src/main.rs"
 name = "reader"
 path = "src/reader.rs"
 
+[[bin]]
+name = "validate"
+path = "src/validate.rs"
+
 [dependencies]
 flatbuffers = "25"
 tokio = { version = "1", features = ["full"] }

@@ -19,14 +19,16 @@ var (
 		"Total number of metric samples successfully sent")
 	tlmLogsSent = telemetry.NewCounter(subsystem, "logs_sent_total", nil,
 		"Total number of log entries successfully sent")
-	tlmMetricsDropped = telemetry.NewCounter(subsystem, "metrics_dropped_total", nil,
-		"Total number of metric samples dropped (ring buffer overflow or send error)")
-	tlmLogsDropped = telemetry.NewCounter(subsystem, "logs_dropped_total", nil,
-		"Total number of log entries dropped (ring buffer overflow or send error)")
+	tlmMetricsDropped = telemetry.NewCounter(subsystem, "metrics_dropped_total", []string{"reason"},
+		"Total number of metric samples dropped")
+	tlmLogsDropped = telemetry.NewCounter(subsystem, "logs_dropped_total", []string{"reason"},
+		"Total number of log entries dropped")
 	tlmBytesSent = telemetry.NewCounter(subsystem, "bytes_sent_total", nil,
 		"Total bytes written to the transport")
 	tlmReconnects = telemetry.NewCounter(subsystem, "reconnects_total", nil,
 		"Total number of transport reconnect events")
+	tlmBatchSize = telemetry.NewGauge(subsystem, "batch_size", []string{"type"},
+		"Number of items in the last flushed batch")
 )
 
 // counters holds atomic counters that back both the telemetry gauges and the
@@ -50,14 +52,34 @@ func (c *counters) incLogsSent(n uint64) {
 	tlmLogsSent.Add(float64(n))
 }
 
-func (c *counters) incMetricsDropped(n uint64) {
+// Drop reason tags for telemetry.
+const (
+	dropReasonOverflow  = "ring_overflow"
+	dropReasonTransport = "transport_error"
+)
+
+func (c *counters) incMetricsDroppedOverflow(n uint64) {
 	c.metricsDropped.Add(n)
-	tlmMetricsDropped.Add(float64(n))
+	tlmMetricsDropped.Add(float64(n), dropReasonOverflow)
 }
 
-func (c *counters) incLogsDropped(n uint64) {
+func (c *counters) incMetricsDroppedTransport(n uint64) {
+	c.metricsDropped.Add(n)
+	tlmMetricsDropped.Add(float64(n), dropReasonTransport)
+}
+
+func (c *counters) incLogsDroppedOverflow(n uint64) {
 	c.logsDropped.Add(n)
-	tlmLogsDropped.Add(float64(n))
+	tlmLogsDropped.Add(float64(n), dropReasonOverflow)
+}
+
+func (c *counters) incLogsDroppedTransport(n uint64) {
+	c.logsDropped.Add(n)
+	tlmLogsDropped.Add(float64(n), dropReasonTransport)
+}
+
+func (c *counters) setBatchSize(typ string, n int) {
+	tlmBatchSize.Set(float64(n), typ)
 }
 
 func (c *counters) incBytesSent(n uint64) {

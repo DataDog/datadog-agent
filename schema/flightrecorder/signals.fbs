@@ -1,8 +1,7 @@
-// FlatBuffers schema for the pipeline sink signal types.
-// Replaces the former Cap'n Proto signals.capnp.
+// FlatBuffers schema for the flight recorder signal types.
 //
-// Generate Go:   flatc --go -o schema/pipelinesink/generated signals.fbs
-// Generate Rust: flatc --rust -o tools/pipelinerecorder/src/generated signals.fbs
+// Generate Go:   flatc --go -o schema/flightrecorder/generated signals.fbs
+// Generate Rust: flatc --rust -o tools/flightrecorder/src/generated signals.fbs
 
 namespace signals;
 
@@ -13,6 +12,11 @@ table MetricSample {
   timestamp_ns:long;
   sample_rate:double;
   source:string;
+  // context_key is a 64-bit FNV-1a hash of (name, sorted tags). When non-zero,
+  // the sidecar uses it to deduplicate context definitions: the first sample
+  // with a given key carries full name+tags (context definition), subsequent
+  // samples with the same key omit name+tags (context reference).
+  context_key:ulong;
 }
 
 table LogEntry {
