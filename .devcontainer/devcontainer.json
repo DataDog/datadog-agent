@@ -10,7 +10,9 @@
         "--name",
         "datadog-agent-devcontainer"
     ],
-    "features": {},
+    "features": {
+        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {}
+    },
     "remoteUser": "datadog",
     "mounts": [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
