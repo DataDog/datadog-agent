@@ -19,8 +19,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
