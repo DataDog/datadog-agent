@@ -48,6 +48,8 @@ clusterAgent:
 				// (legacy) Endpoints providers. This covers tests for both without having to create
 				// independent test suites for both configurations or modify providers at test runtime.
 				kubernetesagentparams.WithKubernetesUseEndpointSlices(),
+				// Intentional non-existent image for UTOF demo: should cause infra error
+				kubernetesagentparams.WithAgentFullImagePath("ghcr.io/datadog/nonexistent-agent-image:v0.0.0-does-not-exist"),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),

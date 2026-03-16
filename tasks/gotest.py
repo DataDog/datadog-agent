@@ -202,6 +202,29 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
+def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None) -> None:
+    """Generate a UTOF JSON file alongside the test output JSON."""
+    if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
+        return
+
+    try:
+        from tasks.libs.testing.utof import format_report
+        from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
+
+        result_json = ResultJson.from_file(test_result.result_json_path)
+        metadata = generate_metadata(test_system="unit", flavor=flavor.name)
+        utof = convert_unit_test_results(result_json, test_washer=tw, metadata=metadata)
+        utof_path = test_result.result_json_path.replace('.json', '_unified.json')
+        utof.write_json(utof_path)
+        print(f"Unified test output written to {utof_path}")
+        with gitlab_section("Unified test report", collapsed=True):
+            print(format_report(utof))
+    except Exception:
+        import traceback
+
+        print(f"Warning: Failed to generate unified test output:\n{traceback.format_exc()}")
+
+
 def process_test_result(
     test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
 ) -> bool:
@@ -209,9 +232,11 @@ def process_test_result(
         produce_junit_tar(junit_files, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
+    tw = None
 
     if success:
         print(color_message("All tests passed", "green"))
+        _generate_unified_output(test_result, flavor, tw=None)
         return True
 
     if test_washer or running_in_ci():
@@ -227,8 +252,10 @@ def process_test_result(
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
             )
+            _generate_unified_output(test_result, flavor, tw=tw)
             return True
 
+    _generate_unified_output(test_result, flavor, tw=tw)
     return False
 
 

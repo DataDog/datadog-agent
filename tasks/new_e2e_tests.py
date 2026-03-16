@@ -50,6 +50,27 @@ from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stac
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
 
+def _generate_e2e_unified_output(result_json_path: str) -> None:
+    """Generate and display a UTOF report for e2e test results."""
+    if not result_json_path or not os.path.exists(result_json_path):
+        return
+    try:
+        from tasks.libs.testing.utof import format_report
+        from tasks.libs.testing.utof.e2e import convert_e2e_test_results, generate_metadata
+
+        result_json = ResultJson.from_file(result_json_path)
+        tw = TestWasher(test_output_json_file=result_json_path)
+        metadata = generate_metadata(test_system="e2e")
+        utof = convert_e2e_test_results(result_json, test_washer=tw, metadata=metadata)
+        utof_path = result_json_path.replace(".json", "_unified.json")
+        utof.write_json(utof_path)
+        print(f"Unified test output written to {utof_path}")
+        with gitlab_section("Unified test report", collapsed=True):
+            print(format_report(utof))
+    except Exception as e:
+        print(f"Warning: Failed to generate unified test output: {e}")
+
+
 class TestState:
     """Describes the state of a test, if it has failed and if it is flaky."""
 
@@ -562,6 +583,8 @@ def run(
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
     success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
+
+    _generate_e2e_unified_output(test_res.result_json_path)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

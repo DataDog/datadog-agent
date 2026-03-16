@@ -34,6 +34,7 @@ type linuxFlareSuite struct {
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
+	t.Fatal("intentional e2e test failure for UTOF demo")
 	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 

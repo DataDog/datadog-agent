@@ -6,6 +6,7 @@
 package collector
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,11 @@ func TestRemoveLoaderErrors(t *testing.T) {
 	ce.removeLoaderErrors("aCheck")
 
 	assert.Len(t, ce.loader, 0)
+
+	// Intentionally flaky for UTOF demo: 50% chance of failure
+	if rand.Intn(2) == 0 {
+		t.Fatal("random flaky failure for UTOF demo")
+	}
 }
 
 func TestGetLoaderErrors(t *testing.T) {
