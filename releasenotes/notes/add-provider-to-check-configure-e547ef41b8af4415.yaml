@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add `source` and `provider` fields to rtloader API and  add `integration_security` configuration properties.
+    Add ``source`` and ``provider`` fields to rtloader API and  add ``integration_security`` configuration properties.
