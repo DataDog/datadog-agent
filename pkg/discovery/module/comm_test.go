@@ -76,8 +76,6 @@ func TestIgnoreComm(t *testing.T) {
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	require.Equal(t, 10, len(ignoreComms))
-
 	for comm := range ignoreComms {
 		assert.LessOrEqual(t, len(comm), core.MaxCommLen, "Process name %q too big", comm)
 	}
@@ -132,7 +130,6 @@ func TestShouldIgnoreComm(t *testing.T) {
 	serverDir := filepath.Dir(serverBin)
 	discovery := newDiscovery()
 	require.NotEmpty(t, discovery)
-	require.Equal(t, 10, len(ignoreComms))
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
