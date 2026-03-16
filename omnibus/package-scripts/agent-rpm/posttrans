@@ -7,7 +7,8 @@
 #                                                                        #
 ##########################################################################
 
-INSTALL_DIR=/opt/datadog-agent
+# FIXME: DONOTMERGE: hardcoded install dir, should be templated
+INSTALL_DIR=/usr/opt/datadog-agent
 
 # Run FIPS installation script if available. Mandatory to execute the agent binary in FIPS mode.
 if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
