@@ -24,8 +24,8 @@
         files: [ .go-version, .python-version ]
       paths:
         - .cache/bazel/*/cache
-        - .cache/go*
-        - .cache/ms-go*
+        - .cache/go
+        - .cache/ms-go
         - .cache/pip
       policy: pull$BAZEL_CACHE_POLICY_SUFFIX
       when: on_success

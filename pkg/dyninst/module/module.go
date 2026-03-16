@@ -204,19 +204,17 @@ func makeRealDependencies(
 		}
 	}()
 
-	logUploaderURL, err := url.Parse(config.LogUploaderURL)
+	logsURL, err := url.Parse(config.LogUploaderURL)
 	if err != nil {
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	ret.logUploader = uploader.NewLogsUploaderFactory(
-		uploader.WithURL(logUploaderURL),
-	)
+	ret.logUploader = uploader.NewLogsUploaderFactory(logsURL)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
 		return ret, fmt.Errorf("error parsing diagnostics uploader URL: %w", err)
 	}
-	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
+	diagsUploader := uploader.NewDiagnosticsUploader(diagsUploaderURL)
 	ret.diagsUploader = diagsUploader
 
 	var symdbUploaderURL *url.URL

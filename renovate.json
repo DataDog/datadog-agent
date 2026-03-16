@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit", "github-actions"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
@@ -12,15 +12,19 @@
       },
       {
         "matchDepNames": ["omnibus-ruby"],
-        "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
+        "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}",
+        "matchUpdateTypes": ["major", "minor", "patch"],
+        "enabled": false
       },
       {
         "matchDepNames": ["linux-images"],
+        "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 * * 1-5"]
       },
       {
         "matchDepNames": ["windows-images"],
+        "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 2 * *"]
       },
@@ -32,6 +36,11 @@
       {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["dockerfile"],
+        "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
         "schedule": ["on saturday"]
       }
     ],

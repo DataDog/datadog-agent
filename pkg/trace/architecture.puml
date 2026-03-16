@@ -1,0 +1,78 @@
+@startuml trace-agent-architecture
+
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam nodesep 60
+skinparam ranksep 40
+skinparam rectangle {
+    BackgroundColor #dae8fc
+    BorderColor #6c8ebf
+    RoundCorner 8
+}
+skinparam actor {
+    BackgroundColor #f5f5f5
+    BorderColor #888888
+}
+skinparam database {
+    BackgroundColor #f5f5f5
+    BorderColor #888888
+}
+skinparam cloud {
+    BackgroundColor #f5f5f5
+    BorderColor #888888
+    Padding 20
+}
+skinparam package {
+    BackgroundColor #f8fbff
+    BorderColor #5d82a8
+    FontStyle bold
+}
+skinparam arrow {
+    Color #444444
+    FontSize 9
+}
+
+top to bottom direction
+
+actor "APM SDKs / Tracers" as sdk
+
+package "Trace Agent (pkg/trace)" {
+
+    together {
+        rectangle "HTTP Receiver\n[api]\n\nTCP/UDS/pipes" as recv
+        rectangle "OTLP Receiver\n[otel]\n\nOpenTelemetry\ngRPC / HTTP" as otlp
+    }
+
+    rectangle "Agent Pipeline  [agent]\nNormalize · Filter · Obfuscate" as agent #d5e8d4
+
+    together {
+        rectangle "Sampler  [sampler]\nPriority · Errors · Rare\nProbabilistic · APM events" as sampler
+        rectangle "Concentrator  [stats]\nRED metrics · time buckets\nper service / resource / env" as concentrator
+        rectangle "Client Stats Aggregator  [stats]\nMerges client-reported stats\ninto server-side buckets" as clientstats
+    }
+
+    together {
+        rectangle "Trace Writer  [writer]\nbuffer → /api/v0.2/traces\nretry" as twriter #fff2cc
+        rectangle "Stats Writer  [writer]\n/api/v0.2/stats" as swriter #fff2cc
+    }
+}
+
+cloud "\n   Datadog Backend   \n" as backend
+
+sdk -down-> recv : Trace payloads
+sdk -down-> recv : Stats payloads
+sdk -down-> otlp : OTLP payloads
+recv -down-> agent : Trace payloads
+otlp -down-> agent : Trace payloads
+recv -down-> clientstats : Stats payloads
+agent -down-> sampler
+agent -down-> concentrator
+sampler -down-> twriter
+concentrator -down-> swriter
+clientstats -down-> swriter
+twriter -down-> backend : /api/v0.2/traces
+swriter -down-> backend : /api/v0.2/stats
+sampler -[#e06c00,dashed]up-> recv : sampling rates
+recv -[#e06c00,dashed]up-> sdk : rates (response)
+
+@enduml

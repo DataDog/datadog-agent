@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.25.6
+go 1.25.0
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -24,7 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/docker/cli v29.0.3+incompatible // indirect
+	github.com/docker/cli v29.2.0+incompatible // indirect
 	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
@@ -64,18 +64,18 @@ require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.4 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.5 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.18 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.18 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.18 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.72.1
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.16 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.7 // indirect
@@ -181,12 +181,12 @@ require (
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.15.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.65.0 // indirect
-	go.opentelemetry.io/otel v1.40.0 // indirect
-	go.opentelemetry.io/otel/metric v1.40.0 // indirect
-	go.opentelemetry.io/otel/trace v1.40.0 // indirect
+	go.opentelemetry.io/otel v1.41.0 // indirect
+	go.opentelemetry.io/otel/metric v1.41.0 // indirect
+	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/exp v0.0.0-20260209203927-2842357ff358
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/mod v0.33.0
 	golang.org/x/net v0.51.0
 	golang.org/x/oauth2 v0.35.0 // indirect
@@ -223,8 +223,9 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.5.0
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.93.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.2
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
+	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/hairyhenderson/go-codeowners v0.7.0

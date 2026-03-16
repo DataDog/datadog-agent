@@ -90,7 +90,7 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		listener:               listener,
 		grpcServer:             nil,
 		defaultRefreshInterval: 5 * time.Second,
-		queryTimeout:           config.GetDuration("remote_agent_registry.query_timeout"),
+		queryTimeout:           config.GetDuration("remote_agent.registry.query_timeout"),
 	}
 
 	// Initialize the gRPC server

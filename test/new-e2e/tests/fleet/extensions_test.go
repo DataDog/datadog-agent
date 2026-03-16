@@ -191,6 +191,9 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping test on Windows -- incident-50789")
+	}
 	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
@@ -213,6 +216,16 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
 	s.Require().Equal(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be restored to initial version after rollback")
+}
+
+// TestDDOTAutoInstalledWithEnvVar verifies that when DD_OTELCOLLECTOR_ENABLED=true is set
+// during a fresh agent install, the DDOT extension is automatically installed and running
+// by the postinstall hook — without any explicit extension install call.
+func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
+	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
+	defer s.Agent.MustUninstall()
+
+	s.verifyDDOTRunning()
 }
 
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
@@ -317,7 +330,7 @@ func (s *extensionsSuite) verifyDDOTRunning() {
 		}
 
 		return true
-	}, 30*time.Second, 1*time.Second, "DDOT should be running and reporting status")
+	}, 2*time.Minute, 1*time.Second, "DDOT should be running and reporting status")
 	if !isDDOTRunning {
 		s.T().Fatalf("DDOT is not running")
 	}

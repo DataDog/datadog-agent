@@ -95,7 +95,7 @@ var (
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
-		{Path: "embedded/bin/sd-agent", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
@@ -269,6 +269,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := restoreAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
+	}
+	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
+		log.Warnf("failed to install extensions: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
