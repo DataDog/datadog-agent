@@ -107,24 +107,20 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 // Updator func is expected to return the new object and a boolean indicating if the object has changed.
 // The object is updated only if boolean is true, observers are notified only for updated objects after all objects have been updated.
 func (s *Store[T]) Update(updator func(T) (T, bool), sender SenderID) {
-	type change struct {
-		id  string
-		obj T
-	}
-	var changes []change
+	var changedIDs []string
 	s.lock.Lock()
 	for id, object := range s.store {
 		newObject, changed := updator(object)
 		if changed {
 			s.store[id] = newObject
-			changes = append(changes, change{id: id, obj: newObject})
+			changedIDs = append(changedIDs, id)
 		}
 	}
 	s.lock.Unlock()
 
 	// Notifying must be done after releasing the lock
-	for _, ch := range changes {
-		s.notify(setOperation, ch.id, sender)
+	for _, id := range changedIDs {
+		s.notify(setOperation, id, sender)
 	}
 }
 
