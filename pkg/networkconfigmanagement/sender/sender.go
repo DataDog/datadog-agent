@@ -98,7 +98,7 @@ func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
 }
 
 // SendDeviceMetadata sends device metadata to NDM intake
-func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string) error {
+func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string, tags []string) error {
 	payload := devicemetadata.NetworkDevicesMetadata{
 		Namespace:   s.namespace,
 		Integration: integrations.NetworkConfigManagement,
@@ -106,6 +106,7 @@ func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string) error {
 			{
 				ID:        deviceID,
 				IPAddress: deviceIP,
+				Tags:      tags,
 			},
 		},
 		CollectTimestamp: s.clock.Now().Unix(),

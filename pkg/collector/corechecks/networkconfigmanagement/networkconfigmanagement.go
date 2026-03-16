@@ -78,6 +78,10 @@ func (c *Check) Run() error {
 	deviceTags := c.getDeviceTags()
 	c.sender.SetDeviceTags(deviceTags)
 
+	if err := c.sender.SendDeviceMetadata(deviceID, c.checkContext.Device.IPAddress, deviceTags); err != nil {
+		log.Warnf("failed to send device metadata for %s: %s", deviceID, err)
+	}
+
 	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
 	if checkErr != nil {
 		return checkErr
@@ -101,10 +105,6 @@ func (c *Check) Run() error {
 		}
 		// add the startup config to the payload if it was retrieved successfully
 		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, metadata, deviceTags, startupConfig))
-	}
-
-	if err := c.sender.SendDeviceMetadata(deviceID, c.checkContext.Device.IPAddress); err != nil {
-		log.Warnf("failed to send device metadata for %s: %s", deviceID, err)
 	}
 
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
