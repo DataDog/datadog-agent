@@ -187,9 +187,9 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 				hashedTags := hashTags(metric.Tags)
 				var rcAction action
 				if metric.ExcludeTag {
-					rcAction = Exclude
+					rcAction = exclude
 				} else {
-					rcAction = Include
+					rcAction = include
 				}
 				tags[metric.Name] = hashedMetricTagList{
 					action: rcAction,
@@ -217,21 +217,20 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 // mergeMetricTagListEntry merges the given metric entry with the current entry.
 // It needs to merge with both the hashed and unhashed variants.
 func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (hashedMetricTagList, MetricTagListEntry) {
-
-	if (currentHashed.action == Exclude) == metric.ExcludeTag {
+	if (currentHashed.action == exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
 		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
 		return currentHashed, currentEntry
-	} else if currentHashed.action == Include {
+	} else if currentHashed.action == include {
 		// We always prefer the exclude tag, overwrite the existing config with this one.
 		hashedTags := hashTags(metric.Tags)
 
 		// Overwrite unhashed entry with exclude
 		hashed := hashedMetricTagList{
-			action: Exclude,
+			action: exclude,
 			tags:   hashedTags,
 		}
 

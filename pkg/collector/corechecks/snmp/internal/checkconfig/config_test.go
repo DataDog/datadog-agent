@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -39,7 +40,7 @@ func TestConfigurations(t *testing.T) {
 	setupHostname(t)
 
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -351,7 +352,7 @@ profiles:
 func TestInlineProfileConfiguration(t *testing.T) {
 	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

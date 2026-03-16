@@ -1,4 +1,4 @@
-FROM golang:1.25.6-bookworm@sha256:fae400019c7fb0400bca0b749fde2015f993ff0e0293ca6f8dbaf919650bb419
+FROM golang:1.25.6-bookworm@sha256:f4490d7b261d73af4543c46ac6597d7d101b6e1755bcdd8c5159fda7046b6b3e
 
 RUN cross_debian_arch=$(uname -m | sed -e 's/aarch64/amd64/'  -e 's/x86_64/arm64/'); \
     cross_pkg_arch=$(uname -m | sed -e 's/aarch64/x86-64/' -e 's/x86_64/aarch64/'); \

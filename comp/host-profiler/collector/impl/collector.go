@@ -16,6 +16,7 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/agentprovider"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/component"
@@ -114,6 +115,7 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 			ResolverSettings: confmap.ResolverSettings{
 				URIs: []string{uri},
 				ProviderFactories: []confmap.ProviderFactory{
+					agentprovider.NewFactory(extraFactories.GetAgentConfig()),
 					envprovider.NewFactory(),
 					fileprovider.NewFactory(),
 				},

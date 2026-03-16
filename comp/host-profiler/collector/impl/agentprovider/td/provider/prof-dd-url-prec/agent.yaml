@@ -1,0 +1,5 @@
+# Test that profiling_dd_url takes precedence over site
+site: datadoghq.com
+api_key: test_key_123
+apm_config:
+  profiling_dd_url: https://intake.profile.datadoghq.eu/api/v2/profile

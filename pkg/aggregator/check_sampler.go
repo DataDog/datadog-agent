@@ -93,7 +93,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -116,7 +116,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList fi
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket, filterList)
+	contextKey := cs.contextResolver.trackContext(bucket, tagFilterList)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {

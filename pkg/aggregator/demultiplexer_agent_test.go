@@ -234,7 +234,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	// After initial setup, we have filterlist from the configuration file.
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
-		return len(demux.aggregator.tagfilterListChan) == 0
+		return len(demux.aggregator.tagFilterListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
 	// Tag 1 and 2 are excluded
@@ -251,7 +251,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
-		return len(demux.aggregator.tagfilterListChan) == 0
+		return len(demux.aggregator.tagFilterListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
 	testCountBlocked([]string{"tag1:one", "tag2:two", "tag3:three"}, 62.0)
