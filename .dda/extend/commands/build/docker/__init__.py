@@ -205,11 +205,11 @@ def _build_quick_image(
                 f"Use --base-image with a version (e.g., --base-image=7.63.0) to use a public image instead."
             )
     elif "/" not in resolved_base_image and ":" not in resolved_base_image:
-        # Bare version string (e.g. "7.63.0" or "6.53.0") — validate and resolve to the public release image.
+        # Bare version string (e.g. "7.63.0") — validate and resolve to the public release image.
         import re
 
-        if not re.fullmatch(r"\d+\.\d+\.\d+(-\d+)?", resolved_base_image):
-            app.abort(f"Invalid agent version: '{resolved_base_image}'. Expected format: X.Y.Z (e.g. '7.63.0').")
+        if not re.fullmatch(r"7\.\d+\.\d+(-\d+)?", resolved_base_image):
+            app.abort(f"Invalid agent version: '{resolved_base_image}'. Expected format: 7.X.Y (e.g. '7.63.0').")
         resolved_base_image = f"{RELEASE_IMAGE_REPOSITORY}:{resolved_base_image}"
 
     # Step 2: clean stale CMake cache to avoid source-path mismatch errors, then build
