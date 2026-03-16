@@ -8,10 +8,22 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
+
+// scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
+// Same pattern as scanmwSeriesState and BOCPD (metrics_detector_bocpd.go).
+type scanwelchSeriesState struct {
+	key observer.SeriesKey
+	agg observer.Aggregate
+
+	lastProcessedCount int
+	lastWriteGen       int64
+
+	// Segment tracking: only scan [segmentStartTime, dataTime].
+	segmentStartTime int64
+}
 
 // ScanWelchDetector detects changepoints by scanning all possible split points
 // with Welch's t-test for candidate selection, then verifies each candidate
@@ -20,7 +32,8 @@ import (
 // This hybrid uses parametric detection (t-test finds mean shifts efficiently)
 // combined with nonparametric verification (MW p-value for selectivity).
 //
-// Implements SeriesDetector (batch) — the seriesDetectorAdapter handles streaming.
+// Implements Detector (streaming) — after finding a changepoint, advances
+// the segment start so subsequent scans only examine post-change data.
 type ScanWelchDetector struct {
 	// MinSegment is the minimum number of points in each segment.
 	MinSegment int
@@ -40,8 +53,15 @@ type ScanWelchDetector struct {
 	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
 	MinDeviationMAD float64
 
-	// fired tracks which series have been reported.
-	fired map[string]bool
+	// Aggregations to run detection on. Default: [Average, Count]
+	Aggregations []observer.Aggregate
+
+	// per-series state keyed by "namespace|name|tags|agg"
+	series map[string]*scanwelchSeriesState
+
+	// Cache the discovered series list across Detect calls.
+	cachedKeys []observer.SeriesKey
+	cachedGen  uint64
 }
 
 // NewScanWelchDetector creates a ScanWelch detector with default settings.
@@ -53,7 +73,11 @@ func NewScanWelchDetector() *ScanWelchDetector {
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
-		fired:                 make(map[string]bool),
+		Aggregations: []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		},
+		series: make(map[string]*scanwelchSeriesState),
 	}
 }
 
@@ -62,25 +86,70 @@ func (d *ScanWelchDetector) Name() string {
 	return "scanwelch"
 }
 
-// Reset clears internal state.
+// Reset clears all per-series state for replay/reanalysis.
 func (d *ScanWelchDetector) Reset() {
-	d.fired = make(map[string]bool)
+	d.series = make(map[string]*scanwelchSeriesState)
+	d.cachedKeys = nil
+	d.cachedGen = 0
 }
 
-// Detect implements SeriesDetector.
-func (d *ScanWelchDetector) Detect(series observer.Series) observer.DetectionResult {
-	fireKey := series.Name + "|" + strings.Join(series.Tags, ",")
-	if d.fired[fireKey] {
-		return observer.DetectionResult{}
+// Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
+// consider dedup if more scan-based detectors are added.
+func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+	d.ensureDefaults()
+
+	gen := storage.SeriesGeneration()
+	if d.cachedKeys == nil || gen != d.cachedGen {
+		d.cachedKeys = storage.ListSeries(observer.SeriesFilter{})
+		d.cachedGen = gen
 	}
 
-	n := len(series.Points)
-	if n < d.MinPoints {
-		return observer.DetectionResult{}
+	var allAnomalies []observer.Anomaly
+
+	for _, key := range d.cachedKeys {
+		for _, agg := range d.Aggregations {
+			stateKey := d.stateKey(key, agg)
+
+			state, exists := d.series[stateKey]
+			if !exists {
+				state = &scanwelchSeriesState{key: key, agg: agg}
+				d.series[stateKey] = state
+			}
+
+			visibleCount := storage.PointCountUpTo(key, dataTime)
+			currentGen := storage.WriteGeneration(key)
+			if visibleCount <= state.lastProcessedCount && currentGen == state.lastWriteGen {
+				continue
+			}
+
+			series := storage.GetSeriesRange(key, state.segmentStartTime, dataTime, agg)
+			if series == nil || len(series.Points) < d.MinPoints {
+				state.lastProcessedCount = visibleCount
+				state.lastWriteGen = currentGen
+				continue
+			}
+
+			anomaly, changeIdx, found := d.scanWelch(series.Points, key, agg)
+			if found {
+				allAnomalies = append(allAnomalies, anomaly)
+				state.segmentStartTime = series.Points[changeIdx].Timestamp
+			}
+
+			state.lastProcessedCount = visibleCount
+			state.lastWriteGen = currentGen
+		}
 	}
+
+	return observer.DetectionResult{Anomalies: allAnomalies}
+}
+
+// scanWelch runs the hybrid Welch/MW scan on points within the current segment.
+// Returns (anomaly, changeIndex, found).
+func (d *ScanWelchDetector) scanWelch(points []observer.Point, key observer.SeriesKey, agg observer.Aggregate) (observer.Anomaly, int, bool) {
+	n := len(points)
 
 	values := make([]float64, n)
-	for i, p := range series.Points {
+	for i, p := range points {
 		values[i] = p.Value
 	}
 
@@ -126,7 +195,7 @@ func (d *ScanWelchDetector) Detect(series observer.Series) observer.DetectionRes
 	}
 
 	if bestK < 0 || bestTAbs < d.MinTStatistic {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
 	// Phase 2: Verify using Mann-Whitney at the best split point.
@@ -146,7 +215,7 @@ func (d *ScanWelchDetector) Detect(series observer.Series) observer.DetectionRes
 	meanU := fk * fnk / 2
 	varU := (fk * fnk / 12) * (fN + 1 - tieCorrection/(fN*(fN-1)))
 	if varU <= 0 {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 	stdU := math.Sqrt(varU)
 
@@ -160,13 +229,13 @@ func (d *ScanWelchDetector) Detect(series observer.Series) observer.DetectionRes
 		pValue = 1.0
 	}
 	if pValue >= d.SignificanceThreshold {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
 	// Effect size check
 	effectSize := rankBiserialCorrelation(U, bestK, n-bestK)
 	if math.Abs(effectSize) < d.MinEffectSize {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
 	// Phase 3: Robust deviation check
@@ -182,12 +251,10 @@ func (d *ScanWelchDetector) Detect(series observer.Series) observer.DetectionRes
 	}
 	deviation := math.Abs(postMedian-preMedian) / denom
 	if deviation < d.MinDeviationMAD {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
-	d.fired[fireKey] = true
-
-	changePtTime := series.Points[bestK].Timestamp
+	changePtTime := points[bestK].Timestamp
 	direction := "increased"
 	if postMedian < preMedian {
 		direction = "decreased"
@@ -198,22 +265,61 @@ func (d *ScanWelchDetector) Detect(series observer.Series) observer.DetectionRes
 		score = 300.0
 	}
 
-	return observer.DetectionResult{
-		Anomalies: []observer.Anomaly{
-			{
-				Title: fmt.Sprintf("ScanWelch changepoint: %s", series.Name),
-				Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
-					series.Name, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
-				Tags:      series.Tags,
-				Timestamp: changePtTime,
-				Score:     &score,
-				DebugInfo: &observer.AnomalyDebugInfo{
-					BaselineMedian: preMedian,
-					BaselineMAD:    preMAD,
-					CurrentValue:   postMedian,
-					DeviationSigma: deviation,
-				},
-			},
+	seriesName := key.Name + ":" + aggSuffix(agg)
+	anomaly := observer.Anomaly{
+		Type:           observer.AnomalyTypeMetric,
+		Source:         observer.MetricName(seriesName),
+		SourceSeriesID: observer.SeriesID(seriesKey(key.Namespace, seriesName, key.Tags)),
+		DetectorName:   d.Name(),
+		Title:          fmt.Sprintf("ScanWelch changepoint: %s", seriesName),
+		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
+			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
+		Tags:      key.Tags,
+		Timestamp: changePtTime,
+		Score:     &score,
+		DebugInfo: &observer.AnomalyDebugInfo{
+			BaselineMedian: preMedian,
+			BaselineMAD:    preMAD,
+			CurrentValue:   postMedian,
+			DeviationSigma: deviation,
 		},
+	}
+
+	return anomaly, bestK, true
+}
+
+// stateKey returns a unique key for per-series state tracking.
+func (d *ScanWelchDetector) stateKey(key observer.SeriesKey, agg observer.Aggregate) string {
+	return seriesKey(key.Namespace, key.Name, key.Tags) + "|" + aggSuffix(agg)
+}
+
+// ensureDefaults fills in zero-valued config fields with sensible defaults.
+func (d *ScanWelchDetector) ensureDefaults() {
+	if d.MinSegment <= 0 {
+		d.MinSegment = 12
+	}
+	if d.MinPoints <= 0 {
+		d.MinPoints = 30
+	}
+	if d.MinTStatistic <= 0 {
+		d.MinTStatistic = 8.0
+	}
+	if d.SignificanceThreshold <= 0 {
+		d.SignificanceThreshold = 1e-8
+	}
+	if d.MinEffectSize <= 0 {
+		d.MinEffectSize = 0.85
+	}
+	if d.MinDeviationMAD <= 0 {
+		d.MinDeviationMAD = 3.0
+	}
+	if d.series == nil {
+		d.series = make(map[string]*scanwelchSeriesState)
+	}
+	if len(d.Aggregations) == 0 {
+		d.Aggregations = []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		}
 	}
 }

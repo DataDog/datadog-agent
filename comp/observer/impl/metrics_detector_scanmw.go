@@ -9,10 +9,26 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
+
+// scanmwSeriesState holds per-series streaming state for the ScanMW detector.
+// NOTE: This per-series state struct follows the same pattern used by BOCPD
+// (metrics_detector_bocpd.go). If more scan-based detectors are added,
+// consider extracting a shared scanSeriesState base.
+type scanmwSeriesState struct {
+	key observer.SeriesKey
+	agg observer.Aggregate
+
+	// Cursor (same pattern as BOCPD: metrics_detector_bocpd.go:16-22)
+	lastProcessedCount int
+	lastWriteGen       int64
+
+	// Segment tracking: only scan [segmentStartTime, dataTime].
+	// 0 initially (scan full history), advances to changepoint timestamp on fire.
+	segmentStartTime int64
+}
 
 // ScanMWDetector detects changepoints by scanning all possible split points
 // with the Mann-Whitney U test. It picks the split that gives the most
@@ -22,7 +38,8 @@ import (
 // Uses an efficient O(n log n) implementation: ranks are assigned once via
 // sorting, then the rank sum is updated incrementally as the split point moves.
 //
-// Implements SeriesDetector (batch) — the seriesDetectorAdapter handles streaming.
+// Implements Detector (streaming) — after finding a changepoint, advances
+// the segment start so subsequent scans only examine post-change data.
 type ScanMWDetector struct {
 	// MinSegment is the minimum number of points in each segment.
 	// Default: 12
@@ -33,19 +50,26 @@ type ScanMWDetector struct {
 	MinPoints int
 
 	// SignificanceThreshold is the maximum p-value for the best split to be
-	// considered a changepoint. Default: 1e-6
+	// considered a changepoint. Default: 1e-8
 	SignificanceThreshold float64
 
 	// MinEffectSize is the minimum |rank-biserial correlation| for reporting.
-	// Default: 0.8
+	// Default: 0.85
 	MinEffectSize float64
 
 	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
-	// Default: 2.5
+	// Default: 3.0
 	MinDeviationMAD float64
 
-	// fired tracks which series have been reported.
-	fired map[string]bool
+	// Aggregations to run detection on. Default: [Average, Count]
+	Aggregations []observer.Aggregate
+
+	// per-series state keyed by "namespace|name|tags|agg"
+	series map[string]*scanmwSeriesState
+
+	// Cache the discovered series list across Detect calls.
+	cachedKeys []observer.SeriesKey
+	cachedGen  uint64
 }
 
 // NewScanMWDetector creates a ScanMW detector with default settings.
@@ -56,7 +80,11 @@ func NewScanMWDetector() *ScanMWDetector {
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
-		fired:                 make(map[string]bool),
+		Aggregations: []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		},
+		series: make(map[string]*scanmwSeriesState),
 	}
 }
 
@@ -65,33 +93,83 @@ func (d *ScanMWDetector) Name() string {
 	return "scanmw"
 }
 
-// Reset clears internal state.
+// Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
-	d.fired = make(map[string]bool)
+	d.series = make(map[string]*scanmwSeriesState)
+	d.cachedKeys = nil
+	d.cachedGen = 0
 }
 
-// Detect implements SeriesDetector.
-func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult {
-	fireKey := series.Name + "|" + strings.Join(series.Tags, ",")
-	if d.fired[fireKey] {
-		return observer.DetectionResult{}
+// Detect implements Detector. It discovers series, reads segment data,
+// and scans for changepoints. After finding one, the segment start advances
+// so subsequent calls only examine post-change data.
+//
+// Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go:140-221)
+// and ScanWelch — consider dedup if more scan-based detectors are added.
+func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+	d.ensureDefaults()
+
+	gen := storage.SeriesGeneration()
+	if d.cachedKeys == nil || gen != d.cachedGen {
+		d.cachedKeys = storage.ListSeries(observer.SeriesFilter{})
+		d.cachedGen = gen
 	}
 
-	n := len(series.Points)
-	if n < d.MinPoints {
-		return observer.DetectionResult{}
+	var allAnomalies []observer.Anomaly
+
+	for _, key := range d.cachedKeys {
+		for _, agg := range d.Aggregations {
+			stateKey := d.stateKey(key, agg)
+
+			state, exists := d.series[stateKey]
+			if !exists {
+				state = &scanmwSeriesState{key: key, agg: agg}
+				d.series[stateKey] = state
+			}
+
+			// Check if there are new points.
+			visibleCount := storage.PointCountUpTo(key, dataTime)
+			currentGen := storage.WriteGeneration(key)
+			if visibleCount <= state.lastProcessedCount && currentGen == state.lastWriteGen {
+				continue
+			}
+
+			// Read the active segment.
+			series := storage.GetSeriesRange(key, state.segmentStartTime, dataTime, agg)
+			if series == nil || len(series.Points) < d.MinPoints {
+				state.lastProcessedCount = visibleCount
+				state.lastWriteGen = currentGen
+				continue
+			}
+
+			anomaly, changeIdx, found := d.scanMW(series.Points, key, agg)
+			if found {
+				allAnomalies = append(allAnomalies, anomaly)
+				// Advance segment start to the changepoint timestamp.
+				state.segmentStartTime = series.Points[changeIdx].Timestamp
+			}
+
+			state.lastProcessedCount = visibleCount
+			state.lastWriteGen = currentGen
+		}
 	}
+
+	return observer.DetectionResult{Anomalies: allAnomalies}
+}
+
+// scanMW runs the scan algorithm on points within the current segment.
+// Returns (anomaly, changeIndex, found). Pure function over the input data.
+func (d *ScanMWDetector) scanMW(points []observer.Point, key observer.SeriesKey, agg observer.Aggregate) (observer.Anomaly, int, bool) {
+	n := len(points)
 
 	values := make([]float64, n)
-	for i, p := range series.Points {
+	for i, p := range points {
 		values[i] = p.Value
 	}
 
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
-	// ranks[i] = rank of values[i] in the combined sorted order (tie-averaged).
 	ranks, tieCorrection := assignRanks(values)
 
-	// Initialize R1 = sum of ranks for values[0..minSeg-1] (the "before" group).
 	minSeg := d.MinSegment
 	var R1 float64
 	for i := 0; i < minSeg; i++ {
@@ -100,12 +178,10 @@ func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult
 
 	bestZAbs := 0.0
 	bestK := -1
-
 	fN := float64(n)
 
 	for k := minSeg; k <= n-minSeg; k++ {
 		if k > minSeg {
-			// Move split: value at index k-1 moves from "after" to "before".
 			R1 += ranks[k-1]
 		}
 
@@ -134,7 +210,7 @@ func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult
 	}
 
 	if bestK < 0 {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
 	// Convert best z to p-value.
@@ -144,7 +220,7 @@ func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult
 	}
 
 	if bestPValue >= d.SignificanceThreshold {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
 	// Recompute U at bestK for effect size.
@@ -157,7 +233,7 @@ func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult
 
 	effectSize := rankBiserialCorrelation(bestU, bestK, n-bestK)
 	if math.Abs(effectSize) < d.MinEffectSize {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
 	// Check robust deviation at best split.
@@ -173,12 +249,10 @@ func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult
 	}
 	deviation := math.Abs(postMedian-preMedian) / denom
 	if deviation < d.MinDeviationMAD {
-		return observer.DetectionResult{}
+		return observer.Anomaly{}, 0, false
 	}
 
-	d.fired[fireKey] = true
-
-	changePtTime := series.Points[bestK].Timestamp
+	changePtTime := points[bestK].Timestamp
 	direction := "increased"
 	if postMedian < preMedian {
 		direction = "decreased"
@@ -189,23 +263,59 @@ func (d *ScanMWDetector) Detect(series observer.Series) observer.DetectionResult
 		score = 300.0
 	}
 
-	return observer.DetectionResult{
-		Anomalies: []observer.Anomaly{
-			{
-				Title: fmt.Sprintf("ScanMW changepoint: %s", series.Name),
-				Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
-					series.Name, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
-				Tags:      series.Tags,
-				Timestamp: changePtTime,
-				Score:     &score,
-				DebugInfo: &observer.AnomalyDebugInfo{
-					BaselineMedian: preMedian,
-					BaselineMAD:    preMAD,
-					CurrentValue:   postMedian,
-					DeviationSigma: deviation,
-				},
-			},
+	seriesName := key.Name + ":" + aggSuffix(agg)
+	anomaly := observer.Anomaly{
+		Type:           observer.AnomalyTypeMetric,
+		Source:         observer.MetricName(seriesName),
+		SourceSeriesID: observer.SeriesID(seriesKey(key.Namespace, seriesName, key.Tags)),
+		DetectorName:   d.Name(),
+		Title:          fmt.Sprintf("ScanMW changepoint: %s", seriesName),
+		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
+			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
+		Tags:      key.Tags,
+		Timestamp: changePtTime,
+		Score:     &score,
+		DebugInfo: &observer.AnomalyDebugInfo{
+			BaselineMedian: preMedian,
+			BaselineMAD:    preMAD,
+			CurrentValue:   postMedian,
+			DeviationSigma: deviation,
 		},
+	}
+
+	return anomaly, bestK, true
+}
+
+// stateKey returns a unique key for per-series state tracking.
+func (d *ScanMWDetector) stateKey(key observer.SeriesKey, agg observer.Aggregate) string {
+	return seriesKey(key.Namespace, key.Name, key.Tags) + "|" + aggSuffix(agg)
+}
+
+// ensureDefaults fills in zero-valued config fields with sensible defaults.
+func (d *ScanMWDetector) ensureDefaults() {
+	if d.MinSegment <= 0 {
+		d.MinSegment = 12
+	}
+	if d.MinPoints <= 0 {
+		d.MinPoints = 30
+	}
+	if d.SignificanceThreshold <= 0 {
+		d.SignificanceThreshold = 1e-8
+	}
+	if d.MinEffectSize <= 0 {
+		d.MinEffectSize = 0.85
+	}
+	if d.MinDeviationMAD <= 0 {
+		d.MinDeviationMAD = 3.0
+	}
+	if d.series == nil {
+		d.series = make(map[string]*scanmwSeriesState)
+	}
+	if len(d.Aggregations) == 0 {
+		d.Aggregations = []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		}
 	}
 }
 

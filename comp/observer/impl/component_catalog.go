@@ -144,15 +144,6 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:        "robustscan",
-				displayName: "RobustScan",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewRobustScanDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
 				name:        "scanmw",
 				displayName: "ScanMW",
 				kind:        componentDetector,
@@ -167,15 +158,6 @@ func defaultCatalog() *componentCatalog {
 				kind:        componentDetector,
 				factory: func() any {
 					return NewScanWelchDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "scanks",
-				displayName: "ScanKS",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewScanKSDetector()
 				},
 				defaultEnabled: false,
 			},

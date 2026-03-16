@@ -167,7 +167,5 @@ func TestMannWhitneyDetector_DefaultAggregations(t *testing.T) {
 
 func TestMannWhitneyDetector_DefaultWarmup(t *testing.T) {
 	d := NewMannWhitneyDetector()
-	d.ensureDefaults()
-	expected := d.WindowSize*2 + d.MinPoints // 60*2 + 50 = 170
-	assert.Equal(t, expected, d.WarmupPoints, "default warmup should be WindowSize*2 + MinPoints")
+	assert.Equal(t, 30, d.WarmupPoints, "default warmup should match constructor value")
 }

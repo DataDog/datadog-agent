@@ -110,10 +110,10 @@ type BOCPDDetector struct {
 func NewBOCPDDetector() *BOCPDDetector {
 	return &BOCPDDetector{
 		WarmupPoints:       120,
-		Hazard:             0.01,
-		CPThreshold:        0.8,
+		Hazard:             0.005,
+		CPThreshold:        0.95,
 		ShortRunLength:     5,
-		CPMassThreshold:    0.8,
+		CPMassThreshold:    0.95,
 		MaxRunLength:       200,
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
