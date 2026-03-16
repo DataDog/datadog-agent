@@ -150,9 +150,10 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 				return nil
 			}
 
-			// Inventory payloads are already scrubbed before being stored (e.g. via
-			// marshalAndScrub). Using AddFileWithoutScrubbing avoids double-scrubbing
-			// which can corrupt pre-scrubbed values whose keys match scrubber patterns.
+			// Inventory payloads scrub sensitive fields before storing them (e.g.
+			// inventorychecks uses scrubber.ScrubYamlString on init_config/instance_config).
+			// Using AddFileWithoutScrubbing avoids double-scrubbing which can corrupt
+			// pre-scrubbed values whose keys match scrubber patterns.
 			data, err := i.GetAsJSON()
 			if err != nil {
 				return err
