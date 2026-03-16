@@ -1,0 +1,19 @@
+# E2E CI Artifact Dependencies for agent-metric-pipelines tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area agent-metric-pipelines --force
+
+area: agent-metric-pipelines
+
+# Default artifacts used by tests in this area
+# Generated from current CI configuration
+# Source: new-e2e-amp extends .new_e2e_template with explicit needs
+default_artifacts:
+  - agent_deb-x64-a7               # Debian package
+  - qa_agent_linux                 # Base Linux agent Docker image
+  - qa_agent_linux_jmx             # Linux agent with JMX support
+  - qa_agent_fips_linux_jmx        # FIPS Linux agent with JMX support
+  - qa_dca                         # Datadog Cluster Agent

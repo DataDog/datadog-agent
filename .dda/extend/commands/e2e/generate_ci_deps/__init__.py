@@ -114,7 +114,7 @@ def cmd(app: Application, *, area: str | None, validate: bool, dry_run: bool, ve
         if not job_name.startswith("new-e2e-"):
             continue
 
-        variables = job_config.get("variables", {})
+        variables = resolve_job_variables(job_config, ci_config)
         targets = variables.get("TARGETS", "")
         extra_params = variables.get("EXTRA_PARAMS", "")
 
@@ -139,6 +139,13 @@ def cmd(app: Application, *, area: str | None, validate: bool, dry_run: bool, ve
         test_pattern = extract_test_pattern(extra_params)
 
         manifest = area_manifests[test_area]
+
+        # Skip jobs whose artifact set is documented via a MANUAL: test_specific entry.
+        # These jobs cannot be matched by a --run pattern so they are exempt from
+        # automated validation; the MANUAL: entry serves as documentation only.
+        if _is_manual_pattern_job(manifest, job_name):
+            continue
+
         expected_artifacts = determine_artifacts(manifest, test_pattern)
 
         # Get current artifacts from needs (resolve template inheritance)
@@ -294,65 +301,124 @@ def determine_artifacts(manifest: dict, test_pattern: str | None) -> list[str]:
     return manifest.get("default_artifacts", [])
 
 
-def resolve_job_artifacts(job_config: dict, ci_config: dict) -> list[str]:
-    """Resolve artifacts for a job, including template inheritance.
+def _is_manual_pattern_job(manifest: dict, job_name: str) -> bool:
+    """Return True if the job has a MANUAL:<job_name> entry in test_specific.
 
-    Handles jobs that extend templates with needs sections.
+    Such jobs have per-job artifact sets that differ from the default but have
+    no --run pattern to distinguish them at validation time.  The MANUAL: entry
+    documents the correct artifacts; validation is intentionally skipped.
     """
-    artifacts = []
+    for spec in manifest.get("test_specific", []):
+        if spec.get("pattern") == f"MANUAL:{job_name}":
+            return True
+    return False
 
-    # First check if job has direct needs
+
+def resolve_job_variables(job_config: dict, ci_config: dict) -> dict:
+    """Resolve variables for a job, including template inheritance.
+
+    Variables from extended templates are merged, with job-specific variables taking precedence.
+    """
+    merged_vars: dict = {}
+    extends = job_config.get("extends", [])
+    if isinstance(extends, str):
+        extends = [extends]
+    for template_name in extends:
+        if template_name in ci_config:
+            template = ci_config[template_name]
+            if isinstance(template, dict) and "variables" in template:
+                merged_vars.update(template["variables"])
+    if "variables" in job_config:
+        merged_vars.update(job_config["variables"])
+    return merged_vars
+
+
+def resolve_job_artifacts(job_config: dict, ci_config: dict) -> list[str]:
+    """Resolve artifacts for a job, including full template inheritance.
+
+    Follows the extends chain to find the effective needs, then extracts
+    artifact job names from the fully-expanded needs list.
+    """
+    effective_needs = resolve_effective_needs(job_config, ci_config)
+    artifacts = _extract_artifact_jobs(effective_needs)
+    return list(dict.fromkeys(artifacts))  # Remove duplicates while preserving order
+
+
+def resolve_effective_needs(job_config: dict, ci_config: dict, _visited: set | None = None) -> list:
+    """Resolve the effective needs list for a job, following the extends chain.
+
+    In GitLab CI, `needs` is fully overridden (not merged) by the extending job.
+    This walks the chain to find the first definition of `needs`.
+    """
+    if _visited is None:
+        _visited = set()
+
+    # If this job/template has its own needs, expand references and return
     if "needs" in job_config:
-        artifacts.extend(extract_artifacts_from_needs(job_config["needs"], ci_config))
+        return expand_needs_references(job_config["needs"], ci_config)
 
-    # Then check templates this job extends
+    # Otherwise, follow the extends chain
     extends = job_config.get("extends", [])
     if isinstance(extends, str):
         extends = [extends]
 
     for template_name in extends:
+        if template_name in _visited:
+            continue
+        _visited.add(template_name)
         if template_name in ci_config:
             template = ci_config[template_name]
-            if isinstance(template, dict) and "needs" in template:
-                artifacts.extend(extract_artifacts_from_needs(template["needs"], ci_config))
+            if isinstance(template, dict):
+                result = resolve_effective_needs(template, ci_config, _visited)
+                if result:
+                    return result
 
-    return list(dict.fromkeys(artifacts))  # Remove duplicates while preserving order
+    return []
 
 
-def extract_artifacts_from_needs(needs: list, ci_config: dict | None = None) -> list[str]:
-    """Extract artifact job names from needs section.
+def expand_needs_references(needs: list, ci_config: dict) -> list:
+    """Expand !reference items in a needs list into concrete entries.
 
     Handles:
-    - Simple string references: "qa_agent_linux"
-    - Dict references: {"job": "qa_agent_linux", "optional": true}
-    - GitLab !reference (parsed as list): [".template_name", "needs"]
+    - !reference [.anchor]          — anchor is a top-level list in ci_config
+    - !reference [.template, field] — field of a dict template
     """
-    artifacts = []
-    artifact_prefixes = ("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")
-
+    result = []
     for need in needs:
-        if isinstance(need, str):
-            # Simple string reference
-            if need.startswith(artifact_prefixes):
-                artifacts.append(need)
-        elif isinstance(need, dict):
-            # Dictionary with optional: true or other keys
-            job_name = need.get("job", "")
-            if job_name.startswith(artifact_prefixes):
-                artifacts.append(job_name)
-        elif isinstance(need, list) and ci_config:
-            # This is a !reference like [".template_name", "needs"]
-            # Resolve the reference and recursively extract artifacts
-            if len(need) >= 2:
-                template_name = need[0]
-                field_name = need[1]
+        if isinstance(need, list):
+            if len(need) == 1:
+                # !reference [.anchor] where the anchor is a top-level list
+                anchor = need[0]
+                if anchor in ci_config:
+                    ref = ci_config[anchor]
+                    if isinstance(ref, list):
+                        result.extend(expand_needs_references(ref, ci_config))
+            elif len(need) >= 2:
+                # !reference [.template, field]
+                template_name, field_name = need[0], need[1]
                 if template_name in ci_config:
                     template = ci_config[template_name]
                     if isinstance(template, dict) and field_name in template:
-                        referenced_needs = template[field_name]
-                        if isinstance(referenced_needs, list):
-                            artifacts.extend(extract_artifacts_from_needs(referenced_needs, ci_config))
+                        ref = template[field_name]
+                        if isinstance(ref, list):
+                            result.extend(expand_needs_references(ref, ci_config))
+        else:
+            result.append(need)
+    return result
 
+
+def _extract_artifact_jobs(needs: list) -> list[str]:
+    """Extract artifact job names from an already-expanded needs list."""
+    artifact_prefixes = ("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")
+    artifacts = []
+    for need in needs:
+        if isinstance(need, str):
+            if need.startswith(artifact_prefixes):
+                artifacts.append(need)
+        elif isinstance(need, dict):
+            job_name = need.get("job", "")
+            if job_name.startswith(artifact_prefixes):
+                artifacts.append(job_name)
     return artifacts
 
 
@@ -381,16 +447,24 @@ def update_job_needs(job_config: dict, artifacts: list[str], ci_config: dict) ->
     current_needs = job_config["needs"]
     new_needs = CommentedSeq()
 
+    # Build a set of artifact names that were optional in the existing needs
+    artifact_prefixes = ("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")
+    optional_artifacts: set[str] = set()
+    for need in current_needs:
+        if isinstance(need, dict) and "job" in need and need.get("optional"):
+            if need["job"].startswith(artifact_prefixes):
+                optional_artifacts.add(need["job"])
+
     # Preserve non-artifact entries (like !reference)
     for need in current_needs:
         if isinstance(need, str):
-            if not need.startswith(("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")):
+            if not need.startswith(artifact_prefixes):
                 new_needs.append(need)
         elif isinstance(need, dict):
             # Preserve non-artifact job entries and special entries
             if "job" in need:
                 job_name = need["job"]
-                if not job_name.startswith(("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")):
+                if not job_name.startswith(artifact_prefixes):
                     new_needs.append(need)
             else:
                 # Preserve other dict entries (like !reference)
@@ -399,9 +473,12 @@ def update_job_needs(job_config: dict, artifacts: list[str], ci_config: dict) ->
             # Preserve any other type (like tagged scalars)
             new_needs.append(need)
 
-    # Add new artifacts
+    # Add new artifacts, preserving optional: true for entries that had it
     for artifact in sorted(artifacts):
-        new_needs.append(artifact)
+        if artifact in optional_artifacts:
+            new_needs.append({"job": artifact, "optional": True})
+        else:
+            new_needs.append(artifact)
 
     job_config["needs"] = new_needs
     return True

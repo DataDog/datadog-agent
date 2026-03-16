@@ -1,0 +1,27 @@
+# E2E CI Artifact Dependencies for ndm (Network Device Monitoring) tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area ndm --force
+#
+# Two jobs cover this area with different sub-targets and artifact sets:
+#   - new-e2e-ndm-netflow (./tests/ndm/netflow): qa_agent_linux only
+#   - new-e2e-ndm-snmp   (./tests/ndm/snmp):    agent_deb-x64-a7 + qa_agent_linux
+# Neither job uses a --run pattern, so the default covers the broader snmp set.
+
+area: ndm
+
+# Default artifacts: union of both ndm jobs (snmp superset)
+default_artifacts:
+  - agent_deb-x64-a7               # Debian package (snmp only)
+  - qa_agent_linux                 # Base Linux agent Docker image
+
+# Test-specific overrides
+# MANUAL: prefix indicates no --run pattern to auto-match; handled manually
+test_specific:
+  - pattern: "MANUAL:new-e2e-ndm-netflow"
+    artifacts:
+      - qa_agent_linux
+    comment: "netflow tests (./tests/ndm/netflow): no deb package needed"

@@ -391,38 +391,83 @@ default_artifacts:
 
 
 def resolve_job_artifacts(job_config: dict, ci_config: dict) -> list[str]:
-    """Resolve artifacts for a job, including template inheritance."""
-    artifacts = []
+    """Resolve artifacts for a job, including full template inheritance.
 
-    # Check if job has direct needs
+    Follows the extends chain to find the effective needs, then extracts
+    artifact job names from the fully-expanded needs list.
+    """
+    effective_needs = resolve_effective_needs(job_config, ci_config)
+    artifacts = _extract_artifact_jobs(effective_needs)
+    return list(dict.fromkeys(artifacts))  # Remove duplicates, preserve order
+
+
+def resolve_effective_needs(job_config: dict, ci_config: dict, _visited: set | None = None) -> list:
+    """Resolve the effective needs list for a job, following the extends chain.
+
+    In GitLab CI, `needs` is fully overridden (not merged) by the extending job.
+    This walks the chain to find the first definition of `needs`.
+    """
+    if _visited is None:
+        _visited = set()
+
+    # If this job/template has its own needs, expand references and return
     if "needs" in job_config:
-        artifacts.extend(extract_artifacts_from_needs(job_config["needs"], ci_config))
+        return expand_needs_references(job_config["needs"], ci_config)
 
-    # Check templates this job extends
+    # Otherwise, follow the extends chain
     extends = job_config.get("extends", [])
     if isinstance(extends, str):
         extends = [extends]
 
     for template_name in extends:
+        if template_name in _visited:
+            continue
+        _visited.add(template_name)
         if template_name in ci_config:
             template = ci_config[template_name]
-            if isinstance(template, dict) and "needs" in template:
-                artifacts.extend(extract_artifacts_from_needs(template["needs"], ci_config))
+            if isinstance(template, dict):
+                result = resolve_effective_needs(template, ci_config, _visited)
+                if result:
+                    return result
 
-    return list(dict.fromkeys(artifacts))  # Remove duplicates, preserve order
+    return []
 
 
-def extract_artifacts_from_needs(needs: list, ci_config: dict | None = None) -> list[str]:
-    """Extract artifact job names from needs section.
+def expand_needs_references(needs: list, ci_config: dict) -> list:
+    """Expand !reference items in a needs list into concrete entries.
 
     Handles:
-    - Simple string references: "qa_agent_linux"
-    - Dict references: {"job": "qa_agent_linux", "optional": true}
-    - GitLab !reference (parsed as list): [".template_name", "needs"]
+    - !reference [.anchor]          — anchor is a top-level list in ci_config
+    - !reference [.template, field] — field of a dict template
     """
-    artifacts = []
-    artifact_prefixes = ("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")
+    result = []
+    for need in needs:
+        if isinstance(need, list):
+            if len(need) == 1:
+                # !reference [.anchor] where the anchor is a top-level list
+                anchor = need[0]
+                if anchor in ci_config:
+                    ref = ci_config[anchor]
+                    if isinstance(ref, list):
+                        result.extend(expand_needs_references(ref, ci_config))
+            elif len(need) >= 2:
+                # !reference [.template, field]
+                template_name, field_name = need[0], need[1]
+                if template_name in ci_config:
+                    template = ci_config[template_name]
+                    if isinstance(template, dict) and field_name in template:
+                        ref = template[field_name]
+                        if isinstance(ref, list):
+                            result.extend(expand_needs_references(ref, ci_config))
+        else:
+            result.append(need)
+    return result
 
+
+def _extract_artifact_jobs(needs: list) -> list[str]:
+    """Extract artifact job names from an already-expanded needs list."""
+    artifact_prefixes = ("qa_", "agent_deb", "agent_rpm", "agent_suse", "deploy_")
+    artifacts = []
     for need in needs:
         if isinstance(need, str):
             if need.startswith(artifact_prefixes):
@@ -431,19 +476,6 @@ def extract_artifacts_from_needs(needs: list, ci_config: dict | None = None) -> 
             job_name = need.get("job", "")
             if job_name.startswith(artifact_prefixes):
                 artifacts.append(job_name)
-        elif isinstance(need, list) and ci_config:
-            # This is a !reference like [".template_name", "needs"]
-            # Resolve the reference and recursively extract artifacts
-            if len(need) >= 2:
-                template_name = need[0]
-                field_name = need[1]
-                if template_name in ci_config:
-                    template = ci_config[template_name]
-                    if isinstance(template, dict) and field_name in template:
-                        referenced_needs = template[field_name]
-                        if isinstance(referenced_needs, list):
-                            artifacts.extend(extract_artifacts_from_needs(referenced_needs, ci_config))
-
     return artifacts
 
 
