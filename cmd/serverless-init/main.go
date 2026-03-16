@@ -112,7 +112,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
 	defer func() {
 		cloudService.Shutdown(*metricAgent, err) // submits task.ended metric
-		metricAgent.WaitForPendingSamples()       // wait for worker to consume it
+		metricAgent.WaitForPendingSamples()      // wait for worker to consume it
 	}()
 
 	return err
