@@ -44,3 +44,6 @@ service:
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler
+    telemetry:
+        metrics:
+            level: none

@@ -117,6 +117,7 @@ func buildConfig(agent configManager) confMap {
 
 	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
+	_ = converters.Set(config, "service::telemetry::metrics::level", "none")
 
 	log.Debugf("Generated configuration: %+v", config)
 
