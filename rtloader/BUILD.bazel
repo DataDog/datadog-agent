@@ -87,6 +87,11 @@ cc_shared_library(
     deps = [":rtloader"],
 )
 
+cc_static_library(
+    name = "rtloader_static",
+    deps = [":rtloader"],
+)
+
 cc_import(
     name = "_rtloader_shared",
     shared_library = "//rtloader:datadog-agent-rtloader",
@@ -235,7 +240,10 @@ pkg_files(
 pkg_files(
     name = "rtloader_three_pkg_files",
     srcs = [":datadog-agent-three"],
-    prefix = "lib",
+    prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "lib",
+    }),
 )
 
 so_symlink(
@@ -247,14 +255,31 @@ so_symlink(
 
 pkg_filegroup(
     name = "all_files",
-    srcs = [
-        ":rtloader_header_pkg_files",
-        ":rtloader_three_pkg_files",
-        ":rtloader_with_symlinks",
-    ],
+    srcs = select({
+        "@platforms//os:windows": [":rtloader_three_pkg_files"],
+        "//conditions:default": [
+            ":rtloader_header_pkg_files",
+            ":rtloader_three_pkg_files",
+            ":rtloader_with_symlinks",
+        ],
+    }),
 )
 
 pkg_install(
     name = "install",
     srcs = [":all_files"],
+)
+
+# Temporary install target meant as a way to integrate with non-bazelified Agent build
+pkg_install(
+    name = "install_static",
+    srcs = [":static_lib_files"],
+)
+
+pkg_files(
+    name = "static_lib_files",
+    srcs = [":rtloader_static"],
+    renames = {
+        ":rtloader_static": "libdatadog-agent-rtloader.a",
+    },
 )

@@ -78,9 +78,9 @@ build do
     if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
+    command_on_repo_root "bazelisk run -- //rtloader:install --destdir=\"#{install_dir}/bin/agent\""
+    # Put the static rtloader library where it gets picked up by the go build linking to it
+    command_on_repo_root "bazelisk run -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\""
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
