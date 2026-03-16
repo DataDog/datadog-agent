@@ -639,9 +639,6 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 
 // WriteStable writes the stable units to the system and reloads the systemd daemon
 func (s *datadogAgentService) WriteStable(ctx HookContext) error {
-	if err := s.checkPlatformSupport(ctx); err != nil {
-		return err
-	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
 		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
@@ -649,6 +646,10 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
+	case service.UnknownType:
+		if ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM {
+			return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
+		}
 	}
 	return errors.New("unsupported service manager")
 }
