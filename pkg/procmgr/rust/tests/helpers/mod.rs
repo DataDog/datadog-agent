@@ -452,28 +452,20 @@ impl CliRunner {
 
     /// Run a dd-procmgr command and capture output.
     pub fn run(&self, args: &[&str]) -> CliOutput {
-        let bin = env!("CARGO_BIN_EXE_dd-procmgr");
-        let output = Command::new(bin)
-            .arg("--socket")
-            .arg(&self.socket_path)
-            .args(args)
-            .output()
-            .expect("failed to run dd-procmgr");
-
-        CliOutput {
-            status: output.status,
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        }
+        self.exec(&[], args)
     }
 
     /// Run a dd-procmgr command with --json prepended.
     pub fn run_json(&self, args: &[&str]) -> CliOutput {
+        self.exec(&["--json"], args)
+    }
+
+    fn exec(&self, extra: &[&str], args: &[&str]) -> CliOutput {
         let bin = env!("CARGO_BIN_EXE_dd-procmgr");
         let output = Command::new(bin)
             .arg("--socket")
             .arg(&self.socket_path)
-            .arg("--json")
+            .args(extra)
             .args(args)
             .output()
             .expect("failed to run dd-procmgr");
