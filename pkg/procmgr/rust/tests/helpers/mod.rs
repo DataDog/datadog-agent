@@ -376,6 +376,11 @@ impl CliOutput {
 }
 
 /// Parse table header to find (column_name, start_index) pairs.
+///
+/// Columns are separated by 2+ spaces. A single space between uppercase words
+/// is treated as a multi-word header (e.g. "LAST EXIT"). This mirrors the
+/// padding logic in dd-procmgr's table formatter — if the output format
+/// changes, this parser must be updated to match.
 fn parse_table_columns(header: &str) -> Vec<(String, usize)> {
     let mut cols = Vec::new();
     let mut i = 0;
