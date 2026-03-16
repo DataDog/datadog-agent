@@ -250,7 +250,7 @@ impl CliOutput {
             .iter()
             .find(|line| {
                 let val = extract_column(line, &col_starts, "NAME");
-                val.map_or(false, |v| v == row_name)
+                val == Some(row_name)
             })
             .unwrap_or_else(|| {
                 panic!(
@@ -359,7 +359,7 @@ impl CliOutput {
         let col_starts = parse_table_columns(lines[0]);
         let row = lines[1..]
             .iter()
-            .find(|line| extract_column(line, &col_starts, "NAME").map_or(false, |v| v == row_name))
+            .find(|line| extract_column(line, &col_starts, "NAME") == Some(row_name))
             .unwrap_or_else(|| {
                 panic!(
                     "no table row with NAME='{row_name}'\nstdout: {}",
