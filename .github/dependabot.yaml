@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: gomod
     directory: /
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -41,6 +42,7 @@ updates:
           - patch
   - package-ecosystem: gomod
     directory: /pkg/trace
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -62,6 +64,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/gohai
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -82,6 +85,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/obfuscate
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -102,6 +106,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/security/secl
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -120,6 +125,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -141,10 +147,11 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/networkdevice/profile
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
-      - team/ndm-core
+      - team/network-device-monitoring-core
       - changelog/no-changelog
     ignore:
       # Ignore internal modules
@@ -159,6 +166,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/new-e2e
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -192,6 +200,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/fakeintake
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -208,18 +217,6 @@ updates:
       - dependency-name: golang.org/x/*
       # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
       - dependency-name: go.opentelemetry.io/*
-  - package-ecosystem: docker
-    directory: /test/fakeintake
-    labels:
-      - dependencies
-      - team/agent-e2e-test
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/testing
-    schedule:
-      interval: weekly
-      day: saturday
-    open-pull-requests-limit: 100
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:

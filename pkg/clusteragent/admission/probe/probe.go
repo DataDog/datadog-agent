@@ -6,7 +6,7 @@
 //go:build kubeapiserver
 
 // Package probe periodically tests admission webhook connectivity by sending
-// dry-run pod creation requests through the Kubernetes API server.
+// dry-run ConfigMap creation requests through the Kubernetes API server.
 package probe
 
 import (
@@ -27,10 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var errProbeNotReceived = errors.New("dry-run probe pod was not annotated by the webhook")
+var errProbeNotReceived = errors.New("dry-run probe configmap was not annotated by the webhook")
 
 // Probe periodically verifies that the admission webhook is reachable by
-// creating dry-run pods and checking if they are handled by the webhook.
+// creating dry-run ConfigMaps and checking if they are handled by the webhook.
 type Probe struct {
 	k8sClient      kubernetes.Interface
 	isLeaderFunc   func() bool
@@ -71,7 +71,9 @@ type StatsSnapshot struct {
 const defaultInterval = 60 * time.Second
 
 // New creates a new admission controller connectivity probe.
-func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, datadogConfig config.Component) *Probe {
+// The namespace parameter specifies where dry-run ConfigMaps are created; this
+// should be the namespace the cluster agent is deployed in.
+func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component) *Probe {
 	interval := time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second
 	if interval <= 0 {
 		log.Warnf("admission_controller.probe.interval is invalid (%s), falling back to %s", interval, defaultInterval)
@@ -81,7 +83,7 @@ func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, datadogConfig
 	return &Probe{
 		k8sClient:    k8sClient,
 		isLeaderFunc: isLeaderFunc,
-		namespace:    datadogConfig.GetString("admission_controller.probe.namespace"),
+		namespace:    namespace,
 		interval:     interval,
 		gracePeriod:  time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
 		logLimiter:   log.NewLogLimit(1, 10*time.Minute),
@@ -107,9 +109,7 @@ func (p *Probe) GetStatsSnapshot() StatsSnapshot {
 // GetStatsForStatus returns probe stats formatted for the agent status output.
 func (p *Probe) GetStatsForStatus() map[string]interface{} {
 	snap := p.GetStatsSnapshot()
-	result := map[string]interface{}{
-		"Namespace": p.namespace,
-	}
+	result := map[string]interface{}{}
 
 	if snap.ConfigError != "" {
 		result["ConfigError"] = snap.ConfigError
@@ -200,19 +200,8 @@ func (p *Probe) runProbe(ctx context.Context) {
 }
 
 func (p *Probe) handleError(err error) {
-	if k8serrors.IsNotFound(err) {
-		msg := fmt.Sprintf("Probe namespace %q does not exist. Create it to enable admission controller connectivity probing.", p.namespace)
-		p.stats.mu.Lock()
-		p.stats.ConfigError = msg
-		p.stats.mu.Unlock()
-		if p.logLimiter.ShouldLog() {
-			log.Errorf("Admission controller probe misconfigured: %s", msg)
-		}
-		return
-	}
-
 	if k8serrors.IsForbidden(err) {
-		msg := fmt.Sprintf("The cluster agent service account does not have permission to create pods in namespace %q. Grant pod creation RBAC to enable connectivity probing.", p.namespace)
+		msg := fmt.Sprintf("The cluster agent service account does not have permission to create configmaps in namespace %q. Grant configmap creation RBAC to enable connectivity probing.", p.namespace)
 		p.stats.mu.Lock()
 		p.stats.ConfigError = msg
 		p.stats.mu.Unlock()
@@ -225,7 +214,7 @@ func (p *Probe) handleError(err error) {
 	if errors.Is(err, errProbeNotReceived) {
 		if p.logLimiter.ShouldLog() {
 			log.Errorf(
-				"Admission controller probe failed: the webhook did not handle the probe pod. "+
+				"Admission controller probe failed: the webhook did not handle the probe configmap. "+
 					"This indicates a network connectivity issue between the Kubernetes API server "+
 					"and the cluster agent admission webhook. %s",
 				p.diagnosticHint,
@@ -240,25 +229,18 @@ func (p *Probe) handleError(err error) {
 }
 
 func (p *Probe) execute(ctx context.Context) error {
-	pod := &corev1.Pod{
+	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "datadog-admission-probe-",
 			Namespace:    p.namespace,
 			Labels: map[string]string{
-				admcommon.EnabledLabelKey: "true",
-				admcommon.ProbeLabelKey:   "true",
+				admcommon.ProbeLabelKey: "true",
 			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{{
-				Name:  "probe",
-				Image: "registry.k8s.io/pause:3.9",
-			}},
 		},
 	}
 
-	result, err := p.k8sClient.CoreV1().Pods(p.namespace).Create(
-		ctx, pod, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}},
+	result, err := p.k8sClient.CoreV1().ConfigMaps(p.namespace).Create(
+		ctx, cm, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}},
 	)
 	if err != nil {
 		return err
