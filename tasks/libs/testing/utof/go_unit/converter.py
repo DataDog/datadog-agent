@@ -22,6 +22,8 @@ from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata, UTOFTestResult
 
 if TYPE_CHECKING:
+    from invoke import Context
+
     from tasks.testwasher import TestWasher
 
 _TEST_TYPE = "unit"
@@ -29,6 +31,7 @@ _TEST_TYPE = "unit"
 
 def convert_unit_test_results(
     result_json: ResultJson,
+    ctx: Context | None = None,
     test_washer: TestWasher | None = None,
     metadata: UTOFMetadata | None = None,
 ) -> UTOFDocument:
@@ -36,6 +39,7 @@ def convert_unit_test_results(
 
     Args:
         result_json: Parsed test2json JSONL output.
+        ctx: Invoke context, required when metadata is not pre-built.
         test_washer: Optional TestWasher instance for flaky test analysis.
         metadata: Optional pre-built metadata. If None, a default is generated.
 
@@ -43,7 +47,7 @@ def convert_unit_test_results(
         A UTOFDocument containing all test results.
     """
     if metadata is None:
-        metadata = generate_metadata(test_system=_TEST_TYPE)
+        metadata = generate_metadata(ctx, test_system=_TEST_TYPE)
 
     set_total_duration(metadata, result_json)
 

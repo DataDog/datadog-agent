@@ -3,12 +3,11 @@
 import json
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from tasks.libs.testing.result_json import ResultJson
 from tasks.libs.testing.utof import UTOFMetadata, format_report
-from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.e2e import convert_e2e_test_results
 from tasks.libs.testing.utof.go_parser.failure_parser import (
     _extract_message_from_raw_output,
@@ -16,9 +15,11 @@ from tasks.libs.testing.utof.go_parser.failure_parser import (
     _parse_assertion_blocks,
 )
 from tasks.libs.testing.utof.go_unit import convert_unit_test_results
+from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import (
     UTOFAttempt,
     UTOFDocument,
+    UTOFEnvironmentMetadata,
     UTOFFailure,
     UTOFSummary,
     UTOFTestResult,
@@ -26,6 +27,19 @@ from tasks.libs.testing.utof.models import (
 from tasks.testwasher import TestWasher
 
 TESTDATA = Path(__file__).parent / "testdata"
+
+
+def _mock_ctx():
+    """Create a mock invoke Context sufficient for generate_metadata."""
+    ctx = MagicMock()
+    result = MagicMock()
+    result.ok = True
+    result.stdout = ""
+    ctx.run.return_value = result
+    return ctx
+
+
+_CTX = _mock_ctx()
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +81,7 @@ class TestConvertBasic(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        self.doc = convert_unit_test_results(self.result)
+        self.doc = convert_unit_test_results(self.result, ctx=_CTX)
 
     def test_test_count(self):
         # varied.json has tests in 3 packages: testpackage1 (test_1..test_4),
@@ -95,7 +109,7 @@ class TestConvertAllPassing(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
-        self.doc = convert_unit_test_results(self.result)
+        self.doc = convert_unit_test_results(self.result, ctx=_CTX)
 
     def test_summary_status_pass(self):
         self.assertEqual(self.doc.summary.status, "pass")
@@ -113,7 +127,7 @@ class TestConvertPanicDetection(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
-        self.doc = convert_unit_test_results(self.result)
+        self.doc = convert_unit_test_results(self.result, ctx=_CTX)
 
     def test_panic_failure_type(self):
         panic_tests = [t for t in self.doc.tests if t.name == "TestLoadConfigShouldBeFast"]
@@ -140,7 +154,7 @@ class TestConvertSkipDetection(unittest.TestCase):
 
     def test_skip_status(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         skipped = [t for t in doc.tests if t.status == "skip"]
         self.assertGreater(len(skipped), 0, "Expected at least one skipped test")
         # test_4 in testpackage1 is skipped
@@ -153,7 +167,7 @@ class TestConvertRetryDetection(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_flaky_retried.json"))
-        self.doc = convert_unit_test_results(self.result)
+        self.doc = convert_unit_test_results(self.result, ctx=_CTX)
 
     def test_retry_count(self):
         # test_3 in testpackage1: fails then passes (1 retry)
@@ -228,7 +242,7 @@ class TestConvertWithWasher(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_marker.json"))
-        doc = convert_unit_test_results(result, test_washer=tw)
+        doc = convert_unit_test_results(result, ctx=_CTX, test_washer=tw)
 
         # TestGetPayload is marked flaky via the marker in its output
         flaky_tests = [t for t in doc.tests if t.flaky and t.flaky.is_known_flaky]
@@ -245,7 +259,7 @@ class TestConvertWithWasher(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_1.yaml"],
         )
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_no_marker.json"))
-        doc = convert_unit_test_results(result, test_washer=tw)
+        doc = convert_unit_test_results(result, ctx=_CTX, test_washer=tw)
 
         # All failing tests should be flaky per flakes_1.yaml
         non_flaky_failures = [t for t in doc.tests if t.status == "fail"]
@@ -257,7 +271,7 @@ class TestConvertSummaryCounts(unittest.TestCase):
 
     def test_summary_matches_tests(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
 
         actual_passed = sum(1 for t in doc.tests if t.status == "pass")
         actual_failed = sum(1 for t in doc.tests if t.status == "fail")
@@ -270,12 +284,12 @@ class TestConvertSummaryCounts(unittest.TestCase):
 
     def test_overall_status_fail_when_failures(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         self.assertEqual(doc.summary.status, "fail")
 
     def test_overall_status_pass_when_no_failures(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         self.assertEqual(doc.summary.status, "pass")
 
 
@@ -284,7 +298,7 @@ class TestConvertToJson(unittest.TestCase):
 
     def test_valid_json_output(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         json_str = json.dumps(doc.to_dict())
         # Should be valid JSON
         parsed = json.loads(json_str)
@@ -295,7 +309,7 @@ class TestConvertToJson(unittest.TestCase):
 
     def test_roundtrip(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         d = doc.to_dict()
         json_str = json.dumps(d)
         parsed = json.loads(json_str)
@@ -306,7 +320,7 @@ class TestConvertToJson(unittest.TestCase):
 
     def test_write_json(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
             path = f.name
         try:
@@ -322,7 +336,7 @@ class TestConvertToJson(unittest.TestCase):
 
     def test_none_values_stripped(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         d = doc.to_dict()
         # Tests that pass should not have failure or flaky keys at the test level
         for test in d["tests"]:
@@ -332,7 +346,7 @@ class TestConvertToJson(unittest.TestCase):
 
     def test_attempts_serialized_for_retried_tests(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_flaky_retried.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         d = doc.to_dict()
         retried_tests = [t for t in d["tests"] if t.get("retry_count", 0) > 0]
         self.assertGreater(len(retried_tests), 0)
@@ -358,18 +372,18 @@ class TestConvertDuration(unittest.TestCase):
 
     def test_duration_non_negative(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         for test in doc.tests:
             self.assertGreaterEqual(test.duration_seconds, 0.0, f"Test {test.name} has negative duration")
 
     def test_metadata_duration(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         self.assertGreaterEqual(doc.metadata.duration_seconds, 0.0)
 
     def test_duration_within_range(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         # The panic test data spans about 1 second
         self.assertLess(doc.metadata.duration_seconds, 60.0, "Total duration seems unreasonably large")
 
@@ -387,7 +401,7 @@ class TestConvertMetadata(unittest.TestCase):
 
     def test_version(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         self.assertEqual(doc.version, "1.0.0")
 
 
@@ -396,15 +410,15 @@ class TestConvertTestId(unittest.TestCase):
 
     def test_deterministic_ids(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc1 = convert_unit_test_results(result)
-        doc2 = convert_unit_test_results(result)
+        doc1 = convert_unit_test_results(result, ctx=_CTX)
+        doc2 = convert_unit_test_results(result, ctx=_CTX)
         ids1 = {t.name: t.id for t in doc1.tests}
         ids2 = {t.name: t.id for t in doc2.tests}
         self.assertEqual(ids1, ids2)
 
     def test_unique_ids(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         ids = [t.id for t in doc.tests]
         self.assertEqual(len(ids), len(set(ids)), "Test IDs should be unique")
 
@@ -412,6 +426,7 @@ class TestConvertTestId(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Metadata tests
 # ---------------------------------------------------------------------------
+
 
 class TestGenerateMetadata(unittest.TestCase):
     """Test metadata generation from environment context."""
@@ -452,25 +467,26 @@ class TestGenerateMetadata(unittest.TestCase):
 # Report formatter tests
 # ---------------------------------------------------------------------------
 
+
 class TestFormatReport(unittest.TestCase):
     """Test the human-readable report formatter."""
 
     def test_report_header_pass(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertIn("PASSED", report)
         self.assertIn("Test Report (unit)", report)
 
     def test_report_header_fail(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertIn("FAILED", report)
 
     def test_report_summary_counts(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertIn("7 total", report)
         self.assertIn("passed", report)
@@ -479,7 +495,7 @@ class TestFormatReport(unittest.TestCase):
 
     def test_report_failures_section(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertIn("Failures", report)
         self.assertIn("FAIL", report)
@@ -488,14 +504,14 @@ class TestFormatReport(unittest.TestCase):
 
     def test_report_panic_shows_type(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertIn("type: panic", report)
         self.assertIn("TestLoadConfigShouldBeFast", report)
 
     def test_report_retried_section(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_flaky_retried.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertIn("Retried", report)
         self.assertIn("test_3", report)
@@ -506,7 +522,7 @@ class TestFormatReport(unittest.TestCase):
 
     def test_report_no_failures_section_when_all_pass(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         self.assertNotIn("Failures", report)
         self.assertNotIn("Retried", report)
@@ -517,7 +533,7 @@ class TestFormatReport(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_marker.json"))
-        doc = convert_unit_test_results(result, test_washer=tw)
+        doc = convert_unit_test_results(result, ctx=_CTX, test_washer=tw)
         report = format_report(doc)
         self.assertIn("FLAKY", report)
 
@@ -577,7 +593,7 @@ class TestFormatReport(unittest.TestCase):
 
     def test_report_strips_package_prefix(self):
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         report = format_report(doc)
         # The failure header line should use the short path
         self.assertIn("pkg/serverless/trace :: TestLoadConfigShouldBeFast", report)
@@ -591,7 +607,7 @@ class TestMessageExtraction(unittest.TestCase):
     def test_testify_error_extracted(self):
         """testify Error: field should be extracted as the message."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_marker.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         test = next(t for t in doc.tests if t.name == "TestGetPayload")
         failure = next((a.failure for a in test.attempts if a.failure), None)
         self.assertIsNotNone(failure)
@@ -601,7 +617,7 @@ class TestMessageExtraction(unittest.TestCase):
     def test_testify_error_includes_location(self):
         """Message should include file:line for quick identification."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_no_marker.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         test = next(t for t in doc.tests if t.name == "TestGetPayload")
         failure = next((a.failure for a in test.attempts if a.failure), None)
         self.assertIsNotNone(failure)
@@ -611,7 +627,7 @@ class TestMessageExtraction(unittest.TestCase):
     def test_testify_stacktrace_extracted(self):
         """Error Trace: should populate the stacktrace field (full path)."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_no_marker.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         test = next(t for t in doc.tests if t.name == "TestGetPayload")
         failure = next((a.failure for a in test.attempts if a.failure), None)
         self.assertIsNotNone(failure)
@@ -620,7 +636,7 @@ class TestMessageExtraction(unittest.TestCase):
     def test_panic_message_not_overwritten(self):
         """Panic messages should still come from the 'panic:' line."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         test = next(t for t in doc.tests if t.name == "TestLoadConfigShouldBeFast")
         failure = next((a.failure for a in test.attempts if a.failure), None)
         self.assertIn("panic: toto", failure.message)
@@ -773,7 +789,7 @@ class TestSubtestHierarchy(unittest.TestCase):
         #       TestEKSSuite/TestCPU/metric___container.cpu.usage{...}
         #     TestEKSSuite/TestMemory
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_failure_parent.json"))
-        self.doc = convert_unit_test_results(self.result)
+        self.doc = convert_unit_test_results(self.result, ctx=_CTX)
 
     def test_subtests_nested_under_parent(self):
         """Top-level doc.tests should only contain the root test."""
@@ -818,7 +834,7 @@ class TestSubtestHierarchy(unittest.TestCase):
     def test_subtests_stripped_from_json_when_empty(self):
         """subtests: None should be stripped from JSON output (like other optional fields)."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         d = doc.to_dict()
         for test in d["tests"]:
             self.assertNotIn("subtests", test, f"Test {test['name']} should not have subtests field")
@@ -833,7 +849,7 @@ class TestSubtestHierarchy(unittest.TestCase):
     def test_synthetic_parent_created(self):
         """When only a subtest exists (no parent entry), a synthetic parent is created."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic_subtest.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         # Should have 1 root: the synthetic TestLoadConfigShouldBeFast
         self.assertEqual(len(doc.tests), 1)
         root = doc.tests[0]
@@ -847,7 +863,7 @@ class TestSubtestHierarchy(unittest.TestCase):
     def test_no_subtests_data_has_flat_structure(self):
         """Test data without subtests should have no subtests fields set."""
         result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
-        doc = convert_unit_test_results(result)
+        doc = convert_unit_test_results(result, ctx=_CTX)
         for t in doc.tests:
             self.assertIsNone(t.subtests, f"Test {t.name} should not have subtests")
 
@@ -869,7 +885,7 @@ class TestE2EConvertBasic(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(self.result, ctx=_CTX)
 
     def test_metadata_test_system(self):
         self.assertEqual(self.doc.metadata.test_system, "e2e")
@@ -910,7 +926,7 @@ class TestE2ETestHierarchy(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(self.result, ctx=_CTX)
 
     def test_suite_is_root(self):
         """TestWindowsTestSuite should be the single root."""
@@ -950,7 +966,7 @@ class TestE2EFailureExtraction(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(self.result, ctx=_CTX)
         self.leaves = _flatten_leaves(self.doc.tests)
 
     def test_failing_test_has_failure(self):
@@ -976,7 +992,7 @@ class TestE2EJsonSerialization(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(self.result, ctx=_CTX)
 
     def test_valid_json(self):
         d = self.doc.to_dict()
@@ -1004,7 +1020,7 @@ class TestE2EReport(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(self.result, ctx=_CTX)
         self.report = format_report(self.doc)
 
     def test_report_shows_e2e_system(self):
@@ -1031,7 +1047,7 @@ class TestE2EWithWasher(unittest.TestCase):
         result_json_path = str(TESTDATA / "test_output_e2e_warning.json")
         result_json = ResultJson.from_file(result_json_path)
         tw = TestWasher(test_output_json_file=result_json_path)
-        doc = convert_e2e_test_results(result_json, test_washer=tw)
+        doc = convert_e2e_test_results(result_json, ctx=_CTX, test_washer=tw)
         self.assertIsNotNone(doc)
         self.assertGreater(doc.summary.total, 0)
 
@@ -1039,7 +1055,7 @@ class TestE2EWithWasher(unittest.TestCase):
         result_json_path = str(TESTDATA / "test_output_e2e_warning.json")
         result_json = ResultJson.from_file(result_json_path)
         tw = TestWasher(test_output_json_file=result_json_path)
-        doc = convert_e2e_test_results(result_json, test_washer=tw)
+        doc = convert_e2e_test_results(result_json, ctx=_CTX, test_washer=tw)
         report = format_report(doc)
         self.assertIn("Test Report (e2e)", report)
 
