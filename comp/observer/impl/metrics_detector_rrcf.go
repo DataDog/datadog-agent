@@ -23,22 +23,22 @@ type RRCFScoredPoint struct {
 
 // RRCFScoreStats contains distribution statistics and full score history for threshold analysis.
 type RRCFScoreStats struct {
-	Enabled        bool              `json:"enabled"`
-	SampleCount    int               `json:"sampleCount"`
-	AlignedPoints  int               `json:"alignedPoints"`
-	ShinglesBuilt  int               `json:"shinglesBuilt"`
-	MinScore       float64           `json:"minScore"`
-	MaxScore       float64           `json:"maxScore"`
-	MeanScore      float64           `json:"meanScore"`
-	StddevScore    float64           `json:"stddevScore"`
-	P50            float64           `json:"p50"`
-	P75            float64           `json:"p75"`
-	P90            float64           `json:"p90"`
-	P95            float64           `json:"p95"`
-	P99            float64           `json:"p99"`
-	Config         RRCFConfigSummary `json:"config"`
-	Metrics        []string          `json:"metrics"`
-	Scores         []RRCFScoredPoint `json:"scores"`
+	Enabled       bool              `json:"enabled"`
+	SampleCount   int               `json:"sampleCount"`
+	AlignedPoints int               `json:"alignedPoints"`
+	ShinglesBuilt int               `json:"shinglesBuilt"`
+	MinScore      float64           `json:"minScore"`
+	MaxScore      float64           `json:"maxScore"`
+	MeanScore     float64           `json:"meanScore"`
+	StddevScore   float64           `json:"stddevScore"`
+	P50           float64           `json:"p50"`
+	P75           float64           `json:"p75"`
+	P90           float64           `json:"p90"`
+	P95           float64           `json:"p95"`
+	P99           float64           `json:"p99"`
+	Config        RRCFConfigSummary `json:"config"`
+	Metrics       []string          `json:"metrics"`
+	Scores        []RRCFScoredPoint `json:"scores"`
 }
 
 // RRCFConfigSummary is a JSON-friendly summary of RRCF configuration.
@@ -164,13 +164,13 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 	forest := newRCForest(config.NumTrees, config.TreeSize, shingleDim, 42)
 
 	return &RRCFDetector{
-		config:        config,
-		metrics:       metrics,
-		resolvedKeys:  make(map[string]observer.SeriesKey),
-		cursors:       make(map[string]int64),
-		forest:        forest,
-		recentScores:  make([]float64, 0, 100),
-		allScores:     make([]RRCFScoredPoint, 0, 1024),
+		config:       config,
+		metrics:      metrics,
+		resolvedKeys: make(map[string]observer.SeriesKey),
+		cursors:      make(map[string]int64),
+		forest:       forest,
+		recentScores: make([]float64, 0, 100),
+		allScores:    make([]RRCFScoredPoint, 0, 1024),
 	}
 }
 
@@ -491,8 +491,8 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 				Source:       "score",
 				DetectorName: r.Name(),
 				Title:        "RRCF multivariate anomaly",
-				Description:    fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),
-				Timestamp:      s.endTimestamp,
+				Description:  fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),
+				Timestamp:    s.endTimestamp,
 				DebugInfo: &observer.AnomalyDebugInfo{
 					CurrentValue:   score,
 					Threshold:      threshold,

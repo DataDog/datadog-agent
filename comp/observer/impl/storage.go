@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -150,39 +151,10 @@ func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 	}
 }
 
-// toSeriesUpTo returns a Series with only points where Timestamp <= upTo.
-// Uses binary search on the sorted timestamps column.
-func (s *seriesStats) toSeriesUpTo(agg Aggregate, upTo int64) observer.Series {
-	end := sort.Search(len(s.timestamps), func(i int) bool {
-		return s.timestamps[i] > upTo
-	})
-	points := make([]observer.Point, end)
-	col := s.aggregateColumn(agg)
-	for i := 0; i < end; i++ {
-		points[i] = observer.Point{
-			Timestamp: s.timestamps[i],
-			Value:     col[i],
-		}
-	}
-	return observer.Series{
-		Namespace: s.Namespace,
-		Name:      s.Name,
-		Tags:      s.Tags,
-		Points:    points,
-	}
-}
-
 // searchAfter returns the index of the first timestamp > value using binary search.
 func searchAfter(timestamps []int64, value int64) int {
 	return sort.Search(len(timestamps), func(i int) bool {
 		return timestamps[i] > value
-	})
-}
-
-// searchAtOrAfter returns the index of the first timestamp >= value using binary search.
-func searchAtOrAfter(timestamps []int64, value int64) int {
-	return sort.Search(len(timestamps), func(i int) bool {
-		return timestamps[i] >= value
 	})
 }
 
@@ -704,7 +676,7 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	if aggStr != "" {
 		return fmt.Sprintf("%d:%s", numID, aggStr)
 	}
-	return fmt.Sprintf("%d", numID)
+	return strconv.Itoa(numID)
 }
 
 // FullKeyForNumericID returns the internal storage key for a compact numeric ID.

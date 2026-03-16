@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +26,11 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	pkglog.SetLoggerName("CORE")
 
 	// Enable analysis pipeline so GetHandle returns a real handle (not noop).
-	pkgconfigsetup.Datadog().Set("observer.analysis.enabled", true, model.SourceAgentRuntime)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("observer.analysis.enabled", false, model.SourceAgentRuntime) })
+	cfg := configmock.New(t)
+	cfg.Set("observer.analysis.enabled", true, model.SourceAgentRuntime)
 
 	provides := NewComponent(Requires{
-		Config: pkgconfigsetup.Datadog(),
+		Config: cfg,
 		AgentInternalLogTap: AgentInternalLogTapConfig{
 			Enabled:         &enabled,
 			SampleRateInfo:  &one,

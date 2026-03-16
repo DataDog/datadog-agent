@@ -337,13 +337,13 @@ func (api *TestBenchAPI) handleProgress(w http.ResponseWriter, _ *http.Request) 
 }
 
 // handleStatus returns the current status.
-func (api *TestBenchAPI) handleStatus(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	status := api.tb.GetStatus()
 	api.writeJSON(w, status)
 }
 
 // handleScenarios lists available scenarios.
-func (api *TestBenchAPI) handleScenarios(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleScenarios(w http.ResponseWriter, _ *http.Request) {
 	scenarios, err := api.tb.ListScenarios()
 	if err != nil {
 		api.writeError(w, http.StatusInternalServerError, err.Error())
@@ -383,14 +383,14 @@ func (api *TestBenchAPI) handleScenarioAction(w http.ResponseWriter, r *http.Req
 }
 
 // handleComponents returns registered components.
-func (api *TestBenchAPI) handleComponents(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleComponents(w http.ResponseWriter, _ *http.Request) {
 	components := api.tb.GetComponents()
 	api.writeJSON(w, components)
 }
 
 // handleSeriesList returns all available series.
-func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request) {
-	storage := api.tb.GetStorage()
+func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
+	storage := api.tb.getStorage()
 	if storage == nil {
 		api.writeJSON(w, []interface{}{})
 		return
@@ -480,7 +480,7 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 		return
 	}
 
-	storage := api.tb.GetStorage()
+	storage := api.tb.getStorage()
 	if storage == nil {
 		api.writeError(w, http.StatusServiceUnavailable, "no data loaded")
 		return
@@ -607,7 +607,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		}
 	}
 
-	storage := api.tb.GetStorage()
+	storage := api.tb.getStorage()
 	if storage == nil {
 		api.writeError(w, http.StatusServiceUnavailable, "no data loaded")
 		return
@@ -719,7 +719,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	storage := api.tb.GetStorage()
+	storage := api.tb.getStorage()
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
 		sourceSeriesID := string(a.SourceSeriesID)
@@ -952,9 +952,9 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 }
 
 // handleCorrelations returns detected correlations.
-func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) {
 	correlations := api.tb.GetCorrelations()
-	storage := api.tb.GetStorage()
+	storage := api.tb.getStorage()
 
 	type anomalyOutput struct {
 		Source      string   `json:"source"`
@@ -1029,7 +1029,7 @@ func seriesIDsToStrings(ids []observerdef.SeriesID) []string {
 }
 
 // handleLeadLag returns lead-lag edges.
-func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, _ *http.Request) {
 	edges, enabled := api.tb.GetLeadLagEdges()
 	if edges == nil {
 		edges = []LeadLagEdge{}
@@ -1041,7 +1041,7 @@ func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSurprise returns surprise edges.
-func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, _ *http.Request) {
 	edges, enabled := api.tb.GetSurpriseEdges()
 	if edges == nil {
 		edges = []SurpriseEdge{}
@@ -1053,7 +1053,7 @@ func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleStats returns correlator statistics.
-func (api *TestBenchAPI) handleStats(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
 	stats := api.tb.GetCorrelatorStats()
 	api.writeJSON(w, stats)
 }
@@ -1106,7 +1106,7 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 	}
 	groups := cloneCompressedGroups(api.tb.GetCompressedCorrelations(threshold))
 	// Translate MemberSources from full keys to compact numeric IDs.
-	if storage := api.tb.GetStorage(); storage != nil {
+	if storage := api.tb.getStorage(); storage != nil {
 		for i := range groups {
 			for j, src := range groups[i].MemberSources {
 				groups[i].MemberSources[j] = storage.CompactSeriesID(src)
@@ -1129,5 +1129,5 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 func (api *TestBenchAPI) writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

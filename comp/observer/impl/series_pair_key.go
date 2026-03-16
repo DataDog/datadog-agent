@@ -29,8 +29,3 @@ func (k seriesPairKey) hashKey() string {
 	b := string(k.B)
 	return strconv.Itoa(len(a)) + ":" + a + strconv.Itoa(len(b)) + ":" + b
 }
-
-// displayKey returns a human-readable key for logs/debug payloads.
-func (k seriesPairKey) displayKey() string {
-	return string(k.A) + "<>" + string(k.B)
-}

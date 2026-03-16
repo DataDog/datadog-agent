@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,7 +19,6 @@ import (
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -26,8 +26,8 @@ type logDataView struct {
 	data *recorderdef.LogData
 }
 
-// Ensure logDataView implements observer.LogView
-var _ observer.LogView = (*logDataView)(nil)
+// Ensure logDataView implements observerdef.LogView
+var _ observerdef.LogView = (*logDataView)(nil)
 
 func (v *logDataView) GetContent() []byte {
 	return v.data.Content
@@ -109,7 +109,7 @@ type TestBench struct {
 	episodeInfo    *EpisodeInfo
 
 	// Logs and log anomalies (testbench-specific, not in engine)
-	rawLogs                []observer.LogView
+	rawLogs                []observerdef.LogView
 	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
@@ -418,7 +418,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 // Uses batch loading for efficiency - reads all metrics at once instead of streaming.
 func (tb *TestBench) loadParquetDir(dir string) error {
 	if tb.config.Recorder == nil {
-		return fmt.Errorf("recorder component not configured - cannot load parquet files")
+		return errors.New("recorder component not configured - cannot load parquet files")
 	}
 
 	storage := tb.engine.Storage()
@@ -558,7 +558,6 @@ func (r *parquetTraceStatRow) GetDurationNano() uint64       { return r.data.Dur
 func (r *parquetTraceStatRow) GetOkSummary() []byte          { return r.data.OkSummary }
 func (r *parquetTraceStatRow) GetErrorSummary() []byte       { return r.data.ErrorSummary }
 func (r *parquetTraceStatRow) GetPeerTags() []string         { return r.data.PeerTags }
-
 
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
@@ -754,8 +753,8 @@ func (tb *TestBench) GetComponents() []ComponentInfo {
 	return components
 }
 
-// GetStorage returns the storage (for API handlers).
-func (tb *TestBench) GetStorage() *timeSeriesStorage {
+// getStorage returns the storage (for API handlers).
+func (tb *TestBench) getStorage() *timeSeriesStorage {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	return tb.engine.Storage()
