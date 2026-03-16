@@ -72,21 +72,64 @@ def output_func_footer(_, sourcecode):
     sourcecode.append('')
 
 
+def try_parse_duration(text):
+    if not isinstance(text, str):
+        return None
+    if 'h' not in text and 'm' not in text and 's' not in text:
+        return None
+    if text == '25h0m0s':
+        return '25*time.Hour'
+    if text == '6h0m0s':
+        return '6*time.Hour'
+    if text == '20m0s':
+        return '20*time.Minute'
+    if text == '1m0s':
+        return '1*time.Minute'
+    if text == '30s':
+        return '30*time.Second'
+    if text == '10s':
+        return '10*time.Second'
+    raise RuntimeError('dont know how to parse %s' % text)
+
+
 def retrieve_default_value(keypath, schema):
     curr = schema
     for k in keypath:
         curr = curr['properties']
         curr = curr[k]
-    ans = curr.get('default')
-    if ans is True:
-        return 'true'
-    if ans is False:
+    #print('* a')
+    settingDefault = curr.get('default')
+    settingType = curr.get('type')
+    if settingType is None:
+        return 'nil'
+    if settingType == 'array':
+        settingItemsType = curr.get('items').get('type')
+        return '[]%s%s' % (settingItemsType, settingDefault)
+        #print('* b, settingDefault = %s, %s' % (settingDefault, type(settingDefault)))
+        #if len(settingDefault) == 0: # == '[]':
+        #    #print('* c')
+        #    settingItemsType = curr.get('items').get('type')
+        #    return '[]%s{}' % settingItemsType
+    elif settingType == 'boolean':
+        if settingDefault is True:
+            return 'true'
         return 'false'
-    if isinstance(ans, int):
-        return '%s' % ans
-    if isinstance(ans, str):
-        return '"%s"' % ans
-    return '%s' % ans
+    elif settingType == 'number':
+        durationValue = try_parse_duration(settingDefault)
+        if durationValue is not None:
+            return '%s' % durationValue
+        if isinstance(settingDefault, float):
+            return '%s' % settingDefault
+        if isinstance(settingDefault, int):
+            return '%s' % settingDefault
+    elif settingType == 'string':
+        if isinstance(settingDefault, str):
+            return '"%s"' % settingDefault
+    elif settingType == 'object':
+        return 'map[string]interface{}%s' % settingDefault
+        #if len(settingDefault) == 0: # == '{}':
+        #    return 'map[string]interface{}{}'
+    raise RuntimeError('setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s' % (keypath, settingType, settingDefault, type(settingDefault)))
 
 
 def output_single_setting(name, schema, sourcecode):
