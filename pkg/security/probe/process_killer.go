@@ -516,14 +516,26 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 	p.pendingReports = slices.DeleteFunc(p.pendingReports, func(report *KillActionReport) bool {
 		report.Lock()
 		defer report.Unlock()
-
-		if report.Status == KillActionStatusQueued {
+		// update the exitedAt field if the exited PID is the same as the one in the report
+		if report.Pid == exitedPid {
+			report.ExitedAt = event.ProcessContext.ExitTime
+		}
+		switch report.Status {
+		// if the report is queued, remove the exited PID from pendingKills
+		case KillActionStatusQueued:
 			report.pendingKills = slices.DeleteFunc(report.pendingKills, func(kc killContext) bool {
 				return uint32(kc.pid) == exitedPid
 			})
 			if len(report.pendingKills) == 0 {
 				report.Status = KillActionStatusKillAborted
+				// Update the exitedAt field since the kill was aborted and won't be performed any more
 				report.ExitedAt = event.ProcessContext.ExitTime
+				report.resolved = true
+				return true
+			}
+		// if the report is performed or partially performed, it is resolved (no need to wait the flush delay)
+		case KillActionStatusPartiallyPerformed, KillActionStatusPerformed:
+			if report.Pid == exitedPid {
 				report.resolved = true
 				return true
 			}
