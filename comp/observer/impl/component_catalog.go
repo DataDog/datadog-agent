@@ -11,7 +11,7 @@ import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 type componentKind int
 
 const (
-	componentDetector   componentKind = iota
+	componentDetector componentKind = iota
 	componentCorrelator
 )
 
@@ -96,6 +96,51 @@ func defaultCatalog() *componentCatalog {
 				kind:        componentDetector,
 				factory: func() any {
 					return NewTopKDetector()
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "edivisive",
+				displayName: "E-Divisive",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewEDivisiveDetector()
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "robustscan",
+				displayName: "RobustScan",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewRobustScanDetector()
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "scanmw",
+				displayName: "ScanMW",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewScanMWDetector()
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "scanwelch",
+				displayName: "ScanWelch",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewScanWelchDetector()
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "scanks",
+				displayName: "ScanKS",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewScanKSDetector()
 				},
 				defaultEnabled: false,
 			},

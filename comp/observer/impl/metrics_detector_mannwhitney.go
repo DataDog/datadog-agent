@@ -100,10 +100,11 @@ type MannWhitneyDetector struct {
 // NewMannWhitneyDetector creates a MannWhitneyDetector with default settings.
 func NewMannWhitneyDetector() *MannWhitneyDetector {
 	return &MannWhitneyDetector{
-		MinPoints:             50,
-		WindowSize:            60,
-		SignificanceThreshold: 1e-12,
-		MinEffectSize:         0.95,
+		MinPoints:             10,
+		WindowSize:            30,
+		WarmupPoints:          30,
+		SignificanceThreshold: 1e-8,
+		MinEffectSize:         0.90,
 		MinDeviationSigma:     3.0,
 		MinRelativeChange:     0.20,
 		RecoveryPoints:        10,
