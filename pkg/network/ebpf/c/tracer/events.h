@@ -91,16 +91,34 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
     }
 
     if (is_tcp) {
+        bool tst_ok = false;
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
         if (tst && (bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0)) {
             conn.tcp_stats = *tst;
-        } else {
+            tst_ok = true;
+        }
+        // Delete the congestion snapshot. We don't embed it into conn_t to avoid
+        // overflowing the BPF stack in flush_conn_close_if_full().
+        // TODO: congestion stats updated between the last Go polling cycle and
+        // connection close are lost. The sock is still available here (sk != NULL),
+        // so we could read the final tcp_sock field values (reord_seen,
+        // rcv_ooopack, delivered_ce) directly — similar to how retransmits are
+        // finalized via get_tcp_retrans_counts() below. This would require either
+        // writing them to the map for Go to pick up alongside the close event, or
+        // finding a way to carry them in the perf event (e.g. Option B / ringbuf).
+        bpf_map_delete_elem(&tcp_congestion_stats, &(conn.tup));
+        if (!tst_ok) {
             if (!cst_flushable) {
                 int *count = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
                 if (count) {
                     increment_telemetry_count_times(tcp_syn_retransmit, *count);
                     bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
                 }
+                // Clean up RTO/recovery stats (zero-PID keyed) before early return.
+                __u32 saved_pid = conn.tup.pid;
+                conn.tup.pid = 0;
+                bpf_map_delete_elem(&tcp_rto_recovery_stats, &(conn.tup));
+                conn.tup.pid = saved_pid;
                 return -1;
             }
         }
@@ -111,6 +129,13 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
+        // Also delete RTO/recovery stats (keyed by zero-PID tuple, like tcp_retransmits).
+        // TODO: RTO/recovery events (tcp_enter_loss, tcp_enter_recovery, tcp_send_probe0)
+        // that fire between the last Go polling cycle and connection close are lost.
+        // Unlike congestion stats, these are BPF-only event counters with no tcp_sock
+        // field to read at close time, so fixing this requires either carrying the
+        // counts in the perf event or adopting a different close-time flush strategy.
+        bpf_map_delete_elem(&tcp_rto_recovery_stats, &(conn.tup));
         conn.tup.pid = tup->pid;
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
 

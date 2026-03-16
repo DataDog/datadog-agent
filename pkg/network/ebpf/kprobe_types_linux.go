@@ -21,6 +21,18 @@ type TCPStats struct {
 	State_transitions uint16
 	Failure_reason    uint16
 }
+type TCPRTORecoveryStats struct {
+	Rto_count      uint32
+	Recovery_count uint32
+	Probe0_count   uint32
+}
+type TCPCongestionStats struct {
+	Reord_seen     uint32
+	Rcv_ooopack    uint32
+	Delivered_ce   uint32
+	Ecn_negotiated uint8
+	X_pad          [3]uint8
+}
 type ConnStats struct {
 	Sent_bytes     uint64
 	Recv_bytes     uint64
