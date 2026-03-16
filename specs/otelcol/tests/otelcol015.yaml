@@ -1,0 +1,89 @@
+kind: tests
+category: functional
+tests:
+- id: T013
+  ref: [OTELCOL015]
+  short: Filter processor drops spans matching an OTTL condition
+  long: |
+    Verify that the filter processor drops all spans whose resource attribute matches
+    an OTTL condition. Configuring the filter to drop spans where
+    `resource.attributes["service.name"] == "telemetrygen"` must result in no output
+    from the debug exporter — the spans are silently discarded before reaching it.
+  prereq: [T001]
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: Prepare a configuration with a filter processor that drops spans from service `telemetrygen`
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        processors:
+          filter:
+            error_mode: ignore
+            traces:
+              span:
+                - 'resource.attributes["service.name"] == "telemetrygen"'
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [filter]
+              exporters: [debug]
+    - action: Start the otel-agent
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Send one trace from the default `telemetrygen` service
+      run: telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify no span appears in the debug exporter output (all spans were dropped)
+      sample: The debug exporter produces no output for the trace signal.
+
+- id: T014
+  ref: [OTELCOL015]
+  short: Filter processor passes spans that do not match the OTTL condition
+  long: |
+    Using the same agent instance and filter configuration as T013, verify that spans
+    from a different service name pass through the filter unchanged. The `--service`
+    flag of `telemetrygen` is used to emit spans with `service.name = "other-service"`,
+    which does not match the filter condition and must reach the debug exporter.
+  prereq: [T013]
+  steps:
+    - action: Send one trace from a different service name that does not match the filter
+      run: |
+        telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 \
+          --service other-service --traces 1
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify the spans appear in the debug exporter output (not filtered)
+      sample: |
+        ResourceSpans #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(other-service)
+        ScopeSpans #0
+        ScopeSpans SchemaURL:
+        InstrumentationScope telemetrygen
+        Span #0
+            Name           : okey-dokey-0
+            Kind           : Server
+        Span #1
+            Name           : lets-go
+            Kind           : Client
