@@ -923,6 +923,62 @@ func TestHandleProcessExitedWithPendingKills(t *testing.T) {
 	})
 }
 
+func TestAbortedReportNotOverwrittenByDisarmer(t *testing.T) {
+	cfg := &config.Config{
+		RuntimeSecurity: &config.RuntimeSecurityConfig{
+			EnforcementEnabled:                      true,
+			EnforcementDisarmerContainerEnabled:     true,
+			EnforcementDisarmerContainerMaxAllowed:  5,
+			EnforcementDisarmerContainerPeriod:      time.Second,
+			EnforcementDisarmerExecutableEnabled:    true,
+			EnforcementDisarmerExecutableMaxAllowed: 5,
+			EnforcementDisarmerExecutablePeriod:     time.Second,
+			EnforcementRuleSourceAllowed:            []string{"test"},
+		},
+	}
+
+	t.Run("aborted-report-should-not-be-overwritten-by-killPendingForDisarmer", func(t *testing.T) {
+		pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
+		assert.NoError(t, err)
+		rule, ruleSet := craftKillRule(t, "test-rule", "process")
+		pk.Reset(ruleSet)
+		pk.vacumChan()
+
+		// Step 1: enqueue a kill during warmup
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assert.Equal(t, 1, len(pk.pendingReports))
+
+		// Grab references
+		report := pk.pendingReports[0]
+		disarmer := pk.getDisarmer("test-rule")
+		assert.NotNil(t, disarmer)
+		assert.Equal(t, 1, len(disarmer.pendingReports))
+
+		// Step 2: process exits -> report should become kill_aborted and be removed from p.pendingReports
+		exitEvent := craftFakeEvent("container1", "executable1", 123)
+		exitEvent.ProcessContext.ExitTime = time.Now()
+		pk.HandleProcessExited(exitEvent)
+
+		assert.Equal(t, 0, len(pk.pendingReports), "report should be removed from p.pendingReports")
+		report.RLock()
+		assert.Equal(t, KillActionStatusKillAborted, report.Status, "report should be kill_aborted")
+		assert.True(t, report.resolved, "report should be resolved")
+		report.RUnlock()
+
+		// Step 3: simulate warmup end -> processPendingKills should NOT overwrite the aborted status
+		disarmer.m.Lock()
+		disarmer.pendingKillsAlarm = time.Now().Add(-time.Second)
+		disarmer.m.Unlock()
+
+		pk.processPendingKills()
+
+		report.RLock()
+		assert.Equal(t, KillActionStatusKillAborted, report.Status, "BUG: report status was overwritten from kill_aborted to something else by killPendingForDisarmer")
+		assert.True(t, report.resolved, "report should still be resolved")
+		report.RUnlock()
+	})
+}
+
 func TestPartiallyPerformedStatus(t *testing.T) {
 	failingPid := uint32(456)
 

@@ -439,6 +439,19 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 		return
 	}
 
+	// Drop reports that were already resolved (e.g. aborted because all PIDs
+	// exited before the warmup period elapsed). Without this, updateKillActionReport
+	// would overwrite their final status.
+	disarmer.pendingReports = slices.DeleteFunc(disarmer.pendingReports, func(r *KillActionReport) bool {
+		r.RLock()
+		defer r.RUnlock()
+		return r.resolved
+	})
+
+	if len(disarmer.pendingReports) == 0 {
+		return
+	}
+
 	var allKills []killContext
 	for _, r := range disarmer.pendingReports {
 		r.Lock()
@@ -455,6 +468,9 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 		return a.pid == b.pid
 	})
 
+	if len(allKills) == 0 {
+		seclog.Debugf("no pending kill for rule `%s`", disarmer.ruleID)
+	}
 	failedPids, nbKilled := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, allKills)
 	for _, r := range disarmer.pendingReports {
 		updateKillActionReport(r, now, failedPids, nbKilled)
@@ -470,6 +486,8 @@ func updateKillActionReport(report *KillActionReport, now time.Time, failedPids 
 		report.Status = KillActionStatusPerformed
 		report.KilledAt = now
 	} else if nbKilled > 0 {
+		// Partially performed can happen if a process exited before it was killed
+		// This mostly happens without any disarmer since we never remove any process from the list before killing
 		report.Status = KillActionStatusPartiallyPerformed
 		report.KilledAt = now
 	} else {
