@@ -260,9 +260,8 @@ impl CliOutput {
             });
 
         for &(col, exp) in expected {
-            let actual = extract_column(row, &col_starts, col).unwrap_or_else(|| {
-                panic!("column '{col}' not found in header: {header}")
-            });
+            let actual = extract_column(row, &col_starts, col)
+                .unwrap_or_else(|| panic!("column '{col}' not found in header: {header}"));
             assert_eq!(
                 actual, exp,
                 "row '{row_name}' column '{col}': expected '{exp}', got '{actual}'\nfull row: {row}",
@@ -325,7 +324,10 @@ impl CliOutput {
     /// Parse stdout as JSON.
     pub fn stdout_json(&self) -> serde_json::Value {
         serde_json::from_str(&self.stdout).unwrap_or_else(|e| {
-            panic!("failed to parse stdout as JSON: {e}\nstdout: {}", self.stdout)
+            panic!(
+                "failed to parse stdout as JSON: {e}\nstdout: {}",
+                self.stdout
+            )
         })
     }
 
@@ -343,12 +345,10 @@ impl CliOutput {
                     None
                 }
             })
-            .unwrap_or_else(|| {
-                panic!("field '{label}' not found\nstdout: {}", self.stdout)
-            });
-        value.parse::<u32>().unwrap_or_else(|e| {
-            panic!("field '{label}' is not a valid PID: '{value}': {e}")
-        })
+            .unwrap_or_else(|| panic!("field '{label}' not found\nstdout: {}", self.stdout));
+        value
+            .parse::<u32>()
+            .unwrap_or_else(|e| panic!("field '{label}' is not a valid PID: '{value}': {e}"))
     }
 
     /// Extract PID for a row in table output as u32.
@@ -359,18 +359,19 @@ impl CliOutput {
         let col_starts = parse_table_columns(lines[0]);
         let row = lines[1..]
             .iter()
-            .find(|line| {
-                extract_column(line, &col_starts, "NAME").map_or(false, |v| v == row_name)
-            })
+            .find(|line| extract_column(line, &col_starts, "NAME").map_or(false, |v| v == row_name))
             .unwrap_or_else(|| {
-                panic!("no table row with NAME='{row_name}'\nstdout: {}", self.stdout)
+                panic!(
+                    "no table row with NAME='{row_name}'\nstdout: {}",
+                    self.stdout
+                )
             });
 
         let pid_str = extract_column(row, &col_starts, "PID")
             .unwrap_or_else(|| panic!("PID column not found"));
-        pid_str.parse::<u32>().unwrap_or_else(|e| {
-            panic!("PID is not a valid number: '{pid_str}': {e}")
-        })
+        pid_str
+            .parse::<u32>()
+            .unwrap_or_else(|e| panic!("PID is not a valid number: '{pid_str}': {e}"))
     }
 }
 
