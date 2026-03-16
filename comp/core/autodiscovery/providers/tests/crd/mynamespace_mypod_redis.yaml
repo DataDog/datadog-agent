@@ -1,0 +1,8 @@
+ad_identifiers:
+  - redis
+
+init_config:
+
+instances:
+  - host: localhost
+    port: 6379

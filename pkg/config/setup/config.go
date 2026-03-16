@@ -908,6 +908,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
+	// Workload config CRD controller
+	config.BindEnvAndSetDefault("workload_config.enabled", true)
+
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_id", "")
@@ -1613,6 +1616,11 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
+
+	// CRD-driven check configuration provider
+	config.BindEnvAndSetDefault("autoconf_crd_checks_dir", "/etc/datadog-agent/crd-conf.d")
+	config.BindEnvAndSetDefault("autoconf_crd_checks_poll_interval", 10)
+
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})

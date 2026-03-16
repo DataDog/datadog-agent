@@ -13,6 +13,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"go.uber.org/atomic"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
@@ -58,6 +59,16 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll"),
 		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
+
+	crdCheckEnabled := pkgconfigsetup.Datadog().GetBool("workload_config.enabled")
+	if crdCheckEnabled && flavor.GetFlavor() != flavor.ClusterAgent {
+		pollInterval := time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_crd_checks_poll_interval")) * time.Second
+		ac.AddConfigProvider(
+			providers.NewCRDFileConfigProvider(pkgconfigsetup.Datadog().GetString("autoconf_crd_checks_dir"), providers.DefaultCRDNameExtractor, acTelemetryStore),
+			true,
+			pollInterval,
+		)
+	}
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()

@@ -196,7 +196,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var err error
 
 	switch config.Provider {
-	case names.File:
+	case names.File, names.CRDFile:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
 	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog:

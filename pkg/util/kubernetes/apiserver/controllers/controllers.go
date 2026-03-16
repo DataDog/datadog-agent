@@ -11,6 +11,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
@@ -25,8 +26,11 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/checks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -57,6 +61,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerServicesInformer,
 	},
+	workloadConfigCrdControllerName: {
+		func() bool { return pkgconfigsetup.Datadog().GetBool("workload_config.enabled") },
+		startWorkloadConfigCRDController,
+	},
 	endpointsControllerName: {
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
@@ -75,6 +83,8 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
+type leaderNotifier func() (leadershipChangeNotif <-chan struct{}, isLeader func() bool)
+
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers                   map[apiserver.InformerName]cache.SharedInformer
@@ -85,6 +95,7 @@ type ControllerContext struct {
 	DynamicInformerFactory      dynamicinformer.DynamicSharedInformerFactory
 	Client                      kubernetes.Interface
 	IsLeaderFunc                func() bool
+	LeaderNotifier              leaderNotifier
 	EventRecorder               record.EventRecorder
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]
@@ -184,6 +195,34 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	go autoscalersController.runHPA(ctx.StopCh)
 
 	autoscalersController.runControllerLoop(ctx.StopCh)
+}
+
+// startWorkloadConfigCRDController starts the WorkloadConfig CRD controller that watches
+// DatadogInstrumentation CRDs and delegates to registered config section handlers.
+func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error) {
+	configMapNamespace := namespace.GetResourcesNamespace()
+	leaderNotif, _ := ctx.LeaderNotifier()
+
+	handlers := []instrumentation.ConfigSectionHandler{
+		checks.NewChecksHandler(ctx.Client, checks.DefaultConfigMapName, configMapNamespace),
+	}
+
+	controller, err := instrumentation.NewInstrumentationCRDController(
+		ctx.DynamicInformerFactory,
+		ctx.IsLeaderFunc,
+		leaderNotif,
+		handlers,
+	)
+	if err != nil {
+		errChan <- fmt.Errorf("failed to create WorkloadConfig CRD controller: %w", err)
+		return
+	}
+
+	if ctx.DynamicInformerFactory != nil {
+		ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	}
+
+	go controller.Run(ctx.StopCh)
 }
 
 // registerServicesInformer registers the services informer.

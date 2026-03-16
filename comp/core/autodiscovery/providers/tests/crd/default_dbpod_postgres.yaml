@@ -1,0 +1,6 @@
+init_config:
+
+instances:
+  - host: localhost
+    port: 5432
+    username: datadog

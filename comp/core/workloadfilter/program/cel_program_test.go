@@ -88,6 +88,16 @@ func TestCELFieldConfigurationErrors(t *testing.T) {
 			expr:        `container.pod.namespaces == "default"`,
 			expectError: true,
 		},
+		{
+			name:        "Valid pod label access",
+			expr:        `container.pod.labels["app"] == "nginx"`,
+			expectError: false,
+		},
+		{
+			name:        "Invalid pod labels field",
+			expr:        `container.pod.labelz["app"] == "nginx"`,
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {

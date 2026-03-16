@@ -84,11 +84,11 @@ func GetAllResourceTypes() []ResourceType {
 
 // Rules defines the rules for filtering different resource types.
 type Rules struct {
-	Containers    []string `yaml:"containers" json:"containers"`
-	Processes     []string `yaml:"processes" json:"processes"`
-	Pods          []string `yaml:"pods" json:"pods"`
-	KubeServices  []string `yaml:"kube_services" json:"kube_services"`
-	KubeEndpoints []string `yaml:"kube_endpoints" json:"kube_endpoints"`
+	Containers    []string `yaml:"containers,omitempty" json:"containers"`
+	Processes     []string `yaml:"processes,omitempty" json:"processes"`
+	Pods          []string `yaml:"pods,omitempty" json:"pods"`
+	KubeServices  []string `yaml:"kube_services,omitempty" json:"kube_services"`
+	KubeEndpoints []string `yaml:"kube_endpoints,omitempty" json:"kube_endpoints"`
 }
 
 // String returns a string representation of the Rules struct, only showing non-empty fields.
@@ -322,13 +322,14 @@ func (p *Pod) ToBytes() ([]byte, error) {
 }
 
 // CreatePod creates a Filterable Pod object.
-func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
+func CreatePod(id, name, namespace string, annotations, labels map[string]string) *Pod {
 	return &Pod{
 		FilterPod: &core.FilterPod{
 			Id:          id,
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }

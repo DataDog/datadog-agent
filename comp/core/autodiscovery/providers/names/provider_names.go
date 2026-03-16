@@ -15,6 +15,7 @@ const (
 	ClusterChecks                    = "cluster-checks"
 	EndpointsChecks                  = "endpoints-checks"
 	Etcd                             = "etcd"
+	CRDFile                          = "crd-file"
 	File                             = "file"
 	KubeContainer                    = "kubernetes-container-allinone"
 	Kubernetes                       = "kubernetes"

@@ -42,6 +42,7 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
 			Annotations: pod.Annotations,
+			Labels:      pod.Labels,
 		},
 	}
 }
