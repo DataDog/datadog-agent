@@ -108,19 +108,22 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 	// FP = predictions before any GT onset (baseline noise).
 	// Post-onset predictions that aren't the first match are ignored.
 	var fp float64
+	var numIgnored int
 	for i, p := range input.PredictionTimestamps {
 		if matchedPred[i] {
 			continue
 		}
 		if p < minGT {
 			fp += 1.0
+		} else {
+			numIgnored++
 		}
-		// else: post-onset, unmatched → ignored (expected during incident)
 	}
 
 	result.TP = tp
 	result.FP = fp
 	result.FN = fn
+	result.NumFilteredCascading = numIgnored
 
 	if tp+fp > 0 {
 		result.Precision = tp / (tp + fp)
@@ -311,25 +314,17 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		predictions = append(predictions, period.PeriodStart)
 	}
 
-	// Count baseline FPs and post-onset predictions for reporting.
+	// Count baseline FPs: scored predictions that fire before disruption onset.
 	minGT := groundTruthTimestamps[0]
-	maxGT := groundTruthTimestamps[0]
 	for _, gt := range groundTruthTimestamps[1:] {
 		if gt < minGT {
 			minGT = gt
 		}
-		if gt > maxGT {
-			maxGT = gt
-		}
 	}
-	cascadingCutoff := float64(maxGT) + 2*sigma
-	var numBaselineFPs, numCascading int
+	var numBaselineFPs int
 	for _, p := range predictions {
 		if p < minGT {
 			numBaselineFPs++
-		}
-		if float64(p) > cascadingCutoff {
-			numCascading++
 		}
 	}
 
@@ -339,7 +334,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		Sigma:                 sigma,
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
-	result.NumFilteredCascading = numCascading
 	result.NumBaselineFPs = numBaselineFPs
 
 	return &result, nil

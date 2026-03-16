@@ -171,6 +171,7 @@ func TestGaussianF1_MultipleFiresDuringDisruption(t *testing.T) {
 	})
 	assert.InDelta(t, 1.0, result.F1, 0.1, "3 fires during disruption with 0 baseline FPs should score near-perfect")
 	assert.Equal(t, 0.0, result.FP, "no FPs — extra post-onset predictions are ignored")
+	assert.Equal(t, 2, result.NumFilteredCascading, "2 post-onset predictions ignored")
 }
 
 func TestGaussianF1_OneFireDuringDisruptionPlusBaselineFPs(t *testing.T) {
