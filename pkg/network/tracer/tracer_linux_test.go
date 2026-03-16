@@ -3415,7 +3415,6 @@ func (s *TracerSuite) TestTCPRTOCount() {
 	// (where RTT is ~0), forcing the RTO timer to fire.
 	runNetemCongestionTest(t, tr, []string{"delay", "100ms", "loss", "30%", "50%"}, nil,
 		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			t.Logf("rto_count=%d", conn.Last.TCPRTOCount)
 			assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 with high correlated loss")
 		})
 }
@@ -3484,7 +3483,6 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 
 	runNetemCongestionTest(t, tr, []string{"delay", "50ms", "loss", "10%"}, nil,
 		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			t.Logf("recovery_count=%d rto_count=%d", conn.Last.TCPRecoveryCount, conn.Last.TCPRTOCount)
 			assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0 with moderate packet loss")
 		})
 }
@@ -3509,7 +3507,6 @@ func (s *TracerSuite) TestTCPReordSeen() {
 
 	runNetemCongestionTest(t, tr, []string{"delay", "10ms", "reorder", "50%"}, nil,
 		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			t.Logf("reord_seen=%d", conn.Last.TCPReordSeen)
 			assert.Greater(ct, conn.Last.TCPReordSeen, uint32(0), "reord_seen should be > 0 with tc netem reordering")
 		})
 }
@@ -3564,7 +3561,6 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 		if !assert.True(ct, ok, "connection not found") {
 			return
 		}
-		t.Logf("rcv_ooopack=%d", conn.Last.TCPRcvOOOPack)
 		assert.Greater(ct, conn.Last.TCPRcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
 	}, 10*time.Second, 100*time.Millisecond)
 }
@@ -3594,7 +3590,6 @@ func (s *TracerSuite) TestTCPDeliveredCE() {
 			}, false)
 		},
 		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			t.Logf("delivered_ce=%d ecn_negotiated=%v", conn.Last.TCPDeliveredCE, conn.TCPECNNegotiated)
 			assert.True(ct, conn.TCPECNNegotiated, "ECN should be negotiated when tcp_ecn=1")
 			assert.Greater(ct, conn.Last.TCPDeliveredCE, uint32(0), "delivered_ce should be > 0 with tc netem ecn marking")
 		})
@@ -3674,7 +3669,6 @@ func (s *TracerSuite) TestTCPZeroWindowProbe() {
 		if !assert.True(ct, found, "connection not found") {
 			return
 		}
-		t.Logf("Zero-window signals: probe0_count=%d", conn.Last.TCPProbe0Count)
 		assert.Greater(ct, conn.Last.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
 	}, 5*time.Second, 100*time.Millisecond)
 }
