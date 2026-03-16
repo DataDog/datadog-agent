@@ -70,11 +70,6 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 }
 
 func validateFlags(params *globalparams.GlobalParams) error {
-	// Error if both --config and --core-config are set
-	if params.ConfFilePath != "" && params.CoreConfPath != "" {
-		return errors.New("cannot use both --config and --core-config flags together")
-	}
-
 	// Require at least one configuration source
 	if params.ConfFilePath == "" && params.CoreConfPath == "" {
 		return errors.New("must provide either --config or --core-config configuration")
@@ -95,6 +90,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	}
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
+		warnBothConfigs := cliParams.GlobalParams.ConfFilePath != ""
 		opts = append(opts,
 			core.Bundle(),
 			remotehostnameimpl.Module(),
@@ -103,6 +99,11 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
+			fx.Invoke(func(l log.Component) {
+				if warnBothConfigs {
+					l.Warn("When both OTel and Core Agent configuration paths are given, only the Agent's is used.")
+				}
+			}),
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
