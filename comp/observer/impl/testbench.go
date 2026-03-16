@@ -179,19 +179,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	}
 
 	catalog := testbenchCatalog()
-	detectors, correlators, components := catalog.Instantiate(config.EnableOverrides)
-
-	extractors := []observerdef.LogMetricsExtractor{
-		&LogMetricsExtractor{
-			MaxEvalBytes: 4096,
-			ExcludeFields: map[string]struct{}{
-				"timestamp": {}, "ts": {}, "time": {},
-				"pid": {}, "ppid": {}, "uid": {}, "gid": {},
-			},
-		},
-		&ConnectionErrorExtractor{},
-		NewLogPatternExtractor(),
-	}
+	detectors, correlators, extractors, components := catalog.Instantiate(config.EnableOverrides)
 
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
