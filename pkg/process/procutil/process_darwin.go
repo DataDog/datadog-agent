@@ -7,13 +7,8 @@
 
 package procutil
 
-// This file vendors the darwin process-collection logic from
-// github.com/DataDog/gopsutil/process (AllProcesses, callPs and helpers) so
-// that the fork is no longer a dependency.  The only intentional behavioural
-// change is that getKProc() is replaced by unix.SysctlKinfoProc, which is the
-// standard-library wrapper for the same sysctl(kern.proc.pid) call.
-
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -67,9 +62,8 @@ var allProcessFields = "pid,ppid,utime,stime,etime,state,rss,vsize,pagein,comman
 
 // allProcesses collects all running processes via a single ps(1) invocation
 // (for CPU/memory/cmdline data) combined with per-process sysctl(kern.proc.pid)
-// calls (for name, UIDs, GIDs, nice).  ps runs SUID on macOS and can therefore
-// read data for processes owned by other users; the sysctl is world-readable.
-// Vendored from github.com/DataDog/gopsutil/process.AllProcesses.
+// calls (for name, UIDs, GIDs, nice). ps runs SUID on macOS and can therefore
+// read data for processes owned by other users, the sysctl is world-readable.
 func allProcesses() (map[int32]*Process, error) {
 	result, err := callPs(allProcessFields, 0, false)
 	if err != nil {
@@ -137,7 +131,7 @@ func allProcesses() (map[int32]*Process, error) {
 		procs[pid] = &Process{
 			Pid:     pid,
 			Ppid:    int32(ppid),
-			Name:    intToString(k.Proc.P_comm[:]),
+			Name:    bytesToString(k.Proc.P_comm[:]),
 			Cmdline: r[9:],
 			Uids:    []int32{int32(k.Eproc.Ucred.Uid)},
 			Gids: []int32{
@@ -160,20 +154,16 @@ func allProcesses() (map[int32]*Process, error) {
 	return procs, nil
 }
 
-// intToString converts a null-terminated byte slice to a string.
-// Vendored from github.com/DataDog/gopsutil/internal/common.IntToString.
-func intToString(orig []byte) string {
-	for i, b := range orig {
-		if b == 0 {
-			return string(orig[:i])
-		}
+// bytesToString converts a null-terminated byte slice to a string
+func bytesToString(orig []byte) string {
+	if index := bytes.IndexByte(orig, 0); index != -1 {
+		return string(orig[:index])
 	}
 	return string(orig)
 }
 
-// callPs calls ps(1) and returns the output split into fields.
+// callPs runs the ps command and returns the output split into fields.
 // If pid is 0, returns data for all processes.
-// Vendored from github.com/DataDog/gopsutil/process.callPs.
 func callPs(arg string, pid int32, threadOption bool) ([][]string, error) {
 	bin, err := exec.LookPath("ps")
 	if err != nil {
@@ -229,12 +219,15 @@ func convertCPUTimes(s string) (ret float64, err error) {
 	}
 
 	_t := strings.Split(_tmp, ".")
+	h, err := strconv.Atoi(_t[0])
 	if err != nil {
 		return ret, err
 	}
-	h, err := strconv.Atoi(_t[0])
 	t += h * 100
 	h, err = strconv.Atoi(_t[1])
+	if err != nil {
+		return ret, err
+	}
 	t += h
 	return float64(t) / clockTicks, nil
 }
@@ -266,7 +259,7 @@ func formatElapsedTime(etime string) (int64, error) {
 		elapsedDurations = append(elapsedDurations, time.Duration(p))
 	}
 
-	var elapsed time.Duration = time.Duration(elapsedDurations[0]) * time.Second
+	elapsed := time.Duration(elapsedDurations[0]) * time.Second
 	if len(elapsedDurations) > 1 {
 		elapsed += time.Duration(elapsedDurations[1]) * time.Minute
 	}
