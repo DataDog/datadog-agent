@@ -17,7 +17,7 @@ import (
 )
 
 // --- Metrics Extractor ---
-
+// TODO(celian): Pattern keys
 // // This contains what can identify a pattern
 // type PatternKeyInfo struct {
 // 	ClusterID int64
@@ -25,7 +25,6 @@ import (
 
 type LogPatternExtractor struct {
 	PatternClusterer *patterns.PatternClusterer
-	// PatternKeys
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -52,7 +51,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.
 		return nil
 	}
 
-	// TODO: Create a pattern key
+	// TODO(celian): Create a pattern key
 
 	// Emit metric for the pattern
 	return []observerdef.MetricOutput{{
@@ -75,12 +74,13 @@ type LogPatternDetector struct {
 	HistorySize int
 	// We skipp TooRecentSize items at the beginning of the queue to detect anomalies
 	TooRecentSize int
+	RateLimiter   *AnomalyRateLimiter
 }
 
 var _ observerdef.Detector = (*LogPatternDetector)(nil)
 
 func NewLogPatternDetector() *LogPatternDetector {
-	// TODO: Method to get prefix to avoid boilerplate
+	// TODO(celian): Method to get prefix to avoid boilerplate
 	return &LogPatternDetector{
 		MetricsPrefix:    "_virtual.log.log_pattern_extractor",
 		WindowDurationMs: 60 * 1000,
@@ -88,6 +88,9 @@ func NewLogPatternDetector() *LogPatternDetector {
 		Rates:            make(map[int64]*queue.Queue[float64]),
 		HistorySize:      120,
 		TooRecentSize:    5,
+		// TODO(celian): Should we amend anomalies at some point to have a more accurate score? The score is triggered at ~ the threshold now
+		// Wait at least 1 minute between anomalies for the same pattern
+		RateLimiter: NewAnomalyRateLimiter(60 * 1000),
 	}
 }
 
@@ -110,12 +113,12 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 		// Add the rate to the queue
 		parts := strings.Split(seriesKey.Name, ".")
 		if len(parts) < 2 {
-			// TODO: Handle errors properly
+			// TODO(celian): Handle errors properly
 			fmt.Printf("[cc] Error parsing key %s: not enough parts\n", seriesKey.Name)
 			continue
 		}
 		keyStr := parts[len(parts)-2]
-		// TODO: Use key, not cluster ID
+		// TODO(celian): Use key, not cluster ID
 		key, err := strconv.ParseInt(keyStr, 10, 64)
 		if err != nil {
 			fmt.Printf("[cc] Error parsing key %s: %v\n", keyStr, err)
@@ -128,13 +131,13 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 
 		// 1. Compute rate
 		count := storage.PointCountSince(seriesKey, windowStart)
-		// TODO: What do we do if we don't have this metric anymore?
+		// TODO(celian): What do we do if we don't have this metric anymore?
 		// if count == 0 {
 		// 	continue
 		// }
 		rate := float64(count) / float64(d.WindowDurationMs)
 		// fmt.Printf("[cc] Series %s has rate %f\n", seriesKey.Name, rate)
-		// TODO: Check telemetry
+		// TODO(celian): Check telemetry
 		telemetry = append(telemetry, observerdef.ObserverTelemetry{
 			Metric: &metricObs{
 				name:      seriesKey.Name,
@@ -145,7 +148,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 		})
 
 		// 2. Detect anomalies
-		// TODO: We may skip some of them for optimization
+		// TODO(celian): We may skip some of them for optimization
 		data := queue.Slice()
 		// Skip TooRecentSize items at the beginning
 		if len(data) > d.TooRecentSize {
@@ -166,9 +169,10 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 			if standardDeviation > 0 {
 				zScore = (rate - average) / standardDeviation
 			}
-			// TODO: We can add an absolute threshold for the exact minimum log rate change
-			if math.Abs(zScore) >= d.ZThreshold {
+			// TODO(celian): We can add an absolute threshold for the exact minimum log rate change
+			if math.Abs(zScore) >= d.ZThreshold && d.RateLimiter.CanCreateAnomaly(key, dataTime) {
 				fmt.Printf("[cc] Anomaly detected for pattern key %s with z-score %f\n", keyStr, zScore)
+				// TODO(celian): Should we include the recent rates to have a smoother score?
 				// Convert the z-score to a score between 0 and 1: 1 - exp(thres - abs(z))
 				anomalyScore := 1 - math.Exp(d.ZThreshold-math.Abs(zScore))
 				anomalies = append(anomalies, observerdef.Anomaly{
