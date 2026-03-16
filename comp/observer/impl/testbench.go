@@ -1011,7 +1011,7 @@ func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
 	tb.mu.RLock()
 	info := tb.episodeInfo
 	tb.mu.RUnlock()
-	correlations := tb.engine.StateView().ActiveCorrelations()
+	correlations := tb.engine.StateView().CorrelationHistory()
 
 	meta, err := scoringMetadataFromEpisode(info)
 	if err != nil {
@@ -1089,7 +1089,7 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
 	if err != nil {
 		return err
 	}
-	correlations := tb.engine.StateView().ActiveCorrelations()
+	correlations := tb.engine.StateView().CorrelationHistory()
 	sender.sendCorrelationEvents(correlations)
 	return nil
 }
