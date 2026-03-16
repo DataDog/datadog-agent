@@ -105,13 +105,12 @@ so_symlink(
     src = ":attr",
     libname = "libattr",
     version = "1.1.2501",
-    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include/attr/",
+    prefix = "include/attr/",
 )
 
 pkg_filegroup(
@@ -120,6 +119,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

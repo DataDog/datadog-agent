@@ -49,7 +49,10 @@ cc_library(
     linkopts = [
         # Make up for the fact that we may be using gcc and not g++
         "-lstdc++",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["-static"],
+        "//conditions:default": [],
+    }),
     local_defines = select({
         "@platforms//os:linux": [
             "_GLIBCXX_USE_CXX11_ABI=0",
@@ -170,7 +173,10 @@ cc_library(
     linkopts = [
         # Make up for the fact that we may be using gcc and not g++
         "-lstdc++",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["-static"],
+        "//conditions:default": [],
+    }),
     local_defines = select({
         "@platforms//os:windows": [
             # TODO: only set if not MSVC. But it might be OK do to anyway.
@@ -218,6 +224,11 @@ cc_shared_library(
             ":datadog-agent-rtloader",
             "@cpython//:python_unix_shared",
         ],
+    }),
+    shared_lib_name = select({
+        "@platforms//os:windows": "libdatadog-agent-three.dll",
+        "@platforms//os:linux": "libdatadog-agent-three.so",
+        "@platforms//os:macos": "libdatadog-agent-three.dylib",
     }),
     user_link_flags = select({
         "@platforms//os:windows": [],

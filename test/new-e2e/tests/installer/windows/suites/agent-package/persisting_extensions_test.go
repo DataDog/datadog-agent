@@ -18,7 +18,6 @@ import (
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -31,7 +30,7 @@ const (
 )
 
 type testExtensionsSuite struct {
-	installerwindows.BaseSuite
+	testAgentUpgradeSuite
 }
 
 // TestExtensionPersistence tests Agent extension persistence behaviour on Windows.
@@ -201,11 +200,10 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
 	s.verifyDDOTRunning(s.StableAgentVersion().Version())
+	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
-	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost,
-		`HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs",
-		[]string{"WIXFAILWHENDEFERRED=1", "DD_INSTALLER_REGISTRY_URL=" + consts.PipelineOCIRegistry})
-	s.Require().NoError(err)
+	// Override MSI args to include the pipeline registry URL for the experiment MSI.
+	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1", "DD_INSTALLER_REGISTRY_URL=" + consts.PipelineOCIRegistry})
 
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
@@ -221,19 +219,20 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		s.setAgentConfig(consts.BetaS3OCIRegistry)
 	})
 
-	// After MSI rollback, postStartExperimentBackground detects the failure and calls
-	// restoreStableAgentFromExperiment, which reinstalls the stable MSI via postStopExperiment.
-	// The experiment installer service may briefly appear as Running before rollback completes.
-	// Poll until the stable installer version is confirmed running.
-	stableVersion := s.StableAgentVersion().Version()
-	assert.Eventually(s.T(), func() bool {
-		output, err := s.Env().RemoteHost.Execute(
-			fmt.Sprintf(`& "%s\%s" version`, consts.Path, consts.BinaryName))
-		if err != nil {
-			return false
-		}
-		return strings.Contains(strings.TrimSpace(output), stableVersion)
-	}, 10*time.Minute, 30*time.Second, "stable installer should be running after MSI rollback")
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
 
 	s.verifyDDOTRunning(s.StableAgentVersion().Version())
 }

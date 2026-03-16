@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_library(
+    name = "ir",
+    srcs = [
+        "doc.go",
+        "event_kind.go",
+        "event_kind_string.go",
+        "issue.go",
+        "issuekind_string.go",
+        "probe_definition.go",
+        "probe_kind.go",
+        "probe_kind_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/ir",
+    visibility = ["//visibility:public"],
+)
+
+go_stringer(
+    name = "event_kind_string",
+    src = "event_kind.go",
+    output = "event_kind_string.go",
+    trimprefix = "EventKind",
+    types = ["EventKind"],
+)
+
+go_stringer(
+    name = "issuekind_string",
+    src = "issue.go",
+    output = "issuekind_string.go",
+    trimprefix = "IssueKind",
+    types = ["IssueKind"],
+)
+
+go_stringer(
+    name = "probe_kind_string",
+    src = "probe_kind.go",
+    linecomment = True,
+    output = "probe_kind_string.go",
+    types = ["ProbeKind"],
+)
