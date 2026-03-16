@@ -76,7 +76,7 @@ def ask_reviews(_, pr_id, action, team_slugs):
             message = (
                 f'Hello :{random.choice(waves)}:!\n'
                 f'A review channel is missing for {missing_teams}, can you please ask them to update '
-                '`github_slack_review_map.yaml` and transfer them this review '
+                '`github_slack_map.yaml` and transfer them this review '
                 f'<{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             )
         else:
