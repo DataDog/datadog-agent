@@ -3421,9 +3421,8 @@ func (s *TracerSuite) TestTCPRTOCount() {
 
 // runNetemCongestionTest is a helper for TCP congestion signal tests that use
 // tc netem inside an isolated network namespace. It creates the namespace with
-// a discard server, optionally runs nsSetup (e.g. sysctl), applies netem, dials
-// a connection, and writes data in a polling loop while calling assertFn to
-// verify the expected signal.
+// a discard server, optionally runs nsSetup (e.g. sysctl), dials a connection
+// on a clean link, then applies netem so the handshake isn't impaired.
 func runNetemCongestionTest(
 	t *testing.T,
 	tr *Tracer,
@@ -3444,10 +3443,11 @@ func runNetemCongestionTest(
 		nsSetup(t, env)
 	}
 
-	env.addNetem(t, netemArgs...)
-
+	// Dial before applying netem so the TCP handshake completes on a clean link.
 	c := env.dialInNs(t)
 	defer c.Close()
+
+	env.addNetem(t, netemArgs...)
 
 	// Send data in a loop — each write triggers tcp_sendmsg which snapshots
 	// the congestion stats. Writing in the poll loop keeps the connection
