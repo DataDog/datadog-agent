@@ -9,10 +9,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/spf13/cobra"
 )
+
+func packageInstallDir() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "/opt/datadog-agent"
+	}
+	installDir := filepath.Clean(filepath.Join(filepath.Dir(execPath), "..", ".."))
+	if _, err := os.Stat(installDir); err != nil {
+		return "/opt/datadog-agent"
+	}
+	return installDir
+}
 
 func isPrermSupportedCommand() *cobra.Command {
 	return &cobra.Command{
@@ -67,7 +80,7 @@ func postinstCommand() *cobra.Command {
 				Context:     i.ctx,
 				Hook:        "postInstall",
 				Package:     pkg,
-				PackagePath: "/opt/datadog-agent",
+				PackagePath: packageInstallDir(),
 				PackageType: packageType,
 				Upgrade:     false,
 				WindowsArgs: nil,
@@ -98,7 +111,7 @@ func prermCommand() *cobra.Command {
 				Context:     i.ctx,
 				Hook:        "preRemove",
 				Package:     pkg,
-				PackagePath: "/opt/datadog-agent",
+				PackagePath: packageInstallDir(),
 				PackageType: packageType,
 				Upgrade:     upgrade,
 				WindowsArgs: nil,
