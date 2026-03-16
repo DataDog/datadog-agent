@@ -20,30 +20,35 @@ def write_file(filename, content):
 config_setup_func_names = [
     'initCoreAgentFull',
 	'agent',
+	'fleet',
+	'autoscaling',
 	'fips',
-	'dogstatsd',
-	'forwarder',
-	'aggregator',
-	'serializer',
-	'serverless',
-	'setupAPM',
-	'OTLP',
-	'setupMultiRegionFailover',
-	'telemetry',
-	'autoconfig',
 	'remoteconfig',
-	'logsagent',
+	'autoconfig',
 	'containerSyspath',
+	'debugging',
+	'telemetry',
+	'serializer',
+	'aggregator',
+	'serverless',
+	'forwarder',
+	'dogstatsd',
+	'logsagent',
+	'vector',
+	'cloudfoundry',
 	'containerd',
 	'cri',
 	'kubernetes',
-	'cloudfoundry',
-	'debugging',
-	'vector',
 	'podman',
-	'fleet',
-	'autoscaling',
 ]
+
+
+# apm.go
+#	'setupAPM',
+# otlp.go
+#	'OTLP',
+# multi_region_failover.go
+#	'setupMultiRegionFailover',
 
 
 func_start_regex = r'^func (\w+)\(config pkgconfigmodel.Setup\)'
