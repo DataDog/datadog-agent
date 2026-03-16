@@ -76,7 +76,7 @@ def ask_reviews(_, pr_id, action, team_slugs):
             message = (
                 f'Hello :{random.choice(waves)}:!\n'
                 f'A review channel is missing for {missing_teams}, can you please ask them to update '
-                '`github_slack_review_map.yaml` and transfer them this review '
+                '`github_slack_map.yaml` and transfer them this review '
                 f'<{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             )
         else:
@@ -84,7 +84,7 @@ def ask_reviews(_, pr_id, action, team_slugs):
             for slug in slugs:
                 nb_files = file_counts.get(slug, 0)
                 role = "primary" if (max_files > 0 and nb_files == max_files) else "secondary"
-                team_lines.append(f'{slug} has {nb_files} file(s) to review, as a {role} contributor.')
+                team_lines.append(f'{slug} has {nb_files} file(s) to review, as a {role} reviewer.')
             team_info = '\n'.join(team_lines)
             message = (
                 f'Hello :{random.choice(waves)}:!\n'
