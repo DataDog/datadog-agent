@@ -179,18 +179,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	}
 
 	catalog := testbenchCatalog()
-	detectors, correlators, components := catalog.Instantiate(config.EnableOverrides)
-
-	extractors := []observerdef.LogMetricsExtractor{
-		&LogMetricsExtractor{
-			MaxEvalBytes: 4096,
-			ExcludeFields: map[string]struct{}{
-				"timestamp": {}, "ts": {}, "time": {},
-				"pid": {}, "ppid": {}, "uid": {}, "gid": {},
-			},
-		},
-		&ConnectionErrorExtractor{},
-	}
+	detectors, correlators, extractors, components := catalog.Instantiate(config.EnableOverrides)
 
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
@@ -559,7 +548,6 @@ func (r *parquetTraceStatRow) GetOkSummary() []byte          { return r.data.OkS
 func (r *parquetTraceStatRow) GetErrorSummary() []byte       { return r.data.ErrorSummary }
 func (r *parquetTraceStatRow) GetPeerTags() []string         { return r.data.PeerTags }
 
-
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
 	for _, ci := range tb.components {
@@ -633,6 +621,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// receive log data.
 	tb.engine.SetDetectors(catalogEnabledDetectors(tb.components, tb.catalog))
 	tb.engine.SetCorrelators(catalogEnabledCorrelators(tb.components, tb.catalog))
+	tb.engine.SetExtractors(catalogEnabledExtractors(tb.components, tb.catalog))
 	tb.engine.resetFull()
 
 	// Reset ALL components (not just enabled) so disabled ones clear stale state

@@ -31,10 +31,10 @@ type anomalyDedupKey struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
-	// mu protects detectors, correlators, logObservers, lastAnalyzedDataTime,
-	// and latestDataTime from concurrent access. Writers (Advance, Reset,
-	// SetDetectors, SetCorrelators) take a write lock; readers (stateView
-	// methods) take a read lock.
+	// mu protects detectors, correlators, extractors, logObservers,
+	// lastAnalyzedDataTime, and latestDataTime from concurrent access.
+	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetExtractors)
+	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
 	storage     *timeSeriesStorage
@@ -487,6 +487,16 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	defer e.mu.Unlock()
 
 	e.correlators = correlators
+}
+
+// SetExtractors replaces the engine's log-metrics extractors. Used when
+// testbench components are toggled so that replayed log ingestion uses
+// only the currently-enabled extractors.
+func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.extractors = extractors
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
