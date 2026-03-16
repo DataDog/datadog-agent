@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package filterlistimpl
 
 import (
@@ -10,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/twmb/murmur3"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
 func TestNewTagMatcher(t *testing.T) {
@@ -26,22 +30,22 @@ func TestNewTagMatcher(t *testing.T) {
 			Tags:   []string{"pod"},
 			Action: "invalid",
 		},
-	})
+	}, logmock.New(t))
 
 	assert.NotNil(t, matcher)
 	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
 		tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
-		action: Exclude,
+		action: exclude,
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric2"], hashedMetricTagList{
 		tags:   []uint64{},
-		action: Include,
+		action: include,
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
 		tags:   []uint64{murmur3.StringSum64("pod")},
-		action: Exclude,
+		action: exclude,
 	})
 }
 
@@ -90,7 +94,7 @@ func TestTagMatcher(t *testing.T) {
 		},
 	}
 
-	matcher := newTagMatcher(metrics)
+	matcher := newTagMatcher(metrics, logmock.New(t))
 
 	// Test metric1 tags are excluded
 	keepTagFunc, shouldStrip := matcher.ShouldStripTags("metric1")

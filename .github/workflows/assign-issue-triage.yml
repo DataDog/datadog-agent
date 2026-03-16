@@ -69,7 +69,7 @@ jobs:
           1. Perform thorough analysis using available tools
           2. Select exactly one team label. If uncertain, use `team/agent-devx`
           3. Generate explanatory comment of the choice you did
-          4. Retrieve the slack channel associated to the selected team in the tasks/libs/pipeline/github_slack_map.yaml
+          4. Retrieve the slack channel associated to the selected team in tasks/libs/pipeline/github_slack_map.yaml
           5. Write TEAM, SLACK, CONFIDENCE and EXPLANATION in a local file claude.txt for the next step
 
           **IMPORTANT:**
@@ -137,7 +137,7 @@ jobs:
               echo "team=unknown" >> $GITHUB_OUTPUT
             fi
             SLACK=$(grep SLACK claude.txt | cut -d ':' -f2)
-            if grep -q "$SLACK" tasks/libs/pipeline/github_slack_map.yaml || grep -q "$SLACK" tasks/libs/pipeline/github_slack_review_map.yaml; then
+            if grep -q "$SLACK" tasks/libs/pipeline/github_slack_map.yaml; then
               # We validate the slack channel against the github_slack_map.yaml file
               echo "slack=$SLACK" >> $GITHUB_OUTPUT
             else

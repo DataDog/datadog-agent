@@ -64,7 +64,9 @@ def update_golden_tests(ctx):
     """
     print("Updating golden test files...")
 
-    with ctx.cd("comp/host-profiler/collector/impl/converters"):
-        ctx.run("go test -tags test -update")
+    test_paths = ["comp/host-profiler/collector/impl/converters", "comp/host-profiler/collector/impl/agentprovider"]
+    for path in test_paths:
+        with ctx.cd(path):
+            ctx.run("go test -tags test -update")
 
     print("Golden test files updated successfully!")

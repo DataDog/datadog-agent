@@ -3,14 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::command::{Command, ReloadResult};
+#![allow(clippy::result_large_err)]
+
+use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::shutdown;
 use anyhow::Result;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::sync::Arc;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{RwLock, mpsc, oneshot};
@@ -31,7 +33,7 @@ pub struct ProcessManager {
 }
 
 impl ProcessManager {
-    pub(crate) fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
+    pub fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
         let configs = config_loader.load();
         let processes: Vec<ManagedProcess> = configs
             .into_iter()
@@ -59,7 +61,7 @@ impl ProcessManager {
         }
     }
 
-    pub(crate) async fn run(&self) -> Result<()> {
+    pub async fn run(&self) -> Result<()> {
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
         let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
@@ -90,13 +92,13 @@ impl ProcessManager {
                 Some(cmd) = cmd_rx.recv() => {
                     match cmd {
                         Command::Create { name, config, reply } => {
-                            let _ = reply.send(self.handle_create(name, *config).await);
+                            let _ = reply.send(self.handle_create(name, *config, &exit_tx).await);
                         }
-                        Command::Start { name, reply } => {
-                            let _ = reply.send(self.handle_start(&name, &exit_tx).await);
+                        Command::Start { name_or_uuid, reply } => {
+                            let _ = reply.send(self.handle_start(&name_or_uuid, &exit_tx).await);
                         }
-                        Command::Stop { name, reply } => {
-                            let _ = reply.send(self.handle_stop(&name).await);
+                        Command::Stop { name_or_uuid, reply } => {
+                            let _ = reply.send(self.handle_stop(&name_or_uuid).await);
                         }
                         Command::ReloadConfig { reply } => {
                             let _ = reply.send(self.handle_reload_config(&exit_tx).await);
@@ -139,8 +141,8 @@ impl ProcessManager {
             return;
         };
         if !proc.state().is_alive() {
-            info!(
-                "[{}] ignoring exit event (state: {})",
+            debug!(
+                "[{}] exit event after stop, skipping restart (state: {})",
                 proc.name(),
                 proc.state()
             );
@@ -178,7 +180,8 @@ impl ProcessManager {
         &self,
         name: String,
         config: config::ProcessConfig,
-    ) -> Result<(), Status> {
+        exit_tx: &mpsc::Sender<ExitEvent>,
+    ) -> Result<CreateResult, Status> {
         if name.is_empty() {
             return Err(Status::invalid_argument("name must not be empty"));
         }
@@ -193,6 +196,7 @@ impl ProcessManager {
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
+        let uuid;
         {
             let mut procs = self.processes.write().await;
             if procs.iter().any(|p| p.name() == name) {
@@ -201,50 +205,61 @@ impl ProcessManager {
                 )));
             }
             let proc = ManagedProcess::new_runtime(name.clone(), config);
-            info!("[{name}] created via RPC");
+            uuid = proc.uuid().to_owned();
+            info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
+            let proc = procs.last_mut().unwrap();
+            if proc.should_start() {
+                match proc.spawn() {
+                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
+                    Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
+                }
+            }
         }
         self.update_startup_order().await;
-        Ok(())
+        Ok(CreateResult { uuid })
     }
 
     pub(crate) async fn handle_start(
         &self,
-        name: &str,
+        name_or_uuid: &str,
         exit_tx: &mpsc::Sender<ExitEvent>,
-    ) -> Result<(), Status> {
+    ) -> Result<StartResult, Status> {
         let mut procs = self.processes.write().await;
-        let proc = procs
-            .iter_mut()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+        let idx = resolve_index(&procs, name_or_uuid)?;
+        let proc = &mut procs[idx];
 
         if proc.is_running() {
             return Err(Status::failed_precondition(format!(
-                "process '{name}' is already running"
+                "process '{}' is already running",
+                proc.name()
             )));
         }
         proc.spawn()
-            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
+            .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
+        let uuid = proc.uuid().to_owned();
+        let pid = proc.pid();
+        let state = proc.state();
         spawn_watcher(proc, exit_tx.clone());
-        Ok(())
+        Ok(StartResult { uuid, pid, state })
     }
 
-    pub(crate) async fn handle_stop(&self, name: &str) -> Result<(), Status> {
+    pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
         let mut procs = self.processes.write().await;
-        let proc = procs
-            .iter_mut()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+        let idx = resolve_index(&procs, name_or_uuid)?;
+        let proc = &mut procs[idx];
 
         if !proc.is_running() {
             return Err(Status::failed_precondition(format!(
-                "process '{name}' is not running"
+                "process '{}' is not running",
+                proc.name()
             )));
         }
+        let uuid = proc.uuid().to_owned();
         proc.request_stop();
         proc.wait_for_stop().await;
-        Ok(())
+        let state = proc.state();
+        Ok(StopResult { uuid, state })
     }
 
     pub(crate) async fn handle_reload_config(
@@ -361,6 +376,39 @@ impl ProcessManager {
     }
 }
 
+pub fn looks_like_uuid_prefix(s: &str) -> bool {
+    s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+}
+
+fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Result<usize, Status>> {
+    let mut matches: Vec<usize> = procs
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.uuid().starts_with(prefix))
+        .map(|(i, _)| i)
+        .collect();
+    match matches.len() {
+        0 => None,
+        1 => Some(Ok(matches.remove(0))),
+        _ => Some(Err(Status::invalid_argument(format!(
+            "UUID prefix '{prefix}' is ambiguous ({} matches)",
+            matches.len()
+        )))),
+    }
+}
+
+fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
+    if looks_like_uuid_prefix(name_or_uuid)
+        && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
+    {
+        return result;
+    }
+    procs
+        .iter()
+        .position(|p| p.name() == name_or_uuid)
+        .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
+}
+
 /// Spawn a background task that awaits the child's exit and sends the result.
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
@@ -409,7 +457,7 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> Vec<usize> {
         );
     }
     let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
-    info!("startup order: {}", names.join(" -> "));
+    debug!("startup order: {}", names.join(" -> "));
     result.order
 }
 
@@ -556,7 +604,11 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        let err = mgr.handle_create("".to_string(), config).await.unwrap_err();
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let err = mgr
+            .handle_create("".to_string(), config, &exit_tx)
+            .await
+            .unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
     }
 
@@ -567,8 +619,9 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
         let err = mgr
-            .handle_create("bad name!".to_string(), config)
+            .handle_create("bad name!".to_string(), config, &exit_tx)
             .await
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
@@ -581,7 +634,9 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        mgr.handle_create("my-svc_v2.0".to_string(), config).await?;
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        mgr.handle_create("my-svc_v2.0".to_string(), config, &exit_tx)
+            .await?;
         let procs = mgr.processes().await;
         assert_eq!(procs[0].name(), "my-svc_v2.0");
         Ok(())
@@ -594,9 +649,9 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        mgr.handle_create("runtime-svc".to_string(), config).await?;
-
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create("runtime-svc".to_string(), config, &exit_tx)
+            .await?;
 
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(
@@ -676,8 +731,10 @@ mod tests {
             ProcessConfig {
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
+                auto_start: false,
                 ..Default::default()
             },
+            &exit_tx,
         )
         .await?;
         mgr.handle_start("runtime-svc", &exit_tx).await?;
@@ -714,14 +771,17 @@ mod tests {
     #[tokio::test]
     async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
         mgr.handle_create(
             "svc-b".to_string(),
             ProcessConfig {
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
                 after: vec!["svc-a".to_string()],
+                auto_start: false,
                 ..Default::default()
             },
+            &exit_tx,
         )
         .await?;
 
@@ -732,6 +792,117 @@ mod tests {
             names,
             vec!["svc-a", "svc-b"],
             "runtime process with after-dep should appear in startup order"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create(
+            "auto-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: true,
+                ..Default::default()
+            },
+            &exit_tx,
+        )
+        .await?;
+
+        {
+            let procs = mgr.processes().await;
+            assert_eq!(procs.len(), 1);
+            assert!(
+                procs[0].is_running(),
+                "process with auto_start=true should be running after create"
+            );
+            assert!(
+                procs[0].pid().is_some(),
+                "running process should have a PID"
+            );
+        }
+
+        mgr.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        mgr.handle_create(
+            "manual-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: false,
+                ..Default::default()
+            },
+            &exit_tx,
+        )
+        .await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1);
+        assert!(
+            !procs[0].is_running(),
+            "process with auto_start=false should not be running after create"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr
+            .handle_create(
+                "bad-cmd".to_string(),
+                ProcessConfig {
+                    command: "/nonexistent/binary".to_string(),
+                    auto_start: true,
+                    ..Default::default()
+                },
+                &exit_tx,
+            )
+            .await;
+
+        assert!(result.is_ok(), "create should succeed even if spawn fails");
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1);
+        assert_eq!(procs[0].name(), "bad-cmd");
+        assert!(
+            !procs[0].is_running(),
+            "process with bad command should not be running"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        mgr.handle_create(
+            "cond-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: true,
+                condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
+                ..Default::default()
+            },
+            &exit_tx,
+        )
+        .await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1);
+        assert!(
+            !procs[0].is_running(),
+            "process should not start when condition_path_exists is not met"
         );
         Ok(())
     }

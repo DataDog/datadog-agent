@@ -13,7 +13,7 @@ load(
     "LIB_CURLTOOL_SRCS_LINUX",
     "LIB_CURLU_SRCS_DARWIN",
     "LIB_CURLU_SRCS_LINUX",
-    "LIB_CURL_SRCS_LINUX",
+    "LIB_CURL_SRCS_ALL",
 )
 
 package(
@@ -103,6 +103,7 @@ cc_binary(
         ".",
         "include",
         "lib",
+        "src",
     ],
     linkopts = select({
         "@platforms//os:macos": [
@@ -120,10 +121,7 @@ cc_binary(
 
 cc_library(
     name = "curl_static",
-    srcs = ["lib/curl_config.h"] + HDRS + select({
-        "@platforms//os:linux": LIB_CURL_SRCS_LINUX,
-        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
-    }),
+    srcs = ["lib/curl_config.h"] + HDRS + LIB_CURL_SRCS_ALL,
     hdrs = PUBLIC_HEADERS,
     copts = [
         "-Wno-implicit-function-declaration",

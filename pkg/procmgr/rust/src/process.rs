@@ -90,6 +90,7 @@ pub enum ProcessOrigin {
 
 pub struct ManagedProcess {
     name: String,
+    uuid: String,
     config: ProcessConfig,
     state: ProcessState,
     pid: Option<u32>,
@@ -98,6 +99,7 @@ pub struct ManagedProcess {
     restarts: RestartTracker,
     stop_requested: bool,
     origin: ProcessOrigin,
+    last_exit_status: Option<std::process::ExitStatus>,
 }
 
 impl ManagedProcess {
@@ -113,8 +115,10 @@ impl ManagedProcess {
 
     fn new_inner(name: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
+        let uuid = uuid::Uuid::new_v4().to_string();
         Self {
             name,
+            uuid,
             config,
             state: ProcessState::Created,
             pid: None,
@@ -123,11 +127,16 @@ impl ManagedProcess {
             restarts,
             stop_requested: false,
             origin,
+            last_exit_status: None,
         }
     }
 
     pub fn origin(&self) -> ProcessOrigin {
         self.origin
+    }
+
+    pub fn uuid(&self) -> &str {
+        &self.uuid
     }
 
     pub fn name(&self) -> &str {
@@ -144,6 +153,26 @@ impl ManagedProcess {
 
     pub fn config(&self) -> &ProcessConfig {
         &self.config
+    }
+
+    pub fn restart_count(&self) -> u32 {
+        self.restarts.count
+    }
+
+    pub fn last_exit_code(&self) -> Option<i32> {
+        self.last_exit_status.and_then(|s| s.code())
+    }
+
+    pub fn last_signal(&self) -> Option<i32> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            self.last_exit_status.and_then(|s| s.signal())
+        }
+        #[cfg(not(unix))]
+        {
+            None
+        }
     }
 
     pub fn set_config(&mut self, config: ProcessConfig) {
@@ -270,6 +299,7 @@ impl ManagedProcess {
     /// `request_stop`, the process transitions to Stopped (skipping restarts).
     /// Otherwise it transitions to Exited or Failed based on the exit code.
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
+        self.last_exit_status = Some(status);
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);

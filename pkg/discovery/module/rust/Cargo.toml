@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [lib]
 name = "dd_discovery"
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib", "staticlib"]
 
 [[bin]]
 name = "system-probe-lite"

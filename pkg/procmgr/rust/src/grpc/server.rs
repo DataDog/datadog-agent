@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
-const DEFAULT_SOCKET_PATH: &str = "/var/run/datadog/dd-procmgrd.sock";
+const DEFAULT_SOCKET_PATH: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
 const SOCKET_PERMISSIONS: u32 = 0o660;
 
 pub fn socket_path() -> PathBuf {

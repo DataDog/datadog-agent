@@ -36,11 +36,6 @@ void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src,
     bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
 }
 
-void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
-    dst->cgroup = src->cgroup;
-    copy_proc_entry(&src->entry, &dst->entry);
-}
-
 void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
     dst->cookie = src->cookie;
     dst->user_session_id = src->user_session_id;

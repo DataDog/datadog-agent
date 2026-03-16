@@ -691,15 +691,15 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 	)
 }
 
-// TestMergeMetricTagListEntry_SameActionInclude tests merging tags when both entries have Include action
+// TestMergeMetricTagListEntry_SameActionInclude tests merging tags when both entries have include action
 func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	require := require.New(t)
 
 	filterList, _ := newFilterList(t)
 
-	// Setup: current entry with Include action
+	// Setup: current entry with include action
 	currentHashed := hashedMetricTagList{
-		action: Include,
+		action: include,
 		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
@@ -708,7 +708,7 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 		Tags:       []string{"env", "host"},
 	}
 
-	// New entry also with Include action
+	// New entry also with include action
 	newMetric := tagEntry{
 		Name:       "test.metric",
 		ExcludeTag: false,
@@ -719,7 +719,7 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
 	require.Equal(hashedResult, hashedMetricTagList{
-		action: Include,
+		action: include,
 		tags:   hashTags([]string{"env", "host", "pod", "cluster"}),
 	})
 
@@ -730,15 +730,15 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	})
 }
 
-// TestMergeMetricTagListEntry_SameActionExclude tests merging tags when both entries have Exclude action
+// TestMergeMetricTagListEntry_SameActionExclude tests merging tags when both entries have exclude action
 func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	require := require.New(t)
 
 	filterList, _ := newFilterList(t)
 
-	// Setup: current entry with Exclude action
+	// Setup: current entry with exclude action
 	currentHashed := hashedMetricTagList{
-		action: Exclude,
+		action: exclude,
 		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
@@ -747,7 +747,7 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 		Tags:       []string{"env", "host"},
 	}
 
-	// New entry also with Exclude action
+	// New entry also with exclude action
 	newMetric := tagEntry{
 		Name:       "test.metric",
 		ExcludeTag: true,
@@ -758,7 +758,7 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
 	require.Equal(hashedResult, hashedMetricTagList{
-		action: Exclude,
+		action: exclude,
 		tags:   hashTags([]string{"env", "host", "pod", "cluster"}),
 	})
 
@@ -769,15 +769,15 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	})
 }
 
-// TestMergeMetricTagListEntry_IncludeOverriddenByExclude tests that Exclude overwrites Include
+// TestMergeMetricTagListEntry_IncludeOverriddenByExclude tests that exclude overwrites include
 func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	require := require.New(t)
 
 	filterList, _ := newFilterList(t)
 
-	// Setup: current entry with Include action
+	// Setup: current entry with include action
 	currentHashed := hashedMetricTagList{
-		action: Include,
+		action: include,
 		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
@@ -786,7 +786,7 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 		Tags:       []string{"env", "host"},
 	}
 
-	// New entry with Exclude action (should overwrite)
+	// New entry with exclude action (should overwrite)
 	newMetric := tagEntry{
 		Name:       "test.metric",
 		ExcludeTag: true,
@@ -797,7 +797,7 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
 	require.Equal(hashedResult, hashedMetricTagList{
-		action: Exclude,
+		action: exclude,
 		tags:   hashTags([]string{"pod"}),
 	})
 
@@ -808,15 +808,15 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	})
 }
 
-// TestMergeMetricTagListEntry_ExcludeIgnoresInclude tests that Exclude entry ignores Include updates
+// TestMergeMetricTagListEntry_ExcludeIgnoresInclude tests that exclude entry ignores include updates
 func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	require := require.New(t)
 
 	filterList, _ := newFilterList(t)
 
-	// Setup: current entry with Exclude action
+	// Setup: current entry with exclude action
 	currentHashed := hashedMetricTagList{
-		action: Exclude,
+		action: exclude,
 		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
@@ -825,7 +825,7 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 		Tags:       []string{"env", "host"},
 	}
 
-	// New entry with Include action (should be ignored)
+	// New entry with include action (should be ignored)
 	newMetric := tagEntry{
 		Name:       "test.metric",
 		ExcludeTag: false,
@@ -837,7 +837,7 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 
 	// Results should be the original exclude
 	require.Equal(hashedResult, hashedMetricTagList{
-		action: Exclude,
+		action: exclude,
 		tags:   hashTags([]string{"env", "host"}),
 	})
 

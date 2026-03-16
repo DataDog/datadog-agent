@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -68,13 +69,28 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 	return []*cobra.Command{cmd}
 }
 
+func validateFlags(params *globalparams.GlobalParams) error {
+	// Require at least one configuration source
+	if params.ConfFilePath == "" && params.CoreConfPath == "" {
+		return errors.New("must provide either --config or --core-config configuration")
+	}
+
+	return nil
+}
+
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
+	// Validate flag usage
+	if err := validateFlags(cliParams.GlobalParams); err != nil {
+		return err
+	}
+
 	var opts = []fx.Option{
-		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
+		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfigURI(), cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
+		warnBothConfigs := cliParams.GlobalParams.ConfFilePath != ""
 		opts = append(opts,
 			core.Bundle(),
 			remotehostnameimpl.Module(),
@@ -83,6 +99,11 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
+			fx.Invoke(func(l log.Component) {
+				if warnBothConfigs {
+					l.Warn("Both OTel and Core Agent configuration paths were provided. The OTel configuration will be ignored and the Core Agent configuration will be used.")
+				}
+			}),
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)

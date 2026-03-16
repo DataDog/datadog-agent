@@ -1,3 +1,15 @@
-'@datadog/team-everything': DEFAULT_SLACK_CHANNEL
-'@datadog/team-a': '#channel-a'
-'@datadog/team-b': '#channel-b'
+'@datadog/team-everything':
+  notification:
+    name: DEFAULT_SLACK_CHANNEL
+  review:
+    name: DEFAULT_SLACK_CHANNEL
+'@datadog/team-a':
+  notification:
+    name: '#channel-a'
+  review:
+    name: '#channel-a'
+'@datadog/team-b':
+  notification:
+    name: '#channel-b'
+  review:
+    name: '#channel-b'

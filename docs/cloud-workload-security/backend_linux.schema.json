@@ -1323,6 +1323,10 @@
           "type": "integer",
           "description": "Thread ID"
         },
+        "fork_flags": {
+          "type": "integer",
+          "description": "ForkFlags"
+        },
         "uid": {
           "type": "integer",
           "description": "User ID"
@@ -1480,6 +1484,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "fork_flags",
         "uid",
         "gid"
       ],
@@ -1498,6 +1503,10 @@
         "tid": {
           "type": "integer",
           "description": "Thread ID"
+        },
+        "fork_flags": {
+          "type": "integer",
+          "description": "ForkFlags"
         },
         "uid": {
           "type": "integer",
@@ -1671,6 +1680,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "fork_flags",
         "uid",
         "gid"
       ],
