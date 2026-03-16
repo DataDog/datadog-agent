@@ -8,6 +8,12 @@ mod helpers;
 use helpers::{DaemonHandle, pid_is_alive, wait_for_pid_gone, write_config};
 use std::time::Duration;
 
+/// Start the daemon with a temp socket in the given directory.
+fn start_daemon(dir: &std::path::Path) -> DaemonHandle {
+    let sock = dir.join("daemon.sock");
+    DaemonHandle::start(dir, &sock)
+}
+
 // ===========================================================================
 // Group 1: Basic Lifecycle
 // ===========================================================================
@@ -21,7 +27,7 @@ fn test_daemon_starts_and_spawns_process() {
         "command: /bin/sleep\nargs:\n  - '300'\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("spawned"),
         "daemon should log spawned"
@@ -44,7 +50,8 @@ fn test_daemon_no_config_dir() {
     let dir = tempfile::tempdir().unwrap();
     let nonexistent = dir.path().join("nonexistent");
 
-    let mut daemon = DaemonHandle::start(&nonexistent);
+    let sock = dir.path().join("daemon.sock");
+    let mut daemon = DaemonHandle::start(&nonexistent, &sock);
     assert!(
         daemon.wait_for_log_default("does not exist"),
         "daemon should log missing config dir"
@@ -58,7 +65,7 @@ fn test_daemon_no_config_dir() {
 fn test_daemon_empty_config_dir() {
     let dir = tempfile::tempdir().unwrap();
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("loaded 0 process config(s)"),
         "daemon should log zero configs"
@@ -86,7 +93,7 @@ fn test_shutdown_stops_managed_processes() {
         "command: /bin/sleep\nargs:\n  - '300'\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log("loaded 2 process config(s)", Duration::from_secs(5)),
         "daemon should load 2 configs"
@@ -125,7 +132,7 @@ fn test_shutdown_sends_sigterm_to_children() {
         "command: /bin/sleep\nargs:\n  - '300'\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("spawned"),
         "daemon should spawn the process"
@@ -155,7 +162,7 @@ fn test_restart_always_on_failure() {
         "command: /bin/sh\nargs:\n  - '-c'\n  - 'exit 1'\nrestart: always\nrestart_sec: 0.1\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_count("spawned", 3, Duration::from_secs(10)),
         "process should be restarted at least 3 times, got {}",
@@ -175,7 +182,7 @@ fn test_restart_never() {
         "command: /bin/sh\nargs:\n  - '-c'\n  - 'exit 0'\nrestart: never\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("exited with"),
         "process should exit"
@@ -201,7 +208,7 @@ fn test_restart_on_failure_with_success_exit() {
         "command: /bin/sh\nargs:\n  - '-c'\n  - 'exit 0'\nrestart: on-failure\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("exited with"),
         "process should exit"
@@ -226,7 +233,7 @@ fn test_restart_on_success() {
         "command: /bin/sh\nargs:\n  - '-c'\n  - 'exit 0'\nrestart: on-success\nrestart_sec: 0.1\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_count("spawned", 3, Duration::from_secs(10)),
         "on-success should restart on exit 0, got {} spawns",
@@ -257,7 +264,7 @@ fn test_burst_limiting_stops_restarts() {
         ),
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log("start limit reached", Duration::from_secs(10)),
         "daemon should log start limit reached"
@@ -288,7 +295,7 @@ fn test_condition_path_exists_not_met() {
         "command: /nonexistent/binary\ncondition_path_exists: /nonexistent/binary\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("condition_path_exists not met"),
         "daemon should log condition not met"
@@ -313,7 +320,7 @@ fn test_auto_start_false() {
         "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("auto_start=false, skipping"),
         "daemon should log auto_start skip"
@@ -342,7 +349,7 @@ fn test_restart_on_failure_with_failure_exit() {
         "command: /bin/sh\nargs:\n  - '-c'\n  - 'exit 1'\nrestart: on-failure\nrestart_sec: 0.1\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_count("spawned", 3, Duration::from_secs(10)),
         "on-failure should restart on failure exit, got {} spawns",
@@ -362,7 +369,7 @@ fn test_restart_on_success_with_failure_exit() {
         "command: /bin/sh\nargs:\n  - '-c'\n  - 'exit 1'\nrestart: on-success\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("exited with"),
         "process should exit"
@@ -391,7 +398,7 @@ fn test_shutdown_via_sigint() {
         "command: /bin/sleep\nargs:\n  - '300'\n",
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("spawned"),
         "daemon should spawn the process"
@@ -436,7 +443,7 @@ fn test_environment_file_loading() {
         ),
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("exited with exit status: 0"),
         "child should see env var from environment_file"
@@ -470,7 +477,7 @@ fn test_env_overrides_environment_file() {
         ),
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("exited with exit status: 0"),
         "per-process env should override environment_file"
@@ -495,7 +502,7 @@ fn test_child_does_not_inherit_parent_env() {
         ),
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("exited with exit status: 0"),
         "child should NOT inherit parent env (HOME should be unset)"
@@ -521,7 +528,7 @@ fn test_optional_environment_file_skipped_when_missing() {
         ),
     );
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("optional environment file not found, skipping"),
         "daemon should log that optional env file was skipped"
@@ -611,7 +618,8 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     };
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
-    let mut daemon = DaemonHandle::start(&config_dir);
+    let sock = dir.path().join("daemon.sock");
+    let mut daemon = DaemonHandle::start(&config_dir, &sock);
     assert!(
         daemon.wait_for_log_default(
             "[datadog-agent-ddot] optional environment file not found, skipping"
@@ -654,7 +662,8 @@ fn test_ddot_template_skipped_when_binary_missing() {
     };
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
-    let mut daemon = DaemonHandle::start(&config_dir);
+    let sock = dir.path().join("daemon.sock");
+    let mut daemon = DaemonHandle::start(&config_dir, &sock);
     assert!(
         daemon.wait_for_log_default("[datadog-agent-ddot] condition_path_exists not met"),
         "daemon should skip ddot when otel-agent binary is missing"
@@ -678,7 +687,7 @@ fn test_spawn_failure_logged_and_skipped() {
     let dir = tempfile::tempdir().unwrap();
     write_config(dir.path(), "bad-bin", "command: /nonexistent/binary\n");
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("failed to spawn"),
         "daemon should log spawn failure"
@@ -706,7 +715,7 @@ fn test_invalid_yaml_skipped() {
     .unwrap();
     std::fs::write(dir.path().join("bad.yaml"), "not: valid: yaml: [").unwrap();
 
-    let mut daemon = DaemonHandle::start(dir.path());
+    let mut daemon = start_daemon(dir.path());
     assert!(
         daemon.wait_for_log_default("loaded 1 process config(s)"),
         "daemon should load only the valid config"
