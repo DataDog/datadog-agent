@@ -9,8 +9,8 @@ pkg_filegroup(
     srcs = [
         "//packages/install_dir/embedded:all_files",
     ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": ["//deps/gstatus:all_files"],
+        "@platforms//os:linux": ["//deps/gstatus:all_files"],
+        "//conditions:default": [],
     }),
 )
 
