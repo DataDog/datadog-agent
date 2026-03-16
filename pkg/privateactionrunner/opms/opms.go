@@ -406,7 +406,7 @@ func (c *client) makeRequest(
 	}
 
 	if len(expectedStatusCodes) != 0 && !slices.Contains(expectedStatusCodes, res.StatusCode) {
-		return nil, res.Header, fmt.Errorf("request failed with status code %d and body %s", res.StatusCode, resBody)
+		return nil, res.Header, fmt.Errorf("request failed with status code %d and body %s (url: %q)", res.StatusCode, resBody, req.Method+req.URL.String())
 	}
 
 	return resBody, res.Header, nil
