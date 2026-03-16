@@ -1,0 +1,40 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add a new ``nccl`` core check that collects per-rank NCCL collective
+    communication metrics from GPU training and inference workloads.
+
+    The check listens on a Unix domain socket (default
+    ``/var/run/datadog/nccl.socket``) for JSON events emitted by the
+    NCCL profiler plugin (``libnccl-profiler-dd.so``) running inside GPU
+    pods. Each event is tagged with ``rank``, ``collective``, ``n_ranks``,
+    ``kube_pod_name``, ``kube_namespace``, and ``kube_container_name``.
+
+    Metrics emitted:
+
+    - ``nccl.collective.exec_time_us`` — time a rank spends inside a
+      collective operation. A rank with a significantly lower value than
+      its peers is the straggler; ranks with higher values are waiting at
+      the barrier.
+    - ``nccl.collective.algo_bandwidth_gbps`` — algorithm bandwidth of
+      the collective.
+    - ``nccl.collective.bus_bandwidth_gbps`` — bus bandwidth normalised
+      for the collective type.
+    - ``nccl.collective.msg_size_bytes`` — tensor size being communicated.
+    - ``nccl.rank.seconds_since_last_event`` — seconds since this rank
+      last reported an event; non-zero values indicate a potential hang.
+
+    Enable the check by adding the following to the Agent configuration:
+
+    .. code-block:: yaml
+
+        init_config:
+        instances:
+          - socket_path: /var/run/datadog/nccl.socket
