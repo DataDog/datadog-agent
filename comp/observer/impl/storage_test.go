@@ -10,9 +10,10 @@ import (
 	"sync"
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
@@ -382,6 +383,18 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	assert.Equal(t, 1, s.PointCountUpTo(rangeKey, 10))
 	// Non-existent series
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesKey{Namespace: "x", Name: "y"}, 100))
+}
+
+func TestPointCountSince_BinarySearch(t *testing.T) {
+	s := makeRangeStorage()
+
+	assert.Equal(t, 5, s.PointCountSince(rangeKey, 0))
+	assert.Equal(t, 5, s.PointCountSince(rangeKey, 10))
+	assert.Equal(t, 4, s.PointCountSince(rangeKey, 20))
+	assert.Equal(t, 3, s.PointCountSince(rangeKey, 30))
+	assert.Equal(t, 2, s.PointCountSince(rangeKey, 40))
+	assert.Equal(t, 1, s.PointCountSince(rangeKey, 50))
+	assert.Equal(t, 0, s.PointCountSince(rangeKey, 51))
 }
 
 func TestPointCount_ColumnarLayout(t *testing.T) {

@@ -81,26 +81,37 @@ func (d *LogPatternDetector) Name() string {
 }
 
 func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	fmt.Printf("[cc] Detecting log patterns at %d\n", dataTime)
+	// fmt.Printf("[cc] Detecting log patterns at %d\n", dataTime)
+	telemetry := make([]observerdef.ObserverTelemetry, 0)
 
 	// TODO
-	// windowStart := dataTime - d.WindowDurationMs
+	windowStart := dataTime - d.WindowDurationMs
 
 	// Get all series produced by the extractor
 	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{
 		NamePattern: d.MetricsPrefix,
 	})
 	for _, seriesKey := range seriesKeys {
-		// count := storage.PointCountUpTo(seriesKey, windowStart)
-		count := storage.PointCount(seriesKey)
-		if count == 0 {
-			continue
-		}
+		count := storage.PointCountSince(seriesKey, windowStart)
+		// if count == 0 {
+		// 	continue
+		// }
 		rate := float64(count) / float64(d.WindowDurationMs)
-		fmt.Printf("[cc] Series %s has rate %f\n", seriesKey.Name, rate)
+		// fmt.Printf("[cc] Series %s has rate %f\n", seriesKey.Name, rate)
+		// TODO: Check telemetry
+		telemetry = append(telemetry, observerdef.ObserverTelemetry{
+			Metric: &metricObs{
+				name:      seriesKey.Name,
+				value:     rate,
+				tags:      seriesKey.Tags,
+				timestamp: dataTime,
+			},
+		})
 	}
 
-	fmt.Printf("[cc] Found %d series\n", len(seriesKeys))
+	// fmt.Printf("[cc] Found %d series\n", len(seriesKeys))
 
-	return observerdef.DetectionResult{}
+	return observerdef.DetectionResult{
+		Telemetry: telemetry,
+	}
 }
