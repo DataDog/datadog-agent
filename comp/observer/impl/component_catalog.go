@@ -70,6 +70,15 @@ func defaultCatalog() *componentCatalog {
 				},
 				defaultEnabled: true,
 			},
+			{
+				name:        "log_pattern_extractor",
+				displayName: "Log Pattern Extractor",
+				kind:        componentExtractor,
+				factory: func() any {
+					return NewLogPatternExtractor()
+				},
+				defaultEnabled: true,
+			},
 			// ---- Detectors ----
 			{
 				name:        "cusum",
