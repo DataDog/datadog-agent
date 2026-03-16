@@ -61,12 +61,19 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.
 // --- Anomaly Detector ---
 
 type LogPatternDetector struct {
+	MetricsPrefix string
+	// The duration of the window to compute rates
+	WindowDurationMs int64
 }
 
 var _ observerdef.Detector = (*LogPatternDetector)(nil)
 
 func NewLogPatternDetector() *LogPatternDetector {
-	return &LogPatternDetector{}
+	// TODO: Method to get prefix to avoid boilerplate
+	return &LogPatternDetector{
+		MetricsPrefix:    "_virtual.log.log_pattern_extractor",
+		WindowDurationMs: 60 * 1000,
+	}
 }
 
 func (d *LogPatternDetector) Name() string {
@@ -76,10 +83,22 @@ func (d *LogPatternDetector) Name() string {
 func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	fmt.Printf("[cc] Detecting log patterns at %d\n", dataTime)
 
+	// TODO
+	// windowStart := dataTime - d.WindowDurationMs
+
 	// Get all series produced by the extractor
 	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{
-		NamePattern: "log.log_pattern_extractor.*",
+		NamePattern: d.MetricsPrefix,
 	})
+	for _, seriesKey := range seriesKeys {
+		// count := storage.PointCountUpTo(seriesKey, windowStart)
+		count := storage.PointCount(seriesKey)
+		if count == 0 {
+			continue
+		}
+		rate := float64(count) / float64(d.WindowDurationMs)
+		fmt.Printf("[cc] Series %s has rate %f\n", seriesKey.Name, rate)
+	}
 
 	fmt.Printf("[cc] Found %d series\n", len(seriesKeys))
 

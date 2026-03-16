@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -181,6 +182,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	for _, extractor := range e.extractors {
 		metrics := extractor.ProcessLog(view)
 		for _, m := range metrics {
+			fmt.Printf("[cc] Ingesting metric %s\n", "_virtual."+m.Name)
 			e.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
 		}
 	}
