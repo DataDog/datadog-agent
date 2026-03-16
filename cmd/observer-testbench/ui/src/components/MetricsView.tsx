@@ -14,6 +14,17 @@ import { TagFilterGroups } from './TagFilterGroups';
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
 
+const AGGREGATION_OVERRIDES: Array<{ prefix: string; aggregation: AggregationType }> = [
+  { prefix: '_virtual.log.log_pattern_extractor', aggregation: 'count' },
+];
+
+function getEffectiveAggregationType(baseName: string, globalType: AggregationType): AggregationType {
+  for (const override of AGGREGATION_OVERRIDES) {
+    if (baseName.startsWith(override.prefix)) return override.aggregation;
+  }
+  return globalType;
+}
+
 function getBaseMetricName(name: string): string {
   const match = name.match(/^(.+):(avg|sum|count|min|max)$/);
   return match ? match[1] : name;
@@ -104,7 +115,11 @@ export function MetricsView({
   }, [allSeries]);
 
   const filteredSeries = useMemo(
-    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
+    () => allSeries.filter((s) => {
+      const baseName = getBaseMetricName(s.name);
+      const effective = getEffectiveAggregationType(baseName, aggregationType);
+      return getAggregationType(s.name) === effective;
+    }),
     [allSeries, aggregationType]
   );
 
