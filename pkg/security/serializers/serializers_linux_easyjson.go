@@ -2176,6 +2176,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			} else {
 				out.Tid = uint32(in.Uint32())
 			}
+		case "fork_flags":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ForkFlags = int(in.Int())
+			}
 		case "uid":
 			if in.IsNull() {
 				in.Skip()
@@ -2649,13 +2655,18 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 		out.Uint32(uint32(in.Tid))
 	}
 	{
-		const prefix string = ",\"uid\":"
+		const prefix string = ",\"fork_flags\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		out.Int(int(in.ForkFlags))
+	}
+	{
+		const prefix string = ",\"uid\":"
+		out.RawString(prefix)
 		out.Int(int(in.UID))
 	}
 	{
