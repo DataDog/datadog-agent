@@ -228,22 +228,7 @@ gcc_toolchains.toolchain(
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
-bazel_dep(name = "toolchains_llvm", version = "1.5.0")
-
-# Above 1.5.0 is missing:
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/380 Always use LLD on darwin
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/554 Support extra toolchain flags
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/572 Add a repository rule for efficient sysroots
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/573 Fix darwin arm to amd x-compilation
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/580 Use source directories for toolchain includes and wrapper tools
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/587 [sysroot] Support integrity and strip attributes
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/588 Tweak builtin-libc++ handling to better support linux cross-arch compilation
-# - https://github.com/bazel-contrib/toolchains_llvm/pull/613 Only emit sysroot warning when bazel is new enough
-git_override(
-    module_name = "toolchains_llvm",
-    commit = "ed7cff62aabd0874a2e7e445cc2fdb91064d75e1",
-    remote = "https://github.com/bazel-contrib/toolchains_llvm",
-)
+bazel_dep(name = "toolchains_llvm", version = "1.6.0")
 
 http_archive(
     name = "macos_sdk",
