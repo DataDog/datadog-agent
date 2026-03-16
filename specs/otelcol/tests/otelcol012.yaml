@@ -1,0 +1,61 @@
+kind: tests
+category: functional
+tests:
+- id: T007
+  ref: [OTELCOL012]
+  short: Load configuration using the file URI scheme
+  long: |
+    Verify that the `--config` flag accepts a `file:` URI in addition to a bare file
+    path. The Collector shall start normally and serve OTLP traffic when the config is
+    supplied as `--config file:<path>`.
+  prereq: [T001]
+  steps:
+    - action: Prepare the same configuration as T001
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+              http:
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+            metrics:
+              receivers: [otlp]
+              exporters: [debug]
+            logs:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the otel-agent passing the config path with the `file:` prefix
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4317 | Starting GRPC server
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4318 | Starting HTTP server
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the gRPC port is open
+      run: nc -z localhost 4317 && echo "gRPC open"
+      expected: gRPC open
+    - action: Send a trace to confirm the pipeline is active
+      run: telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify the span appears in the debug exporter output
+      sample: |
+        Span #0
+            Name           : okey-dokey-0
+            Kind           : Server

@@ -93,15 +93,26 @@ tests:
         curl -s -X POST http://localhost:4318/v1/traces \
           -H "Content-Type: application/json" \
           -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"test-service"}}]},"scopeSpans":[{"spans":[{"traceId":"0af7651916cd43dd8448eb211c80319c","spanId":"b7ad6b7169203331","name":"test-span","kind":2,"startTimeUnixNano":"1000000","endTimeUnixNano":"2000000","status":{}}]}]}]}'
-      expected: '{}'
+      expected: '{"partialSuccess":{}}'
     - action: Verify the debug exporter output contains the span with the correct service name
       sample: |
+        ResourceSpans #0
+        Resource SchemaURL:
         Resource attributes:
              -> service.name: Str(test-service)
-        ...
+        ScopeSpans #0
+        ScopeSpans SchemaURL:
+        InstrumentationScope
         Span #0
+            Trace ID       : ...
+            Parent ID      :
+            ID             : b7ad6b7169203331
             Name           : test-span
             Kind           : Server
+            Start time     : 1970-01-01 00:00:00.001 +0000 UTC
+            End time       : 1970-01-01 00:00:00.002 +0000 UTC
+            Status code    : Unset
+            Status message :
 
 - id: T006
   ref: [OTELCOL011]

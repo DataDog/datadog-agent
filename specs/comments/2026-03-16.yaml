@@ -1,0 +1,11 @@
+kind: comments
+default:
+  date: 16/03/2026
+  from: Claude
+  external: true
+comments:
+- about: OTELCOL012
+  text: >-
+    DDOT does not implement the default config path: the `--config` flag is mandatory.
+    Running the binary without it prints usage and exits immediately, without attempting
+    to read `/etc/<otel-directory>/config.yaml` or any other fallback location.
