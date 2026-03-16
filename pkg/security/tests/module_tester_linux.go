@@ -35,8 +35,8 @@ import (
 	"golang.org/x/sys/unix"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
