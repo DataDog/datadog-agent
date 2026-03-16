@@ -1,0 +1,74 @@
+kind: tests
+category: functional
+tests:
+- id: T008
+  ref: [OTELCOL014]
+  short: Second --config overrides values from the first
+  long: |
+    Verify that when multiple `--config` flags are provided, the Collector deep-merges
+    them in order and later sources take precedence over earlier ones for overlapping keys.
+    A base config sets `debug` exporter verbosity to `normal` (compact one-liner output);
+    a second config overrides it to `detailed` (full nested structure). The resulting
+    behavior must match the second config.
+  prereq: [T001]
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: "Create a base configuration with `verbosity: normal`"
+      run: cat base.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: normal
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: "Create an override configuration that sets `verbosity: detailed`"
+      run: cat override.yaml
+      sample_lang: yaml
+      sample: |
+        exporters:
+          debug:
+            verbosity: detailed
+    - action: Start the otel-agent with both configs; the override is applied last
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:base.yaml --config file:override.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Send one trace
+      run: telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: |
+        Verify the debug exporter output uses detailed verbosity (full nested structure,
+        not the compact one-liner that normal verbosity would produce)
+      sample: |
+        ResourceSpans #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(telemetrygen)
+        ScopeSpans #0
+        ScopeSpans SchemaURL:
+        InstrumentationScope telemetrygen
+        Span #0
+            Trace ID       : ...
+            Name           : okey-dokey-0
+            Kind           : Server
+    - action: Verify the compact one-liner that normal verbosity would produce is absent
+      sample: |
+        ResourceTraces #0 [...] service.name=telemetrygen

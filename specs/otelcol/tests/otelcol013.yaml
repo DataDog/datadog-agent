@@ -1,0 +1,92 @@
+kind: tests
+category: functional
+tests:
+- id: T009
+  ref: [OTELCOL013]
+  short: Substitute an environment variable in configuration
+  long: |
+    Verify that `${env:VARIABLE_NAME}` references in the config file are expanded at
+    startup. The OTLP gRPC port is set via an environment variable; the Collector must
+    bind to the substituted port, not the default 4317.
+  prereq: [T001]
+  steps:
+    - action: Prepare a configuration referencing the port via an environment variable
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:${env:OTLP_GRPC_PORT}
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the otel-agent with the variable set to a custom port
+      run: |
+        OTLP_GRPC_PORT=14317 \
+          DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:[::]:14317 | Starting GRPC server
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Confirm the default port 4317 is not open
+      run: nc -z localhost 4317
+      expected: Connection refused
+    - action: Confirm the substituted port 14317 is open
+      run: nc -z localhost 14317 && echo "14317 open"
+      expected: 14317 open
+
+- id: T010
+  ref: [OTELCOL013]
+  short: Use the default value when the environment variable is not set
+  long: |
+    Verify that the `${env:VARIABLE_NAME:-default}` syntax falls back to the default
+    value when the variable is absent from the environment. The Collector must bind to
+    the default port specified in the config, not fail or produce a blank value.
+  prereq: [T001]
+  steps:
+    - action: Prepare a configuration with a default port fallback
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:${env:OTLP_GRPC_PORT:-4317}
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the otel-agent without setting `OTLP_GRPC_PORT`
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:[::]:4317 | Starting GRPC server
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Confirm the default port 4317 is open
+      run: nc -z localhost 4317 && echo "4317 open"
+      expected: 4317 open
