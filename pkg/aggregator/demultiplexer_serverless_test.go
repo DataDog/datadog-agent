@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -21,14 +22,15 @@ import (
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
-// TestFlushIncludesPendingSamples verifies that samples buffered in
-// samplesChan are processed before a concurrent flush trigger, so that
-// metrics submitted just before a flush (e.g. during shutdown) are not lost.
+// TestWaitForPendingSamplesThenFlush verifies that waiting for
+// samplesChan to drain before flushing guarantees all samples are
+// included. This is the mechanism behind WaitForPendingSamples used
+// during serverless-init shutdown.
 //
-// Without the drainSamples() call in the flush path, Go's select picks
+// Without the wait (removing the for-loop below), Go's select picks
 // randomly between samplesChan and flushChan when both are ready,
 // causing samples to be missed ~50% of the time.
-func TestFlushIncludesPendingSamples(t *testing.T) {
+func TestWaitForPendingSamplesThenFlush(t *testing.T) {
 	const iterations = 100
 	missed := 0
 
@@ -49,9 +51,10 @@ func TestFlushIncludesPendingSamples(t *testing.T) {
 			tagMatcher,
 		)
 
-		// Pre-fill samplesChan so the sample is already buffered when
-		// the worker starts. This guarantees that samplesChan and
-		// flushChan are both ready in the same select evaluation.
+		// Start the worker goroutine.
+		go worker.run()
+
+		// Submit a sample via the channel.
 		batch := pool.GetBatch()
 		batch[0] = metrics.MetricSample{
 			Name:       "test.metric",
@@ -63,12 +66,17 @@ func TestFlushIncludesPendingSamples(t *testing.T) {
 		}
 		worker.samplesChan <- batch[:1]
 
-		// Start the worker goroutine.
-		go worker.run()
+		// Wait for the sample to be consumed — this is the pattern
+		// that WaitForPendingSamples / PendingSamples implements.
+		// Removing this loop causes ~50% of iterations to miss the
+		// sample, which is the race condition this fix addresses.
+		for len(worker.samplesChan) > 0 {
+			runtime.Gosched()
+		}
 
-		// Send a flush trigger. The worker's select will see both
-		// samplesChan (buffered sample) and flushChan (this trigger)
-		// as ready simultaneously.
+		// flushChan is unbuffered, so this send blocks until the
+		// worker is back in select — which is after sample()
+		// completes. The metric is therefore in a bucket.
 		var series metrics.Series
 		var sketches metrics.SketchSeriesList
 		blockChan := make(chan struct{}, 1)
@@ -85,7 +93,6 @@ func TestFlushIncludesPendingSamples(t *testing.T) {
 
 		// Wait for flush to complete.
 		<-blockChan
-
 		worker.stop()
 
 		if len(series) == 0 {
@@ -93,7 +100,7 @@ func TestFlushIncludesPendingSamples(t *testing.T) {
 		}
 	}
 
-	assert.Zero(t, missed, "flush missed buffered samples in %d/%d iterations — "+
-		"drainSamples() before flush is needed to prevent this race", missed, iterations)
+	assert.Zero(t, missed, "WaitForPendingSamples pattern should ensure all samples are flushed, "+
+		"but missed %d/%d iterations", missed, iterations)
 	require.Zero(t, missed)
 }

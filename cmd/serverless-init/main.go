@@ -110,7 +110,10 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer func() {
+		cloudService.Shutdown(*metricAgent, err) // submits task.ended metric
+		metricAgent.WaitForPendingSamples()       // wait for worker to consume it
+	}()
 
 	return err
 }
