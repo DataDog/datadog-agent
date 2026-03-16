@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
 
+// --- Metrics Extractor ---
+
 // // This contains what can identify a pattern
 // type PatternKeyInfo struct {
 // 	ClusterID int64
@@ -21,6 +23,8 @@ type LogPatternExtractor struct {
 	PatternClusterer *patterns.PatternClusterer
 	// PatternKeys
 }
+
+var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
 
 func NewLogPatternExtractor() *LogPatternExtractor {
 	return &LogPatternExtractor{
@@ -37,7 +41,6 @@ func (e *LogPatternExtractor) Name() string {
 }
 
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.MetricOutput {
-	fmt.Printf("[cc]Processing log: %s\n", log.GetContent())
 	message := string(log.GetContent())
 	// Extract pattern
 	clusterResult := e.PatternClusterer.Process(message)
@@ -53,4 +56,32 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.
 		Value: 1,
 		Tags:  log.GetTags(),
 	}}
+}
+
+// --- Anomaly Detector ---
+
+type LogPatternDetector struct {
+}
+
+var _ observerdef.Detector = (*LogPatternDetector)(nil)
+
+func NewLogPatternDetector() *LogPatternDetector {
+	return &LogPatternDetector{}
+}
+
+func (d *LogPatternDetector) Name() string {
+	return "log_pattern_detector"
+}
+
+func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+	fmt.Printf("[cc] Detecting log patterns at %d\n", dataTime)
+
+	// Get all series produced by the extractor
+	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{
+		NamePattern: "log.log_pattern_extractor.*",
+	})
+
+	fmt.Printf("[cc] Found %d series\n", len(seriesKeys))
+
+	return observerdef.DetectionResult{}
 }
