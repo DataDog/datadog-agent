@@ -66,9 +66,17 @@ func NewComponent(req Requires) (Provides, error) {
 	if flushInterval <= 0 {
 		flushInterval = 100 * time.Millisecond
 	}
-	bufCapacity := req.Config.GetInt("flightrecorder.buffer_capacity")
-	if bufCapacity <= 0 {
-		bufCapacity = 5000
+	ptCapacity := req.Config.GetInt("flightrecorder.point_buffer_capacity")
+	if ptCapacity <= 0 {
+		ptCapacity = 20000
+	}
+	defCapacity := req.Config.GetInt("flightrecorder.def_buffer_capacity")
+	if defCapacity <= 0 {
+		defCapacity = 2000
+	}
+	logCapacity := req.Config.GetInt("flightrecorder.log_buffer_capacity")
+	if logCapacity <= 0 {
+		logCapacity = 5000
 	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
 	if hookBufSize <= 0 {
@@ -76,26 +84,50 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 
 	c := &counters{}
+	// Create transport and batcher. The reconnect callback is set after
+	// batcher creation to avoid a circular dependency.
 	transport := newUnixTransport(socketPath, func() { c.incReconnects() })
-	bat := newBatcher(transport, flushInterval, bufCapacity, c)
+	bat := newBatcher(transport, flushInterval, ptCapacity, defCapacity, logCapacity, c)
+	// Replace the onReconnect callback to also reset context definitions.
+	transport.mu.Lock()
+	transport.onReconnect = func() {
+		c.incReconnects()
+		bat.ResetContexts()
+	}
+	transport.mu.Unlock()
 
 	impl := &sinkImpl{counters: c}
 
 	// Subscribe to all metric hooks.
 	for _, mh := range fxutil.GetAndFilterGroup(req.MetricsHooks) {
 		mh.SubscribeWithBuffer("flightrecorder-metrics", hookBufSize, func(payload observer.MetricView) {
+			name := payload.GetName()
 			raw := payload.GetRawTags()
-			sp := tagPool.Get().(*[]string)
-			tags := append((*sp)[:0], raw...)
-			bat.AddMetric(capturedMetric{
-				Name:         payload.GetName(),
-				Value:        payload.GetValue(),
-				Tags:         tags,
-				TagPoolSlice: sp,
-				TimestampNs:  int64(payload.GetTimestamp() * float64(time.Second/time.Nanosecond)),
-				SampleRate:   payload.GetSampleRate(),
-				Source:       "",
-			})
+			ckey := computeContextKey(name, raw)
+			ts := int64(payload.GetTimestamp() * float64(time.Second/time.Nanosecond))
+
+			if bat.IsContextKnown(ckey) {
+				// Fast path: context already sent — compact 32-byte point, no string copies.
+				bat.AddPoint(metricPoint{
+					ContextKey:  ckey,
+					Value:       payload.GetValue(),
+					TimestampNs: ts,
+					SampleRate:  payload.GetSampleRate(),
+				})
+			} else {
+				// Slow path: first occurrence — copy strings for context definition.
+				sp := tagPool.Get().(*[]string)
+				tags := append((*sp)[:0], raw...)
+				bat.AddContextDef(contextDef{
+					ContextKey:   ckey,
+					Name:         name,
+					Value:        payload.GetValue(),
+					Tags:         tags,
+					TagPoolSlice: sp,
+					TimestampNs:  ts,
+					SampleRate:   payload.GetSampleRate(),
+				})
+			}
 		})
 	}
 
@@ -128,8 +160,8 @@ func NewComponent(req Requires) (Provides, error) {
 		},
 	})
 
-	pkglog.Infof("flightrecorder: started (socket=%s flush=%s capacity=%d hook_buffer=%d)",
-		socketPath, flushInterval, bufCapacity, hookBufSize)
+	pkglog.Infof("flightrecorder: started (socket=%s flush=%s pts=%d defs=%d logs=%d hook_buffer=%d)",
+		socketPath, flushInterval, ptCapacity, defCapacity, logCapacity, hookBufSize)
 
 	return Provides{Comp: impl}, nil
 }
