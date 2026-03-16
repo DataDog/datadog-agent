@@ -264,6 +264,26 @@ def watch(
     _run_command_on_local_changes(ctx, host, on_sync=_enqueue)
 
 
+@task(
+    help={
+        'name': 'Override the default name of the development environment (windows-dev-env).',
+    },
+)
+def tui(
+    ctx: Context,
+    name: str = "windows-dev-env",
+):
+    """
+    Start the Windows dev env TUI — watches for file changes, syncs to the remote VM,
+    and runs tests and linter in parallel. Displays live status for the VM, watcher,
+    synced files, and each command.
+    """
+    from tasks.windows_dev_env_tui import WatcherApp
+
+    app = WatcherApp(ctx=ctx, name=name)
+    app.run()
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -427,6 +447,8 @@ def _build_remote_command(host: "RemoteHost", command: str) -> str:
         'docker',
         'exec',
         '-i',
+        '-e',
+        'PYTHONUTF8=1',
         WIN_CONTAINER_NAME,
         'powershell',
         f"'{command}'",
@@ -435,7 +457,14 @@ def _build_remote_command(host: "RemoteHost", command: str) -> str:
     return f'ssh {host.user}@{host.address} -p {host.port} "{joined}"'
 
 
-def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
+def _run_command_on_local_changes(
+    ctx: Context,
+    host: str,
+    on_sync=None,
+    on_sync_start=None,
+    on_sync_end=None,
+    stop_event: threading.Event | None = None,
+):
     # lazy load watchdog to avoid import error on the CI
     from watchdog.events import FileSystemEvent, FileSystemEventHandler
     from watchdog.observers import Observer
@@ -443,10 +472,12 @@ def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
     class DDAgentEventHandler(FileSystemEventHandler):
         _DEBOUNCE_SECONDS = 0.5
 
-        def __init__(self, ctx: Context, host: str, on_sync=None):
+        def __init__(self, ctx: Context, host: str, on_sync=None, on_sync_start=None, on_sync_end=None):
             self.ctx = ctx
             self.host = host
             self._on_sync = on_sync
+            self._on_sync_start = on_sync_start  # called with files: list[str] before rsync
+            self._on_sync_end = on_sync_end  # called with (files, success: bool) after rsync
             self._timer: threading.Timer | None = None
             self._lock = threading.Lock()
             self._pending_files: set[str] = set()
@@ -478,6 +509,9 @@ def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
             if not files:
                 return
 
+            if self._on_sync_start is not None:
+                self._on_sync_start(files)
+
             files_args = " ".join(f"'./{f}'" for f in files)
             rsync_command = (
                 f"rsync --chmod=ugo=rwX -azR --inplace --rsync-path='C:\\cygwin\\bin\\rsync.exe'"
@@ -492,23 +526,34 @@ def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
                 print(
                     f"[{datetime.now().strftime('%H:%M:%S')}] Syncing changes to the remote Windows development environment done"
                 )
+                if self._on_sync_end is not None:
+                    self._on_sync_end(files, True)
                 if self._on_sync is not None and any(f.endswith(".go") for f in files):
                     self._on_sync()
             except UnexpectedExit as e:
                 print(
                     f"[{datetime.now().strftime('%H:%M:%S')}] Sync failed (exit code {e.result.exited}), will retry on next change"
                 )
+                if self._on_sync_end is not None:
+                    self._on_sync_end(files, False)
 
-    event_handler = DDAgentEventHandler(ctx=ctx, host=host, on_sync=on_sync)
+    event_handler = DDAgentEventHandler(
+        ctx=ctx,
+        host=host,
+        on_sync=on_sync,
+        on_sync_start=on_sync_start,
+        on_sync_end=on_sync_end,
+    )
     observer = Observer()
     observer.schedule(event_handler, ".", recursive=True)
     observer.start()
     try:
-        while True:
-            time.sleep(1)
+        while not (stop_event and stop_event.is_set()):
+            time.sleep(0.5)
     except KeyboardInterrupt:
-        observer.stop()
+        pass
     finally:
+        observer.stop()
         observer.join()
 
 
@@ -691,9 +736,11 @@ def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
             status = state.get("status")
             if status == "running":
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Attaching to running {command_type}...")
+                print("--------------------------------------------------------------------")
                 return _attach_to_output(name, state)
             if status == "finished":
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Replaying result from {state['end_time']}...")
+                print("--------------------------------------------------------------------")
                 return _replay_output(state)
 
     # Fresh run: reconstruct the inv command from command_type + packages.

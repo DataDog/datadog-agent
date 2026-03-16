@@ -384,7 +384,7 @@ def test(
         ]
         exit(attach_or_run(ctx, name="windows-dev-env", command_type="test", packages=package_list))
 
-    if result_json and os.path.isfile(result_json):
+    if sys.platform != "win32" and result_json and os.path.isfile(result_json):
         # Remove existing file since we append to it.
         print(f"Removing existing '{result_json}' file")
         os.remove(result_json)

@@ -180,7 +180,9 @@ def show_vm(
     Show connection details of an aws host.
     """
     host = get_host(ctx, remote_hostname, scenario_name, stack_name)
-    print(json.dumps(host.__dict__, indent=4))
+    host = host.__dict__
+    host["password"] = "********"
+    print(json.dumps(host, indent=4, ensure_ascii=False))
 
 
 def _get_os_family(os_family: str | None) -> str:
