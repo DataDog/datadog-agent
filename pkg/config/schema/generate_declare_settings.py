@@ -1,6 +1,7 @@
 import argparse
 import analyzer
 import json
+import re
 import yaml
 
 
@@ -75,21 +76,41 @@ def output_func_footer(_, sourcecode):
 def try_parse_duration(text):
     if not isinstance(text, str):
         return None
-    if 'h' not in text and 'm' not in text and 's' not in text:
+    m = re.fullmatch(r'(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?', text)
+    if not m or not any(m.groups()):
         return None
-    if text == '25h0m0s':
-        return '25*time.Hour'
-    if text == '6h0m0s':
-        return '6*time.Hour'
-    if text == '20m0s':
-        return '20*time.Minute'
-    if text == '1m0s':
-        return '1*time.Minute'
-    if text == '30s':
-        return '30*time.Second'
-    if text == '10s':
-        return '10*time.Second'
-    raise RuntimeError('dont know how to parse %s' % text)
+    hours = int(m.group(1) or 0)
+    minutes = int(m.group(2) or 0)
+    seconds = int(m.group(3) or 0)
+    millis = int(m.group(4) or 0)
+    parts = []
+    if hours:
+        parts.append('%d*time.Hour' % hours)
+    if minutes:
+        parts.append('%d*time.Minute' % minutes)
+    if seconds:
+        parts.append('%d*time.Second' % seconds)
+    if millis:
+        parts.append('%d*time.Millisecond' % millis)
+    if not parts:
+        return '0'
+    return ' + '.join(parts)
+
+
+def as_go_array(text):
+    if not isinstance(text, str):
+        text = '%s' % text
+    text = text.replace('[', '{')
+    text = text.replace(']', '}')
+    text = text.replace('\'', '"')
+    return text
+
+
+def as_go_value(text):
+    if not isinstance(text, str):
+        text = '%s' % text
+    text = text.replace('\'', '"')
+    return text
 
 
 def retrieve_default_value(keypath, schema):
@@ -97,19 +118,15 @@ def retrieve_default_value(keypath, schema):
     for k in keypath:
         curr = curr['properties']
         curr = curr[k]
-    #print('* a')
     settingDefault = curr.get('default')
     settingType = curr.get('type')
     if settingType is None:
         return 'nil'
     if settingType == 'array':
+        if curr is None or curr.get('items') is None:
+            return '[]interface{}{}'
         settingItemsType = curr.get('items').get('type')
-        return '[]%s%s' % (settingItemsType, settingDefault)
-        #print('* b, settingDefault = %s, %s' % (settingDefault, type(settingDefault)))
-        #if len(settingDefault) == 0: # == '[]':
-        #    #print('* c')
-        #    settingItemsType = curr.get('items').get('type')
-        #    return '[]%s{}' % settingItemsType
+        return '[]%s%s' % (settingItemsType, as_go_array(settingDefault))
     elif settingType == 'boolean':
         if settingDefault is True:
             return 'true'
@@ -118,17 +135,30 @@ def retrieve_default_value(keypath, schema):
         durationValue = try_parse_duration(settingDefault)
         if durationValue is not None:
             return '%s' % durationValue
+        if settingDefault is None:
+            return '0'
         if isinstance(settingDefault, float):
-            return '%s' % settingDefault
+            textDefault = '%s' % settingDefault
+            if '.' in textDefault:
+                return '%s' % settingDefault
+            else:
+                return 'float64(%s.0)' % settingDefault
         if isinstance(settingDefault, int):
             return '%s' % settingDefault
     elif settingType == 'string':
+        if settingDefault is None:
+            return '""'
         if isinstance(settingDefault, str):
             return '"%s"' % settingDefault
     elif settingType == 'object':
-        return 'map[string]interface{}%s' % settingDefault
-        #if len(settingDefault) == 0: # == '{}':
-        #    return 'map[string]interface{}{}'
+        textDefault = '%s' % settingDefault
+        add = curr.get('additionalProperties')
+        if add is not None:
+            if add.get('type') == 'string':
+                return 'map[string]string%s' % as_go_value(settingDefault)
+            if add.get('type') == 'array' and add.get('items').get('type') == 'string':
+                return 'map[string][]string%s' % as_go_value(settingDefault)
+        return 'map[string]interface{}%s' % as_go_value(settingDefault)
     raise RuntimeError('setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s' % (keypath, settingType, settingDefault, type(settingDefault)))
 
 
