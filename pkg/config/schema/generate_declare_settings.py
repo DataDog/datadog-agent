@@ -126,6 +126,8 @@ def retrieve_default_value(keypath, schema):
         if curr is None or curr.get('items') is None:
             return '[]interface{}{}'
         settingItemsType = curr.get('items').get('type')
+        if settingItemsType == 'object':
+            return '[]map[string]interface{}%s' % (as_go_array(settingDefault),)
         return '[]%s%s' % (settingItemsType, as_go_array(settingDefault))
     elif settingType == 'boolean':
         if settingDefault is True:
