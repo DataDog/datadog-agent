@@ -197,25 +197,7 @@ func NewComponent(deps Requires) Provides {
 		}
 	}
 
-	detectors, correlators, _ := catalog.Instantiate(correlatorOverrides)
-
-	extractors := []observerdef.LogMetricsExtractor{
-		&LogMetricsExtractor{
-			MaxEvalBytes: 4096,
-			// Exclude metadata fields that shouldn't be metrics.
-			// These are common timestamp/ID fields that appear in event JSON.
-			ExcludeFields: map[string]struct{}{
-				"timestamp": {}, // event.Event.Ts serializes as "timestamp"
-				"ts":        {}, // alternate timestamp field name
-				"time":      {},
-				"pid":       {},
-				"ppid":      {},
-				"uid":       {},
-				"gid":       {},
-			},
-		},
-		&ConnectionErrorExtractor{},
-	}
+	detectors, correlators, extractors, _ := catalog.Instantiate(correlatorOverrides)
 
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
