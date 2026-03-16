@@ -96,7 +96,12 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 	defer func() { span.Finish(err) }()
 
 	configPath := filepath.Join(paths.AgentConfigDir, "system-probe.yaml")
+	return enableSystemProbeConfigAt(configPath)
+}
 
+// enableSystemProbeConfigAt sets system_probe_config.enabled: true in the given
+// config file, preserving any other existing settings. It is a no-op if already enabled.
+func enableSystemProbeConfigAt(configPath string) error {
 	cfg := config.SystemProbeConfig{}
 	existing, err := os.ReadFile(configPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -123,7 +128,6 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to write temporary system-probe.yaml: %w", err)
 	}
 	if err := os.Rename(tmpPath, configPath); err != nil {
-		// Clean up the temp file on rename failure
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to atomically replace system-probe.yaml: %w", err)
 	}

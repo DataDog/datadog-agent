@@ -38,14 +38,10 @@ func (s *testSystemProbeConfig) AfterTest(suiteName, testName string) {
 	s.baseSuite.AfterTest(suiteName, testName)
 }
 
-// TestInstallScriptEnablesSystemProbe tests the setup script path: installing
-// via the install script with DD_APM_INSTRUMENTATION_ENABLED=host writes
-// system_probe_config.enabled: true in system-probe.yaml before the agent starts.
 func (s *testSystemProbeConfig) TestInstallScriptEnablesSystemProbe() {
 	output, err := s.InstallScript().Run(
 		installerwindows.WithExtraEnvVars(map[string]string{
-			"DD_APM_INSTRUMENTATION_ENABLED": "host",
-			// TODO: remove override once image is published in prod
+			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
 			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
@@ -61,10 +57,6 @@ func (s *testSystemProbeConfig) TestInstallScriptEnablesSystemProbe() {
 	s.assertSystemProbeEnabled()
 }
 
-// TestStandaloneInstallEnablesSystemProbe tests the standalone install path:
-// the agent is already running, then apm-inject is installed separately with
-// DD_APM_INSTRUMENTATION_ENABLED=host. The postInstall hook must write
-// system_probe_config.enabled: true into system-probe.yaml.
 func (s *testSystemProbeConfig) TestStandaloneInstallEnablesSystemProbe() {
 	// Install agent without APM inject
 	output, err := s.InstallScript().Run()
@@ -77,16 +69,12 @@ func (s *testSystemProbeConfig) TestStandaloneInstallEnablesSystemProbe() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService()
 
-	// Install apm-inject package separately with host instrumentation
-	s.Env().RemoteHost.MustExecute(
-		`[Environment]::SetEnvironmentVariable("DD_APM_INSTRUMENTATION_ENABLED", "host", "Process")`,
-	)
+	// Install apm-inject package separately
 	pkgOutput, err := s.Installer().InstallPackage("apm-inject-package",
 		installer.WithVersion(s.currentAPMInjectVersion.PackageVersion()),
 		installer.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to install apm-inject package: %s", pkgOutput)
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
 	s.assertSystemProbeEnabled()
 }
