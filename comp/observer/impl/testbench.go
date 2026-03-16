@@ -621,6 +621,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// receive log data.
 	tb.engine.SetDetectors(catalogEnabledDetectors(tb.components, tb.catalog))
 	tb.engine.SetCorrelators(catalogEnabledCorrelators(tb.components, tb.catalog))
+	tb.engine.SetExtractors(catalogEnabledExtractors(tb.components, tb.catalog))
 	tb.engine.resetFull()
 
 	// Reset ALL components (not just enabled) so disabled ones clear stale state
