@@ -207,8 +207,11 @@ type MapSpecEditorOpts struct {
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
-	SecurityProfileSyscallAnomaly bool
-	EventSamplingEnabled          bool
+	SecurityProfileSyscallAnomaly   bool
+	EventSamplingOpenEnabled        bool
+	EventSamplingConnectEnabled     bool
+	EventSamplingBindEnabled        bool
+	EventSamplingDNSEnabled         bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -292,7 +295,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if opts.EventSamplingEnabled {
+	if opts.EventSamplingOpenEnabled {
 		editors["pid_path_keys"] = manager.MapSpecEditor{
 			MaxEntries: 20000,
 			EditorFlag: manager.EditMaxEntries,
@@ -301,10 +304,16 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: 20000,
 			EditorFlag: manager.EditMaxEntries,
 		}
+	}
+
+	if opts.EventSamplingBindEnabled {
 		editors["bind_samples"] = manager.MapSpecEditor{
 			MaxEntries: 10000,
 			EditorFlag: manager.EditMaxEntries,
 		}
+	}
+
+	if opts.EventSamplingConnectEnabled {
 		editors["connect_samples"] = manager.MapSpecEditor{
 			MaxEntries: 10000,
 			EditorFlag: manager.EditMaxEntries,

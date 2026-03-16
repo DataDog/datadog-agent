@@ -96,9 +96,15 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 
-	// CWS - Event sampling
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.rate", 500)
+	// CWS - Event sampling (per-type)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.bind.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.bind.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.rate", 500)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)

@@ -71,12 +71,12 @@ void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type)
 
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
-    u64 event_sampling_enabled = 0;
-    LOAD_CONSTANT("event_sampling_enabled", event_sampling_enabled);
-    u64 event_sampling_rate = 0;
-    LOAD_CONSTANT("event_sampling_rate", event_sampling_rate);
+    u64 event_sampling_bind_enabled = 0;
+    LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
+    u64 event_sampling_bind_rate = 0;
+    LOAD_CONSTANT("event_sampling_bind_rate", event_sampling_bind_rate);
 
-    if (!event_sampling_enabled) {
+    if (!event_sampling_bind_enabled) {
         return DISCARDED;
     }
 
@@ -100,7 +100,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
         return DISCARDED;
     }
 
-    if (event_sampling_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_rate, 1)) {
+    if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
         bpf_map_delete_elem(&bind_samples, &key);
         return DISCARDED;
     }
@@ -110,18 +110,18 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
-    u64 event_sampling_enabled = 0;
-    LOAD_CONSTANT("event_sampling_enabled", event_sampling_enabled);
-    u64 event_sampling_rate = 0;
-    LOAD_CONSTANT("event_sampling_rate", event_sampling_rate);
+    u64 event_sampling_dns_enabled = 0;
+    LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
+    u64 event_sampling_dns_rate = 0;
+    LOAD_CONSTANT("event_sampling_dns_rate", event_sampling_dns_rate);
 
-    if (!event_sampling_enabled) {
+    if (!event_sampling_dns_enabled) {
         return DISCARDED;
     }
 
     monitor_event_sample_total(EVENT_DNS);
 
-    if (event_sampling_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_rate, 1)) {
+    if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
         return DISCARDED;
     }
 
@@ -130,12 +130,12 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
-    u64 event_sampling_enabled = 0;
-    LOAD_CONSTANT("event_sampling_enabled", event_sampling_enabled);
-    u64 event_sampling_rate = 0;
-    LOAD_CONSTANT("event_sampling_rate", event_sampling_rate);
+    u64 event_sampling_connect_enabled = 0;
+    LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
+    u64 event_sampling_connect_rate = 0;
+    LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
 
-    if (!event_sampling_enabled) {
+    if (!event_sampling_connect_enabled) {
         return DISCARDED;
     }
 
@@ -159,7 +159,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
         return DISCARDED;
     }
 
-    if (event_sampling_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_rate, 1)) {
+    if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
         bpf_map_delete_elem(&connect_samples, &key);
         return DISCARDED;
     }
@@ -393,13 +393,13 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
-    u64 event_sampling_enabled = 0;
-    LOAD_CONSTANT("event_sampling_enabled", event_sampling_enabled);
+    u64 event_sampling_open_enabled = 0;
+    LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
 
-    u64 event_sampling_rate = 0;
-    LOAD_CONSTANT("event_sampling_rate", event_sampling_rate);
+    u64 event_sampling_open_rate = 0;
+    LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
 
-    if (!event_sampling_enabled) {
+    if (!event_sampling_open_enabled) {
         return DISCARDED;
     }
 
@@ -438,7 +438,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    if (event_sampling_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_rate, 1)) {
+    if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
         bpf_map_delete_elem(&open_samples, &key);
         return DISCARDED;
     }
