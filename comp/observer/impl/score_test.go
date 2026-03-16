@@ -246,6 +246,7 @@ func TestScoreOutputFile_PostOnsetIgnored(t *testing.T) {
 	// All 4 predictions pass to scorer (no cascading filter).
 	assert.Equal(t, 4, result.NumPredictions, "all predictions should be passed to scorer")
 	assert.Equal(t, 0, result.NumFilteredWarmup)
+	assert.Equal(t, 2, result.NumFilteredCascading, "predictions at 130 and 200 are beyond GT+2σ")
 	assert.Equal(t, 1, result.NumGroundTruths)
 	assert.Equal(t, 1, result.NumBaselineFPs, "prediction at 50 is a baseline FP")
 	// FP = 1 (the prediction at 50, before onset). Post-onset 130 and 200 are ignored.
@@ -326,11 +327,11 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{Scenario: "test_scenario"},
 		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "warmup_noise_1", PeriodStart: 50},  // warmup → filtered
-			{Pattern: "warmup_noise_2", PeriodStart: 90},  // warmup → filtered
-			{Pattern: "baseline_fp", PeriodStart: 120},    // baseline FP → scored
-			{Pattern: "good_detect", PeriodStart: 202},    // near onset → scored
-			{Pattern: "post_onset", PeriodStart: 250},     // post-onset unmatched → scored but ignored by F1
+			{Pattern: "warmup_noise_1", PeriodStart: 50}, // warmup → filtered
+			{Pattern: "warmup_noise_2", PeriodStart: 90}, // warmup → filtered
+			{Pattern: "baseline_fp", PeriodStart: 120},   // baseline FP → scored
+			{Pattern: "good_detect", PeriodStart: 202},   // near onset → scored
+			{Pattern: "post_onset", PeriodStart: 250},    // post-onset unmatched → scored but ignored by F1
 		},
 	}
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -343,5 +344,6 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.NumFilteredWarmup, "predictions before baseline.start should be filtered")
+	assert.Equal(t, 1, result.NumFilteredCascading, "prediction at 250 is beyond GT+2σ")
 	assert.Equal(t, 3, result.NumPredictions, "baseline FP, good detect, and post-onset should all be scored")
 }

@@ -54,8 +54,8 @@ func main() {
 	fmt.Printf("Gaussian F1 Score\n")
 	fmt.Printf("  Input:       %s\n", *outputPath)
 	fmt.Printf("  Sigma:       %.1fs\n", *sigma)
-	fmt.Printf("  Predictions: %d scored, %d warmup filtered\n",
-		result.NumPredictions, result.NumFilteredWarmup)
+	fmt.Printf("  Predictions: %d scored, %d warmup filtered, %d post-onset ignored\n",
+		result.NumPredictions, result.NumFilteredWarmup, result.NumFilteredCascading)
 	fmt.Println()
 	fmt.Printf("  F1:        %.4f\n", result.F1)
 	fmt.Printf("  Precision: %.4f\n", result.Precision)

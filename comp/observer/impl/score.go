@@ -32,8 +32,9 @@ type ScoreResult struct {
 	FN                   float64 `json:"fn"`
 	NumPredictions       int     `json:"num_predictions"`
 	NumGroundTruths      int     `json:"num_ground_truths"`
-	NumFilteredWarmup int `json:"num_filtered_warmup"`
-	NumBaselineFPs    int `json:"num_baseline_fps"`
+	NumFilteredWarmup    int     `json:"num_filtered_warmup"`
+	NumFilteredCascading int     `json:"num_filtered_cascading"`
+	NumBaselineFPs       int     `json:"num_baseline_fps"`
 	Sigma                float64 `json:"sigma"`
 }
 
@@ -310,17 +311,25 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		predictions = append(predictions, period.PeriodStart)
 	}
 
-	// Count baseline FPs: scored predictions that fire before disruption onset.
+	// Count baseline FPs and post-onset predictions for reporting.
 	minGT := groundTruthTimestamps[0]
+	maxGT := groundTruthTimestamps[0]
 	for _, gt := range groundTruthTimestamps[1:] {
 		if gt < minGT {
 			minGT = gt
 		}
+		if gt > maxGT {
+			maxGT = gt
+		}
 	}
-	var numBaselineFPs int
+	cascadingCutoff := float64(maxGT) + 2*sigma
+	var numBaselineFPs, numCascading int
 	for _, p := range predictions {
 		if p < minGT {
 			numBaselineFPs++
+		}
+		if float64(p) > cascadingCutoff {
+			numCascading++
 		}
 	}
 
@@ -330,6 +339,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		Sigma:                 sigma,
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
+	result.NumFilteredCascading = numCascading
 	result.NumBaselineFPs = numBaselineFPs
 
 	return &result, nil
