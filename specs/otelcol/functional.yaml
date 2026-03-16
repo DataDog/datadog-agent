@@ -150,3 +150,20 @@ requirements:
     properties:
       source: https://opentelemetry.io/docs/specs/otlp/#protocol-details
     ref: [OTELCOL006, OTELCOL009]
+
+  - id: OTELCOL024
+    short: Override individual configuration values at the command line
+    long: |
+      The user shall be able to override any individual configuration property at startup
+      using the `--set` flag without modifying the configuration file.
+      The `--set` flag is applied after all `--config` sources are merged, giving it the
+      highest precedence.
+
+      Nested keys are expressed using double-colon separators
+      (e.g. `exporters::debug::verbosity=detailed`).
+
+      Multiple `--set` flags may be provided to override several properties at once.
+    tags: [config]
+    ref: [OTELCOL014]
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#override-settings

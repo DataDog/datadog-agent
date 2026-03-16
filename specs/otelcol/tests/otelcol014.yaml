@@ -72,3 +72,80 @@ tests:
     - action: Verify the compact one-liner that normal verbosity would produce is absent
       sample: |
         ResourceTraces #0 [...] service.name=telemetrygen
+
+- id: T011
+  ref: [OTELCOL014]
+  short: Load configuration from an inline YAML string
+  long: |
+    Verify that the `yaml:` URI scheme is supported, allowing the full configuration to
+    be supplied inline on the command line without a file. The Collector must start
+    normally and serve OTLP traffic.
+  prereq: [T001]
+  steps:
+    - action: 'Start the otel-agent passing the entire configuration as an inline yaml: string'
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config 'yaml:receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+        '
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4317 | Starting GRPC server
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the gRPC port is open
+      run: nc -z localhost 4317 && echo "gRPC open"
+      expected: gRPC open
+
+- id: T012
+  ref: [OTELCOL014]
+  short: Load configuration from an environment variable
+  long: |
+    Verify that the `env:` URI scheme is supported, allowing the full configuration to
+    be stored in an environment variable and passed to the Collector via
+    `--config env:VARIABLE_NAME`. The Collector must start normally and serve OTLP traffic.
+  prereq: [T001]
+  steps:
+    - action: Store the full configuration in an environment variable and start the otel-agent
+      run: |
+        OTEL_CONFIG='receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+        ' \
+          DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config env:OTEL_CONFIG
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4317 | Starting GRPC server
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the gRPC port is open
+      run: nc -z localhost 4317 && echo "gRPC open"
+      expected: gRPC open
