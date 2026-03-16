@@ -131,6 +131,7 @@ impl<'a> MetricSample<'a> {
   pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 10;
   pub const VT_SAMPLE_RATE: flatbuffers::VOffsetT = 12;
   pub const VT_SOURCE: flatbuffers::VOffsetT = 14;
+  pub const VT_CONTEXT_KEY: flatbuffers::VOffsetT = 16;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -142,6 +143,7 @@ impl<'a> MetricSample<'a> {
     args: &'args MetricSampleArgs<'args>
   ) -> flatbuffers::WIPOffset<MetricSample<'bldr>> {
     let mut builder = MetricSampleBuilder::new(_fbb);
+    builder.add_context_key(args.context_key);
     builder.add_sample_rate(args.sample_rate);
     builder.add_timestamp_ns(args.timestamp_ns);
     builder.add_value(args.value);
@@ -194,6 +196,13 @@ impl<'a> MetricSample<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(MetricSample::VT_SOURCE, None)}
   }
+  #[inline]
+  pub fn context_key(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(MetricSample::VT_CONTEXT_KEY, Some(0)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for MetricSample<'_> {
@@ -209,6 +218,7 @@ impl flatbuffers::Verifiable for MetricSample<'_> {
      .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
      .visit_field::<f64>("sample_rate", Self::VT_SAMPLE_RATE, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<&str>>("source", Self::VT_SOURCE, false)?
+     .visit_field::<u64>("context_key", Self::VT_CONTEXT_KEY, false)?
      .finish();
     Ok(())
   }
@@ -220,6 +230,7 @@ pub struct MetricSampleArgs<'a> {
     pub timestamp_ns: i64,
     pub sample_rate: f64,
     pub source: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub context_key: u64,
 }
 impl<'a> Default for MetricSampleArgs<'a> {
   #[inline]
@@ -231,6 +242,7 @@ impl<'a> Default for MetricSampleArgs<'a> {
       timestamp_ns: 0,
       sample_rate: 0.0,
       source: None,
+      context_key: 0,
     }
   }
 }
@@ -265,6 +277,10 @@ impl<'a: 'b, 'b> MetricSampleBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricSample::VT_SOURCE, source);
   }
   #[inline]
+  pub fn add_context_key(&mut self, context_key: u64) {
+    self.fbb_.push_slot::<u64>(MetricSample::VT_CONTEXT_KEY, context_key, 0);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> MetricSampleBuilder<'a, 'b> {
     let start = _fbb.start_table();
     MetricSampleBuilder {
@@ -288,6 +304,7 @@ impl core::fmt::Debug for MetricSample<'_> {
       ds.field("timestamp_ns", &self.timestamp_ns());
       ds.field("sample_rate", &self.sample_rate());
       ds.field("source", &self.source());
+      ds.field("context_key", &self.context_key());
       ds.finish()
   }
 }
