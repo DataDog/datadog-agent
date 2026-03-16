@@ -613,12 +613,6 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 			if err == nil || !isRetryableERPCError(err) {
 				break
 			}
-
-			// Sleep before retry to give kernel time to process the ERPC request
-			// Only sleep if we're going to retry (not on the last attempt)
-			if attempt < maxRetries {
-				time.Sleep(2 * time.Millisecond)
-			}
 		}
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
