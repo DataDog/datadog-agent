@@ -16,27 +16,44 @@ import (
 	"github.com/DataDog/datadog-agent/comp/observer/impl/queue"
 )
 
+// TODO(celian): Remove this once we find a way to properly get a reference
+var logPatternExtractorSingleton *LogPatternExtractor
+
 // --- Metrics Extractor ---
-// TODO(celian): Pattern keys
-// // This contains what can identify a pattern
-// type PatternKeyInfo struct {
-// 	ClusterID int64
-// }
+// TODO(celian): Add tags etc.
+// This contains what can identify a pattern
+type PatternKeyInfo struct {
+	// The hash is the ID of this object, used to find it back in the map
+	Hash      int64
+	ClusterID int64
+}
+
+func NewPatternKeyInfo(clusterID int64) PatternKeyInfo {
+	return PatternKeyInfo{
+		// TODO(celian): Compute a proper hash if we add more fields
+		Hash:      clusterID + 1,
+		ClusterID: clusterID,
+	}
+}
 
 type LogPatternExtractor struct {
 	PatternClusterer *patterns.PatternClusterer
+	PatternKeys      map[int64]PatternKeyInfo
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
 
 func NewLogPatternExtractor() *LogPatternExtractor {
-	return &LogPatternExtractor{
+	instance := &LogPatternExtractor{
 		PatternClusterer: patterns.NewPatternClusterer(patterns.IDComputeInfo{
 			Offset: 0,
 			Stride: 1,
 			Index:  0,
 		}),
+		PatternKeys: make(map[int64]PatternKeyInfo),
 	}
+	logPatternExtractorSingleton = instance
+	return instance
 }
 
 func (e *LogPatternExtractor) Name() string {
@@ -51,13 +68,16 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.
 		return nil
 	}
 
-	// TODO(celian): Create a pattern key
+	// We use the pattern key hash as identifier
+	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)
+	e.PatternKeys[patternKey.Hash] = patternKey
 
 	// Emit metric for the pattern
 	return []observerdef.MetricOutput{{
-		Name:  fmt.Sprintf("log.%s.%d.count", e.Name(), clusterResult.Cluster.ID),
+		Name:  fmt.Sprintf("log.%s.%x.count", e.Name(), patternKey.Hash),
 		Value: 1,
-		Tags:  log.GetTags(),
+		// TODO(celian): Should we pass the pattern key as a tag instead?
+		Tags: log.GetTags(),
 	}}
 }
 
@@ -119,7 +139,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 		}
 		keyStr := parts[len(parts)-2]
 		// TODO(celian): Use key, not cluster ID
-		key, err := strconv.ParseInt(keyStr, 10, 64)
+		key, err := strconv.ParseInt(keyStr, 16, 64)
 		if err != nil {
 			fmt.Printf("[cc] Error parsing key %s: %v\n", keyStr, err)
 			continue
@@ -171,14 +191,35 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 			}
 			// TODO(celian): We can add an absolute threshold for the exact minimum log rate change
 			if math.Abs(zScore) >= d.ZThreshold && d.RateLimiter.CanCreateAnomaly(key, dataTime) {
-				fmt.Printf("[cc] Anomaly detected for pattern key %s with z-score %f\n", keyStr, zScore)
 				// TODO(celian): Should we include the recent rates to have a smoother score?
 				// Convert the z-score to a score between 0 and 1: 1 - exp(thres - abs(z))
 				anomalyScore := 1 - math.Exp(d.ZThreshold-math.Abs(zScore))
+
+				// Find the corresponding pattern
+				patternKey, ok := logPatternExtractorSingleton.PatternKeys[key]
+				if !ok {
+					fmt.Printf("[cc] Pattern key %s not found\n", keyStr)
+					continue
+				}
+				cluster, err := logPatternExtractorSingleton.PatternClusterer.GetCluster(patternKey.ClusterID)
+				if err != nil {
+					fmt.Printf("[cc] Error getting cluster for pattern key %s: %v\n", keyStr, err)
+					continue
+				}
+				pattern := cluster.PatternString()
+				action := "increase"
+				if zScore < 0 {
+					// TODO(celian): Should we monitor decreases?
+					action = "decrease"
+				}
+				description := fmt.Sprintf("Sudden %s in rate of log pattern (z-score: %.1f, score: %.1f). Pattern: `%s`", action, zScore, anomalyScore, pattern)
+
+				fmt.Printf("[cc] Anomaly detected: %s\n", description)
 				anomalies = append(anomalies, observerdef.Anomaly{
 					Source:       observerdef.MetricName(seriesKey.Name),
 					DetectorName: d.Name(),
-					Title:        fmt.Sprintf("Anomaly detected for pattern key %s", keyStr),
+					Title:        fmt.Sprintf("Log pattern %s", action),
+					Description:  description,
 					Timestamp:    dataTime,
 					Score:        &anomalyScore,
 					Tags:         seriesKey.Tags,
