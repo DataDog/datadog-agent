@@ -83,14 +83,14 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0644",
     ),
-    prefix = "embedded/ssl/cacerts",
+    prefix = "embedded/ssl/certs",
 )
 
 # most systems can symlink to the real file
 pkg_mklink(
     name = "certs_file_link",
-    link_name = "embedded/ssl/cacert.pem",
-    target = "cacerts/cacert.pem",
+    link_name = "embedded/ssl/cert.pem",
+    target = "certs/cacert.pem",
 )
 
 # but on windows we copy it out twice.
