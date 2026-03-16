@@ -166,16 +166,9 @@ async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     Response::builder()
         .header("Content-Type", "application/json")
         .body(
-            Full::new(
-                serde_json::to_vec(&json!({
-                    "implementation": "system-probe-lite",
-                }))
-                .unwrap_or_else(|e| {
-                    error!("Failed to serialize response: {e}");
-                    b"Internal server error".to_vec()
-                })
-                .into(),
-            )
+            Full::new(Bytes::from_static(
+                b"{\"implementation\":\"system-probe-lite\"}",
+            ))
             .map_err(|e| match e {})
             .boxed(),
         )
