@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -115,9 +114,8 @@ func sendAgentStatus(cfg pkgconfigmodel.Reader, collectID string, statusJSON []b
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("fleet-api returned non-200 status %d: %s", resp.StatusCode, string(respBody))
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("fleet-api returned non-200 status %d", resp.StatusCode)
 	}
 
 	return nil
