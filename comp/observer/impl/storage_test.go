@@ -406,7 +406,7 @@ func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	assert.Equal(t, int64(30), result.Points[2].Timestamp)
 }
 
-func TestFindingH1_StorageNamespacesRace(t *testing.T) {
+func TestFindingH1_StorageNamespacesRace(_ *testing.T) {
 	s := newTimeSeriesStorage()
 
 	var wg sync.WaitGroup
@@ -431,7 +431,7 @@ func TestFindingH1_StorageNamespacesRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingH1_StorageTimeBoundsRace(t *testing.T) {
+func TestFindingH1_StorageTimeBoundsRace(_ *testing.T) {
 	s := newTimeSeriesStorage()
 
 	var wg sync.WaitGroup
@@ -454,7 +454,7 @@ func TestFindingH1_StorageTimeBoundsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingH1_StorageMaxTimestampRace(t *testing.T) {
+func TestFindingH1_StorageMaxTimestampRace(_ *testing.T) {
 	s := newTimeSeriesStorage()
 
 	var wg sync.WaitGroup
@@ -477,7 +477,7 @@ func TestFindingH1_StorageMaxTimestampRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingH1_StorageListAllSeriesCompactRace(t *testing.T) {
+func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
 	s := newTimeSeriesStorage()
 
 	var wg sync.WaitGroup
@@ -500,7 +500,7 @@ func TestFindingH1_StorageListAllSeriesCompactRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingH1_StorageDroppedValueStatsRace(t *testing.T) {
+func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
 	s := newTimeSeriesStorage()
 
 	var wg sync.WaitGroup
