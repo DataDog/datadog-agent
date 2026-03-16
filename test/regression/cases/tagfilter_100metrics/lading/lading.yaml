@@ -12,7 +12,7 @@ generator:
       # `bytes_per_second` is understood to be a high-end use case,
       # however Agent's internal telemetry differs from lading's units: UDS
       # packets per second versus bytes per second.
-      bytes_per_second: "4095 MiB"
+      bytes_per_second: "250 MiB"
       maximum_prebuild_cache_size_bytes: "500 MiB"
       variant:
         # NOTE the `dogstatsd` data are historically sourced and lack a
@@ -57,9 +57,6 @@ generator:
             - value8
             - value9
             - value10
-
-telemetry:
-  path: "nong"
 
 target_metrics:
   - prometheus: #core agent telemetry
