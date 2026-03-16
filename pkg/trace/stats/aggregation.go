@@ -60,6 +60,7 @@ type PayloadAggregationKey struct {
 	ImageTag        string
 	Lang            string
 	ProcessTagsHash uint64
+	BaseService     string
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {

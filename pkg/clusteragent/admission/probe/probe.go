@@ -106,6 +106,11 @@ func (p *Probe) GetStatsSnapshot() StatsSnapshot {
 	}
 }
 
+// IsLeader returns whether this instance is the current leader.
+func (p *Probe) IsLeader() bool {
+	return p.isLeaderFunc()
+}
+
 // GetStatsForStatus returns probe stats formatted for the agent status output.
 func (p *Probe) GetStatsForStatus() map[string]interface{} {
 	snap := p.GetStatsSnapshot()

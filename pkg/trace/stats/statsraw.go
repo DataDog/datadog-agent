@@ -150,6 +150,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			ImageTag:        k.ImageTag,
 			Lang:            k.Lang,
 			ProcessTagsHash: k.ProcessTagsHash,
+			BaseService:     k.BaseService,
 		}
 		s, ok := m[key]
 		if !ok {
