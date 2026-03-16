@@ -32,6 +32,10 @@ import (
 //
 //   - V4 parsing: Lists tasks via V1, then fetches detailed info from V4 for each task
 //     See: v4parser.go - parseTasksFromV4Endpoint()
+//
+//   - V4 /tasks parsing: Fetches all host tasks in a single call from the daemon container's v4 endpoint.
+//     Used on ECS Managed Instances where the /tasks endpoint is available.
+//     See: daemon_parser.go - parseTasksFromV4TasksEndpoint()
 func (c *collector) initializeDaemonMode(ctx context.Context) error {
 	var err error
 
@@ -48,6 +52,14 @@ func (c *collector) initializeDaemonMode(ctx context.Context) error {
 			c.metadataRetryMaxElapsedTime,
 			func(d time.Duration) time.Duration { return time.Duration(c.metadataRetryTimeoutFactor) * d }),
 		)
+	}
+
+	// Attempt to initialize a v4 client for the daemon agent's own container.
+	// This enables the /tasks endpoint on ECS Managed Instances.
+	if v4Client, err := ecsmeta.V4FromCurrentTask(); err == nil {
+		c.metaV4 = v4Client
+	} else {
+		log.Debugf("ECS daemon: failed to initialize v4 client for current task (may not be available): %v", err)
 	}
 
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
@@ -73,7 +85,11 @@ func (c *collector) initializeDaemonMode(ctx context.Context) error {
 //   - Disabled or V4 unavailable: Uses V1 metadata endpoint (basic task info)
 //     See: v1parser.go - parseTasksFromV1Endpoint()
 //
-//   - Enabled with V4: Uses V4 metadata endpoint (detailed task info with health, tags, etc.)
+//   - Enabled with V4 on Managed Instances: Uses the v4 /tasks endpoint to fetch all host tasks
+//     in a single call, including the DaemonName field for daemon-scheduled tasks.
+//     See: daemon_parser.go - parseTasksFromV4TasksEndpoint()
+//
+//   - Enabled with V4 on EC2: Uses V4 metadata endpoint per-task (detailed task info with health, tags, etc.)
 //     See: v4parser.go - parseTasksFromV4Endpoint()
 func (c *collector) setTaskCollectionParserForDaemon(version string) {
 	if !c.taskCollectionEnabled {
@@ -88,6 +104,11 @@ func (c *collector) setTaskCollectionParserForDaemon(version string) {
 		// endpoint, causing the version check to fail. Fall back to checking for the
 		// ECS_CONTAINER_METADATA_URI_V4 env var as a signal that v4 is supported
 		if _, hasV4Env := os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable); hasV4Env {
+			if c.metaV4 != nil && c.actualLaunchType == workloadmeta.ECSLaunchTypeManagedInstances {
+				log.Infof("detailed task collection enabled, using metadata v4 /tasks endpoint for managed instances")
+				c.taskCollectionParser = c.parseTasksFromV4TasksEndpoint
+				return
+			}
 			log.Infof("detailed task collection enabled, v4 metadata endpoint available via env var (version check unavailable): using metadata v4 endpoint")
 			c.taskCollectionParser = c.parseTasksFromV4Endpoint
 			return
@@ -100,6 +121,12 @@ func (c *collector) setTaskCollectionParserForDaemon(version string) {
 	if !ok {
 		log.Infof("detailed task collection enabled but v4 metadata endpoint is not available, using metadata v1 endpoint")
 		c.taskCollectionParser = c.parseTasksFromV1Endpoint
+		return
+	}
+
+	if c.metaV4 != nil && c.actualLaunchType == workloadmeta.ECSLaunchTypeManagedInstances {
+		log.Infof("detailed task collection enabled, using metadata v4 /tasks endpoint for managed instances")
+		c.taskCollectionParser = c.parseTasksFromV4TasksEndpoint
 		return
 	}
 

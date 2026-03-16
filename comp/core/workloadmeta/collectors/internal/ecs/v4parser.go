@@ -57,6 +57,26 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 	return c.setLastSeenEntitiesAndUnsetEvents(events, seen), nil
 }
 
+// parseTasksFromV4TasksEndpoint fetches all host tasks from the v4 /tasks endpoint in a single call
+// and parses them. This is the preferred parser for daemon mode on ECS Managed Instances, where the
+// daemon agent's ECS_CONTAINER_METADATA_URI_V4 exposes a /tasks endpoint that returns all tasks on
+// the host.
+func (c *collector) parseTasksFromV4TasksEndpoint(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+	tasks, err := c.metaV4.GetTasks(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	events := []workloadmeta.CollectorEvent{}
+	seen := make(map[workloadmeta.EntityID]struct{})
+
+	for _, task := range tasks {
+		events = append(events, util.ParseV4Task(task, seen)...)
+	}
+
+	return c.setLastSeenEntitiesAndUnsetEvents(events, seen), nil
+}
+
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
 	// Get tags from the cache

@@ -20,6 +20,7 @@ type Task struct {
 	TaskTags                map[string]string  `json:"TaskTags,omitempty"`
 	EphemeralStorageMetrics map[string]int64   `json:"EphemeralStorageMetrics,omitempty"`
 	ServiceName             string             `json:"ServiceName,omitempty"`
+	DaemonName              string             `json:"DaemonName,omitempty"`
 	VPCID                   string             `json:"VPCID,omitempty"`
 	PullStartedAt           string             `json:"PullStartedAt,omitempty"`
 	PullStoppedAt           string             `json:"PullStoppedAt,omitempty"`

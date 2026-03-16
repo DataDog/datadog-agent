@@ -1436,6 +1436,7 @@ type ECSTask struct {
 	ExecutionStoppedAt      *time.Time
 	VPCID                   string
 	ServiceName             string
+	DaemonName              string
 	EphemeralStorageMetrics map[string]int64
 	Limits                  map[string]float64
 	LaunchType              ECSLaunchType

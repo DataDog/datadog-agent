@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
@@ -42,68 +43,92 @@ func taskParserName(fn interface{}) string {
 func TestSetTaskCollectionParserForDaemon(t *testing.T) {
 	v1ParserSuffix := "parseTasksFromV1Endpoint"
 	v4ParserSuffix := "parseTasksFromV4Endpoint"
+	v4TasksParserSuffix := "parseTasksFromV4TasksEndpoint"
 
 	tests := []struct {
 		name                  string
 		taskCollectionEnabled bool
 		version               string
 		setV4Env              bool
-		expectV4Parser        bool
-		expectParserSet       bool
+		actualLaunchType      workloadmeta.ECSLaunchType
+		hasMetaV4             bool
+		expectParserSuffix    string
 	}{
 		{
 			name:                  "task collection disabled uses V1",
 			taskCollectionEnabled: false,
 			version:               "Amazon ECS Agent - v1.39.0 (abc1234)",
-			expectV4Parser:        false,
-			expectParserSet:       true,
+			expectParserSuffix:    v1ParserSuffix,
 		},
 		{
 			// Use 1.54.0+ so the test passes on both Linux (min 1.39.0) and Windows (min 1.54.0)
 			name:                  "task collection enabled with V4-capable version uses V4",
 			taskCollectionEnabled: true,
 			version:               "Amazon ECS Agent - v1.54.0 (abc1234)",
-			expectV4Parser:        true,
-			expectParserSet:       true,
+			actualLaunchType:      workloadmeta.ECSLaunchTypeEC2,
+			expectParserSuffix:    v4ParserSuffix,
 		},
 		{
 			name:                  "task collection enabled with version below V4 minimum uses V1",
 			taskCollectionEnabled: true,
 			version:               "Amazon ECS Agent - v1.30.0 (abc1234)",
-			expectV4Parser:        false,
-			expectParserSet:       true,
+			expectParserSuffix:    v1ParserSuffix,
 		},
 		{
 			name:                  "task collection enabled with empty version and V4 env uses V4",
 			taskCollectionEnabled: true,
 			version:               "",
 			setV4Env:              true,
-			expectV4Parser:        true,
-			expectParserSet:       true,
+			actualLaunchType:      workloadmeta.ECSLaunchTypeEC2,
+			expectParserSuffix:    v4ParserSuffix,
 		},
 		{
 			name:                  "task collection enabled with empty version and no V4 env uses V1",
 			taskCollectionEnabled: true,
 			version:               "",
 			setV4Env:              false,
-			expectV4Parser:        false,
-			expectParserSet:       true,
+			expectParserSuffix:    v1ParserSuffix,
 		},
 		{
 			name:                  "task collection enabled with invalid version and V4 env uses V4",
 			taskCollectionEnabled: true,
 			version:               "not-a-version",
 			setV4Env:              true,
-			expectV4Parser:        true,
-			expectParserSet:       true,
+			actualLaunchType:      workloadmeta.ECSLaunchTypeEC2,
+			expectParserSuffix:    v4ParserSuffix,
 		},
 		{
 			name:                  "task collection enabled with invalid version and no V4 env uses V1",
 			taskCollectionEnabled: true,
 			version:               "not-a-version",
 			setV4Env:              false,
-			expectV4Parser:        false,
-			expectParserSet:       true,
+			expectParserSuffix:    v1ParserSuffix,
+		},
+		{
+			name:                  "managed instances with V4 env and metaV4 uses /tasks endpoint",
+			taskCollectionEnabled: true,
+			version:               "",
+			setV4Env:              true,
+			actualLaunchType:      workloadmeta.ECSLaunchTypeManagedInstances,
+			hasMetaV4:             true,
+			expectParserSuffix:    v4TasksParserSuffix,
+		},
+		{
+			name:                  "managed instances with V4 env but no metaV4 falls back to per-task V4",
+			taskCollectionEnabled: true,
+			version:               "",
+			setV4Env:              true,
+			actualLaunchType:      workloadmeta.ECSLaunchTypeManagedInstances,
+			hasMetaV4:             false,
+			expectParserSuffix:    v4ParserSuffix,
+		},
+		{
+			name:                  "managed instances with V4-capable version and metaV4 uses /tasks endpoint",
+			taskCollectionEnabled: true,
+			version:               "Amazon ECS Agent - v1.54.0 (abc1234)",
+			actualLaunchType:      workloadmeta.ECSLaunchTypeManagedInstances,
+			hasMetaV4:             true,
+			expectParserSuffix:    v4TasksParserSuffix,
 		},
 	}
 
@@ -126,24 +151,18 @@ func TestSetTaskCollectionParserForDaemon(t *testing.T) {
 
 			c := &collector{
 				taskCollectionEnabled: tt.taskCollectionEnabled,
+				actualLaunchType:      tt.actualLaunchType,
+			}
+			if tt.hasMetaV4 {
+				c.metaV4 = &fakev3or4EcsClient{}
 			}
 
 			c.setTaskCollectionParserForDaemon(tt.version)
 
-			if !tt.expectParserSet {
-				assert.Nil(t, c.taskCollectionParser)
-				return
-			}
 			require.NotNil(t, c.taskCollectionParser, "taskCollectionParser should be set")
-
 			name := taskParserName(c.taskCollectionParser)
 			require.NotEmpty(t, name, "parser function name should be resolvable")
-
-			if tt.expectV4Parser {
-				assert.Contains(t, name, v4ParserSuffix, "expected V4 parser to be set")
-			} else {
-				assert.Contains(t, name, v1ParserSuffix, "expected V1 parser to be set")
-			}
+			assert.Contains(t, name, tt.expectParserSuffix, "unexpected parser selected")
 		})
 	}
 }
