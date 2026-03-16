@@ -55,6 +55,12 @@ func newConfigManager(config config.Component) configManager {
 			log.Warnf("Could not extract site from URL %s, skipping endpoint", endpointURL)
 			continue
 		}
+
+		if len(keys) == 0 {
+			log.Warnf("Site %s has no API key registered, skipping endpoint", site)
+			continue
+		}
+
 		endpoints = append(endpoints, endpoint{
 			site:    site,
 			apiKeys: keys,
@@ -67,6 +73,8 @@ func newConfigManager(config config.Component) configManager {
 	if usedSite != "" && apiKey != "" {
 		endpoints = append(endpoints, endpoint{site: usedSite, apiKeys: []string{apiKey}})
 		endpointsTotalLength++
+	} else if apiKey == "" {
+		log.Warnf("No API key registered for main site %s", usedSite)
 	}
 
 	return configManager{config: config, endpoints: endpoints, endpointsTotalLength: endpointsTotalLength}

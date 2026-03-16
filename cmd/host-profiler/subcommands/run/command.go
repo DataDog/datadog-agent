@@ -101,7 +101,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
 			fx.Invoke(func(l log.Component) {
 				if warnBothConfigs {
-					l.Warn("When both OTel and Core Agent configuration paths are given, only the Agent's is used.")
+					l.Warn("Both OTel and Core Agent configuration paths were provided. The OTel configuration will be ignored and the Core Agent configuration will be used.")
 				}
 			}),
 		)
