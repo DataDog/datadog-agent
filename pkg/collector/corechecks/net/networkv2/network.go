@@ -84,6 +84,7 @@ type networkInstanceConfig struct {
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
 	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
 	WhitelistConntrackMetrics []string `yaml:"whitelist_conntrack_metrics"`
+	ProcfsPath                string   `yaml:"procfs_path"`
 }
 
 type networkInitConfig struct{}
@@ -950,6 +951,12 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		return err
 	}
 
+	// Apply instance-level procfs_path override
+	if c.config.instance.ProcfsPath != "" {
+		procfsPath := strings.TrimRight(c.config.instance.ProcfsPath, "/")
+		c.net = defaultNetworkStats{procPath: procfsPath}
+	}
+
 	if c.config.instance.ExcludedInterfaceRe != "" {
 		pattern, err := regexp.Compile(c.config.instance.ExcludedInterfaceRe)
 		if err != nil {
@@ -975,7 +982,7 @@ func Factory(cfg config.Component) option.Option[func() check.Check] {
 
 func newCheck(cfg config.Component) check.Check {
 	procfsPath := "/proc"
-	if cfg.IsConfigured("procfs_path") {
+	if cfg.IsSet("procfs_path") {
 		procfsPath = strings.TrimRight(cfg.GetString("procfs_path"), "/")
 	}
 

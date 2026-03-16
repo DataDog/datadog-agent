@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/safchain/ethtool"
 )
@@ -1300,6 +1302,37 @@ excluded_interface_re: "eth.*"
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
 	assert.ElementsMatch(t, []string{"eth0", "lo0"}, check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
+}
+
+// TestGlobalProcfsPathUsedWhenInContainer validates that when procfs_path is set in the
+// global agent config (as done automatically when running in a container with the host
+// proc mounted at /host/proc), newCheck picks it up correctly. This was broken before
+// the fix because cfg.IsConfigured did not match keys set via the config system, causing
+// the check to always fall back to the container's own /proc.
+func TestGlobalProcfsPathUsedWhenInContainer(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("procfs_path", "/host/proc", configmodel.SourceAgentRuntime)
+
+	check := newCheck(cfg).(*NetworkCheck)
+
+	assert.Equal(t, "/host/proc", check.net.GetProcPath())
+}
+
+// TestInstanceProcfsPathOverridesDefaultNamespace validates that an instance-level
+// procfs_path in the check config overrides whatever path was set at check creation
+// time. This is the per-instance escape hatch for container environments.
+func TestInstanceProcfsPathOverridesDefaultNamespace(t *testing.T) {
+	// Simulate the check created with the container's /proc (default)
+	check := createTestNetworkCheck(&defaultNetworkStats{procPath: "/proc"})
+
+	rawInstanceConfig := []byte(`
+procfs_path: "/host/proc"
+`)
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	// After Configure, the check must use the host procfs path, not the container's /proc
+	assert.Equal(t, "/host/proc", check.net.GetProcPath())
 }
 
 func TestNetworkCheck(t *testing.T) {
