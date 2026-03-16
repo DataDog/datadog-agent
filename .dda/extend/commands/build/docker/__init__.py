@@ -18,10 +18,11 @@ GITLAB_PROJECT = "DataDog%2Fdatadog-agent"
 RELEASE_IMAGE_REPOSITORY = "datadog/agent"
 
 
-def _get_gitlab_token(app: Application) -> tuple[str, bool]:
+def _get_gitlab_token(app: Application) -> tuple[str, bool] | None:
     """Get a GitLab token, preferring ddtool OAuth over GITLAB_TOKEN env var.
 
-    Returns (token, is_oauth) where is_oauth indicates how python-gitlab should authenticate.
+    Returns (token, is_oauth) where is_oauth indicates how python-gitlab should authenticate,
+    or None if no token is available.
     """
     import os
     import shutil
@@ -50,10 +51,7 @@ def _get_gitlab_token(app: Application) -> tuple[str, bool]:
     if token:
         return token, False
 
-    app.abort(
-        "Could not obtain a GitLab token. "
-        "Either run `ddtool auth gitlab login` or set GITLAB_TOKEN to a Personal Access Token with read_api scope."
-    )
+    return None
 
 
 def _get_latest_main_base_image(app: Application, arch: str) -> str | None:
@@ -62,13 +60,23 @@ def _get_latest_main_base_image(app: Application, arch: str) -> str | None:
     try:
         import gitlab
     except ImportError:
-        app.abort(
-            "python-gitlab is required to fetch the latest base image from main.\n"
-            "Specify a base image explicitly with --base-image (e.g., --base-image=7.63.0)\n"
-            "or install python-gitlab: dda env dev shell -- pip install python-gitlab"
+        app.display_warning(
+            "python-gitlab is not installed — cannot fetch the latest base image from main.\n"
+            "The build will use the default base image from agent.hacky-dev-image-build.\n"
+            "To pin a specific version use --base-image (e.g., --base-image=7.63.0).\n"
+            "To enable auto-detection: dda env dev shell -- pip install python-gitlab"
         )
+        return None
 
-    token, is_oauth = _get_gitlab_token(app)
+    result = _get_gitlab_token(app)
+    if result is None:
+        app.display_warning(
+            "No GitLab token available — cannot fetch the latest base image from main.\n"
+            "The build will use the default base image from agent.hacky-dev-image-build.\n"
+            "To pin a specific version use --base-image (e.g., --base-image=7.63.0)."
+        )
+        return None
+    token, is_oauth = result
 
     try:
         auth_kwargs = {"oauth_token": token} if is_oauth else {"private_token": token}
@@ -143,10 +151,11 @@ def _build_quick_image(
     env = get_dev_env(env_type)(app=app, name=env_type, instance=instance)
     status = env.status()
 
+    host_arch = "arm64" if platform.machine().lower() in {"arm64", "aarch64"} else "amd64"
+
     # If the environment exists with the wrong arch (running or stopped), remove it so it can be
     # recreated with the correct arch — dda env dev start cannot reconfigure a stopped container.
     if status.state in {EnvironmentState.STARTED, EnvironmentState.STOPPED} and arch:
-        host_arch = "arm64" if platform.machine().lower() in {"arm64", "aarch64"} else "amd64"
         container_arch = env.config.arch or host_arch
         if arch != container_arch:
             app.display_warning(
@@ -168,7 +177,9 @@ def _build_quick_image(
         # registered after --type resolves the environment class
         if env_type:
             start_cmd.extend(["--type", env_type])
-        if arch:
+        # --arch is only accepted when creating a new environment; a stopped environment
+        # ignores configuration flags and can only be restarted with selection flags.
+        if arch and status.state == EnvironmentState.NONEXISTENT:
             start_cmd.extend(["--arch", arch])
         if instance != "default":
             start_cmd.extend(["--id", instance])
@@ -179,13 +190,9 @@ def _build_quick_image(
             f"Please resolve the issue manually and try again."
         )
 
-    # Determine the effective arch from the running container's config.
-    # hacky_dev_image_build auto-detects arch from platform.machine() inside the container,
-    # which reflects the arch the container was started with — cross-compilation within a
-    # running container is not supported.
-    env = get_dev_env(env_type)(app=app, name=env_type, instance=instance)
-    host_arch = "arm64" if platform.machine().lower() in {"arm64", "aarch64"} else "amd64"
-    effective_arch = env.config.arch or host_arch
+    # Determine the effective arch: prefer the explicitly requested arch, then the running
+    # container's configured arch, then fall back to the host arch.
+    effective_arch = arch or env.config.arch or host_arch
 
     # Resolve the base image
     resolved_base_image = base_image
@@ -198,11 +205,11 @@ def _build_quick_image(
                 f"Use --base-image with a version (e.g., --base-image=7.63.0) to use a public image instead."
             )
     elif "/" not in resolved_base_image and ":" not in resolved_base_image:
-        # Bare version string (e.g. "7.63.0") — validate and resolve to the public release image.
+        # Bare version string (e.g. "7.63.0" or "6.53.0") — validate and resolve to the public release image.
         import re
 
-        if not re.fullmatch(r"7\.\d+\.\d+(-\d+)?", resolved_base_image):
-            app.abort(f"Invalid agent version: '{resolved_base_image}'. Expected format: 7.X.Y (e.g. '7.63.0').")
+        if not re.fullmatch(r"\d+\.\d+\.\d+(-\d+)?", resolved_base_image):
+            app.abort(f"Invalid agent version: '{resolved_base_image}'. Expected format: X.Y.Z (e.g. '7.63.0').")
         resolved_base_image = f"{RELEASE_IMAGE_REPOSITORY}:{resolved_base_image}"
 
     # Step 2: clean stale CMake cache to avoid source-path mismatch errors, then build
@@ -478,11 +485,8 @@ def cmd(
         app.display(
             "Note: The image was not pushed to a registry. "
             "To use it with E2E tests, either:\n"
-            "  1. Push it manually: docker push " + target_image + "\n"
-            "  2. Load it into a local cluster: docker save "
-            + target_image
-            + " | kind load docker-image "
-            + target_image
+            "  1. Push it manually:             docker push " + target_image + "\n"
+            "  2. Load into a local kind cluster: kind load docker-image " + target_image
         )
         return
 
