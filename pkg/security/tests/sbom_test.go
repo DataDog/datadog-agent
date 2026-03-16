@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 
@@ -141,7 +142,7 @@ func checkVersionAgainstApt(tb testing.TB, event *model.Event, pkgName string) {
 func buildDebianVersion(version, release string, epoch int) string {
 	v := version + "-" + release
 	if epoch > 0 {
-		v = fmt.Sprintf("%d:%s", epoch, v)
+		v = strconv.Itoa(epoch) + ":" + v
 	}
 	return v
 }

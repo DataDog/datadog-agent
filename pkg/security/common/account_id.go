@@ -67,7 +67,7 @@ func QueryAccountIDTag() string {
 			log.Errorf("failed to query account id: %v", err)
 			return
 		}
-		accountIDTagCache.value = fmt.Sprintf("%s:%s", tagName, tagValue)
+		accountIDTagCache.value = tagName + ":" + tagValue
 	})
 
 	return accountIDTagCache.value

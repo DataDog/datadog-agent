@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Evaluator is a string representing the type of evaluator that produced the

@@ -88,7 +88,11 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 	publisherMetadataCache := publishermetadatacache.New(evtapi)
 
 	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, registry, publisherMetadataCache)
-	tailer.Start(bookmark)
+	// Pre-seed registry with provided bookmark, if any, to simulate restart-from-bookmark behavior
+	if bookmark != "" {
+		registry.SetOffset(tailer.Identifier(), bookmark)
+	}
+	tailer.Start()
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		if source.Status.IsSuccess() {
 			return nil, nil

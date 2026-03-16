@@ -37,17 +37,25 @@ config_setting(
 )
 
 selects.config_setting_group(
-    name = "linux_heroku",
+    name = "linux_default",
     match_all = [
-        ":heroku_flavor",
+        ":base_flavor",
         "@platforms//os:linux",
     ],
 )
 
 selects.config_setting_group(
-    name = "linux_default",
+    name = "linux_fips",
     match_all = [
-        ":base_flavor",
+        ":fips_flavor",
+        "@platforms//os:linux",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_heroku",
+    match_all = [
+        ":heroku_flavor",
         "@platforms//os:linux",
     ],
 )

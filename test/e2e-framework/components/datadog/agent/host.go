@@ -331,7 +331,7 @@ func (h *HostAgent) writeFileDefinition(
 				&command.Args{
 					Create: pulumi.String(cmd),
 					Delete: pulumi.String(value.ResetPermissionsCommand(fullPath)),
-					Update: pulumi.String(value.ResetPermissionsCommand(fullPath)),
+					Update: pulumi.String(cmd),
 				},
 				utils.PulumiDependsOn(copyCmd))
 		}

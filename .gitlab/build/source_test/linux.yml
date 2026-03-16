@@ -40,6 +40,7 @@
     paths:
       - $TEST_OUTPUT_FILE
       - junit-*.tgz
+      - coverage.out
     reports:
       junit: "**/junit-out-*.xml"
       annotations:

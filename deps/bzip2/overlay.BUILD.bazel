@@ -1,10 +1,7 @@
 """Agent specific BUILD file for bzip2."""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -141,30 +138,12 @@ so_symlink(
     src = ":bz2",
     libname = "libbz2",
     version = VERSION,
-    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include",
-)
-
-expand_template(
-    name = "pc_file",
-    out = "bzip2.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@PREFIX@": "##PREFIX##",
-        "@VERSION@": VERSION,
-    },
-    template = ":bzip2.pc.in",
-)
-
-pkg_files(
-    name = "pkg_pc_file",
-    srcs = [":pc_file"],
-    prefix = "embedded/lib/pkgconfig",
+    prefix = "include",
 )
 
 pkg_filegroup(
@@ -173,6 +152,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -180,6 +160,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pkg_pc_file",
     ],
 )

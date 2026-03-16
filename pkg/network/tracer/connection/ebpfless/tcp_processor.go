@@ -185,8 +185,19 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
 		packetCanRetransmit := nextSeq != tcp.Seq
 		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, nextSeq) {
+			// Count only genuinely new data bytes. If the segment partially
+			// overlaps with previously-counted data (a retransmit that extends
+			// beyond our high-water mark), subtract the overlap. We compute
+			// from payloadLen rather than nextSeq because nextSeq includes
+			// virtual bytes for SYN/FIN flags that aren't real data.
+			var overlap uint64
+			if st.hasSentPacket && isSeqBefore(tcp.Seq, st.maxSeqSent) {
+				overlap = uint64(st.maxSeqSent - tcp.Seq)
+			}
+			if uint64(payloadLen) > overlap {
+				conn.Monotonic.SentBytes += uint64(payloadLen) - overlap
+			}
 			st.hasSentPacket = true
-			conn.Monotonic.SentBytes += uint64(payloadLen)
 			st.maxSeqSent = nextSeq
 
 			st.rttTracker.processOutgoing(timestampNs, nextSeq)

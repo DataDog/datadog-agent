@@ -31,7 +31,7 @@
 #define DENTRY_ERROR -3
 #define FAKE_INODE_MSW 0xdeadc001UL
 #define DR_MAX_TAIL_CALL 29
-#define DR_MAX_ITERATION_DEPTH 47
+#define DR_MAX_ITERATION_DEPTH 41
 #define DR_MAX_SEGMENT_LENGTH 255
 #define DR_NO_CALLBACK -1
 
@@ -273,6 +273,7 @@ enum link_target_dentry_origin {
 enum global_rate_limiter_type {
     RAW_PACKET_FILTER_LIMITER = 0,
     RAW_PACKET_ACTION_LIMITER,
+    OPEN_SAMPLE_LIMITER,
 };
 
 enum PATH_ID_INVALIDATE_TYPE {

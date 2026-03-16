@@ -5,8 +5,6 @@ Before=datadog-agent.service datadog-agent-exp.service
 After=network.target sys-kernel-debug.mount
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-sysprobe-exp.service
-ConditionPathExists=|/etc/datadog-agent/system-probe.yaml
-ConditionPathExists=|/etc/datadog-agent/managed/datadog-agent/stable/system-probe.yaml
 
 [Service]
 Type=simple
@@ -14,7 +12,7 @@ PIDFile=/opt/datadog-agent/run/system-probe.pid
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
-ExecStart=/opt/datadog-agent/embedded/bin/system-probe run --config=/etc/datadog-agent/system-probe.yaml --pid=/opt/datadog-agent/run/system-probe.pid
+ExecStart=/opt/datadog-agent/embedded/bin/system-probe-lite -- /opt/datadog-agent/embedded/bin/system-probe run --config=/etc/datadog-agent/system-probe.yaml --pid=/opt/datadog-agent/run/system-probe.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

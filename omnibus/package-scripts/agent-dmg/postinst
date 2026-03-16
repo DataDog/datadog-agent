@@ -37,28 +37,10 @@ INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{pri
 # Otherwise, we hope he is using the install script and try to use this user
 # If it fails, no choice but to use root :'(
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
     rm -v /tmp/datadog-install-user || true
 fi
 echo "INSTALL_USER: $INSTALL_USER"
-
-# Function to show error based on installation method
-show_installation_error() {
-    local message="$1"
-    
-    # Always log to postinstall.log
-    echo "ERROR: $message"
-    
-    # Check if this is a GUI installation (CoreServices/Installer running)
-    if pgrep -f "CoreServices/Installer" > /dev/null 2>&1; then
-        # GUI installation - show dialog box
-        # Run as INSTALL_USER to display in their session
-        sudo -u "$INSTALL_USER" osascript -e "display dialog \"$message\" buttons {\"OK\"} default button \"OK\" with title \"Datadog Agent Installation Error\" with icon stop" 2>/dev/null || true
-    else
-        # Command-line installation - print to stderr for console visibility
-        echo "$message" >&2
-    fi
-}
 
 # Stop any running GUI instances before installation/upgrade
 # This prevents "Load failed" errors when KeepAlive=true
@@ -110,8 +92,23 @@ chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
 
 # Create separate world-writable directory ONLY for multi-user GUI sockets
 mkdir -vp "$RUN_DIR/ipc"
+# Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
+# or installation over a partial installation or partial cleanup of a previous installation.
+# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
+
+# Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
+# attempts after each installation (per-installation behavior). UserDefaults key is in
+# ~/Library/Preferences/com.datadoghq.agent.plist and survives reinstall otherwise.
+echo "# Resetting location permission prompt attempt count for all users"
+for user_home in /Users/*; do
+    [ -d "$user_home" ] || continue
+    user=$(basename "$user_home")
+    [ "$user" = "Shared" ] && continue
+    sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
+done
 
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d
@@ -149,7 +146,7 @@ fi
 # Get the user home directory (needed for both installation modes)
 USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
 
-# Create agent plist unconditionally (both modes need it)
+# Create agent plist (both modes need it)
 # For system-wide: install_mac_os.sh will move it to /Library/LaunchDaemons/
 # For per-user: it stays in ~/Library/LaunchAgents/
 echo "# Configuring the agent as a launchd service"
@@ -193,24 +190,7 @@ else
   # Per-user installation: Install GUI for current user
   echo "# Configuring GUI for per-user installation"
 
-  # Check if system-wide installation exists
-  if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
-      show_installation_error "System-wide agent installation detected at:
-    /Library/LaunchDaemons/com.datadoghq.agent.plist
-
-Cannot proceed with per-user installation.
-
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-
-Then rerun this installation."
-      exit 1
-  fi
-
   # Clean up stale system-wide marker if present (prevents headless mode in per-user install)
-  # Only reached if no system-wide installation detected above
   rm -rf /tmp/install-ddagent
 
   # Error if app not properly installed or root

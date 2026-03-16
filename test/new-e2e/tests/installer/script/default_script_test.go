@@ -14,7 +14,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
@@ -99,7 +99,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
-		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
 	}
@@ -152,7 +151,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 				s.T().Fatalf("config key api_key differs in file %s (not logging values)", file)
 			}
 		}
-		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs", file)
+		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs, %s VS %s", file, installerScriptConfig, agent7Config)
 	}
 }
 

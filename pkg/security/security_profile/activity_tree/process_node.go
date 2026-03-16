@@ -119,7 +119,7 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	builder.WriteString("</FONT></TD></TR>")
 
 	if len(pn.Process.FileEvent.PkgName) != 0 {
-		builder.WriteString("<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>")
+		builder.WriteString("<TR><TD>Package</TD><TD>" + pn.Process.FileEvent.PkgName + ":" + pn.Process.FileEvent.PkgVersion + "</TD></TR>")
 	}
 	// add hashes
 	if len(pn.Process.FileEvent.Hashes) > 0 {

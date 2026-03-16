@@ -138,8 +138,10 @@ func newWorkerWithOptions(
 	}, nil
 }
 
-// Run waits for checks and run them as long as they arrive on the channel
-func (w *Worker) Run() {
+// Run waits for checks and run them as long as they arrive on the channel.
+// The provided ctx is used for cancellable operations such as hostname resolution;
+// it should be cancelled when the agent shuts down.
+func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
@@ -206,7 +208,7 @@ func (w *Worker) Run() {
 		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
-		hname, _ := hostname.Get(context.TODO())
+		hname, _ := hostname.Get(ctx)
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))

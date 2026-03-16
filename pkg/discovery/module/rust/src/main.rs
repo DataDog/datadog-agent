@@ -37,7 +37,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
@@ -95,7 +95,7 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
         })
         .context("failed to remove existing socket")?;
 
-    let sock = UnixListener::bind(socket_path).context("could not create sd-agent.sock")?;
+    let sock = UnixListener::bind(socket_path).context("could not create socket")?;
     std::fs::set_permissions(socket_path, Permissions::from_mode(0o720))
         .context("could not set socket permissions")?;
 
@@ -143,7 +143,7 @@ async fn handle_services(
     };
 
     let services = get_services(params);
-    info!("Found {} services", services.services.len());
+    debug!("Found {} services", services.services.len());
 
     Response::builder()
         .header("Content-Type", "application/json")
@@ -199,7 +199,7 @@ async fn handle_request(
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
-            info!("Handling /discovery/services request");
+            debug!("Handling /discovery/services request");
             handle_services(req).await
         }
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
@@ -224,7 +224,10 @@ fn fallback_to_system_probe(binary_path: &Path, args: &[String]) -> Result<()> {
     Err(anyhow!("Failed to exec: {}", err))
 }
 
-async fn run_sd_agent(config: Option<yaml_rust2::Yaml>, pid_path: Option<PathBuf>) -> Result<()> {
+async fn run_system_probe_lite(
+    config: Option<yaml_rust2::Yaml>,
+    pid_path: Option<PathBuf>,
+) -> Result<()> {
     let socket_path = config::get_sysprobe_socket_path(&config);
     info!("Using sysprobe socket path: {}", socket_path);
     let sock = setup_socket(&socket_path).context("Failed to setup Unix socket")?;
@@ -301,12 +304,17 @@ async fn main() -> Result<()> {
     let args = Args::parse(env::args());
     let config = config::load_config(args.config_path);
     let log_level = config::get_log_level(&config);
-    simple_logger::init_with_level(log_level)?;
+    let log_file_path = config::get_log_file(&config);
+    dd_agent_log::init(dd_agent_log::LogConfig {
+        logger_name: "SYS-PROBE-LITE",
+        level: log_level,
+        log_file: Some(std::path::PathBuf::from(log_file_path)),
+    })?;
     info!("Log level set to: {:?}", log_level);
 
     // Handle fallback decision if fallback binary is configured
     if let Some(fallback_binary) = &args.fallback_binary {
-        // Do this check regardless of whether we're running sd-agent or not
+        // Do this check regardless of whether we're running system-probe-lite or not
         // since we may need it at some point if we fallback to system-probe and
         // we don't want to fail startup during another invocation.
         if !fallback_binary.exists() {
@@ -326,18 +334,18 @@ async fn main() -> Result<()> {
                 info!("Discovery is disabled and no other configuration is present. Exiting.");
                 return Ok(());
             }
-            config::FallbackDecision::RunSdAgent => {
-                info!("Only discovery module enabled. Running sd-agent.");
+            config::FallbackDecision::RunSystemProbeLite => {
+                info!("Only discovery module enabled. Running system-probe-lite.");
             }
         }
     }
 
-    // Convert Result<Option<Yaml>> to Option<Yaml> for run_sd_agent.
+    // Convert Result<Option<Yaml>> to Option<Yaml> for run_system_probe_lite.
     let config = config.ok().flatten();
 
-    // Run sd-agent server
-    info!("Starting sd-agent");
-    let result = run_sd_agent(config, args.pid_path.clone()).await;
+    // Run system-probe-lite server
+    info!("Starting system-probe-lite");
+    let result = run_system_probe_lite(config, args.pid_path.clone()).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)

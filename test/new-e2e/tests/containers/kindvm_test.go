@@ -13,7 +13,6 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
@@ -44,6 +43,11 @@ clusterAgent:
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
 				kubernetesagentparams.WithHelmValues(helmValues),
+				kubernetesagentparams.WithHelmValues(containerHelmValues),
+				// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
+				// (legacy) Endpoints providers. This covers tests for both without having to create
+				// independent test suites for both configurations or modify providers at test runtime.
+				kubernetesagentparams.WithKubernetesUseEndpointSlices(),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),
@@ -92,6 +96,21 @@ func (suite *kindSuite) TestControlPlane() {
 			Tags: &[]string{
 				`^contentType:`,
 			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kube_apiserver.api_resource",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^api_resource_kind:.*`,
+				`^api_resource_group:.*`,
+				`^api_resource_version:.*`,
+				`^api_resource_name:.*`,
+			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 

@@ -60,7 +60,15 @@ const (
 	envDataJobsEnabled             = "DD_DATA_JOBS_ENABLED"
 	envAppsecScaEnabled            = "DD_APPSEC_SCA_ENABLED"
 	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
+	envAppKey                      = "DD_APP_KEY"
+	envPAREnabled                  = "DD_PRIVATE_ACTION_RUNNER_ENABLED"
+	envPARActionsAllowlist         = "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"
 	envTracerLogsCollectionEnabled = "DD_APP_LOGS_COLLECTION_ENABLED"
+	envRumEnabled                  = "DD_RUM_ENABLED"
+	envRumApplicationID            = "DD_RUM_APPLICATION_ID"
+	envRumClientToken              = "DD_RUM_CLIENT_TOKEN"
+	envRumRemoteConfigurationID    = "DD_RUM_REMOTE_CONFIGURATION_ID"
+	envRumSite                     = "DD_RUM_SITE"
 )
 
 // Windows MSI options
@@ -105,6 +113,11 @@ var defaultEnv = Env{
 		IastEnabled:               nil,
 		DataJobsEnabled:           nil,
 		AppsecScaEnabled:          nil,
+		RumEnabled:                nil,
+		RumApplicationID:          "",
+		RumClientToken:            "",
+		RumRemoteConfigurationID:  "",
+		RumSite:                   "",
 	},
 }
 
@@ -151,6 +164,13 @@ type InstallScriptEnv struct {
 	DataJobsEnabled             *bool
 	AppsecScaEnabled            *bool
 	TracerLogsCollectionEnabled *bool
+
+	// RUM configuration
+	RumEnabled               *bool
+	RumApplicationID         string
+	RumClientToken           string
+	RumRemoteConfigurationID string
+	RumSite                  string
 }
 
 // Env contains the configuration for the installer.
@@ -191,6 +211,10 @@ type Env struct {
 	NoProxy    string
 
 	InfrastructureMode string
+
+	AppKey              string
+	PAREnabled          bool
+	PARActionsAllowlist string
 
 	IsCentos6 bool
 
@@ -272,6 +296,11 @@ func FromEnv() *Env {
 			DataJobsEnabled:             getBoolEnv(envDataJobsEnabled),
 			AppsecScaEnabled:            getBoolEnv(envAppsecScaEnabled),
 			TracerLogsCollectionEnabled: getBoolEnv(envTracerLogsCollectionEnabled),
+			RumEnabled:                  getBoolEnv(envRumEnabled),
+			RumApplicationID:            getEnvOrDefault(envRumApplicationID, ""),
+			RumClientToken:              getEnvOrDefault(envRumClientToken, ""),
+			RumRemoteConfigurationID:    getEnvOrDefault(envRumRemoteConfigurationID, ""),
+			RumSite:                     getEnvOrDefault(envRumSite, ""),
 		},
 
 		Tags: append(
@@ -285,6 +314,10 @@ func FromEnv() *Env {
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
 
 		InfrastructureMode: os.Getenv(envInfrastructureMode),
+
+		AppKey:              os.Getenv(envAppKey),
+		PAREnabled:          strings.ToLower(os.Getenv(envPAREnabled)) == "true",
+		PARActionsAllowlist: os.Getenv(envPARActionsAllowlist),
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
@@ -317,6 +350,11 @@ func (e *InstallScriptEnv) ToEnv(env []string) []string {
 	env = appendBoolEnv(env, envIastEnabled, e.IastEnabled)
 	env = appendBoolEnv(env, envDataJobsEnabled, e.DataJobsEnabled)
 	env = appendBoolEnv(env, envAppsecScaEnabled, e.AppsecScaEnabled)
+	env = appendBoolEnv(env, envRumEnabled, e.RumEnabled)
+	env = appendStringEnv(env, envRumApplicationID, e.RumApplicationID, "")
+	env = appendStringEnv(env, envRumClientToken, e.RumClientToken, "")
+	env = appendStringEnv(env, envRumRemoteConfigurationID, e.RumRemoteConfigurationID, "")
+	env = appendStringEnv(env, envRumSite, e.RumSite, "")
 	return env
 }
 
@@ -367,6 +405,11 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
 	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
 	env = appendStringEnv(env, envInfrastructureMode, e.InfrastructureMode, "")
+	if e.PAREnabled {
+		env = appendStringEnv(env, envAppKey, e.AppKey, "")
+		env = append(env, envPAREnabled+"=true")
+		env = appendStringEnv(env, envPARActionsAllowlist, e.PARActionsAllowlist, "")
+	}
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
 		// This is a bit of a hack; as we should properly redirect the log level

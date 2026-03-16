@@ -222,21 +222,20 @@ func getTaggerList(w http.ResponseWriter, _ *http.Request, taggerComp tagger.Com
 }
 
 func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
 
-	response := wmeta.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
+	jsonDump, err := workloadmeta.BuildWorkloadResponse(
+		wmeta,
+		params.Get("verbose") == "true",
+		params.Get("search"),
+		params.Get("format") == "json",
+	)
 	if err != nil {
-		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to build workload list response: %v", err), 500)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonDump)
 }
 

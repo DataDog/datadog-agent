@@ -21,7 +21,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.collector import OCB_VERSION
+from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -46,9 +46,8 @@ from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
-# TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
 
 
@@ -312,6 +311,14 @@ def test(
     if os.environ.get("FLAKY_PATTERNS_CONFIG"):
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'w') as f:
             f.write("{}")
+
+    if race:
+        gorace = os.getenv("GORACE", "")
+        if "atexit_sleep_ms" not in gorace:
+            # https://go.dev/doc/articles/race_detector#Options
+            # The default is 1000ms, which adds minutes to the full test run
+            gorace += " atexit_sleep_ms=50"
+            env["GORACE"] = gorace.strip()
 
     if result_json and os.path.isfile(result_json):
         # Remove existing file since we append to it.
@@ -941,19 +948,20 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    # Get Go version from upstream (e.g., "1.24")
-    upstream_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
+    # Get Go version from upstream (e.g., "1.24" or "1.24.0")
+    upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
     upstream_matches = re.findall(upstream_pattern, r.text, flags=re.MULTILINE)
     if len(upstream_matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
-    upstream_major_minor = upstream_matches[0]
+    upstream_go_version = upstream_matches[0]
 
-    # Expected version for local modules is the upstream version with .0 patch (e.g., "1.24.0")
-    expected_local_version = f"{upstream_major_minor}.0"
+    expected_local_version = upstream_go_version
+    if expected_local_version.count('.') == 1:
+        expected_local_version += '.0'
 
     # Pattern to match major.minor.patch format in local modules
-    local_pattern = f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$"
+    local_pattern = f"^go ({PATTERN_MAJOR_MINOR}\\.\\d+)\r?$"
 
     # Collect all errors instead of failing at the first one
     format_errors = []
@@ -980,7 +988,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_major_minor})"
+                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

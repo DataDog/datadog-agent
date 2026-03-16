@@ -80,6 +80,14 @@ func TestTagMatcher(t *testing.T) {
 			Tags:   []string{"env", "host"},
 			Action: "include",
 		},
+		"metric3": {
+			Tags:   []string{},
+			Action: "include",
+		},
+		"metric4": {
+			Tags:   []string{},
+			Action: "exclude",
+		},
 	}
 
 	matcher := newTagMatcher(metrics)
@@ -100,7 +108,23 @@ func TestTagMatcher(t *testing.T) {
 	assert.True(t, keepTagFunc("host:server1"))
 	assert.False(t, keepTagFunc("version:1.0"))
 
-	// metric3 is not configured
-	_, shouldStrip = matcher.ShouldStripTags("metric3")
+	// Test metric3 tags are all excluded
+	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric3")
+	assert.True(t, shouldStrip)
+
+	assert.False(t, keepTagFunc("env:prod"))
+	assert.False(t, keepTagFunc("host:server1"))
+	assert.False(t, keepTagFunc("version:1.0"))
+
+	// Test metric4 tags are all included
+	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric4")
+	if shouldStrip { // 2 behaviors are acceptable: return true with a function that keeps all tags, or return false
+		assert.True(t, keepTagFunc("env:prod"))
+		assert.True(t, keepTagFunc("host:server1"))
+		assert.True(t, keepTagFunc("version:1.0"))
+	}
+
+	// metric5 is not configured
+	_, shouldStrip = matcher.ShouldStripTags("metric5")
 	assert.False(t, shouldStrip)
 }

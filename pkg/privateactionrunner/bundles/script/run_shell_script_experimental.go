@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build private_runner_experimental
+//go:build private_runner_experimental && !windows
 
 package com_datadoghq_script
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -81,16 +80,21 @@ func (h *RunShellScriptHandler) Run(
 		return nil, fmt.Errorf("failed to set script file permissions: %w", err)
 	}
 
-	cmd := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
-
-	var stdoutBuffer bytes.Buffer
-	cmd.Stdout = &stdoutBuffer
-	var stderrBuffer bytes.Buffer
-	cmd.Stderr = &stderrBuffer
+	cmd, err := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
+	if err != nil {
+		return nil, fmt.Errorf("invalid command arguments: %w", err)
+	}
+	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(maxOutputSize)
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
 	start := time.Now()
 	err = cmd.Run()
 
-	stdErr := sanitizeErrorMessage(scriptFile.Name(), stderrBuffer.String())
+	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
+		return nil, newOutputLimitError(defaultMaxOutputSize)
+	}
+
+	stdErr := sanitizeErrorMessage(scriptFile.Name(), stderrWriter.String())
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -104,12 +108,12 @@ func (h *RunShellScriptHandler) Run(
 	return &RunShellScriptOutputs{
 		ExecutedCommand: cmd.String(),
 		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatOutput(stdoutBuffer.String(), inputs.NoStripTrailingNewline),
+		Stdout:          formatOutput(stdoutWriter.String(), inputs.NoStripTrailingNewline),
 		Stderr:          formatOutput(stdErr, inputs.NoStripTrailingNewline),
 		DurationMillis:  int(time.Since(start).Milliseconds()),
 	}, nil
 }
 
 func sanitizeErrorMessage(scriptFile, errMsg string) string {
-	return strings.ReplaceAll(errMsg, fmt.Sprintf("%s: ", scriptFile), "")
+	return strings.ReplaceAll(errMsg, scriptFile+": ", "")
 }

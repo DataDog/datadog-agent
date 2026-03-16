@@ -75,7 +75,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 		go func() {
 			for i := 0; i < 1000; i++ {
 				id := types.NewEntityID("", ids[rand.Intn(nEntities)])
-				store.Lookup(id, types.HighCardinality)
+				store.LookupHashed(id, types.HighCardinality)
 			}
 			wg.Done()
 		}()

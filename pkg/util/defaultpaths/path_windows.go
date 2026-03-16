@@ -80,7 +80,7 @@ func fetchInstallPath() string {
 		defer k.Close()
 		s, _, err := k.GetStringValue("InstallPath")
 		if err != nil {
-			log.Warnf("Installpath not found in registry: %s", err)
+			log.Debugf("Installpath not found in registry: %s", err)
 		} else if s != "" {
 			return s
 		}
@@ -104,4 +104,9 @@ func GetDistPath() string {
 // GetDefaultConfPath returns the fully qualified directory path where the agent looks for the datadog.yaml config
 func GetDefaultConfPath() string {
 	return ConfPath
+}
+
+// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
+func GetEmbeddedBinPath() string {
+	return filepath.Join(GetInstallPath(), "bin")
 }

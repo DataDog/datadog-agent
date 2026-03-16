@@ -6,9 +6,7 @@
 // Package payload defines common trace payload interfaces and types
 package payload
 
-import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-)
+import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 // TracerPayloadModifier is an interface that allows tracer implementations to
 // modify a TracerPayload as it is processed in the Agent's Process method.

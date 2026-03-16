@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,6 +54,7 @@ type cliParams struct {
 	// subcommand-specific flags
 	customerEmail string
 	autoconfirm   bool
+	keepArchive   bool
 }
 
 // MakeCommand returns the flare subcommand for the 'otel-agent' command.
@@ -70,25 +70,26 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			cliParams.GlobalParams = globalParams
 			cliParams.args = args
 
+			flareParams := flare.NewLocalParams(
+				"", // distPath - not used for OTel Agent
+				"", // pyChecksPath - not used for OTel Agent
+				"", // logFilePath - not used for OTel Agent
+				"", // jmxLogFilePath - not used for OTel Agent
+				"", // dogstatsDLogFilePath - not used for OTel Agent
+				"", // streamlogsLogFilePath - not used for OTel Agent
+			)
+			flareParams.KeepArchiveAfterSend = cliParams.keepArchive
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigName(globalParams.ConfigName)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
 				}),
-				flare.Module(flare.NewLocalParams(
-					"", // distPath - not used for OTel Agent
-					"", // pyChecksPath - not used for OTel Agent
-					"", // logFilePath - not used for OTel Agent
-					"", // jmxLogFilePath - not used for OTel Agent
-					"", // dogstatsDLogFilePath - not used for OTel Agent
-					"", // streamlogsLogFilePath - not used for OTel Agent
-				)),
-				core.Bundle(),
+				flare.Module(flareParams),
+				core.Bundle(core.WithSecrets()),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
 				// Provide required modules
-				secretfx.Module(),
 				ipcfx.ModuleInsecure(),
 			)
 		},
@@ -96,6 +97,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 
 	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().BoolVar(&cliParams.keepArchive, "keep-archive", false, "Keep the flare archive file after a successful upload")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return flareCmd
@@ -150,10 +152,7 @@ func makeFlare(
 	// Upload flare
 	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
-	if e != nil {
-		return e
-	}
-	return nil
+	return e
 }
 
 // createOTelFlare collects diagnostic data and creates a flare archive

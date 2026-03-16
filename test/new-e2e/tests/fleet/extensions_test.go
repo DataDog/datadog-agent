@@ -6,17 +6,28 @@
 package fleet
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+)
+
+const (
+	stagingAgentVersion    = "7.78.0~beta~fleet~ext"   // apt/rpm install script version
+	stagingAgentOCIVersion = "7.78.0-beta-fleet-ext-1" // OCI registry tag
 )
 
 type extensionsSuite struct {
@@ -30,7 +41,7 @@ func newExtensionsSuite() e2e.Suite[environments.Host] {
 }
 
 func TestFleetExtensions(t *testing.T) {
-	suite.Run(t, newExtensionsSuite, suite.AllPlatforms)
+	suite.Run(t, newExtensionsSuite, suite.Platforms())
 }
 
 func (s *extensionsSuite) SetupSuite() {
@@ -151,7 +162,110 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 	s.Require().True(exists, "Extension should be restored at %s", extensionPath)
 }
 
+// TestExtensionSurvivesExperiment verifies that extensions installed on the
+// datadog-agent package survive an upgrade via the experiment (start/promote) flow.
+func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
+	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+	s.verifyDDOTRunning()
+	initialDDOTVersion := s.getDDOTAgentVersion()
+	s.setInstallerRegistryConfig()
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	s.verifyDDOTRunning()
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	s.verifyDDOTRunning()
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
+}
+
+// TestExtensionRestoredAfterExperimentRollback verifies that extensions are
+// restored to their stable state when an experiment is stopped (rolled back).
+func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping test on Windows -- incident-50789")
+	}
+	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	s.verifyDDOTRunning()
+	initialDDOTVersion := s.getDDOTAgentVersion()
+	s.setInstallerRegistryConfig()
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	s.verifyDDOTRunning()
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
+
+	err = s.Backend.StopExperiment("datadog-agent")
+	s.Require().NoError(err)
+	s.verifyDDOTRunning()
+	s.Require().Equal(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be restored to initial version after rollback")
+}
+
+// TestDDOTAutoInstalledWithEnvVar verifies that when DD_OTELCOLLECTOR_ENABLED=true is set
+// during a fresh agent install, the DDOT extension is automatically installed and running
+// by the postinstall hook — without any explicit extension install call.
+func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
+	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
+	defer s.Agent.MustUninstall()
+
+	s.verifyDDOTRunning()
+}
+
+// TestDDOTExtension tests installing DDOT as an extension on all platforms
+func (s *extensionsSuite) TestDDOTExtension() {
+	// Install base agent
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(s.getAgentPackageURL(""), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	// Verify DDOT is running via status
+	s.verifyDDOTRunning()
+
+	// Remove extension
+	s.Installer.MustRemoveExtension("datadog-agent", "ddot")
+
+	// Platform-specific cleanup verification
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.WindowsFamily:
+		s.verifyDDOTServiceRemoved()
+	}
+}
+
 // Helper methods
+
+// setInstallerRegistryConfig appends the installer registry URL to datadog.yaml.
+// It is idempotent: it will not append the URL if it is already present.
+func (s *extensionsSuite) setInstallerRegistryConfig() {
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		_, err := s.Env().RemoteHost.Execute(`grep -q "installtesting.datad0g.com.internal.dda-testing.com" /etc/datadog-agent/datadog.yaml || sudo sh -c 'printf "\ninstaller:\n  registry:\n    url: installtesting.datad0g.com.internal.dda-testing.com\n" >> /etc/datadog-agent/datadog.yaml'`)
+		s.Require().NoError(err)
+	case e2eos.WindowsFamily:
+		_, err := s.Env().RemoteHost.Execute("if (-not (Select-String -Path \"C:\\ProgramData\\Datadog\\datadog.yaml\" -Pattern \"installtesting.datad0g.com.internal.dda-testing.com\" -Quiet)) { Add-Content \"C:\\ProgramData\\Datadog\\datadog.yaml\" -Value (\"`ninstaller:`n  registry:`n    url: installtesting.datad0g.com.internal.dda-testing.com\") }")
+		s.Require().NoError(err)
+	}
+}
 
 // getExtensionPath returns the path to an extension directory.
 // It uses the same logic as pkg/fleet/installer/packages/extensions/extensions.go:getExtensionsPath
@@ -168,4 +282,73 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 		return ""
 	}
 	return filepath.Join(basePath, "ext", extensionName)
+}
+
+// getStagingAgentPackageURL returns the OCI URL for the staging agent package
+func (s *extensionsSuite) getStagingAgentPackageURL() string {
+	return "oci://install.datad0g.com.internal.dda-testing.com/agent-package:" + stagingAgentOCIVersion
+}
+
+// getAgentPackageURL returns the platform-specific agent package URL
+func (s *extensionsSuite) getAgentPackageURL(version string) string {
+	if version == "" {
+		// Use pipeline-specific URL for E2E tests
+		version = os.Getenv("E2E_PIPELINE_ID")
+		if version == "" {
+			s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
+		}
+	}
+	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + version
+}
+
+// getDDOTAgentVersion returns the DDOT AgentVersion from the agent status.
+// Must be called after verifyDDOTRunning to ensure the version field is populated.
+func (s *extensionsSuite) getDDOTAgentVersion() string {
+	status, err := s.Agent.Status()
+	s.Require().NoError(err, "failed to get agent status")
+	return status.OtelAgent.AgentVersion
+}
+
+// verifyDDOTRunning verifies DDOT is running via agent status
+func (s *extensionsSuite) verifyDDOTRunning() {
+	isDDOTRunning := assert.Eventually(s.T(), func() bool {
+		status, err := s.Agent.Status()
+		if err != nil {
+			return false
+		}
+
+		// Check that DDOT is not in error state
+		if status.OtelAgent.Error != "" {
+			s.T().Logf("DDOT error: %s", status.OtelAgent.Error)
+			return false
+		}
+
+		// Verify required fields are present
+		if status.OtelAgent.AgentVersion == "" || status.OtelAgent.CollectorVersion == "" {
+			s.T().Logf("Missing DDOT version info")
+			return false
+		}
+
+		return true
+	}, 2*time.Minute, 1*time.Second, "DDOT should be running and reporting status")
+	if !isDDOTRunning {
+		s.T().Fatalf("DDOT is not running")
+	}
+
+	// Log version info for debugging
+	status, _ := s.Agent.Status()
+	s.T().Logf("DDOT AgentVersion: %s, CollectorVersion: %s",
+		status.OtelAgent.AgentVersion, status.OtelAgent.CollectorVersion)
+}
+
+// verifyDDOTServiceRemoved verifies DDOT service removal on Windows
+func (s *extensionsSuite) verifyDDOTServiceRemoved() {
+	// Wait for service to be removed
+	isDDOTRemoved := assert.Eventually(s.T(), func() bool {
+		output, err := s.Env().RemoteHost.Execute(`$svc = Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
+		return err == nil && strings.Contains(output, "NotFound")
+	}, 30*time.Second, 1*time.Second, "DDOT service should be removed")
+	if !isDDOTRemoved {
+		s.T().Fatalf("DDOT service should be removed")
+	}
 }

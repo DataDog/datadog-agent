@@ -65,7 +65,7 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 		return nil, err
 	}
 
-	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", k8s.NewNginxServiceManifest(namespace), opts...); err != nil {
+	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", k8s.NewNginxServiceManifest(namespace, 80), opts...); err != nil {
 		return nil, err
 	}
 

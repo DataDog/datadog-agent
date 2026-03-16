@@ -192,7 +192,9 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 func logEvictingID(containerID network.ContainerID) {
 	containerStr := "host"
 	if containerID != nil {
-		containerStr = containerID.Get().(string)
+		if s, ok := containerID.Get().(string); ok {
+			containerStr = s
+		}
 	}
 	log.Tracef("CNM ContainerStore evicting ID %s", containerStr)
 }

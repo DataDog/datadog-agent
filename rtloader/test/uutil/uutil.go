@@ -36,7 +36,23 @@ import "C"
 var (
 	rtloader *C.rtloader_t
 	tmpfile  *os.File
+	stdout       string
+	stderr       string
+	setException bool
+	exception    string
+	retCode      int
+	args         []string
+	env          []string
 )
+
+func resetTest() {
+	stdout = ""
+	stderr = ""
+	setException = false
+	exception = ""
+	retCode = 0
+	args = nil
+}
 
 func setUp() error {
 	// Initialize memory tracking
@@ -54,9 +70,6 @@ func setUp() error {
 	}
 
 	C.init_utilTests(rtloader)
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))

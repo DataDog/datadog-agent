@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
@@ -54,4 +55,12 @@ func GetInstallPath() string {
 // GetDefaultConfPath returns the fully qualified directory path where the agent looks for the datadog.yaml config
 func GetDefaultConfPath() string {
 	return ConfPath
+}
+
+// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
+func GetEmbeddedBinPath() string {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return GetInstallPath()
+	}
+	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }

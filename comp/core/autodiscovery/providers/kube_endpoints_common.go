@@ -9,6 +9,7 @@ package providers
 
 import (
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -39,6 +40,25 @@ func getEndpointResolveFunc(resolveMode endpointResolveMode, namespace, name str
 		// Unknown value: log warning and fallback to auto mode
 		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - falling back to auto mode", resolveMode, namespace, name)
 		resolveFunc = utils.ResolveEndpointConfigAuto
+	}
+
+	return resolveFunc
+}
+
+// getEndpointResolveFuncForSlice returns a function that resolves the endpoint address for EndpointSlices
+func getEndpointResolveFuncForSlice(resolveMode endpointResolveMode, namespace, name string) func(*integration.Config, discv1.Endpoint) {
+	var resolveFunc func(*integration.Config, discv1.Endpoint)
+
+	switch resolveMode {
+	case kubeEndpointResolveIP:
+		// IP: we explicitly ignore what's behind this address (nothing to do)
+
+	case "", kubeEndpointResolveAuto:
+		// Auto or empty (default to auto): we try to resolve the POD behind this address
+		resolveFunc = utils.ResolveEndpointSliceConfigAuto
+	default:
+		log.Warnf("Unknown resolve mode %s for service %s/%s, defaulting to auto", resolveMode, namespace, name)
+		resolveFunc = utils.ResolveEndpointSliceConfigAuto
 	}
 
 	return resolveFunc

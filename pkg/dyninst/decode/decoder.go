@@ -19,7 +19,6 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -44,6 +43,14 @@ type TypeNameResolver interface {
 	ResolveTypeName(typeID gotype.TypeID) (string, error)
 }
 
+// MissingTypeCollector receives notifications about types that were
+// encountered at runtime in interfaces but were not included in the IR
+// program's type registry. Implementations must be safe for use from a
+// single goroutine (the decoder is not thread-safe).
+type MissingTypeCollector interface {
+	RecordMissingType(typeName string)
+}
+
 // GoTypeNameResolver is a TypeNameResolver that uses a gotype.Table to resolve
 // type names.
 type GoTypeNameResolver gotype.Table
@@ -66,6 +73,12 @@ func (r *GoTypeNameResolver) ResolveTypeName(typeID gotype.TypeID) (string, erro
 	return t.Name().Name(), nil
 }
 
+// noopMissingTypeCollector is a no-op implementation of MissingTypeCollector
+// used when no collector is provided.
+type noopMissingTypeCollector struct{}
+
+func (noopMissingTypeCollector) RecordMissingType(string) {}
+
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
@@ -83,6 +96,7 @@ type Decoder struct {
 	entryOrLine captureEvent
 	_return     captureEvent
 	line        lineCaptureData
+	messageData messageData
 }
 
 // ReportStackPCs reports the program counters of the stack trace for a
@@ -155,21 +169,28 @@ type typeAndAddr struct {
 
 // Decode decodes the output Event from the BPF program into a JSON format
 // the `output` parameter is appended to and returned as the final output.
-// It is not thread-safe.
+// It is not thread-safe. If missingTypes is nil, missing types are silently
+// ignored.
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
+	missingTypes MissingTypeCollector,
 	buf []byte,
 ) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
+	if missingTypes == nil {
+		missingTypes = noopMissingTypeCollector{}
+	}
+	d.entryOrLine.missingTypeCollector = missingTypes
+	d._return.missingTypeCollector = missingTypes
 	defer func() {
 		r := recover()
 		switch r := r.(type) {
 		case nil:
 		case error:
-			err = pkgerrors.Wrap(r, "Decode: panic")
+			err = fmt.Errorf("Decode: panic: %w", r)
 		default:
-			err = pkgerrors.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
+			err = fmt.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 	probe, err = d.message.init(d, event, symbolicator)
@@ -198,7 +219,7 @@ func (d *Decoder) Decode(
 			enc.Reset(b)
 			continue
 		} else if err != nil {
-			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+			return buf, probe, fmt.Errorf("error marshaling snapshot message: %w", err)
 		}
 		break
 	}
@@ -208,15 +229,17 @@ func (d *Decoder) Decode(
 func (d *Decoder) resetForNextMessage() {
 	clear(d.entryOrLine.dataItems)
 	d.entryOrLine.clear()
+	d.entryOrLine.missingTypeCollector = nil
 	d.line.clear()
 	d._return.clear()
+	d._return.missingTypeCollector = nil
+	d.messageData = messageData{}
 	d.message = message{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
 // that are not present in the BPF program.
 type Event struct {
-	Probe       *ir.Probe
 	EntryOrLine output.Event
 	Return      output.Event
 	ServiceName string
@@ -229,7 +252,7 @@ type message struct {
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
 	Duration  uint64           `json:"duration,omitzero"`
-	Message   messageData      `json:"message,omitempty"`
+	Message   *messageData     `json:"message,omitempty"`
 }
 
 // populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
@@ -287,6 +310,11 @@ func (s *message) init(
 	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
+
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindLog {
+		s.Debugger.Type = payloadTypeSnapshot
+	}
+
 	header, err := event.EntryOrLine.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
@@ -371,7 +399,7 @@ func (s *message) init(
 		)
 	}
 
-	if probe.GetKind() == ir.ProbeKindSnapshot {
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindCaptureExpression {
 		stackHeader := header
 		if returnHeader != nil {
 			stackHeader = returnHeader
@@ -433,11 +461,12 @@ func (s *message) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 
 	if probe.Template != nil {
-		s.Message = messageData{
+		decoder.messageData = messageData{
 			entryOrLine: &decoder.entryOrLine,
 			_return:     &decoder._return,
 			template:    probe.Template,
 		}
+		s.Message = &decoder.messageData
 		if s.Duration != 0 {
 			s.Message.duration = &s.Duration
 		} else if durationMissingReason != nil {
