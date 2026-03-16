@@ -80,8 +80,8 @@ ENV DOCKER_DD_AGENT=true \
     S6_READ_ONLY_ROOT=1
 
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt update && \
-  apt full-upgrade -y \
+RUN apt update \
+  && apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
