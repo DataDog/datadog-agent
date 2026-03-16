@@ -3411,44 +3411,13 @@ func (s *TracerSuite) TestTCPRTOCount() {
 
 	tr := setupTracer(t, cfg)
 
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {
-		io.Copy(io.Discard, c)
-		c.Close()
-	})
-	t.Cleanup(server.Shutdown)
-	require.NoError(t, server.Run())
-
-	c, err := server.Dial()
-	require.NoError(t, err)
-	defer c.Close()
-
-	_, err = c.Write([]byte("initial data"))
-	require.NoError(t, err)
-	time.Sleep(100 * time.Millisecond)
-
-	// Induce RTO: drop packets and send data, then wait for RTO to fire
-	iptablesWrapper(t, func() {
-		_, err = c.Write([]byte("data during loss"))
-		require.NoError(t, err)
-		// RTO min is ~200ms with backoff 200, 400, 800, 1600...
-		// 2 seconds should give us 2-3 RTOs.
-		time.Sleep(2 * time.Second)
-	})
-
-	// Send after iptables restored to trigger a fresh congestion snapshot
-	_, err = c.Write([]byte("post-loss data"))
-	require.NoError(t, err)
-
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "connection not found") {
-			return
-		}
-		t.Logf("rto_count=%d", conn.Last.TCPRTOCount)
-		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
-	}, 5*time.Second, 100*time.Millisecond)
+	// Delay + high correlated loss prevents fast SACK recovery on loopback
+	// (where RTT is ~0), forcing the RTO timer to fire.
+	runNetemCongestionTest(t, tr, []string{"delay", "100ms", "loss", "30%", "50%"}, nil,
+		func(ct *assert.CollectT, conn *network.ConnectionStats) {
+			t.Logf("rto_count=%d", conn.Last.TCPRTOCount)
+			assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 with high correlated loss")
+		})
 }
 
 // runNetemCongestionTest is a helper for TCP congestion signal tests that use
@@ -3500,9 +3469,9 @@ func runNetemCongestionTest(
 	}, 30*time.Second, 500*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal by creating
-// moderate packet loss (via tc netem) that triggers SACK-based fast recovery
-// rather than full RTO timeout.
+// TestTCPRecoveryCount validates the recovery_count signal. Delay creates
+// enough in-flight packets on loopback for SACK to detect gaps; moderate loss
+// triggers fast recovery rather than full RTO timeout.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
@@ -3513,7 +3482,7 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 
 	tr := setupTracer(t, cfg)
 
-	runNetemCongestionTest(t, tr, []string{"loss", "5%"}, nil,
+	runNetemCongestionTest(t, tr, []string{"delay", "50ms", "loss", "10%"}, nil,
 		func(ct *assert.CollectT, conn *network.ConnectionStats) {
 			t.Logf("recovery_count=%d rto_count=%d", conn.Last.TCPRecoveryCount, conn.Last.TCPRTOCount)
 			assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0 with moderate packet loss")
