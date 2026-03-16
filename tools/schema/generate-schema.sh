@@ -24,6 +24,7 @@ mkdir -p $workdir/phase1
 mkdir -p $workdir/phase2
 mkdir -p $workdir/phase3
 mkdir -p $workdir/phase4
+mkdir -p $workdir/phase5
 
 #######
 # Phase 1: Run the agent command "createschema". It executes the code in
@@ -72,6 +73,19 @@ python ./generate_template.py \
   $workdir/phase3/core_schema_enriched.yaml \
   $workdir/phase3/system-probe_schema_enriched.yaml \
   $workdir/phase4/
+
+#######
+# Phase 5: Generate declare_settings code
+echo "Phase 5..."
+
+python ./analyzer.py \
+  --source ../setup/declare_settings.go \
+  --outhints $workdir/phase5/hints.json
+
+python ./generate_declare_settings.py \
+  --hints $workdir/phase5/hints.json \
+  --schema $workdir/phase3/core_schema_enriched.yaml \
+  --outsource $workdir/phase5/declare_settings_diff.go
 
 cd $cwd
 echo "Results in $workdir"
