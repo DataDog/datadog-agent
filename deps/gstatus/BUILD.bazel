@@ -25,6 +25,7 @@ genrule(
     srcs = ["@gstatus_binary//file"],
     outs = ["gstatus"],
     cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location @gstatus_binary//file:file) >$@",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(
