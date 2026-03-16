@@ -108,8 +108,8 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 // handleStateEndpoint is the handler for the /state endpoint.
 // Returns the internal state of the discovery module.
 func (s *discovery) handleStateEndpoint(w http.ResponseWriter, req *http.Request) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 
 	state := map[string]interface{}{
 		"implementation": "system-probe",
