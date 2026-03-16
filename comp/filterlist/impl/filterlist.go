@@ -175,7 +175,7 @@ func (fl *FilterList) GetTagFilterList() filterlistdef.TagMatcher {
 	return fl.tagFilterList
 }
 
-// GetMetricFilterList returns the current metric filterlistdef.
+// GetMetricFilterList returns the current metric filterlist.
 func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
