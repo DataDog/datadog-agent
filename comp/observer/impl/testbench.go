@@ -190,6 +190,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 			},
 		},
 		&ConnectionErrorExtractor{},
+		NewLogPatternExtractor(),
 	}
 
 	eng := newEngine(engineConfig{
@@ -558,7 +559,6 @@ func (r *parquetTraceStatRow) GetDurationNano() uint64       { return r.data.Dur
 func (r *parquetTraceStatRow) GetOkSummary() []byte          { return r.data.OkSummary }
 func (r *parquetTraceStatRow) GetErrorSummary() []byte       { return r.data.ErrorSummary }
 func (r *parquetTraceStatRow) GetPeerTags() []string         { return r.data.PeerTags }
-
 
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {

@@ -215,6 +215,7 @@ func NewComponent(deps Requires) Provides {
 			},
 		},
 		&ConnectionErrorExtractor{},
+		NewLogPatternExtractor(),
 	}
 
 	eng := newEngine(engineConfig{
