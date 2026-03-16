@@ -47,6 +47,6 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 		apm,
 	)
 	labelSelectors := NewLabelSelectors(NewLabelSelectorsConfig(datadogConfig))
-	return NewWebhook(config.Webhook, wmeta, mutator, labelSelectors)
+	return NewWebhook(config.Webhook, mutator, labelSelectors)
 
 }
