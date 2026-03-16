@@ -13,11 +13,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ddsite"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,43 +37,15 @@ const (
 	maxResponseBodySize = 1 * 1024 * 1024
 )
 
-// domainURLRegexp matches and captures known Datadog domains with optional protocol and trailing characters
-// Captures: protocol (optional), subdomain (ignored), regional prefix + base domain, trailing dot (optional)
-// Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com
-var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
-
-// getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., app.datad0g.com)
+// getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., api.datad0g.com)
 // for known Datadog domains. This ensures API operations use the correct subdomain.
 // If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged with a debug log.
 func getAPIDomain(endpoint string) string {
-	matches := domainURLRegexp.FindStringSubmatch(endpoint)
-	if matches == nil {
-		// Not a known Datadog domain pattern - this could be a custom endpoint or unexpected format
+	result := ddsite.GetAPIDomain(endpoint)
+	if result == endpoint {
 		log.Debugf("Endpoint '%s' does not match known Datadog domain pattern, using unchanged", endpoint)
-		return endpoint
 	}
-
-	// matches[1] = regional prefix (e.g., "us1.", "eu1.", or "")
-	// matches[2] = base domain name (e.g., "datadoghq", "datad0g", or "")
-	// matches[3] = TLD (e.g., "com", "eu", or "")
-	// matches[4] = gov cloud domain (e.g., "ddog-gov.com", or "")
-	// matches[5] = trailing dot (e.g., ".", or "")
-
-	var baseDomain string
-	if matches[4] != "" {
-		// Gov cloud domain
-		baseDomain = matches[4]
-	} else {
-		// Regular Datadog domain
-		baseDomain = matches[1] + matches[2] + "." + matches[3]
-	}
-
-	// Append trailing dot if present
-	if matches[5] != "" {
-		baseDomain += "."
-	}
-
-	return "https://api." + baseDomain
+	return result
 }
 
 // GetAPIKey performs the cloud auth exchange and returns an API key.

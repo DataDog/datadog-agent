@@ -154,6 +154,7 @@ use (
 	pkg/util/cgroups
 	pkg/util/common
 	pkg/util/compression
+	pkg/util/ddsite
 	pkg/util/containers/image
 	pkg/util/defaultpaths
 	pkg/util/executable

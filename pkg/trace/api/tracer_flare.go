@@ -15,14 +15,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/ddsite"
 )
 
 const (
 	serverlessFlareEndpointPath = "/api/ui/support/serverless/flare"
 )
 
-var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2,}\d{1,2})?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
-var ddNoSubDomainRegexp = regexp.MustCompile(`^(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 var versionNumsddURLRegexp = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
 
 type endpointGetter func(url *url.URL, agentVersion string) *url.URL
@@ -38,13 +37,12 @@ type tracerFlareTransport struct {
 func getServerlessFlareEndpoint(url *url.URL, agentVersion string) *url.URL {
 	// The DNS doesn't redirect to the proper endpoint when a subdomain is not present in the baseUrl.
 	// Adding app. subdomain here for site like datadoghq.com
-	if ddNoSubDomainRegexp.MatchString(url.Path) {
+	if ddsite.IsKnownSite(url.Path) {
 		url.Host = "app." + url.Path
 	}
 
-	if ddURLRegexp.MatchString(url.Host) {
-		// Following exisiting logic to prefixes the domain with the agent version
-		// https://github.com/DataDog/datadog-agent/blob/e9056abe94e8dbddd51bbc901036e7362442f02e/pkg/config/utils/endpoints.go#L129
+	// Only rewrite hosts that start with "app." and belong to a known DD domain.
+	if strings.HasPrefix(url.Host, "app.") && ddsite.IsKnownHost(url.Host) {
 		subdomain := strings.Split(url.Host, ".")[0]
 		versionNums := strings.Join(versionNumsddURLRegexp.FindStringSubmatch(agentVersion)[1:], "-")
 		newSubdomain := versionNums + "-flare"

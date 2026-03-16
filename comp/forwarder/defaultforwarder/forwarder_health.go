@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/ddsite"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -43,10 +44,6 @@ var (
 
 	apiKeyStatus  = expvar.Map{}
 	apiKeyFailure = expvar.Map{}
-
-	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
-	// with 'api.' (see computeDomainURLAPIKeyMap).
-	domainURLRegexp = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+|ddog-gov\.com)\.?$`)
 )
 
 func init() {
@@ -200,14 +197,22 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 	fh.checkValidAPIKeys(apiDomain, new)
 }
 
-func getAPIDomain(domain string) string {
-	if domainURLRegexp.MatchString(domain) {
-		match := domainURLRegexp.FindString(domain)
-		match = strings.TrimSuffix(match, ".")
-		return "https://api." + match
-	}
+// datadoghqAnyTLDRe extends the standard DD domain matching to also cover
+// datadoghq with non-standard TLDs (e.g. datadoghq.internal) for backward
+// compatibility.
+var datadoghqAnyTLDRe = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+)\.?$`)
 
-	return domain
+func getAPIDomain(domain string) string {
+	if result := ddsite.GetAPIDomain(domain); result != domain {
+		return result
+	}
+	// Fall back to broader datadoghq.{any-tld} matching for non-standard TLDs
+	// (e.g. datadoghq.internal).
+	match := datadoghqAnyTLDRe.FindString(domain)
+	if match == "" {
+		return domain
+	}
+	return "https://api." + strings.TrimSuffix(match, ".")
 }
 
 // computeDomainURLAPIKeyMap populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct

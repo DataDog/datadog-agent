@@ -158,6 +158,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../pkg/util/compression
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../pkg/util/containers/image
+	github.com/DataDog/datadog-agent/pkg/util/ddsite => ../../../pkg/util/ddsite
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../pkg/util/flavor

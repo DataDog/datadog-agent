@@ -9,10 +9,10 @@ package meta
 import (
 	_ "embed"
 	"encoding/json"
-	"strings"
 
 	"github.com/DataDog/go-tuf/data"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ddsite"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,11 +59,10 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 
 	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootDirector)
-	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
+	} else if ddsite.IsGovSite(site) {
 		return NewEmbeddedRoot(govRootDirector)
 	}
 	return NewEmbeddedRoot(prodRootDirector)
-
 }
 
 // RootsConfig returns all the roots of the director repo
@@ -74,7 +73,7 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 
 	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootConfig)
-	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
+	} else if ddsite.IsGovSite(site) {
 		return NewEmbeddedRoot(govRootConfig)
 	}
 	return NewEmbeddedRoot(prodRootConfig)

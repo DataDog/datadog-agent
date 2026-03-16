@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/delegatedauth
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws v0.0.0-00010101000000-000000000000
@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/ddsite v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
@@ -229,6 +230,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../pkg/util/compression
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../pkg/util/containers/image
+	github.com/DataDog/datadog-agent/pkg/util/ddsite => ../../../pkg/util/ddsite
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../pkg/util/filesystem

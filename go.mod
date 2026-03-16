@@ -1041,6 +1041,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/ddsite v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
@@ -1397,6 +1398,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ./pkg/util/containers/image
+	github.com/DataDog/datadog-agent/pkg/util/ddsite => ./pkg/util/ddsite
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ./pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem

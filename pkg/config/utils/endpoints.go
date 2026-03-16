@@ -15,6 +15,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/ddsite"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -197,22 +198,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	return eds, nil
 }
 
-// ddDomainPattern matches known Datadog domains (e.g., datadoghq.com,
-// datad0g.eu, ddog-gov.com). This is the shared building block for
-// wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, and ddURLRegexp.
-const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com`
-
-var wellKnownSitesRe = regexp.MustCompile(`(?:` + ddDomainPattern + `)$`)
-
-// ddSitePattern matches a Datadog site: an optional datacenter subdomain
-// (e.g., us3, ap1) followed by a known Datadog domain.
-const ddSitePattern = `([a-z]{2,}\d{1,2}\.)?(` + ddDomainPattern + `)`
-
-// ddSiteFromHostnameRe extracts the Datadog site from the end of a hostname.
-// The (?:^|\.) prefix ensures the match starts at a label boundary so that,
-// e.g., "notdatadoghq.com" is not mistaken for "datadoghq.com".
-var ddSiteFromHostnameRe = regexp.MustCompile(`(?:^|\.)` + ddSitePattern + `\.?$`)
-
 // ExtractSiteFromURL extracts the Datadog site from a URL.
 // For example:
 //
@@ -223,22 +208,7 @@ var ddSiteFromHostnameRe = regexp.MustCompile(`(?:^|\.)` + ddSitePattern + `\.?$
 // Returns an empty string if the URL cannot be parsed or does not contain a
 // recognized Datadog domain.
 func ExtractSiteFromURL(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-	hostname := strings.ToLower(strings.TrimRight(u.Hostname(), "."))
-	if hostname == "" {
-		return ""
-	}
-
-	matches := ddSiteFromHostnameRe.FindStringSubmatch(hostname)
-	if matches == nil {
-		return ""
-	}
-	// matches[1] is the DC label with trailing dot (e.g., "us3.") or empty
-	// matches[2] is the known domain (e.g., "datadoghq.com")
-	return matches[1] + matches[2]
+	return ddsite.ExtractSiteFromURL(rawURL)
 }
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
@@ -250,7 +220,7 @@ func BuildURLWithPrefix(prefix, site string) string {
 	if normalized, err := idna.Lookup.ToASCII(site); err == nil {
 		site = normalized
 	}
-	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && ddsite.IsKnownSite(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site
@@ -321,9 +291,9 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 	return GetMRFEndpoint(c, fullInfraURLPrefix, "multi_region_failover.dd_url")
 }
 
-// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
-// version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?\.` + ddSitePattern + `\.?$`)
+// appPrefixRe matches the "app" or "app.mrf" prefix at the start of a DD hostname,
+// used by AddAgentVersionToDomain to decide whether to rewrite the subdomain.
+var appPrefixRe = regexp.MustCompile(`^app(\.mrf)?\.`)
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {
@@ -338,8 +308,14 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 		return "", err
 	}
 
-	// we don't update unknown URLs (ie: proxy or custom DD domain)
-	if !ddURLRegexp.MatchString(u.Host) {
+	// Only rewrite URLs of the form app.{site} or app.mrf.{site}.
+	prefix := appPrefixRe.FindString(u.Host)
+	if prefix == "" {
+		return DDURL, nil
+	}
+	suffix := strings.TrimSuffix(u.Host[len(prefix):], ".")
+	site := ddsite.ExtractSiteFromHostname(suffix)
+	if site == "" || site != suffix {
 		return DDURL, nil
 	}
 
