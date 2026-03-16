@@ -363,6 +363,8 @@ type DetectionResult struct {
 type SeriesDetector interface {
 	// Name returns the analysis name for debugging.
 	Name() string
+	// Setup is called once all components are instantiated to resolve dependencies.
+	Setup(getComponent GetComponentFunc) error
 	// Detect examines a series and returns any detected anomalies.
 	Detect(series Series) DetectionResult
 }
@@ -469,13 +471,17 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
- }
+}
+
+// Will return a component (extractor) by name (not the display name).
+type GetComponentFunc func(name string) any
 
 // Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.
 type Detector interface {
 	Name() string
-
+	// Setup is called once all components are instantiated to resolve dependencies.
+	Setup(getComponent GetComponentFunc) error
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).

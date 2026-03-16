@@ -58,6 +58,10 @@ func (c *CUSUMDetector) Name() string {
 	return "cusum_detector"
 }
 
+func (c *CUSUMDetector) Setup(getComponent observer.GetComponentFunc) error {
+	return nil
+}
+
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult {

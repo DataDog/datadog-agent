@@ -445,6 +445,10 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
+func (a *seriesDetectorAdapter) Setup(getComponent observerdef.GetComponentFunc) error {
+	return a.detector.Setup(getComponent)
+}
+
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[string]int)

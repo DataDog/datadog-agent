@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -126,6 +127,13 @@ func newEngine(cfg engineConfig) *engine {
 		if lo, ok := d.(observerdef.LogObserver); ok {
 			e.logObservers = append(e.logObservers, lo)
 		}
+	}
+
+	// Call setup on each component, this could be used to resolve dependencies
+	for _, detector := range e.detectors {
+		// TODO: Handle errors
+		fmt.Printf("[cc] Setting up detector: %+v\n", detector.Name())
+		_ = detector.Setup(e.getComponent)
 	}
 
 	return e
@@ -613,4 +621,24 @@ func (e *engine) ReplayStoredData() advanceResult {
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
 	}
+}
+
+// Returns a component (extractor, detector, correlator) by name or nil if not found.
+func (e *engine) getComponent(name string) any {
+	for _, extractor := range e.extractors {
+		if extractor.Name() == name {
+			return extractor
+		}
+	}
+	for _, detector := range e.detectors {
+		if detector.Name() == name {
+			return detector
+		}
+	}
+	for _, correlator := range e.correlators {
+		if correlator.Name() == name {
+			return correlator
+		}
+	}
+	return nil
 }

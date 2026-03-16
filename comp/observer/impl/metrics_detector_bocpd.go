@@ -131,6 +131,10 @@ func (b *BOCPDDetector) Name() string {
 	return "bocpd_detector"
 }
 
+func (b *BOCPDDetector) Setup(getComponent observer.GetComponentFunc) error {
+	return nil
+}
+
 // Detect implements Detector. It discovers series, reads only newly visible
 // points, and updates per-series BOCPD posterior state incrementally.
 //
