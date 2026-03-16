@@ -13,6 +13,7 @@ type componentKind int
 const (
 	componentDetector componentKind = iota
 	componentCorrelator
+	componentExtractor
 )
 
 // componentEntry describes a registered pipeline component (detector or correlator).
@@ -44,6 +45,40 @@ type componentCatalog struct {
 func defaultCatalog() *componentCatalog {
 	return &componentCatalog{
 		entries: []componentEntry{
+			// ---- Extractors ----
+			{
+				name:        "log_metrics_extractor",
+				displayName: "Log Metrics Extractor",
+				kind:        componentExtractor,
+				factory: func() any {
+					return &LogMetricsExtractor{
+						MaxEvalBytes: 4096,
+						ExcludeFields: map[string]struct{}{
+							"timestamp": {}, "ts": {}, "time": {},
+							"pid": {}, "ppid": {}, "uid": {}, "gid": {},
+						},
+					}
+				},
+				defaultEnabled: true,
+			},
+			{
+				name:        "connection_error_extractor",
+				displayName: "Connection Error Extractor",
+				kind:        componentExtractor,
+				factory: func() any {
+					return &ConnectionErrorExtractor{}
+				},
+				defaultEnabled: true,
+			},
+			{
+				name:        "log_pattern_extractor",
+				displayName: "Log Pattern Extractor",
+				kind:        componentExtractor,
+				factory: func() any {
+					return NewLogPatternExtractor()
+				},
+				defaultEnabled: true,
+			},
 			// ---- Detectors ----
 			{
 				name:        "cusum",
@@ -164,7 +199,7 @@ func defaultCatalog() *componentCatalog {
 						WindowSeconds:    120,
 					})
 				},
-				defaultEnabled: false,
+				defaultEnabled: true,
 			},
 			{
 				name:        "lead_lag",
@@ -178,7 +213,7 @@ func defaultCatalog() *componentCatalog {
 						WindowSeconds:       120,
 					})
 				},
-				defaultEnabled: false,
+				defaultEnabled: true,
 			},
 			{
 				name:        "surprise",
@@ -191,7 +226,7 @@ func defaultCatalog() *componentCatalog {
 						MinSupport:        2,
 					})
 				},
-				defaultEnabled: false,
+				defaultEnabled: true,
 			},
 			{
 				name:        "passthrough",
@@ -251,11 +286,13 @@ func (c *componentCatalog) WithDefaultEnabled(name string, enabled bool) *compon
 
 // Instantiate creates component instances. The overrides map controls which
 // components are enabled; keys not present in overrides use the catalog default.
-// Returns the lists of enabled detectors and correlators ready for engine use,
-// plus a map of all component instances (enabled or not) for state management.
+// Returns the lists of enabled detectors, correlators, and extractors ready for
+// engine use, plus a map of all component instances (enabled or not) for state
+// management.
 func (c *componentCatalog) Instantiate(overrides map[string]bool) (
 	detectors []observerdef.Detector,
 	correlators []observerdef.Correlator,
+	extractors []observerdef.LogMetricsExtractor,
 	components map[string]*componentInstance,
 ) {
 	components = make(map[string]*componentInstance, len(c.entries))
@@ -291,9 +328,13 @@ func (c *componentCatalog) Instantiate(overrides map[string]bool) (
 			if cor, ok := instance.(observerdef.Correlator); ok {
 				correlators = append(correlators, cor)
 			}
+		case componentExtractor:
+			if ext, ok := instance.(observerdef.LogMetricsExtractor); ok {
+				extractors = append(extractors, ext)
+			}
 		}
 	}
-	return detectors, correlators, components
+	return detectors, correlators, extractors, components
 }
 
 // Entries returns a copy of all catalog entries (for UI/API use).
@@ -317,6 +358,21 @@ func catalogEnabledDetectors(components map[string]*componentInstance, catalog *
 			result = append(result, d)
 		} else if sd, ok := ci.instance.(observerdef.SeriesDetector); ok {
 			result = append(result, newSeriesDetectorAdapter(sd, defaultAggregations))
+		}
+	}
+	return result
+}
+
+// catalogEnabledExtractors returns the enabled LogMetricsExtractor instances from a components map.
+func catalogEnabledExtractors(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.LogMetricsExtractor {
+	var result []observerdef.LogMetricsExtractor
+	for _, entry := range catalog.entries {
+		ci, ok := components[entry.name]
+		if !ok || !ci.enabled || ci.entry.kind != componentExtractor {
+			continue
+		}
+		if ext, ok := ci.instance.(observerdef.LogMetricsExtractor); ok {
+			result = append(result, ext)
 		}
 	}
 	return result
