@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
@@ -33,12 +32,11 @@ type Webhook struct {
 	resources       map[string][]string
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	wmeta           workloadmeta.Component
 	mutator         mutatecommon.Mutator
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, mutator mutatecommon.Mutator) *Webhook {
+func NewWebhook(datadogConfig config.Component, mutator mutatecommon.Mutator) *Webhook {
 	return &Webhook{
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
@@ -46,7 +44,6 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, mu
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
-		wmeta:           wmeta,
 		mutator:         mutator,
 	}
 }

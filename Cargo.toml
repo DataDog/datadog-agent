@@ -49,6 +49,7 @@ yaml-rust2 = "0.9"
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 tower = "0.4"
+uuid = { version = "1", features = ["v4"] }
 
 # dev-dependencies
 dircpy = "0.3.19"
