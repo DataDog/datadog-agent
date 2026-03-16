@@ -4607,7 +4607,7 @@ api_key:
 #   # @param actions_allowlist - list of strings - optional
 #   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
 #   # List of actions that the Private Action Runner is allowed to execute.
-#   # See http://docs.datadoghq.com/fr/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
+#   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
 #
 #   actions_allowlist:
