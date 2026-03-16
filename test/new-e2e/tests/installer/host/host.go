@@ -84,16 +84,39 @@ func (h *Host) setSystemdVersion() {
 // ensureDockerLogin logs the host into the ECR registry when E2E_IMAGE_PULL_* is set, so pulls work.
 // It must be called whenever Docker is available (already installed or just installed).
 func (h *Host) ensureDockerLogin() {
-	imagePullPassword, err := runner.GetProfile().ParamStore().Get(parameters.ImagePullPassword)
+	store := runner.GetProfile().ParamStore()
+
+	registryStr, err := store.Get(parameters.ImagePullRegistry)
 	if err != nil {
 		var notFound parameters.ParameterNotFoundError
 		if errors.As(err, &notFound) {
 			h.t().Logf("skipping docker login (set E2E_IMAGE_PULL_* for private registry pulls)")
 			return
 		}
+		h.t().Fatalf("failed to get image pull registry: %v", err)
+	}
+
+	usernameStr, err := store.Get(parameters.ImagePullUsername)
+	if err != nil {
+		h.t().Fatalf("failed to get image pull username: %v", err)
+	}
+
+	passwordStr, err := store.Get(parameters.ImagePullPassword)
+	if err != nil {
 		h.t().Fatalf("failed to get image pull password: %v", err)
 	}
-	h.remote.MustExecute(fmt.Sprintf("sudo docker login --username AWS --password %s 669783387624.dkr.ecr.us-east-1.amazonaws.com", imagePullPassword))
+
+	registries := strings.Split(registryStr, ",")
+	usernames := strings.Split(usernameStr, ",")
+	passwords := strings.Split(passwordStr, ",")
+
+	if len(registries) != len(usernames) || len(registries) != len(passwords) {
+		h.t().Fatalf("E2E_IMAGE_PULL_REGISTRY, E2E_IMAGE_PULL_USERNAME, and E2E_IMAGE_PULL_PASSWORD must have the same number of comma-separated entries")
+	}
+
+	for i := range registries {
+		h.remote.MustExecute(fmt.Sprintf("sudo docker login --username %s --password %s %s", usernames[i], passwords[i], registries[i]))
+	}
 }
 
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
