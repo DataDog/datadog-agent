@@ -12,10 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
-
-	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pkgExec "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
@@ -99,39 +96,13 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 	return enableSystemProbeConfigAt(configPath)
 }
 
-// enableSystemProbeConfigAt sets system_probe_config.enabled: true in the given
-// config file, preserving any other existing settings. It is a no-op if already enabled.
+// enableSystemProbeConfigAt merges system_probe_config.enabled: true into the
+// given config file, preserving all existing settings.
 func enableSystemProbeConfigAt(configPath string) error {
-	cfg := config.SystemProbeConfig{}
-	existing, err := os.ReadFile(configPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read system-probe.yaml: %w", err)
+	update := config.SystemProbeConfig{
+		SystemProbeSettings: config.SystemProbeSettings{Enabled: config.BoolToPtr(true)},
 	}
-	if len(existing) > 0 {
-		if err := yaml.Unmarshal(existing, &cfg); err != nil {
-			return fmt.Errorf("failed to unmarshal system-probe.yaml: %w", err)
-		}
-	}
-	if cfg.SystemProbeSettings.Enabled != nil && *cfg.SystemProbeSettings.Enabled {
-		return nil
-	}
-
-	cfg.SystemProbeSettings.Enabled = config.BoolToPtr(true)
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to marshal system-probe.yaml: %w", err)
-	}
-
-	// Atomic write via temp file + rename
-	tmpPath := configPath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0640); err != nil {
-		return fmt.Errorf("failed to write temporary system-probe.yaml: %w", err)
-	}
-	if err := os.Rename(tmpPath, configPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to atomically replace system-probe.yaml: %w", err)
-	}
-	return nil
+	return config.WriteConfig(configPath, update, 0640, true)
 }
 
 // preRemoveAPMInject is called before the APM inject package is removed

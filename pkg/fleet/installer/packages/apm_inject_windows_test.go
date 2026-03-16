@@ -34,39 +34,15 @@ func TestEnableSystemProbeConfig_NoExistingFile(t *testing.T) {
 	assert.True(t, *cfg.SystemProbeSettings.Enabled)
 }
 
-func TestEnableSystemProbeConfig_AlreadyEnabled(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "system-probe.yaml")
-
-	initial := config.SystemProbeConfig{
-		SystemProbeSettings: config.SystemProbeSettings{Enabled: config.BoolToPtr(true)},
-		RuntimeSecurityConfig: config.RuntimeSecurityConfig{
-			Enabled: config.BoolToPtr(true),
-		},
-	}
-	writeYAML(t, configPath, initial)
-	infoBefore, _ := os.Stat(configPath)
-
-	err := enableSystemProbeConfigAt(configPath)
-	require.NoError(t, err)
-
-	infoAfter, _ := os.Stat(configPath)
-	assert.Equal(t, infoBefore.ModTime(), infoAfter.ModTime(), "file should not be rewritten when already enabled")
-}
-
 func TestEnableSystemProbeConfig_PreservesExistingSettings(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "system-probe.yaml")
 
-	initial := config.SystemProbeConfig{
-		RuntimeSecurityConfig: config.RuntimeSecurityConfig{
-			Enabled: config.BoolToPtr(true),
-		},
-		GPUMonitoringConfig: config.GPUMonitoringConfig{
-			Enabled: config.BoolToPtr(true),
-		},
-	}
-	writeYAML(t, configPath, initial)
+	writeFile(t, configPath, `runtime_security_config:
+  enabled: true
+gpu_monitoring:
+  enabled: true
+`)
 
 	err := enableSystemProbeConfigAt(configPath)
 	require.NoError(t, err)
@@ -88,13 +64,11 @@ func TestEnableSystemProbeConfig_FlipsDisabledToEnabled(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "system-probe.yaml")
 
-	initial := config.SystemProbeConfig{
-		SystemProbeSettings: config.SystemProbeSettings{Enabled: config.BoolToPtr(false)},
-		RuntimeSecurityConfig: config.RuntimeSecurityConfig{
-			Enabled: config.BoolToPtr(true),
-		},
-	}
-	writeYAML(t, configPath, initial)
+	writeFile(t, configPath, `system_probe_config:
+  enabled: false
+runtime_security_config:
+  enabled: true
+`)
 
 	err := enableSystemProbeConfigAt(configPath)
 	require.NoError(t, err)
@@ -108,9 +82,46 @@ func TestEnableSystemProbeConfig_FlipsDisabledToEnabled(t *testing.T) {
 	assert.True(t, *result.RuntimeSecurityConfig.Enabled, "existing settings should be preserved")
 }
 
-func writeYAML(t *testing.T, path string, v any) {
-	t.Helper()
-	data, err := yaml.Marshal(v)
+func TestEnableSystemProbeConfig_PreservesUnknownKeys(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "system-probe.yaml")
+
+	writeFile(t, configPath, `system_probe_config:
+  enabled: false
+  max_tracked_connections: 65536
+network_config:
+  enabled: true
+  conntrack: true
+some_future_key:
+  nested: value
+`)
+
+	err := enableSystemProbeConfigAt(configPath)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(path, data, 0640))
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+
+	// Parse back as generic map to verify all keys survived
+	var raw map[string]any
+	require.NoError(t, yaml.Unmarshal(data, &raw))
+
+	// system_probe_config.enabled should be flipped to true
+	spc := raw["system_probe_config"].(map[string]any)
+	assert.Equal(t, true, spc["enabled"])
+	// unknown key under system_probe_config preserved
+	assert.Equal(t, 65536, spc["max_tracked_connections"])
+
+	// top-level unknown sections preserved
+	nc := raw["network_config"].(map[string]any)
+	assert.Equal(t, true, nc["enabled"])
+	assert.Equal(t, true, nc["conntrack"])
+
+	sfk := raw["some_future_key"].(map[string]any)
+	assert.Equal(t, "value", sfk["nested"])
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(content), 0640))
 }
