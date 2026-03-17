@@ -24,32 +24,34 @@ const maxParameterDepth = 5
 
 // evaluatedPowershellScript holds the evaluated script configuration ready for execution.
 type evaluatedPowershellScript struct {
-	// For inline scripts: the script body with a param() block prepended.
-	// ScriptArgs holds the corresponding named-parameter arguments.
-	Script     string
-	ScriptArgs []string // ["-__par_name", "Alice", "-__par_city", "NYC", ...]
+	// For inline scripts: complete script body, with a safe variable-assignment
+	// preamble prepended for each {{ parameters.X }} reference.
+	Script string
 
 	// For file-based scripts
 	File      string
 	Arguments []string
 }
 
-// transformInlineScript rewrites a PowerShell script template so that
-// {{ parameters.X.Y.Z }} expressions are replaced by PowerShell variable
-// references ($__par_X_Y_Z) and a matching param() block is prepended.
-// The resolved parameter values are returned in ScriptArgs as alternating
-// "-varName" / "value" pairs for use with powershell.exe -Command { ... }.
+// transformInlineScript rewrites a PowerShell script template so that every
+// {{ parameters.X.Y.Z }} expression is replaced by a PowerShell variable
+// reference ($__par_X_Y_Z).  A safe variable-assignment preamble is prepended
+// to the script body, binding each variable to its resolved value as a
+// PowerShell single-quoted string literal.
 //
-// This separates code (the script text) from data (user-supplied parameter
-// values) at the OS argument level, eliminating template-injection attacks.
-func transformInlineScript(scriptTemplate string, parameters interface{}) (*evaluatedPowershellScript, error) {
+// Single-quoted strings in PowerShell expand no variables and honour no escape
+// sequences other than '' (escaped single quote).  This means user-supplied
+// values — regardless of whether they contain $, `, ;, backslashes, newlines,
+// or any other character — can never break out of the assignment and inject
+// arbitrary PowerShell code.
+func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPowershellScript, error) {
 	parsed, err := tmpl.Parse(scriptTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse script template: %w", err)
 	}
 
 	type paramEntry struct {
-		path    []string // full path including "parameters" root, e.g. ["parameters","addr","city"]
+		path    []string // full path including "parameters" root
 		varName string   // PowerShell variable name, e.g. "__par_addr_city"
 	}
 
@@ -78,6 +80,8 @@ func transformInlineScript(scriptTemplate string, parameters interface{}) (*eval
 	}
 
 	// Rewrite the script body: replace every {{ parameters.X }} with $__par_X.
+	// The script body itself contains only static code and variable references —
+	// never raw user-supplied data.
 	transformedBody, err := parsed.RenderWith(func(path []string) (string, error) {
 		if len(path) >= 2 && path[0] == "parameters" {
 			return "$" + pathToVarName(path), nil
@@ -88,41 +92,78 @@ func transformInlineScript(scriptTemplate string, parameters interface{}) (*eval
 		return nil, fmt.Errorf("failed to rewrite script template: %w", err)
 	}
 
-	// Prepend a param() block so PowerShell binds named arguments to variables.
-	// Each parameter defaults to $null so missing parameters don't cause errors.
-	var script string
-	if len(order) > 0 {
-		decls := make([]string, len(order))
-		for i, varName := range order {
-			decls[i] = "    $" + varName + " = $null"
+	// Build the preamble: one safe variable assignment per parameter.
+	// Values are encoded as PowerShell single-quoted string literals, which
+	// prevents injection regardless of the value's content.
+	preamble := make([]string, 0, len(order))
+	for _, varName := range order {
+		entry := seen[varName]
+		// path[1:] strips the "parameters" root.
+		val, err := tmpl.EvaluatePathParts(parameters, entry.path[1:])
+		if err != nil || val == nil {
+			// Parameter not provided — assign $null so the variable exists.
+			preamble = append(preamble, "$"+varName+" = $null")
+			continue
 		}
-		script = "param(\n" + strings.Join(decls, ",\n") + "\n)\n" + transformedBody
+		literal, err := powershellLiteral(val)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode parameter %q as PowerShell literal: %w",
+				strings.Join(entry.path, "."), err)
+		}
+		preamble = append(preamble, "$"+varName+" = "+literal)
+	}
+
+	var script string
+	if len(preamble) > 0 {
+		script = strings.Join(preamble, "\n") + "\n" + transformedBody
 	} else {
 		script = transformedBody
 	}
 
-	// Resolve parameter values and build the named-argument list.
-	var scriptArgs []string
-	for _, varName := range order {
-		entry := seen[varName]
-		// path[1:] strips the "parameters" root; EvaluatePathParts traverses into parameters.
-		val, err := tmpl.EvaluatePathParts(parameters, entry.path[1:])
-		if err != nil || val == nil {
-			// Parameter not provided — the $null default in the param() block applies.
-			continue
-		}
-		strVal, err := serializeParamValue(val)
-		if err != nil {
-			return nil, fmt.Errorf("failed to serialize parameter %q: %w",
-				strings.Join(entry.path, "."), err)
-		}
-		scriptArgs = append(scriptArgs, "-"+varName, strVal)
-	}
+	return &evaluatedPowershellScript{Script: script}, nil
+}
 
-	return &evaluatedPowershellScript{
-		Script:     script,
-		ScriptArgs: scriptArgs,
-	}, nil
+// powershellLiteral converts a Go value to a PowerShell literal expression that
+// is safe to embed directly in a script.
+//
+//   - Strings are wrapped in single quotes with ' escaped as ''.
+//     Single-quoted strings have no other special characters, so no further
+//     escaping is needed regardless of the string's content.
+//   - Booleans become $true / $false.
+//   - Numbers become unquoted numeric literals (validated by the type switch).
+//   - Objects and arrays are JSON-encoded and then wrapped in single quotes;
+//     the script can convert them with  $var | ConvertFrom-Json  if needed.
+func powershellLiteral(val any) (string, error) {
+	switch v := val.(type) {
+	case nil:
+		return "$null", nil
+	case bool:
+		if v {
+			return "$true", nil
+		}
+		return "$false", nil
+	case float64:
+		// JSON unmarshaling produces float64 for all numbers.
+		if v == float64(int64(v)) {
+			return strconv.FormatInt(int64(v), 10), nil
+		}
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	case string:
+		return singleQuote(v), nil
+	default:
+		b, err := json.Marshal(val)
+		if err != nil {
+			return "", fmt.Errorf("failed to JSON-encode value: %w", err)
+		}
+		return singleQuote(string(b)), nil
+	}
+}
+
+// singleQuote wraps s in PowerShell single quotes, escaping any single quotes
+// within s by doubling them.  This is the only escaping required for
+// single-quoted strings in PowerShell.
+func singleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // pathToVarName converts a parameter path (rooted at "parameters") to a safe
@@ -130,7 +171,7 @@ func transformInlineScript(scriptTemplate string, parameters interface{}) (*eval
 //
 //	["parameters", "name"]            → "__par_name"
 //	["parameters", "address", "city"] → "__par_address_city"
-//	["parameters", "items", "0"]      → "__par_items_0"
+//	["parameters", "items", "[0]"]    → "__par_items__0_"
 func pathToVarName(path []string) string {
 	parts := make([]string, len(path)-1)
 	for i, p := range path[1:] {
@@ -155,37 +196,3 @@ func sanitizeVarPart(s string) string {
 	}
 	return sb.String()
 }
-
-// serializeParamValue converts a Go parameter value to a string suitable for
-// passing as a PowerShell scriptblock named argument.
-// Strings are passed as-is (the OS argument boundary prevents any injection).
-// Numbers and booleans are formatted as plain strings.
-// Objects and arrays are JSON-encoded so the script can use ConvertFrom-Json.
-func serializeParamValue(val interface{}) (string, error) {
-	switch v := val.(type) {
-	case nil:
-		return "", nil
-	case string:
-		return v, nil
-	case bool:
-		if v {
-			return "true", nil
-		}
-		return "false", nil
-	case float64:
-		// JSON unmarshaling produces float64 for all numbers.
-		// Emit as integer when the value is whole to avoid "42.000000" noise.
-		if v == float64(int64(v)) {
-			return strconv.FormatInt(int64(v), 10), nil
-		}
-		return strconv.FormatFloat(v, 'f', -1, 64), nil
-	default:
-		// Objects, arrays, and any other types are JSON-encoded.
-		b, err := json.Marshal(val)
-		if err != nil {
-			return "", fmt.Errorf("failed to JSON-encode value: %w", err)
-		}
-		return string(b), nil
-	}
-}
-
