@@ -107,6 +107,8 @@ type SurpriseCorrelator struct {
 }
 
 // NewSurpriseCorrelator creates a new SurpriseCorrelator with the given config.
+var _ observer.Correlator = (*SurpriseCorrelator)(nil)
+
 func NewSurpriseCorrelator(config SurpriseConfig) *SurpriseCorrelator {
 	if config.WindowSizeSeconds == 0 {
 		config.WindowSizeSeconds = 10

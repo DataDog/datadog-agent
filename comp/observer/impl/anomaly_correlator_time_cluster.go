@@ -52,6 +52,8 @@ type TimeClusterCorrelator struct {
 }
 
 // NewTimeClusterCorrelator creates a new TimeClusterCorrelator with the given config.
+var _ observer.Correlator = (*TimeClusterCorrelator)(nil)
+
 func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
 	if config.ProximitySeconds == 0 {
 		config.ProximitySeconds = 10

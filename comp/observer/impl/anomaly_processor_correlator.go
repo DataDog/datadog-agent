@@ -76,6 +76,8 @@ type CrossSignalCorrelator struct {
 	currentDataTime    int64 // latest data timestamp seen
 }
 
+var _ observer.Correlator = (*CrossSignalCorrelator)(nil)
+
 // NewCorrelator creates a new CrossSignalCorrelator with the given config.
 // If config has zero values, defaults are applied.
 func NewCorrelator(config CorrelatorConfig) *CrossSignalCorrelator {
@@ -94,6 +96,9 @@ func NewCorrelator(config CorrelatorConfig) *CrossSignalCorrelator {
 func (c *CrossSignalCorrelator) Name() string {
 	return "cross_signal_correlator"
 }
+
+// Setup is a no-op for CrossSignalCorrelator as it has no component dependencies.
+func (c *CrossSignalCorrelator) Setup(_ observer.GetComponentFunc) error { return nil }
 
 // Process implements Correlator. It adds an anomaly to the buffer
 // using its data timestamp and evicts old entries.

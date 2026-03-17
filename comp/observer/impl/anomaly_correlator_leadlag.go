@@ -222,6 +222,8 @@ type LeadLagCorrelator struct {
 }
 
 // NewLeadLagCorrelator creates a new LeadLagCorrelator with the given config.
+var _ observer.Correlator = (*LeadLagCorrelator)(nil)
+
 func NewLeadLagCorrelator(config LeadLagConfig) *LeadLagCorrelator {
 	if config.MaxLagSeconds == 0 {
 		config.MaxLagSeconds = 30
