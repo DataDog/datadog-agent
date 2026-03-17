@@ -113,12 +113,12 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
 				},
 
-				LastTcpRtoCount:      3,
-				LastTcpRecoveryCount: 1,
-				LastTcpProbe0Count:   2,
-				LastTcpDeliveredCe:   5,
-				LastTcpReordSeen:     4,
-				LastTcpRcvOooPack:    7,
+				LastTcpRtoCount:      301,
+				LastTcpRecoveryCount: 302,
+				LastTcpProbe0Count:   306,
+				LastTcpDeliveredCe:   305,
+				LastTcpReordSeen:     303,
+				LastTcpRcvOooPack:    304,
 				TcpEcnNegotiated:     true,
 			},
 			{
