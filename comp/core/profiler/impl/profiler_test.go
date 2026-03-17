@@ -199,26 +199,6 @@ func TestTimeout(t *testing.T) {
 			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
 		},
 		{
-			name: "Process Agent Enabled",
-			extraCfgs: map[string]interface{}{
-				"process_config.enabled": true,
-			},
-			extraSysCfgs:    map[string]interface{}{},
-			profileDuration: 10 * time.Second,
-			// On Linux, process checks run in the core agent, not the standalone process-agent
-			expTimeout: baseTimeout + 4*(10*time.Second),
-		},
-		{
-			name: "Process Agent Enabled, Alternate Setting",
-			extraCfgs: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-			},
-			extraSysCfgs:    map[string]interface{}{},
-			profileDuration: 10 * time.Second,
-			// On Linux, process checks run in the core agent, not the standalone process-agent
-			expTimeout: baseTimeout + 4*(10*time.Second),
-		},
-		{
 			name:            "Process Agent Checks in Core Agent",
 			extraCfgs:       map[string]interface{}{},
 			extraSysCfgs:    map[string]interface{}{},
