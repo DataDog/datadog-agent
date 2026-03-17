@@ -5,8 +5,6 @@ exporters:
   nop:
 
 extensions:
-  otlp_encoding/user-defined:
-    protocol: otlp_proto
   pprof/dd-autoconfigured:
   health_check/dd-autoconfigured:
   zpages/dd-autoconfigured:
@@ -14,14 +12,13 @@ extensions:
   datadog/dd-autoconfigured:
     api:
       key: ggggg77777
-      site: "us5.datadoghq.com"
+      site: "datadoghq.com"
     deployment_type: daemonset
-    hostname: test-host
+    hostname: ""
 
 service:
   extensions:
     [
-      otlp_encoding/user-defined,
       pprof/dd-autoconfigured,
       zpages/dd-autoconfigured,
       health_check/dd-autoconfigured,
@@ -37,4 +34,3 @@ service:
     logs:
       receivers: [nop]
       exporters: [nop]
-
