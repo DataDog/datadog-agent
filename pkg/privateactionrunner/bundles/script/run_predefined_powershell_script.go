@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -125,82 +124,13 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}, nil
 }
 
-// evaluatedPowershellScript holds the evaluated script configuration after template rendering
-type evaluatedPowershellScript struct {
-	// For inline scripts
-	Script string
-	// For file-based scripts
-	File      string
-	Arguments []string
-}
-
-// evaluatePowershellScript evaluates template expressions in the script configuration
-func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parameters interface{}) (*evaluatedPowershellScript, error) {
-	if parameters == nil {
-		parameters = map[string]interface{}{}
-	}
-
-	if config.ParameterSchema != nil {
-		if err := validateParameters(parameters, config.ParameterSchema); err != nil {
-			return nil, err
-		}
-	}
-
-	templateContext := map[string]interface{}{"parameters": parameters}
-
-	result := &evaluatedPowershellScript{}
-
-	if config.Script != "" {
-		// Inline script mode
-		rendered, err := renderTemplate(config.Script, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render script template: %w", err)
-		}
-		if strings.TrimSpace(rendered) == "" {
-			return nil, errors.New("script cannot be empty")
-		}
-		result.Script = rendered
-	} else {
-		// File mode
-		rendered, err := renderTemplate(config.File, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render file path template: %w", err)
-		}
-		if strings.TrimSpace(rendered) == "" {
-			return nil, errors.New("file path cannot be empty")
-		}
-		result.File = rendered
-
-		// Render arguments
-		result.Arguments = make([]string, len(config.Arguments))
-		for i, arg := range config.Arguments {
-			rendered, err := renderTemplate(arg, templateContext)
-			if err != nil {
-				return nil, fmt.Errorf("failed to render argument template '%s': %w", arg, err)
-			}
-			result.Arguments[i] = rendered
-		}
-	}
-
-	return result, nil
-}
-
-// renderTemplate parses and renders a template string with the given context
-func renderTemplate(templateStr string, context map[string]interface{}) (string, error) {
-	template, err := tmpl.Parse(templateStr)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse template '%s': %w", templateStr, err)
-	}
-
-	rendered, err := template.Render(context)
-	if err != nil {
-		return "", fmt.Errorf("failed to render template '%s': %w", templateStr, err)
-	}
-
-	return rendered, nil
-}
-
-// newPowershellCommand creates an exec.Cmd for running PowerShell
+// newPowershellCommand creates an exec.Cmd for running PowerShell.
+//
+// For inline scripts the script body is wrapped in a scriptblock ({ ... }) and
+// parameter values are appended as separate OS-level named arguments.  PowerShell
+// binds them to the param() variables declared at the top of the script body.
+// Because values arrive as independent arguments they can never escape into the
+// script code, regardless of their content.
 func newPowershellCommand(ctx context.Context, script *evaluatedPowershellScript, envVarNames []string) *exec.Cmd {
 	// Base PowerShell arguments for security and consistency
 	baseArgs := []string{
@@ -217,9 +147,16 @@ func newPowershellCommand(ctx context.Context, script *evaluatedPowershellScript
 		args = append(args, script.Arguments...)
 		cmd = exec.CommandContext(ctx, "powershell.exe", args...)
 	} else {
-		// Inline script mode: pass script directly to -Command
-		// The script is passed as-is - users write native PowerShell
-		args := append(baseArgs, "-Command", script.Script)
+		// Inline script mode: wrap the script in a scriptblock so that
+		// ScriptArgs are bound as named parameters rather than interpolated.
+		//
+		//   powershell.exe ... -Command { param($__par_name = $null) ... } -__par_name "Alice"
+		//
+		// PowerShell passes the trailing "-name value" pairs to the scriptblock's
+		// param() binder; they are never parsed as PowerShell code.
+		scriptblock := "{\n" + script.Script + "\n}"
+		args := append(baseArgs, "-Command", scriptblock)
+		args = append(args, script.ScriptArgs...)
 		cmd = exec.CommandContext(ctx, "powershell.exe", args...)
 	}
 
@@ -258,14 +195,4 @@ func buildAllowedEnv(envVarNames []string) []string {
 	}
 
 	return env
-}
-
-func formatPowershellOutput(output string, noStripTrailingNewline bool) string {
-	normalized := strings.ReplaceAll(output, "\r\n", "\n")
-	if noStripTrailingNewline {
-		return normalized
-	}
-	normalized = strings.TrimRight(normalized, "\n")
-	normalized = strings.TrimLeft(normalized, "\n")
-	return normalized
 }
