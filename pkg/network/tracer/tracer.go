@@ -510,7 +510,7 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 			fmt.Sprintf("destip:%s", c.Dest),
 		}
 		if c.Source.String() == "172.28.0.10" || c.Source.String() == "172.28.0.20" {
-			log.Debugf("\nTCP congestion metrics for connection %s:%d -> %s:%d: "+
+			log.Debugf("\nJMW TCP congestion metrics for connection %s:%d -> %s:%d: "+
 				"\n  loss[rto_count=%d recovery_count=%d] "+
 				"\n  reorder[reord_seen=%d rcv_ooopack=%d] "+
 				"\n  ecn[delivered_ce=%d ecn_negotiated=%v] "+
