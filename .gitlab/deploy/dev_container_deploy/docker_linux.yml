@@ -235,10 +235,8 @@ dev_nightly-host-profiler-standalone:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   needs:
-    - job: docker_build_host_profiler_standalone_amd64
-      optional: true
-    - job: docker_build_host_profiler_standalone_arm64
-      optional: true
+    - docker_build_host_profiler_standalone_amd64
+    - docker_build_host_profiler_standalone_arm64
   before_script:
     - |
       if [ "${DEVTEST:-}" = "1" ]; then
@@ -253,12 +251,14 @@ dev_nightly-host-profiler-standalone:
 dev_branch-host-profiler-standalone:
   extends: .publish_host_profiler_base
   rules:
+    - !reference [.except_mergequeue]
     - when: manual
       allow_failure: true
 
 dev_deploy-host-profiler-devtest:
   extends: .publish_host_profiler_base
   rules:
+    - !reference [.except_mergequeue]
     - when: manual
       allow_failure: true
   variables:
@@ -286,6 +286,7 @@ deploy_host_profiler_to_reliability_env_nightly:
 deploy_host_profiler_to_reliability_env_devtest:
   extends: .trigger_relenv_base
   rules:
+    - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - dev_deploy-host-profiler-devtest
