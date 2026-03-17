@@ -1469,9 +1469,9 @@ yet_another_key: 'dddd'`
 
 	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
-	expected := `api_key: '***************************aaaaa'
+	expected := `api_key: '****************************aaaa'
 some_other_key: "********"
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
 }
