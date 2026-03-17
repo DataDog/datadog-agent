@@ -5,7 +5,7 @@
 
 mod helpers;
 
-use helpers::{CliRunner, TestEnv, pid_is_alive};
+use helpers::{CliRunner, TestEnv, pid_is_alive, wait_for_pid_gone};
 use std::path::Path;
 use std::time::Duration;
 
@@ -584,4 +584,230 @@ fn test_cli_describe_json() {
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
     assert!(pid > 0);
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_start_stopped_process() {
+    let env = TestEnv::new()
+        .with_config(
+            "sleeper",
+            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        )
+        .start();
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("sleeper", &[("STATE", "Created")]);
+
+    env.cli(&["start", "sleeper"])
+        .assert_success()
+        .assert_field("State", "Running");
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["describe", "sleeper"]);
+    out.assert_success().assert_field("State", "Running");
+
+    let pid = out.pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_start_by_uuid() {
+    let env = TestEnv::new()
+        .with_config(
+            "sleeper",
+            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        )
+        .start();
+
+    let list_json = env.cli(&["list", "--json"]).stdout_json();
+    let uuid = list_json[0]["uuid"]
+        .as_str()
+        .expect("uuid should be a string");
+    let prefix = &uuid[..8];
+
+    env.cli(&["start", prefix])
+        .assert_success()
+        .assert_field("State", "Running");
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let pid = env.cli(&["describe", "sleeper"]).pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_start_already_running() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["start", "sleeper"])
+        .assert_failure()
+        .assert_stderr_contains("already");
+}
+
+#[test]
+fn test_cli_start_not_found() {
+    let env = TestEnv::new().start();
+
+    env.cli(&["start", "nonexistent"])
+        .assert_failure()
+        .assert_stderr_contains("not found");
+}
+
+#[test]
+fn test_cli_start_json() {
+    let env = TestEnv::new()
+        .with_config(
+            "sleeper",
+            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        )
+        .start();
+
+    let out = env.cli(&["start", "--json", "sleeper"]);
+    out.assert_success();
+    let json = out.stdout_json();
+
+    assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
+    assert_eq!(json["state"], "Running");
+
+    let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
+    assert!(pid > 0, "started process should have a PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_start_then_verify_list() {
+    let env = TestEnv::new()
+        .with_config(
+            "sleeper",
+            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        )
+        .start();
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("sleeper", &[("STATE", "Created"), ("PID", "-")]);
+
+    env.cli(&["start", "sleeper"]).assert_success();
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["list"]);
+    out.assert_success()
+        .assert_table_row("sleeper", &[("STATE", "Running")]);
+
+    let pid = out.pid_from_table_row("sleeper");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_stop_running_process() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["stop", "sleeper"])
+        .assert_success()
+        .assert_field("State", "Stopped");
+}
+
+#[test]
+fn test_cli_stop_by_uuid() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let list_json = env.cli(&["list", "--json"]).stdout_json();
+    let uuid = list_json[0]["uuid"]
+        .as_str()
+        .expect("uuid should be a string");
+    let prefix = &uuid[..8];
+
+    env.cli(&["stop", prefix])
+        .assert_success()
+        .assert_field("State", "Stopped");
+}
+
+#[test]
+fn test_cli_stop_already_stopped() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["stop", "sleeper"]).assert_success();
+    env.daemon().wait_for_log_default("[sleeper] stopped");
+
+    env.cli(&["stop", "sleeper"])
+        .assert_failure()
+        .assert_stderr_contains("not running");
+}
+
+#[test]
+fn test_cli_stop_not_found() {
+    let env = TestEnv::new().start();
+
+    env.cli(&["stop", "nonexistent"])
+        .assert_failure()
+        .assert_stderr_contains("not found");
+}
+
+#[test]
+fn test_cli_stop_json() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["stop", "--json", "sleeper"]);
+    out.assert_success();
+    let json = out.stdout_json();
+
+    assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
+    assert_eq!(json["state"], "Stopped");
+}
+
+#[test]
+fn test_cli_stop_then_verify_list() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["stop", "sleeper"]).assert_success();
+    env.daemon().wait_for_log_default("[sleeper] stopped");
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("sleeper", &[("STATE", "Stopped"), ("PID", "-")]);
+}
+
+#[test]
+fn test_cli_stop_kills_child() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let pid = env.cli(&["list"]).pid_from_table_row("sleeper");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive before stop");
+
+    env.cli(&["stop", "sleeper"]).assert_success();
+
+    assert!(
+        wait_for_pid_gone(pid, Duration::from_secs(5)),
+        "child PID {pid} should be gone after stop"
+    );
 }
