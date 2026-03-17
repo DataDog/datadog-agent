@@ -71,11 +71,7 @@ fn should_ignore_comm_bytes(comm_bytes: &[u8]) -> bool {
     }
 
     // Trim trailing newline and check exact match
-    let n = comm_bytes.len();
-    let comm = match comm_bytes.last() {
-        Some(&b'\n') => comm_bytes.get(..n.saturating_sub(1)).unwrap_or(comm_bytes),
-        _ => comm_bytes,
-    };
+    let comm = comm_bytes.strip_suffix(b"\n").unwrap_or(comm_bytes);
 
     if let Ok(comm_str) = std::str::from_utf8(comm) {
         IGNORE_COMMS.contains(comm_str)
