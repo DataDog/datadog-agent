@@ -1001,6 +1001,7 @@ require (
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
 	gopkg.in/yaml.v3 v3.0.1
+	mvdan.cc/sh/v3 v3.13.0
 )
 
 require github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
@@ -1203,7 +1204,6 @@ require (
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	mvdan.cc/sh/v3 v3.13.0 // indirect
 )
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
