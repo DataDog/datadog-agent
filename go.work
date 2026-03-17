@@ -95,6 +95,7 @@ use (
 	pkg/config/model
 	pkg/config/nodetreemodel
 	pkg/config/remote
+	pkg/config/render_config
 	pkg/config/setup
 	pkg/config/structure
 	pkg/config/teeconfig

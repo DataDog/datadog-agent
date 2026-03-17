@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -261,19 +262,29 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 				continue
 			}
 
+			initConfig, err := scrubber.ScrubYamlString(string(config.InitConfig))
+			if err != nil {
+				cc.log.Errorf("Could not scrub init_config for cluster check %s: %s", checkName, err)
+				initConfig = string(config.InitConfig)
+			}
+
 			checkMetadata := metadata{
 				"config.hash":     checkid.BuildID(checkName, config.IntDigest(), config.Instances[0], config.InitConfig),
 				"config.provider": config.Provider,
 				"config.source":   config.Source,
-				"init_config":     string(config.InitConfig),
+				"init_config":     initConfig,
 				"node_name":       node.Name,
 				"status":          "DISPATCHED",
 				"errors":          "", // Empty for now, ready for future error tracking
 			}
 
-			// Handle instances
 			if len(config.Instances) > 0 {
-				checkMetadata["instance_config"] = string(config.Instances[0])
+				instanceConfig, err := scrubber.ScrubYamlString(string(config.Instances[0]))
+				if err != nil {
+					cc.log.Errorf("Could not scrub instance_config for cluster check %s: %s", checkName, err)
+					instanceConfig = string(config.Instances[0])
+				}
+				checkMetadata["instance_config"] = instanceConfig
 			}
 
 			payload.ClusterCheckMetadata[checkName] = append(payload.ClusterCheckMetadata[checkName], checkMetadata)
@@ -287,18 +298,28 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 			continue
 		}
 
+		initConfig, err := scrubber.ScrubYamlString(string(config.InitConfig))
+		if err != nil {
+			cc.log.Errorf("Could not scrub init_config for dangling cluster check %s: %s", checkName, err)
+			initConfig = string(config.InitConfig)
+		}
+
 		checkMetadata := metadata{
 			"config.hash":     checkid.BuildID(checkName, config.IntDigest(), config.Instances[0], config.InitConfig),
 			"config.provider": config.Provider,
 			"config.source":   config.Source,
-			"init_config":     string(config.InitConfig),
+			"init_config":     initConfig,
 			"status":          "DANGLING",
 			"errors":          "Check not assigned to any node",
 		}
 
-		// Handle instances
 		if len(config.Instances) > 0 {
-			checkMetadata["instance_config"] = string(config.Instances[0])
+			instanceConfig, err := scrubber.ScrubYamlString(string(config.Instances[0]))
+			if err != nil {
+				cc.log.Errorf("Could not scrub instance_config for dangling cluster check %s: %s", checkName, err)
+				instanceConfig = string(config.Instances[0])
+			}
+			checkMetadata["instance_config"] = instanceConfig
 		}
 
 		payload.ClusterCheckMetadata[checkName] = append(payload.ClusterCheckMetadata[checkName], checkMetadata)
