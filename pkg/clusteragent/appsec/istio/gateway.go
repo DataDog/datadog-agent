@@ -43,7 +43,7 @@ func (g *istioNativeGatewayPattern) IsInjectionPossible(ctx context.Context) err
 		if g.config.Processor.ServiceName == "" {
 			return errors.New("processor service name is required for istio-gateway in external mode but is not configured")
 		}
-		_, err := g.client.Resource(schema.GroupVersionResource{Resource: "services", Version: "v1"}).
+		_, err := g.client.Resource(serviceGVR).
 			Namespace(g.config.Processor.Namespace).
 			Get(ctx, g.config.Processor.ServiceName, metav1.GetOptions{})
 		if err != nil {
