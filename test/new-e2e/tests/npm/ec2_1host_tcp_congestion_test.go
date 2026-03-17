@@ -106,7 +106,7 @@ func (v *ec2TCPCongestionSuite) AfterTest(suiteName, testName string) {
 }
 
 // pollForTCPCongestionSignal polls fakeintake until a TCP connection on the 172.28.0.0/16
-// lab network matches the given predicate, or times out after 90 seconds.
+// tcp-congestion-net network matches the given predicate, or times out after 90 seconds.
 func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, predicate func(*agentmodel.Connection) bool) {
 	t := v.T()
 	v.EventuallyWithT(func(c *assert.CollectT) {
@@ -138,7 +138,7 @@ func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, p
 				found = true
 			}
 		})
-		assert.True(c, found, "no TCP connection with %s on lab network", description)
+		assert.True(c, found, "no TCP connection with %s on tcp-congestion-net network", description)
 	}, 90*time.Second, 2*time.Second, "timed out waiting for %s", description)
 }
 
