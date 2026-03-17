@@ -34,7 +34,7 @@ type batcher struct {
 
 	mu sync.Mutex
 
-	// Metrics: compact data-point ring (32 bytes/item).
+	// Metrics: compact data-point ring (48 bytes/item, Source is a static string constant).
 	ptCap       int
 	ptsActive   []metricPoint
 	ptsDrain    []metricPoint

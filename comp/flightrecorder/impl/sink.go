@@ -98,8 +98,12 @@ func NewComponent(req Requires) (Provides, error) {
 
 	impl := &sinkImpl{counters: c}
 
-	// Subscribe to all metric hooks.
+	// Subscribe to all metric hooks:
+	//   dogstatsd-pipeline — raw DogStatsD samples (pre-aggregation, per UDP packet)
+	//   metrics-pipeline   — post-aggregated series: DogStatsD (time-sampler),
+	//                        check metrics (check_sampler), no-agg pipeline
 	for _, mh := range fxutil.GetAndFilterGroup(req.MetricsHooks) {
+		source := mh.Name()
 		mh.SubscribeWithBuffer("flightrecorder-metrics", hookBufSize, func(payload observer.MetricView) {
 			name := payload.GetName()
 			raw := payload.GetRawTags()
@@ -107,12 +111,13 @@ func NewComponent(req Requires) (Provides, error) {
 			ts := int64(payload.GetTimestamp() * float64(time.Second/time.Nanosecond))
 
 			if bat.IsContextKnown(ckey) {
-				// Fast path: context already sent — compact 32-byte point, no string copies.
+				// Fast path: context already sent — compact point, no string copies.
 				bat.AddPoint(metricPoint{
 					ContextKey:  ckey,
 					Value:       payload.GetValue(),
 					TimestampNs: ts,
 					SampleRate:  payload.GetSampleRate(),
+					Source:      source,
 				})
 			} else {
 				// Slow path: first occurrence — copy strings for context definition.
@@ -126,6 +131,7 @@ func NewComponent(req Requires) (Provides, error) {
 					TagPoolSlice: sp,
 					TimestampNs:  ts,
 					SampleRate:   payload.GetSampleRate(),
+					Source:       source,
 				})
 			}
 		})
