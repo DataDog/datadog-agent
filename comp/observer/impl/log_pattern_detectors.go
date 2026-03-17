@@ -87,15 +87,18 @@ type LogPatternDetector struct {
 	MetricsPrefix string
 	// WindowDurationSec is the duration of the window to compute rates.
 	WindowDurationSec int64
-	ZThreshold        float64
 	// Rates[cluster key] = rates through time
-	Rates map[int64]*queue.Queue[float64]
+	Rates       map[int64]*queue.Queue[float64]
+	RateLimiter *AnomalyRateLimiter
+	extractor   *LogPatternExtractor
+	// --- Hyper Parameters ---
+	ZThreshold      float64
+	DetectDecreases bool
+	MinPatternRate  float64
 	// HistorySize is the maximum number of items kept in the queue.
 	HistorySize int
 	// TooRecentSize is the number of items skipped at the start of the queue.
 	TooRecentSize int
-	RateLimiter   *AnomalyRateLimiter
-	extractor     *LogPatternExtractor
 }
 
 var _ observerdef.Detector = (*LogPatternDetector)(nil)
@@ -105,12 +108,14 @@ func NewLogPatternDetector() *LogPatternDetector {
 	return &LogPatternDetector{
 		MetricsPrefix:     "_virtual.log.log_pattern_extractor",
 		WindowDurationSec: 60,
-		ZThreshold:        3.0,
 		Rates:             make(map[int64]*queue.Queue[float64]),
 		HistorySize:       120,
 		TooRecentSize:     5,
 		// Wait at least 1 minute between anomalies for the same pattern.
-		RateLimiter: NewAnomalyRateLimiter(60 * 1000),
+		RateLimiter:     NewAnomalyRateLimiter(60 * 1000),
+		ZThreshold:      3.0,
+		DetectDecreases: false,
+		MinPatternRate:  1.0,
 	}
 }
 
@@ -190,7 +195,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTimeS
 			if standardDeviation > 0 {
 				zScore = (rate - average) / standardDeviation
 			}
-			if math.Abs(zScore) >= d.ZThreshold && d.RateLimiter.CanCreateAnomaly(key, dataTimeSec*1000) {
+			if (d.DetectDecreases && math.Abs(zScore) >= d.ZThreshold || !d.DetectDecreases && zScore >= d.ZThreshold) && rate >= d.MinPatternRate && d.RateLimiter.TryCreateAnomaly(key, dataTimeSec*1000) {
 				// Create a score between 0.5 and 1 based on the z-score (0.5 score is the baseline).
 				tolerance := 0.5
 				anomalyScore := 1 - math.Exp((d.ZThreshold-math.Abs(zScore))*tolerance-0.6932)
@@ -210,7 +215,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTimeS
 				if zScore < 0 {
 					action = "decrease"
 				}
-				description := fmt.Sprintf("Sudden %s in rate of log pattern (z-score: %.1f, score: %.1f). Pattern: `%s`", action, zScore, anomalyScore, pattern)
+				description := fmt.Sprintf("Sudden %s in rate of log pattern (rate: %.1f logs/s, z-score: %.1f, score: %.1f). Pattern: `%s`", action, rate, zScore, anomalyScore, pattern)
 				fmt.Printf("Anomaly detected(%s): %s\n", time.Unix(dataTimeSec, 0).Format(time.RFC3339), description)
 
 				anomalies = append(anomalies, observerdef.Anomaly{

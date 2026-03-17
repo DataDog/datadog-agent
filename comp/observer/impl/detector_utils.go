@@ -21,8 +21,8 @@ func NewAnomalyRateLimiter(cooldownMs int64) *AnomalyRateLimiter {
 	}
 }
 
-// CanCreateAnomaly returns true if an anomaly can be created for the given key at nowMs.
-func (a *AnomalyRateLimiter) CanCreateAnomaly(key int64, nowMs int64) bool {
+// TryCreateAnomaly returns true if an anomaly can be created for the given key at nowMs.
+func (a *AnomalyRateLimiter) TryCreateAnomaly(key int64, nowMs int64) bool {
 	if lastAnomalyTime, ok := a.LastAnomalyTimesMs[key]; ok {
 		if nowMs-lastAnomalyTime < a.CooldownMs {
 			return false
