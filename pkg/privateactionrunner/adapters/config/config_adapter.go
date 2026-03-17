@@ -24,6 +24,7 @@ type Config struct {
 	Allowlist         []string
 	AllowIMDSEndpoint bool
 	DDHost            string
+	DDApiHost         string
 	Modes             []modes.Mode
 	OrgId             int64
 	PrivateKey        *ecdsa.PrivateKey

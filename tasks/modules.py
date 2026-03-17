@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 from invoke import Context, Exit, task
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
     ConfigDumper,
@@ -84,10 +85,7 @@ def go_work(ctx: Context):
     """
     Update the go work to use all the modules defined in modules.yml
     """
-
-    ctx.run(
-        "go run ./internal/tools/worksynchronizer/worksynchronizer.go --path ./go.work --modules-file ./modules.yml"
-    )
+    bazel("run", "//:write_go_work")
 
 
 @task
@@ -176,7 +174,7 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
             continue
 
         path = Path(go_mod).parent.relative_to(base_dir).as_posix()
-        assert path in config.modules or path in config.ignored_modules, f"Configuration is missing a module for {path}"
+        assert path in config.modules or config.is_ignored(path), f"Configuration is missing a module for {path}"
 
     if errors:
         print(f'{color_message("ERROR", Color.RED)}: Some modules have invalid configurations:')
@@ -247,7 +245,7 @@ def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
     """
 
     config = Configuration.from_file(Path(base_dir))
-    if path in config.ignored_modules:
+    if config.is_ignored(path):
         print(f'Module {path} is ignored')
         return
 
@@ -272,7 +270,7 @@ def show_all(_, base_dir: str = '.', ignored=False):
     config = Configuration.from_file(Path(base_dir))
 
     if ignored:
-        names = config.ignored_modules
+        names = config.ignored_modules | config.ignored_trees
     else:
         names = list(config.modules.keys())
 

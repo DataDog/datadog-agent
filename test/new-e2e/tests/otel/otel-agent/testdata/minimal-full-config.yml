@@ -62,6 +62,8 @@ exporters:
         flush_timeout: 200ms
         max_size: 0
         min_size: 8192
+        partition:
+          metadata_keys: []
         sizer: {}
       block_on_overflow: false
       num_consumers: 10
@@ -86,7 +88,7 @@ extensions:
       fail_on_invalid_key: true
       key: "[REDACTED]"
       site: datadoghq.com
-    deployment_type: unknown
+    deployment_type: daemonset
     force_attempt_http2: true
     hostname: ""
     http:
@@ -148,6 +150,7 @@ processors:
     cardinality: 0
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: propagate
+    log_conditions: []
     logs:
       exclude: null
       include: null
@@ -168,9 +171,11 @@ processors:
       metric: []
       regexp: null
       resource: []
+    metric_conditions: []
     profiles:
       profile: []
       resource: []
+    profile_conditions: []
     spans:
       exclude: null
       include: null
@@ -178,6 +183,7 @@ processors:
       resource: []
       span: []
       spanevent: []
+    trace_conditions: []
 receivers:
   otlp:
     protocols:

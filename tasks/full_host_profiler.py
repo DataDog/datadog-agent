@@ -55,3 +55,18 @@ def build(ctx):
         "./cmd/host-profiler/dist/host-profiler-config.yaml",
         os.path.join(dist_folder, "full-host-profiler-config.yaml"),
     )
+
+
+@task
+def update_golden_tests(ctx):
+    """
+    Update golden test files for host-profiler converters
+    """
+    print("Updating golden test files...")
+
+    test_paths = ["comp/host-profiler/collector/impl/converters", "comp/host-profiler/collector/impl/agentprovider"]
+    for path in test_paths:
+        with ctx.cd(path):
+            ctx.run("go test -tags test -update")
+
+    print("Golden test files updated successfully!")

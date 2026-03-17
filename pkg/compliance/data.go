@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Evaluator is a string representing the type of evaluator that produced the
@@ -212,9 +212,9 @@ const (
 	Unscoped RuleScope = "none"
 	// DockerScope used for rules requiring a Docker daemon running.
 	DockerScope RuleScope = "docker"
-	// KubernetesNodeScope used for rules requireing a kubelet process running.
+	// KubernetesNodeScope used for rules requiring a kubelet process running.
 	KubernetesNodeScope RuleScope = "kubernetesNode"
-	// KubernetesClusterScope used for rules requireing a kube-apiserver process running.
+	// KubernetesClusterScope used for rules requiring a kube-apiserver process running.
 	KubernetesClusterScope RuleScope = "kubernetesCluster"
 )
 

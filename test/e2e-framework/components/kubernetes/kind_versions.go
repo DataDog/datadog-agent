@@ -6,8 +6,10 @@
 package kubernetes
 
 import (
+	"embed"
 	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -19,8 +21,23 @@ type KindConfig struct {
 	UseNewContainerdConfig bool
 }
 
+// KindConfigFlags contains flags to generate a kind cluster configuration
+// It can be used to generate different kind cluster configurations based on the flags set
+// It can be extended in the future to add more configuration options, mount path, featureflags etc.
+// It must match the fields in the kind-cluster.yaml template
+type KindConfigFlags struct {
+	NewContainerdRegistryConfig bool // whether to use the new containerd registry mirror config format (for containerd >= 2.2, used in kubernetes >= v1.32)
+	KubeProxyReplacement        bool // whether to set kubeProxyMode to "none" in the kind config
+	DualNodeSetup               bool
+}
+
 // Source: https://github.com/kubernetes-sigs/kind/releases
 var kubeToKindVersion = map[string]KindConfig{
+	"1.35": {
+		KindVersion:            "v0.31.0",
+		NodeImageVersion:       "v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f",
+		UseNewContainerdConfig: true,
+	},
 	"1.34": {
 		KindVersion:            "v0.30.0",
 		NodeImageVersion:       "v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a",
@@ -129,4 +146,20 @@ func kubeSupportedVersions() []string {
 	}
 
 	return versions
+}
+
+// generateKindConfig generates a kind cluster configuration based on the provided flags.
+// the embed.FS should contain the kind-cluster.yaml template file.
+func generateKindConfig(kindClusterTemplateFs embed.FS, flags KindConfigFlags) (string, error) {
+	tmpl, err := template.ParseFS(kindClusterTemplateFs, "kind-cluster.yaml")
+	if err != nil {
+		return "", err
+	}
+
+	var kindClusterConfig strings.Builder
+	if err = tmpl.Execute(&kindClusterConfig, flags); err != nil {
+		return "", err
+	}
+
+	return kindClusterConfig.String(), nil
 }

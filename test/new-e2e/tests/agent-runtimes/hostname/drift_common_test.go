@@ -25,13 +25,17 @@ type baseHostnameDriftSuite struct {
 }
 
 func (v *baseHostnameDriftSuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
+	agentConfig := "hostname_drift_initial_delay: 10s\nhostname_drift_recurring_interval: 15s"
+	if osInstance.Family() == osVM.WindowsFamily {
+		// Use EC2 hostname on Windows as well
+		agentConfig += "\nec2_use_windows_prefix_detection: true"
+	}
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
-					agentparams.WithAgentConfig(`hostname_drift_initial_delay: 10s
-hostname_drift_recurring_interval: 15s`),
+					agentparams.WithAgentConfig(agentConfig),
 				),
 				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 			),

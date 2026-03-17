@@ -1,0 +1,4 @@
+exports_files(
+    glob(["*.tmpl"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)

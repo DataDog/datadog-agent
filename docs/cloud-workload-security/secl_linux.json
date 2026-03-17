@@ -508,6 +508,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "process.ancestors.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -1053,6 +1058,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "process.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "process.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -1508,6 +1518,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "process.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "process.parent.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -1710,6 +1725,16 @@
           "name": "accept.addr.hostname",
           "definition": "Address hostname (if available)",
           "property_doc_link": "accept-addr-hostname-doc"
+        },
+        {
+          "name": "accept.addr.hostname.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "accept.addr.hostname.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
         },
         {
           "name": "accept.addr.ip",
@@ -2538,6 +2563,16 @@
           "property_doc_link": "connect-addr-hostname-doc"
         },
         {
+          "name": "connect.addr.hostname.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "connect.addr.hostname.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
+        },
+        {
           "name": "connect.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -2600,6 +2635,11 @@
           "name": "dns.question.name.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "dns.question.name.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
         },
         {
           "name": "dns.question.type",
@@ -3176,6 +3216,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "exec.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "exec.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -3743,6 +3788,11 @@
           "name": "exit.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "exit.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
         },
         {
           "name": "exit.netns",
@@ -5743,6 +5793,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -6288,6 +6343,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "ptrace.tracee.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "ptrace.tracee.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -6741,6 +6801,11 @@
           "name": "ptrace.tracee.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
         },
         {
           "name": "ptrace.tracee.parent.netns",
@@ -8087,6 +8152,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -8632,6 +8702,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "setrlimit.target.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "setrlimit.target.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -9085,6 +9160,11 @@
           "name": "setrlimit.target.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
         },
         {
           "name": "setrlimit.target.parent.netns",
@@ -10008,6 +10088,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "signal.target.ancestors.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -10553,6 +10638,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "signal.target.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
           "name": "signal.target.netns",
           "definition": "NetNS ID of the process",
           "property_doc_link": "common-pidcontext-netns-doc"
@@ -11006,6 +11096,11 @@
           "name": "signal.target.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "signal.target.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
         },
         {
           "name": "signal.target.parent.netns",
@@ -13320,6 +13415,7 @@
       "type": "int",
       "definition": "Length of the corresponding element",
       "prefixes": [
+        "accept.addr.hostname",
         "cgroup_write.file.name",
         "cgroup_write.file.path",
         "chdir.file.name",
@@ -13328,6 +13424,7 @@
         "chmod.file.path",
         "chown.file.name",
         "chown.file.path",
+        "connect.addr.hostname",
         "dns.question.name",
         "exec.file.name",
         "exec.file.path",
@@ -13418,6 +13515,31 @@
         "unlink.file.path",
         "utimes.file.name",
         "utimes.file.path"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.mntns",
+      "link": "common-pidcontext-mntns-doc",
+      "type": "int",
+      "definition": "MNTNS ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
@@ -14477,6 +14599,20 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "*.root_domain",
+      "link": "common-string-root_domain-doc",
+      "type": "string",
+      "definition": "Root domain of the corresponding element",
+      "prefixes": [
+        "accept.addr.hostname",
+        "connect.addr.hostname",
+        "dns.question.name"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

@@ -18,6 +18,7 @@ exclude = [
     "dev",
     "third_party",
     "cmd/system-probe/subcommands/usm/debug_scripts",  # Standalone scripts for customer debugging
+    "q_branch",
 ]
 line-length = 120
 

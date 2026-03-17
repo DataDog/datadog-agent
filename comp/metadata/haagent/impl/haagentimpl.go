@@ -8,7 +8,6 @@ package haagentimpl
 
 import (
 	"encoding/json"
-	"maps"
 	"net/http"
 	"sync"
 	"time"
@@ -21,13 +20,16 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-type haAgentMetadata = map[string]interface{}
+type haAgentMetadata struct {
+	Enabled bool   `json:"enabled"`
+	State   string `json:"state"`
+}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string          `json:"hostname"`
-	Timestamp int64           `json:"timestamp"`
-	Metadata  haAgentMetadata `json:"ha_agent_metadata"`
+	Hostname  string           `json:"hostname"`
+	Timestamp int64            `json:"timestamp"`
+	Metadata  *haAgentMetadata `json:"ha_agent_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -42,7 +44,7 @@ type haagentimpl struct {
 	conf     config.Component
 	log      log.Component
 	m        sync.Mutex
-	data     haAgentMetadata
+	data     *haAgentMetadata
 	hostname string
 	haAgent  haagentcomp.Component
 }
@@ -55,8 +57,10 @@ func (i *haagentimpl) refreshMetadata() {
 		return
 	}
 
-	i.data["enabled"] = isEnabled
-	i.data["state"] = string(i.haAgent.GetState())
+	i.data = &haAgentMetadata{
+		Enabled: isEnabled,
+		State:   string(i.haAgent.GetState()),
+	}
 }
 
 func (i *haagentimpl) getPayload() marshaler.JSONMarshaler {
@@ -83,14 +87,16 @@ func (i *haagentimpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request)
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
-func (i *haagentimpl) Get() haAgentMetadata {
+func (i *haagentimpl) Get() *haAgentMetadata {
 	i.m.Lock()
 	defer i.m.Unlock()
 	return i.getDataCopy()
 }
 
-func (i *haagentimpl) getDataCopy() haAgentMetadata {
-	data := haAgentMetadata{}
-	maps.Copy(data, i.data)
-	return data
+func (i *haagentimpl) getDataCopy() *haAgentMetadata {
+	if i.data == nil {
+		return nil
+	}
+	dataCopy := *i.data
+	return &dataCopy
 }

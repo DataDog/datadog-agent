@@ -13,13 +13,14 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/spf13/afero"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -144,6 +145,8 @@ type Check struct {
 	statFn                    statFunc
 	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
 
+	partitionEnumInFlight atomic.Bool
+
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
 	includedDevices     []regexp.Regexp
@@ -172,21 +175,26 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	err = c.collectDiskMetrics(sender)
-	if err != nil {
-		return err
-	}
+	// IO counter collection is best-effort: on some systems (e.g. Windows Server 2016)
+	// the IOCTL_DISK_PERFORMANCE call may fail with ERROR_INVALID_FUNCTION.
+	// We should not discard partition/usage metrics when this happens.
+	c.collectDiskMetrics(sender)
 	sender.Commit()
 
 	return nil
 }
 
 // Configure parses the check configuration and init the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") && !pkgconfigsetup.Datadog().GetBool("use_diskv2_check") {
 		// if use_diskv2_check, then do not skip the core check
 		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
 	}
+
+	// Must be called before CommonConfigure so each instance gets a unique
+	// check ID and therefore its own sender, preventing custom tags set on
+	// one instance from leaking into other instances' metrics.
+	c.BuildID(integrationConfigDigest, data, initConfig)
 
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
@@ -438,11 +446,7 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	ctx := context.Background()
-	if c.instanceConfig.ProcMountInfoPath != "" {
-		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
-	}
-	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
+	partitions, err := c.getDiskPartitionsWithTimeout(c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		if len(partitions) == 0 {
 			// Complete failure - no partitions retrieved
@@ -497,19 +501,21 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	return nil
 }
 
-func (c *Check) collectDiskMetrics(sender sender.Sender) error {
+func (c *Check) collectDiskMetrics(sender sender.Sender) {
 	iomap, err := c.diskIOCounters()
 	if err != nil {
-		log.Warnf("Unable to get disk iocounters: %s", err)
-		return err
+		if isExpectedIOCounterError(err) {
+			log.Debugf("IO counter collection not supported on this system: %s", err)
+		} else {
+			log.Warnf("Unable to get disk IO counters: %s", err)
+		}
+		return
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
 		tags := c.buildDeviceTags(deviceName, deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
-
-	return nil
 }
 
 func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
@@ -532,6 +538,34 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	// See: https://github.com/DataDog/integrations-core/pull/7323#issuecomment-756427024
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+}
+
+func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil_disk.PartitionStat, error) {
+	if !c.partitionEnumInFlight.CompareAndSwap(false, true) {
+		return nil, errors.New("disk partition enumeration skipped — a previous call is still in progress, which may indicate an inaccessible or orphaned volume on the system")
+	}
+	type partitionsResult struct {
+		partitions []gopsutil_disk.PartitionStat
+		err        error
+	}
+	resultCh := make(chan partitionsResult, 1)
+	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if c.instanceConfig.ProcMountInfoPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
+	}
+	go func() {
+		defer c.partitionEnumInFlight.Store(false)
+		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		resultCh <- partitionsResult{partitions, err}
+	}()
+	select {
+	case result := <-resultCh:
+		return result.partitions, result.err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("disk partition enumeration timed out after %s — this may indicate an inaccessible or orphaned volume on the system", timeout)
+	}
 }
 
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
@@ -707,7 +741,16 @@ func (c *Check) fetchAllDeviceLabels() error {
 	if c.instanceConfig.BlkidCacheFile != "" {
 		return c.fetchAllDeviceLabelsFromBlkidCache()
 	}
-	return c.fetchAllDeviceLabelsFromBlkid()
+	err := c.fetchAllDeviceLabelsFromBlkid()
+	if err != nil {
+		log.Debugf("blkid failed (%s), falling back to lsblk", err)
+		return c.fetchAllDeviceLabelsFromLsblk()
+	}
+	if len(c.deviceLabels) == 0 {
+		log.Debugf("blkid returned no labels, falling back to lsblk")
+		return c.fetchAllDeviceLabelsFromLsblk()
+	}
+	return nil
 }
 
 // Factory creates a new check factory

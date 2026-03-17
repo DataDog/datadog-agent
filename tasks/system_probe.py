@@ -421,19 +421,17 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
         ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
 
 
-def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
-    container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
+def ninja_corecheck_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    corecheck_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
+    corecheck_co_re_flags = f"-I{corecheck_co_re_dir}"
+    corecheck_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "noisy-neighbor"]
 
-    for prog in container_integrations_co_re_programs:
-        infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
+    for prog in corecheck_co_re_programs:
+        infile = os.path.join(corecheck_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": corecheck_co_re_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(
-            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
-        )
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": corecheck_co_re_flags + " -DDEBUG=1"})
 
 
 def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -597,6 +595,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
+            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
+            ],
             "pkg/dyninst/output/framing.go": [
                 "pkg/dyninst/ebpf/framing.h",
             ],
@@ -690,7 +691,7 @@ def ninja_generate(
             ninja_kernel_bugs_ebpf_programs(nw)
             ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
+            ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
@@ -706,7 +707,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """
     embedded_path = get_embedded_path(ctx)
     assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
+    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
     if os.path.exists(target_file):
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
@@ -731,8 +732,8 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
         }
 
 
@@ -1914,24 +1915,59 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         return
 
     # crane does not accept 'x86_64' as a valid architecture
+    crane_arch = arch
     if arch == "x86_64":
-        arch = "amd64"
+        crane_arch = "amd64"
 
-    # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
+    vmconfig_paths = [
+        "test/new-e2e/system-probe/config/vmconfig-system-probe.json",
+        "test/new-e2e/system-probe/config/vmconfig-security-agent.json",
+    ]
+    urls = set()
+    for vmconfig_path in vmconfig_paths:
+        with open(vmconfig_path) as vmconfig:
+            vmjson = json.load(vmconfig)
+            if "vmsets" not in vmjson:
+                continue
 
-    # remove the public.ecr.aws/docker/library/ prefix as we might be downloading official images
-    # from the AWS mirror instead of dockerhub to avoid rate limits
-    docker_ls = {line.removeprefix("public.ecr.aws/docker/library/") for line in resp.text.split('\n') if line.strip()}
+            for vmset in vmjson["vmsets"]:
+                if "disks" not in vmset:
+                    continue
+                if vmset["arch"] != arch:
+                    continue
+
+                for disk in vmset["disks"]:
+                    if "source" not in disk:
+                        continue
+
+                    root = disk["source"].removesuffix(f"/docker-{arch}.qcow2.xz")
+                    urls.add(f"{root}/docker.ls")
+
+    docker_ls = set()
+    for u in urls:
+        # only download images not present in preprepared vm disk
+        resp = requests.get(u)
+
+        # remove mirror prefixes as we might be downloading official images
+        # from the AWS or DD mirror instead of dockerhub to avoid rate limits
+        for line in resp.text.split('\n'):
+            if not line.strip():
+                continue
+
+            docker_ls.add(
+                line.removeprefix("public.ecr.aws/docker/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/")
+            )
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         output_file = f"{os.path.join(output_dir, output_path)}.tar"
         if use_crane:
-            ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
+            ctx.run(f"crane pull --platform linux/{crane_arch} {image} {output_file}")
         else:
-            ctx.run(f"docker pull --platform linux/{arch} {image}")
+            ctx.run(f"docker pull --platform linux/{crane_arch} {image}")
             ctx.run(f"docker save {image} > {output_file}")
 
 
@@ -1946,6 +1982,7 @@ def _test_docker_image_list():
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
+    docker_compose_paths.append("./pkg/network/protocols/tls/nodejs/testdata/docker-compose-ubuntu.yml")
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1962,7 +1999,7 @@ def _test_docker_image_list():
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
 
     # Add images used in docker run commands
-    images.add("public.ecr.aws/docker/library/alpine:3.20.3")
+    images.add("alpine:3.20.3")
 
     return images
 

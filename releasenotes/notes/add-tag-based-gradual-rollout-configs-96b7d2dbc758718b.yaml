@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added support for two new configurations for tag-based gradual rollout in Kubernetes SSI deployments.
+    The gradual rollout can be configured using the following parameters:
+    - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED``: Whether to enable gradual rollout (default: true)
+    - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_CACHE_TTL``: The cache TTL duration for the gradual rollout image cache (default: 1h)
+       - This cache is used to store the mapping of mutable tags to image digest for the gradual rollout, and setting this TTL helps prevent the image resolution from becoming stale.
+

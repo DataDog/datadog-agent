@@ -11,7 +11,6 @@ package model
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -138,10 +137,9 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 	parent.ContainerContext = ContainerContext{
 		ContainerID: "1234",
 	}
+	parent.MntNS = 1234
 	parent.NetNS = 5678
 	parent.UserSession = UserSessionContext{
-		ID:          "abc",
-		SessionType: int(usersession.UserSessionTypeSSH),
 		SSHSessionContext: SSHSessionContext{
 			SSHSessionID: 9876,
 		},
@@ -156,8 +154,9 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 
@@ -167,8 +166,9 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 
@@ -178,8 +178,9 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 
@@ -189,8 +190,9 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 }

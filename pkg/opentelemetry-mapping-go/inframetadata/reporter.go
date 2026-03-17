@@ -185,6 +185,8 @@ func (r *Reporter) ConsumeMetrics(md pmetric.Metrics) error {
 }
 
 // ConsumeHostMetadata consumes a host metadata payload and pushes it.
+//
+// This function should not be called concurrently to mutations of the argument `payload.HostMetadata`.
 func (r *Reporter) ConsumeHostMetadata(hm payload.HostMetadata) error {
 	if err := r.hostMap.Set(hm); err != nil {
 		return err

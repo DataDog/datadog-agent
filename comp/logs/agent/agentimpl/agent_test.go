@@ -30,8 +30,6 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
@@ -39,9 +37,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
-	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -515,9 +513,6 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		}),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
-		fx.Provide(func() option.Option[healthplatform.Component] {
-			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
-		}),
 		fx.Supply(option.None[observer.Component]()),
 	))
 }

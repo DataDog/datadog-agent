@@ -18,6 +18,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -325,6 +326,9 @@ func TestProcessLifecycleCollection(t *testing.T) {
 	creationTime3 := time.Now().Add(2 * time.Second).Unix()
 	proc4 := createTestUnknownProcess(pid2, creationTime3)
 
+	// same pid AND same creation time as proc1, but different cmdline
+	proc1DiffCmdline := createTestJavaProcess(pid1, creationTime1)
+
 	for _, tc := range []struct {
 		description              string
 		processesToCollectA      map[int32]*procutil.Process
@@ -436,6 +440,25 @@ func TestProcessLifecycleCollection(t *testing.T) {
 				workloadmetaProcess(proc2, nil, nil),
 			},
 		},
+		{
+			description: "process exec: same pid, same createTime, different cmdline",
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1, // python process
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc1DiffCmdline.Pid: proc1DiffCmdline, // java process with same pid and createTime
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1DiffCmdline,
+					&languagemodels.Language{
+						Name: languagemodels.Java,
+					},
+					nil),
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1, nil, nil),
+			},
+		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
@@ -477,9 +500,11 @@ func TestProcessLifecycleCollection(t *testing.T) {
 				for _, expectedDeletedProc := range tc.expectedDeletedProcesses {
 					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
 
-					// the same process pid can exist so we ensure it is a different process by checking the creation time
+					// the same process pid can exist so we ensure it is a different process using ProcessIdentity
 					if exists {
-						assert.NotEqual(cT, expectedDeletedProc.CreationTime, actualProc.CreationTime)
+						expectedIdentity := procutil.ProcessIdentity(expectedDeletedProc.Pid, expectedDeletedProc.CreationTime.UnixMilli(), expectedDeletedProc.Cmdline)
+						actualIdentity := procutil.ProcessIdentity(actualProc.Pid, actualProc.CreationTime.UnixMilli(), actualProc.Cmdline)
+						assert.NotEqual(cT, expectedIdentity, actualIdentity, "Expected process to be replaced")
 					}
 
 				}
@@ -604,6 +629,271 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 			assert.Equal(t, tc.expectedInterval, actualInterval)
 		})
 	}
+}
+
+// TestProcessDifferentCmdline tests that the full collector flow correctly handles
+// different cmdline scenarios (same PID, same createTime, but different cmdline).
+func TestProcessDifferentCmdline(t *testing.T) {
+	collectionInterval := time.Second * 10
+	createTime := time.Now().Unix()
+	pid := int32(1234)
+
+	// First collection: bash process
+	bashProc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    6,
+		NsPid:   2,
+		Name:    "bash",
+		Cwd:     "/home/user",
+		Exe:     "/bin/bash",
+		Comm:    "bash",
+		Cmdline: []string{"bash"},
+		Uids:    []int32{1000},
+		Gids:    []int32{1000},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Second collection: htop (same PID and createTime, simulating exec)
+	htopProc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    6,
+		NsPid:   2,
+		Name:    "htop",
+		Cwd:     "/home/user",
+		Exe:     "/usr/bin/htop",
+		Comm:    "htop",
+		Cmdline: []string{"htop"},
+		Uids:    []int32{1000},
+		Gids:    []int32{1000},
+		Stats:   &procutil.Stats{CreateTime: createTime}, // Same createTime!
+	}
+
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+	cfg.SetWithoutSource("process_config.intervals.process", 10)
+	cfg.SetWithoutSource("language_detection.enabled", true)
+
+	c := setUpCollectorTest(t, cfg, nil, nil)
+	defer c.cleanup()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	// First collection returns bash
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{pid: bashProc}, nil).Times(1)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	// Second collection returns htop (exec'd)
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{pid: htopProc}, nil).Times(1)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	// Start collection
+	err := c.collector.Start(ctx, c.mockStore)
+	assert.NoError(t, err)
+
+	// Wait for first collection to complete
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid)
+		require.NoError(cT, err)
+		require.NotNil(cT, actualProc)
+		assert.Equal(cT, []string{"bash"}, actualProc.Cmdline)
+	}, time.Second, time.Millisecond*100)
+
+	// Trigger second collection
+	c.mockClock.Add(collectionInterval)
+
+	// After exec, the store should have htop, not bash
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid)
+		require.NoError(cT, err)
+		require.NotNil(cT, actualProc)
+		// Critical assertion: cmdline should be updated to htop after exec
+		assert.Equal(cT, []string{"htop"}, actualProc.Cmdline, "Process cmdline should be updated after exec")
+		assert.Equal(cT, "htop", actualProc.Name, "Process name should be updated after exec")
+	}, time.Second, time.Millisecond*100)
+}
+
+// TestProcessCacheDifferentCmdline tests that processCacheDifference correctly detects
+// when a process has a different cmdline (same PID, same CreateTime, different Cmdline).
+func TestProcessCacheDifferentCmdline(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	// Original bash process
+	bashProc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Same PID and createTime, but exec'd into htop
+	htopProc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"htop"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Cache A has htop (current state after exec)
+	cacheA := map[int32]*procutil.Process{
+		pid: htopProc,
+	}
+
+	// Cache B has bash (previous state before exec)
+	cacheB := map[int32]*procutil.Process{
+		pid: bashProc,
+	}
+
+	// processCacheDifference(A, B) should return htop as a "new" process because cmdline changed
+	diff := processCacheDifference(cacheA, cacheB)
+
+	assert.Len(t, diff, 1, "Expected one process in diff after exec cmdline change")
+	assert.Equal(t, pid, diff[0].Pid)
+	assert.Equal(t, []string{"htop"}, diff[0].Cmdline)
+}
+
+// TestProcessCacheSameCmdline tests that processCacheDifference
+// does not report a process as new when the cmdline stays the same.
+func TestProcessCacheSameCmdline(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	procA := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	procB := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	cacheA := map[int32]*procutil.Process{
+		pid: procA,
+	}
+
+	cacheB := map[int32]*procutil.Process{
+		pid: procB,
+	}
+
+	diff := processCacheDifference(cacheA, cacheB)
+
+	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
+}
+
+// TestProcessCacheDifferenceContainerID tests that processCacheDifference detects
+// when a process gains or changes its container ID (same PID, same CreateTime, same Cmdline).
+func TestProcessCacheDifferenceContainerID(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	for _, tc := range []struct {
+		description string
+		cacheA      map[int32]*procutil.Process
+		cacheB      map[int32]*procutil.Process
+		expectedLen int
+	}{
+		{
+			description: "CID becomes available",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: ""},
+			},
+			expectedLen: 1,
+		},
+		{
+			description: "CID changes",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-new"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-old"},
+			},
+			expectedLen: 1,
+		},
+		{
+			description: "CID unchanged - no diff",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			expectedLen: 0,
+		},
+		{
+			description: "host process without CID - no diff",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"bash"}, Stats: &procutil.Stats{CreateTime: createTime}},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"bash"}, Stats: &procutil.Stats{CreateTime: createTime}},
+			},
+			expectedLen: 0,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			diff := processCacheDifference(tc.cacheA, tc.cacheB)
+			assert.Len(t, diff, tc.expectedLen)
+		})
+	}
+}
+
+// TestContainerIDRaceCondition tests that a process initially collected without a container ID
+// gets re-emitted with the correct container ID on the next collection cycle.
+func TestContainerIDRaceCondition(t *testing.T) {
+	collectionInterval := time.Second * 10
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+
+	// Separate objects per cycle since enrichProcessesWithContainerID mutates in-place.
+	// In production, ProcessesByPID returns fresh objects each call.
+	proc1CycleA := createTestPythonProcess(pid1, creationTime1)
+	proc1CycleB := createTestPythonProcess(pid1, creationTime1)
+
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+	cfg.SetWithoutSource("process_config.intervals.process", 10)
+
+	c := setUpCollectorTest(t, cfg, nil, nil)
+	defer c.cleanup()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	// Cycle 1: process exists but container ID is not yet available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		pid1: proc1CycleA,
+	}, nil).Times(1)
+	// Cycle 2: same process, now container ID is available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		pid1: proc1CycleB,
+	}, nil).Times(1)
+
+	gomock.InOrder(
+		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).Times(1),
+		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{
+			int(pid1): "container-abc",
+		}).Times(1),
+	)
+
+	err := c.collector.Start(ctx, c.mockStore)
+	assert.NoError(t, err)
+
+	// Advance clock to trigger cycle 2
+	c.mockClock.Add(collectionInterval)
+
+	// After both cycles: process should have the container ID from cycle 2
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid1)
+		assert.NoError(cT, err)
+		assert.Equal(cT, "container-abc", actualProc.ContainerID)
+		assert.Equal(cT, &workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "container-abc",
+		}, actualProc.Owner)
+	}, time.Second, time.Millisecond*100)
 }
 
 func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {

@@ -30,6 +30,9 @@ func TestCreateFromParms(t *testing.T) {
 	m = NewConfig("test", "tee")
 	assert.Equal(t, "tee", m.GetLibType())
 
+	m = NewConfig("test", "enable-tee")
+	assert.Equal(t, "tee", m.GetLibType())
+
 	m = NewConfig("test", "something invalid")
 	assert.Equal(t, "viper", m.GetLibType())
 
@@ -74,6 +77,10 @@ func TestCreateFromEnv(t *testing.T) {
 	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "tee")
+	m = NewConfig("test", "")
+	assert.Equal(t, "tee", m.GetLibType())
+
+	t.Setenv("DD_CONF_NODETREEMODEL", "enable-tee")
 	m = NewConfig("test", "")
 	assert.Equal(t, "tee", m.GetLibType())
 

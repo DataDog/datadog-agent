@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -53,8 +54,37 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	}
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
+	if err != nil {
+		return nil, err
+	}
 
-	return &networkTracer{tracer: t, cfg: ncfg}, err
+	ctx, cancel := context.WithCancel(context.Background())
+	var connsSender sender.Sender
+	if ncfg.DirectSend {
+		connsSender, err = sender.New(ctx, t, sender.Dependencies{
+			Config:         deps.CoreConfig,
+			Logger:         deps.Log,
+			Sysprobeconfig: deps.SysprobeConfig,
+			Tagger:         deps.Tagger,
+			Wmeta:          deps.WMeta,
+			Hostname:       deps.Hostname,
+			Forwarder:      deps.ConnectionsForwarder,
+			NPCollector:    deps.NPCollector,
+		})
+		if err != nil {
+			t.Stop()
+			cancel()
+			return nil, fmt.Errorf("create direct sender: %s", err)
+		}
+	}
+
+	return &networkTracer{
+		tracer:      t,
+		cfg:         ncfg,
+		connsSender: connsSender,
+		ctx:         ctx,
+		cancelFunc:  cancel,
+	}, nil
 }
 
 var _ module.Module = &networkTracer{}
@@ -63,9 +93,12 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	cfg          *networkconfig.Config
 	restartTimer *time.Timer
+	connsSender  sender.Sender
+	ctx          context.Context
+	cancelFunc   context.CancelFunc
 }
 
-func (nt *networkTracer) GetStats() map[string]interface{} {
+func (nt *networkTracer) GetStats() map[string]any {
 	stats, _ := nt.tracer.GetStats()
 	return stats
 }
@@ -138,7 +171,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -193,7 +226,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, cache, utils.CompactOutput)
+		utils.WriteAsJSON(r, w, cache, utils.CompactOutput)
 	})
 
 	registerUSMEndpoints(nt, httpMux)
@@ -203,7 +236,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	if nt.connsSender != nil {
+		nt.connsSender.Stop()
+	}
 	nt.tracer.Stop()
+	nt.cancelFunc()
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {

@@ -164,9 +164,10 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 
-			// Each NetFlow flow is about 500 bytes
-			// 10k BatchMaxSize is about 5Mo of content size
-			defaultBatchMaxSize: 10000,
+			// Each NetFlow flow is about 500 bytes, we could fit ~10k is the default 5Mb content size. However,
+			// this is also directly tied to the amount of work we need to do atomically in our event processing code to add enrichments.
+			// Let's limit this size to 250 events, there will be some increased overhead since more packets will need to be sent.
+			defaultBatchMaxSize: 250,
 			// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
 			// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
 			// due to input channel being full.
@@ -337,7 +338,9 @@ func Diagnose() []diagnose.Diagnosis {
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(cfg, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		// Use ForDiagnostic variant to avoid registering config update callbacks
+		// since these endpoints are transient and will be discarded after the diagnostic check
+		endpoints, err := config.BuildEndpointsForDiagnostic(cfg, configKeys, desc.hostnameEndpointPrefix, config.DiagnosticHTTP, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,

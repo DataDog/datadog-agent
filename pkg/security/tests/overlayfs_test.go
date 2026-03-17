@@ -27,6 +27,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func createOverlayLayer(t *testing.T, test *testModule, name string) string {
@@ -675,6 +676,7 @@ func TestOverlayOpOverride(t *testing.T) {
 	})
 
 	t.Run("open-from-overlay-mnt", func(t *testing.T) {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.WaitSignalFromRule(t, func() error {
 			output, err := exec.Command("touch", openTargetFromOverlayMnt).CombinedOutput()
 			if err != nil {

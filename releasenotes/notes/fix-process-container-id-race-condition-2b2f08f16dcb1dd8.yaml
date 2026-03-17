@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixed a race condition in the workloadmeta process collector where a
+    containerized process could be permanently stuck with an empty container ID
+    if it was collected before the container runtime reported the PID-to-container
+    mapping.

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 
@@ -154,7 +155,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			expNew: map[string]Service{
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
-					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
+					containerPorts: []workloadmeta.ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					tags:           []string{"tag:x"},
 				},
 			},
@@ -168,7 +169,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			expDel: map[string]Service{
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
-					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
+					containerPorts: []workloadmeta.ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					tags:           []string{"tag:x"},
 				},
 			},
@@ -196,7 +197,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			expNew: map[string]Service{
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []workloadmeta.ContainerPort{},
 					tags:           []string{"app_guid:myappguid1", "app_id:myappguid1", "app_name:myappname1"},
 				},
 			},
@@ -340,14 +341,14 @@ func TestCloudFoundryListener(t *testing.T) {
 			expDel: map[string]Service{
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []workloadmeta.ContainerPort{},
 					tags:           []string{"app_guid:myappguid1", "app_id:myappguid1", "app_name:myappname1"},
 				},
 			},
 			expNew: map[string]Service{
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.4"},
-					containerPorts: []ContainerPort{
+					containerPorts: []workloadmeta.ContainerPort{
 						{
 							Name: "p11",
 							Port: 11,
@@ -361,7 +362,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"processguid1/flask-app/instance-guid-1-1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.5"},
-					containerPorts: []ContainerPort{
+					containerPorts: []workloadmeta.ContainerPort{
 						{
 							Name: "p33",
 							Port: 33,
@@ -375,12 +376,12 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"appguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []workloadmeta.ContainerPort{},
 					tags:           []string{"app_guid:appguid1", "app_id:appguid1", "app_name:appname1", "org_id:orgguid1", "org_name:orgname1", "space_id:spaceguid1", "space_name:spacename1"},
 				},
 				"processguid2/flask-app/instance-guid-2-0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.7"},
-					containerPorts: []ContainerPort{
+					containerPorts: []workloadmeta.ContainerPort{
 						{
 							Name: "p77",
 							Port: 77,
@@ -394,7 +395,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"processguid2/flask-app/instance-guid-2-1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.8"},
-					containerPorts: []ContainerPort{
+					containerPorts: []workloadmeta.ContainerPort{
 						{
 							Name: "p99",
 							Port: 99,
@@ -408,7 +409,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"appguid2/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []workloadmeta.ContainerPort{},
 					tags:           []string{"app_guid:appguid2", "app_id:appguid2", "app_name:appname2", "org_id:orgguid2", "org_name:orgname2", "space_id:spaceguid2", "space_name:spacename2"},
 				},
 			},

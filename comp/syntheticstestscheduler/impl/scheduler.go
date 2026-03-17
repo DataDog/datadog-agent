@@ -121,6 +121,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 		pubID := newTestConfig.PublicID
 		seen[pubID] = true
 		current, exists := s.state.tests[pubID]
+		ChecksReceived.Inc()
 		s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
 		if !exists {
 			s.state.tests[pubID] = &runningTestState{

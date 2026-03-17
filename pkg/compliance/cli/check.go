@@ -188,7 +188,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 func reportComplianceEvents(hostname string, events []*compliance.CheckEvent, compression logscompression.Component) error {
 	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
-		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
+		return fmt.Errorf("reporter: could not create log context for compliance: %w", err)
 	}
 	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	defer reporter.Stop()

@@ -108,7 +108,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.intervals.connections",
-			defaultValue: nil,
+			defaultValue: 30,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -382,7 +382,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.intervals.connections",
 			env:      "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS",
 			value:    "10",
-			expected: "10",
+			expected: 10,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
@@ -480,30 +480,6 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 
 	// Make sure the default is set properly
 	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
-}
-
-func TestProcBindEnv(t *testing.T) {
-	cfg := newTestConf(t)
-	procBindEnv(cfg, "process_config.foo.bar")
-
-	envs := map[string]struct{}{}
-	for _, env := range cfg.GetEnvVars() {
-		envs[env] = struct{}{}
-	}
-
-	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
-	assert.True(t, ok)
-
-	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
-	assert.True(t, ok)
-
-	// Make sure that DD_PROCESS_CONFIG_FOO_BAR shows up as unset by default
-	assert.False(t, cfg.IsSet("process_config.foo.bar"))
-
-	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
-	t.Setenv("DD_PROCESS_CONFIG_FOO_BAR", "baz")
-	assert.True(t, cfg.IsSet("process_config.foo.bar"))
-	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
 }
 
 func TestProcConfigEnabledTransform(t *testing.T) {

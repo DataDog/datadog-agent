@@ -70,20 +70,44 @@ func StopUnit(ctx context.Context, unit string, args ...string) error {
 
 // StartUnit starts a systemd unit
 func StartUnit(ctx context.Context, unit string, args ...string) error {
+	running, err := IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping start of %s", unit)
+		return nil
+	}
 	args = append([]string{"start", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	return handleSystemdSelfStops(err)
 }
 
 // RestartUnit restarts a systemd unit
 func RestartUnit(ctx context.Context, unit string, args ...string) error {
+	running, err := IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping restart of %s", unit)
+		return nil
+	}
 	args = append([]string{"restart", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	return handleSystemdSelfStops(err)
 }
 
 // EnableUnit enables a systemd unit
 func EnableUnit(ctx context.Context, unit string) error {
+	running, err := IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping enable of %s", unit)
+		return nil
+	}
 	return telemetry.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
@@ -133,6 +157,14 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 
 // Reload reloads the systemd daemon
 func Reload(ctx context.Context) (err error) {
+	running, runningErr := IsRunning()
+	if runningErr != nil {
+		return runningErr
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping daemon-reload")
+		return nil
+	}
 	return telemetry.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 }
 

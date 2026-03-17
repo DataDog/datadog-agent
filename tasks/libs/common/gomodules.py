@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,6 +12,7 @@ from typing import ClassVar
 import yaml
 
 import tasks
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.utils import agent_working_directory
 
 
@@ -39,6 +39,8 @@ class Configuration:
     modules: dict[str, GoModule]
     # Name of each ignored module (not within `modules`)
     ignored_modules: set[str]
+    # Prefix of ignored module trees (not within `modules`); any module path starting with one of these prefixes is ignored
+    ignored_trees: set[str]
 
     @staticmethod
     def from_dict(data: dict[str, dict[str, object]], base_dir: Path | None = None) -> Configuration:
@@ -46,16 +48,19 @@ class Configuration:
 
         modules = {}
         ignored_modules = set()
+        ignored_trees = set()
 
         for name, module_data in data.get('modules', {}).items():
             if module_data == 'ignored':
                 ignored_modules.add(name)
+            elif module_data == 'ignored-tree':
+                ignored_trees.add(name)
             elif module_data == 'default':
                 modules[name] = GoModule.from_dict(name, {})
             else:
                 modules[name] = GoModule.from_dict(name, module_data)
 
-        return Configuration(base_dir, modules, ignored_modules)
+        return Configuration(base_dir, modules, ignored_modules, ignored_trees)
 
     @classmethod
     def from_file(cls, base_dir: Path | None = None) -> Configuration:
@@ -75,10 +80,17 @@ class Configuration:
             {name: module.to_dict(remove_path=True) or 'default' for name, module in self.modules.items()}
         )
         modules_config.update({module: 'ignored' for module in self.ignored_modules})
+        modules_config.update({module: 'ignored-tree' for module in self.ignored_trees})
 
         return {
             'modules': modules_config,
         }
+
+    def is_ignored(self, path: str) -> bool:
+        """Return True if path is an ignored module or falls under an ignored tree."""
+        return path in self.ignored_modules or any(
+            path == tree or path.startswith(tree + '/') for tree in self.ignored_trees
+        )
 
     def to_file(self):
         """Save the configuration to a yaml file at <base_dir/FILE_NAME>."""
@@ -234,20 +246,16 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        base_path = os.getcwd()
-        mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
-
-        if not os.path.isdir(mod_parser_path):
-            raise Exception(f"Cannot find go.mod parser in {mod_parser_path}")
-
-        try:
-            output = subprocess.check_output(
-                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", AGENT_MODULE_PATH_PREFIX],
-                cwd=mod_parser_path,
-            ).decode("utf-8")
-        except subprocess.CalledProcessError as e:
-            print(f"Error while calling go.mod parser: {e.output}")
-            raise e
+        output = bazel(
+            "run",
+            "//internal/tools/modparser",
+            "--",
+            "-path",
+            os.path.abspath(self.path),
+            "-prefix",
+            AGENT_MODULE_PATH_PREFIX,
+            capture_output=True,
+        )
 
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]

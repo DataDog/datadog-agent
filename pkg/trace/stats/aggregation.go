@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	tagSynthetics  = "synthetics"
-	tagSpanKind    = "span.kind"
-	tagBaseService = "_dd.base_service"
+	tagSynthetics    = "synthetics"
+	tagSpanKind      = "span.kind"
+	tagBaseService   = "_dd.base_service"
+	tagServiceSource = "_dd.svc_src"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -33,18 +34,20 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service        string
-	Name           string
-	Resource       string
-	Type           string
-	SpanKind       string
-	StatusCode     uint32
-	Synthetics     bool
-	PeerTagsHash   uint64
-	IsTraceRoot    pb.Trilean
-	GRPCStatusCode string
-	HTTPMethod     string
-	HTTPEndpoint   string
+	Service                    string
+	Name                       string
+	Resource                   string
+	Type                       string
+	SpanKind                   string
+	StatusCode                 uint32
+	Synthetics                 bool
+	PeerTagsHash               uint64
+	SpanDerivedPrimaryTagsHash uint64
+	ServiceSource              string
+	IsTraceRoot                pb.Trilean
+	GRPCStatusCode             string
+	HTTPMethod                 string
+	HTTPEndpoint               string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -57,6 +60,7 @@ type PayloadAggregationKey struct {
 	ImageTag        string
 	Lang            string
 	ProcessTagsHash uint64
+	BaseService     string
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
@@ -97,18 +101,20 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:       s.resource,
-			Service:        s.service,
-			Name:           s.name,
-			SpanKind:       s.spanKind,
-			Type:           s.typ,
-			StatusCode:     s.statusCode,
-			Synthetics:     synthetics,
-			IsTraceRoot:    isTraceRoot,
-			GRPCStatusCode: s.grpcStatusCode,
-			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
-			HTTPMethod:     s.httpMethod,
-			HTTPEndpoint:   s.httpEndpoint,
+			Resource:                   s.resource,
+			Service:                    s.service,
+			Name:                       s.name,
+			SpanKind:                   s.spanKind,
+			Type:                       s.typ,
+			StatusCode:                 s.statusCode,
+			ServiceSource:              s.serviceSource,
+			Synthetics:                 synthetics,
+			IsTraceRoot:                isTraceRoot,
+			GRPCStatusCode:             s.grpcStatusCode,
+			PeerTagsHash:               tagsFnvHash(s.matchingPeerTags),
+			SpanDerivedPrimaryTagsHash: tagsFnvHash(s.matchingSpanDerivedPrimaryTags),
+			HTTPMethod:                 s.httpMethod,
+			HTTPEndpoint:               s.httpEndpoint,
 		},
 	}
 	return agg
@@ -142,17 +148,19 @@ func tagsFnvHash(tags []string) uint64 {
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:       g.Resource,
-			Service:        g.Service,
-			Name:           g.Name,
-			SpanKind:       g.SpanKind,
-			StatusCode:     g.HTTPStatusCode,
-			Synthetics:     g.Synthetics,
-			PeerTagsHash:   tagsFnvHash(g.PeerTags),
-			IsTraceRoot:    g.IsTraceRoot,
-			GRPCStatusCode: g.GRPCStatusCode,
-			HTTPMethod:     g.HTTPMethod,
-			HTTPEndpoint:   g.HTTPEndpoint,
+			Resource:                   g.Resource,
+			Service:                    g.Service,
+			Name:                       g.Name,
+			SpanKind:                   g.SpanKind,
+			StatusCode:                 g.HTTPStatusCode,
+			Synthetics:                 g.Synthetics,
+			PeerTagsHash:               tagsFnvHash(g.PeerTags),
+			SpanDerivedPrimaryTagsHash: tagsFnvHash(g.SpanDerivedPrimaryTags),
+			ServiceSource:              g.ServiceSource,
+			IsTraceRoot:                g.IsTraceRoot,
+			GRPCStatusCode:             g.GRPCStatusCode,
+			HTTPMethod:                 g.HTTPMethod,
+			HTTPEndpoint:               g.HTTPEndpoint,
 		},
 	}
 }

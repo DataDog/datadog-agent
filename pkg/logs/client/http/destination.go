@@ -331,9 +331,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		sourceTag = "epforwarder"
 	}
 
-	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
+	// Use GetAgentIdentityTag() to identify which agent is sending logs
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), sourceTag, compressionKind)
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {
@@ -498,10 +499,9 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
 }
 
-func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
-	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
+	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
 
 	return ctx, destination
 }
@@ -515,7 +515,8 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
-	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
+	// Use a short 5s timeout because this check is done synchronously during the agent bootstrap sequence
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg, time.Second*5)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
@@ -528,7 +529,8 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 
 // CheckConnectivityDiagnose checks HTTP connectivity to an endpoint and returns the URL and any errors for diagnostic purposes
 func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
-	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
+	// Use the configured logs_config.http_timeout (default 10s) rather than the short 5s bootstrap timeout
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg, NoTimeoutOverride)
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 

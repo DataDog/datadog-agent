@@ -46,7 +46,6 @@ endif()
 
 set_target_properties(datadog-agent-rtloader PROPERTIES
     VERSION ${PROJECT_VERSION}
-    SOVERSION 2
     PUBLIC_HEADER "../include/datadog_agent_rtloader.h;../include/rtloader_types.h;../common/rtloader_mem.h"
 )
 
@@ -60,10 +59,6 @@ target_include_directories(datadog-agent-rtloader PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/common
 )
-
-if(NOT WIN32)
-find_library( LIBdl dl )
-endif()
 
 install(TARGETS datadog-agent-rtloader
     RUNTIME DESTINATION bin

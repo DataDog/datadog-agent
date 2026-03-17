@@ -52,8 +52,11 @@ func setWorkloadInWorkloadMeta(t *testing.T, mockWmeta workloadmetamock.Mock, wo
 			Runtime:  runtime,
 		})
 	case workloadmeta.KindProcess:
+		pid, err := strconv.Atoi(workloadID.ID)
+		require.NoError(t, err)
 		mockWmeta.Set(&workloadmeta.Process{
 			EntityID: workloadID,
+			NsPid:    int32(pid), // Set NsPid=pid to avoid triggering the procfs fallback in generic tests
 		})
 	default:
 		t.Fatalf("unsupported workload kind: %s", workloadID.Kind)
@@ -462,7 +465,8 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTagsWithoutContainer tests building process tags when process has no container
+// TestBuildProcessTagsWithoutContainer tests building process tags when process has no container.
+// Since containerID is empty, the container provider fallback triggers but finds nothing.
 func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	cache, mocks := setupWorkloadTagCache(t)
 
@@ -480,6 +484,11 @@ func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	}
 	mocks.workloadMeta.Set(process)
 
+	// containerID="" triggers the container provider fallback
+	mocks.containerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{})
+
 	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
@@ -491,7 +500,9 @@ func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTagsNsPidZero tests that nspid defaults to pid when nspid is 0
+// TestBuildProcessTagsNsPidZero tests that nspid defaults to pid when nspid is 0.
+// With the fallback logic, nspid=0 triggers the procfs fallback, and containerID=""
+// triggers the container provider fallback.
 func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	cache, mocks := setupWorkloadTagCache(t)
 
@@ -508,13 +519,75 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	}
 	mocks.workloadMeta.Set(process)
 
+	// containerID="" triggers the container provider fallback
+	mocks.containerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{})
+
+	// nspid=0 triggers the procfs fallback; fake procfs has the process but no NsPid field
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: uint32(pid), NsPid: 0},
+	})
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
 	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
 		fmt.Sprintf("pid:%d", pid),
-		fmt.Sprintf("nspid:%d", pid), // nspid should default to pid
+		fmt.Sprintf("nspid:%d", pid), // nspid should default to pid after fallback also fails
 	}
+
+	assert.ElementsMatch(t, expectedTags, tags)
+}
+
+// TestBuildProcessTagsPartialWmetaNsPidZero tests building process tags when
+// workloadmeta has the process with a container owner but NsPid=0. Only the
+// nspid fallback should trigger; the container provider should NOT be called
+// because containerID is already known from wmeta.
+func TestBuildProcessTagsPartialWmetaNsPidZero(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	pid := int32(1234)
+	nspidFromProcfs := int32(42)
+	containerID := "container-123"
+	containerTags := []string{"service:my-service", "env:prod"}
+
+	// wmeta has process with container owner but NsPid=0
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.FormatInt(int64(pid), 10),
+		},
+		NsPid: 0,
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	}
+	mocks.workloadMeta.Set(process)
+
+	// Set up container and tags
+	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
+	setWorkloadTags(t, mocks.tagger, newContainerWorkloadID(containerID), containerTags, nil, nil)
+
+	// Set up procfs with NsPid for this process
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: uint32(pid), NsPid: uint32(nspidFromProcfs)},
+	})
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	// containerProvider should NOT be called since containerID is known from wmeta
+	// (gomock will fail if it's called unexpectedly)
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		fmt.Sprintf("pid:%d", pid),
+		fmt.Sprintf("nspid:%d", nspidFromProcfs),
+	}
+	expectedTags = append(expectedTags, containerTags...)
 
 	assert.ElementsMatch(t, expectedTags, tags)
 }
@@ -550,6 +623,49 @@ func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
 	if err != nil {
 		assert.Contains(t, err.Error(), "nspid")
 	}
+}
+
+// TestBuildProcessTagsWorkloadMetaProcessWithoutContainerID tests that when a
+// process exists in workloadmeta but has no ContainerID (Owner is nil), the
+// code still detects the container via the container provider fallback.
+func TestBuildProcessTagsWorkloadMetaProcessWithoutContainerID(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	pid := int32(1234)
+	nspid := int32(5678)
+	containerID := "container-123"
+	containerTags := []string{"service:my-service", "env:prod"}
+
+	// Process is in workloadmeta with nspid but WITHOUT Owner (no ContainerID)
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.FormatInt(int64(pid), 10),
+		},
+		NsPid: nspid,
+		Owner: nil,
+	}
+	mocks.workloadMeta.Set(process)
+
+	// Container provider returns the correct mapping
+	mocks.containerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{int(pid): containerID})
+
+	// Set up container in workloadmeta and tagger
+	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
+	setWorkloadTags(t, mocks.tagger, newContainerWorkloadID(containerID), containerTags, nil, nil)
+
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		fmt.Sprintf("pid:%d", pid),
+		fmt.Sprintf("nspid:%d", nspid),
+	}
+	expectedTags = append(expectedTags, containerTags...)
+
+	assert.ElementsMatch(t, expectedTags, tags)
 }
 
 // TestBuildProcessTagsFallbackToContainerProvider tests fallback when process not in workloadmeta

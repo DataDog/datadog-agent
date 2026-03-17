@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -85,6 +86,27 @@ func (suite *k8sSuite) TestDeploymentManif() {
 		message: "find a Deployment manifest",
 		timeout: defaultTimeout,
 	}.Assert(suite)
+}
+
+func (suite *k8sSuite) TestAutoTeamTagCollection() {
+	expectAtLeastOneResource{
+		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorDeployment},
+		test: func(payload *aggregator.OrchestratorPayload) bool {
+			if payload.Deployment.Metadata.Name != "redis" ||
+				payload.Deployment.Metadata.Namespace != "workload-redis" {
+				return false
+			}
+			// Check that the team tag was auto-collected from the Redis deployment label
+			for _, tag := range payload.Deployment.Tags {
+				if tag == "team:container-integrations" {
+					return true
+				}
+			}
+			return false
+		},
+		message: "find redis deployment with auto-collected team tag",
+		timeout: defaultTimeout,
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
 
 func (suite *k8sSuite) TestCRDManif() {
