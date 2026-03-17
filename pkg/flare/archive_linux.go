@@ -21,6 +21,17 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
+// DatadogBinaries is the list of Datadog agent binary names used to filter
+// system logs (e.g. SELinux audit entries) for diagnostics.
+const DatadogBinaries = []string{
+	"datadog-agent",
+	"system-probe",
+	"sysprobe",
+	"security-agent",
+	"process-agent",
+	"trace-agent",
+}
+
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
@@ -95,21 +106,11 @@ func getLinuxAuditLogs() ([]byte, error) {
 	}
 	defer f.Close()
 
-	// Binary names to grep for in the audit log
-	datadogBinaries := []string{
-		"datadog-agent",
-		"system-probe",
-		"sysprobe",
-		"security-agent",
-		"process-agent",
-		"trace-agent",
-	}
-
 	var result bytes.Buffer
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		for _, binary := range datadogBinaries {
+		for _, binary := range DatadogBinaries {
 			if strings.Contains(line, binary) {
 				result.WriteString(line)
 				result.WriteByte('\n')
