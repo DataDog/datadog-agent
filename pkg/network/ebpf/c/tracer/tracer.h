@@ -92,9 +92,9 @@ typedef enum {
 // in tcp_stats_t so closed connections carry the final values.
 // CO-RE/runtime only; prebuilt returns 0.
 typedef struct {
-    __u32 rto_count;                  // number of tcp_enter_loss() invocations
-    __u32 recovery_count;             // number of tcp_enter_recovery() invocations
-    __u32 probe0_count;               // number of tcp_send_probe0() invocations (zero-window probes)
+    __u32 rto_count; // number of tcp_enter_loss() invocations
+    __u32 recovery_count; // number of tcp_enter_recovery() invocations
+    __u32 probe0_count; // number of tcp_send_probe0() invocations (zero-window probes)
 } tcp_rto_recovery_stats_t;
 
 typedef struct {
@@ -106,15 +106,15 @@ typedef struct {
     __u16 state_transitions;
     __u16 failure_reason;
 
-    // RTO/recovery event counters — embedded from separate zero-PID-keyed map
+    // RTO/recovery event counters
     tcp_rto_recovery_stats_t rto_recovery;
 
-    // Congestion stats (from tcp_sock reads in sendmsg/recvmsg, CO-RE/runtime only)
-    __u32 reord_seen;       // reordering events detected (counter, 4.19+)
-    __u32 rcv_ooopack;      // out-of-order packets received on this socket (counter, 5.4+)
-    __u32 delivered_ce;     // segments delivered with ECN CE mark (counter, 4.19+)
-    __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
-    __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
+    // TCP congestion stats (from tcp_sock reads in sendmsg/recvmsg, CO-RE/runtime only)
+    __u32 reord_seen; // reordering events detected (counter, 4.19+)
+    __u32 rcv_ooopack; // out-of-order packets received on this socket (counter, 5.4+)
+    __u32 delivered_ce; // segments delivered with ECN CE mark (counter, 4.19+)
+    __u8 ecn_negotiated; // 1 if ECN was negotiated on this connection, 0 otherwise
+    __u8 _pad[3]; // explicit padding to maintain 4-byte alignment
 
     // Explicit padding to make tcp_stats_t a multiple of 8 bytes (48 total).
     // Without this, conn_stats_ts_t (which starts with uint64 sent_bytes)
