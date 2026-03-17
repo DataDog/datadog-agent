@@ -614,10 +614,10 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 
 func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 	tests := []struct {
-		name           string
-		features       []env.Feature
-		expectMetrics  bool
-		expectError    bool
+		name          string
+		features      []env.Feature
+		expectMetrics bool
+		expectError   bool
 	}{
 		{
 			name:          "not emitted when kubernetes device plugins feature is absent",
