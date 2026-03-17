@@ -233,9 +233,42 @@ minimal.
 millions of short-lived string allocations per flush interval. The dedup map is the
 lesser evil by a wide margin.
 
+### Session 5: Sharded contextSet + sidecar memory optimizations
+
+**Agent side — replaced `sync.Map` with sharded `contextSet`:**
+- 64-shard `RWMutex` + native `map[uint64]struct{}` — ~16 bytes/entry vs ~120 bytes.
+- At 200K contexts: ~5.6 MB (down from ~24 MB with `sync.Map`).
+- Bounded capacity (default 500K) — cleared when exceeded.
+- Def ring eviction now removes the context key from the set, so the definition
+  gets re-sent on next occurrence.
+
+**Sidecar — context externalization and RSS optimization:**
+- Context definitions written to separate `contexts-*.vortex` files. Metrics
+  files store only `context_key` (u64) — no name/tags columns.
+- Bloom filter (~120 KB) replaces in-memory `HashMap` (~50 MB) for context dedup.
+- `tikv-jemallocator` as global allocator (prevents glibc malloc fragmentation).
+- Fresh `VortexSession` per flush (prevents Vortex registry accumulation).
+- Custom write strategy with compression concurrency=1, 512 KB buffer (reduces
+  transient in-flight memory from ~32 MB to ~2 MB on 16-core machines).
+- Context flush batches capped at 2K rows (smaller transient pipeline memory).
+
+**Benchmark results (all scenarios, 120s):**
+
+| Scenario | Agent RSS delta | Recorder RSS mean | Recorder RSS max | Disk |
+|----------|----------------|-------------------|------------------|------|
+| p50 (2.5K ctx) | +7.4 MB (+4.6%) | 33 MB | 41 MB | 1.6 MB |
+| p95 (50K ctx) | +18.8 MB (+8.8%) | 47 MB | 58 MB | 28 MB |
+| p99 (100K ctx) | +25.2 MB (+8.8%) | 47 MB | 61 MB | 81 MB |
+| high-throughput (25K ctx, 100K/s) | +18.1 MB (+8.2%) | 46 MB | 58 MB | 66 MB |
+| high-cardinality (200K ctx) | +26.5 MB (+9.0%) | 61 MB | 77 MB | 80 MB |
+
+Agent-side heap breakdown (pprof, high-cardinality):
+- FlatBuffers builder: ~7.7 MB (retained backing slice, scales with batch size)
+- contextSet: ~5.6 MB (scales with distinct contexts)
+- Batcher ring buffers: ~4.5 MB (pre-allocated at init)
+- Init/config: ~2.5 MB (fixed)
+
 ### Remaining work
-- Investigate RSS overhead at p95+ scenarios (likely dominated by sync.Map / runtime).
-- Consider bounded LRU or bloom filter for context tracking (cap memory while
-  preserving the fast path).
 - Consider adaptive sampling for extreme throughput (>50K DSD/s).
-- Consider sharded context tracking to reduce sync.Map contention.
+- Explore shrinking the FlatBuffers builder after large batches (currently
+  retains peak allocation via `sync.Pool`).
