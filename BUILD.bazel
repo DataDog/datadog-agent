@@ -72,7 +72,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/networkconfigmanagement
 # gazelle:exclude pkg/networkdevice
 # gazelle:exclude pkg/networkpath
-# gazelle:exclude pkg/obfuscate
 # gazelle:exclude pkg/opentelemetry-mapping-go
 # gazelle:exclude pkg/orchestrator
 # gazelle:exclude pkg/persistentcache

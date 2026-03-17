@@ -332,6 +332,7 @@ use_repo(
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
     "com_github_openshift_api",
+    "com_github_outcaste_io_ristretto",
     "com_github_pahanini_go_grpc_bidirectional_streaming_example",
     "com_github_patrickmn_go_cache",
     "com_github_pierrec_lz4_v4",
