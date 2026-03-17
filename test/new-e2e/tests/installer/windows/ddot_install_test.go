@@ -41,7 +41,7 @@ func (s *testDDOTExtensionInstallScript) AfterTest(_suiteName, _testName string)
 func (s *testDDOTExtensionInstallScript) TestInstallAndPurgeDDOTExtension() {
 	// Act: install the Agent via the install script with DDOT enabled
 	output, err := s.InstallScript().Run(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_OTELCOLLECTOR_ENABLED": "true",
 		}),
 	)
