@@ -249,7 +249,7 @@ func TestPathToVarName(t *testing.T) {
 		{[]string{"parameters", "name"}, "__par_name"},
 		{[]string{"parameters", "address", "city"}, "__par_address_city"},
 		{[]string{"parameters", "items", "[0]"}, "__par_items__0_"}, // bracket notation → underscores
-		{[]string{"parameters", "foo-bar"}, "__par_foo_bar"}, // hyphen → underscore
+		{[]string{"parameters", "foo-bar"}, "__par_foo_bar"},        // hyphen → underscore
 		{[]string{"parameters", "a", "b", "c", "d", "e"}, "__par_a_b_c_d_e"},
 	}
 	for _, tc := range tests {
