@@ -37,30 +37,6 @@ func assertTokenTypes(t *testing.T, msg string, expected []TokenType) {
 	}
 }
 
-func assertTokenValues(t *testing.T, msg string, expectedTypes []TokenType, expectedValues []string) {
-	t.Helper()
-	tokens := NewTokenizer().Tokenize(msg)
-	if len(tokens) != len(expectedTypes) {
-		t.Errorf("Tokenize(%q): got %d tokens, want %d", msg, len(tokens), len(expectedTypes))
-		for i, tok := range tokens {
-			t.Logf("  token[%d]: type=%v value=%q", i, tok.Type, tok.Value)
-		}
-		return
-	}
-	for i := range expectedTypes {
-		if tokens[i].Type != expectedTypes[i] {
-			t.Errorf("Tokenize(%q): token[%d] type = %v, want %v (value=%q)",
-				msg, i, tokens[i].Type, expectedTypes[i], tokens[i].Value)
-		}
-		if expectedValues != nil && i < len(expectedValues) && expectedValues[i] != "" {
-			if tokens[i].Value != expectedValues[i] {
-				t.Errorf("Tokenize(%q): token[%d] value = %q, want %q",
-					msg, i, tokens[i].Value, expectedValues[i])
-			}
-		}
-	}
-}
-
 func dumpTokens(t *testing.T, msg string) {
 	t.Helper()
 	tokens := NewTokenizer().Tokenize(msg)
@@ -231,44 +207,44 @@ func TestTokenizeEmail(t *testing.T) {
 // --- HTTP Method ---
 
 func TestTokenizeHTTPMethod(t *testing.T) {
-	assertTokenTypes(t, "GET", []TokenType{TypeHttpMethod})
-	assertTokenTypes(t, "POST", []TokenType{TypeHttpMethod})
-	assertTokenTypes(t, "PUT", []TokenType{TypeHttpMethod})
-	assertTokenTypes(t, "DELETE", []TokenType{TypeHttpMethod})
-	assertTokenTypes(t, "PATCH", []TokenType{TypeHttpMethod})
-	assertTokenTypes(t, "HEAD", []TokenType{TypeHttpMethod})
-	assertTokenTypes(t, "OPTIONS", []TokenType{TypeHttpMethod})
+	assertTokenTypes(t, "GET", []TokenType{TypeHTTPMethod})
+	assertTokenTypes(t, "POST", []TokenType{TypeHTTPMethod})
+	assertTokenTypes(t, "PUT", []TokenType{TypeHTTPMethod})
+	assertTokenTypes(t, "DELETE", []TokenType{TypeHTTPMethod})
+	assertTokenTypes(t, "PATCH", []TokenType{TypeHTTPMethod})
+	assertTokenTypes(t, "HEAD", []TokenType{TypeHTTPMethod})
+	assertTokenTypes(t, "OPTIONS", []TokenType{TypeHTTPMethod})
 
 	// DELETED is NOT an HTTP method
 	tokens := NewTokenizer().Tokenize("DELETED")
-	if tokens[0].Type == TypeHttpMethod {
+	if tokens[0].Type == TypeHTTPMethod {
 		t.Error("DELETED should not be an HTTP method")
 	}
 
 	// "GET /url" -> HttpMethod + Whitespace + Path
 	assertTokenTypes(t, "\"GET /url\"", []TokenType{
-		TypeSpecialCharacter, TypeHttpMethod, TypeWhitespace, TypePathQueryFragment, TypeSpecialCharacter,
+		TypeSpecialCharacter, TypeHTTPMethod, TypeWhitespace, TypePathQueryFragment, TypeSpecialCharacter,
 	})
 }
 
 // --- HTTP Status Code ---
 
 func TestTokenizeHTTPStatusCode(t *testing.T) {
-	assertTokenTypes(t, "200", []TokenType{TypeHttpStatusCode})
-	assertTokenTypes(t, "404", []TokenType{TypeHttpStatusCode})
-	assertTokenTypes(t, "500", []TokenType{TypeHttpStatusCode})
-	assertTokenTypes(t, "201", []TokenType{TypeHttpStatusCode})
-	assertTokenTypes(t, "302", []TokenType{TypeHttpStatusCode})
+	assertTokenTypes(t, "200", []TokenType{TypeHTTPStatusCode})
+	assertTokenTypes(t, "404", []TokenType{TypeHTTPStatusCode})
+	assertTokenTypes(t, "500", []TokenType{TypeHTTPStatusCode})
+	assertTokenTypes(t, "201", []TokenType{TypeHTTPStatusCode})
+	assertTokenTypes(t, "302", []TokenType{TypeHTTPStatusCode})
 
 	// 200OK -> HttpStatusCode + Word
 	tokens := NewTokenizer().Tokenize("200OK")
-	if len(tokens) != 2 || tokens[0].Type != TypeHttpStatusCode || tokens[1].Type != TypeWord {
+	if len(tokens) != 2 || tokens[0].Type != TypeHTTPStatusCode || tokens[1].Type != TypeWord {
 		t.Errorf("expected HttpStatusCode + Word for '200OK', got %v", tok(tokens))
 	}
 
 	// 234 is NOT a valid HTTP status code -> NumericValue
 	tokens = NewTokenizer().Tokenize("234")
-	if tokens[0].Type == TypeHttpStatusCode {
+	if tokens[0].Type == TypeHTTPStatusCode {
 		t.Error("234 should be NumericValue, not HttpStatusCode")
 	}
 }
@@ -452,8 +428,8 @@ func TestTokenizeHexDump(t *testing.T) {
 	if tokens[0].DispLen != 4 {
 		t.Errorf("expected DispLen=4, got %d", tokens[0].DispLen)
 	}
-	if tokens[0].HasAscii {
-		t.Error("expected HasAscii=false")
+	if tokens[0].HasASCII {
+		t.Error("expected HasASCII=false")
 	}
 
 	tokens = tokenizer.Tokenize("00000000: 02 f3 82 00")
@@ -481,8 +457,8 @@ func TestTokenizeHexDumpWithAscii(t *testing.T) {
 		dumpTokens(t, "00000000: 01 02 03 04 05 Ascii")
 		t.Fatal("expected HexDump token")
 	}
-	if !tokens[0].HasAscii {
-		t.Error("expected HasAscii=true")
+	if !tokens[0].HasASCII {
+		t.Error("expected HasASCII=true")
 	}
 
 	tokens = tokenizer.Tokenize("0010: DB 8A 8E 01 00 .....")
@@ -490,8 +466,8 @@ func TestTokenizeHexDumpWithAscii(t *testing.T) {
 		dumpTokens(t, "0010: DB 8A 8E 01 00 .....")
 		t.Fatal("expected HexDump")
 	}
-	if !tokens[0].HasAscii {
-		t.Error("expected HasAscii=true for '.....''")
+	if !tokens[0].HasASCII {
+		t.Error("expected HasASCII=true for '.....''")
 	}
 }
 
@@ -545,10 +521,10 @@ func TestTokenizeWholeMessageJSON(t *testing.T) {
 	foundStatus := false
 	foundMethod := false
 	for _, tok := range tokens {
-		if tok.Type == TypeHttpStatusCode && tok.Value == "200" {
+		if tok.Type == TypeHTTPStatusCode && tok.Value == "200" {
 			foundStatus = true
 		}
-		if tok.Type == TypeHttpMethod && tok.Value == "GET" {
+		if tok.Type == TypeHTTPMethod && tok.Value == "GET" {
 			foundMethod = true
 		}
 	}
@@ -580,11 +556,11 @@ func TestTokenizeGCStats(t *testing.T) {
 
 func TestGetSeverity(t *testing.T) {
 	tok := NewTokenizer()
-	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("INFO: 10.244.1.XXX:XXXX - * /*/* HTTP/1.1 200 OK")))
-	assert.Equal(t, SEVERITY_ERROR, GetSeverity(tok.Tokenize("ERROR: yyyy/MM/dd HH:mm:ss - * : status=[500-502]")))
-	assert.Equal(t, SEVERITY_ERROR, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS ERROR - Session creation failed: 500 {\"info\":\"failed to create session\"}")))
-	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("INFO: session write failed: dial tcp 10.96.103.154:6379: connect: connection refused")))
-	assert.Equal(t, SEVERITY_UNKNOWN, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS - Some log")))
-	assert.Equal(t, SEVERITY_DEBUG, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS [DEBUG] - Some log")))
-	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("[2026-02-23T17:15:20.385Z] Info : [us1-ddbuild-io] New rules in place")))
+	assert.Equal(t, SeverityInfo, GetSeverity(tok.Tokenize("INFO: 10.244.1.XXX:XXXX - * /*/* HTTP/1.1 200 OK")))
+	assert.Equal(t, SeverityError, GetSeverity(tok.Tokenize("ERROR: yyyy/MM/dd HH:mm:ss - * : status=[500-502]")))
+	assert.Equal(t, SeverityError, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS ERROR - Session creation failed: 500 {\"info\":\"failed to create session\"}")))
+	assert.Equal(t, SeverityInfo, GetSeverity(tok.Tokenize("INFO: session write failed: dial tcp 10.96.103.154:6379: connect: connection refused")))
+	assert.Equal(t, SeverityUnknown, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS - Some log")))
+	assert.Equal(t, SeverityDebug, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS [DEBUG] - Some log")))
+	assert.Equal(t, SeverityInfo, GetSeverity(tok.Tokenize("[2026-02-23T17:15:20.385Z] Info : [us1-ddbuild-io] New rules in place")))
 }

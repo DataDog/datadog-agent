@@ -431,7 +431,7 @@ func TestHexDumpMerge(t *testing.T) {
 
 func TestMergeTokensCrossType(t *testing.T) {
 	// HttpStatusCode and NumericValue should be mergeable (both number-like)
-	a := HttpStatusCodeToken("200")
+	a := HTTPStatusCodeToken("200")
 	b := NumericValueToken("887")
 	if !canMergeTokens(a, b) {
 		t.Error("HttpStatusCode and NumericValue should be mergeable")
