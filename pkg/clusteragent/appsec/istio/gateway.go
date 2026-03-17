@@ -9,6 +9,7 @@ package istio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -40,7 +41,7 @@ func (g *istioNativeGatewayPattern) IsInjectionPossible(ctx context.Context) err
 	// In external mode, verify the processor service exists
 	if g.config.Mode == appsecconfig.InjectionModeExternal {
 		if g.config.Processor.ServiceName == "" {
-			return fmt.Errorf("processor service name is required for istio-gateway in external mode but is not configured")
+			return errors.New("processor service name is required for istio-gateway in external mode but is not configured")
 		}
 		_, err := g.client.Resource(schema.GroupVersionResource{Resource: "services", Version: "v1"}).
 			Namespace(g.config.Processor.Namespace).

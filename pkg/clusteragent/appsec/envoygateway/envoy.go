@@ -60,7 +60,7 @@ func (e *envoyGatewayInjectionPattern) Mode() appsecconfig.InjectionMode {
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	// Check if the processor service name is configured (required for envoy-gateway)
 	if e.config.Processor.ServiceName == "" {
-		return fmt.Errorf("processor service name is required for envoy-gateway proxy type but is not configured")
+		return stdErrors.New("processor service name is required for envoy-gateway proxy type but is not configured")
 	}
 
 	// Verify the processor service exists in the cluster
