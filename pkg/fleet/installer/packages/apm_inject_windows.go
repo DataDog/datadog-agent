@@ -12,7 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pkgExec "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
@@ -97,8 +100,22 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 }
 
 // enableSystemProbeConfigAt merges system_probe_config.enabled: true into the
-// given config file, preserving all existing settings.
+// given config file, preserving all existing settings. No-op if already enabled.
 func enableSystemProbeConfigAt(configPath string) error {
+	existing, err := os.ReadFile(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read system-probe.yaml: %w", err)
+	}
+	if len(existing) > 0 {
+		var cfg config.SystemProbeConfig
+		if err := yaml.Unmarshal(existing, &cfg); err != nil {
+			return fmt.Errorf("failed to unmarshal system-probe.yaml: %w", err)
+		}
+		if cfg.SystemProbeSettings.Enabled != nil && *cfg.SystemProbeSettings.Enabled {
+			return nil
+		}
+	}
+
 	update := config.SystemProbeConfig{
 		SystemProbeSettings: config.SystemProbeSettings{Enabled: config.BoolToPtr(true)},
 	}

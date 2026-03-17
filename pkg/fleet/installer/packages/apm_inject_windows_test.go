@@ -34,6 +34,26 @@ func TestEnableSystemProbeConfig_NoExistingFile(t *testing.T) {
 	assert.True(t, *cfg.SystemProbeSettings.Enabled)
 }
 
+func TestEnableSystemProbeConfig_AlreadyEnabled(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "system-probe.yaml")
+
+	writeFile(t, configPath, `system_probe_config:
+  enabled: true
+runtime_security_config:
+  enabled: true
+`)
+	contentBefore, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+
+	err = enableSystemProbeConfigAt(configPath)
+	require.NoError(t, err)
+
+	contentAfter, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, string(contentBefore), string(contentAfter), "file content should not change when already enabled")
+}
+
 func TestEnableSystemProbeConfig_PreservesExistingSettings(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "system-probe.yaml")
