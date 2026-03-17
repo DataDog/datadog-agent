@@ -81,15 +81,6 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Detectors ----
 			{
-				name:        "cusum",
-				displayName: "CUSUM",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewCUSUMDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
 				name:        "bocpd",
 				displayName: "BOCPD",
 				kind:        componentDetector,
@@ -97,51 +88,6 @@ func defaultCatalog() *componentCatalog {
 					return NewBOCPDDetector()
 				},
 				defaultEnabled: true,
-			},
-			{
-				name:        "rrcf",
-				displayName: "RRCF",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewRRCFDetector(DefaultRRCFConfig())
-				},
-				defaultEnabled: true,
-			},
-			{
-				name:        "mannwhitney",
-				displayName: "Mann-Whitney",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewMannWhitneyDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "corrshift",
-				displayName: "CorrShift",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewCorrShiftDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "topk",
-				displayName: "TopK",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewTopKDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "edivisive",
-				displayName: "E-Divisive",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewEDivisiveDetector()
-				},
-				defaultEnabled: false,
 			},
 			{
 				name:        "scanmw",
@@ -158,15 +104,6 @@ func defaultCatalog() *componentCatalog {
 				kind:        componentDetector,
 				factory: func() any {
 					return NewScanWelchDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "wincomp",
-				displayName: "WinComp",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewWinCompDetector()
 				},
 				defaultEnabled: false,
 			},
@@ -234,16 +171,10 @@ func defaultCatalog() *componentCatalog {
 
 // testbenchCatalog returns a catalog customized for the testbench.
 // It differs from the default in these ways:
-//   - RRCF uses testbench-specific metrics (parquet names instead of DogStatsD names).
 //   - cross_signal is disabled (testbench uses time_cluster instead).
 //   - time_cluster is enabled by default.
 func testbenchCatalog() *componentCatalog {
 	cat := defaultCatalog()
-	cat = cat.WithOverride("rrcf", func() any {
-		config := DefaultRRCFConfig()
-		config.Metrics = TestBenchRRCFMetrics()
-		return NewRRCFDetector(config)
-	})
 	cat = cat.WithDefaultEnabled("cross_signal", false)
 	cat = cat.WithDefaultEnabled("time_cluster", true)
 	return cat

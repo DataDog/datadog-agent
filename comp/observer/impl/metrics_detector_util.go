@@ -124,3 +124,39 @@ func detectorHasServiceTag(tags []string) bool {
 	}
 	return false
 }
+
+// rankBiserialCorrelation computes the rank-biserial correlation from a Mann-Whitney U statistic.
+// Used by ScanMW and ScanWelch for effect size verification.
+func rankBiserialCorrelation(u float64, n1, n2 int) float64 {
+	fn1 := float64(n1)
+	fn2 := float64(n2)
+	product := fn1 * fn2
+	if product == 0 {
+		return 0
+	}
+	return 1 - 2*u/product
+}
+
+// normalCDFUpper computes P(Z > z) for z >= 0 using the Abramowitz & Stegun approximation.
+// Used by ScanMW and ScanWelch for p-value computation.
+func normalCDFUpper(z float64) float64 {
+	if z < 0 {
+		return 1 - normalCDFUpper(-z)
+	}
+	// Rational approximation (Abramowitz & Stegun 26.2.17)
+	const (
+		p  = 0.2316419
+		b1 = 0.319381530
+		b2 = -0.356563782
+		b3 = 1.781477937
+		b4 = -1.821255978
+		b5 = 1.330274429
+	)
+	t := 1.0 / (1.0 + p*z)
+	t2 := t * t
+	t3 := t2 * t
+	t4 := t3 * t
+	t5 := t4 * t
+	phi := math.Exp(-z*z/2) / math.Sqrt(2*math.Pi)
+	return phi * (b1*t + b2*t2 + b3*t3 + b4*t4 + b5*t5)
+}
