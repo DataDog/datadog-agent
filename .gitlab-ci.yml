@@ -1,5 +1,4 @@
 ---
-
 # Condition mixins for simplification of rules, needed in the include rules so must be defined first
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
@@ -20,8 +19,8 @@
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path
-  # Windows-specific Go source files (by filename convention)
+.windows_path:
+  &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
 
   # Windows-specific packages in pkg/
@@ -39,7 +38,7 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
-  # cmd/ 
+  # cmd/
   - cmd/agent/**/*
   - cmd/process-agent/**/*
   - cmd/security-agent/**/*
@@ -52,8 +51,7 @@
   - cmd/otel-agent/**/*
 
 # Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
-.windows_path_2: &windows_path_2
-  # Windows-specific comp/ components
+.windows_path_2: &windows_path_2 # Windows-specific comp/ components
   - comp/systray/**/*
   - comp/updater/**/*
   - comp/checks/agentcrashdetect/**/*
@@ -342,7 +340,7 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "latest"
+  DD_PKG_VERSION: "0.6.1-rc1"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
@@ -413,7 +411,6 @@ variables:
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
-
 
 # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
 # The behavior of each test will be defined by its rules.
@@ -662,7 +659,6 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
-
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
