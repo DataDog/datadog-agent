@@ -11,20 +11,6 @@ COMMON_CXXOPTS = [
     "-std=c++11",
 ]
 
-dd_agent_expand_template(
-    name = "pc_gen",
-    out = "datadog-agent-rtloader.pc",
-    substitutions = {
-        "@CMAKE_INSTALL_PREFIX@": "{install_dir}/embedded",
-        "@CMAKE_INSTALL_LIBDIR@": "lib",
-        "@CMAKE_INSTALL_INCLUDEDIR@": "include",
-        "@PROJECT_NAME@": "datadog-agent-rtloader",
-        "@PROJECT_VERSION@": VERSION,
-        "@PROJECT_DESCRIPTION@": "CPython backend for the Datadog Agent",
-    },
-    template = "rtloader/datadog-agent-rtloader.pc.in",
-)
-
 cc_library(
     name = "rtloader",
     srcs = [
