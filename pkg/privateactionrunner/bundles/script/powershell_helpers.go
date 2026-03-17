@@ -57,7 +57,12 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 	}
 
 	// Collect unique parameter references in order of first appearance.
-	seen := make(map[string]*paramEntry)
+	// seenPaths deduplicates identical expressions (same path used multiple times).
+	// entries maps varName → entry and is used to detect collisions where two
+	// distinct paths (e.g. parameters.foo-bar and parameters.foo_bar) produce the
+	// same sanitized PowerShell variable name.
+	seenPaths := make(map[string]bool)
+	entries := make(map[string]*paramEntry)
 	var order []string
 
 	for _, path := range parsed.Expressions() {
@@ -73,11 +78,21 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 				strings.Join(path, "."), maxParameterDepth,
 			)
 		}
-		varName := pathToVarName(path)
-		if _, exists := seen[varName]; !exists {
-			seen[varName] = &paramEntry{path: path, varName: varName}
-			order = append(order, varName)
+		fullPath := strings.Join(path, ".")
+		if seenPaths[fullPath] {
+			continue // same expression used more than once — already handled
 		}
+		seenPaths[fullPath] = true
+
+		varName := pathToVarName(path)
+		if existing, collision := entries[varName]; collision {
+			return nil, fmt.Errorf(
+				"parameters %q and %q both map to PowerShell variable $%s; rename one to avoid the collision",
+				strings.Join(existing.path, "."), fullPath, varName,
+			)
+		}
+		entries[varName] = &paramEntry{path: path, varName: varName}
+		order = append(order, varName)
 	}
 
 	// Rewrite the script body: replace every {{ parameters.X }} with $__par_X.
@@ -98,7 +113,7 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 	// prevents injection regardless of the value's content.
 	preamble := make([]string, 0, len(order))
 	for _, varName := range order {
-		entry := seen[varName]
+		entry := entries[varName]
 		// path[1:] strips the "parameters" root.
 		val, err := tmpl.EvaluatePathParts(parameters, entry.path[1:])
 		if err != nil || val == nil {

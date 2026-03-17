@@ -142,6 +142,15 @@ func TestTransformInlineScript_DuplicateRef(t *testing.T) {
 	}
 }
 
+func TestTransformInlineScript_VarNameCollision(t *testing.T) {
+	// parameters.foo-bar and parameters.foo_bar both sanitize to __par_foo_bar.
+	script := `Write-Output "{{ parameters.foo-bar }} {{ parameters.foo_bar }}"`
+	_, err := transformInlineScript(script, map[string]any{"foo-bar": "a", "foo_bar": "b"})
+	if err == nil || !strings.Contains(err.Error(), "both map to PowerShell variable") {
+		t.Errorf("expected collision error, got: %v", err)
+	}
+}
+
 func TestPowershellLiteral(t *testing.T) {
 	tests := []struct {
 		input any
