@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-package util
+package coreagent
 
 // ProcessChecksRunInCoreAgent returns false on non-Linux platforms where
 // process checks run in the standalone process-agent.

@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -190,7 +191,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent on non-Linux platforms
-		if !util.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
+		if !coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor, p.grpcServerTLSConfig)
 			err = p.workloadMetaServer.Start()
 			if err != nil {
@@ -206,7 +207,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
-	if util.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
+	if coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 	return isProcessCheckEnabled(p.config, p.sysConfig)

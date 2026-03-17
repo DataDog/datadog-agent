@@ -33,8 +33,8 @@ import (
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
-	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainersmock "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -206,7 +206,7 @@ func TestEnabled(t *testing.T) {
 			flavor:                        flavor.ProcessAgent,
 			// On Linux, always disabled because process checks run in core agent.
 			// On other platforms, enabled.
-			expectEnabled: !processutil.ProcessChecksRunInCoreAgent(),
+			expectEnabled: !coreagent.ProcessChecksRunInCoreAgent(),
 		},
 	}
 

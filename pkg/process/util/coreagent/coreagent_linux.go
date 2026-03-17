@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package util
+package coreagent
 
 // ProcessChecksRunInCoreAgent returns true on Linux where process checks
 // (process, container, process discovery) always run in the core agent

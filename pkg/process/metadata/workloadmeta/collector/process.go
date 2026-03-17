@@ -17,8 +17,8 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
-	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -123,7 +123,7 @@ func Enabled(cfg pkgconfigmodel.Reader) bool {
 		return false
 	}
 
-	if processutil.ProcessChecksRunInCoreAgent() {
+	if coreagent.ProcessChecksRunInCoreAgent() {
 		return false
 	}
 

@@ -16,8 +16,8 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -85,7 +85,7 @@ func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) er
 // IsEnabled returns true if the check is enabled by configuration
 // Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
 func (c *ContainerCheck) IsEnabled() bool {
-	if processutil.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
+	if coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 

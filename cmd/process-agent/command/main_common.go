@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -321,7 +322,7 @@ func initMisc(deps miscDeps) error {
 // This can happen when the checks are running on the core agent but a process agent container is
 // still brought up. The process-agent is kept alive to prevent crash loops.
 func shouldStayAlive() bool {
-	if env.IsKubernetes() && util.ProcessChecksRunInCoreAgent() {
+	if env.IsKubernetes() && coreagent.ProcessChecksRunInCoreAgent() {
 		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true
 	}
