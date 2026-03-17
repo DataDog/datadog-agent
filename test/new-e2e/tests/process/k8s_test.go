@@ -47,7 +47,6 @@ type helmConfig struct {
 	ProcessCollection            bool
 	ProcessDiscoveryCollection   bool
 	ContainerCollection          bool
-	RunInCoreAgent               bool
 	NetworkPerformanceMonitoring bool
 }
 
@@ -179,7 +178,6 @@ func TestK8sCoreAgentTestSuite(t *testing.T) {
 	t.Parallel()
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection: true,
-		RunInCoreAgent:    true,
 	})
 	require.NoError(t, err)
 
@@ -244,7 +242,6 @@ func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgentWithNPM() {
 
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection:            true,
-		RunInCoreAgent:               true,
 		NetworkPerformanceMonitoring: true,
 	})
 	require.NoError(t, err)

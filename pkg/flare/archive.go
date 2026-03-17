@@ -30,6 +30,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
+	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -176,7 +177,7 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	} else {
 		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
-		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+		if !processutil.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}

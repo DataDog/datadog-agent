@@ -60,7 +60,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -229,7 +228,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	err := app.Start(ctx)
 	if err != nil {
 		if errors.Is(err, errAgentDisabled) {
-			if !shouldStayAlive(appInitDeps.Config) {
+			if !shouldStayAlive() {
 				log.Info("process-agent is not enabled, exiting...")
 				return nil
 			}
@@ -321,8 +320,8 @@ func initMisc(deps miscDeps) error {
 // shouldStayAlive determines whether the process agent should stay alive when no checks are running.
 // This can happen when the checks are running on the core agent but a process agent container is
 // still brought up. The process-agent is kept alive to prevent crash loops.
-func shouldStayAlive(cfg model.Reader) bool {
-	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
+func shouldStayAlive() bool {
+	if env.IsKubernetes() && util.ProcessChecksRunInCoreAgent() {
 		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true
 	}

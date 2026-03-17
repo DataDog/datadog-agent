@@ -52,38 +52,6 @@ func (s *linuxTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
-func (s *linuxTestSuite) TestAPIKeyRefresh() {
-	t := s.T()
-
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
-	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
-
-	s.UpdateEnv(
-		awshost.Provisioner(
-			awshost.WithRunOptions(scenec2.WithAgentOptions(
-				agentparams.WithAgentConfig(processAgentRefreshStr),
-				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
-				agentparams.WithSkipAPIKeyInConfig(),
-			)),
-		),
-	)
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKeyStatus(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, false)
-		assertLastPayloadAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().FakeIntake.Client())
-	}, 2*time.Minute, 10*time.Second)
-
-	// API key refresh
-	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
-	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
-	require.Contains(t, secretRefreshOutput, "api_key")
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKeyStatus(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, false)
-		assertLastPayloadAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().FakeIntake.Client())
-	}, 2*time.Minute, 10*time.Second)
-}
-
 func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	t := s.T()
 
@@ -239,7 +207,7 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 
 func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{}, false)
@@ -272,7 +240,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 
 func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
@@ -328,7 +296,7 @@ func (s *linuxTestSuite) TestManualProcessCheck() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckCoreAgent() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
@@ -337,7 +305,7 @@ func (s *linuxTestSuite) TestManualProcessCheckCoreAgent() {
 }
 
 func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks rtprocess --json")

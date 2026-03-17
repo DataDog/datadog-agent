@@ -27,9 +27,6 @@ var processCheckConfigStr string
 //go:embed config/process_discovery_check.yaml
 var processDiscoveryCheckConfigStr string
 
-//go:embed config/process_check_in_core_agent.yaml
-var processCheckInCoreAgentConfigStr string
-
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
@@ -38,9 +35,6 @@ var systemProbeNPMConfigStr string
 
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
-
-//go:embed config/process_agent_refresh_nix.yaml
-var processAgentRefreshStr string
 
 //go:embed config/core_agent_refresh_nix.yaml
 var coreAgentRefreshStr string

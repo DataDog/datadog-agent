@@ -88,11 +88,10 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			enabled:          false,
 		},
 		{
-			name: "check is disabled in the process-agent as run in core agent is enabled",
+			name: "check is disabled in the process-agent on linux",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
-				"process_config.run_in_core_agent.enabled":    true,
 			},
 
 			containerizedEnv: true,
@@ -100,11 +99,10 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			enabled:          false,
 		},
 		{
-			name: "check is enabled in the core agent as run in core agent is enabled",
+			name: "check is enabled in the core agent on linux",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
-				"process_config.run_in_core_agent.enabled":    true,
 			},
 
 			containerizedEnv: true,
