@@ -162,83 +162,11 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:        "ewm",
-				displayName: "EWM",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewEWMDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "adaptive_cusum",
-				displayName: "AdaptiveCUSUM",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewAdaptiveCUSUMDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "pelt",
-				displayName: "PELT",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewPELTDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "scanks",
-				displayName: "ScanKS",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewScanKSDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "robustscan",
-				displayName: "RobustScan",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewRobustScanDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
 				name:        "wincomp",
 				displayName: "WinComp",
 				kind:        componentDetector,
 				factory: func() any {
 					return NewWinCompDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "streamseg",
-				displayName: "StreamSeg",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewStreamSegDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "pagehinkley",
-				displayName: "PageHinkley",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewPageHinkleyDetector()
-				},
-				defaultEnabled: false,
-			},
-			{
-				name:        "dualewm",
-				displayName: "DualEWM",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewDualEWMDetector()
 				},
 				defaultEnabled: false,
 			},

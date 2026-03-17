@@ -232,3 +232,7 @@ CLAUDE_PERSONAL.md
 # Claude local settings and overrides
 **/.claude/settings.local.json
 **/CLAUDE.local.md
+
+# Observer eval artifacts
+observer-scorer
+observer-testbench
