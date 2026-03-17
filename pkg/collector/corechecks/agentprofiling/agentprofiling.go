@@ -259,7 +259,7 @@ func (m *Check) Run() error {
 
 	// Exit early if usage is below thresholds
 	if processMemoryMB < float64(m.memoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
-		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.memoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
+		log.Debugf("BLAHBLAHBLAH Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.memoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
 		return nil
 	}
 
