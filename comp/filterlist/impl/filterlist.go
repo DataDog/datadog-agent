@@ -227,7 +227,7 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 // SetTagFilterList takes a map of metric names to tag configuration, hashes the
 // tags and stores the hashed configuration.
 func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
-	fl.setTagFilterList(newTagMatcher(metricTags))
+	fl.setTagFilterList(newTagMatcher(metricTags, fl.log))
 }
 
 func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {

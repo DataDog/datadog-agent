@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -68,7 +69,7 @@ func benchmarkContextResolverWithFiltering(numContexts, numTags, numFilterTags i
 			Action: "exclude",
 		}
 	}
-	matcher := filterlistimpl.NewTagMatcher(metricTagList)
+	matcher := filterlistimpl.NewTagMatcher(metricTagList, logmock.New(b))
 
 	// Create samples with distributions (only distributions trigger tag stripping)
 	for i := 0; i < numContexts; i++ {
