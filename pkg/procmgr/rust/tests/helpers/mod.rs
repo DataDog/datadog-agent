@@ -204,6 +204,25 @@ impl CliOutput {
         self
     }
 
+    pub fn assert_failure(&self) -> &Self {
+        assert!(
+            !self.status.success(),
+            "expected non-zero exit, got 0\nstdout: {}\nstderr: {}",
+            self.stdout,
+            self.stderr,
+        );
+        self
+    }
+
+    pub fn assert_stderr_contains(&self, pattern: &str) -> &Self {
+        assert!(
+            self.stderr.contains(pattern),
+            "stderr does not contain '{pattern}'\nstderr: {}",
+            self.stderr,
+        );
+        self
+    }
+
     /// Parse "Label:  value" lines and assert the field matches.
     pub fn assert_field(&self, label: &str, expected: &str) -> &Self {
         let needle = format!("{label}:");
@@ -304,6 +323,17 @@ impl TestEnv {
             socket_path,
             daemon: None,
         }
+    }
+
+    /// Write a process YAML config into the config dir before starting.
+    pub fn with_config(self, name: &str, yaml: &str) -> Self {
+        write_config(&self.config_dir, name, yaml);
+        self
+    }
+
+    /// The path to the config directory (useful for asserting `config` output).
+    pub fn config_dir(&self) -> &Path {
+        &self.config_dir
     }
 
     /// Start the daemon and wait until gRPC is ready.
