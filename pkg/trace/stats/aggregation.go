@@ -14,10 +14,12 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"google.golang.org/genproto/googleapis/rpc/code"
 )
+
+var ddRegistry = semantics.DefaultRegistry()
 
 const (
 	tagSynthetics    = "synthetics"
@@ -64,21 +66,12 @@ type PayloadAggregationKey struct {
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
-	code, ok := metrics[traceutil.TagStatusCode]
-	if ok {
-		// only 7.39.0+, for lesser versions, always use Meta
-		return uint32(code)
-	}
-	strC := meta[traceutil.TagStatusCode]
-	if strC == "" {
+	a := semantics.NewDDSpanAccessor(meta, metrics)
+	v, ok := semantics.LookupInt64(ddRegistry, a, semantics.ConceptHTTPStatusCode)
+	if !ok {
 		return 0
 	}
-	c, err := strconv.ParseUint(strC, 10, 32)
-	if err != nil {
-		log.Debugf("Invalid status code %s. Using 0.", strC)
-		return 0
-	}
-	return uint32(c)
+	return uint32(v)
 }
 
 func getStatusCodeV1(s *idx.InternalSpan) uint32 {

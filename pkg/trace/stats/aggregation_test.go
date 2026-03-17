@@ -16,42 +16,34 @@ import (
 
 func TestGetStatusCode(t *testing.T) {
 	for _, tt := range []struct {
-		in  *pb.Span
-		out uint32
+		name string
+		in   *pb.Span
+		out  uint32
 	}{
-		{
-			&pb.Span{},
-			0,
-		},
-		{
-			&pb.Span{
-				Meta: map[string]string{"http.status_code": "200"},
-			},
-			200,
-		},
-		{
-			&pb.Span{
-				Metrics: map[string]float64{"http.status_code": 302},
-			},
-			302,
-		},
-		{
-			&pb.Span{
-				Meta:    map[string]string{"http.status_code": "200"},
-				Metrics: map[string]float64{"http.status_code": 302},
-			},
-			302,
-		},
-		{
-			&pb.Span{
-				Meta: map[string]string{"http.status_code": "x"},
-			},
-			0,
-		},
+		// Empty span.
+		{"empty", &pb.Span{}, 0},
+		// Status code in Meta only (older agents, string-typed).
+		{"meta only", &pb.Span{Meta: map[string]string{"http.status_code": "200"}}, 200},
+		// Status code in Metrics only (agents 7.39.0+, float64-typed).
+		{"metrics only", &pb.Span{Metrics: map[string]float64{"http.status_code": 302}}, 302},
+		// Metrics takes precedence over Meta when both are present.
+		{"metrics wins", &pb.Span{
+			Meta:    map[string]string{"http.status_code": "200"},
+			Metrics: map[string]float64{"http.status_code": 302},
+		}, 302},
+		// Unparseable string returns 0.
+		{"invalid string", &pb.Span{Meta: map[string]string{"http.status_code": "x"}}, 0},
+		// OTel 1.21+ key in Meta (fallback via semantics registry).
+		{"otel key in meta", &pb.Span{Meta: map[string]string{"http.response.status_code": "404"}}, 404},
+		// OTel 1.21+ key in Metrics (fallback via semantics registry).
+		{"otel key in metrics", &pb.Span{Metrics: map[string]float64{"http.response.status_code": 503}}, 503},
+		// DD key takes precedence over OTel key when both present.
+		{"dd key wins over otel", &pb.Span{
+			Meta: map[string]string{"http.status_code": "200", "http.response.status_code": "503"},
+		}, 200},
 	} {
-		if got := getStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
-			t.Fatalf("Expected %d, got %d", tt.out, got)
-		}
+		got := getStatusCode(tt.in.Meta, tt.in.Metrics)
+		assert.Equal(t, tt.out, got, tt.name)
 	}
 }
 
