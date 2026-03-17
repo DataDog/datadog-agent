@@ -181,13 +181,16 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	catalog := testbenchCatalog()
 	detectors, correlators, extractors, components := catalog.Instantiate(config.EnableOverrides)
 
-	eng := newEngine(engineConfig{
+	eng, err := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
 		scheduler:   &currentBehaviorPolicy{},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("testbench engine setup failed: %w", err)
+	}
 
 	hub := newSSEHub()
 	stop := make(chan struct{})

@@ -32,8 +32,8 @@ func (c *staticCorrelator) Reset() {}
 
 // newTestBenchForOutput creates a minimal TestBench with injected state for testing
 // observer output. No scenarios dir or registry needed.
-func newTestBenchForOutput() *TestBench {
-	eng := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+func newTestBenchForOutput(t testing.TB) *TestBench {
+	eng := mustNewEngine(t, engineConfig{storage: newTimeSeriesStorage()})
 	return &TestBench{
 		engine:     eng,
 		catalog:    testbenchCatalog(),
@@ -69,7 +69,7 @@ func testCorrelation() observerdef.ActiveCorrelation {
 }
 
 func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
-	tb := newTestBenchForOutput()
+	tb := newTestBenchForOutput(t)
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
 	err := tb.WriteObserverOutput(outPath, false)
@@ -91,7 +91,7 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 }
 
 func TestWriteObserverOutput_NonVerbose(t *testing.T) {
-	tb := newTestBenchForOutput()
+	tb := newTestBenchForOutput(t)
 	tb.loadedScenario = "test_scenario"
 	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
 	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
@@ -126,7 +126,7 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 }
 
 func TestWriteObserverOutput_Verbose(t *testing.T) {
-	tb := newTestBenchForOutput()
+	tb := newTestBenchForOutput(t)
 	tb.loadedScenario = "test_scenario"
 	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
 	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
@@ -184,7 +184,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 }
 
 func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
-	tb := newTestBenchForOutput()
+	tb := newTestBenchForOutput(t)
 	tb.engine.Storage().Add("parquet", "disk.io", 10.0, 5000, []string{"device:sda"})
 	tb.engine.Storage().Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"})
 
@@ -202,7 +202,7 @@ func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 }
 
 func TestWriteObserverOutput_ValidJSON(t *testing.T) {
-	tb := newTestBenchForOutput()
+	tb := newTestBenchForOutput(t)
 	tb.loadedScenario = "json_validity_check"
 	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{
 		{

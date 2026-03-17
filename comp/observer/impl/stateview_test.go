@@ -19,7 +19,7 @@ func TestStateView_StorageAccess(t *testing.T) {
 	storage.Add("ns", "cpu", 2.0, 101, nil)
 	storage.Add("ns", "mem", 512.0, 100, []string{"host:a"})
 
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(t, engineConfig{storage: storage})
 	sv := e.StateView()
 
 	// ListSeries
@@ -48,7 +48,7 @@ func TestStateView_StorageAccess(t *testing.T) {
 }
 
 func TestStateView_Anomalies(t *testing.T) {
-	e := newEngine(engineConfig{
+	e := mustNewEngine(t, engineConfig{
 		storage: newTimeSeriesStorage(),
 	})
 	sv := e.StateView()
@@ -129,7 +129,7 @@ func TestStateView_DetectorsAndCorrelators(t *testing.T) {
 	detector := &mockDetector{name: "mock_det"}
 	correlator := &mockCorrelator{name: "mock_corr"}
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(t, engineConfig{
 		storage:     newTimeSeriesStorage(),
 		detectors:   []observerdef.Detector{detector},
 		correlators: []observerdef.Correlator{correlator},
@@ -152,7 +152,7 @@ func TestStateView_SchedulingState(t *testing.T) {
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 	storage.Add("ns", "cpu", 2.0, 200, nil)
 
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(t, engineConfig{storage: storage})
 	sv := e.StateView()
 
 	if sv.LastAnalyzedTime() != 0 {
@@ -166,7 +166,7 @@ func TestStateView_SchedulingState(t *testing.T) {
 }
 
 func TestStateView_Telemetry(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := mustNewEngine(t, engineConfig{storage: newTimeSeriesStorage()})
 	sv := e.StateView()
 
 	// Initially empty
@@ -214,7 +214,7 @@ func TestFindingM11_StateViewListDetectorsRace(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(t, engineConfig{
 		storage:   storage,
 		detectors: []observerdef.Detector{&mockDetector{name: "det1"}},
 	})
@@ -246,7 +246,7 @@ func TestFindingM11_StateViewListCorrelatorsRace(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(t, engineConfig{
 		storage:     storage,
 		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
 	})
@@ -278,7 +278,7 @@ func TestFindingM11_StateViewActiveCorrelationsRace(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(t, engineConfig{
 		storage:     storage,
 		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
 	})

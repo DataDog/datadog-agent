@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
@@ -29,7 +30,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	pkgconfigsetup.Datadog().Set("observer.analysis.enabled", true, model.SourceAgentRuntime)
 	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("observer.analysis.enabled", false, model.SourceAgentRuntime) })
 
-	provides := NewComponent(Requires{
+	provides, err := NewComponent(Requires{
 		AgentInternalLogTap: AgentInternalLogTapConfig{
 			Enabled:         &enabled,
 			SampleRateInfo:  &one,
@@ -37,6 +38,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 			SampleRateTrace: &one,
 		},
 	})
+	require.NoError(t, err)
 	obs, ok := provides.Comp.(*observerImpl)
 	require.True(t, ok)
 	t.Cleanup(func() { pkglog.SetLogObserver(nil) })

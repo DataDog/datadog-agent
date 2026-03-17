@@ -105,7 +105,8 @@ type engineConfig struct {
 }
 
 // newEngine creates an engine with the given configuration.
-func newEngine(cfg engineConfig) *engine {
+// Returns an error if any component's Setup call fails.
+func newEngine(cfg engineConfig) (*engine, error) {
 	sched := cfg.scheduler
 	if sched == nil {
 		sched = &currentBehaviorPolicy{}
@@ -129,22 +130,24 @@ func newEngine(cfg engineConfig) *engine {
 		}
 	}
 
-	// Call setup on each component, this could be used to resolve dependencies
+	// Call Setup on every component so they can resolve cross-component dependencies.
 	for _, detector := range e.detectors {
-		// TODO: Handle errors
-		fmt.Printf("[cc] Setting up detector: %+v\n", detector.Name())
-		_ = detector.Setup(e.getComponent)
+		if err := detector.Setup(e.getComponent); err != nil {
+			return nil, fmt.Errorf("detector %q setup failed: %w", detector.Name(), err)
+		}
 	}
 	for _, correlator := range e.correlators {
-		// TODO: Handle errors
-		_ = correlator.Setup(e.getComponent)
+		if err := correlator.Setup(e.getComponent); err != nil {
+			return nil, fmt.Errorf("correlator %q setup failed: %w", correlator.Name(), err)
+		}
 	}
 	for _, extractor := range e.extractors {
-		// TODO: Handle errors
-		_ = extractor.Setup(e.getComponent)
+		if err := extractor.Setup(e.getComponent); err != nil {
+			return nil, fmt.Errorf("extractor %q setup failed: %w", extractor.Name(), err)
+		}
 	}
 
-	return e
+	return e, nil
 }
 
 // Subscribe registers an event sink to receive engine events.

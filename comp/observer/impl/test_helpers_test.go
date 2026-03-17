@@ -7,9 +7,19 @@ package observerimpl
 
 import (
 	"fmt"
+	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	"github.com/stretchr/testify/require"
 )
+
+// mustNewEngine is a test helper that calls newEngine and fails the test if it returns an error.
+func mustNewEngine(t testing.TB, cfg engineConfig) *engine {
+	t.Helper()
+	e, err := newEngine(cfg)
+	require.NoError(t, err)
+	return e
+}
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {

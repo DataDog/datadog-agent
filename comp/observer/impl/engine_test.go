@@ -87,8 +87,9 @@ func (e *errorCorrelator) Setup(_ observerdef.GetComponentFunc) error {
 
 // --- Tests ---
 
-func newTestEngine(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) *engine {
-	return newEngine(engineConfig{
+func newTestEngine(t testing.TB, detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) *engine {
+	t.Helper()
+	return mustNewEngine(t, engineConfig{
 		storage:     newTimeSeriesStorage(),
 		detectors:   detectors,
 		correlators: correlators,
@@ -101,7 +102,7 @@ func TestEngine_SetupCalledOnDetectors(t *testing.T) {
 	d1 := &spyDetector{name: "detector_a"}
 	d2 := &spyDetector{name: "detector_b"}
 
-	newTestEngine([]observerdef.Detector{d1, d2}, nil, nil)
+	newTestEngine(t, []observerdef.Detector{d1, d2}, nil, nil)
 
 	assert.True(t, d1.setupCalled, "Setup should be called on detector_a")
 	assert.True(t, d2.setupCalled, "Setup should be called on detector_b")
@@ -112,7 +113,7 @@ func TestEngine_SetupCalledOnCorrelators(t *testing.T) {
 	c1 := &spyCorrelator{name: "correlator_a"}
 	c2 := &spyCorrelator{name: "correlator_b"}
 
-	newTestEngine(nil, []observerdef.Correlator{c1, c2}, nil)
+	newTestEngine(t, nil, []observerdef.Correlator{c1, c2}, nil)
 
 	assert.True(t, c1.setupCalled, "Setup should be called on correlator_a")
 	assert.True(t, c2.setupCalled, "Setup should be called on correlator_b")
@@ -123,7 +124,7 @@ func TestEngine_SetupCalledOnExtractors(t *testing.T) {
 	e1 := &spyExtractor{name: "extractor_a"}
 	e2 := &spyExtractor{name: "extractor_b"}
 
-	newTestEngine(nil, nil, []observerdef.LogMetricsExtractor{e1, e2})
+	newTestEngine(t, nil, nil, []observerdef.LogMetricsExtractor{e1, e2})
 
 	assert.True(t, e1.setupCalled, "Setup should be called on extractor_a")
 	assert.True(t, e2.setupCalled, "Setup should be called on extractor_b")
@@ -135,7 +136,7 @@ func TestEngine_SetupDetectorCanResolveExtractor(t *testing.T) {
 	ext := &spyExtractor{name: "my_extractor"}
 	det := &spyDetector{name: "my_detector", resolvedName: "my_extractor"}
 
-	newTestEngine([]observerdef.Detector{det}, nil, []observerdef.LogMetricsExtractor{ext})
+	newTestEngine(t, []observerdef.Detector{det}, nil, []observerdef.LogMetricsExtractor{ext})
 
 	require.NotNil(t, det.resolved, "detector should resolve extractor via getComponent")
 	assert.Equal(t, ext, det.resolved)
@@ -147,7 +148,7 @@ func TestEngine_SetupCorrelatorCanResolveDetector(t *testing.T) {
 	det := &spyDetector{name: "my_detector"}
 	cor := &spyCorrelator{name: "my_correlator", resolvedName: "my_detector"}
 
-	newTestEngine([]observerdef.Detector{det}, []observerdef.Correlator{cor}, nil)
+	newTestEngine(t, []observerdef.Detector{det}, []observerdef.Correlator{cor}, nil)
 
 	require.NotNil(t, cor.resolved, "correlator should resolve detector via getComponent")
 	assert.Equal(t, det, cor.resolved)
@@ -159,7 +160,7 @@ func TestEngine_SetupExtractorCanResolveCorrelator(t *testing.T) {
 	cor := &spyCorrelator{name: "my_correlator"}
 	ext := &spyExtractor{name: "my_extractor", resolvedName: "my_correlator"}
 
-	newTestEngine(nil, []observerdef.Correlator{cor}, []observerdef.LogMetricsExtractor{ext})
+	newTestEngine(t, nil, []observerdef.Correlator{cor}, []observerdef.LogMetricsExtractor{ext})
 
 	require.NotNil(t, ext.resolved, "extractor should resolve correlator via getComponent")
 	assert.Equal(t, cor, ext.resolved)
@@ -170,7 +171,24 @@ func TestEngine_SetupExtractorCanResolveCorrelator(t *testing.T) {
 func TestEngine_SetupUnknownComponentReturnsNil(t *testing.T) {
 	det := &spyDetector{name: "my_detector", resolvedName: "does_not_exist"}
 
-	newTestEngine([]observerdef.Detector{det}, nil, nil)
+	newTestEngine(t, []observerdef.Detector{det}, nil, nil)
 
 	assert.Nil(t, det.resolved, "unknown component should resolve to nil")
+}
+
+// TestEngine_SetupErrorPropagated verifies that newEngine returns an error when a
+// component's Setup fails, including the component name in the error message.
+func TestEngine_SetupErrorPropagated(t *testing.T) {
+	failing := &errorCorrelator{}
+	failing.name = "bad_correlator"
+
+	_, err := newEngine(engineConfig{
+		storage:     newTimeSeriesStorage(),
+		correlators: []observerdef.Correlator{failing},
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "bad_correlator")
+	assert.ErrorContains(t, err, "setup failed")
+	assert.True(t, failing.setupCalled)
 }

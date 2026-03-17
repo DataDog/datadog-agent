@@ -176,7 +176,7 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 }
 
 // NewComponent creates an observer.Component.
-func NewComponent(deps Requires) Provides {
+func NewComponent(deps Requires) (Provides, error) {
 	catalog := defaultCatalog()
 
 	// Build correlator overrides from config keys (observer.correlators.<name>.enabled).
@@ -199,13 +199,16 @@ func NewComponent(deps Requires) Provides {
 
 	detectors, correlators, extractors, _ := catalog.Instantiate(correlatorOverrides)
 
-	eng := newEngine(engineConfig{
+	eng, err := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
 		scheduler:   &currentBehaviorPolicy{},
 	})
+	if err != nil {
+		return Provides{}, fmt.Errorf("observer engine setup failed: %w", err)
+	}
 
 	// Wire reporters via event subscription.
 	// The reporterEventSink queries stateView for active correlations on each advance,
@@ -350,7 +353,7 @@ func NewComponent(deps Requires) Provides {
 	obs.fetcher.Start()
 	pkglog.Info("[observer] trace/profile fetcher started")
 
-	return Provides{Comp: obs}
+	return Provides{Comp: obs}, nil
 }
 
 func samplePass(rate float64, n uint64) bool {

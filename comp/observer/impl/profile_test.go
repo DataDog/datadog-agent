@@ -32,7 +32,7 @@ func buildRealisticStorage(numMetrics, numSeconds int) *timeSeriesStorage {
 }
 
 // buildRealisticEngine creates an engine with windowed or unbounded detectors.
-func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
+func buildRealisticEngine(tb testing.TB, numMetrics, numSeconds int, windowSec int64) *engine {
 	storage := buildRealisticStorage(numMetrics, numSeconds)
 
 	catalog := testbenchCatalog()
@@ -48,7 +48,7 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 		}
 	}
 
-	return newEngine(engineConfig{
+	return mustNewEngine(tb, engineConfig{
 		storage:     storage,
 		detectors:   detectors,
 		correlators: correlators,
@@ -60,7 +60,7 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 //	go test -run=^$ -bench=BenchmarkReplayStoredData -cpuprofile=/tmp/observer_cpu.prof -benchtime=1x ./comp/observer/impl/
 //	go tool pprof -http=:8081 /tmp/observer_cpu.prof
 func BenchmarkReplayStoredData(b *testing.B) {
-	e := buildRealisticEngine(200, 576, 0)
+	e := buildRealisticEngine(b, 200, 576, 0)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		e.Reset()
@@ -70,7 +70,7 @@ func BenchmarkReplayStoredData(b *testing.B) {
 
 // BenchmarkReplayStoredData_Window300 profiles with a 300s window.
 func BenchmarkReplayStoredData_Window300(b *testing.B) {
-	e := buildRealisticEngine(200, 576, 300)
+	e := buildRealisticEngine(b, 200, 576, 300)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		e.Reset()
@@ -80,7 +80,7 @@ func BenchmarkReplayStoredData_Window300(b *testing.B) {
 
 // BenchmarkReplayStoredData_Window60 profiles with a 60s window.
 func BenchmarkReplayStoredData_Window60(b *testing.B) {
-	e := buildRealisticEngine(200, 576, 60)
+	e := buildRealisticEngine(b, 200, 576, 60)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		e.Reset()
@@ -90,7 +90,7 @@ func BenchmarkReplayStoredData_Window60(b *testing.B) {
 
 // BenchmarkReplayStoredData_Small is a smaller variant for quick iteration.
 func BenchmarkReplayStoredData_Small(b *testing.B) {
-	e := buildRealisticEngine(50, 100, 0)
+	e := buildRealisticEngine(b, 50, 100, 0)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		e.Reset()
