@@ -650,8 +650,7 @@ def _spec_value_to_go_type(value: dict, field_name: str = "") -> str:
         return f"[]{_GO_TYPE_MAP.get(item_type, 'interface{}')}"
     if spec_type == "object" and field_name:
         properties = value.get("properties", {})
-        has_descriptions = any(p.get("description") for p in properties.values())
-        if has_descriptions:
+        if properties:
             return _snake_to_pascal(field_name)
     return _GO_TYPE_MAP.get(spec_type, "interface{}")
 
@@ -686,8 +685,7 @@ def _build_config_struct_fields(spec: dict) -> tuple[list[str], dict[str, tuple[
                     continue
                 value = opt.get("value", {})
                 properties = value.get("properties", {})
-                has_desc = any(p.get("description") for p in properties.values())
-                if value.get("type") == "object" and properties and has_desc:
+                if value.get("type") == "object" and properties:
                     type_name = _snake_to_pascal(name)
                     fields.append(f'\t{type_name} {type_name} `yaml:"{name}"`')
                     sub_fields = []
