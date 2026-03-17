@@ -57,6 +57,8 @@ type timeSamplerWorker struct {
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
+
+
 }
 
 type dumpTrigger struct {
