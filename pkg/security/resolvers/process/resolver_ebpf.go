@@ -781,6 +781,15 @@ func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
+
+	// For fileless (memfd) entries, full path resolution will fail because there is
+	// no mount. Resolve just the dentry name and let setPathname handle the rest.
+	if fileEvent.FileFields.IsFileless() {
+		name := p.pathResolver.ResolveBasename(&fileEvent.FileFields)
+		setPathname(fileEvent, name)
+		return fileEvent.PathnameStr, nil
+	}
+
 	pathnameStr, mountPath, source, origin, err := p.resolveFullFilePath(&fileEvent.FileFields, pce)
 	if err != nil {
 		return onError(pathnameStr, err)

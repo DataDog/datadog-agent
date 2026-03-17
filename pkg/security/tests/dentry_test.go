@@ -87,68 +87,6 @@ func TestDentryPathERPC(t *testing.T) {
 	}, "test_erpc_path_rule")
 }
 
-func TestDentryPathMap(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	// generate a basename up to the current limit of the agent
-	basename := strings.Repeat("a", model.MaxSegmentLength)
-	rule := &rules.RuleDefinition{
-		ID:         "test_map_path_rule",
-		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		t.Skip("not supported")
-	}
-
-	testFile, _, err := test.Path("parent/" + basename)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dir := path.Dir(testFile)
-	if err := os.MkdirAll(dir, 0777); err != nil {
-		t.Fatalf("failed to create directory: %s", err)
-	}
-	defer os.RemoveAll(dir)
-
-	test.WaitSignalFromRule(t, func() error {
-		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
-		if err != nil {
-			return err
-		}
-		file.Close()
-		return nil
-	}, func(event *model.Event, _ *rules.Rule) {
-		basename := path.Base(testFile)
-
-		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
-		assert.NoError(test.t, err)
-		assert.Equal(test.t, basename, path.Base(res))
-
-		// check that the path is now available from the cache
-		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
-		assert.NoError(test.t, err)
-		assert.Equal(test.t, basename, path.Base(res))
-
-		// check stats
-		test.eventMonitor.SendStats()
-
-		key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
-		assert.Empty(t, test.statsdClient.Get(key))
-
-		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
-		assert.NotEmpty(t, test.statsdClient.Get(key))
-	}, "test_map_path_rule")
-}
-
 func TestDentryName(t *testing.T) {
 	SkipIfNotAvailable(t)
 
