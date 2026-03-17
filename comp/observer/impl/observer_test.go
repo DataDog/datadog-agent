@@ -73,7 +73,8 @@ type countingSeriesDetector struct {
 	telemetry []observerdef.ObserverTelemetry
 }
 
-func (d *countingSeriesDetector) Name() string { return "counting" }
+func (d *countingSeriesDetector) Name() string                               { return "counting" }
+func (d *countingSeriesDetector) Setup(_ observerdef.GetComponentFunc) error { return nil }
 
 func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.DetectionResult {
 	return observerdef.DetectionResult{

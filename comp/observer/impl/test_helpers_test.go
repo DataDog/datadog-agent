@@ -33,7 +33,8 @@ type dynamicAnomalyDetector struct {
 	currentIndex int
 }
 
-func (d *dynamicAnomalyDetector) Name() string { return "dynamic_anomaly_detector" }
+func (d *dynamicAnomalyDetector) Name() string                               { return "dynamic_anomaly_detector" }
+func (d *dynamicAnomalyDetector) Setup(_ observerdef.GetComponentFunc) error { return nil }
 func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{
@@ -54,9 +55,10 @@ type dynamicCorrelator struct {
 	currentIndex int
 }
 
-func (c *dynamicCorrelator) Name() string                         { return "dynamic_correlator" }
-func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *dynamicCorrelator) Advance(_ int64)                      {}
+func (c *dynamicCorrelator) Name() string                               { return "dynamic_correlator" }
+func (c *dynamicCorrelator) Setup(_ observerdef.GetComponentFunc) error { return nil }
+func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly)       {}
+func (c *dynamicCorrelator) Advance(_ int64)                            {}
 func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{
 		{
@@ -72,7 +74,8 @@ func (c *dynamicCorrelator) Reset() { c.currentIndex = 0 }
 // This simulates a log at a timestamp that produces no virtual metrics.
 type noopLogExtractor struct{}
 
-func (e *noopLogExtractor) Name() string { return "noop_extractor" }
+func (e *noopLogExtractor) Name() string                               { return "noop_extractor" }
+func (e *noopLogExtractor) Setup(_ observerdef.GetComponentFunc) error { return nil }
 func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) []observerdef.MetricOutput {
 	return nil
 }

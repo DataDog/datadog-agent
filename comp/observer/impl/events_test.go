@@ -105,7 +105,8 @@ type anomalyDetector struct {
 	anomalies []observerdef.Anomaly
 }
 
-func (d *anomalyDetector) Name() string { return d.name }
+func (d *anomalyDetector) Name() string                               { return d.name }
+func (d *anomalyDetector) Setup(_ observerdef.GetComponentFunc) error { return nil }
 func (d *anomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: d.anomalies,
@@ -117,7 +118,8 @@ type resettableDetector struct {
 	resetCount int
 }
 
-func (d *resettableDetector) Name() string { return d.name }
+func (d *resettableDetector) Name() string                               { return d.name }
+func (d *resettableDetector) Setup(_ observerdef.GetComponentFunc) error { return nil }
 func (d *resettableDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
@@ -128,9 +130,10 @@ type resettableCorrelator struct {
 	resetCount int
 }
 
-func (c *resettableCorrelator) Name() string                         { return c.name }
-func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *resettableCorrelator) Advance(_ int64)                      {}
+func (c *resettableCorrelator) Name() string                               { return c.name }
+func (c *resettableCorrelator) Setup(_ observerdef.GetComponentFunc) error { return nil }
+func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly)       {}
+func (c *resettableCorrelator) Advance(_ int64)                            {}
 func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return nil
 }

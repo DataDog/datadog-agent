@@ -192,7 +192,8 @@ type mockDetector struct {
 	name string
 }
 
-func (d *mockDetector) Name() string { return d.name }
+func (d *mockDetector) Name() string                               { return d.name }
+func (d *mockDetector) Setup(_ observerdef.GetComponentFunc) error { return nil }
 func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
@@ -203,6 +204,7 @@ type mockCorrelator struct {
 }
 
 func (c *mockCorrelator) Name() string                                        { return c.name }
+func (c *mockCorrelator) Setup(_ observerdef.GetComponentFunc) error          { return nil }
 func (c *mockCorrelator) ProcessAnomaly(_ observerdef.Anomaly)                {}
 func (c *mockCorrelator) Advance(_ int64)                                     {}
 func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return nil }

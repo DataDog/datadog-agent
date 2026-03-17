@@ -392,10 +392,11 @@ type mockHTMLCorrelator struct {
 	correlations []observer.ActiveCorrelation
 }
 
-func (m *mockHTMLCorrelator) Name() string                          { return "mock_correlator" }
-func (m *mockHTMLCorrelator) ProcessAnomaly(_ observer.Anomaly)     {}
-func (m *mockHTMLCorrelator) Advance(_ int64)                       {}
-func (m *mockHTMLCorrelator) Reset()                                {}
+func (m *mockHTMLCorrelator) Name() string                            { return "mock_correlator" }
+func (m *mockHTMLCorrelator) Setup(_ observer.GetComponentFunc) error { return nil }
+func (m *mockHTMLCorrelator) ProcessAnomaly(_ observer.Anomaly)       {}
+func (m *mockHTMLCorrelator) Advance(_ int64)                         {}
+func (m *mockHTMLCorrelator) Reset()                                  {}
 func (m *mockHTMLCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	return m.correlations
 }
