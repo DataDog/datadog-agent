@@ -27,6 +27,7 @@ import (
 var requiredWindowsEnvVars = []string{
 	"SYSTEMROOT",
 	"COMSPEC",
+	"PATH",
 	"PATHEXT",
 	"WINDIR",
 	"TEMP",
