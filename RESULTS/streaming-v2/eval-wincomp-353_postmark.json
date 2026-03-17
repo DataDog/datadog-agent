@@ -1,0 +1,15 @@
+{
+  "metadata": {
+    "scenario": "353_postmark",
+    "timeline_start": 1772541511,
+    "timeline_end": 1772544751,
+    "detectors_enabled": [
+      "wincomp"
+    ],
+    "correlators_enabled": [
+      "time_cluster"
+    ],
+    "total_anomaly_periods": 0
+  },
+  "anomaly_periods": []
+}

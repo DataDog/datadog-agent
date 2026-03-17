@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "scenario": "353_postmark",
+    "timeline_start": 1772541511,
+    "timeline_end": 1772544751,
+    "detectors_enabled": [
+      "wincomp"
+    ],
+    "correlators_enabled": [
+      "time_cluster"
+    ],
+    "total_anomaly_periods": 1
+  },
+  "anomaly_periods": [
+    {
+      "pattern": "time_cluster_1",
+      "period_start": 1772542528,
+      "period_end": 1772542534,
+      "title": "TimeCluster: 4 anomalies",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+        "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542528,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542528,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542534,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542534,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    }
+  ]
+}

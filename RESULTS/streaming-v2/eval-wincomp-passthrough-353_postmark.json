@@ -1,0 +1,730 @@
+{
+  "metadata": {
+    "scenario": "353_postmark",
+    "timeline_start": 1772541511,
+    "timeline_end": 1772544751,
+    "detectors_enabled": [
+      "wincomp"
+    ],
+    "correlators_enabled": [
+      "passthrough"
+    ],
+    "total_anomaly_periods": 42
+  },
+  "anomaly_periods": [
+    {
+      "pattern": "passthrough_wincomp_0",
+      "period_start": 1772542498,
+      "period_end": 1772542498,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.traces:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.traces:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542498,
+          "source": "datadog.trace_agent.trace_writer.traces:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.traces:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_8",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_19",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.spans:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.spans:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.trace_writer.spans:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.spans:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_2",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.trace_writer.bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_11",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_12",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_14",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.trace:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.receiver.trace:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_39",
+      "period_start": 1772543588,
+      "period_end": 1772543588,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543588,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_1",
+      "period_start": 1772542498,
+      "period_end": 1772542498,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.spans:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.spans:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542498,
+          "source": "datadog.trace_agent.trace_writer.spans:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.spans:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_7",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_22",
+      "period_start": 1772542514,
+      "period_end": 1772542514,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542514,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_23",
+      "period_start": 1772542514,
+      "period_end": 1772542514,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.trace:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542514,
+          "source": "datadog.trace_agent.receiver.trace:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_24",
+      "period_start": 1772542514,
+      "period_end": 1772542514,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542514,
+          "source": "datadog.trace_agent.trace_writer.bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_25",
+      "period_start": 1772542514,
+      "period_end": 1772542514,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_priority:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:1,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542514,
+          "source": "datadog.trace_agent.receiver.traces_priority:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:1,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_29",
+      "period_start": 1772542524,
+      "period_end": 1772542524,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542524,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_38",
+      "period_start": 1772543574,
+      "period_end": 1772543574,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543574,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_3",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.traces:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.traces:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.trace_writer.traces:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.traces:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_5",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_priority:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:1,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.receiver.traces_priority:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:1,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_13",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_32",
+      "period_start": 1772542524,
+      "period_end": 1772542524,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542524,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_33",
+      "period_start": 1772542528,
+      "period_end": 1772542528,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542528,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_34",
+      "period_start": 1772542528,
+      "period_end": 1772542528,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542528,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_41",
+      "period_start": 1772543598,
+      "period_end": 1772543598,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543598,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_9",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.trace:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.receiver.trace:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_20",
+      "period_start": 1772542514,
+      "period_end": 1772542514,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542514,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_30",
+      "period_start": 1772542524,
+      "period_end": 1772542524,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542524,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_15",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.trace_writer.bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_26",
+      "period_start": 1772542518,
+      "period_end": 1772542518,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542518,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_28",
+      "period_start": 1772542518,
+      "period_end": 1772542518,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542518,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_27",
+      "period_start": 1772542518,
+      "period_end": 1772542518,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542518,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_10",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_priority:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:1,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.receiver.traces_priority:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:1,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_16",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_17",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.traces:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.traces:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.trace_writer.traces:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.traces:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_18",
+      "period_start": 1772542508,
+      "period_end": 1772542508,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542508,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_31",
+      "period_start": 1772542524,
+      "period_end": 1772542524,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542524,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_36",
+      "period_start": 1772543554,
+      "period_end": 1772543554,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543554,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_37",
+      "period_start": 1772543568,
+      "period_end": 1772543568,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543568,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_4",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.spans:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.spans:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.trace_writer.spans:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.spans:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_6",
+      "period_start": 1772542504,
+      "period_end": 1772542504,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542504,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_21",
+      "period_start": 1772542514,
+      "period_end": 1772542514,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542514,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:message-router,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_35",
+      "period_start": 1772542534,
+      "period_end": 1772542534,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542534,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:dns-resolver-service,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_40",
+      "period_start": 1772543594,
+      "period_end": 1772543594,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543594,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.14.4,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    }
+  ]
+}

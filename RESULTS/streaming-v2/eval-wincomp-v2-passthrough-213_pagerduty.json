@@ -1,0 +1,1291 @@
+{
+  "metadata": {
+    "scenario": "213_pagerduty",
+    "timeline_start": 1772541386,
+    "timeline_end": 1772543366,
+    "detectors_enabled": [
+      "wincomp"
+    ],
+    "correlators_enabled": [
+      "passthrough"
+    ],
+    "total_anomaly_periods": 75
+  },
+  "anomaly_periods": [
+    {
+      "pattern": "passthrough_wincomp_27",
+      "period_start": 1772542171,
+      "period_end": 1772542171,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542171,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_31",
+      "period_start": 1772542175,
+      "period_end": 1772542175,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542175,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_40",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_74",
+      "period_start": 1772543315,
+      "period_end": 1772543315,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:e60f4cc01e71ad97ae393ef2f8375273d7b81101ff938a3e145732a4a524fbbf,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-lqqsz_09f7b26c-ed1d-417c-8ab4-250ebf720b16/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-lqqsz,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-lqqsz,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543315,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:e60f4cc01e71ad97ae393ef2f8375273d7b81101ff938a3e145732a4a524fbbf,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-lqqsz_09f7b26c-ed1d-417c-8ab4-250ebf720b16/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-lqqsz,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-lqqsz,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_21",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_22",
+      "period_start": 1772542163,
+      "period_end": 1772542163,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542163,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_36",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_41",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_51",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.trace:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.trace:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_69",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_35",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_55",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.trace_writer.bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_12",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_42",
+      "period_start": 1772542171,
+      "period_end": 1772542171,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542171,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_9",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_19",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_20",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_44",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_47",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_56",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_64",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_67",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_1",
+      "period_start": 1772541707,
+      "period_end": 1772541707,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541707,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_4",
+      "period_start": 1772541713,
+      "period_end": 1772541713,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541713,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_15",
+      "period_start": 1772542171,
+      "period_end": 1772542171,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542171,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_18",
+      "period_start": 1772542175,
+      "period_end": 1772542175,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542175,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_28",
+      "period_start": 1772542171,
+      "period_end": 1772542171,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.serve_traces_ms:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542171,
+          "source": "datadog.trace_agent.receiver.serve_traces_ms:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_30",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.serve_traces_ms:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.serve_traces_ms:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_38",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.trace_writer.bytes_uncompressed:avg",
+          "source_series_id": "parquet|datadog.trace_agent.trace_writer.bytes_uncompressed:avg|version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_58",
+      "period_start": 1772542175,
+      "period_end": 1772542175,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542175,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_17",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_61",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_72",
+      "period_start": 1772543093,
+      "period_end": 1772543093,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_priority:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:0,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543093,
+          "source": "datadog.trace_agent.receiver.traces_priority:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:0,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_11",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_16",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.serve_traces_ms:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.serve_traces_ms:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_25",
+      "period_start": 1772542163,
+      "period_end": 1772542163,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542163,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_39",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_66",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_70",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_34",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_53",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_71",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_73",
+      "period_start": 1772543099,
+      "period_end": 1772543099,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_priority:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:0,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772543099,
+          "source": "datadog.trace_agent.receiver.traces_priority:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_priority:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,priority:0,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_6",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_10",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_23",
+      "period_start": 1772542163,
+      "period_end": 1772542163,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542163,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_26",
+      "period_start": 1772542163,
+      "period_end": 1772542163,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542163,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_54",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_8",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_63",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.trace:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.trace:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.trace:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_29",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:count|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_45",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.serve_traces_ms:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.serve_traces_ms:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_50",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_57",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.traces_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_60",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_65",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_0",
+      "period_start": 1772541547,
+      "period_end": 1772541547,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541547,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_43",
+      "period_start": 1772542171,
+      "period_end": 1772542171,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.serve_traces_ms:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542171,
+          "source": "datadog.trace_agent.receiver.serve_traces_ms:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_52",
+      "period_start": 1772542173,
+      "period_end": 1772542173,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.serve_traces_ms:count",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542173,
+          "source": "datadog.trace_agent.receiver.serve_traces_ms:count",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.serve_traces_ms:count|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,success:true,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_2",
+      "period_start": 1772541709,
+      "period_end": 1772541709,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541709,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:downstream-systems,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_3",
+      "period_start": 1772541711,
+      "period_end": 1772541711,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541711,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:requests,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_13",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_32",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_46",
+      "period_start": 1772542175,
+      "period_end": 1772542175,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542175,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_48",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_68",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_14",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_24",
+      "period_start": 1772542163,
+      "period_end": 1772542163,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.spans_received:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542163,
+          "source": "datadog.trace_agent.receiver.spans_received:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.spans_received:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_33",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:6696c7caac72ae0c2c2ac255254b3e3444259ac714313170b50451b770c41755,container_name:integration-api,dirname:/var/log/pods/default_integration-api-6fdb69776f-7cffh_00f8f7f8-8199-4d46-8e8f-a0e6c77cb297/integration-api,display_container_name:integration-api_integration-api-6fdb69776f-7cffh,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:6bb8fd75a154604510c2c3227e4313d4cda3ed4ace5ea6ca31fc59432d4cae17,image_name:integration-api,image_tag:v2,kube_container_name:integration-api,kube_deployment:integration-api,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:integration-api-6fdb69776f,kube_qos:Burstable,kube_replica_set:integration-api-6fdb69776f,kube_service:integration-api,pod_name:integration-api-6fdb69776f-7cffh,pod_phase:running,service:integration-api,short_image:integration-api",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_59",
+      "period_start": 1772542176,
+      "period_end": 1772542176,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542176,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_5",
+      "period_start": 1772541715,
+      "period_end": 1772541715,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.rate_response_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541715,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_7",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_37",
+      "period_start": 1772542169,
+      "period_end": 1772542169,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.payload_accepted:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542169,
+          "source": "datadog.trace_agent.receiver.payload_accepted:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.payload_accepted:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:cassandra-cluster,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_49",
+      "period_start": 1772542177,
+      "period_end": 1772542177,
+      "title": "Passthrough[wincomp]: :count",
+      "member_series": [
+        "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542177,
+          "source": ":count",
+          "source_series_id": "parquet|:count|container_id:36b7360852b6c4146d8bd024c9b61e89116f3d1edf503b6507abb99c091bf3e8,container_name:cassandra-cluster,dirname:/var/log/pods/default_cassandra-cluster-c6999c5dd-7trws_a8921dc3-becb-437a-8285-ed2ef0176e23/cassandra-cluster,display_container_name:cassandra-cluster_cassandra-cluster-c6999c5dd-7trws,env:gensim-213-pagerduty-june-2014-outage-78229d,filename:0.log,image_id:sha256:26c78d65a18812cb8a13e5964fa88bd00c23a853acadef5888460744259752b8,image_name:cassandra-cluster,image_tag:v2,kube_container_name:cassandra-cluster,kube_deployment:cassandra-cluster,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:cassandra-cluster-c6999c5dd,kube_qos:Burstable,kube_replica_set:cassandra-cluster-c6999c5dd,kube_service:cassandra-cluster,pod_name:cassandra-cluster-c6999c5dd-7trws,pod_phase:running,service:cassandra-cluster,short_image:cassandra-cluster",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "passthrough_wincomp_62",
+      "period_start": 1772542179,
+      "period_end": 1772542179,
+      "title": "Passthrough[wincomp]: datadog.trace_agent.receiver.traces_bytes:avg",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542179,
+          "source": "datadog.trace_agent.receiver.traces_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.traces_bytes:avg|endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:integration-api,tracer_version:2.6.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    }
+  ]
+}

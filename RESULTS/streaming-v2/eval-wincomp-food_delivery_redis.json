@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "scenario": "food_delivery_redis",
+    "timeline_start": 1772541572,
+    "timeline_end": 1772543672,
+    "detectors_enabled": [
+      "wincomp"
+    ],
+    "correlators_enabled": [
+      "time_cluster"
+    ],
+    "total_anomaly_periods": 6
+  },
+  "anomaly_periods": [
+    {
+      "pattern": "time_cluster_27",
+      "period_start": 1772542638,
+      "period_end": 1772542645,
+      "title": "TimeCluster: 2 anomalies",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.4,endpoint_version:v0.4,interpreter:gc-amd64-linux,lang:go,lang_version:1.22.12,service:dispatch-service,tracer_version:v1.72.1,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542638,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.4,endpoint_version:v0.4,interpreter:gc-amd64-linux,lang:go,lang_version:1.22.12,service:dispatch-service,tracer_version:v1.72.1,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542645,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.4,endpoint_version:v0.4,interpreter:gc-amd64-linux,lang:go,lang_version:1.22.12,service:dispatch-service,tracer_version:v1.72.1,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "time_cluster_1",
+      "period_start": 1772541771,
+      "period_end": 1772541773,
+      "title": "TimeCluster: 2 anomalies",
+      "member_series": [
+        "parquet|:count|"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541771,
+          "source": ":count",
+          "source_series_id": "parquet|:count|",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772541773,
+          "source": ":count",
+          "source_series_id": "parquet|:count|",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "time_cluster_2",
+      "period_start": 1772541802,
+      "period_end": 1772541802,
+      "title": "TimeCluster: 1 anomalies",
+      "member_series": [
+        "parquet|datadog.tracer.dropped_p0_spans:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772541802,
+          "source": "datadog.tracer.dropped_p0_spans:avg",
+          "source_series_id": "parquet|datadog.tracer.dropped_p0_spans:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "time_cluster_9",
+      "period_start": 1772542282,
+      "period_end": 1772542282,
+      "title": "TimeCluster: 1 anomalies",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.4,endpoint_version:v0.4,interpreter:gc-amd64-linux,lang:go,lang_version:1.22.12,service:redis.client,tracer_version:v1.72.1,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542282,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.4,endpoint_version:v0.4,interpreter:gc-amd64-linux,lang:go,lang_version:1.22.12,service:redis.client,tracer_version:v1.72.1,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "time_cluster_12",
+      "period_start": 1772542478,
+      "period_end": 1772542482,
+      "title": "TimeCluster: 6 anomalies",
+      "member_series": [
+        "parquet|datadog.tracer.flush_traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+        "parquet|datadog.tracer.queue.enqueued.traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542478,
+          "source": "datadog.tracer.flush_traces:avg",
+          "source_series_id": "parquet|datadog.tracer.flush_traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542478,
+          "source": "datadog.tracer.queue.enqueued.traces:avg",
+          "source_series_id": "parquet|datadog.tracer.queue.enqueued.traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542480,
+          "source": "datadog.tracer.flush_traces:avg",
+          "source_series_id": "parquet|datadog.tracer.flush_traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542480,
+          "source": "datadog.tracer.queue.enqueued.traces:avg",
+          "source_series_id": "parquet|datadog.tracer.queue.enqueued.traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542482,
+          "source": "datadog.tracer.flush_traces:avg",
+          "source_series_id": "parquet|datadog.tracer.flush_traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        },
+        {
+          "timestamp": 1772542482,
+          "source": "datadog.tracer.queue.enqueued.traces:avg",
+          "source_series_id": "parquet|datadog.tracer.queue.enqueued.traces:avg|env:gensim-food-delivery-redis-cpu-saturation-5f7194,lang:go,lang_version:go1.22.12,runtime-id:923c8467-5923-4121-8f07-84204514b4fc,service:dispatch-service,tracer_version:v1.72.1,version:1.0.0",
+          "detector": "wincomp"
+        }
+      ]
+    },
+    {
+      "pattern": "time_cluster_13",
+      "period_start": 1772542507,
+      "period_end": 1772542507,
+      "title": "TimeCluster: 1 anomalies",
+      "member_series": [
+        "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:restaurant-service,tracer_version:4.5.0,version:7.77.0-devel+git.284.988f1ae"
+      ],
+      "anomalies": [
+        {
+          "timestamp": 1772542507,
+          "source": "datadog.trace_agent.receiver.rate_response_bytes:avg",
+          "source_series_id": "parquet|datadog.trace_agent.receiver.rate_response_bytes:avg|endpoint:traces_v0.5,endpoint_version:v0.5,interpreter:CPython,lang:python,lang_version:3.11.14,service:restaurant-service,tracer_version:4.5.0,version:7.77.0-devel+git.284.988f1ae",
+          "detector": "wincomp"
+        }
+      ]
+    }
+  ]
+}
