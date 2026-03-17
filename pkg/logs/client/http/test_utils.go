@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -84,7 +85,7 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test")
+	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test", &secretnooptypes.SecretNoop{})
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,
