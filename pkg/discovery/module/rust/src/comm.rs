@@ -44,9 +44,8 @@ pub fn should_ignore_comm(pid: i32) -> bool {
     };
 
     let mut buf = [0u8; MAX_COMM_LEN];
-    let n = match file.read(&mut buf) {
-        Ok(n) => n,
-        Err(_) => return true,
+    let Ok(n) = file.read(&mut buf) else {
+        return true;
     };
 
     let Some(comm_bytes) = buf.get(..n) else {
