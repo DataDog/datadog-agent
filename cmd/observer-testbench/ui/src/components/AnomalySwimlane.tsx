@@ -109,6 +109,11 @@ export function AnomalySwimlane({
     const innerWidth = width - margin.left - margin.right;
     const totalHeight = totalInnerHeight + margin.top + margin.bottom;
 
+    if (width <= margin.left + margin.right || innerWidth <= 0) {
+      d3.select(svgRef.current).selectAll('*').remove();
+      return;
+    }
+
     d3.select(svgRef.current).selectAll('*').remove();
 
     const svg = d3

@@ -25,6 +25,8 @@ interface CompressedGroupCardProps {
 
 export function CompressedGroupCard({ group }: CompressedGroupCardProps) {
   const color = getCorrelatorColor(group.correlator);
+  const commonTags = group.commonTags ?? {};
+  const patterns = group.patterns ?? [];
 
   return (
     <div className="rounded-lg p-3 bg-slate-700/40">
@@ -40,9 +42,9 @@ export function CompressedGroupCard({ group }: CompressedGroupCardProps) {
       </div>
 
       {/* Common tags */}
-      {Object.keys(group.commonTags).length > 0 && (
+      {Object.keys(commonTags).length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
-          {Object.entries(group.commonTags).map(([k, v]) => (
+          {Object.entries(commonTags).map(([k, v]) => (
             <span
               key={k}
               className="text-[10px] px-1.5 py-0.5 bg-slate-600/50 rounded text-slate-300"
@@ -54,8 +56,9 @@ export function CompressedGroupCard({ group }: CompressedGroupCardProps) {
       )}
 
       {/* Patterns */}
-      <div className="space-y-1 mb-2">
-        {group.patterns.map((pattern, i) => (
+      {patterns.length > 0 && (
+        <div className="space-y-1 mb-2">
+          {patterns.map((pattern, i) => (
           <div key={i} className="flex items-center gap-2">
             <code className="text-[11px] text-slate-300 font-mono flex-1 truncate" title={pattern.pattern}>
               {pattern.pattern}
@@ -74,8 +77,9 @@ export function CompressedGroupCard({ group }: CompressedGroupCardProps) {
               />
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Time range */}
       {group.firstSeen != null && group.lastUpdated != null && group.firstSeen > 0 && (
