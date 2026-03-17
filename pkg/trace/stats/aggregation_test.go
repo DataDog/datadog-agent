@@ -34,6 +34,8 @@ func TestGetStatusCode(t *testing.T) {
 		}, 302},
 		// Unparseable string returns 0.
 		{"invalid string", &pb.Span{Meta: map[string]string{"http.status_code": "x"}}, 0},
+		// Negative value returns 0.
+		{"negative", &pb.Span{Meta: map[string]string{"http.status_code": "-1"}}, 0},
 		// OTel 1.21+ key in Meta (fallback via semantics registry).
 		{"otel key in meta", &pb.Span{Meta: map[string]string{"http.response.status_code": "404"}}, 404},
 		// OTel 1.21+ key in Metrics (fallback via semantics registry).
@@ -92,6 +94,12 @@ func TestGetStatusCodeV1(t *testing.T) {
 			s.SetAttributeFromString("http.response.status_code", "503")
 			return s
 		}(), 200},
+		// Negative IntValue returns 0.
+		{"negative int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString(traceutil.TagStatusCode, "-1")
+			return s
+		}(), 0},
 	} {
 		got := getStatusCodeV1(tt.in)
 		assert.Equal(t, tt.out, got, tt.name)

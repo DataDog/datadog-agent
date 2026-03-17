@@ -8,6 +8,7 @@ package stats
 
 import (
 	"hash/fnv"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,13 +65,24 @@ type PayloadAggregationKey struct {
 	BaseService     string
 }
 
+func toStatusCode(v int64) (uint32, bool) {
+	if v < 0 || v > math.MaxUint32 {
+		return 0, false
+	}
+	return uint32(v), true
+}
+
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 	a := semantics.NewDDSpanAccessor(meta, metrics)
 	v, ok := semantics.LookupInt64(ddRegistry, a, semantics.ConceptHTTPStatusCode)
 	if !ok {
 		return 0
 	}
-	return uint32(v)
+	code, ok := toStatusCode(v)
+	if !ok {
+		return 0
+	}
+	return code
 }
 
 func getStatusCodeV1(s *idx.InternalSpan) uint32 {
@@ -79,7 +91,11 @@ func getStatusCodeV1(s *idx.InternalSpan) uint32 {
 	if !ok {
 		return 0
 	}
-	return uint32(v)
+	code, ok := toStatusCode(v)
+	if !ok {
+		return 0
+	}
+	return code
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
