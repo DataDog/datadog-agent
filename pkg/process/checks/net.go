@@ -205,6 +205,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	// and provides both sides of intra-host connections, so server-side
 	// entries have the correct PID even when portlist.Poller (running as
 	// dd-agent) cannot read /proc/<pid>/fd/ for other users' processes.
+	if portToPID == nil {
+		portToPID = make(map[int32]int32)
+	}
 	for _, cx := range conns.Conns {
 		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 {
 			if _, exists := portToPID[cx.Laddr.Port]; !exists {
