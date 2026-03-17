@@ -5,7 +5,7 @@
 
 mod helpers;
 
-use helpers::{pid_is_alive, CliRunner, TestEnv};
+use helpers::{CliRunner, TestEnv, pid_is_alive};
 use std::path::Path;
 use std::time::Duration;
 
@@ -79,7 +79,10 @@ fn test_cli_list_one_running() {
 
     let out = env.cli(&["list"]);
     out.assert_success()
-        .assert_table_row("sleeper", &[("STATE", "Running"), ("COMMAND", "/bin/sleep")])
+        .assert_table_row(
+            "sleeper",
+            &[("STATE", "Running"), ("COMMAND", "/bin/sleep")],
+        )
         .assert_table_row_count(1);
 
     let pid = out.pid_from_table_row("sleeper");
@@ -154,7 +157,10 @@ fn test_cli_list_exited_state() {
 
     env.cli(&["list"])
         .assert_success()
-        .assert_table_row("quick", &[("STATE", "Exited"), ("LAST EXIT", "exit 0")])
+        .assert_table_row(
+            "quick",
+            &[("STATE", "Exited"), ("PID", "-"), ("LAST EXIT", "exit 0")],
+        )
         .assert_table_row_count(1);
 }
 
@@ -162,10 +168,7 @@ fn test_cli_list_exited_state() {
 fn test_cli_list_last_exit_column() {
     let env = TestEnv::new()
         .with_config("ok", "command: /usr/bin/true\nrestart: never\n")
-        .with_config(
-            "fail",
-            "command: /usr/bin/false\nrestart: never\n",
-        )
+        .with_config("fail", "command: /usr/bin/false\nrestart: never\n")
         .with_config("alive", "command: /bin/sleep\nargs:\n  - '300'\n")
         .start();
 
@@ -222,10 +225,7 @@ fn test_cli_list_json_empty() {
 #[test]
 fn test_cli_list_shows_restart_count() {
     let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            "command: /usr/bin/false\nrestart: always\n",
-        )
+        .with_config("crasher", "command: /usr/bin/false\nrestart: always\n")
         .start();
 
     assert!(
@@ -245,4 +245,155 @@ fn test_cli_list_shows_restart_count() {
         .as_u64()
         .expect("restart_count should be a number");
     assert!(count >= 2, "expected restart_count >= 2, got {count}");
+}
+
+#[test]
+fn test_cli_describe_by_name() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["describe", "sleeper"]);
+    out.assert_success()
+        .assert_field("Name", "sleeper")
+        .assert_field("State", "Running")
+        .assert_field("Command", "/bin/sleep")
+        .assert_field("Args", "300")
+        .assert_has_field("UUID");
+
+    let pid = out.pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_describe_by_uuid() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let list_out = env.cli(&["list", "--json"]);
+    let json = list_out.stdout_json();
+    let uuid = json[0]["uuid"].as_str().expect("uuid should be a string");
+    let prefix = &uuid[..8];
+
+    let out = env.cli(&["describe", prefix]);
+    out.assert_success()
+        .assert_field("Name", "sleeper")
+        .assert_field("UUID", uuid);
+
+    let pid = out.pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+
+    env.cli(&["describe", uuid])
+        .assert_success()
+        .assert_field("Name", "sleeper")
+        .assert_field("UUID", uuid);
+}
+
+#[test]
+fn test_cli_describe_shows_all_fields() {
+    let env = TestEnv::new()
+        .with_config(
+            "full",
+            concat!(
+                "command: /bin/sleep\n",
+                "args:\n  - '300'\n",
+                "description: a test process\n",
+                "working_dir: /tmp\n",
+                "env:\n  MY_VAR: hello\n",
+                "restart: always\n",
+                "after:\n  - other\n",
+            ),
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[full] spawned");
+
+    let out = env.cli(&["describe", "full"]);
+    out.assert_success()
+        .assert_field("Name", "full")
+        .assert_field("State", "Running")
+        .assert_field("Command", "/bin/sleep")
+        .assert_field("Args", "300")
+        .assert_field("Description", "a test process")
+        .assert_field("Working Dir", "/tmp")
+        .assert_field("Restart Policy", "always")
+        .assert_field("Auto Start", "true")
+        .assert_has_field("UUID")
+        .assert_has_field("Stdout")
+        .assert_has_field("Stderr");
+
+    let pid = out.pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_describe_after_exit() {
+    let env = TestEnv::new()
+        .with_config("quick", "command: /usr/bin/false\nrestart: never\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[quick] exited with");
+
+    env.cli(&["describe", "quick"])
+        .assert_success()
+        .assert_field("Name", "quick")
+        .assert_field("State", "Failed")
+        .assert_field("PID", "-")
+        .assert_field("Last Exit", "exit 1");
+}
+
+#[test]
+fn test_cli_describe_after_restart() {
+    let env = TestEnv::new()
+        .with_config("crasher", "command: /usr/bin/false\nrestart: always\n")
+        .start();
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
+        "crasher should have restarted at least twice"
+    );
+
+    let out = env.cli(&["describe", "crasher"]);
+    out.assert_success().assert_field("Name", "crasher");
+
+    let restarts: u32 = out.field_value("Restarts").parse().unwrap();
+    assert!(restarts >= 2, "expected Restarts >= 2, got {restarts}");
+}
+
+#[test]
+fn test_cli_describe_not_found() {
+    let env = TestEnv::new().start();
+
+    env.cli(&["describe", "nonexistent"])
+        .assert_failure()
+        .assert_stderr_contains("not found");
+}
+
+#[test]
+fn test_cli_describe_json() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["describe", "--json", "sleeper"]);
+    out.assert_success();
+    let json = out.stdout_json();
+
+    assert_eq!(json["name"], "sleeper");
+    assert_eq!(json["state"], "Running");
+    assert_eq!(json["command"], "/bin/sleep");
+    assert_eq!(json["args"], serde_json::json!(["300"]));
+    assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
+
+    let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
+    assert!(pid > 0);
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }

@@ -263,9 +263,38 @@ impl CliOutput {
         self
     }
 
+    pub fn field_value(&self, label: &str) -> String {
+        let needle = format!("{label}:");
+        self.stdout
+            .lines()
+            .find_map(|line| {
+                let trimmed = line.trim();
+                if trimmed.starts_with(&needle) {
+                    Some(trimmed[needle.len()..].trim().to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "field '{label}' not found in output\nstdout: {}",
+                    self.stdout
+                )
+            })
+    }
+
+    pub fn pid_from_field(&self, label: &str) -> u32 {
+        let val = self.field_value(label);
+        val.parse::<u32>()
+            .unwrap_or_else(|_| panic!("PID field '{label}' value '{val}' is not a u32"))
+    }
+
     pub fn stdout_json(&self) -> serde_json::Value {
         serde_json::from_str(&self.stdout).unwrap_or_else(|e| {
-            panic!("failed to parse stdout as JSON: {e}\nstdout: {}", self.stdout)
+            panic!(
+                "failed to parse stdout as JSON: {e}\nstdout: {}",
+                self.stdout
+            )
         })
     }
 
