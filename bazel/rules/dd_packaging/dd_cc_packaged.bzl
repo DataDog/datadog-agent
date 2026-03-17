@@ -21,7 +21,6 @@ def _dd_cc_packaged_rule_impl(ctx):
             ))
     providers = [
         DdPackagingInfo(installed_files = installed),
-        DefaultInfo(files = depset([ctx.file.patched])),
     ]
     if CcSharedLibraryInfo in ctx.attr.input:
         providers.append(ctx.attr.input[CcSharedLibraryInfo])
@@ -33,10 +32,6 @@ _dd_cc_packaged_rule = rule(
         "input": attr.label(
             mandatory = True,
             providers = [[CcInfo], [CcSharedLibraryInfo]],
-        ),
-        "patched": attr.label(
-            mandatory = True,
-            allow_single_file = True,
         ),
         "installed_files": attr.label_list(providers = [[PackageFilesInfo], [PackageFilegroupInfo]]),
     },
@@ -69,7 +64,6 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
     _dd_cc_packaged_rule(
         name = name,
         input = input,
-        patched = ":{}".format(patched_name),
         installed_files = rule_installed_files,
         visibility = visibility,
         **kwargs
