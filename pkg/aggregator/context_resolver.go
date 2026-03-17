@@ -64,6 +64,14 @@ func (c *Context) DataSizeInBytes() int {
 // Make sure we implement the interface
 var _ size.HasSizeInBytes = &Context{}
 
+// stripCacheEntry holds the post-strip context and tag keys for a given pre-strip context key.
+type stripCacheEntry struct {
+	contextKey   ckey.ContextKey
+	taggerKey    ckey.TagsKey
+	metricKey    ckey.TagsKey
+	removedTags  int // total number of tags removed by RetainFunc (tagger + metric)
+}
+
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	id               string
@@ -77,6 +85,9 @@ type contextResolver struct {
 	keyGenerator     *ckey.KeyGenerator
 	taggerBuffer     *tagset.HashingTagsAccumulator
 	metricBuffer     *tagset.HashingTagsAccumulator
+	// stripCache maps a pre-strip contextKey to the post-strip (contextKey, taggerKey, metricKey).
+	// This avoids repeated RetainFunc calls for metrics we have already processed.
+	stripCache map[ckey.ContextKey]stripCacheEntry
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -97,6 +108,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
+		stripCache:       make(map[ckey.ContextKey]stripCacheEntry),
 	}
 }
 
@@ -107,18 +119,48 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
+	var (
+		contextKey ckey.ContextKey
+		taggerKey  ckey.TagsKey
+		metricKey  ckey.TagsKey
+		keysSet    bool
+	)
+
 	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
-			tlmTaggerTags.Set(float64(cr.taggerBuffer.Len()))
-			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
-			// metric.
-			removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
-			removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
-			tlmFilteredTags.Add(float64(removedTagger + removedMetric))
+			// Generate a pre-strip context key to use as the cache lookup key.
+			// generateContextKey sorts and deduplicates the buffers in place.
+			preCacheKey, _, _ := cr.generateContextKey(metricSampleContext)
+
+			if cached, ok := cr.stripCache[preCacheKey]; ok {
+				// Cache hit: reuse previously computed post-strip keys, skip RetainFunc.
+				contextKey = cached.contextKey
+				taggerKey = cached.taggerKey
+				metricKey = cached.metricKey
+				tlmFilteredTags.Add(float64(cached.removedTags))
+			} else {
+				// Cache miss: strip tags and compute post-strip keys.
+				// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
+				// metric.
+				removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
+				removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
+				removed := removedTagger + removedMetric
+				tlmFilteredTags.Add(float64(removed))
+				contextKey, taggerKey, metricKey = cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
+				cr.stripCache[preCacheKey] = stripCacheEntry{
+					contextKey:  contextKey,
+					taggerKey:   taggerKey,
+					metricKey:   metricKey,
+					removedTags: removed,
+				}
+			}
+			keysSet = true
 		}
 	}
 
-	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
+	if !keysSet {
+		contextKey, taggerKey, metricKey = cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
+	}
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
