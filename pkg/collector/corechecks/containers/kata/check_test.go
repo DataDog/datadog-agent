@@ -102,7 +102,7 @@ func TestScrapeSandbox_MetricCollection(t *testing.T) {
 	defer listener.Close()
 
 	server := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(fixtureMetrics))

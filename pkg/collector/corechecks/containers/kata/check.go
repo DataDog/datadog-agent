@@ -223,8 +223,7 @@ func (c *KataCheck) buildBaseTags(sandboxID string) []string {
 
 	c.mu.RLock()
 	var containerID string
-	for id := range c.sandboxContainerIDs[sandboxID] {
-		containerID = id
+	for containerID = range c.sandboxContainerIDs[sandboxID] {
 		break
 	}
 	c.mu.RUnlock()
