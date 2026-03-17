@@ -129,10 +129,7 @@ func getCommonRoot(cliOverride map[string]interface{}) string {
 	}
 
 	// Check environment variable
-	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
-		if envVal == "" {
-			return defaultCommonRoot
-		}
+	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found && envVal != "" {
 		return envVal
 	}
 
