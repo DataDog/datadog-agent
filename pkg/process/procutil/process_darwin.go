@@ -85,7 +85,14 @@ func allProcesses() (map[int32]*Process, error) {
 		pid := int32(ipid)
 		kp, err := unix.SysctlKinfoProc("kern.proc.pid", int(pid))
 		if err != nil {
-			return nil, fmt.Errorf("kproc: %s", err)
+			// The process may have exited between the ps(1) call and this sysctl
+			// call (TOCTOU race).  On macOS the kernel returns success with 0
+			// bytes written rather than ESRCH, which unix.SysctlKinfoProc
+			// converts to EIO.
+			if errors.Is(err, unix.EIO) || errors.Is(err, unix.ESRCH) {
+				continue
+			}
+			return nil, fmt.Errorf("kproc: %w", err)
 		}
 		kprocByPid[pid] = kp
 	}
