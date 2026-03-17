@@ -340,8 +340,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.enabled", true)
 	// Sampling for agent-internal logs forwarded to the observer.
 	// Warn+ and above are never sampled; these apply to info/debug/trace only.
-	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_info", 0.2)
-	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_info", 0.0)
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_debug", 0.0)
 	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_trace", 0.0)
 	// Debug: dump all observer metrics to a file periodically
 	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
@@ -369,7 +369,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.correlators.cross_signal.enabled", true)
 	config.BindEnvAndSetDefault("observer.correlators.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", true)
-	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", true)
+	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
