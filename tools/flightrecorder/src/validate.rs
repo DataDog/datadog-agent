@@ -68,11 +68,12 @@ async fn main() -> Result<()> {
     let mut result = ValidationResult::default();
     let mut contexts: HashSet<(String, String)> = HashSet::new();
     let mut context_counts: HashMap<(String, String), usize> = HashMap::new();
+    let mut source_counts: HashMap<String, usize> = HashMap::new();
 
     let session = VortexSession::default();
 
     for path in &entries {
-        match validate_file(&session, path, &mut contexts, &mut context_counts).await {
+        match validate_file(&session, path, &mut contexts, &mut context_counts, &mut source_counts).await {
             Ok(detail) => {
                 result.total_rows += detail.rows;
                 result.files_read += 1;
@@ -98,7 +99,7 @@ async fn main() -> Result<()> {
     if args.json {
         print_json(&result);
     } else {
-        print_human(&result, &context_counts);
+        print_human(&result, &context_counts, &source_counts);
     }
 
     if has_errors {
@@ -112,6 +113,7 @@ async fn validate_file(
     path: &PathBuf,
     contexts: &mut HashSet<(String, String)>,
     context_counts: &mut HashMap<(String, String), usize>,
+    source_counts: &mut HashMap<String, usize>,
 ) -> Result<FileDetail> {
     let array = session
         .open_options()
@@ -139,13 +141,20 @@ async fn validate_file(
         .context("accessing 'tags' column")?;
     let tags_canonical = tags_arr.to_canonical().context("canonicalizing 'tags'")?;
 
+    let source_arr = st
+        .unmasked_field_by_name("source")
+        .context("accessing 'source' column")?;
+    let source_canonical = source_arr.to_canonical().context("canonicalizing 'source'")?;
+
     let names = extract_strings(&name_canonical, n)?;
     let tags = extract_strings(&tags_canonical, n)?;
+    let sources = extract_strings(&source_canonical, n)?;
 
     for i in 0..n {
         let key = (names[i].clone(), tags[i].clone());
         contexts.insert(key.clone());
         *context_counts.entry(key).or_insert(0) += 1;
+        *source_counts.entry(sources[i].clone()).or_insert(0) += 1;
     }
 
     Ok(FileDetail {
@@ -201,7 +210,7 @@ fn print_json(result: &ValidationResult) {
     println!("}}");
 }
 
-fn print_human(result: &ValidationResult, context_counts: &HashMap<(String, String), usize>) {
+fn print_human(result: &ValidationResult, context_counts: &HashMap<(String, String), usize>, source_counts: &HashMap<String, usize>) {
     eprintln!("=== Vortex Validation Report ===");
     eprintln!("Files read:        {}", result.files_read);
     eprintln!("Total rows:        {}", result.total_rows);
@@ -238,6 +247,16 @@ fn print_human(result: &ValidationResult, context_counts: &HashMap<(String, Stri
             tags.clone()
         };
         eprintln!("  {}. {} [{}] — {} rows", i + 1, name, tag_preview, count);
+    }
+
+    // Show rows by pipeline source
+    let mut source_sorted: Vec<_> = source_counts.iter().collect();
+    source_sorted.sort_by(|a, b| b.1.cmp(a.1));
+    eprintln!();
+    eprintln!("Rows by pipeline source:");
+    for (source, count) in &source_sorted {
+        let label = if source.is_empty() { "(empty)" } else { source.as_str() };
+        eprintln!("  {:40} {:>8} rows", label, count);
     }
 
     // Show distinct metric name prefixes (first dotted segment)

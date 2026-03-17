@@ -16,13 +16,15 @@ import (
 )
 
 // metricPoint is a compact data point for known contexts (fast path).
-// Only 32 bytes — no heap pointers, no strings. This is what 99.9% of
-// ring buffer items look like after context warm-up.
+// This is what 99.9% of ring buffer items look like after context warm-up.
+// Source is a static string constant (e.g. "dogstatsd-pipeline") — no
+// heap allocation on the hot path.
 type metricPoint struct {
 	ContextKey  uint64
 	Value       float64
 	TimestampNs int64
 	SampleRate  float64
+	Source      string
 }
 
 // contextDef is a context definition (slow path, first occurrence only).
@@ -36,6 +38,7 @@ type contextDef struct {
 	TagPoolSlice *[]string // non-nil when Tags was borrowed from tagPool
 	TimestampNs  int64
 	SampleRate   float64
+	Source       string
 }
 
 // capturedMetric is kept for the legacy EncodeMetricBatch (tests/benchmarks).
@@ -117,11 +120,18 @@ func EncodeSplitMetricBatch(
 	for ri := ptCount - 1; ri >= 0; ri-- {
 		idx := (ptTail + ri) % ptCap
 		p := &pts[idx]
+		var sourceOff flatbuffers.UOffsetT
+		if p.Source != "" {
+			sourceOff = b.CreateString(p.Source)
+		}
 		signals.MetricSampleStart(b)
 		signals.MetricSampleAddContextKey(b, p.ContextKey)
 		signals.MetricSampleAddValue(b, p.Value)
 		signals.MetricSampleAddTimestampNs(b, p.TimestampNs)
 		signals.MetricSampleAddSampleRate(b, p.SampleRate)
+		if sourceOff != 0 {
+			signals.MetricSampleAddSource(b, sourceOff)
+		}
 		sampleOffsets[defCount+ri] = signals.MetricSampleEnd(b)
 	}
 
@@ -131,6 +141,10 @@ func EncodeSplitMetricBatch(
 		d := &defs[idx]
 
 		nameOff := b.CreateString(d.Name)
+		var sourceOff flatbuffers.UOffsetT
+		if d.Source != "" {
+			sourceOff = b.CreateString(d.Source)
+		}
 		if cap(tagBuf) < len(d.Tags) {
 			tagBuf = make([]flatbuffers.UOffsetT, len(d.Tags))
 		} else {
@@ -152,6 +166,9 @@ func EncodeSplitMetricBatch(
 		signals.MetricSampleAddValue(b, d.Value)
 		signals.MetricSampleAddTimestampNs(b, d.TimestampNs)
 		signals.MetricSampleAddSampleRate(b, d.SampleRate)
+		if sourceOff != 0 {
+			signals.MetricSampleAddSource(b, sourceOff)
+		}
 		sampleOffsets[ri] = signals.MetricSampleEnd(b)
 	}
 

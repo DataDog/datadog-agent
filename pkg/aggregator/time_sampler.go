@@ -236,9 +236,36 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
+		// Mirror post-aggregation series to the observer (best-effort, non-blocking).
+		// Each point is one closed time bucket — typically one per flush interval.
+		tags := serie.Tags.UnsafeToReadOnlySliceString()
+		for _, pt := range serie.Points {
+			s.metricHook.Publish("time-sampler", seriePointView{
+				name:  serie.Name,
+				value: pt.Value,
+				tags:  tags,
+				ts:    pt.Ts,
+			})
+		}
 		serieSink.Append(serie)
 	}
 }
+
+// seriePointView wraps a single aggregated (name, point, tags) tuple and
+// implements observer.MetricView so the existing flightrecorder subscriber
+// receives post-aggregation data without any interface changes.
+type seriePointView struct {
+	name  string
+	value float64
+	tags  []string
+	ts    float64
+}
+
+func (v seriePointView) GetName() string       { return v.name }
+func (v seriePointView) GetValue() float64     { return v.value }
+func (v seriePointView) GetRawTags() []string  { return v.tags }
+func (v seriePointView) GetTimestamp() float64 { return v.ts }
+func (v seriePointView) GetSampleRate() float64 { return 1.0 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
