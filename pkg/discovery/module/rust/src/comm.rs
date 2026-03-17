@@ -12,26 +12,26 @@ use crate::procfs;
 /// Maximum length of a comm name in /proc/<pid>/comm (excluding newline).
 const MAX_COMM_LEN: usize = 15;
 
-/// Exact command names to ignore.
-static IGNORE_COMMS: phf::Set<&str> = phf_set! {
-    "chronyd",
-    "cilium-agent",
-    "containerd",
-    "dhclient",
-    "dockerd",
-    "kubelet",
-    "livenessprobe",
-    "local-volume-pr",
-    "sshd",
-    "systemd",
+/// Exact command names to ignore
+static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
+    b"chronyd",
+    b"cilium-agent",
+    b"containerd",
+    b"dhclient",
+    b"dockerd",
+    b"kubelet",
+    b"livenessprobe",
+    b"local-volume-pr",
+    b"sshd",
+    b"systemd",
 };
 
 /// Family prefixes (before the first `-`) to ignore.
-static IGNORE_FAMILIES: phf::Set<&str> = phf_set! {
-    "systemd",
-    "datadog",
-    "containerd",
-    "docker",
+static IGNORE_FAMILIES: phf::Set<&'static [u8]> = phf_set! {
+    b"systemd",
+    b"datadog",
+    b"containerd",
+    b"docker",
 };
 
 /// Returns true if the process with the given PID should be ignored based on
@@ -60,24 +60,16 @@ pub fn should_ignore_comm(pid: i32) -> bool {
 /// Returns true if the given comm bytes (as read from /proc/<pid>/comm)
 /// match an ignored command name or family prefix.
 fn should_ignore_comm_bytes(comm_bytes: &[u8]) -> bool {
-    // Check family prefix (before first `-`)
     if let Some(dash_pos) = comm_bytes.iter().position(|&b| b == b'-')
         && dash_pos > 0
         && let Some(family_bytes) = comm_bytes.get(..dash_pos)
-        && let Ok(family) = std::str::from_utf8(family_bytes)
-        && IGNORE_FAMILIES.contains(family)
+        && IGNORE_FAMILIES.contains(family_bytes)
     {
         return true;
     }
 
-    // Trim trailing newline and check exact match
     let comm = comm_bytes.strip_suffix(b"\n").unwrap_or(comm_bytes);
-
-    if let Ok(comm_str) = std::str::from_utf8(comm) {
-        IGNORE_COMMS.contains(comm_str)
-    } else {
-        false
-    }
+    IGNORE_COMMS.contains(comm)
 }
 
 #[cfg(test)]
