@@ -60,7 +60,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ac:            reqs.Ac,
 		rcclient:      reqs.RcClient,
 		enabled:       enabled,
-		configChanges: make(chan integration.ConfigChanges, 10),
+		configChanges: make(chan integration.ConfigChanges, 100),
 		activeConfigs: make(map[string]integration.Config),
 	}
 
