@@ -289,7 +289,7 @@ var (
 )
 
 const (
-	iisTagsCacheTTL     = 2 * time.Minute
+	iisTagsCacheTTL     = 3 * time.Minute
 	iisTagsCacheMaxSize = 1024
 )
 
