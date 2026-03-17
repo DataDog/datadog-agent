@@ -10,6 +10,7 @@
 package com_datadoghq_script
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -151,11 +152,14 @@ func powershellLiteral(val any) (string, error) {
 	case string:
 		return singleQuote(v), nil
 	default:
-		b, err := json.Marshal(val)
-		if err != nil {
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(val); err != nil {
 			return "", fmt.Errorf("failed to JSON-encode value: %w", err)
 		}
-		return singleQuote(string(b)), nil
+		// json.Encoder.Encode appends a trailing newline; strip it.
+		return singleQuote(strings.TrimRight(buf.String(), "\n")), nil
 	}
 }
 
