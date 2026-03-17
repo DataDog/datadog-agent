@@ -23,7 +23,7 @@ import (
 
 // DatadogBinaries is the list of Datadog agent binary names used to filter
 // system logs (e.g. SELinux audit entries) for diagnostics.
-const DatadogBinaries = []string{
+var DatadogBinaries = []string{
 	"datadog-agent",
 	"system-probe",
 	"sysprobe",
