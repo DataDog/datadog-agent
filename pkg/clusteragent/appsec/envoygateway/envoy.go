@@ -58,12 +58,25 @@ func (e *envoyGatewayInjectionPattern) Mode() appsecconfig.InjectionMode {
 }
 
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
+	// Check if the processor service name is configured (required for envoy-gateway)
+	if e.config.Processor.ServiceName == "" {
+		return fmt.Errorf("processor service name is required for envoy-gateway proxy type but is not configured")
+	}
+
+	// Verify the processor service exists in the cluster
+	_, err := e.client.Resource(schema.GroupVersionResource{Resource: "services", Version: "v1"}).
+		Namespace(e.config.Processor.Namespace).
+		Get(ctx, e.config.Processor.ServiceName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("processor service %q not found in namespace %q: %w", e.config.Processor.ServiceName, e.config.Processor.Namespace, err)
+	}
+
 	gvrToName := func(gvr schema.GroupVersionResource) string {
 		return gvr.Resource + "." + gvr.Group
 	}
 
 	// Check if the EnvoyExtensionPolicy CRD is present
-	_, err := e.client.Resource(crdGVR).Get(ctx, gvrToName(extensionGVR), metav1.GetOptions{})
+	_, err = e.client.Resource(crdGVR).Get(ctx, gvrToName(extensionGVR), metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		return fmt.Errorf("%w: EnvoyExtensionPolicy CRD not found, is the Envoy Gateway installed in the cluster? Cannot enable appsec proxy injection for envoy-gateway", err)
 	}

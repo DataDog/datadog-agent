@@ -55,6 +55,19 @@ func (i *istioInjectionPattern) Mode() appsecconfig.InjectionMode {
 }
 
 func (i *istioInjectionPattern) IsInjectionPossible(ctx context.Context) error {
+	// In external mode, verify the processor service exists
+	if i.config.Mode == appsecconfig.InjectionModeExternal {
+		if i.config.Processor.ServiceName == "" {
+			return fmt.Errorf("processor service name is required for istio in external mode but is not configured")
+		}
+		_, err := i.client.Resource(schema.GroupVersionResource{Resource: "services", Version: "v1"}).
+			Namespace(i.config.Processor.Namespace).
+			Get(ctx, i.config.Processor.ServiceName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("processor service %q not found in namespace %q: %w", i.config.Processor.ServiceName, i.config.Processor.Namespace, err)
+		}
+	}
+
 	gvrToName := func(gvr schema.GroupVersionResource) string {
 		return gvr.Resource + "." + gvr.Group
 	}
