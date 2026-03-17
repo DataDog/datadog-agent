@@ -8,15 +8,12 @@ rtloader_test_go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/obfuscate",
         "//rtloader/test/common",
         "//rtloader/test/helpers",
-        "@com_github_datadog_datadog_agent_pkg_obfuscate//:obfuscate",
     ],
 )
 
-# TODO(agent-build): remove manual tag once pkg/ is migrated to Bazel.
-# @com_github_datadog_datadog_agent_pkg_obfuscate is excluded from bazelify_go_work
-# (via `# gazelle:exclude pkg` in the root BUILD.bazel) so it cannot be fetched yet.
 rtloader_go_test(
     name = "datadog_agent_test",
     srcs = [
@@ -24,6 +21,5 @@ rtloader_go_test(
         "datadog_agent_test.go",
     ],
     embed = [":datadog_agent"],
-    tags = ["manual"],
     deps = ["//rtloader/test/helpers"],
 )

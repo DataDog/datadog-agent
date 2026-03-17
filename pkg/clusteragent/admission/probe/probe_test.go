@@ -31,9 +31,10 @@ const testNamespace = "test-probe-ns"
 
 func newTestProbe(client *fakeclientset.Clientset) *Probe {
 	return &Probe{
-		k8sClient:  client,
-		namespace:  testNamespace,
-		logLimiter: log.NewLogLimit(10, time.Minute),
+		k8sClient:    client,
+		namespace:    testNamespace,
+		isLeaderFunc: func() bool { return true },
+		logLimiter:   log.NewLogLimit(10, time.Minute),
 	}
 }
 

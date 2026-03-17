@@ -83,7 +83,10 @@ git_override(
     module_name = "rules_foreign_cc",
     commit = "e4068330a799ba6090d8247cf34d470f722b32c4",
     patch_strip = 1,
-    patches = ["//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch"],
+    patches = [
+        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
+        "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+    ],
     remote = "https://github.com/bazel-contrib/rules_foreign_cc",
 )
 

@@ -137,6 +137,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 				desc,
 				nil,
 				0,
+				"test-hostname",
 			)
 			suite.Require().NoError(err)
 			suite.Require().NotNil(pipeline)

@@ -53,9 +53,12 @@
 
     Connectivity Probe
     ------------------
-    {{- if .admissionWebhook.Probe.ConfigError }}
-    Configuration Error: {{ .admissionWebhook.Probe.ConfigError }}
-    {{- else }}
+    Enabled: {{ if .admissionWebhook.Probe.Enabled }}true{{ else }}false{{ end }}
+    {{- if .admissionWebhook.Probe.Error }}
+    Error: {{ .admissionWebhook.Probe.Error }}
+    {{- else if .admissionWebhook.Probe.Detail }}
+    {{ .admissionWebhook.Probe.Detail }}
+    {{- else if .admissionWebhook.Probe.HasStats }}
     Total Executions: {{ .admissionWebhook.Probe.TotalExecutions }}
     Success Rate: {{ .admissionWebhook.Probe.SuccessRate }}
     {{- if gt .admissionWebhook.Probe.TotalExecutions 0 }}

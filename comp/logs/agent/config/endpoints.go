@@ -87,6 +87,8 @@ type Endpoint struct {
 	TrackType IntakeTrackType
 	Protocol  IntakeProtocol
 	Origin    IntakeOrigin
+
+	ExtraHTTPHeaders map[string]string
 }
 
 // unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.

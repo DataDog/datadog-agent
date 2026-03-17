@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
@@ -158,7 +159,9 @@ func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
 
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
-	return []extension.Factory{}
+	return []extension.Factory{
+		healthcheckextension.NewFactory(),
+	}
 }
 
 // GetProcessors returns the processors for the collector when the Agent Core is not available.

@@ -132,9 +132,16 @@ func (mr *Resolver) syncCache() error {
 
 // syncPidProcfs Snapshots the mounts of the pid namespace using procfs
 func (mr *Resolver) syncPidProcfs(pid uint32) error {
+	mounts := []*model.Mount{}
+
 	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm)
+		mr.mounts.Remove(sm.MountID)
+		mounts = append(mounts, sm)
 	})
+
+	for _, m := range mounts {
+		mr.insert(m)
+	}
 
 	if err != nil {
 		return fmt.Errorf("error synchronizing the pid procfs: %v", err)
@@ -144,9 +151,16 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 
 // syncPidListmount Snapshots the mounts of the pid namespace using the listmount api
 func (mr *Resolver) syncPidListmount(pid uint32) error {
+	mounts := []*model.Mount{}
+
 	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm)
+		mr.mounts.Remove(sm.MountID)
+		mounts = append(mounts, sm)
 	})
+
+	for _, m := range mounts {
+		mr.insert(m)
+	}
 
 	if err != nil {
 		return fmt.Errorf("error synchronizing from procfs: %v", err)
@@ -214,7 +228,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
 
 	mr.insert(mount)
-	_, _, _, _ = mr.getMountPath(mount.RootPathKey.MountID, 0)
+	_, _, _, _ = mr.getMountPath(mount.MountID, 0)
 
 	// Find all the mounts that I'm the parent of
 	for mnt := range mr.mounts.ValuesIter() {
@@ -230,7 +244,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	// Update the mount path for all the children
 	mr.walkMountSubtree(mount, func(child *model.Mount) {
 		child.Path = ""
-		_, _, _, _ = mr.getMountPath(child.RootPathKey.MountID, 0)
+		_, _, _, _ = mr.getMountPath(child.MountID, 0)
 	})
 }
 
@@ -310,11 +324,11 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 }
 
 // ResolveFilesystem returns the name of the filesystem
-func (mr *Resolver) ResolveFilesystem(pathKey model.PathKey, pid uint32) (string, error) {
+func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, _, _, err := mr.resolveMount(pathKey, pid)
+	mount, _, _, err := mr.resolveMount(mountID, pid)
 	if err != nil {
 		return model.UnknownFS, err
 	}
@@ -406,11 +420,6 @@ func (mr *Resolver) insert(m *model.Mount) {
 		}
 	}
 
-	if m.RootPathKey.IsNull() {
-		// this should never happen
-		seclog.Warnf("root path key is null for mount %d", m.MountID)
-	}
-
 	mr.mounts.Add(m.MountID, m)
 }
 
@@ -422,8 +431,8 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 	return nil
 }
 
-func (mr *Resolver) lookupMount(pathKey model.PathKey) (*model.Mount, model.MountSource, model.MountOrigin) {
-	mount := mr.lookupByMountID(pathKey.MountID)
+func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
+	mount := mr.lookupByMountID(mountID)
 
 	if mount == nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
@@ -437,7 +446,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, depth int) (string
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(model.PathKey{MountID: mountID})
+	mount, source, origin := mr.lookupMount(mountID)
 	if mount == nil {
 		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
@@ -492,15 +501,15 @@ func (mr *Resolver) getMountPath(mountID uint32, pid uint32) (string, model.Moun
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountRoot(pathKey model.PathKey, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMountRoot(pathKey, pid)
+	return mr.resolveMountRoot(mountID, pid)
 }
 
-func (mr *Resolver) resolveMountRoot(pathKey model.PathKey, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mount, source, origin, err := mr.resolveMount(pathKey, pid)
+func (mr *Resolver) resolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
+	mount, source, origin, err := mr.resolveMount(mountID, pid)
 	if err != nil {
 		return "", source, origin, err
 	}
@@ -508,19 +517,19 @@ func (mr *Resolver) resolveMountRoot(pathKey model.PathKey, pid uint32) (string,
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountPath(pathKey model.PathKey, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMountPath(pathKey, pid)
+	return mr.resolveMountPath(mountID, pid)
 }
 
-func (mr *Resolver) resolveMountPath(pathKey model.PathKey, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	if _, err := mr.IsMountIDValid(pathKey.MountID); err != nil {
+func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, source, origin, err := mr.getMountPath(pathKey.MountID, pid)
+	path, source, origin, err := mr.getMountPath(mountID, pid)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, source, origin, nil
@@ -528,14 +537,14 @@ func (mr *Resolver) resolveMountPath(pathKey model.PathKey, pid uint32) (string,
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: pathKey.MountID}
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.syncPidNamespace(pid); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, source, origin, err = mr.getMountPath(pathKey.MountID, pid)
+	path, source, origin, err = mr.getMountPath(mountID, pid)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, source, origin, nil
@@ -546,23 +555,20 @@ func (mr *Resolver) resolveMountPath(pathKey model.PathKey, pid uint32) (string,
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(pathKey model.PathKey, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMount(pathKey, pid)
+	return mr.resolveMount(mountID, pid)
 }
 
-func (mr *Resolver) resolveMount(pathKey model.PathKey, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
-	if _, err := mr.IsMountIDValid(pathKey.MountID); err != nil {
+func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(pathKey)
-	if mount != nil && pathKey.MountEquals(mount.RootPathKey) {
-		// update the path ID to the latest one
-		mount.RootPathKey.PathID = pathKey.PathID
-
+	mount, source, origin := mr.lookupMount(mountID)
+	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
 	}
@@ -572,16 +578,13 @@ func (mr *Resolver) resolveMount(pathKey model.PathKey, pid uint32) (*model.Moun
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	if mount, ok := mr.mounts.Get(pathKey.MountID); ok && pathKey.MountEquals(mount.RootPathKey) {
-		// update the path ID to the latest one
-		mount.RootPathKey.PathID = pathKey.PathID
-
+	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		mr.procHitsStats.Inc()
 		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
 	mr.procMissStats.Inc()
 
-	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: pathKey.MountID}
+	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
 
 // SendStats sends metrics about the current state of the mount resolver
