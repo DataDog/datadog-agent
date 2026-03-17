@@ -368,24 +368,38 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 }
 
 func TestPointCountUpTo_BinarySearch(t *testing.T) {
-	s := makeRangeStorage()
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
-	// All points <= 50
 	assert.Equal(t, 5, s.PointCountUpTo(rangeKey, 50))
-	// Points <= 30: timestamps 10, 20, 30
 	assert.Equal(t, 3, s.PointCountUpTo(rangeKey, 30))
-	// Points <= 25: timestamps 10, 20
 	assert.Equal(t, 2, s.PointCountUpTo(rangeKey, 25))
-	// Points <= 9: none
 	assert.Equal(t, 0, s.PointCountUpTo(rangeKey, 9))
-	// Points <= 10: just one
 	assert.Equal(t, 1, s.PointCountUpTo(rangeKey, 10))
-	// Non-existent series
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesKey{Namespace: "x", Name: "y"}, 100))
 }
 
+func TestPointCountUpTo_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+
+	assert.Equal(t, 10, s.PointCountUpTo(key, 100)) // all 10 events
+	assert.Equal(t, 8, s.PointCountUpTo(key, 20))   // 3+5
+	assert.Equal(t, 3, s.PointCountUpTo(key, 10))   // 3
+	assert.Equal(t, 0, s.PointCountUpTo(key, 9))    // none
+}
+
 func TestPointCountSince_BinarySearch(t *testing.T) {
-	s := makeRangeStorage()
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
 	assert.Equal(t, 5, s.PointCountSince(rangeKey, 0))
 	assert.Equal(t, 5, s.PointCountSince(rangeKey, 10))
@@ -394,6 +408,27 @@ func TestPointCountSince_BinarySearch(t *testing.T) {
 	assert.Equal(t, 2, s.PointCountSince(rangeKey, 40))
 	assert.Equal(t, 1, s.PointCountSince(rangeKey, 50))
 	assert.Equal(t, 0, s.PointCountSince(rangeKey, 51))
+}
+
+func TestPointCountSince_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+
+	assert.Equal(t, 10, s.PointCountSince(key, 0))  // all 10 events
+	assert.Equal(t, 10, s.PointCountSince(key, 10)) // all 10 (inclusive)
+	assert.Equal(t, 7, s.PointCountSince(key, 20))  // 5+2
+	assert.Equal(t, 2, s.PointCountSince(key, 30))  // 2
+	assert.Equal(t, 0, s.PointCountSince(key, 31))  // none
 }
 
 func TestPointCount_ColumnarLayout(t *testing.T) {

@@ -772,8 +772,14 @@ func (s *timeSeriesStorage) PointCountUpTo(key observer.SeriesKey, endTime int64
 		return 0
 	}
 
-	// Binary search for the first timestamp > endTime.
-	return searchAfter(stats.timestamps, endTime)
+	// TODO: Optimize this (and PointCountSince) with cumulative sum / segment tree
+	// Sum event counts for all buckets at or before endTime.
+	endIdx := searchAfter(stats.timestamps, endTime)
+	total := 0
+	for i := 0; i < endIdx; i++ {
+		total += int(stats.counts[i])
+	}
+	return total
 }
 
 // PointCountSince returns the number of raw data points with timestamp >= startTime.
@@ -788,8 +794,13 @@ func (s *timeSeriesStorage) PointCountSince(key observer.SeriesKey, startTime in
 		return 0
 	}
 
-	// It's basically the opposite of PointCountUpTo.
-	return len(stats.timestamps) - searchAtOrAfter(stats.timestamps, startTime)
+	// Sum event counts for all buckets at or after startTime.
+	firstIdx := searchAtOrAfter(stats.timestamps, startTime)
+	total := 0
+	for i := firstIdx; i < len(stats.counts); i++ {
+		total += int(stats.counts[i])
+	}
+	return total
 }
 
 // RecordObservationTime records that an observation occurred at the given timestamp.
