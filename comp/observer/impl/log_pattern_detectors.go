@@ -212,6 +212,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 				description := fmt.Sprintf("Sudden %s in rate of log pattern (z-score: %.1f, score: %.1f). Pattern: `%s`", action, zScore, anomalyScore, pattern)
 
 				anomalies = append(anomalies, observerdef.Anomaly{
+					Type:         observerdef.AnomalyTypeLog,
 					Source:       observerdef.MetricName(seriesKey.Name),
 					DetectorName: d.Name(),
 					Title:        fmt.Sprintf("Log pattern %s", action),
