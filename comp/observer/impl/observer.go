@@ -478,7 +478,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 	var allTelemetry []observerdef.ObserverTelemetry
 
 	for _, key := range seriesKeys {
-		keyStr := seriesKey(key.Namespace, key.Name, key.Tags)
+		keyStr := resolveKey(key)
 		visibleCount := storage.PointCountUpTo(key, dataTime)
 		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
 			continue
