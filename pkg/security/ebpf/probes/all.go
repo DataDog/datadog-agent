@@ -207,11 +207,11 @@ type MapSpecEditorOpts struct {
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
-	SecurityProfileSyscallAnomaly   bool
-	EventSamplingOpenEnabled        bool
-	EventSamplingConnectEnabled     bool
-	EventSamplingBindEnabled        bool
-	EventSamplingDNSEnabled         bool
+	SecurityProfileSyscallAnomaly bool
+	EventSamplingOpenEnabled      bool
+	EventSamplingConnectEnabled   bool
+	EventSamplingBindEnabled      bool
+	EventSamplingDNSEnabled       bool
 }
 
 // AllMapSpecEditors returns the list of map editors
