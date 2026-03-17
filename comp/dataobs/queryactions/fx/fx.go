@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fx provides the fx module for the DO query actions component
+// Package fx provides the fx module for the Data Observability query actions component
 package fx
 
 import (
-	doqueryactions "github.com/DataDog/datadog-agent/comp/do/queryactions/def"
-	queryactionsimpl "github.com/DataDog/datadog-agent/comp/do/queryactions/impl"
+	doqueryactions "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/def"
+	queryactionsimpl "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )

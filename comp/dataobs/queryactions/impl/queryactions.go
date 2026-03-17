@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package queryactionsimpl implements the DO query actions component
+// Package queryactionsimpl implements the Data Observability query actions component
 package queryactionsimpl
 
 import (
@@ -18,12 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	doqueryactions "github.com/DataDog/datadog-agent/comp/do/queryactions/def"
+	doqueryactions "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
 
-// Requires defines the dependencies for the DO query actions component
+// Requires defines the dependencies for the Data Observability query actions component
 type Requires struct {
 	Lc       compdef.Lifecycle
 	Config   config.Component
@@ -32,12 +32,12 @@ type Requires struct {
 	Ac       autodiscovery.Component
 }
 
-// Provides defines the output of the DO query actions component
+// Provides defines the output of the Data Observability query actions component
 type Provides struct {
 	Comp doqueryactions.Component
 }
 
-// component implements the DO query actions component
+// component implements the Data Observability query actions component
 type component struct {
 	log             log.Component
 	ac              autodiscovery.Component
@@ -51,7 +51,7 @@ type component struct {
 	stopCancel      context.CancelFunc
 }
 
-// NewComponent creates a new DO query actions component
+// NewComponent creates a new Data Observability query actions component
 func NewComponent(reqs Requires) (Provides, error) {
 	enabled := reqs.Config.GetBool("data_observability.query_actions.enabled")
 
@@ -79,14 +79,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (c *component) start(_ context.Context) error {
 	if !c.enabled {
-		c.log.Info("DO query actions component disabled by feature flag (data_observability.query_actions.enabled)")
+		c.log.Info("Data Observability query actions component disabled (data_observability.query_actions.enabled)")
 		return nil
 	}
 	c.ac.AddConfigProvider(c, false, 0)
 	ctx, cancel := context.WithCancel(context.Background())
 	c.stopCancel = cancel
 	go c.manageSubscriptionToRC(ctx)
-	c.log.Info("DO query actions component started")
+	c.log.Info("Data Observability query actions component started")
 	return nil
 }
 
@@ -100,7 +100,7 @@ func (c *component) stop(_ context.Context) error {
 		c.closed = true
 		close(c.configChanges)
 	}
-	c.log.Info("DO query actions component stopped")
+	c.log.Info("Data Observability query actions component stopped")
 	return nil
 }
 
@@ -117,7 +117,7 @@ func (c *component) manageSubscriptionToRC(ctx context.Context) {
 		case <-ticker.C:
 			if c.hasPostgresIntegration() {
 				c.rcclient.Subscribe(data.ProductDOQueryActions, c.onRCUpdate)
-				c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for DO query actions")
+				c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for Data Observability query actions")
 				return
 			}
 		}

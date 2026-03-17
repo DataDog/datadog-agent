@@ -137,6 +137,26 @@ func TestExtractDBAuthFromInstanceData_InvalidYAML(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestDBCredentialAllowList_ExcludesReservedKeys(t *testing.T) {
+	instanceYAML := `
+host: localhost
+port: 5432
+remote_config_id: should-not-appear
+db_type: should-not-appear
+queries:
+  - should-not-appear
+`
+	auth, err := extractDBAuthFromInstanceData(integration.Data(instanceYAML))
+	require.NoError(t, err)
+
+	_, hasRemoteConfigID := auth["remote_config_id"]
+	assert.False(t, hasRemoteConfigID, "remote_config_id must not be in the allowlist")
+	_, hasDBType := auth["db_type"]
+	assert.False(t, hasDBType, "db_type must not be in the allowlist")
+	_, hasQueries := auth["queries"]
+	assert.False(t, hasQueries, "queries must not be in the allowlist")
+}
+
 func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	c := &component{
 		log: logmock.New(t),

@@ -67,6 +67,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			c.unscheduleConfig(configID)
 			continue
 		}
 
@@ -79,6 +80,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Errorf("Failed to build check config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			c.unscheduleConfig(configID)
 			continue
 		}
 
