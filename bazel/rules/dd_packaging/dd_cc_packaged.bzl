@@ -42,6 +42,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
     rewrite_rpath(
         name = patched_name,
         inputs = [input],
+        package_metadata = [],
     )
     rule_installed_files = list(installed_files)
     packaged_lib = "{}_packaged".format(name)
@@ -59,6 +60,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
             srcs = [":{}".format(patched_name)],
             prefix = "lib",
             visibility = visibility,
+            package_metadata = [],
         )
     rule_installed_files.append(":{}".format(packaged_lib))
     _dd_cc_packaged_rule(
