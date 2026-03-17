@@ -25,9 +25,10 @@ import (
 )
 
 const (
-	telemetryModuleName = "network_tracer__filter"
-	defaultSnapLen      = 4096
-	pcapTimeout         = time.Second
+	telemetryModuleName  = "network_tracer__filter"
+	defaultSnapLen       = 4096
+	pcapTimeout          = time.Second
+	pcapBPFBufferSize    = 16 * 1024 * 1024 // 16 MB per-interface BPF ring buffer
 
 	// localAddrRefreshInterval controls how often we discover new interfaces
 	// and refresh local address caches. After a BPF error (e.g. interface
@@ -130,14 +131,25 @@ type DarwinPacketInfo struct {
 type OptSnapLen int
 
 // isEligibleInterface reports whether an interface should be captured.
-// Skips loopback and bridge/vlan virtual interfaces.
+// Skips loopback, virtual/tunnel interfaces that never carry TCP/UDP connections,
+// and Apple-internal interfaces (AWDL, P2P, LLW) that use proprietary protocols.
 func isEligibleInterface(iface net.Interface) bool {
 	if iface.Flags&net.FlagLoopback != 0 {
 		return false
 	}
 	name := iface.Name
-	if strings.HasPrefix(name, "bridge") || strings.HasPrefix(name, "vlan") {
-		return false
+	for _, prefix := range []string{
+		"bridge", // virtual bridge interfaces
+		"vlan",   // virtual LAN interfaces
+		"awdl",   // Apple Wireless Direct Link (AirDrop) — not TCP/UDP
+		"p2p",    // peer-to-peer WiFi — not TCP/UDP
+		"llw",    // low-latency WLAN (Sidecar/Handoff) — not TCP/UDP
+		"gif",    // IPv6-in-IPv4 generic tunnel — rarely used
+		"stf",    // 6to4 IPv6 transition tunnel — rarely used
+	} {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
 	}
 	return true
 }
@@ -219,10 +231,20 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 
 	// Add this to insure we wait for this initialization to complete before exiting
 	p.readerWg.Add(1)
-	handle, err := pcap.OpenLive(ifaceName, int32(p.snapLen), false, pcapTimeout)
+	inactive, err := pcap.NewInactiveHandle(ifaceName)
 	if err != nil {
 		p.readerWg.Done()
-		return fmt.Errorf("error opening pcap handle on %s: %w", ifaceName, err)
+		return fmt.Errorf("error creating pcap handle on %s: %w", ifaceName, err)
+	}
+	inactive.SetSnapLen(p.snapLen)
+	inactive.SetPromisc(false)
+	inactive.SetTimeout(pcapTimeout)
+	inactive.SetBufferSize(pcapBPFBufferSize)
+	handle, err := inactive.Activate()
+	if err != nil {
+		inactive.CleanUp()
+		p.readerWg.Done()
+		return fmt.Errorf("error activating pcap handle on %s: %w", ifaceName, err)
 	}
 
 	if err := handle.SetBPFFilter("tcp or udp"); err != nil {
