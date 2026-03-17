@@ -255,3 +255,115 @@ func TestDDSpanAccessorV1(t *testing.T) {
 		assert.Equal(t, int64(503), v)
 	})
 }
+
+// BenchmarkStringLookup_DDSpan compares direct meta map access vs semantic LookupString
+// on a DD V0 span.
+func BenchmarkStringLookup_DDSpan(b *testing.B) {
+	reg := DefaultRegistry()
+	meta := map[string]string{"http.status_code": "200"}
+	metrics := map[string]float64{}
+	accessor := NewDDSpanAccessor(meta, metrics)
+
+	b.Run("Direct", func(b *testing.B) {
+		for b.Loop() {
+			_ = meta["http.status_code"]
+		}
+	})
+
+	b.Run("Semantic", func(b *testing.B) {
+		for b.Loop() {
+			_ = LookupString(reg, accessor, ConceptHTTPStatusCode)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewDDSpanAccessor(meta, metrics)
+			_ = LookupString(reg, a, ConceptHTTPStatusCode)
+		}
+	})
+}
+
+// BenchmarkInt64Lookup_DDSpan compares direct metrics map access vs semantic LookupInt64
+// on a DD V0 span.
+func BenchmarkInt64Lookup_DDSpan(b *testing.B) {
+	reg := DefaultRegistry()
+	meta := map[string]string{}
+	metrics := map[string]float64{"http.status_code": 200}
+	accessor := NewDDSpanAccessor(meta, metrics)
+
+	b.Run("Direct", func(b *testing.B) {
+		for b.Loop() {
+			_ = metrics["http.status_code"]
+		}
+	})
+
+	b.Run("Semantic", func(b *testing.B) {
+		for b.Loop() {
+			_, _ = LookupInt64(reg, accessor, ConceptHTTPStatusCode)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewDDSpanAccessor(meta, metrics)
+			_, _ = LookupInt64(reg, a, ConceptHTTPStatusCode)
+		}
+	})
+}
+
+// BenchmarkStringLookup_DDSpanV1 compares direct InternalSpan attribute access vs semantic
+// LookupString on a DD V1 span (string attribute path).
+func BenchmarkStringLookup_DDSpanV1(b *testing.B) {
+	reg := DefaultRegistry()
+	s := newTestSpanV1()
+	s.SetStringAttribute("http.status_code", "200")
+	accessor := NewDDSpanAccessorV1(s)
+
+	b.Run("Direct", func(b *testing.B) {
+		for b.Loop() {
+			_, _ = s.GetAttributeAsString("http.status_code")
+		}
+	})
+
+	b.Run("Semantic", func(b *testing.B) {
+		for b.Loop() {
+			_ = LookupString(reg, accessor, ConceptHTTPStatusCode)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewDDSpanAccessorV1(s)
+			_ = LookupString(reg, a, ConceptHTTPStatusCode)
+		}
+	})
+}
+
+// BenchmarkInt64Lookup_DDSpanV1 compares direct InternalSpan attribute access vs semantic
+// LookupInt64 on a DD V1 span.
+func BenchmarkInt64Lookup_DDSpanV1(b *testing.B) {
+	reg := DefaultRegistry()
+	s := newTestSpanV1()
+	s.SetAttributeFromString("http.status_code", "200")
+	accessor := NewDDSpanAccessorV1(s)
+
+	b.Run("Direct", func(b *testing.B) {
+		for b.Loop() {
+			_, _ = s.GetAttributeAsFloat64("http.status_code")
+		}
+	})
+
+	b.Run("Semantic", func(b *testing.B) {
+		for b.Loop() {
+			_, _ = LookupInt64(reg, accessor, ConceptHTTPStatusCode)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewDDSpanAccessorV1(s)
+			_, _ = LookupInt64(reg, a, ConceptHTTPStatusCode)
+		}
+	})
+}
