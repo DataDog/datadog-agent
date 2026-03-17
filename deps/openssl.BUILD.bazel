@@ -104,10 +104,6 @@ FIX_OPENSSL_PATHS = """
 
 configure_make(
     name = "openssl",
-    # TODO(team:agent-build): Find a better way to utilize more than 1 core
-    args = [
-        "-j 16",
-    ],
     configure_prefix = select({
         "@platforms//os:windows": "perl",
         "//conditions:default": "",
@@ -158,6 +154,7 @@ configure_make(
         "//conditions:default": "placeholder" + "_" * 50,
     }),
     lib_source = ":all_srcs",
+    resource_size = "enormous",
     out_include_dir = "include",
     out_interface_libs = select({
         "@platforms//os:windows": [

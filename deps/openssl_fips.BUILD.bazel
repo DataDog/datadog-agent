@@ -23,10 +23,6 @@ FIPS_LINUX = "fips.so"
 
 configure_make(
     name = "openssl_fips",
-    # TODO(team:agent-build): Find a better way to utilize more than 1 core
-    args = [
-        "-j 16",
-    ],
     configure_command = "Configure",
     configure_in_place = select({
         "@platforms//os:windows": True,
@@ -44,6 +40,7 @@ configure_make(
     }),
     copts = ["-O2"],
     lib_source = ":all",
+    resource_size = "enormous",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "ossl-modules/" + FIPS_LINUX,

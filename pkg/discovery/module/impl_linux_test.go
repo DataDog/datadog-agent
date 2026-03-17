@@ -134,20 +134,40 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 type discoveryTestSuite struct {
 	suite.Suite
-	setupModule func(t *testing.T) *testDiscoveryModule
-	discovery   *testDiscoveryModule
+	setupModule            func(t *testing.T) *testDiscoveryModule
+	discovery              *testDiscoveryModule
+	expectedImplementation string
 }
 
 func (s *discoveryTestSuite) SetupTest() {
 	s.discovery = s.setupModule(s.T())
 }
 
+func (s *discoveryTestSuite) TestState() {
+	t := s.T()
+
+	url := s.discovery.url + "/" + string(config.DiscoveryModule) + "/state"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	resp, err := s.discovery.client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var state map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&state)
+	require.NoError(t, err)
+
+	require.Equal(t, s.expectedImplementation, state["implementation"])
+}
+
 func TestDiscovery(t *testing.T) {
 	t.Run("go", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
+		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule, expectedImplementation: "system-probe"})
 	})
 	t.Run("rust", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule})
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule, expectedImplementation: "system-probe-lite"})
 	})
 }
 

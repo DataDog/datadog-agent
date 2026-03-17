@@ -7,7 +7,7 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
-# TODO(agent-build): remove below `gazelle:exclude` directives and add corresponding paths to bazel/go.work
+# TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
 # gazelle:exclude comp
 # gazelle:exclude internal/remote-agent
@@ -96,7 +96,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/tagger
 # gazelle:exclude pkg/tagset
 # gazelle:exclude pkg/telemetry
-# gazelle:exclude pkg/template
 # gazelle:exclude pkg/trace
 # gazelle:exclude pkg/util
 # gazelle:exclude pkg/version
