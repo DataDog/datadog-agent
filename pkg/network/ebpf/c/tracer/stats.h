@@ -250,6 +250,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
+    bpf_memset(&empty, 0, sizeof(tcp_stats_t));
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
@@ -372,6 +373,59 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
 #endif
 }
 
+// finalize_congestion_stats reads the final tcp_sock congestion field values at
+// connection close time and takes the max of the map value vs the sock value.
+// Same pattern as retransmits finalization via get_tcp_retrans_counts().
+static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_congestion_stats_t *cgs) {
+    __u32 val = 0;
+
+#if defined(COMPILE_CORE)
+    __u64 reord_seen_offset = 0;
+    LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
+    if (reord_seen_offset > 0) {
+        val = 0;
+        bpf_probe_read(&val, sizeof(val), (char *)sk + reord_seen_offset);
+        if (val > cgs->reord_seen)
+            cgs->reord_seen = val;
+    }
+    __u64 rcv_ooopack_offset = 0;
+    LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
+    if (rcv_ooopack_offset > 0) {
+        val = 0;
+        bpf_probe_read(&val, sizeof(val), (char *)sk + rcv_ooopack_offset);
+        if (val > cgs->rcv_ooopack)
+            cgs->rcv_ooopack = val;
+    }
+    __u64 delivered_ce_offset = 0;
+    LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
+    if (delivered_ce_offset > 0) {
+        val = 0;
+        bpf_probe_read(&val, sizeof(val), (char *)sk + delivered_ce_offset);
+        if (val > cgs->delivered_ce)
+            cgs->delivered_ce = val;
+    }
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
+    if (val > cgs->reord_seen)
+        cgs->reord_seen = val;
+    val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), delivered_ce);
+    if (val > cgs->delivered_ce)
+        cgs->delivered_ce = val;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+    val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), rcv_ooopack);
+    if (val > cgs->rcv_ooopack)
+        cgs->rcv_ooopack = val;
+#endif
+#endif
+
+    // ECN negotiation: always read (not a counter, just a flag)
+    u16 ecn_flags = 0;
+    BPF_CORE_READ_INTO(&ecn_flags, tcp_sk(sk), ecn_flags);
+    cgs->ecn_negotiated = (ecn_flags & 1) ? 1 : 0;
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0, rtt_var = 0;
 #ifdef COMPILE_PREBUILT
@@ -382,7 +436,10 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     BPF_CORE_READ_INTO(&rtt_var, tcp_sk(sk), mdev_us);
 #endif
 
-    tcp_stats_t stats = { .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = {};
+    bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+    stats.rtt = rtt;
+    stats.rtt_var = rtt_var;
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
@@ -494,7 +551,9 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
         return false;
     }
     if (is_tcp_failure_recognized(err)) {
-        tcp_stats_t stats = { .failure_reason = err };
+        tcp_stats_t stats = {};
+        bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+        stats.failure_reason = err;
         update_tcp_stats(t, stats);
         return true;
     }

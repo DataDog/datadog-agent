@@ -12,16 +12,16 @@ func TestCgoAlignment_ConnTuple(t *testing.T) {
 	ebpftest.TestCgoAlignment[ConnTuple](t)
 }
 
-func TestCgoAlignment_TCPStats(t *testing.T) {
-	ebpftest.TestCgoAlignment[TCPStats](t)
-}
-
 func TestCgoAlignment_TCPRTORecoveryStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[TCPRTORecoveryStats](t)
 }
 
 func TestCgoAlignment_TCPCongestionStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[TCPCongestionStats](t)
+}
+
+func TestCgoAlignment_TCPStats(t *testing.T) {
+	ebpftest.TestCgoAlignment[TCPStats](t)
 }
 
 func TestCgoAlignment_ConnStats(t *testing.T) {

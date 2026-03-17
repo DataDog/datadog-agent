@@ -237,6 +237,16 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	var extractor *batchExtractor
 
 	util.AddBoolConst(&mgrOptions, "batching_enabled", config.CustomBatchingEnabled)
+	// Set batch flush threshold: 4 on ringbuf (no stack limit), 3 on perf buffer
+	// (to fit within the 512-byte BPF stack when doing the stack copy).
+	batchFlushSize := uint64(4)
+	if !config.RingBufferSupportedNPM() {
+		batchFlushSize = 3
+	}
+	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+		Name:  "conn_closed_batch_size",
+		Value: batchFlushSize,
+	})
 	if config.CustomBatchingEnabled {
 		numCPUs, err := ebpf.PossibleCPU()
 		if err != nil {
@@ -399,7 +409,11 @@ func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, 
 		handler = func(buf []byte) {
 			l := len(buf)
 			switch {
-			case l >= netebpf.SizeofBatch:
+			case l >= netebpf.SizeofBatch3:
+				// Accept both 3-connection batches (perf buffer, older kernels)
+				// and 4-connection batches (ring buffer, modern kernels).
+				// ToBatch casts the buffer; batch_extractor reads b.Len to
+				// know how many connections to extract (never accesses beyond).
 				b := netebpf.ToBatch(buf)
 				for rc := extractor.NextConnection(b); rc != nil; rc = extractor.NextConnection(b) {
 					c := pool.Get()

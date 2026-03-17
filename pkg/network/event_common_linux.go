@@ -203,7 +203,10 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 	c.TCPECNNegotiated = cs.Ecn_negotiated != 0
 }
 
-// FromTCPStats populates relevant fields on ConnectionStats from the arguments
+// FromTCPStats populates relevant fields on ConnectionStats from the arguments.
+// For closed connections received via perf/ringbuf, the embedded rto_recovery
+// and congestion sub-structs carry the finalized values (no separate map lookup
+// needed). For active connections, Go still reads from the separate BPF maps.
 func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 	if c.Type != TCP || tcpStats == nil {
 		return
@@ -219,4 +222,13 @@ func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 			tcpStats.Failure_reason: 1,
 		}
 	}
+
+	// Embedded RTO/recovery and congestion stats (populated at close time).
+	c.Monotonic.TCPRTOCount = tcpStats.Rto_recovery.Rto_count
+	c.Monotonic.TCPRecoveryCount = tcpStats.Rto_recovery.Recovery_count
+	c.Monotonic.TCPProbe0Count = tcpStats.Rto_recovery.Probe0_count
+	c.Monotonic.TCPReordSeen = tcpStats.Congestion.Reord_seen
+	c.Monotonic.TCPRcvOOOPack = tcpStats.Congestion.Rcv_ooopack
+	c.Monotonic.TCPDeliveredCE = tcpStats.Congestion.Delivered_ce
+	c.TCPECNNegotiated = tcpStats.Congestion.Ecn_negotiated != 0
 }

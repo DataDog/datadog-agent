@@ -14,13 +14,6 @@ type ConnTuple struct {
 	Pid      uint32
 	Metadata uint32
 }
-type TCPStats struct {
-	Rtt               uint32
-	Rtt_var           uint32
-	Retransmits       uint32
-	State_transitions uint16
-	Failure_reason    uint16
-}
 type TCPRTORecoveryStats struct {
 	Rto_count      uint32
 	Recovery_count uint32
@@ -32,6 +25,15 @@ type TCPCongestionStats struct {
 	Delivered_ce   uint32
 	Ecn_negotiated uint8
 	X_pad          [3]uint8
+}
+type TCPStats struct {
+	Rtt               uint32
+	Rtt_var           uint32
+	Retransmits       uint32
+	State_transitions uint16
+	Failure_reason    uint16
+	Rto_recovery      TCPRTORecoveryStats
+	Congestion        TCPCongestionStats
 }
 type ConnStats struct {
 	Sent_bytes     uint64
@@ -61,14 +63,14 @@ type PidTs struct {
 	Timestamp uint64
 }
 type Batch struct {
-	C0        Conn
-	C1        Conn
-	C2        Conn
-	C3        Conn
-	Id        uint64
-	Cpu       uint32
-	Len       uint16
-	Pad_cgo_0 [2]byte
+	Id    uint64
+	Cpu   uint32
+	Len   uint16
+	X_pad uint16
+	C0    Conn
+	C1    Conn
+	C2    Conn
+	C3    Conn
 }
 type Telemetry struct {
 	Tcp_sent_miscounts              uint64
@@ -173,9 +175,17 @@ const (
 )
 
 const BatchSize = 0x4
-const SizeofBatch = 0x1f0
+const SizeofBatch = 0x270
 
-const SizeofConn = 0x78
+const SizeofConn = 0x98
+
+// SizeofBatchHeader is the size of the batch metadata (id + cpu + len + pad).
+const SizeofBatchHeader = 16
+
+// SizeofBatch3 is the minimum batch size: header + 3 connections.
+// Used on the perf buffer path where older kernels can't fit 4 connections
+// in the 512-byte BPF stack.
+const SizeofBatch3 = SizeofBatchHeader + 3*SizeofConn
 
 type ClassificationProgram = uint32
 type ClassificationTLSProgram = uint32
