@@ -97,18 +97,6 @@ typedef struct {
     __u32 probe0_count;               // number of tcp_send_probe0() invocations (zero-window probes)
 } tcp_rto_recovery_stats_t;
 
-// Per-connection TCP congestion stats. Updated on every sendmsg/recvmsg via
-// handle_congestion_stats(). Stored in a separate BPF map for active-connection
-// polling; also embedded in tcp_stats_t so closed connections carry the final
-// values. CO-RE/runtime only; prebuilt returns 0.
-typedef struct {
-    __u32 reord_seen;       // reordering events detected (counter, 4.19+)
-    __u32 rcv_ooopack;      // out-of-order packets received on this socket (counter, 5.4+)
-    __u32 delivered_ce;     // segments delivered with ECN CE mark (counter, 4.19+)
-    __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
-    __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
-} tcp_congestion_stats_t;
-
 typedef struct {
     __u32 rtt;
     __u32 rtt_var;
@@ -118,20 +106,21 @@ typedef struct {
     __u16 state_transitions;
     __u16 failure_reason;
 
-    // Embedded so closed connections carry the final values through the
-    // batch close event (eliminating the close-time data gap). During the
-    // connection lifetime, BPF continues to write to the separate maps
-    // (tcp_rto_recovery_stats, tcp_congestion_stats) and Go polls them.
-    // At close time, cleanup_conn() copies from the maps (and from tcp_sock
-    // fields for congestion stats) into these embedded structs.
+    // RTO/recovery event counters — embedded from separate zero-PID-keyed map
     tcp_rto_recovery_stats_t rto_recovery;
-    tcp_congestion_stats_t   congestion;
+
+    // Congestion stats (from tcp_sock reads in sendmsg/recvmsg, CO-RE/runtime only)
+    __u32 reord_seen;       // reordering events detected (counter, 4.19+)
+    __u32 rcv_ooopack;      // out-of-order packets received on this socket (counter, 5.4+)
+    __u32 delivered_ce;     // segments delivered with ECN CE mark (counter, 4.19+)
+    __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
+    __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
 
     // Explicit padding to make tcp_stats_t a multiple of 8 bytes (48 total).
     // Without this, conn_stats_ts_t (which starts with uint64 sent_bytes)
     // would be at offset 92 in conn_t — not 8-byte aligned — causing
     // different struct layouts on x86_64 vs ARM64.
-    __u32 _pad;
+    __u32 _pad2;
 } tcp_stats_t;
 
 // Full data for a tcp connection

@@ -223,10 +223,6 @@ const (
 	// and zero-window probe event counters (rto_count, recovery_count, probe0_count).
 	// Keyed by zero-PID conn_tuple_t. CO-RE/runtime only; prebuilt tracer leaves entries absent.
 	TCPRTORecoveryStatsMap BPFMapName = "tcp_rto_recovery_stats"
-	// TCPCongestionStatsMap is the map storing per-connection TCP congestion snapshots
-	// (reord_seen, rcv_ooopack, delivered_ce, ecn_negotiated).
-	// CO-RE/runtime only; prebuilt tracer leaves entries absent.
-	TCPCongestionStatsMap BPFMapName = "tcp_congestion_stats"
 	// TCPOngoingConnectPid is the map storing ongoing TCP connection PIDs by (socket + tuple)
 	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
 	// ConnCloseEventMap is the map storing connection close events

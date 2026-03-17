@@ -16,10 +16,6 @@ func TestCgoAlignment_TCPRTORecoveryStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[TCPRTORecoveryStats](t)
 }
 
-func TestCgoAlignment_TCPCongestionStats(t *testing.T) {
-	ebpftest.TestCgoAlignment[TCPCongestionStats](t)
-}
-
 func TestCgoAlignment_TCPStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[TCPStats](t)
 }

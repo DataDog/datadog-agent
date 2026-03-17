@@ -105,13 +105,6 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             conn.tcp_stats = *tst;
             tst_ok = true;
         }
-        // Finalize congestion stats: copy from map into embedded struct,
-        // then read final values from tcp_sock (take max).
-        tcp_congestion_stats_t *cgs = bpf_map_lookup_elem(&tcp_congestion_stats, &(conn.tup));
-        if (cgs) {
-            conn.tcp_stats.congestion = *cgs;
-            bpf_map_delete_elem(&tcp_congestion_stats, &(conn.tup));
-        }
         if (!tst_ok) {
             if (!cst_flushable) {
                 int *count = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
@@ -164,7 +157,7 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             // Finalize congestion stats from tcp_sock (take max of map vs sock).
             // Same pattern as retransmits above.
 #if !defined(COMPILE_PREBUILT)
-            finalize_congestion_stats(sk, &conn.tcp_stats.congestion);
+            finalize_congestion_stats(sk, &conn.tcp_stats);
 #endif
         }
     }

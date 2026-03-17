@@ -29,12 +29,6 @@ BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
  */
 BPF_HASH_MAP(tcp_rto_recovery_stats, conn_tuple_t, tcp_rto_recovery_stats_t, 0)
 
-/* Per-connection TCP congestion snapshot (reord_seen, rcv_ooopack, delivered_ce, etc.).
- * Kept separate from tcp_stats / conn_t to avoid overflowing the 512-byte BPF stack
- * in flush_conn_close_if_full(). Updated on every sendmsg/recvmsg.
- */
-BPF_HASH_MAP(tcp_congestion_stats, conn_tuple_t, tcp_congestion_stats_t, 0)
-
 /* Will hold the PIDs initiating TCP connections keyed by socket + tuple. PIDs have a timestamp attached so they can age out */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
 
