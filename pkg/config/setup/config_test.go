@@ -1359,7 +1359,7 @@ additional_endpoints:
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, commonConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
