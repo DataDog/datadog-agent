@@ -41,7 +41,7 @@ type evaluatedPowershellScript struct {
 // PowerShell single-quoted string literal.
 //
 // Single-quoted strings in PowerShell expand no variables and honour no escape
-// sequences other than '' (escaped single quote).  This means user-supplied
+// sequences other than ” (escaped single quote).  This means user-supplied
 // values — regardless of whether they contain $, `, ;, backslashes, newlines,
 // or any other character — can never break out of the assignment and inject
 // arbitrary PowerShell code.
@@ -127,7 +127,7 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 // powershellLiteral converts a Go value to a PowerShell literal expression that
 // is safe to embed directly in a script.
 //
-//   - Strings are wrapped in single quotes with ' escaped as ''.
+//   - Strings are wrapped in single quotes with ' escaped as ”.
 //     Single-quoted strings have no other special characters, so no further
 //     escaping is needed regardless of the string's content.
 //   - Booleans become $true / $false.
