@@ -15,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -47,6 +48,7 @@ func tcpCongestionEnvProvisioner() provisioners.PulumiEnvRunFunc[environments.Ho
 			return err
 		}
 		params := ec2.GetParams(
+			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 			ec2.WithDocker(),
 		)
 		return ec2.Run(ctx, awsEnv, env, params)
