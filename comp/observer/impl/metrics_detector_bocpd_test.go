@@ -514,3 +514,45 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
 }
+
+func TestFastExp(t *testing.T) {
+	// Test that fastExp approximates math.Exp within acceptable relative error
+	// across the range of inputs relevant to BOCPD.
+	t.Run("accuracy", func(t *testing.T) {
+		inputs := []float64{
+			0, 1, -1, 0.5, -0.5,
+			2, -2, 5, -5, 10, -10,
+			50, -50, 100, -100,
+			-500, -700,
+		}
+		for _, x := range inputs {
+			got := fastExp(x)
+			want := math.Exp(x)
+			if want == 0 {
+				assert.Equal(t, 0.0, got, "fastExp(%v) should be 0", x)
+				continue
+			}
+			relErr := math.Abs(got-want) / want
+			assert.Less(t, relErr, 0.07,
+				"fastExp(%v): got %e, want %e, relErr %e", x, got, want, relErr)
+		}
+	})
+
+	// Edge cases: underflow and overflow.
+	t.Run("underflow", func(t *testing.T) {
+		assert.Equal(t, 0.0, fastExp(-709))
+		assert.Equal(t, 0.0, fastExp(-1000))
+		assert.Equal(t, 0.0, fastExp(math.Inf(-1)))
+	})
+
+	t.Run("overflow", func(t *testing.T) {
+		assert.True(t, math.IsInf(fastExp(710), 1))
+		assert.True(t, math.IsInf(fastExp(1000), 1))
+		assert.True(t, math.IsInf(fastExp(math.Inf(1)), 1))
+	})
+
+	// fastExp(0) should be close to 1.
+	t.Run("identity", func(t *testing.T) {
+		assert.InDelta(t, 1.0, fastExp(0), 1e-10)
+	})
+}

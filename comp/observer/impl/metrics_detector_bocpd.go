@@ -523,5 +523,22 @@ func gaussianPDF(x, mean, variance float64) float64 {
 	}
 	z := x - mean
 	denom := math.Sqrt(2 * math.Pi * variance)
-	return math.Exp(-(z*z)/(2*variance)) / denom
+	return fastExp(-(z*z)/(2*variance)) / denom
+}
+
+// fastExp is a fast approximation of math.Exp using IEEE 754 bit manipulation.
+// Accuracy: ~5% relative error. Sufficient for BOCPD where normalizeProbs
+// corrects proportional errors.
+// Reference: Schraudolph, "A Fast, Compact Approximation of the Exponential Function", 1999.
+func fastExp(x float64) float64 {
+	if x < -708 {
+		return 0
+	}
+	if x > 709 {
+		return math.Inf(1)
+	}
+	// 2^52 / ln(2) ≈ 6497320848556798
+	const shift = 1023 * (1 << 52)
+	const scale = (1 << 52) / 0.6931471805599453 // 1<<52 / ln(2)
+	return math.Float64frombits(uint64(int64(x*scale) + shift))
 }
