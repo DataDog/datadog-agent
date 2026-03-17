@@ -1,6 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_shared_library", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_static_library", "rust_test")
 
 # ============================================================================
 # Library Targets (rlib + cdylib)
@@ -41,7 +41,6 @@ rust_library(
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
-        "@crates//:simple_logger",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
@@ -51,8 +50,8 @@ rust_library(
     ],
 )
 
-# Shared library (cdylib) for FFI/cgo integration
-rust_shared_library(
+# Static library (staticlib) for FFI integration
+rust_static_library(
     name = "libdd_discovery",
     srcs = glob(
         ["src/**/*.rs"],
@@ -87,7 +86,6 @@ rust_shared_library(
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
-        "@crates//:simple_logger",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
@@ -116,24 +114,21 @@ rust_binary(
     name = "system-probe-lite",
     srcs = [
         "src/cli.rs",
-        "src/config.rs",
         "src/main.rs",
     ],
     edition = "2024",
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:http-body-util",
         "@crates//:hyper",
         "@crates//:hyper-util",
         "@crates//:log",
-        "@crates//:phf",
         "@crates//:serde_json",
-        "@crates//:simple_logger",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:yaml-rust2",
     ],
 )
 
@@ -174,11 +169,6 @@ filegroup(
     srcs = glob(["testdata/**/*"]),
 )
 
-filegroup(
-    name = "mock_system_probe",
-    srcs = ["testdata/fallback/mock-system-probe.sh"],
-)
-
 # Unit tests embedded in source files
 rust_test(
     name = "dd_discovery_test",
@@ -197,26 +187,6 @@ rust_test(
 )
 
 # Integration tests
-rust_test(
-    name = "fallback_integration_test",
-    srcs = ["tests/fallback_integration_test.rs"],
-    data = [
-        ":mock_system_probe",
-        ":system-probe-lite",
-    ],
-    edition = "2024",
-    # Set compile-time environment variable pointing to system-probe-lite binary
-    # This mimics Cargo's CARGO_BIN_EXE_* behavior
-    rustc_env = {
-        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
-        "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
-    },
-    deps = [
-        "@crates//:nix",
-        "@crates//:tempfile",
-    ],
-)
-
 rust_test(
     name = "pid_integration_test",
     srcs = ["tests/pid_integration_test.rs"],

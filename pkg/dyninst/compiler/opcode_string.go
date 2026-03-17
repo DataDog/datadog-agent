@@ -38,8 +38,9 @@ const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareEx
 var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 271, 288, 311, 324, 340}
 
 func (i Opcode) String() string {
-	if i >= Opcode(len(_Opcode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Opcode_index)-1 {
 		return "Opcode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Opcode_name[_Opcode_index[i]:_Opcode_index[i+1]]
+	return _Opcode_name[_Opcode_index[idx]:_Opcode_index[idx+1]]
 }

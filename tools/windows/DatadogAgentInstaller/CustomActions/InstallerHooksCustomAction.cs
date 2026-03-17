@@ -36,10 +36,13 @@ namespace Datadog.CustomActions
             var env = new Dictionary<string, string>();
             var registryProps = new[]
             {
+                // registry props
                 "DD_INSTALLER_REGISTRY_URL",
                 "DD_INSTALLER_REGISTRY_AUTH",
                 "DD_INSTALLER_REGISTRY_USERNAME",
                 "DD_INSTALLER_REGISTRY_PASSWORD",
+                // extensions props
+                "DD_OTELCOLLECTOR_ENABLED",
             };
             foreach (var prop in registryProps)
             {
