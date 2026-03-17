@@ -88,7 +88,7 @@ type TestBenchConfig struct {
 	Logger       log.Component
 
 	// EnableOverrides controls which components are enabled at startup.
-	// Keys are component names (e.g. "cusum", "lead_lag").
+	// Keys are component names (e.g. "bocpd", "lead_lag").
 	// If a name is present, its value overrides the registry DefaultEnabled.
 	// Components not listed use their registry default.
 	EnableOverrides map[string]bool
@@ -777,7 +777,7 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 
 	// Resolve SourceSeriesIDs first, then filter by the requested series ID.
 	// We resolve all anomalies because the engine may store them with empty
-	// SourceSeriesID (e.g. RRCF anomalies) that resolve to the requested ID.
+	// SourceSeriesID that resolve to the requested ID.
 	resolved := tb.resolveAnomalySeriesIDs(tb.engine.StateView().Anomalies())
 	var result []observerdef.Anomaly
 	for _, a := range resolved {
@@ -789,9 +789,9 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 }
 
 // resolveAnomalySeriesIDs applies testbench-specific SourceSeriesID resolution
-// to anomalies that have an empty SourceSeriesID. Detectors like RRCF that
-// operate on the full storage don't set SourceSeriesID; this maps them to the
-// corresponding telemetry series using the naming convention from handleTelemetry.
+// to anomalies that have an empty SourceSeriesID. Detectors that operate on the
+// full storage don't set SourceSeriesID; this maps them to the corresponding
+// telemetry series using the naming convention from handleTelemetry.
 func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
 	for i := range anomalies {
 		a := &anomalies[i]
@@ -828,7 +828,7 @@ func (tb *TestBench) GetLogAnomaliesByDetector() map[string][]observerdef.Anomal
 }
 
 // GetDetectorComponentMap returns a mapping from detector implementation name
-// (e.g. "cusum_detector") to component registry name (e.g. "cusum").
+// (e.g. "bocpd_detector") to component registry name (e.g. "bocpd").
 func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()

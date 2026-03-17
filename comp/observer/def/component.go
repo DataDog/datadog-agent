@@ -300,21 +300,15 @@ type Anomaly struct {
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
 type AnomalyDebugInfo struct {
 	// Baseline statistics
-	BaselineStart  int64   // timestamp of baseline period start
-	BaselineEnd    int64   // timestamp of baseline period end
-	BaselineMean   float64 // mean of baseline (for CUSUM)
-	BaselineMedian float64 // median of baseline
-	BaselineStddev float64 // stddev of baseline (for CUSUM)
-	BaselineMAD    float64 // MAD of baseline
+	BaselineMean   float64 // mean of baseline (BOCPD)
+	BaselineMedian float64 // median of baseline (ScanMW, ScanWelch)
+	BaselineStddev float64 // stddev of baseline (BOCPD)
+	BaselineMAD    float64 // MAD of baseline (ScanMW, ScanWelch)
 
 	// Detection parameters
 	Threshold      float64 // threshold that was crossed
-	SlackParam     float64 // k parameter (CUSUM only)
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
-
-	// For CUSUM: the cumulative sum values leading up to detection
-	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
 // ReportOutput is the output model passed to reporters after each advance cycle.

@@ -124,7 +124,7 @@ func defaultCatalog() *componentCatalog {
 				factory: func() any {
 					return NewTimeClusterCorrelator(TimeClusterConfig{
 						ProximitySeconds: 10,
-						WindowSeconds:    180,
+						WindowSeconds:    120,
 					})
 				},
 				defaultEnabled: true,
