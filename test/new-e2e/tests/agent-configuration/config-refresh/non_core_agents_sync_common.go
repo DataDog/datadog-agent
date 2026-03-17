@@ -43,20 +43,17 @@ var (
 )
 
 // assertAgentsUseKey checks that all agents are using the given key.
-func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string, includeProcessAgent bool) {
+func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {
 	if h, ok := t.(testing.TB); ok {
 		h.Helper()
 	}
 
 	hostHTTPClient := host.NewHTTPClient()
-	endpoints := []agentConfigEndpointInfo{
+	for _, endpoint := range []agentConfigEndpointInfo{
 		traceConfigEndpoint(apmCmdPort),
+		processConfigEndpoint(processCmdPort),
 		securityConfigEndpoint(securityCmdPort),
-	}
-	if includeProcessAgent {
-		endpoints = append(endpoints, processConfigEndpoint(processCmdPort))
-	}
-	for _, endpoint := range endpoints {
+	} {
 		req, err := endpoint.httpRequest(authtoken)
 		if !assert.NoErrorf(t, err, "failed to create request for %s", endpoint.name) {
 			continue

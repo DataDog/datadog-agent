@@ -38,7 +38,7 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 				removeFilesCmdTmpl: "sudo rm -f %s/* %s %s",
 				readLogCmdTmpl:     "tail -f -n +1 %v",
 				pathJoinFunction:   path.Join,
-				agentProcesses:     []string{"agent", "trace-agent", "security-agent"}, // process-agent no longer runs standalone on Linux; TODO IPC: add system-probe when it will load auth artifacts
+				agentProcesses:     []string{"agent", "trace-agent", "process-agent", "security-agent"}, // process-agent runs via NPM; TODO IPC: add system-probe when it will load auth artifacts
 			},
 		},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(

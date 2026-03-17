@@ -8,3 +8,10 @@ apm_config:
 process_config:
   process_collection:
     enabled: true
+
+# NPM is needed to keep process-agent running on Linux since process checks
+# now always run in the core agent.
+network_config:
+  enabled: true
+system_probe_config:
+  enabled: true

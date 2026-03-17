@@ -57,6 +57,7 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 			),
 			ec2.WithAgentClientOptions(
 				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
+				agentclientparams.WithProcessAgentOnPort(processCmdPort),
 				agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
 			),
 		),

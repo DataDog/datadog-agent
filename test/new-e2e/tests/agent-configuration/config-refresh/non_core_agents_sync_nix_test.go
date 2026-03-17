@@ -71,7 +71,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-
+			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
 		)),
 	))
@@ -83,7 +83,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1, false)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -97,7 +97,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2, false)
+		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
 
@@ -139,7 +139,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-
+			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
 		)),
 	))
@@ -151,7 +151,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1, false)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -165,6 +165,6 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2, false)
+		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
