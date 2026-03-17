@@ -118,12 +118,15 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("failed to parse check config: %w", err)
 	}
 
-	// Start socket listener
+	// Start socket listener. If the socket is unavailable (e.g. permissions issue),
+	// log a warning and continue — matching DogStatsD/APM behaviour. Collection will
+	// be skipped until the socket becomes available on a future Configure call.
 	sl, err := newSocketListener(c.config.SocketPath)
 	if err != nil {
-		return fmt.Errorf("NCCL socket listener failed: %w", err)
+		log.Warnf("NCCL check: socket listener failed to start, no metrics will be collected: %v", err)
+	} else {
+		c.socketListener = sl
 	}
-	c.socketListener = sl
 
 	// Initialize container provider for PID -> container mapping
 	if c.containerProvider == nil {
@@ -171,6 +174,9 @@ func (c *Check) Run() error {
 	}
 
 	// Collect events from socket listener
+	if c.socketListener == nil {
+		return nil
+	}
 	events := c.socketListener.Drain()
 
 	// Process events and emit per-rank metrics
@@ -189,11 +195,11 @@ func (c *Check) Run() error {
 	log.Debugf("NCCL check: %d events", len(events))
 
 	// Hang detection: update last-seen timestamps and emit staleness metrics.
-	// Key by rank only (not rank+PID) so that training restarts reset staleness
-	// for the rank rather than accumulating a new stale entry per PID.
+	// Key by commID+rank so that concurrent jobs with overlapping rank numbers
+	// (both having rank:0..N) don't collide and overwrite each other's entries.
 	now := time.Now()
 	for _, parsed := range events {
-		rankKey := fmt.Sprintf("rank:%d", parsed.Event.Rank)
+		rankKey := fmt.Sprintf("%s:rank:%d", parsed.Event.ID, parsed.Event.Rank)
 		c.lastSeenRank[rankKey] = rankStalenessEntry{lastSeen: now, parsed: parsed}
 	}
 	c.emitStalenessMetrics(snd, now)
@@ -306,8 +312,8 @@ func (c *Check) Cancel() {
 // emitStalenessMetrics emits nccl.rank.seconds_since_last_event for every rank
 // that has ever produced events.  Callers pass the current time so tests can inject
 // a fixed instant without real sleeps.
-// lastSeenTime is keyed by "rank:N" so training restarts reset the staleness for a
-// rank rather than accumulating a stale entry per PID.
+// lastSeenRank is keyed by "<commID>:rank:<N>" so concurrent jobs with overlapping
+// rank numbers don't collide and overwrite each other's staleness entries.
 // Entries older than rankStalenessMaxAge are evicted: once staleness exceeds ~5
 // minutes the job is either finished or has been alarmed on, and keeping the entry
 // would cause false-positive hang signals if a new job runs on a different node.
@@ -334,7 +340,7 @@ func (c *Check) emitStalenessMetrics(snd sender.Sender, now time.Time) {
 		}
 
 		tags := c.buildTags(entry.parsed)
-		tags = append(tags, rankKey) // "rank:N"
+		tags = append(tags, fmt.Sprintf("rank:%d", entry.parsed.Event.Rank))
 		if entry.parsed.Event.Hostname != "" {
 			tags = append(tags, "nccl_hostname:"+entry.parsed.Event.Hostname)
 		}
