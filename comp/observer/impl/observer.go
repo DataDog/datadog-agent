@@ -600,6 +600,13 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 		timestamp = time.Now().Unix()
 	}
 
+	name := sample.GetName()
+
+	// filter internal Datadog Agent telemetry
+	if strings.HasPrefix(name, "datadog.") {
+		return
+	}
+
 	obs := observation{
 		source: h.source,
 		metric: &metricObs{
