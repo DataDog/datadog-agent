@@ -41,8 +41,9 @@ type evaluatedPowershellScript struct {
 // to the script body, binding each variable to its resolved value as a
 // PowerShell single-quoted string literal.
 //
-// Single-quoted strings in PowerShell expand no variables and honour no escape
-// sequences other than ” (escaped single quote).  This means user-supplied
+// Single-quoted strings in PowerShell expand no variables and process no escape
+// sequences; the only special case is that a literal single quote inside the
+// string is written as two consecutive single quotes. This means user-supplied
 // values — regardless of whether they contain $, `, ;, backslashes, newlines,
 // or any other character — can never break out of the assignment and inject
 // arbitrary PowerShell code.
@@ -130,8 +131,16 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 		entry := entries[varName]
 		// path[1:] strips the "parameters" root.
 		val, err := tmpl.EvaluatePathParts(parameters, entry.path[1:])
-		if err != nil || val == nil {
+		if err != nil {
+			var notFound tmpl.ErrPathNotFound
+			if !errors.As(err, &notFound) {
+				return nil, fmt.Errorf("failed to evaluate parameter %q: %w", strings.Join(entry.path, "."), err)
+			}
 			// Parameter not provided — assign $null so the variable exists.
+			preamble = append(preamble, "$"+varName+" = $null")
+			continue
+		}
+		if val == nil {
 			preamble = append(preamble, "$"+varName+" = $null")
 			continue
 		}
