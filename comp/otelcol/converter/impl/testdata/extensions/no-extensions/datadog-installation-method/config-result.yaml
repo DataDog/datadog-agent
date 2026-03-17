@@ -14,7 +14,7 @@ extensions:
       key: ggggg77777
       site: "datadoghq.com"
     deployment_type: daemonset
-    installation_method: ""
+    installation_method: bare-metal
 
 service:
   extensions:
@@ -34,4 +34,3 @@ service:
     logs:
       receivers: [nop]
       exporters: [nop]
-

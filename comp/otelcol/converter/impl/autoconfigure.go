@@ -60,7 +60,8 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 					"key":  c.coreConfig.GetString("api_key"),
 					"site": site,
 				},
-				"deployment_type": deploymentType,
+				"deployment_type":     deploymentType,
+				"installation_method": c.coreConfig.GetString("otelcollector.installation_method"),
 			}
 		}
 		addComponentToConfig(conf, extension)
