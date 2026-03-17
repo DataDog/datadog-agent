@@ -285,12 +285,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	var metricTags []string
-	if d.config.EnrichDeviceTagsFromResource {
-		metricTags = []string{"dd.internal.resource:ndm_device:" + d.GetDeviceID()}
-	} else {
-		metricTags = tags
-	}
+	metricTags := []string{"dd.internal.resource:ndm_device:" + d.GetDeviceID()}
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {

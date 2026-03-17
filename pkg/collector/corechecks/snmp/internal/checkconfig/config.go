@@ -98,7 +98,6 @@ type InitConfig struct {
 	Namespace                    string                            `yaml:"namespace"`
 	PingConfig                   snmpintegration.PackedPingConfig  `yaml:"ping"`
 	Loader                       string                            `yaml:"loader"`
-	EnrichDeviceTagsFromResource Boolean                           `yaml:"enrich_device_tags_from_resource"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -127,7 +126,6 @@ type InstanceConfig struct {
 	PingConfig                   snmpintegration.PackedPingConfig    `yaml:"ping"`
 	Loader                       string                              `yaml:"loader"`
 	UseRCProfiles                *Boolean                            `yaml:"use_remote_config_profiles"`
-	EnrichDeviceTagsFromResource *Boolean                            `yaml:"enrich_device_tags_from_resource"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -210,8 +208,6 @@ type CheckConfig struct {
 	PingConfig  pinger.Config
 
 	UseUnconnectedUDPSocket bool
-
-	EnrichDeviceTagsFromResource bool
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -289,7 +285,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
 	initConfig.CollectTopology = true
-	initConfig.EnrichDeviceTagsFromResource = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -345,12 +340,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.UseDeviceIDAsHostname = bool(*instance.UseDeviceIDAsHostname)
 	} else {
 		c.UseDeviceIDAsHostname = bool(initConfig.UseDeviceIDAsHostname)
-	}
-
-	if instance.EnrichDeviceTagsFromResource != nil {
-		c.EnrichDeviceTagsFromResource = bool(*instance.EnrichDeviceTagsFromResource)
-	} else {
-		c.EnrichDeviceTagsFromResource = bool(initConfig.EnrichDeviceTagsFromResource)
 	}
 
 	if instance.ExtraTags != "" {
