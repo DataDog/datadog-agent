@@ -98,6 +98,14 @@ func (cs ConnStats) IsAssured() bool {
 	return cs.Flags&uint8(Assured) != 0
 }
 
+// SizeofBatchHeader is the size of the batch metadata (id + cpu + len + pad).
+const SizeofBatchHeader = 16
+
+// SizeofBatch3 is the minimum batch size: header + 3 connections.
+// Used on the perf buffer path where older kernels can't fit 4 connections
+// in the 512-byte BPF stack.
+const SizeofBatch3 = SizeofBatchHeader + 3*SizeofConn
+
 // ToBatch converts a byte slice to a Batch pointer.
 func ToBatch(data []byte) *Batch {
 	return (*Batch)(unsafe.Pointer(&data[0]))

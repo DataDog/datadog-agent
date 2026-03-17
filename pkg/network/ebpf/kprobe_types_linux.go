@@ -179,14 +179,6 @@ const SizeofBatch = 0x270
 
 const SizeofConn = 0x98
 
-// SizeofBatchHeader is the size of the batch metadata (id + cpu + len + pad).
-const SizeofBatchHeader = 16
-
-// SizeofBatch3 is the minimum batch size: header + 3 connections.
-// Used on the perf buffer path where older kernels can't fit 4 connections
-// in the 512-byte BPF stack.
-const SizeofBatch3 = SizeofBatchHeader + 3*SizeofConn
-
 type ClassificationProgram = uint32
 type ClassificationTLSProgram = uint32
 
