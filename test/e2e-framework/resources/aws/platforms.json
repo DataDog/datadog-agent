@@ -67,12 +67,15 @@
     "redhat": {
         "arm64": {
             "86": "ami-0238411fb452f8275",
-            "9": "ami-0df363b113fd62e2f"
+            "9": "ami-0df363b113fd62e2f",
+            "9-docker": "ami-TODO"
         },
         "x86_64": {
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0f80d86cd755a6244"
+            "9": "ami-0f80d86cd755a6244",
+            "9-docker": "ami-TODO",
+            "9-openshift": "ami-TODO"
         }
     },
     "rocky-linux": {
@@ -82,11 +85,14 @@
     },
     "suse": {
         "arm64": {
-            "15-4": "ami-0bf8a9f373ace344e"
+            "15-4": "ami-0bf8a9f373ace344e",
+            "15-4-docker": "ami-TODO"
         },
         "x86_64": {
             "12": "ami-0bdd2ebc1f9e13da5",
-            "15-4": "ami-03ae7983db0ea5442"
+            "12-docker": "ami-TODO",
+            "15-4": "ami-03ae7983db0ea5442",
+            "15-4-docker": "ami-TODO"
         }
     },
     "ubuntu": {
@@ -96,6 +102,7 @@
             "20-04-2": "ami-023f1e40b096c3ebc",
             "21-04": "ami-0b7e7372ecbee0593",
             "22-04": "ami-0466eb5a997253814",
+            "22-04-docker": "ami-TODO",
             "23-04": "ami-03b35a1edab3c2807",
             "23-10": "ami-0dea732dd5f1da0a8",
             "24-04": "ami-0348c30a83c1f58d9"
@@ -106,6 +113,9 @@
             "18-04": "ami-07db89cb6c2192894",
             "20-04": "ami-0c3f6a145cbf7a0d2",
             "22-04": "ami-0e57e4ac781e12952",
+            "22-04-docker": "ami-TODO",
+            "22-04-k8s": "ami-TODO",
+            "22-04-service-discovery": "ami-TODO",
             "23-04": "ami-0fe7dae3c13301a15",
             "23-10": "ami-0949b45ef274e55a1",
             "24-04": "ami-052f352dde1996efb"
