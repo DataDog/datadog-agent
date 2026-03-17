@@ -521,3 +521,75 @@ func TestGeneratePodAutoscalerMetrics_NilObject(t *testing.T) {
 	metrics := GeneratePodAutoscalerMetrics(nil)
 	assert.Nil(t, metrics)
 }
+
+func TestKeyTagsFromAnnotations(t *testing.T) {
+	tests := []struct {
+		name         string
+		annotations  map[string]string
+		expectedTags []string
+	}{
+		{
+			name:         "nil internal",
+			annotations:  nil,
+			expectedTags: nil,
+		},
+		{
+			name:         "no annotation",
+			annotations:  map[string]string{},
+			expectedTags: nil,
+		},
+		{
+			name:         "empty annotation value",
+			annotations:  map[string]string{adTagsAnnotation: ""},
+			expectedTags: nil,
+		},
+		{
+			name:         "valid annotation",
+			annotations:  map[string]string{adTagsAnnotation: `{"env": "prod", "team": "backend"}`},
+			expectedTags: []string{"env:prod", "team:backend"},
+		},
+		{
+			name:         "single tag",
+			annotations:  map[string]string{adTagsAnnotation: `{"env": "staging"}`},
+			expectedTags: []string{"env:staging"},
+		},
+		{
+			name:         "invalid JSON",
+			annotations:  map[string]string{adTagsAnnotation: `not-json`},
+			expectedTags: nil,
+		},
+		{
+			name:         "wrong JSON type (array instead of object)",
+			annotations:  map[string]string{adTagsAnnotation: `["env:prod"]`},
+			expectedTags: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var internal *model.PodAutoscalerInternal
+			if tt.name != "nil internal" {
+				obj := model.FakePodAutoscalerInternal{
+					UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace:   "test-ns",
+							Name:        "test-dpa",
+							Annotations: tt.annotations,
+						},
+					},
+				}.Build()
+				internal = &obj
+			}
+
+			tags := KeyTagsFromAnnotations(internal)
+
+			if tt.expectedTags == nil {
+				assert.Nil(t, tags)
+			} else {
+				slices.Sort(tags)
+				slices.Sort(tt.expectedTags)
+				assert.Equal(t, tt.expectedTags, tags)
+			}
+		})
+	}
+}

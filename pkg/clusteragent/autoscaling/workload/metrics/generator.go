@@ -9,6 +9,8 @@
 package metrics
 
 import (
+	"encoding/json"
+
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -16,10 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	metricPrefix = "datadog.cluster_agent.autoscaling.workload"
+
+	// adTagsAnnotation is the Kubernetes annotation key whose value is a JSON
+	// array of Datadog tags to attach to all metrics for the annotated object.
+	adTagsAnnotation = "ad.datadoghq.com/tags"
 )
 
 // Tag generation helper functions
@@ -208,4 +215,37 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 	})
 
 	return metrics
+}
+
+// KeyTagsFromAnnotations extracts Datadog tags from the ad.datadoghq.com/tags
+// annotation on the upstream DatadogPodAutoscaler CR. The annotation value must
+// be a JSON object mapping tag keys to tag values, e.g.:
+//
+//	{"env": "prod", "team": "backend"}
+//
+// Each key-value pair is converted to the "key:value" Datadog tag format.
+// It is used as the keyTagsFunc for the MetricsStore so that those tags are
+// appended to every metric emitted for the corresponding autoscaler key.
+func KeyTagsFromAnnotations(internal *model.PodAutoscalerInternal) []string {
+	if internal == nil {
+		return nil
+	}
+	cr := internal.UpstreamCR()
+	if cr == nil {
+		return nil
+	}
+	raw, ok := cr.Annotations[adTagsAnnotation]
+	if !ok || raw == "" {
+		return nil
+	}
+	var tagMap map[string]string
+	if err := json.Unmarshal([]byte(raw), &tagMap); err != nil {
+		log.Warnf("Failed to parse %s annotation for %s/%s: %v", adTagsAnnotation, cr.Namespace, cr.Name, err)
+		return nil
+	}
+	tags := make([]string, 0, len(tagMap))
+	for k, v := range tagMap {
+		tags = append(tags, k+":"+v)
+	}
+	return tags
 }

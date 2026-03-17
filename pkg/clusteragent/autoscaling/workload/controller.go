@@ -130,7 +130,7 @@ func NewController(
 	c.scaler = newScaler(restMapper, scaleClient)
 
 	// Initialize metrics store
-	c.metricsStore = metricsstore.NewMetricsStore(metrics.GeneratePodAutoscalerMetrics, localSender, c.IsLeader, globalTagsFunc)
+	c.metricsStore = metricsstore.NewMetricsStore(metrics.GeneratePodAutoscalerMetrics, metrics.KeyTagsFromAnnotations, localSender, c.IsLeader, globalTagsFunc)
 	c.store.RegisterObserver(
 		autoscaling.Observer{
 			SetFunc: func(key string, _ autoscaling.SenderID) {
