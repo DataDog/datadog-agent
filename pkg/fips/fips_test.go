@@ -28,7 +28,7 @@ func TestStatus(t *testing.T) {
 	if enabled && status != "enabled" {
 		t.Errorf("Status() = %q when Enabled() = true, want \"enabled\"", status)
 	}
-	if !enabled && status != "disabled" {
-		t.Errorf("Status() = %q when Enabled() = false, want \"disabled\"", status)
+	if !enabled && status != "not available" {
+		t.Errorf("Status() = %q when Enabled() = false, want \"not available\"", status)
 	}
 }

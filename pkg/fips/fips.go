@@ -16,7 +16,7 @@ func Status() string {
 	if enabled {
 		return "enabled"
 	}
-	return "disabled"
+	return "not available"
 }
 
 // Enabled reports whether the agent runtime environment is operating in FIPS mode,
