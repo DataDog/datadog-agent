@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 mod config;
 mod framing;
 mod generated;
@@ -78,7 +81,9 @@ pub async fn run(cfg: config::Config) -> Result<()> {
 
         info!("client connected");
         // New connection — agent will re-send all context definitions.
-        metrics_writer.reset_contexts();
+        if let Err(e) = metrics_writer.reset_contexts().await {
+            warn!("error resetting contexts: {}", e);
+        }
 
         // Read frames from this connection until EOF or shutdown.
         let mut reader = BufReader::new(stream);

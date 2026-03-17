@@ -6,7 +6,7 @@ use vortex::array::arrays::{DictArray, PrimitiveArray, StructArray, VarBinArray}
 use vortex::array::dtype::FieldNames;
 use vortex::array::validity::Validity;
 use vortex::array::IntoArray;
-use vortex::file::{VortexWriteOptions, WriteStrategyBuilder};
+use vortex::file::VortexWriteOptions;
 use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
@@ -34,8 +34,6 @@ pub struct LogsWriter {
     contents: Vec<Vec<u8>>,
     timestamps: Vec<i64>,
 
-    // Reusable Vortex write state.
-    session: VortexSession,
     write_buf: Vec<u8>,
 }
 
@@ -55,7 +53,6 @@ impl LogsWriter {
             contents: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
 
-            session: VortexSession::default(),
             write_buf: Vec::with_capacity(64 * 1024),
         }
     }
@@ -163,12 +160,13 @@ impl LogsWriter {
         )
         .context("building logs StructArray")?;
 
-        let strategy = WriteStrategyBuilder::default()
-            .with_compact_encodings()
-            .build();
+        let strategy = super::strategy::low_memory_strategy();
+
+        // Fresh session per flush to prevent registry accumulation in VortexSession.
+        let session = VortexSession::default();
 
         self.write_buf.clear();
-        VortexWriteOptions::new(self.session.clone())
+        VortexWriteOptions::new(session)
             .with_strategy(strategy)
             .write(&mut self.write_buf, st.into_array().to_array_stream())
             .await
@@ -177,6 +175,9 @@ impl LogsWriter {
         tokio::fs::write(&path, &self.write_buf)
             .await
             .with_context(|| format!("writing {}", path.display()))?;
+
+        // Shrink write_buf to release memory back to the allocator.
+        self.write_buf = Vec::with_capacity(64 * 1024);
 
         self.last_flush = Instant::now();
         Ok(path)
