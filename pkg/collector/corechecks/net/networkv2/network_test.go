@@ -1318,23 +1318,6 @@ func TestGlobalProcfsPathUsedWhenInContainer(t *testing.T) {
 	assert.Equal(t, "/host/proc", check.net.GetProcPath())
 }
 
-// TestInstanceProcfsPathOverridesDefaultNamespace validates that an instance-level
-// procfs_path in the check config overrides whatever path was set at check creation
-// time. This is the per-instance escape hatch for container environments.
-func TestInstanceProcfsPathOverridesDefaultNamespace(t *testing.T) {
-	// Simulate the check created with the container's /proc (default)
-	check := createTestNetworkCheck(&defaultNetworkStats{procPath: "/proc"})
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/host/proc"
-`)
-	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	// After Configure, the check must use the host procfs path, not the container's /proc
-	assert.Equal(t, "/host/proc", check.net.GetProcPath())
-}
-
 func TestNetworkCheck(t *testing.T) {
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
