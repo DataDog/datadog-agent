@@ -12,6 +12,7 @@ package com_datadoghq_script
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -75,7 +76,7 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 			// {{ parameters }} refers to the entire parameters object. This cannot be
 			// safely assigned to a single variable in the preamble approach. Reference
 			// individual fields instead, e.g. {{ parameters.fieldName }}.
-			return nil, fmt.Errorf(
+			return nil, errors.New(
 				"{{ parameters }} is not supported in inline scripts; reference individual fields using {{ parameters.fieldName }}",
 			)
 		}
@@ -111,7 +112,7 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 			return "$" + pathToVarName(path), nil
 		}
 		if len(path) == 1 && path[0] == "parameters" {
-			return "", fmt.Errorf(
+			return "", errors.New(
 				"{{ parameters }} is not supported in inline scripts; reference individual fields using {{ parameters.fieldName }}",
 			)
 		}
