@@ -5,6 +5,8 @@
 
 //go:build linux
 
+// Package coreagent provides a platform-specific helper to determine whether
+// process checks run in the core agent.
 package coreagent
 
 // ProcessChecksRunInCoreAgent returns true on Linux where process checks
