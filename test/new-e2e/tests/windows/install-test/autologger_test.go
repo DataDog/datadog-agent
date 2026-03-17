@@ -125,10 +125,10 @@ func (s *testInstallWithAutologgerRollbackSuite) TestInstallWithAutologgerRollba
 	})
 
 	s.Run("rollback restores pre-existing autologger values", func() {
-		val, err := windows.GetRegistryValue(vm, autologgerPath, "Start")
+		val, err := windows.GetRegistryValue(vm, autologgerPath, "Guid")
 		require.NoError(s.T(), err)
-		assert.Equal(s.T(), "42", val,
-			"autologger Start value should be restored to pre-existing value")
+		assert.Equal(s.T(), "{00000000-0000-0000-0000-000000000000}", val,
+			"autologger Guid should be restored to pre-existing value")
 	})
 }
 
@@ -174,16 +174,16 @@ func (s *testInstallWithoutAutologgerRollbackSuite) TestInstallWithoutAutologger
 	})
 
 	s.Run("rollback preserves pre-existing autologger values", func() {
-		val, err := windows.GetRegistryValue(vm, autologgerPath, "Start")
+		val, err := windows.GetRegistryValue(vm, autologgerPath, "Guid")
 		require.NoError(s.T(), err)
-		assert.Equal(s.T(), "42", val,
-			"autologger Start value should be preserved after rollback")
+		assert.Equal(s.T(), "{00000000-0000-0000-0000-000000000000}", val,
+			"autologger Guid should be preserved after rollback")
 	})
 }
 
 // createPreExistingAutologgerKeys creates a minimal autologger registry key tree
 // to simulate a pre-existing autologger from a previous install. Uses a distinctive
-// Start value (42) to verify rollback restores the original state rather than
+// Guid value (all-zeros) to verify rollback restores the original state rather than
 // recreating it from scratch.
 func createPreExistingAutologgerKeys(t *testing.T, vm *components.RemoteHost, autologgerPath string) {
 	t.Helper()
