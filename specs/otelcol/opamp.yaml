@@ -1,0 +1,164 @@
+kind: requirements
+category: functional
+requirements:
+  - id: OTELCOL025
+    short: Connect to an OpAmp management server
+    long: |
+      The user shall be able to configure the Collector to connect to an OpAmp
+      server for remote management.
+
+      Upon connection the Collector shall send an initial `AgentToServer` message
+      containing its instance UID, declared capabilities, and current status, so
+      the server immediately knows the agent's identity and state.
+
+      The Collector shall support both WebSocket and HTTP transports for the OpAmp
+      connection, and shall connect to the `/v1/opamp` endpoint by default.
+
+      OpAmp support is implemented as an extension to the Collector.
+    tags: [opamp, lifecycle]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/
+    ref: [OTELCOL007, OTELCOL035]
+
+  - id: OTELCOL026
+    short: Connect to an OpAmp server over WebSocket
+    long: |
+      The Collector shall support the WebSocket transport for OpAmp, providing a
+      full-duplex, persistent, asynchronous connection to the management server.
+
+      Each message on the wire is encoded as a varint-prefixed (value `0`) Protobuf
+      payload. The Collector shall attempt to reconnect on disconnection using
+      exponential back-off, and shall send a new `AgentToServer` message upon each
+      reconnection to re-establish channel state without re-authentication.
+    tags: [opamp, transport]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#websocket-transport
+    ref: [OTELCOL025]
+
+  - id: OTELCOL027
+    short: Connect to an OpAmp server over HTTP
+    long: |
+      The Collector shall support the HTTP transport for OpAmp, using HTTP `POST`
+      requests to `/v1/opamp`.  Each request carries an `AgentToServer` message in
+      the request body and receives a `ServerToAgent` message in the response body,
+      providing a half-duplex, synchronous communication channel.
+    tags: [opamp, transport]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#http-transport
+    ref: [OTELCOL025]
+
+  - id: OTELCOL028
+    short: Report agent identity and capabilities to the OpAmp server
+    long: |
+      The Collector shall include in every `AgentToServer` message a stable,
+      globally unique instance UID that persists across restarts, along with an
+      `AgentDescription` containing agent type, version, OS type, and OS version.
+
+      The Collector shall also declare its supported OpAmp capabilities (e.g.
+      `ReportsHeartbeat`, `AcceptsRemoteConfig`, `ReportsEffectiveConfig`,
+      `ReportsOwnMetrics`) so the server knows which features may be used.
+    tags: [opamp, identity]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#agentdescription-message
+    ref: [OTELCOL025]
+
+  - id: OTELCOL029
+    short: Send heartbeats to the OpAmp server
+    long: |
+      When the `ReportsHeartbeat` capability is declared, the Collector shall
+      periodically send heartbeat messages to the OpAmp server to signal that it
+      is still alive and maintain connection vitality.
+
+      The default heartbeat interval is 30 seconds.  The server may override this
+      value via `OpAMPConnectionSettings.heartbeat_interval_seconds`; the Collector
+      shall apply the new interval upon receipt.
+    tags: [opamp, heartbeat]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#agent-to-server-heartbeat
+    ref: [OTELCOL025]
+
+  - id: OTELCOL030
+    short: Accept and apply remote configuration from the OpAmp server
+    long: |
+      The user shall be able to manage Collector configuration centrally by pushing
+      configuration updates from an OpAmp server.
+
+      When the Collector declares the `AcceptsRemoteConfig` capability, the server
+      may send an `AgentRemoteConfig` message at any time.  The Collector shall
+      apply the new configuration and report the result back to the server via a
+      `RemoteConfigStatus` message indicating success or failure; on failure the
+      error description shall be included to aid troubleshooting.
+    tags: [opamp, config]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#remote-configuration
+    ref: [OTELCOL012, OTELCOL014, OTELCOL025, OTELCOL028]
+
+  - id: OTELCOL031
+    short: Report agent health and effective configuration to the OpAmp server
+    long: |
+      The Collector shall continuously report its runtime health to the OpAmp
+      server via `ComponentHealth` messages so operators can monitor individual
+      agents from a central management plane.
+
+      When the `ReportsEffectiveConfig` capability is declared, the Collector shall
+      also include its currently active configuration in `AgentToServer` messages,
+      allowing the server to verify that the intended configuration is in effect.
+    tags: [opamp, observability]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#agent-health
+    ref: [OTELCOL025, OTELCOL028]
+
+  - id: OTELCOL032
+    short: Report the Collector's own metrics via OpAmp
+    long: |
+      When the `ReportsOwnMetrics` capability is declared, the Collector shall
+      transmit its own internal performance metrics (CPU, memory, operational
+      counters) to an OTLP-compatible backend.
+
+      The destination endpoint and credentials are provided by the OpAmp server
+      via `OtlpMetricsConnectionSettings`; the Collector shall apply these settings
+      upon receipt and direct its self-monitoring telemetry accordingly.
+    tags: [opamp, observability]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#own-telemetry-reporting
+    ref: [OTELCOL009, OTELCOL025, OTELCOL028]
+
+  - id: OTELCOL033
+    short: Receive and install package updates via OpAmp
+    long: |
+      The Collector shall support remote package management via OpAmp, enabling
+      operators to upgrade or downgrade the agent without direct host access.
+
+      When the server sends a `PackagesAvailable` message, the Collector shall
+      download the specified packages from the provided URLs, verify their
+      integrity using the supplied file hashes and composite package hash, and
+      optionally verify authenticity via content signatures before installation.
+
+      The Collector shall report installation status back to the server via
+      `PackageStatuses` messages, including the currently installed version, the
+      server-offered version, installation state (`pending`, `installed`, or
+      `failed`), and any error description on failure.
+    tags: [opamp, packages]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#package-management
+    ref: [OTELCOL025, OTELCOL028]
+
+  - id: OTELCOL034
+    short: Rotate TLS certificates and manage connection credentials via OpAmp
+    long: |
+      The Collector shall support server-driven credential management over OpAmp,
+      allowing operators to rotate certificates and update connection settings
+      without restarting or reconfiguring the agent manually.
+
+      The OpAmp server may provide updated `OpAMPConnectionSettings` containing
+      new TLS client certificates (including certificate revocation and
+      Certificate Signing Request flows), HTTP headers, and other credentials.
+      The Collector shall apply the new settings and report the result via
+      `ConnectionSettingsStatus`.
+
+      On initial connection, the Collector shall support the Trust On First Use
+      (TOFU) security model when no pre-configured trust anchor is available.
+    tags: [opamp, security]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#connection-settings-management
+    ref: [OTELCOL025, OTELCOL028]
