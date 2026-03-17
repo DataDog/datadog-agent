@@ -387,6 +387,8 @@ func (r *configReader) SetTestOnlyDynamicSchema(_ bool) {
 
 // IsSet returns true if a value is found
 func (r *configReader) IsSet(key string) bool {
+	r.consumer.configLock.RLock()
+	defer r.consumer.configLock.RUnlock()
 	_, exists := r.consumer.effectiveConfig[strings.ToLower(key)]
 	return exists
 }
