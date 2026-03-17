@@ -571,7 +571,6 @@ func (e *engine) GetReplayProgress() ReplayProgress {
 // After all timestamps are processed, calls onReplayEnd to flush remaining data.
 func (e *engine) ReplayStoredData() advanceResult {
 	var allAnomalies []observerdef.Anomaly
-	var allTelemetry []observerdef.ObserverTelemetry
 
 	timestamps := e.storage.DataTimestamps()
 
@@ -588,7 +587,6 @@ func (e *engine) ReplayStoredData() advanceResult {
 		for _, req := range requests {
 			result := e.advanceWithReason(req.upToSec, req.reason)
 			allAnomalies = append(allAnomalies, result.anomalies...)
-			allTelemetry = append(allTelemetry, result.telemetry...)
 			advances++
 		}
 		e.replayTimestampsDone.Store(int64(i + 1))
@@ -601,7 +599,6 @@ func (e *engine) ReplayStoredData() advanceResult {
 	for _, req := range endRequests {
 		result := e.advanceWithReason(req.upToSec, req.reason)
 		allAnomalies = append(allAnomalies, result.anomalies...)
-		allTelemetry = append(allTelemetry, result.telemetry...)
 		advances++
 	}
 
@@ -609,8 +606,15 @@ func (e *engine) ReplayStoredData() advanceResult {
 	e.replayAnomalies.Store(int64(len(allAnomalies)))
 	e.replayPhase.Store("done")
 
+	// Telemetry is already accumulated in e.accumulatedTelemetry by advanceWithReason,
+	// so read it from there instead of building a separate local slice.
+	e.telemetryMu.RLock()
+	telemetry := make([]observerdef.ObserverTelemetry, len(e.accumulatedTelemetry))
+	copy(telemetry, e.accumulatedTelemetry)
+	e.telemetryMu.RUnlock()
+
 	return advanceResult{
 		anomalies: allAnomalies,
-		telemetry: allTelemetry,
+		telemetry: telemetry,
 	}
 }
