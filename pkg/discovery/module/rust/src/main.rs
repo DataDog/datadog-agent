@@ -20,15 +20,14 @@
 #![deny(clippy::print_stderr)]
 
 use std::env;
-use std::fs::{DirBuilder, OpenOptions, Permissions};
-use std::io::{ErrorKind, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt, chown};
-use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::fs::Permissions;
+use std::io::ErrorKind;
+use std::os::unix::fs::{PermissionsExt, chown};
+use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use dd_discovery::{Params, get_services};
+
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
@@ -43,38 +42,11 @@ use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
 
 mod cli;
-mod config;
 
 use cli::Args;
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
-
-fn write_pid_file(path: &Path) -> Result<()> {
-    // Create parent directories if needed
-    if let Some(parent) = path.parent() {
-        DirBuilder::new()
-            .recursive(true)
-            .mode(0o755)
-            .create(parent)
-            .context("Failed to create PID file parent directory")?;
-    }
-
-    // Write PID to file
-    let pid = std::process::id();
-    let mut file = OpenOptions::new()
-        .write(true)
-        .mode(0o644)
-        .truncate(true)
-        .create(true)
-        .open(path)
-        .context("Failed to write PID file")?;
-    file.write_all(pid.to_string().as_bytes())
-        .context("Failed to write PID to file")?;
-
-    info!("Created PID file at {}", path.display());
-    Ok(())
-}
 
 fn remove_pid_file(path: &Path) {
     if let Err(e) = std::fs::remove_file(path) {
@@ -162,6 +134,26 @@ async fn handle_services(
         .map_err(|e| anyhow!("Failed to build response: {}", e))
 }
 
+async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .header("Content-Type", "application/json")
+        .body(
+            Full::new(
+                serde_json::to_vec(&json!({
+                    "implementation": "system-probe-lite",
+                }))
+                .unwrap_or_else(|e| {
+                    error!("Failed to serialize response: {e}");
+                    b"Internal server error".to_vec()
+                })
+                .into(),
+            )
+            .map_err(|e| match e {})
+            .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
 async fn handle_debug_stats() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     Response::builder()
         .header("Content-Type", "application/json")
@@ -202,6 +194,7 @@ async fn handle_request(
             debug!("Handling /discovery/services request");
             handle_services(req).await
         }
+        (&Method::GET, "/discovery/state") => handle_state().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
         _ => {
             info!(
@@ -214,28 +207,9 @@ async fn handle_request(
     }
 }
 
-fn fallback_to_system_probe(binary_path: &Path, args: &[String]) -> Result<()> {
-    // Build command with all system-probe args
-    let mut cmd = Command::new(binary_path);
-    cmd.args(args);
-
-    info!("Executing system-probe: {:?}", cmd);
-    let err = cmd.exec(); // Replaces current process, never returns
-    Err(anyhow!("Failed to exec: {}", err))
-}
-
-async fn run_system_probe_lite(
-    config: Option<yaml_rust2::Yaml>,
-    pid_path: Option<PathBuf>,
-) -> Result<()> {
-    let socket_path = config::get_sysprobe_socket_path(&config);
+async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
-    let sock = setup_socket(&socket_path).context("Failed to setup Unix socket")?;
-
-    // Write PID file if needed
-    if let Some(ref path) = pid_path {
-        write_pid_file(path)?;
-    }
+    let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
 
     // Setup signal handlers
     let mut sigterm = signal(SignalKind::terminate()).context("Failed to setup SIGTERM handler")?;
@@ -301,46 +275,18 @@ async fn run_system_probe_lite(
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::parse(env::args());
-    let config = config::load_config(args.config_path);
-    let log_level = config::get_log_level(&config);
-    simple_logger::init_with_level(log_level)?;
-    info!("Log level set to: {:?}", log_level);
-
-    // Handle fallback decision if fallback binary is configured
-    if let Some(fallback_binary) = &args.fallback_binary {
-        // Do this check regardless of whether we're running system-probe-lite or not
-        // since we may need it at some point if we fallback to system-probe and
-        // we don't want to fail startup during another invocation.
-        if !fallback_binary.exists() {
-            bail!(
-                "Fallback binary does not exist: {}",
-                fallback_binary.display()
-            );
-        }
-
-        match config::determine_action(&config) {
-            config::FallbackDecision::FallbackToSystemProbe => {
-                info!("Unsupported configuration detected. Falling back to system-probe.");
-                fallback_to_system_probe(fallback_binary, &args.system_probe_args)?;
-                unreachable!() // exec never returns
-            }
-            config::FallbackDecision::ExitCleanly => {
-                info!("Discovery is disabled and no other configuration is present. Exiting.");
-                return Ok(());
-            }
-            config::FallbackDecision::RunSystemProbeLite => {
-                info!("Only discovery module enabled. Running system-probe-lite.");
-            }
-        }
+    let args = Args::parse(env::args())?;
+    dd_agent_log::init(dd_agent_log::LogConfig {
+        logger_name: "SYS-PROBE-LITE",
+        level: args.log_level,
+        log_file: args.log_file.clone(),
+    })?;
+    info!("Starting system-probe-lite");
+    for arg in &args.unknown_args {
+        warn!("unknown argument: {arg}");
     }
 
-    // Convert Result<Option<Yaml>> to Option<Yaml> for run_system_probe_lite.
-    let config = config.ok().flatten();
-
-    // Run system-probe-lite server
-    info!("Starting system-probe-lite");
-    let result = run_system_probe_lite(config, args.pid_path.clone()).await;
+    let result = run_system_probe_lite(&args.socket_path).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)
@@ -357,71 +303,6 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
-
-    #[test]
-    fn test_write_pid_file_creates_file_with_correct_pid() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let pid_path = temp_dir.path().join("test.pid");
-
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("Failed to write PID file: {}", e));
-
-        assert!(pid_path.exists(), "PID file should exist");
-        let content = fs::read_to_string(&pid_path)
-            .unwrap_or_else(|e| panic!("Failed to read PID file: {}", e));
-        let written_pid: u32 = content
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("Failed to parse PID: {}", e));
-        assert_eq!(
-            written_pid,
-            std::process::id(),
-            "PID file should contain current process ID"
-        );
-    }
-
-    #[test]
-    fn test_write_pid_file_creates_parent_directories() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let nested_path = temp_dir.path().join("nested").join("dirs").join("test.pid");
-
-        write_pid_file(&nested_path).unwrap_or_else(|e| panic!("Failed to write PID file: {}", e));
-
-        assert!(
-            nested_path.exists(),
-            "PID file should exist in nested directory"
-        );
-    }
-
-    #[test]
-    fn test_write_pid_file_overwrites_existing() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let pid_path = temp_dir.path().join("test.pid");
-
-        // Write first time
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("First write failed: {}", e));
-
-        // Write second time (should overwrite)
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("Second write failed: {}", e));
-
-        assert!(
-            pid_path.exists(),
-            "PID file should still exist after overwrite"
-        );
-        let content = fs::read_to_string(&pid_path)
-            .unwrap_or_else(|e| panic!("Failed to read PID file: {}", e));
-        let written_pid: u32 = content
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("Failed to parse PID: {}", e));
-        assert_eq!(
-            written_pid,
-            std::process::id(),
-            "PID should still be correct"
-        );
-    }
 
     #[test]
     fn test_remove_pid_file_deletes_file() {

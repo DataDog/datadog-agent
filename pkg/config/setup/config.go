@@ -1369,6 +1369,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetDefault("proxy.http", "")
 	config.SetDefault("proxy.https", "")
 	config.SetDefault("proxy.no_proxy", []string{})
+	config.BindEnvAndSetDefault("common_root", "", "DD_COMMON_ROOT") //nolint:forbidigo
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -1488,6 +1489,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"versa",
 		"cisco_aci",
 		"system",
+		"systemd",
 		"system_core",
 		"system_swap",
 		"telemetry",

@@ -22,8 +22,9 @@ const _programState_name = "InvalidQueuedLoadingLoadedDrainingUnloadingLoadingAb
 var _programState_index = [...]uint8{0, 7, 13, 20, 26, 34, 43, 57}
 
 func (i programState) String() string {
-	if i >= programState(len(_programState_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_programState_index)-1 {
 		return "programState(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _programState_name[_programState_index[i]:_programState_index[i+1]]
+	return _programState_name[_programState_index[idx]:_programState_index[idx+1]]
 }
