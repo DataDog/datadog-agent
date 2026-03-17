@@ -5,7 +5,7 @@ from tasks.libs.build.bazel import bazel
 
 
 @task
-def generate(ctx: Context):
+def generate(_: Context):
     """
     Generate the code for the template package.
     Takes the code from the Go standard library and applies the patches.
