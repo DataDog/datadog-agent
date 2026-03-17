@@ -682,9 +682,8 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
 	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
 	ai := buildInPlacePAI("default", "ai", scalingValWithRequests("r1", "500m"), "")
-	dpa := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
 
-	err := f.controller.patchInPlace(context.Background(), dpa, &ai, p, "r1")
+	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
 	assert.NoError(t, err)
 	// Expect two sequential patches: resize subresource, then metadata annotation.
 	assert.Equal(t, 2, patchCallCount, "expected resize patch + annotation patch for pod needing update")

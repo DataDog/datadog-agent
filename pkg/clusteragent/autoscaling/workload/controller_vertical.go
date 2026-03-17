@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -189,7 +191,12 @@ func (u *verticalController) syncInternal(
 		}
 
 		for _, cp := range needsPatch {
-			if err := u.patchInPlace(ctx, podAutoscaler, autoscalerInternal, cp.pod, recommendationID); err != nil {
+			if err := u.patchInPlace(ctx, autoscalerInternal, cp.pod, recommendationID); err != nil {
+				if k8serrors.IsNotFound(err) {
+					// Pod is already gone; the pod watcher hasn't caught up yet. Skip eviction.
+					log.Debugf("pod %s/%s not found during resize patch, likely already evicted: %v", cp.pod.Namespace, cp.pod.Name, err)
+					continue
+				}
 				log.Warnf("failed to patch pod %s/%s in place: %v", cp.pod.Namespace, cp.pod.Name, err)
 				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
 			}
@@ -218,22 +225,54 @@ func (u *verticalController) syncInternal(
 
 	// Evict pods that cannot resize in-place, counting only successful evictions and
 	// stopping on PDB rejection so we don't disrupt more pods than the budget allows.
-	var evictedThisSync int32
+	var evictedThisSync, failedEvictions int32
+	var pdbBlocked bool
 	for _, cp := range toEvict {
 		result, err := u.evictPod(ctx, cp.pod)
 		if err != nil {
-			log.Warnf("failed to evict pod %s/%s: %v", cp.pod.Namespace, cp.pod.Name, err)
+			if k8serrors.IsNotFound(err) {
+				log.Debugf("pod %s/%s not found during eviction", cp.pod.Namespace, cp.pod.Name)
+				evictedThisSync++
+			} else {
+				log.Warnf("error while evicting pod %s/%s: %v", cp.pod.Namespace, cp.pod.Name, err)
+				failedEvictions++
+				autoscalerInternal.UpdateFromVerticalAction(nil,
+					autoscaling.NewConditionError(autoscaling.ConditionReasonFailedToEvict,
+						fmt.Errorf("error while evicting pod %s/%s: %w", cp.pod.Namespace, cp.pod.Name, err)))
+				autoscalerInternal.VerticalActionErrorInc()
+			}
 		}
 		if result == evictor.Evicted {
 			evictedThisSync++
-			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason,
-				"Pod %s/%s could not resize in-place, evicted as fallback", cp.pod.Namespace, cp.pod.Name)
 		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
+			pdbBlocked = true
 			break
 		}
 	}
 	autoscalerInternal.AddEvictedReplicas(evictedThisSync)
+
+	// Emit a summary event
+	if evictedThisSync > 0 || failedEvictions > 0 || pdbBlocked {
+		parts := make([]string, 0, 3)
+		if evictedThisSync > 0 {
+			parts = append(parts, fmt.Sprintf("%d evicted", evictedThisSync))
+		}
+		if failedEvictions > 0 {
+			parts = append(parts, fmt.Sprintf("%d failed", failedEvictions))
+		}
+		if pdbBlocked {
+			parts = append(parts, "PDB blocked further evictions")
+		}
+		eventType := corev1.EventTypeNormal
+		reason := model.InPlaceEvictedEventReason
+		if failedEvictions > 0 || pdbBlocked {
+			eventType = corev1.EventTypeWarning
+			reason = model.FailedToEvictEventReason
+		}
+		u.eventRecorder.Eventf(podAutoscaler, eventType, reason,
+			"In-place resize eviction: %s (%d pods pending)", strings.Join(parts, ", "), len(toEvict))
+	}
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
 	// gives the total active pod count. If every active pod is complete, the resize cycle is done.
@@ -250,7 +289,7 @@ func (u *verticalController) syncInternal(
 
 // patchInPlace applies the resource recommendation to a single pod via the resize subresource,
 // then updates the pod's RecommendationIDAnnotation to record the applied recommendation.
-func (u *verticalController) patchInPlace(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string) error {
+func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string) error {
 	patchTarget := workloadpatcher.PodTarget(pod.Namespace, pod.Name)
 
 	// Patch spec.containers[*].resources via the pods/resize subresource.
@@ -258,11 +297,7 @@ func (u *verticalController) patchInPlace(ctx context.Context, podAutoscaler *da
 	intent := workloadpatcher.NewPatchIntent(patchTarget).With(workloadpatcher.SetContainerResources(containersResourcePatches))
 	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa", Subresource: "resize", PatchType: types.StrategicMergePatchType})
 	if err != nil {
-		err = autoscaling.NewConditionError(autoscaling.ConditionReasonFailedToPatchInPlace, fmt.Errorf("failed to patch pod %s/%s annotations in place: %w", pod.Namespace, pod.Name, err))
-		autoscalerInternal.UpdateFromVerticalAction(nil, err)
-		autoscalerInternal.VerticalActionErrorInc()
-		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason, err.Error())
-		return fmt.Errorf("failed to patch pod %s/%s resources in place: %w", pod.Namespace, pod.Name, err)
+		return fmt.Errorf("failed to patch pod %s/%s resources in place, will evict: %w", pod.Namespace, pod.Name, err)
 	}
 
 	// Record the applied recommendation ID on the pod's own metadata annotations.
@@ -271,11 +306,7 @@ func (u *verticalController) patchInPlace(ctx context.Context, podAutoscaler *da
 	}))
 	_, err = u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa"})
 	if err != nil {
-		err = autoscaling.NewConditionError(autoscaling.ConditionReasonFailedToPatchInPlace, fmt.Errorf("failed to patch pod %s/%s annotations in place: %w", pod.Namespace, pod.Name, err))
-		autoscalerInternal.UpdateFromVerticalAction(nil, err)
-		autoscalerInternal.VerticalActionErrorInc()
-		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason, err.Error())
-		return fmt.Errorf("failed to patch pod %s/%s annotations in place: %w", pod.Namespace, pod.Name, err)
+		return fmt.Errorf("failed to patch pod %s/%s annotations in place, will evict: %w", pod.Namespace, pod.Name, err)
 	}
 
 	return nil
