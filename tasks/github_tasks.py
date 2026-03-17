@@ -72,6 +72,19 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
 
 
 @task
+def is_pr_draft(ctx, git_ref: str):
+    """Exit with code 1 if the PR for the given branch is a draft, 0 otherwise."""
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+    prs = list(github.get_pr_for_branch(git_ref))
+    if prs and prs[0].draft:
+        print(color_message(f"PR for branch {git_ref!r} is a draft", "yellow"))
+        raise Exit(code=1)
+    print(color_message(f"PR for branch {git_ref!r} is not a draft", "green"))
+
+
+@task
 def update_windows_runner_version(
     ctx,
     new_version=None,
