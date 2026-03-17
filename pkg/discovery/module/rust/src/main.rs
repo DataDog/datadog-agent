@@ -134,6 +134,26 @@ async fn handle_services(
         .map_err(|e| anyhow!("Failed to build response: {}", e))
 }
 
+async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .header("Content-Type", "application/json")
+        .body(
+            Full::new(
+                serde_json::to_vec(&json!({
+                    "implementation": "system-probe-lite",
+                }))
+                .unwrap_or_else(|e| {
+                    error!("Failed to serialize response: {e}");
+                    b"Internal server error".to_vec()
+                })
+                .into(),
+            )
+            .map_err(|e| match e {})
+            .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
 async fn handle_debug_stats() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     Response::builder()
         .header("Content-Type", "application/json")
@@ -174,6 +194,7 @@ async fn handle_request(
             debug!("Handling /discovery/services request");
             handle_services(req).await
         }
+        (&Method::GET, "/discovery/state") => handle_state().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
         _ => {
             info!(
