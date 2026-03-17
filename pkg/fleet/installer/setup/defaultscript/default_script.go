@@ -110,18 +110,6 @@ func SetupDefaultScript(s *common.Setup) error {
 		return fmt.Errorf("failed to setup APM SSI script: %w", err)
 	}
 
-	// On Windows, enable system-probe when host instrumentation is requested so that
-	// system-probe.yaml is written before the agent starts (first install). This is
-	// needed for monitoring and crash detection of driver crashes.
-	if runtime.GOOS == "windows" {
-		if apmMethod, ok := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED"); ok && apmMethod == env.APMInstrumentationEnabledHost {
-			if s.Config.SystemProbeYAML == nil {
-				s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
-			}
-			s.Config.SystemProbeYAML.SystemProbeSettings.Enabled = config.BoolToPtr(true)
-		}
-	}
-
 	s.NoConfig = false
 	return nil
 }
