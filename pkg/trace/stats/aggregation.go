@@ -15,7 +15,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"google.golang.org/genproto/googleapis/rpc/code"
 )
 
@@ -75,11 +74,12 @@ func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 }
 
 func getStatusCodeV1(s *idx.InternalSpan) uint32 {
-	code, ok := s.GetAttributeAsFloat64(traceutil.TagStatusCode)
-	if ok {
-		return uint32(code)
+	a := semantics.NewDDSpanAccessorV1(s)
+	v, ok := semantics.LookupInt64(ddRegistry, a, semantics.ConceptHTTPStatusCode)
+	if !ok {
+		return 0
 	}
-	return 0
+	return uint32(v)
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env

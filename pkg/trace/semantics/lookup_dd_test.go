@@ -6,8 +6,10 @@
 package semantics
 
 import (
+	"math"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -108,5 +110,148 @@ func TestDDSpanAccessor(t *testing.T) {
 		assert.False(t, ok)
 		_, ok = a.GetFloat64("key")
 		assert.False(t, ok)
+	})
+}
+
+// newTestSpanV1 builds an InternalSpan and sets attributes via SetAttributeFromString
+// (which stores integers as IntValue and strings as StringValueRef) and SetFloat64Attribute.
+func newTestSpanV1() *idx.InternalSpan {
+	st := idx.NewStringTable()
+	s := idx.NewInternalSpan(st, &idx.Span{Attributes: make(map[uint32]*idx.AnyValue)})
+	return s
+}
+
+func TestDDSpanAccessorV1(t *testing.T) {
+	t.Run("GetString returns value for string attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetStringAttribute("http.method", "GET")
+		a := NewDDSpanAccessorV1(s)
+		assert.Equal(t, "GET", a.GetString("http.method"))
+	})
+
+	t.Run("GetString returns empty for int attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetAttributeFromString("http.status_code", "200") // stored as IntValue
+		a := NewDDSpanAccessorV1(s)
+		assert.Equal(t, "", a.GetString("http.status_code"))
+	})
+
+	t.Run("GetString returns empty for float attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("sampling.priority", 1.5)
+		a := NewDDSpanAccessorV1(s)
+		assert.Equal(t, "", a.GetString("sampling.priority"))
+	})
+
+	t.Run("GetString returns empty for missing key", func(t *testing.T) {
+		s := newTestSpanV1()
+		a := NewDDSpanAccessorV1(s)
+		assert.Equal(t, "", a.GetString("missing"))
+	})
+
+	t.Run("GetFloat64 returns value for double attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("sampling.priority", 1.5)
+		a := NewDDSpanAccessorV1(s)
+		v, ok := a.GetFloat64("sampling.priority")
+		assert.True(t, ok)
+		assert.Equal(t, 1.5, v)
+	})
+
+	t.Run("GetFloat64 returns false for int attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetAttributeFromString("http.status_code", "200") // stored as IntValue
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetFloat64("http.status_code")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetFloat64 returns false for string attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetStringAttribute("http.method", "GET")
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetFloat64("http.method")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns value for int attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetAttributeFromString("http.status_code", "200") // stored as IntValue
+		a := NewDDSpanAccessorV1(s)
+		v, ok := a.GetInt64("http.status_code")
+		assert.True(t, ok)
+		assert.Equal(t, int64(200), v)
+	})
+
+	t.Run("GetInt64 converts exact DoubleValue", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("http.status_code", 200.0)
+		a := NewDDSpanAccessorV1(s)
+		v, ok := a.GetInt64("http.status_code")
+		assert.True(t, ok)
+		assert.Equal(t, int64(200), v)
+	})
+
+	t.Run("GetInt64 rejects fractional DoubleValue", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("http.status_code", 200.5)
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetInt64("http.status_code")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 rejects NaN", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("http.status_code", math.NaN())
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetInt64("http.status_code")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 rejects Inf", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("http.status_code", math.Inf(1))
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetInt64("http.status_code")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns false for string attribute", func(t *testing.T) {
+		s := newTestSpanV1()
+		s.SetStringAttribute("http.method", "GET")
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetInt64("http.method")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns false for missing key", func(t *testing.T) {
+		s := newTestSpanV1()
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetInt64("missing")
+		assert.False(t, ok)
+	})
+
+	t.Run("integration: LookupInt64 with IntValue storage", func(t *testing.T) {
+		r, err := NewEmbeddedRegistry()
+		require.NoError(t, err)
+
+		s := newTestSpanV1()
+		s.SetAttributeFromString("http.status_code", "404") // stored as IntValue
+		a := NewDDSpanAccessorV1(s)
+		v, ok := LookupInt64(r, a, ConceptHTTPStatusCode)
+		assert.True(t, ok)
+		assert.Equal(t, int64(404), v)
+	})
+
+	t.Run("integration: LookupInt64 with DoubleValue storage", func(t *testing.T) {
+		r, err := NewEmbeddedRegistry()
+		require.NoError(t, err)
+
+		s := newTestSpanV1()
+		s.SetFloat64Attribute("http.status_code", 503.0)
+		a := NewDDSpanAccessorV1(s)
+		v, ok := LookupInt64(r, a, ConceptHTTPStatusCode)
+		assert.True(t, ok)
+		assert.Equal(t, int64(503), v)
 	})
 }

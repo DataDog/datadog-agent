@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -43,6 +44,56 @@ func TestGetStatusCode(t *testing.T) {
 		}, 200},
 	} {
 		got := getStatusCode(tt.in.Meta, tt.in.Metrics)
+		assert.Equal(t, tt.out, got, tt.name)
+	}
+}
+
+func newTestInternalSpanV1() *idx.InternalSpan {
+	st := idx.NewStringTable()
+	return idx.NewInternalSpan(st, &idx.Span{Attributes: make(map[uint32]*idx.AnyValue)})
+}
+
+func TestGetStatusCodeV1(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   *idx.InternalSpan
+		out  uint32
+	}{
+		// Empty span.
+		{"empty", newTestInternalSpanV1(), 0},
+		// Status code stored as IntValue (SetAttributeFromString uses IntValue for integer strings).
+		{"int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString(traceutil.TagStatusCode, "200")
+			return s
+		}(), 200},
+		// Status code stored as DoubleValue (SetFloat64Attribute).
+		{"double value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetFloat64Attribute(traceutil.TagStatusCode, 302)
+			return s
+		}(), 302},
+		// String value stored as StringValueRef.
+		{"string value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute(traceutil.TagStatusCode, "404")
+			return s
+		}(), 404},
+		// OTel 1.21+ key (fallback via semantics registry).
+		{"otel key int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("http.response.status_code", "503")
+			return s
+		}(), 503},
+		// DD key takes precedence over OTel key when both are present.
+		{"dd key wins over otel", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString(traceutil.TagStatusCode, "200")
+			s.SetAttributeFromString("http.response.status_code", "503")
+			return s
+		}(), 200},
+	} {
+		got := getStatusCodeV1(tt.in)
 		assert.Equal(t, tt.out, got, tt.name)
 	}
 }
