@@ -497,5 +497,5 @@ type Detector interface {
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
-	Detect(storage StorageReader, dataTime int64) DetectionResult
+	Detect(storage StorageReader, dataTimeSec int64) DetectionResult
 }

@@ -10,9 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // --- LogPatternExtractor ---
@@ -292,7 +293,7 @@ func TestLogPatternPipeline_EndToEnd(t *testing.T) {
 	// Use a small window so the detector only counts logs from the current step.
 	// With stride-10 timestamps (seconds) and window=5, each step's window [ts-5, ts]
 	// covers only the current 10s bucket and not the previous one.
-	detector.WindowDurationMs = 5
+	detector.WindowDurationSec = 5
 	detector.ZThreshold = 1.5
 
 	source := "test-source"
@@ -339,7 +340,7 @@ func newPatternPipeline(t *testing.T) (*LogPatternExtractor, *LogPatternDetector
 	t.Helper()
 	extractor := NewLogPatternExtractor()
 	detector := NewLogPatternDetector()
-	detector.WindowDurationMs = 1
+	detector.WindowDurationSec = 1
 	err := detector.Setup(func(name string) (any, error) {
 		if name == "log_pattern_extractor" {
 			return extractor, nil

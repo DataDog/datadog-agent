@@ -10,6 +10,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -84,9 +85,9 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.
 // group and comparing new rates to historical rates.
 type LogPatternDetector struct {
 	MetricsPrefix string
-	// WindowDurationMs is the duration of the window to compute rates.
-	WindowDurationMs int64
-	ZThreshold       float64
+	// WindowDurationSec is the duration of the window to compute rates.
+	WindowDurationSec int64
+	ZThreshold        float64
 	// Rates[cluster key] = rates through time
 	Rates map[int64]*queue.Queue[float64]
 	// HistorySize is the maximum number of items kept in the queue.
@@ -102,12 +103,12 @@ var _ observerdef.Detector = (*LogPatternDetector)(nil)
 // NewLogPatternDetector creates a new LogPatternDetector.
 func NewLogPatternDetector() *LogPatternDetector {
 	return &LogPatternDetector{
-		MetricsPrefix:    "_virtual.log.log_pattern_extractor",
-		WindowDurationMs: 60 * 1000,
-		ZThreshold:       3.0,
-		Rates:            make(map[int64]*queue.Queue[float64]),
-		HistorySize:      120,
-		TooRecentSize:    5,
+		MetricsPrefix:     "_virtual.log.log_pattern_extractor",
+		WindowDurationSec: 60,
+		ZThreshold:        3.0,
+		Rates:             make(map[int64]*queue.Queue[float64]),
+		HistorySize:       120,
+		TooRecentSize:     5,
 		// Wait at least 1 minute between anomalies for the same pattern.
 		RateLimiter: NewAnomalyRateLimiter(60 * 1000),
 	}
@@ -133,11 +134,11 @@ func (d *LogPatternDetector) Setup(getComponent observerdef.GetComponentFunc) er
 }
 
 // Detect implements Detector.
-func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTimeSec int64) observerdef.DetectionResult {
 	telemetry := make([]observerdef.ObserverTelemetry, 0)
 	anomalies := make([]observerdef.Anomaly, 0)
 
-	windowStart := dataTime - d.WindowDurationMs
+	windowStart := dataTimeSec - d.WindowDurationSec
 
 	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{
 		NamePattern: d.MetricsPrefix,
@@ -160,14 +161,14 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 		rateQueue := d.Rates[key]
 
 		// 1. Compute rate.
-		count := storage.PointCountBetween(seriesKey, windowStart, dataTime)
-		rate := float64(count) / float64(d.WindowDurationMs)
+		count := storage.PointCountBetween(seriesKey, windowStart, dataTimeSec)
+		rate := float64(count) / float64(d.WindowDurationSec)
 		telemetry = append(telemetry, observerdef.ObserverTelemetry{
 			Metric: &metricObs{
 				name:      seriesKey.Name,
 				value:     rate,
 				tags:      seriesKey.Tags,
-				timestamp: dataTime,
+				timestamp: dataTimeSec,
 			},
 		})
 
@@ -189,7 +190,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 			if standardDeviation > 0 {
 				zScore = (rate - average) / standardDeviation
 			}
-			if math.Abs(zScore) >= d.ZThreshold && d.RateLimiter.CanCreateAnomaly(key, dataTime) {
+			if math.Abs(zScore) >= d.ZThreshold && d.RateLimiter.CanCreateAnomaly(key, dataTimeSec*1000) {
 				// Create a score between 0.5 and 1 based on the z-score (0.5 score is the baseline).
 				tolerance := 0.5
 				anomalyScore := 1 - math.Exp((d.ZThreshold-math.Abs(zScore))*tolerance-0.6932)
@@ -210,6 +211,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 					action = "decrease"
 				}
 				description := fmt.Sprintf("Sudden %s in rate of log pattern (z-score: %.1f, score: %.1f). Pattern: `%s`", action, zScore, anomalyScore, pattern)
+				fmt.Printf("Anomaly detected(%s): %s\n", time.Unix(dataTimeSec, 0).Format(time.RFC3339), description)
 
 				anomalies = append(anomalies, observerdef.Anomaly{
 					Type:         observerdef.AnomalyTypeLog,
@@ -217,7 +219,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 					DetectorName: d.Name(),
 					Title:        fmt.Sprintf("Log pattern %s", action),
 					Description:  description,
-					Timestamp:    dataTime,
+					Timestamp:    dataTimeSec,
 					Score:        &anomalyScore,
 					Tags:         seriesKey.Tags,
 				})
