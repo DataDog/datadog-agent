@@ -81,11 +81,10 @@ func TestWebhookIsEnabled(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockMeta := common.FakeStore(t)
 			mockMutator := common.FakeMutator(t, false)
 			mockLabelSelectors := NewFakeLabelSelector()
 
-			webhook, err := autoinstrumentation.NewWebhook(test.config, mockMeta, mockMutator, mockLabelSelectors)
+			webhook, err := autoinstrumentation.NewWebhook(test.config, mockMutator, mockLabelSelectors)
 			require.NoError(t, err)
 
 			require.Equal(t, test.expected, webhook.IsEnabled())
@@ -108,11 +107,10 @@ func TestWebhookEndpoint(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockMeta := common.FakeStore(t)
 			mockMutator := common.FakeMutator(t, false)
 			mockLabelSelectors := NewFakeLabelSelector()
 
-			webhook, err := autoinstrumentation.NewWebhook(test.config, mockMeta, mockMutator, mockLabelSelectors)
+			webhook, err := autoinstrumentation.NewWebhook(test.config, mockMutator, mockLabelSelectors)
 			require.NoError(t, err)
 
 			require.Equal(t, test.expected, webhook.Endpoint())
@@ -165,12 +163,11 @@ func TestWebhookLabelSelectors(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
-			mockMeta := common.FakeStore(t)
 			mockMutator := common.FakeMutator(t, false)
 
 			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
 			config := autoinstrumentation.NewWebhookConfig(mockConfig)
-			webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, labelSelectors)
 			require.NoError(t, err)
 
 			namespaceSelector, selector := webhook.LabelSelectors(test.useNamespaceSelector)
@@ -182,12 +179,11 @@ func TestWebhookLabelSelectors(t *testing.T) {
 
 func TestWebhookResources(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	require.Equal(t, autoinstrumentation.WebhookResources, webhook.Resources())
@@ -195,12 +191,11 @@ func TestWebhookResources(t *testing.T) {
 
 func TestWebhookTimeout(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	require.Equal(t, int32(0), webhook.Timeout())
@@ -208,12 +203,11 @@ func TestWebhookTimeout(t *testing.T) {
 
 func TestWebhookOperations(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	require.Equal(t, autoinstrumentation.WebhookOperations, webhook.Operations())
@@ -221,12 +215,11 @@ func TestWebhookOperations(t *testing.T) {
 
 func TestWebhookMatchConditions(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	require.Equal(t, autoinstrumentation.WebhookMatchConditions, webhook.MatchConditions())
@@ -234,12 +227,11 @@ func TestWebhookMatchConditions(t *testing.T) {
 
 func TestWebhookName(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	require.Equal(t, autoinstrumentation.WebhookName, webhook.Name())
@@ -247,12 +239,11 @@ func TestWebhookName(t *testing.T) {
 
 func TestWebhookType(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	require.Equal(t, admissioncommon.MutatingWebhook, webhook.WebhookType().String())
@@ -260,12 +251,11 @@ func TestWebhookType(t *testing.T) {
 
 func TestWebhookFunc(t *testing.T) {
 	mockConfig := common.FakeConfig(t)
-	mockMeta := common.FakeStore(t)
 	mockMutator := common.FakeMutator(t, false)
 	mockLabelSelectors := NewFakeLabelSelector()
 
 	config := autoinstrumentation.NewWebhookConfig(mockConfig)
-	webhook, err := autoinstrumentation.NewWebhook(config, mockMeta, mockMutator, mockLabelSelectors)
+	webhook, err := autoinstrumentation.NewWebhook(config, mockMutator, mockLabelSelectors)
 	require.NoError(t, err)
 
 	pod := common.FakePod("foo")

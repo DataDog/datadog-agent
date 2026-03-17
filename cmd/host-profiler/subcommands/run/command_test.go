@@ -18,7 +18,9 @@ import (
 // TestFxRun tests that fx can build dependencies for the run command.
 func TestFxRunWithoutAgentCore(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		MakeCommand(func() *globalparams.GlobalParams { return &globalparams.GlobalParams{} }),
+		MakeCommand(func() *globalparams.GlobalParams {
+			return &globalparams.GlobalParams{ConfFilePath: "config_path"}
+		}),
 		[]string{"run"},
 		run,
 		func() {})
