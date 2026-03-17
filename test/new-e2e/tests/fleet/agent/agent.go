@@ -101,6 +101,12 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 	return integrations, nil
 }
 
+// InstallIntegration installs a custom integration on the agent (e.g. "datadog-ping==1.0.2").
+func (a *Agent) InstallIntegration(name string) error {
+	_, err := a.runCommand("integration", "install", "-t", name)
+	return err
+}
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string
@@ -1070,12 +1076,10 @@ type Status struct {
 		OrgEnabled   string `json:"orgEnabled"`
 	} `json:"remoteConfiguration"`
 	RunnerStats struct {
-		Checks struct {
-		} `json:"Checks"`
-		Running struct {
-		} `json:"Running"`
-		RunningChecks int `json:"RunningChecks"`
-		Runs          int `json:"Runs"`
+		Checks        map[string]interface{} `json:"Checks"`
+		Running       map[string]interface{} `json:"Running"`
+		RunningChecks int                    `json:"RunningChecks"`
+		Runs          int                    `json:"Runs"`
 		Workers       struct {
 			Count int `json:"Count"`
 		} `json:"Workers"`

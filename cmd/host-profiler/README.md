@@ -127,6 +127,7 @@ This inference will create as many symbol endpoints and otlphttp exporters as th
 
 - `-c, --config` - Path to host-profiler configuration file (OpenTelemetry Collector format)
 - `--core-config` - Path to Datadog Agent config file; enables Agent integration features (optional)
+- `--agent-config` - Alias for `--core-config`
 
 ### Run Subcommand Flags
 

@@ -62,6 +62,8 @@ exporters:
         flush_timeout: 200000000
         max_size: 0
         min_size: 8192
+        partition:
+          metadata_keys:
         sizer: {}
       block_on_overflow: false
       num_consumers: 10
@@ -86,7 +88,7 @@ extensions:
       fail_on_invalid_key: true
       key: "[REDACTED]"
       site: datadoghq.com
-    deployment_type: unknown
+    deployment_type: daemonset
     force_attempt_http2: true
     hostname: ""
     http:

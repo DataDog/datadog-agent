@@ -13,7 +13,6 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
@@ -45,6 +44,10 @@ clusterAgent:
 				kubernetesagentparams.WithDualShipping(),
 				kubernetesagentparams.WithHelmValues(helmValues),
 				kubernetesagentparams.WithHelmValues(containerHelmValues),
+				// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
+				// (legacy) Endpoints providers. This covers tests for both without having to create
+				// independent test suites for both configurations or modify providers at test runtime.
+				kubernetesagentparams.WithKubernetesUseEndpointSlices(),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),

@@ -996,24 +996,24 @@ func NewVariables() *Variables {
 	return &Variables{}
 }
 
-func getVariableType(value interface{}) string {
+func getVariableType(value interface{}) (string, error) {
 	switch value.(type) {
 	case bool:
-		return "bool"
+		return "bool", nil
 	case int:
-		return "integer"
+		return "integer", nil
 	case string:
-		return "string"
+		return "string", nil
 	case net.IPNet:
-		return "ip"
+		return "ip", nil
 	case []string:
-		return "strings"
+		return "strings", nil
 	case []int:
-		return "integers"
+		return "integers", nil
 	case []net.IPNet:
-		return "ips"
+		return "ips", nil
 	default:
-		panic("unsupported variable type")
+		return "", fmt.Errorf("unsupported variable type: %v", reflect.TypeOf(value))
 	}
 }
 
@@ -1040,7 +1040,10 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *Variables) NewSECLVariable(_ string, value interface{}, _ string, opts VariableOpts) (SECLVariable, error) {
-	varType := getVariableType(value)
+	varType, err := getVariableType(value)
+	if err != nil {
+		return nil, err
+	}
 	if opts.Telemetry != nil {
 		opts.Telemetry.TotalVariables.Inc(varType, "global")
 	}
@@ -1143,7 +1146,10 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 		v.varsLock.Lock()
 		defer v.varsLock.Unlock()
 		vars := v.vars[key]
-		varType := getVariableType(value)
+		varType, err := getVariableType(value)
+		if err != nil {
+			return err
+		}
 
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {

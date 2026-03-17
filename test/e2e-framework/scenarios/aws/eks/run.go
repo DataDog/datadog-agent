@@ -105,7 +105,10 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		if fakeIntake != nil {
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
 		}
-		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
+		params.agentOptions = append(params.agentOptions,
+			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)),
+			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+		)
 
 		eksParams, err := NewParams(params.eksOptions...)
 		if err != nil {

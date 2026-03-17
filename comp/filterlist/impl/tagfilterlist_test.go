@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package filterlistimpl
 
 import (
 	"slices"
 	"testing"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/zeebo/xxh3"
 )
@@ -27,7 +30,7 @@ func TestNewTagMatcher(t *testing.T) {
 			Tags:   []string{"pod"},
 			Action: "invalid",
 		},
-	})
+	}, logmock.New(t))
 
 	metric1Tags := []uint64{xxh3.HashString("env"), xxh3.HashString("host")}
 	slices.Sort(metric1Tags)
@@ -35,17 +38,17 @@ func TestNewTagMatcher(t *testing.T) {
 	assert.NotNil(t, matcher)
 	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
 		tags:   metric1Tags,
-		action: Exclude,
+		action: exclude,
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric2"], hashedMetricTagList{
 		tags:   []uint64{},
-		action: Include,
+		action: include,
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
 		tags:   []uint64{xxh3.HashString("pod")},
-		action: Exclude,
+		action: exclude,
 	})
 }
 
@@ -94,7 +97,7 @@ func TestTagMatcher(t *testing.T) {
 		},
 	}
 
-	matcher := newTagMatcher(metrics)
+	matcher := newTagMatcher(metrics, logmock.New(t))
 
 	// Test metric1 tags are excluded
 	keepTagFunc, shouldStrip := matcher.ShouldStripTags("metric1")

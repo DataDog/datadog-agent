@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -58,10 +57,8 @@ func conditionTags(namespace, targetName, autoscalerName, conditionType string) 
 }
 
 // GeneratePodAutoscalerMetrics generates structured metrics from a PodAutoscaler object
-func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetrics {
-	internal, ok := obj.(*model.PodAutoscalerInternal)
-	if !ok {
-		log.Debugf("GeneratePodAutoscalerMetrics: unexpected type %T, expected *model.PodAutoscalerInternal", obj)
+func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metricsstore.StructuredMetrics {
+	if internal == nil {
 		return nil
 	}
 
