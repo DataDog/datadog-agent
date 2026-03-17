@@ -245,8 +245,14 @@ filegroup(
 )
 
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
-use_repo(llvm, "llvm_toolchain")
+use_repo(
+    llvm,
+    "llvm_toolchain",
+    # This gives us a reference to call individual tools directly
+    "llvm_toolchain_llvm",
+)
 
+# buildifier: leave-alone
 llvm.sysroot(
     name = "llvm_toolchain",
     label = "@macos_sdk//:sysroot",
