@@ -66,13 +66,13 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection
+# gazelle:exclude pkg/logonduration
 # gazelle:exclude pkg/logs
 # gazelle:exclude pkg/metrics
 # gazelle:exclude pkg/network
 # gazelle:exclude pkg/networkconfigmanagement
 # gazelle:exclude pkg/networkdevice
 # gazelle:exclude pkg/networkpath
-# gazelle:exclude pkg/obfuscate
 # gazelle:exclude pkg/opentelemetry-mapping-go
 # gazelle:exclude pkg/orchestrator
 # gazelle:exclude pkg/persistentcache
