@@ -803,6 +803,7 @@ func (s *timeSeriesStorage) PointCountSince(key observer.SeriesKey, startTime in
 	return total
 }
 
+// Both are inclusive.
 func (s *timeSeriesStorage) PointCountBetween(key observer.SeriesKey, startTime, endTime int64) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -160,7 +160,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 		rateQueue := d.Rates[key]
 
 		// 1. Compute rate.
-		count := storage.PointCountSince(seriesKey, windowStart)
+		count := storage.PointCountBetween(seriesKey, windowStart, dataTime)
 		rate := float64(count) / float64(d.WindowDurationMs)
 		telemetry = append(telemetry, observerdef.ObserverTelemetry{
 			Metric: &metricObs{

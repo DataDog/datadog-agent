@@ -469,6 +469,9 @@ type StorageReader interface {
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountSince(key SeriesKey, startTime int64) int
 
+	// PointCountBetween returns the number of raw data points with timestamp >= startTime and <= endTime.
+	PointCountBetween(key SeriesKey, startTime, endTime int64) int
+
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.

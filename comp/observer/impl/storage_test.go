@@ -435,6 +435,8 @@ func TestPointCountSince_MultipleEventsPerBucket(t *testing.T) {
 func TestPointCountBetween_BinarySearch(t *testing.T) {
 	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
+	assert.Equal(t, 1, s.PointCountBetween(rangeKey, 10, 10))
+	assert.Equal(t, 1, s.PointCountBetween(rangeKey, 50, 50))
 	assert.Equal(t, 5, s.PointCountBetween(rangeKey, 0, 50))
 	assert.Equal(t, 3, s.PointCountBetween(rangeKey, 0, 30))
 	assert.Equal(t, 2, s.PointCountBetween(rangeKey, 0, 25))
