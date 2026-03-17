@@ -28,11 +28,10 @@ def get_compression_level():
         # This is only used for armhf (32 bit) builds right now.
         COMPRESSION_LEVEL = int(ENV['FORCED_PACKAGE_COMPRESSION_LEVEL'])
       elif ENV["DEPLOY_AGENT"] == "true"
-        # DEPLOY_AGENT is mostly true. It's not clear to me yet if "deploy" means to
-        # build the release version, or simply to include the agent binary. It is only
-        # set false for installer and integrations_core, so it seems the second, even if
-        # the word deploy generally is associated with release.
-        # So, we'll oped
+        # DEPLOY_AGENT is currently set as the default for omnibus CI, and
+        # can also be set by by using --deploy on the invoke task. In the
+        # top level project omnibus scripts, it triggers compression.
+        # It might have other meanings which are irrelevant to compression.
         COMPRESSION_LEVEL = 9
       else
         COMPRESSION_LEVEL = 5
