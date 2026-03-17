@@ -9,6 +9,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -195,15 +197,39 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 	return false
 }
 
+// defaultRegistryForProvider returns the preferred container registry for the
+// given cloud provider. This follows the Datadog recommendation of using
+// cloud-provider-specific registries for lower latency and reduced egress.
+func defaultRegistryForProvider(provider string) string {
+	switch provider {
+	case "eks":
+		return "public.ecr.aws/datadog"
+	case "gke":
+		return "gcr.io/datadoghq"
+	case "aks":
+		return "datadoghq.azurecr.io"
+	default:
+		return "registry.datadoghq.com"
+	}
+}
+
 // ContainerRegistry gets the container registry config using the specified
 // config option, and falls back to the default container registry if no
-// webhook-specific container registry is set.
-func ContainerRegistry(datadogConfig config.Component, specificConfigOpt string) string {
+// webhook-specific container registry is set. If no global registry is
+// explicitly configured, it auto-selects based on the detected cloud provider.
+func ContainerRegistry(ctx context.Context, datadogConfig config.Component, specificConfigOpt string) string {
 	if datadogConfig.IsSet(specificConfigOpt) {
 		return datadogConfig.GetString(specificConfigOpt)
 	}
 
-	return datadogConfig.GetString("admission_controller.container_registry")
+	if datadogConfig.IsSet("admission_controller.container_registry") {
+		return datadogConfig.GetString("admission_controller.container_registry")
+	}
+
+	provider := cloudprovider.DCAGetName(ctx)
+	registry := defaultRegistryForProvider(provider)
+	log.Infof("Auto-detected cloud provider %q, using container registry %q", provider, registry)
+	return registry
 }
 
 // MarkVolumeAsSafeToEvictForAutoscaler adds the Kubernetes cluster-autoscaler

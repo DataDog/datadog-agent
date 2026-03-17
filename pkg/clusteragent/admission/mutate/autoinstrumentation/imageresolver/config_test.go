@@ -33,7 +33,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}, "datadoghq.azurecr.io": {}, "registry.datadoghq.com": {}},
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -64,7 +64,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedState: Config{
 				Site:           "datad0g.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}, "datadoghq.azurecr.io": {}, "registry.datadoghq.com": {}},
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -80,7 +80,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}, "datadoghq.azurecr.io": {}, "registry.datadoghq.com": {}},
 				BucketID:       "0",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -97,7 +97,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}, "datadoghq.azurecr.io": {}, "registry.datadoghq.com": {}},
 				BucketID:       "0",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        false,
@@ -114,7 +114,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}, "datadoghq.azurecr.io": {}, "registry.datadoghq.com": {}},
 				BucketID:       "0",
 				DigestCacheTTL: 2 * time.Hour,
 				Enabled:        true,
