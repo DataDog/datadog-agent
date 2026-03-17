@@ -79,9 +79,9 @@ func (v *ec2TCPCongestionSuite) SetupSuite() {
 	host.MustExecute("cd /tmp/tcp-congestion && docker-compose up -d")
 
 	// Wait for iperf3 server ready
-	host.MustExecute("timeout 120 bash -c 'until docker exec tcp-lab-server which iperf3 >/dev/null 2>&1 && docker exec tcp-lab-server nc -z localhost 5201 2>/dev/null; do sleep 2; done'")
+	host.MustExecute("timeout 120 bash -c 'until docker exec tcp-congestion-server which iperf3 >/dev/null 2>&1 && docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 2; done'")
 	// Wait for client to have tc and nc
-	host.MustExecute("timeout 120 bash -c 'until docker exec tcp-lab-client tc -V >/dev/null 2>&1 && docker exec tcp-lab-client which nc >/dev/null 2>&1; do sleep 2; done'")
+	host.MustExecute("timeout 120 bash -c 'until docker exec tcp-congestion-client tc -V >/dev/null 2>&1 && docker exec tcp-congestion-client which nc >/dev/null 2>&1; do sleep 2; done'")
 }
 
 // BeforeTest cleans up between tests and flushes the fakeintake.
@@ -90,10 +90,10 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	host := v.Env().RemoteHost
 	// Kill client traffic generators, server helper processes, and tc rules from previous tests.
 	// Do NOT kill iperf3 on server — it's the persistent -s -D listener.
-	host.MustExecute("docker exec tcp-lab-client killall -9 iperf3 nc dd 2>/dev/null; " +
-		"docker exec tcp-lab-server killall -9 python3 2>/dev/null; " +
-		"docker exec tcp-lab-client tc qdisc del dev eth0 root 2>/dev/null; " +
-		"docker exec tcp-lab-server tc qdisc del dev eth0 root 2>/dev/null; " +
+	host.MustExecute("docker exec tcp-congestion-client killall -9 iperf3 nc dd 2>/dev/null; " +
+		"docker exec tcp-congestion-server killall -9 python3 2>/dev/null; " +
+		"docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null; " +
+		"docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null; " +
 		"true")
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -146,11 +146,11 @@ func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, p
 // TestTCPCongestion_Retransmits applies 5% packet loss and validates LastRetransmits > 0.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_Retransmits() {
 	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-lab-client tc qdisc add dev eth0 root netem loss 5%")
+	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 5%")
 	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-client tc qdisc del dev eth0 root 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
 
 	v.pollForTCPCongestionSignal("LastRetransmits > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastRetransmits > 0
@@ -161,11 +161,11 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Retransmits() {
 // Correlated loss creates burst drops that exhaust dupacks and force RTO.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_RTOCount() {
 	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-lab-client tc qdisc add dev eth0 root netem loss 15% 50%")
+	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 15% 50%")
 	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-client tc qdisc del dev eth0 root 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
 
 	v.pollForTCPCongestionSignal("LastTcpRtoCount > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpRtoCount > 0
@@ -176,11 +176,11 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_RTOCount() {
 // SACK/NewReno fast recovery via triple duplicate ACKs.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_RecoveryCount() {
 	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-lab-client tc qdisc add dev eth0 root netem loss 5% 25%")
+	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 5% 25%")
 	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-client tc qdisc del dev eth0 root 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
 
 	v.pollForTCPCongestionSignal("LastTcpRecoveryCount > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpRecoveryCount > 0
@@ -195,18 +195,18 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 	t := v.T()
 
 	// Start slow-reader on server port 9999
-	host.MustExecute(fmt.Sprintf(`docker exec -d tcp-lab-server python3 -c "%s"`, slowReaderScript))
+	host.MustExecute(fmt.Sprintf(`docker exec -d tcp-congestion-server python3 -c "%s"`, slowReaderScript))
 	t.Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-server killall -9 python3 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-server killall -9 python3 2>/dev/null || true")
 	})
 
 	// Wait for the slow-reader to be listening
-	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-lab-server nc -z localhost 9999 2>/dev/null; do sleep 0.5; done'")
+	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-congestion-server nc -z localhost 9999 2>/dev/null; do sleep 0.5; done'")
 
 	// Client floods data to the slow reader — send blocks once receive buffer fills
-	host.MustExecute("docker exec -d tcp-lab-client bash -c 'dd if=/dev/zero bs=64k count=10000 2>/dev/null | nc 172.28.0.10 9999'")
+	host.MustExecute("docker exec -d tcp-congestion-client bash -c 'dd if=/dev/zero bs=64k count=10000 2>/dev/null | nc 172.28.0.10 9999'")
 	t.Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-client killall -9 nc dd 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client killall -9 nc dd 2>/dev/null || true")
 	})
 
 	v.pollForTCPCongestionSignal("LastTcpProbe0Count > 0", func(conn *agentmodel.Connection) bool {
@@ -218,11 +218,11 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 // are sent immediately while others are delayed 50ms, causing out-of-order delivery.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_Reordering() {
 	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-lab-client tc qdisc add dev eth0 root netem delay 50ms reorder 25% 50%")
+	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem delay 50ms reorder 25% 50%")
 	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-client tc qdisc del dev eth0 root 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
 
 	v.pollForTCPCongestionSignal("LastTcpReordSeen > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpReordSeen > 0
@@ -234,11 +234,11 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Reordering() {
 // The netem ecn flag marks ECN-capable packets with CE instead of dropping them.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_ECN() {
 	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-lab-client tc qdisc add dev eth0 root netem loss 10% ecn")
+	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 10% ecn")
 	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-client tc qdisc del dev eth0 root 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
 
 	v.pollForTCPCongestionSignal("TcpEcnNegotiated", func(conn *agentmodel.Connection) bool {
 		return conn.TcpEcnNegotiated
@@ -254,12 +254,12 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ECN() {
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_RcvOOOPack() {
 	host := v.Env().RemoteHost
 	// Reorder on server egress → data arrives OOO at the client receiver.
-	host.MustExecute("docker exec tcp-lab-server tc qdisc add dev eth0 root netem delay 10ms reorder 50% 50%")
+	host.MustExecute("docker exec tcp-congestion-server tc qdisc add dev eth0 root netem delay 10ms reorder 50% 50%")
 	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-lab-server tc qdisc del dev eth0 root 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
 	// -R: server sends data to client; client accumulates rcv_ooopack on its receiving socket.
-	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60 -R")
+	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60 -R")
 
 	v.pollForTCPCongestionSignal("LastTcpRcvOooPack > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpRcvOooPack > 0
