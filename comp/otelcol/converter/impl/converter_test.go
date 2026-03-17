@@ -417,10 +417,10 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "features/no-defined-features/acfg.yaml",
 		},
 		{
-			name:           "extensions/no-extensions/datadog-hostname-error",
-			provided:       "extensions/no-extensions/datadog-hostname-error/config.yaml",
-			expectedResult: "extensions/no-extensions/datadog-hostname-error/config-result.yaml",
-			agentConfig:    "extensions/no-extensions/datadog-hostname-error/acfg.yaml",
+			name:           "extensions/no-extensions/dd-no-hostname",
+			provided:       "extensions/no-extensions/dd-no-hostname/config.yaml",
+			expectedResult: "extensions/no-extensions/dd-no-hostname/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/dd-no-hostname/acfg.yaml",
 			hostnameErr:    true,
 		},
 	}
