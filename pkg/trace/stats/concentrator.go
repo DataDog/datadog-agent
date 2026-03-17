@@ -205,6 +205,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ImageTag:        pt.ImageTag,
 		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
+		BaseService:     pt.Root.Meta[tagBaseService],
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
@@ -231,6 +232,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		env = c.agentEnv
 	}
 	weight := weightV1(pt.Root)
+	baseService, _ := pt.Root.GetAttributeAsString(tagBaseService)
 	aggKey := PayloadAggregationKey{
 		Env:             env,
 		Hostname:        hostname,
@@ -239,6 +241,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		GitCommitSha:    pt.GitCommitSha,
 		ImageTag:        pt.ImageTag,
 		ProcessTagsHash: tags.processTagsHash,
+		BaseService:     baseService,
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)

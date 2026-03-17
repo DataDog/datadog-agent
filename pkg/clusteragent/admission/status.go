@@ -35,12 +35,45 @@ func setProbe(p *admprobe.Probe) {
 	currentProbe.Store(p)
 }
 
-func getProbeStats() map[string]interface{} {
+// getProbeStatus builds the complete probe status map for the agent status
+// output.
+//
+// The returned map always contains "Enabled" (bool). Depending on the state,
+// it also contains exactly one of:
+//   - "Error"    (string) — runtime config error (e.g. missing RBAC)
+//   - "Detail"   (string) — informational message (follower, not yet started)
+//   - "HasStats" (bool)   — execution stats are present
+func getProbeStatus() map[string]interface{} {
+	result := map[string]interface{}{}
+
+	enabled := pkgconfigsetup.Datadog().GetBool("admission_controller.probe.enabled")
+	result["Enabled"] = enabled
+	if !enabled {
+		return result
+	}
+
 	p := currentProbe.Load()
 	if p == nil {
-		return nil
+		result["Detail"] = "Waiting for the admission controller to start..."
+		return result
 	}
-	return p.GetStatsForStatus()
+
+	if !p.IsLeader() {
+		result["Detail"] = "The probe is only active on the leader instance."
+		return result
+	}
+
+	stats := p.GetStatsForStatus()
+	if ce, ok := stats["ConfigError"]; ok {
+		result["Error"] = ce
+		return result
+	}
+
+	result["HasStats"] = true
+	for k, v := range stats {
+		result[k] = v
+	}
+	return result
 }
 
 // GetStatus returns status info for the secret and webhook controllers.
@@ -78,9 +111,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["Secret"] = secretStatus
 	}
 
-	if probeStats := getProbeStats(); probeStats != nil {
-		status["Probe"] = probeStats
-	}
+	status["Probe"] = getProbeStatus()
 
 	return status
 }
