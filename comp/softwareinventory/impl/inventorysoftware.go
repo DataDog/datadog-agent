@@ -284,7 +284,7 @@ func (is *softwareInventory) sendPayload() error {
 		return err
 	}
 
-	msg := message.NewMessage(jsonPayload, nil, "", 0)
+	msg := message.NewMessage(jsonPayload, nil, "", time.Now().UnixNano())
 
 	// Send the message through the event platform
 	if err = forwarder.SendEventPlatformEvent(msg, eventplatform.EventTypeSoftwareInventory); err != nil {

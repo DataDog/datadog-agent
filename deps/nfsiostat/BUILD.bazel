@@ -19,7 +19,7 @@ pkg_files(
     name = "bin_files",
     srcs = [":fix_shebang"],
     attributes = pkg_attributes(mode = "0755"),
-    prefix = "embedded/sbin",
+    prefix = "sbin",
 )
 
 pkg_filegroup(
@@ -27,6 +27,7 @@ pkg_filegroup(
     srcs = [
         ":bin_files",
     ],
+    prefix = "embedded",
 )
 
 pkg_install(

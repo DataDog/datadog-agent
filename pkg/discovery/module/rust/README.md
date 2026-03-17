@@ -12,16 +12,16 @@ cargo build --release --bin system-probe-lite
 
 The binary will be located at `target/release/system-probe-lite`.
 
-### Build the Shared Library
+### Build the Static Library
 
-The `dd-discovery` shared library (`libdd_discovery.so`) contains the service
+The `dd-discovery` static library (`libdd_discovery.a`) contains the service
 discovery logic and exposes a C FFI for use from other languages (e.g., Go via cgo):
 
 ```bash
 cargo build --release --lib
 ```
 
-The shared library will be located at `target/release/libdd_discovery.so`.
+The static library will be located at `target/release/libdd_discovery.a`.
 
 #### FFI Interface
 
@@ -39,7 +39,7 @@ from the Rust FFI types using [cbindgen](https://github.com/mozilla/cbindgen).
 cargo build --release
 ```
 
-This builds both the binary and the shared library.
+This builds both the binary and the static library.
 
 ## Development
 
