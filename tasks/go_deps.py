@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import shutil
 import tempfile
@@ -562,3 +563,68 @@ def graph(
     if auto_open:
         print(f"Opening {fmt} file")
         ctx.run(f"open {fmtfile}")
+
+
+EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
+CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
+
+
+@task
+def validate_profiler_deps(ctx: Context):
+    """Check that the agent's cilium/ebpf version is compatible with the
+    opentelemetry-ebpf-profiler.
+
+    cilium/ebpf introduces breaking API changes across minor versions. Bumping
+    it in the agent without first updating the profiler fork can silently break
+    eBPF unwinding at runtime.
+
+    TODO: This is a short-term guardrail. The long-term solution is to mirror
+    the profiler's coredump test data to Datadog-owned blob storage and run
+    the profiler's unwinding e2e tests directly from the agent CI whenever a
+    common transitive dependency changes.
+    """
+    # Resolve the profiler module's local directory so we can read its go.mod.
+    res = ctx.run(f"go list -m -json {EBPF_PROFILER_MODULE}", hide=True, warn=True)
+    if not res or not res.ok:
+        raise Exit(f"Could not resolve {EBPF_PROFILER_MODULE}. Run 'go mod download' first.", code=1)
+
+    mod_info = json.loads(res.stdout)
+    mod_dir = mod_info.get("Dir")
+    if not mod_dir:
+        raise Exit(f"{EBPF_PROFILER_MODULE} has no local directory. Run 'go mod download' first.", code=1)
+
+    # Parse the profiler's go.mod to find its required cilium/ebpf version.
+    res = ctx.run(f"go mod edit -json {os.path.join(mod_dir, 'go.mod')}", hide=True, warn=True)
+    if not res or not res.ok:
+        raise Exit(f"Could not parse {EBPF_PROFILER_MODULE} go.mod.", code=1)
+    profiler_requires = {req["Path"]: req["Version"] for req in json.loads(res.stdout).get("Require", [])}
+
+    profiler_version = profiler_requires.get(CILIUM_EBPF_MODULE)
+    if profiler_version is None:
+        raise Exit(f"{CILIUM_EBPF_MODULE} not found in {EBPF_PROFILER_MODULE} go.mod.", code=1)
+
+    # Get the version the agent resolved.
+    res = ctx.run(f"go list -m -json {CILIUM_EBPF_MODULE}", hide=True, warn=True)
+    if not res or not res.ok:
+        raise Exit(f"Could not resolve {CILIUM_EBPF_MODULE} in agent go.mod.", code=1)
+    agent_version = json.loads(res.stdout).get("Version", "")
+
+    # Patch-level differences are fine; major.minor must match.
+    if agent_version.split(".")[:2] == profiler_version.split(".")[:2]:
+        print(
+            color_message(
+                f"OK: {CILIUM_EBPF_MODULE} {agent_version} (agent) is compatible with {profiler_version} ({EBPF_PROFILER_MODULE})",
+                "green",
+            )
+        )
+    else:
+        print(
+            color_message(
+                f"MISMATCH: {CILIUM_EBPF_MODULE} version is incompatible with {EBPF_PROFILER_MODULE}!\n"
+                f"  Agent uses:     {agent_version}\n"
+                f"  Profiler needs: {profiler_version}\n"
+                f"  Please reach out to #profiling-full-host-project to update the profiler fork and validate its e2e tests before bumping cilium/ebpf here.",
+                "red",
+            )
+        )
+        raise Exit(code=1)
