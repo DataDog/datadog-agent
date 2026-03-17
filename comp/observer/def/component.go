@@ -469,7 +469,7 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
- }
+}
 
 // Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.
