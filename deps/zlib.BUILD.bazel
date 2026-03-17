@@ -36,6 +36,7 @@
 """Agent specific BUILD file for zlib."""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:fix_rpath.bzl", "patch_rpath")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -119,10 +120,16 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "z",
+    name = "z_plain",
     win_def_file = "win32/zlib.def",
     deps = [":zlib"],
     visibility = ["//visibility:public"],
+)
+
+patch_rpath(
+    name = "z",
+    input = ":z_plain",
+    out = "z_patched",
 )
 
 so_symlink(
