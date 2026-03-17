@@ -74,6 +74,7 @@ enum event_type
     FAILED_DNS,
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
+    EVENT_PIVOT_ROOT,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
