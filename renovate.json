@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile", "docker-compose"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
@@ -42,6 +42,16 @@
         "matchManagers": ["dockerfile"],
         "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
         "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["docker-compose"],
+        "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["docker-compose"],
+        "matchFileNames": ["**/testdata/**", "**/fixtures/**", "**/testfixtures/**", "pkg/collector/corechecks/oracle/compose/**"],
+        "enabled": false
       }
     ],
     "pre-commit": {
