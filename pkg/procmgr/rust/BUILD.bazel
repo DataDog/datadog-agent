@@ -158,6 +158,7 @@ rust_test(
     },
     deps = [
         "@crates//:nix",
+        "@crates//:serde_json",
         "@crates//:tempfile",
     ],
 )
@@ -180,6 +181,7 @@ rust_test(
     },
     deps = [
         "@crates//:nix",
+        "@crates//:serde_json",
         "@crates//:tempfile",
     ],
 )
