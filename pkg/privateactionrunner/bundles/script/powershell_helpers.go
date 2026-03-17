@@ -11,7 +11,6 @@ package com_datadoghq_script
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -33,67 +32,6 @@ type evaluatedPowershellScript struct {
 	// For file-based scripts
 	File      string
 	Arguments []string
-}
-
-// evaluatePowershellScript prepares the script for execution.
-//
-// For inline scripts it calls transformInlineScript, which rewrites
-// {{ parameters.X }} references into a PowerShell param() block and
-// passes the values as separate OS-level arguments — keeping user-supplied
-// data completely outside the script text and preventing injection.
-//
-// For file-based scripts the file path and arguments are still rendered via
-// the template engine (they are not executed as PowerShell code).
-func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parameters interface{}) (*evaluatedPowershellScript, error) {
-	if parameters == nil {
-		parameters = map[string]interface{}{}
-	}
-
-	if config.ParameterSchema != nil {
-		if err := validateParameters(parameters, config.ParameterSchema); err != nil {
-			return nil, err
-		}
-	}
-
-	result := &evaluatedPowershellScript{}
-
-	if config.Script != "" {
-		// Inline script mode: transform template to param() block to prevent injection.
-		transformed, err := transformInlineScript(config.Script, parameters)
-		if err != nil {
-			return nil, fmt.Errorf("failed to transform script template: %w", err)
-		}
-		if strings.TrimSpace(transformed.Script) == "" {
-			return nil, errors.New("script cannot be empty")
-		}
-		result.Script = transformed.Script
-		result.ScriptArgs = transformed.ScriptArgs
-	} else {
-		// File mode: render templates in file path and arguments.
-		// These values are never executed as PowerShell code; they are passed
-		// as arguments to powershell.exe -File, so template rendering is safe here.
-		templateContext := map[string]interface{}{"parameters": parameters}
-
-		rendered, err := renderTemplate(config.File, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render file path template: %w", err)
-		}
-		if strings.TrimSpace(rendered) == "" {
-			return nil, errors.New("file path cannot be empty")
-		}
-		result.File = rendered
-
-		result.Arguments = make([]string, len(config.Arguments))
-		for i, arg := range config.Arguments {
-			rendered, err := renderTemplate(arg, templateContext)
-			if err != nil {
-				return nil, fmt.Errorf("failed to render argument template '%s': %w", arg, err)
-			}
-			result.Arguments[i] = rendered
-		}
-	}
-
-	return result, nil
 }
 
 // transformInlineScript rewrites a PowerShell script template so that
@@ -251,29 +189,3 @@ func serializeParamValue(val interface{}) (string, error) {
 	}
 }
 
-// renderTemplate parses and renders a template string with the given context.
-// Used for file-mode paths and arguments (not for inline script bodies).
-func renderTemplate(templateStr string, context map[string]interface{}) (string, error) {
-	template, err := tmpl.Parse(templateStr)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse template '%s': %w", templateStr, err)
-	}
-
-	rendered, err := template.Render(context)
-	if err != nil {
-		return "", fmt.Errorf("failed to render template '%s': %w", templateStr, err)
-	}
-
-	return rendered, nil
-}
-
-// formatPowershellOutput normalises line endings and optionally strips leading/trailing newlines.
-func formatPowershellOutput(output string, noStripTrailingNewline bool) string {
-	normalized := strings.ReplaceAll(output, "\r\n", "\n")
-	if noStripTrailingNewline {
-		return normalized
-	}
-	normalized = strings.TrimRight(normalized, "\n")
-	normalized = strings.TrimLeft(normalized, "\n")
-	return normalized
-}
