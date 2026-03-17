@@ -246,10 +246,10 @@ const (
 	Logs string = "logs"
 )
 
-// serverlessConfigComponents are the config components that are used by all agents, and in particular serverless.
+// commonConfigComponents are the config components that are used by all agents, and in particular serverless.
 // Components should only be added here if they are reachable by the serverless agent.
-// Otherwise directly add the configs to InitConfig.
-var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
+// Otherwise directly add the configs to initCoreAgentFull in common_settings.go.
+var commonConfigComponents = []func(pkgconfigmodel.Setup){
 	agent,
 	fips,
 	dogstatsd,
@@ -328,14 +328,6 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
-// initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
-// Initializing the config keys takes too much time for serverless, so we try to initialize only what is reachable.
-func initCommonWithServerless(config pkgconfigmodel.Setup) {
-	for _, f := range serverlessConfigComponents {
-		f(config)
-	}
-}
-
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
@@ -344,8 +336,21 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	registeredDelegatedAuthConfigs = make(map[string]string)
 	registeredDelegatedAuthConfigsMu.Unlock()
 
-	initCommonWithServerless(config)
+	// -------------------------------------------------------------
+	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
+	// Add them to common_settings.go instead
+	// -------------------------------------------------------------
+
+	// Settings that are shared in common between serverless and core-agent, split up by feature / product
+	initCommonConfigComponents(config)
+	// Settings just for the core-agent in general
 	initCoreAgentFull(config)
+}
+
+func initCommonConfigComponents(config pkgconfigmodel.Setup) {
+	for _, f := range commonConfigComponents {
+		f(config)
+	}
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables

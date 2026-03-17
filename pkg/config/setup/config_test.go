@@ -1364,7 +1364,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonWithServerless(conf)
+	initCommonConfigComponents(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
