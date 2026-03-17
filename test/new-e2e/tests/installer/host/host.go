@@ -7,6 +7,7 @@
 package host
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -115,7 +116,19 @@ func (h *Host) ensureDockerLogin() {
 	}
 
 	for i := range registries {
-		h.remote.MustExecute(fmt.Sprintf("sudo docker login --username %s --password %s %s", usernames[i], passwords[i], registries[i]))
+		password := passwords[i]
+		// Passwords with the "b64=" prefix are already base64-encoded (our convention for
+		// credentials that contain special characters, e.g. GCP JSON service account keys).
+		// For plain-text passwords (e.g. ECR tokens), encode them here so we can always
+		// use the same "base64 -d | docker login --password-stdin" pattern on the remote
+		// side — this avoids shell-quoting issues regardless of the password content.
+		var b64pwd string
+		if strings.HasPrefix(password, "b64=") {
+			b64pwd = password[4:]
+		} else {
+			b64pwd = base64.StdEncoding.EncodeToString([]byte(password))
+		}
+		h.remote.MustExecute(fmt.Sprintf("echo %s | base64 -d | sudo docker login --username %s --password-stdin %s", b64pwd, usernames[i], registries[i]))
 	}
 }
 
