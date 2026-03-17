@@ -33,6 +33,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
@@ -1842,6 +1843,35 @@ func isPrebuilt(cfg *config.Config) bool {
 	return true
 }
 
+// skipCOREIfBTFFieldMissing skips the test when running under CO-RE if the
+// given tcp_sock field is not present in the kernel's BTF. On kernels where
+// BTF is incomplete (e.g. Debian 10 with btfhub-provided BTF), the
+// LOAD_CONSTANT offset stays at 0 and the BPF code skips the read, so the
+// field will always be zero — testing it would be a false failure.
+func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
+	t.Helper()
+	if ebpftest.GetBuildMode() != ebpftest.CORE {
+		return
+	}
+	spec, err := ddebpf.GetKernelSpec()
+	if err != nil {
+		t.Skipf("BTF not available: %v", err)
+	}
+	var tcpSock *btf.Struct
+	if err := spec.TypeByName("tcp_sock", &tcpSock); err != nil {
+		t.Skipf("tcp_sock not found in BTF: %v", err)
+	}
+	members := make(map[string]bool, len(tcpSock.Members))
+	for _, m := range tcpSock.Members {
+		members[m.Name] = true
+	}
+	for _, f := range fields {
+		if !members[f] {
+			t.Skipf("tcp_sock.%s not found in kernel BTF — CO-RE offset unavailable", f)
+		}
+	}
+}
+
 func (s *TracerSuite) TestSendfileError() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
@@ -3345,6 +3375,7 @@ func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
 	if kv < kernel.VersionCode(4, 19, 0) {
 		t.Skip("reord_seen requires kernel 4.19+")
 	}
+	skipCOREIfBTFFieldMissing(t, "reord_seen")
 
 	tr := setupTracer(t, cfg)
 
@@ -3573,6 +3604,7 @@ func (s *TracerSuite) TestTCPReordSeen() {
 	if kv < kernel.VersionCode(4, 19, 0) {
 		t.Skip("reord_seen requires kernel 4.19+")
 	}
+	skipCOREIfBTFFieldMissing(t, "reord_seen")
 
 	tr := setupTracer(t, cfg)
 
@@ -3596,6 +3628,7 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	if kv < kernel.VersionCode(5, 4, 0) {
 		t.Skip("rcv_ooopack requires kernel 5.4+")
 	}
+	skipCOREIfBTFFieldMissing(t, "rcv_ooopack")
 
 	tr := setupTracer(t, cfg)
 
@@ -3650,6 +3683,7 @@ func (s *TracerSuite) TestTCPDeliveredCE() {
 	if kv < kernel.VersionCode(4, 19, 0) {
 		t.Skip("delivered_ce requires kernel 4.19+")
 	}
+	skipCOREIfBTFFieldMissing(t, "delivered_ce")
 
 	tr := setupTracer(t, cfg)
 
