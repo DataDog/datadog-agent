@@ -166,6 +166,8 @@ var (
 	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
 	tlmFilteredTags             = telemetry.NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
 	tlmTaggerTags               = telemetry.NewSimpleGauge("aggregator", "tagger_tags", "How many tags are collected by the tagger for distributions with tag aggr rules")
+	tlmFilteredTagsCacheHit     = telemetry.NewSimpleCounter("aggregator", "filtered_tags_cache_hit", "How many times we hit the cache on filtering tags")
+	tlmFilteredTagsCacheMiss    = telemetry.NewSimpleCounter("aggregator", "filtered_tags_cache_miss", "How many times we missed the cache on filtering tags")
 	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",

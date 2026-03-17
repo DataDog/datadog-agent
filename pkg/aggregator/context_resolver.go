@@ -66,10 +66,10 @@ var _ size.HasSizeInBytes = &Context{}
 
 // stripCacheEntry holds the post-strip context and tag keys for a given pre-strip context key.
 type stripCacheEntry struct {
-	contextKey   ckey.ContextKey
-	taggerKey    ckey.TagsKey
-	metricKey    ckey.TagsKey
-	removedTags  int // total number of tags removed by RetainFunc (tagger + metric)
+	contextKey  ckey.ContextKey
+	taggerKey   ckey.TagsKey
+	metricKey   ckey.TagsKey
+	removedTags int // total number of tags removed by RetainFunc (tagger + metric)
 }
 
 // contextResolver allows tracking and expiring contexts
@@ -138,6 +138,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 				taggerKey = cached.taggerKey
 				metricKey = cached.metricKey
 				tlmFilteredTags.Add(float64(cached.removedTags))
+				tlmFilteredTagsCacheHit.Inc()
 			} else {
 				// Cache miss: strip tags and compute post-strip keys.
 				// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
@@ -153,6 +154,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 					metricKey:   metricKey,
 					removedTags: removed,
 				}
+				tlmFilteredTagsCacheMiss.Inc()
 			}
 			keysSet = true
 		}
