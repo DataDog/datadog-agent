@@ -66,6 +66,7 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection
+# gazelle:exclude pkg/logonduration
 # gazelle:exclude pkg/logs
 # gazelle:exclude pkg/metrics
 # gazelle:exclude pkg/network
