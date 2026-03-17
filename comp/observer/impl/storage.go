@@ -803,6 +803,25 @@ func (s *timeSeriesStorage) PointCountSince(key observer.SeriesKey, startTime in
 	return total
 }
 
+func (s *timeSeriesStorage) PointCountBetween(key observer.SeriesKey, startTime, endTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	stats, ok := s.series[k]
+	if !ok || stats.pointCount() == 0 {
+		return 0
+	}
+
+	startIdx := searchAtOrAfter(stats.timestamps, startTime)
+	endIdx := searchAfter(stats.timestamps, endTime)
+	total := 0
+	for i := startIdx; i < endIdx; i++ {
+		total += int(stats.counts[i])
+	}
+	return total
+}
+
 // RecordObservationTime records that an observation occurred at the given timestamp.
 // This is used for log observations that may not produce virtual metrics but still
 // need to appear in DataTimestamps for replay fidelity.

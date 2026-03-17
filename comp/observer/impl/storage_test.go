@@ -10,9 +10,10 @@ import (
 	"sync"
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
@@ -429,6 +430,37 @@ func TestPointCountSince_MultipleEventsPerBucket(t *testing.T) {
 	assert.Equal(t, 7, s.PointCountSince(key, 20))  // 5+2
 	assert.Equal(t, 2, s.PointCountSince(key, 30))  // 2
 	assert.Equal(t, 0, s.PointCountSince(key, 31))  // none
+}
+
+func TestPointCountBetween_BinarySearch(t *testing.T) {
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
+
+	assert.Equal(t, 5, s.PointCountBetween(rangeKey, 0, 50))
+	assert.Equal(t, 3, s.PointCountBetween(rangeKey, 0, 30))
+	assert.Equal(t, 2, s.PointCountBetween(rangeKey, 0, 25))
+	assert.Equal(t, 0, s.PointCountBetween(rangeKey, 0, 9))
+	assert.Equal(t, 1, s.PointCountBetween(rangeKey, 0, 10))
+	assert.Equal(t, 0, s.PointCountBetween(observer.SeriesKey{Namespace: "x", Name: "y"}, 0, 100))
+}
+
+func TestPointCountBetween_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+
+	assert.Equal(t, 10, s.PointCountBetween(key, 0, 100)) // all 10 events
+	assert.Equal(t, 8, s.PointCountBetween(key, 0, 20))   // 3+5
+	assert.Equal(t, 3, s.PointCountBetween(key, 0, 10))   // 3
+	assert.Equal(t, 0, s.PointCountBetween(key, 0, 9))    // none
 }
 
 func TestPointCount_ColumnarLayout(t *testing.T) {
