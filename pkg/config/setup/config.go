@@ -1145,6 +1145,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		})
 	})
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
+	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
