@@ -3,12 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-<<<<<<< HEAD:test/new-e2e/tests/installer/windows/ddot_install_test.go
 package installer
-=======
+
 // Package ddottests implements E2E tests for the DDOT agent extension on Windows.
-package ddottests
->>>>>>> 831022425cd2da03cb280ed4371e9cde6935449e:test/new-e2e/tests/installer/windows/suites/ddot-package/install_test.go
 
 import (
 	"fmt"
