@@ -175,7 +175,13 @@ def _ensure_parquets(ctx, name, parquet_dir):
 
 
 @task
-def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/scenarios", build: bool = False):
+def launch_testbench(
+    ctx,
+    scenarios_dir: str = "./comp/observer/scenarios",
+    build: bool = False,
+    headless_scenario: str = "",
+    headless_output: str = "",
+):
     """
     Will launch both the observer-testbench backend and UI.
 
@@ -187,10 +193,20 @@ def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/scenarios", buil
         print("Building observer-testbench...")
         build_testbench(ctx)
 
-    print("Launching observer-testbench backend and UI, use ^C to exit")
-    ctx.run(
-        f"bin/observer-testbench --scenarios-dir {scenarios_dir} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
-    )
+    if headless_scenario:
+        if not headless_output:
+            headless_output = f"/tmp/observer-testbench-headless-{headless_scenario}.json"
+        print(
+            f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
+        )
+        ctx.run(
+            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output}"
+        )
+    else:
+        print("Launching observer-testbench backend and UI, use ^C to exit")
+        ctx.run(
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+        )
 
 
 # --- K8s ---
