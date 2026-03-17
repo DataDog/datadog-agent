@@ -46,6 +46,7 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 				ec2.WithAgentOptions(
 					agentparams.WithAgentConfig(agentConfig),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
+					agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
 				),
 				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
 			)),

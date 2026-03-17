@@ -76,15 +76,24 @@ func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
 	return statusMap
 }
 
-// assertRunningChecks asserts that the given process agent checks are running on the given VM
+// assertRunningChecks asserts that the given checks are running across the process-agent
+// and the core agent's process component. On Linux, process/container/discovery checks run
+// in the core agent while connections runs in the standalone process-agent.
 func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
 	statusMap := getAgentStatus(t, client)
 
-	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	// Combine enabled checks from both the standalone process-agent and the core agent's process component
+	var allEnabledChecks []string
+	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks...)
+	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessComponentStatus.Expvars.Map.EnabledChecks...)
+
+	assert.ElementsMatch(t, checks, allEnabledChecks)
 
 	if withSystemProbe {
-		assert.True(t, statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled,
-			"system probe process module not enabled")
+		// SysProbeProcessModuleEnabled can be reported by either the process-agent or the core agent component
+		sysProbeEnabled := statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled ||
+			statusMap.ProcessComponentStatus.Expvars.Map.SysProbeProcessModuleEnabled
+		assert.True(t, sysProbeEnabled, "system probe process module not enabled")
 	}
 }
 
