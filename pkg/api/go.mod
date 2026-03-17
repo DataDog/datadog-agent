@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/api
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
@@ -32,6 +32,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/ddsite v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect

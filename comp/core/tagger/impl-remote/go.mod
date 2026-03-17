@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
@@ -67,6 +67,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/ddsite v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect

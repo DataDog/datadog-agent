@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/util/testutils
 
-go 1.25.0
+go 1.25.7
 
 require github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 
@@ -24,6 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/ddsite v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5 // indirect

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
@@ -41,6 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/ddsite v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f // indirect
