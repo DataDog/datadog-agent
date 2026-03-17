@@ -34,6 +34,7 @@ type TCPStats struct {
 	Failure_reason    uint16
 	Rto_recovery      TCPRTORecoveryStats
 	Congestion        TCPCongestionStats
+	X_pad             uint32
 }
 type ConnStats struct {
 	Sent_bytes     uint64

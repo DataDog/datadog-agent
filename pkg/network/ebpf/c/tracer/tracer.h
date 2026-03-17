@@ -126,6 +126,12 @@ typedef struct {
     // fields for congestion stats) into these embedded structs.
     tcp_rto_recovery_stats_t rto_recovery;
     tcp_congestion_stats_t   congestion;
+
+    // Explicit padding to make tcp_stats_t a multiple of 8 bytes (48 total).
+    // Without this, conn_stats_ts_t (which starts with uint64 sent_bytes)
+    // would be at offset 92 in conn_t — not 8-byte aligned — causing
+    // different struct layouts on x86_64 vs ARM64.
+    __u32 _pad;
 } tcp_stats_t;
 
 // Full data for a tcp connection
