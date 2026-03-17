@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	doqueryactions "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
