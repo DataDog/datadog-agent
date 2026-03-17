@@ -197,11 +197,14 @@ func getSharedFxOption() fx.Option {
 			}
 			return nil
 		}),
-		// Config stream consumer Params. When SessionIDProvider is nil (RAR disabled), consumer returns empty.
+		// Config stream consumer Params.
 		fx.Provide(func(c config.Component, deps struct {
 			fx.In
 			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
 		}) *configstreamconsumerimpl.Params {
+			if !c.GetBool("remote_agent.configstream.enabled") {
+				return nil
+			}
 			host := c.GetString("cmd_host")
 			port := c.GetInt("cmd_port")
 			if port <= 0 {
