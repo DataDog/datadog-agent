@@ -377,9 +377,8 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
 // connection close time and takes the max of the map value vs the sock value.
 // Same pattern as retransmits finalization via get_tcp_retrans_counts().
 static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_congestion_stats_t *cgs) {
-    __u32 val = 0;
-
 #if defined(COMPILE_CORE)
+    __u32 val = 0;
     __u64 reord_seen_offset = 0;
     LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
     if (reord_seen_offset > 0) {
@@ -405,6 +404,7 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_conge
             cgs->delivered_ce = val;
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    __u32 val = 0;
     BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
     if (val > cgs->reord_seen)
         cgs->reord_seen = val;
