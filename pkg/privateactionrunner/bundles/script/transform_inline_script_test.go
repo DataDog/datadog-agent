@@ -157,6 +157,7 @@ func TestPowershellLiteral(t *testing.T) {
 		{"MyNameIs$$$", "'MyNameIs$$$'"},
 		{`C:\path\file.txt`, `'C:\path\file.txt'`},
 		{map[string]any{"k": "v"}, `'{"k":"v"}'`},
+		{map[string]any{"url": "a&b<c>d"}, `'{"url":"a&b<c>d"}'`}, // & < > must not be HTML-escaped
 	}
 	for _, tc := range tests {
 		got, err := powershellLiteral(tc.input)
