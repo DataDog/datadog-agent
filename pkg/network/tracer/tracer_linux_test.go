@@ -3329,6 +3329,77 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
+// TestTCPCongestionSyncOnClose validates that congestion stats are finalized
+// at close time and carried in the batch close event. The test triggers
+// reord_seen on a connection, verifies the signal is present while active,
+// then closes the connection and verifies the closed connection still reports
+// non-zero reord_seen. The close-time value comes from the embedded
+// tcp_stats_t.congestion fields finalized via finalize_congestion_stats.
+func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("reord_seen requires kernel 4.19+")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	// Set up an isolated netns with netem reordering and a discard server.
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	// Dial before netem so handshake completes cleanly.
+	c := env.dialInNs(t)
+	defer c.Close()
+
+	env.addNetem(t, "delay", "10ms", "reorder", "50%")
+
+	// Phase 1: Trigger reord_seen while connection is active.
+	// Send data in poll loop until we see reord_seen > 0.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		data := make([]byte, 64*1024)
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(data) //nolint:errcheck
+		time.Sleep(200 * time.Millisecond)
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "active connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPReordSeen, uint32(0), "reord_seen should be > 0 while active")
+	}, 30*time.Second, 500*time.Millisecond)
+
+	// Phase 2: Close the connection and verify reord_seen survives.
+	// The close event carries the finalized congestion stats embedded in
+	// tcp_stats_t. Even though the polling-path delta was already consumed
+	// above, the close-time finalization reads the tcp_sock directly and
+	// takes the max — so the close event should have the full count.
+	localAddr := c.LocalAddr()
+	remoteAddr := c.RemoteAddr()
+	c.Close()
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(localAddr, remoteAddr, conns)
+		if !assert.True(ct, ok, "closed connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Monotonic.TCPReordSeen, uint32(0),
+			"reord_seen should be > 0 on closed connection (close-time sync)")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 // netemTestEnv holds the resources for an isolated network namespace where
 // tc netem can be applied to loopback without affecting other tests.
 type netemTestEnv struct {
