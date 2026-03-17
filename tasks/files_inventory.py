@@ -37,8 +37,10 @@ def _compare_inventories(
         size_change = previous.size_bytes - current.size_bytes
         changed_flags = FileChange.Flags(0)
         size_percent = None
+        size_bytes = None
         if size_change:
             size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
+            size_bytes = current.size_bytes - previous.size_bytes
             if size_percent > 10:
                 changed_flags |= FileChange.Flags.Size
         if current.chmod != previous.chmod:
@@ -50,7 +52,11 @@ def _compare_inventories(
 
         if changed_flags:
             changed_files[path] = FileChange(
-                flags=changed_flags, previous=previous, current=current, size_percent=size_percent
+                flags=changed_flags,
+                previous=previous,
+                current=current,
+                size_percent=size_percent,
+                size_bytes=size_bytes,
             )
         # Remove entries that were present in both parent & current so that when we're done
         # the current list only contains new files
