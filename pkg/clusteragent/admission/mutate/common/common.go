@@ -216,13 +216,14 @@ func defaultRegistryForProvider(provider string) string {
 // ContainerRegistry gets the container registry config using the specified
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set. If no global registry is
-// explicitly configured, it auto-selects based on the detected cloud provider.
+// explicitly configured, it auto-selects based on the detected cloud provider,
+// falling back to registry.datadoghq.com.
 func ContainerRegistry(ctx context.Context, datadogConfig config.Component, specificConfigOpt string) string {
-	if datadogConfig.IsSet(specificConfigOpt) {
+	if datadogConfig.IsConfigured(specificConfigOpt) {
 		return datadogConfig.GetString(specificConfigOpt)
 	}
 
-	if datadogConfig.IsSet("admission_controller.container_registry") {
+	if datadogConfig.IsConfigured("admission_controller.container_registry") {
 		return datadogConfig.GetString("admission_controller.container_registry")
 	}
 

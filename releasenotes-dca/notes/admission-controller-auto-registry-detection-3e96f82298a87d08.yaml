@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    The admission controller now auto-selects the container registry based on the
+    detected cloud provider (EKS uses ``public.ecr.aws/datadog``, GKE uses
+    ``gcr.io/datadoghq``, AKS uses ``datadoghq.azurecr.io``). The new default for
+    environments where no cloud provider is detected is ``registry.datadoghq.com``
+    (previously ``gcr.io/datadoghq``). Explicit configuration via
+    ``admission_controller.container_registry`` or webhook-specific overrides still
+    takes precedence. To restore the previous behavior, set
+    ``admission_controller.container_registry`` to ``gcr.io/datadoghq`` in your
+    ``datadog.yaml`` or via the ``DD_ADMISSION_CONTROLLER_CONTAINER_REGISTRY``
+    environment variable.

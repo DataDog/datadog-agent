@@ -1,0 +1,19 @@
+---
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+
+datadog:
+  apm:
+    instrumentation:
+      enabled: true
+      injector:
+        imageTag: "0.54.0"
+      enabledNamespaces: []
+      targets:
+        - name: "apps"
+          namespaceSelector:
+            matchNames:
+              - "registry-test"
+          ddTraceVersions:
+            python: "v3.18.1"
