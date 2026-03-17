@@ -10,11 +10,11 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/queue"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PatternKeyInfo contains what can identify a pattern.
@@ -145,13 +145,13 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 	for _, seriesKey := range seriesKeys {
 		parts := strings.Split(seriesKey.Name, ".")
 		if len(parts) < 2 {
-			fmt.Printf("[cc] Error parsing key %s: not enough parts\n", seriesKey.Name)
+			log.Warnf("Error parsing key %s: not enough parts", seriesKey.Name)
 			continue
 		}
 		keyStr := parts[len(parts)-2]
 		key, err := strconv.ParseInt(keyStr, 16, 64)
 		if err != nil {
-			fmt.Printf("[cc] Error parsing key %s: %v\n", keyStr, err)
+			log.Warnf("Error parsing key %s: %v", keyStr, err)
 			continue
 		}
 		if _, ok := d.Rates[key]; !ok {
@@ -196,12 +196,12 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 
 				patternKey, ok := d.extractor.PatternKeys[key]
 				if !ok {
-					fmt.Printf("[cc] Pattern key %s not found\n", keyStr)
+					log.Warnf("Pattern key %s not found", keyStr)
 					continue
 				}
 				cluster, err := d.extractor.PatternClusterer.GetCluster(patternKey.ClusterID)
 				if err != nil {
-					fmt.Printf("[cc] Error getting cluster for pattern key %s: %v\n", keyStr, err)
+					fmt.Printf("WARNING(LogPatternDetector): Error getting cluster for pattern key %s: %v\n", keyStr, err)
 					continue
 				}
 				pattern := cluster.PatternString()
@@ -211,7 +211,6 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 				}
 				description := fmt.Sprintf("Sudden %s in rate of log pattern (z-score: %.1f, score: %.1f). Pattern: `%s`", action, zScore, anomalyScore, pattern)
 
-				fmt.Printf("[cc] Anomaly detected (%s): %s\n", time.Unix(dataTime, 0).Format(time.RFC3339), description)
 				anomalies = append(anomalies, observerdef.Anomaly{
 					Source:       observerdef.MetricName(seriesKey.Name),
 					DetectorName: d.Name(),
