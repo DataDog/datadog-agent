@@ -101,6 +101,13 @@ func TestTransformInlineScript_NestedParam(t *testing.T) {
 	}
 }
 
+func TestTransformInlineScript_RootParametersRejected(t *testing.T) {
+	_, err := transformInlineScript(`Write-Output "{{ parameters }}"`, map[string]any{"x": "y"})
+	if err == nil || !strings.Contains(err.Error(), "{{ parameters }} is not supported") {
+		t.Errorf("expected unsupported error for root parameters expression, got: %v", err)
+	}
+}
+
 func TestTransformInlineScript_ExceedsMaxDepth(t *testing.T) {
 	_, err := transformInlineScript(`Write-Output "{{ parameters.a.b.c.d.e.f }}"`, map[string]any{})
 	if err == nil || !strings.Contains(err.Error(), "maximum supported nesting depth") {
