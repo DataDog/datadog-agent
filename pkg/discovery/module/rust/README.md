@@ -75,24 +75,22 @@ cargo +nightly miri test ffi::
 
 ## Running
 
-Start the service (requires appropriate permissions to create
-`/opt/datadog-agent/run/sysprobe.sock`):
+Start the service, passing the Unix socket path as an argument:
 
 ```bash
-sudo ./target/release/system-probe-lite
+./target/release/system-probe-lite run --socket ./sysprobe.sock
 ```
 
-The service listens on `/opt/datadog-agent/run/sysprobe.sock` and exposes a
-single endpoint:
+The service listens on the given socket path and exposes a
+`/discovery/services` endpoint.
 
-```
-GET /discovery/services
-Content-Type: application/json
+Query it using curl:
 
-{
-  "heartbeat_time": 1234567890,
-  "pids": [1234, 5678]
-}
+```bash
+curl --unix-socket ./sysprobe.sock -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"new_pids": [1234, 5678]}' \
+  http://unix/discovery/services
 ```
 
 ## Building with Bazel

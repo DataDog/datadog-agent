@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "obfuscate",
+    srcs = [
+        "cache.go",
+        "credit_cards.go",
+        "http.go",
+        "ip_address.go",
+        "json.go",
+        "json_scanner.go",
+        "memcached.go",
+        "obfuscate.go",
+        "redis.go",
+        "redis_tokenizer.go",
+        "sql.go",
+        "sql_tokenizer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/obfuscate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_go_sqllexer//:go-sqllexer",
+        "@com_github_outcaste_io_ristretto//:ristretto",
+        "@com_github_outcaste_io_ristretto//z",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "obfuscate_test",
+    srcs = [
+        "cache_test.go",
+        "credit_cards_test.go",
+        "http_test.go",
+        "ip_address_test.go",
+        "json_test.go",
+        "memcached_test.go",
+        "obfuscate_test.go",
+        "redis_test.go",
+        "redis_tokenizer_test.go",
+        "sql_fuzz_test.go",
+        "sql_test.go",
+        "sql_tokenizer_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":obfuscate"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

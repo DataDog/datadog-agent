@@ -27,6 +27,15 @@ struct process_path_key_t {
     struct path_key_t file_path_key;
 };
 
+struct bind_connect_sample_key_t {
+    u32 pid;
+    u16 family;
+    u16 port;
+    u16 protocol;
+    u16 padding;
+    u64 addr[2];
+};
+
 struct dr_erpc_state_t {
     char *userspace_buffer;
     struct path_key_t key;
