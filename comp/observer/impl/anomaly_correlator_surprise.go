@@ -142,6 +142,9 @@ func (c *SurpriseCorrelator) Name() string {
 	return "surprise_correlator"
 }
 
+// Setup is a no-op for SurpriseCorrelator as it has no component dependencies.
+func (c *SurpriseCorrelator) Setup(_ observer.GetComponentFunc) error { return nil }
+
 // Process adds an anomaly and updates co-occurrence counts.
 func (c *SurpriseCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()

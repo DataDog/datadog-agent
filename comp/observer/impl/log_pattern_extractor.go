@@ -53,6 +53,8 @@ func (e *LogPatternExtractor) Name() string {
 	return "log_pattern_extractor"
 }
 
+func (e *LogPatternExtractor) Setup(_ observerdef.GetComponentFunc) error { return nil }
+
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.MetricOutput {
 	message := string(log.GetContent())

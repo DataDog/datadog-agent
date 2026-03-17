@@ -33,6 +33,9 @@ type LogMetricsExtractor struct {
 
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
+// Setup is a no-op for LogMetricsExtractor as it has no component dependencies.
+func (a *LogMetricsExtractor) Setup(_ observer.GetComponentFunc) error { return nil }
+
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
 	content := log.GetContent()
 	tags := log.GetTags()

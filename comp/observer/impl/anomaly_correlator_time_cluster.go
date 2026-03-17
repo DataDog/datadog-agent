@@ -70,6 +70,9 @@ func (c *TimeClusterCorrelator) Name() string {
 	return "time_cluster_correlator"
 }
 
+// Setup is a no-op for TimeClusterCorrelator as it has no component dependencies.
+func (c *TimeClusterCorrelator) Setup(_ observer.GetComponentFunc) error { return nil }
+
 // Process adds an anomaly, either to an existing cluster or a new one.
 func (c *TimeClusterCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
@@ -257,9 +260,9 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 		"total_clusters":       len(c.clusters),
 		"total_anomalies":      totalAnomalies,
 		"largest_cluster_size": maxClusterSize,
-		"proximity_seconds": c.config.ProximitySeconds,
-		"window_seconds":    c.config.WindowSeconds,
-		"current_data_time": c.currentDataTime,
+		"proximity_seconds":    c.config.ProximitySeconds,
+		"window_seconds":       c.config.WindowSeconds,
+		"current_data_time":    c.currentDataTime,
 	}
 }
 

@@ -235,6 +235,8 @@ type ProfileView interface {
 type LogMetricsExtractor interface {
 	// Name returns the extractor name for debugging and logging.
 	Name() string
+	// Setup is called once all components are instantiated to resolve dependencies.
+	Setup(getComponent GetComponentFunc) error
 	// ProcessLog examines a log and returns any derived metrics.
 	ProcessLog(log LogView) []MetricOutput
 }
@@ -378,6 +380,8 @@ type SeriesDetector interface {
 type Correlator interface {
 	// Name returns the correlator name for debugging.
 	Name() string
+	// Setup is called once all components are instantiated to resolve dependencies.
+	Setup(getComponent GetComponentFunc) error
 	// ProcessAnomaly receives an anomaly event for accumulation.
 	ProcessAnomaly(a Anomaly)
 	// Advance performs time-based maintenance (eviction, window finalization)

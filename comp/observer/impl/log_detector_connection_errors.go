@@ -30,6 +30,9 @@ func (c *ConnectionErrorExtractor) Name() string {
 	return "connection_error_extractor"
 }
 
+// Setup is a no-op for ConnectionErrorExtractor as it has no component dependencies.
+func (c *ConnectionErrorExtractor) Setup(_ observer.GetComponentFunc) error { return nil }
+
 // ProcessLog checks if a log contains connection error patterns and returns a metric if so.
 // Anomaly detection is handled by metrics detection on the count aggregation of the emitted metric.
 func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {

@@ -135,6 +135,14 @@ func newEngine(cfg engineConfig) *engine {
 		fmt.Printf("[cc] Setting up detector: %+v\n", detector.Name())
 		_ = detector.Setup(e.getComponent)
 	}
+	for _, correlator := range e.correlators {
+		// TODO: Handle errors
+		_ = correlator.Setup(e.getComponent)
+	}
+	for _, extractor := range e.extractors {
+		// TODO: Handle errors
+		_ = extractor.Setup(e.getComponent)
+	}
 
 	return e
 }

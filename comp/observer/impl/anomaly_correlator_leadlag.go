@@ -250,6 +250,9 @@ func (c *LeadLagCorrelator) Name() string {
 	return "lead_lag_correlator"
 }
 
+// Setup is a no-op for LeadLagCorrelator as it has no component dependencies.
+func (c *LeadLagCorrelator) Setup(_ observer.GetComponentFunc) error { return nil }
+
 // Process adds an anomaly and updates lag histograms for all source pairs.
 func (c *LeadLagCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
