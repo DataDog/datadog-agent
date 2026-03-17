@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	telemetryModuleName  = "network_tracer__filter"
-	defaultSnapLen       = 4096
-	pcapTimeout          = time.Second
-	pcapBPFBufferSize    = 16 * 1024 * 1024 // 16 MB per-interface BPF ring buffer
+	telemetryModuleName = "network_tracer__filter"
+	defaultSnapLen      = 4096
+	pcapTimeout         = time.Second
+	pcapBPFBufferSize   = 16 * 1024 * 1024 // 16 MB per-interface BPF ring buffer
 
 	// localAddrRefreshInterval controls how often we discover new interfaces
 	// and refresh local address caches. After a BPF error (e.g. interface
@@ -236,10 +236,26 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		p.readerWg.Done()
 		return fmt.Errorf("error creating pcap handle on %s: %w", ifaceName, err)
 	}
-	inactive.SetSnapLen(p.snapLen)
-	inactive.SetPromisc(false)
-	inactive.SetTimeout(pcapTimeout)
-	inactive.SetBufferSize(pcapBPFBufferSize)
+	if err := inactive.SetSnapLen(p.snapLen); err != nil {
+		inactive.CleanUp()
+		p.readerWg.Done()
+		return fmt.Errorf("error setting snap len on %s: %w", ifaceName, err)
+	}
+	if err := inactive.SetPromisc(false); err != nil {
+		inactive.CleanUp()
+		p.readerWg.Done()
+		return fmt.Errorf("error setting promisc on %s: %w", ifaceName, err)
+	}
+	if err := inactive.SetTimeout(pcapTimeout); err != nil {
+		inactive.CleanUp()
+		p.readerWg.Done()
+		return fmt.Errorf("error setting timeout on %s: %w", ifaceName, err)
+	}
+	if err := inactive.SetBufferSize(pcapBPFBufferSize); err != nil {
+		inactive.CleanUp()
+		p.readerWg.Done()
+		return fmt.Errorf("error setting buffer size on %s: %w", ifaceName, err)
+	}
 	handle, err := inactive.Activate()
 	if err != nil {
 		inactive.CleanUp()
