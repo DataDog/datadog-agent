@@ -2,6 +2,8 @@
 
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
+load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 _CollectedPackagingInfo = provider(
     doc = "Internal provider used by _collect_dd_packaging_aspect to accumulate PackageFilegroupInfo instances.",
@@ -79,6 +81,7 @@ dd_collect_dependencies = rule(
     attrs = {
         "srcs": attr.label_list(
             aspects = [_collect_dd_packaging_aspect],
+            providers = [[CcInfo], [CcSharedLibraryInfo]]
         ),
     },
 )
