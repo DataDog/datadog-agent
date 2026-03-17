@@ -776,6 +776,22 @@ func (s *timeSeriesStorage) PointCountUpTo(key observer.SeriesKey, endTime int64
 	return searchAfter(stats.timestamps, endTime)
 }
 
+// PointCountSince returns the number of raw data points with timestamp >= startTime.
+// Uses binary search since timestamps are sorted.
+func (s *timeSeriesStorage) PointCountSince(key observer.SeriesKey, startTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	stats, ok := s.series[k]
+	if !ok || stats.pointCount() == 0 {
+		return 0
+	}
+
+	// It's basically the opposite of PointCountUpTo.
+	return len(stats.timestamps) - searchAtOrAfter(stats.timestamps, startTime)
+}
+
 // RecordObservationTime records that an observation occurred at the given timestamp.
 // This is used for log observations that may not produce virtual metrics but still
 // need to appear in DataTimestamps for replay fidelity.

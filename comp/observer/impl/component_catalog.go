@@ -81,6 +81,15 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Detectors ----
 			{
+				name:        "log_pattern_detector",
+				displayName: "Log Pattern Detector",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewLogPatternDetector()
+				},
+				defaultEnabled: true,
+			},
+			{
 				name:        "cusum",
 				displayName: "CUSUM",
 				kind:        componentDetector,

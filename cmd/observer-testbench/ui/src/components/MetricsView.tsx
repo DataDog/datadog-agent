@@ -24,6 +24,17 @@ function getAggregationType(name: string): AggregationType | null {
   return match ? (match[1] as AggregationType) : null;
 }
 
+const AGGREGATION_OVERRIDES: Array<{ prefix: string; aggregation: AggregationType }> = [
+  { prefix: '_virtual.log.log_pattern_extractor', aggregation: 'count' },
+];
+
+function getEffectiveAggregationType(baseName: string, globalType: AggregationType): AggregationType {
+  for (const override of AGGREGATION_OVERRIDES) {
+    if (baseName.startsWith(override.prefix)) return override.aggregation;
+  }
+  return globalType;
+}
+
 function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
@@ -104,7 +115,11 @@ export function MetricsView({
   }, [allSeries]);
 
   const filteredSeries = useMemo(
-    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
+    () => allSeries.filter((s) => {
+      const baseName = getBaseMetricName(s.name);
+      const effective = getEffectiveAggregationType(baseName, aggregationType);
+      return getAggregationType(s.name) === effective;
+    }),
     [allSeries, aggregationType]
   );
 
