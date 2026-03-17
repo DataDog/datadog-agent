@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -324,7 +325,7 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 			Tags:   []string{"env", "pod_name"},
 			Action: "exclude",
 		},
-	})
+	}, logmock.New(t))
 
 	fakeTagger := setupTagger(t)
 
@@ -372,7 +373,7 @@ func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store)
 			Tags:   []string{"env"},
 			Action: "exclude",
 		},
-	})
+	}, logmock.New(t))
 
 	fakeTagger := setupTagger(t)
 
@@ -415,7 +416,7 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 			Tags:   []string{"env", "pod_name", "thing"},
 			Action: "exclude",
 		},
-	})
+	}, logmock.New(t))
 
 	fakeTagger := setupTagger(t)
 
@@ -462,7 +463,7 @@ func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store)
 			Tags:   []string{"env", "pod_name"},
 			Action: "exclude",
 		},
-	})
+	}, logmock.New(t))
 
 	fakeTagger := setupTagger(t)
 
@@ -505,7 +506,7 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 			Tags:   []string{"env", "pod_name"},
 			Action: "exclude",
 		},
-	})
+	}, logmock.New(t))
 
 	fakeTagger := setupTagger(t)
 

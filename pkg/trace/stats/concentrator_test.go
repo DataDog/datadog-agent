@@ -1009,6 +1009,92 @@ func TestLangInStats(t *testing.T) {
 	})
 }
 
+func TestBaseServiceInStats(t *testing.T) {
+	t.Run("base_service_propagated", func(t *testing.T) {
+		now := time.Now()
+		spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc",
+		})}
+		traceutil.ComputeTopLevel(spans)
+
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "base-svc", stats.Stats[0].Service)
+	})
+
+	t.Run("empty_base_service", func(t *testing.T) {
+		now := time.Now()
+		spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans)
+
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "", stats.Stats[0].Service)
+	})
+
+	t.Run("different_base_service_separate_payloads", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+
+		spans1 := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc-1",
+		})}
+		traceutil.ComputeTopLevel(spans1)
+		testTrace1 := toProcessedTrace(spans1, "none", "", "", "", "", "")
+
+		spans2 := []*pb.Span{testSpan(now, 2, 0, 60, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc-2",
+		})}
+		traceutil.ComputeTopLevel(spans2)
+		testTrace2 := toProcessedTrace(spans2, "none", "", "", "", "", "")
+
+		c.addNow(testTrace1, infraTags{})
+		c.addNow(testTrace2, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 2)
+
+		services := make(map[string]bool)
+		for _, stat := range stats.Stats {
+			services[stat.Service] = true
+		}
+		assert.True(t, services["base-svc-1"])
+		assert.True(t, services["base-svc-2"])
+	})
+
+	t.Run("same_base_service_same_payload", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+
+		spans1 := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc",
+		})}
+		traceutil.ComputeTopLevel(spans1)
+		testTrace1 := toProcessedTrace(spans1, "none", "", "", "", "", "")
+
+		spans2 := []*pb.Span{testSpan(now, 2, 0, 60, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc",
+		})}
+		traceutil.ComputeTopLevel(spans2)
+		testTrace2 := toProcessedTrace(spans2, "none", "", "", "", "", "")
+
+		c.addNow(testTrace1, infraTags{})
+		c.addNow(testTrace2, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "base-svc", stats.Stats[0].Service)
+	})
+}
+
 func TestServiceSourceInStats(t *testing.T) {
 	now := time.Now()
 	c := NewTestConcentrator(now)

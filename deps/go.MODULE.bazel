@@ -1,5 +1,6 @@
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(go_work = "//:go.work")
+use_repo(go_sdk, "go_host_compatible_sdk_label")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
@@ -319,6 +320,7 @@ use_repo(
     "com_github_olekukonko_tablewriter",
     "com_github_oliveagle_jsonpath",
     "com_github_open_policy_agent_opa",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
@@ -330,6 +332,7 @@ use_repo(
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
     "com_github_openshift_api",
+    "com_github_outcaste_io_ristretto",
     "com_github_pahanini_go_grpc_bidirectional_streaming_example",
     "com_github_patrickmn_go_cache",
     "com_github_pierrec_lz4_v4",
@@ -387,6 +390,7 @@ use_repo(
     "com_github_yusufpapurcu_wmi",
     "com_gitlab_gitlab_org_api_client_go",
     "in_gopkg_datadog_dd_trace_go_v1",
+    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",
@@ -436,6 +440,7 @@ use_repo(
     "io_opentelemetry_go_collector_extension_extensioncapabilities",
     "io_opentelemetry_go_collector_featuregate",
     "io_opentelemetry_go_collector_otelcol",
+    "io_opentelemetry_go_collector_otelcol_otelcoltest",
     "io_opentelemetry_go_collector_pdata",
     "io_opentelemetry_go_collector_processor",
     "io_opentelemetry_go_collector_processor_batchprocessor",
@@ -492,5 +497,7 @@ use_repo(
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
 )
+
+use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")
 
 use_repo_rule("//bazel/rules/go_stringer:repo.bzl", "go_stringer")(name = "go_stringer")
