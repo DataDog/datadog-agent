@@ -66,10 +66,18 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 	var order []string
 
 	for _, path := range parsed.Expressions() {
-		if len(path) < 2 || path[0] != "parameters" {
+		if len(path) == 0 || path[0] != "parameters" {
 			// Non-parameters expressions are not supported for inline PowerShell scripts;
 			// they will be rendered as empty strings to match pre-existing behaviour.
 			continue
+		}
+		if len(path) == 1 {
+			// {{ parameters }} refers to the entire parameters object. This cannot be
+			// safely assigned to a single variable in the preamble approach. Reference
+			// individual fields instead, e.g. {{ parameters.fieldName }}.
+			return nil, fmt.Errorf(
+				"{{ parameters }} is not supported in inline scripts; reference individual fields using {{ parameters.fieldName }}",
+			)
 		}
 		depth := len(path) - 1 // levels below "parameters"
 		if depth > maxParameterDepth {
@@ -101,6 +109,11 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 	transformedBody, err := parsed.RenderWith(func(path []string) (string, error) {
 		if len(path) >= 2 && path[0] == "parameters" {
 			return "$" + pathToVarName(path), nil
+		}
+		if len(path) == 1 && path[0] == "parameters" {
+			return "", fmt.Errorf(
+				"{{ parameters }} is not supported in inline scripts; reference individual fields using {{ parameters.fieldName }}",
+			)
 		}
 		return "", nil // non-parameters expressions → empty string
 	})
