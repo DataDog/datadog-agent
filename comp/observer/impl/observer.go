@@ -251,8 +251,12 @@ func NewComponent(deps Requires) Provides {
 	go obs.run()
 
 	// Start periodic metric dump if configured
-	dumpPath := cfg.GetString("observer.debug_dump_path")
-	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
+	var dumpPath string
+	var dumpInterval time.Duration
+	if cfg != nil {
+		dumpPath = cfg.GetString("observer.debug_dump_path")
+		dumpInterval = cfg.GetDuration("observer.debug_dump_interval")
+	}
 	if dumpPath != "" && dumpInterval > 0 {
 		go func() {
 			ticker := time.NewTicker(dumpInterval)
@@ -268,14 +272,20 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
-	enabled := cfg.GetBool("observer.capture_agent_internal_logs.enabled")
+	var enabled bool
+	if cfg != nil {
+		enabled = cfg.GetBool("observer.capture_agent_internal_logs.enabled")
+	}
 	if deps.AgentInternalLogTap.Enabled != nil {
 		enabled = *deps.AgentInternalLogTap.Enabled
 	}
 	if enabled {
-		sampleInfo := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_info")
-		sampleDebug := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_debug")
-		sampleTrace := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_trace")
+		var sampleInfo, sampleDebug, sampleTrace float64
+		if cfg != nil {
+			sampleInfo = cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_info")
+			sampleDebug = cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_debug")
+			sampleTrace = cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_trace")
+		}
 		if deps.AgentInternalLogTap.SampleRateInfo != nil {
 			sampleInfo = *deps.AgentInternalLogTap.SampleRateInfo
 		}

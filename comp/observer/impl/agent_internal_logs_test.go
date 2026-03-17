@@ -30,6 +30,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("observer.analysis.enabled", false, model.SourceAgentRuntime) })
 
 	provides := NewComponent(Requires{
+		Config: pkgconfigsetup.Datadog(),
 		AgentInternalLogTap: AgentInternalLogTapConfig{
 			Enabled:         &enabled,
 			SampleRateInfo:  &one,
