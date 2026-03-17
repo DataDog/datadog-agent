@@ -10,7 +10,9 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os/exec"
 	"syscall"
 
@@ -37,8 +39,11 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 
 	repos := repository.NewRepositories(paths.PackagesPath, nil)
 	packageStates, err := repos.GetStates()
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("error getting package states from disk: %w", err)
+	}
+	if packageStates == nil {
+		packageStates = make(map[string]repository.State)
 	}
 
 	configDirs := &config.Directories{
