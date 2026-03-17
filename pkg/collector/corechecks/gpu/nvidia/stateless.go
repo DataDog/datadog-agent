@@ -451,7 +451,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "device_unhealthy_count",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				if (!env.IsFeaturePresent(env.KubernetesDevicePlugins)) {
+				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
 					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
 				}
 
