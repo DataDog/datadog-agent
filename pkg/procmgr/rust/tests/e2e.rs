@@ -61,6 +61,25 @@ fn test_cli_config_basic() {
 }
 
 #[test]
+fn test_cli_config_json() {
+    let env = TestEnv::new()
+        .with_config("svc-a", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc-b", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    let config_dir = env.config_dir().display().to_string();
+
+    let out = env.cli(&["config", "--json"]);
+    out.assert_success();
+    let json = out.stdout_json();
+
+    assert_eq!(json["source"], "yaml");
+    assert_eq!(json["location"], config_dir.as_str());
+    assert_eq!(json["loaded_processes"], 2);
+    assert_eq!(json["runtime_processes"], 0);
+}
+
+#[test]
 fn test_cli_status_basic() {
     let env = TestEnv::new()
         .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
