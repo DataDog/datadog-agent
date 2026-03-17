@@ -29,7 +29,11 @@ func (s *spyDetector) Name() string { return s.name }
 func (s *spyDetector) Setup(get observerdef.GetComponentFunc) error {
 	s.setupCalled = true
 	if s.resolvedName != "" {
-		s.resolved = get(s.resolvedName)
+		c, err := get(s.resolvedName)
+		if err != nil {
+			return err
+		}
+		s.resolved = c
 	}
 	return nil
 }
@@ -50,7 +54,11 @@ func (s *spyCorrelator) Name() string { return s.name }
 func (s *spyCorrelator) Setup(get observerdef.GetComponentFunc) error {
 	s.setupCalled = true
 	if s.resolvedName != "" {
-		s.resolved = get(s.resolvedName)
+		c, err := get(s.resolvedName)
+		if err != nil {
+			return err
+		}
+		s.resolved = c
 	}
 	return nil
 }
@@ -71,7 +79,11 @@ func (s *spyExtractor) Name() string { return s.name }
 func (s *spyExtractor) Setup(get observerdef.GetComponentFunc) error {
 	s.setupCalled = true
 	if s.resolvedName != "" {
-		s.resolved = get(s.resolvedName)
+		c, err := get(s.resolvedName)
+		if err != nil {
+			return err
+		}
+		s.resolved = c
 	}
 	return nil
 }
@@ -166,14 +178,19 @@ func TestEngine_SetupExtractorCanResolveCorrelator(t *testing.T) {
 	assert.Equal(t, cor, ext.resolved)
 }
 
-// TestEngine_SetupUnknownComponentReturnsNil verifies that requesting a non-existent
-// component by name returns nil rather than panicking.
-func TestEngine_SetupUnknownComponentReturnsNil(t *testing.T) {
+// TestEngine_SetupUnknownComponentReturnsError verifies that requesting a non-existent
+// component via getComponent propagates an error through Setup and out of newEngine.
+func TestEngine_SetupUnknownComponentReturnsError(t *testing.T) {
 	det := &spyDetector{name: "my_detector", resolvedName: "does_not_exist"}
 
-	newTestEngine(t, []observerdef.Detector{det}, nil, nil)
+	_, err := newEngine(engineConfig{
+		storage:   newTimeSeriesStorage(),
+		detectors: []observerdef.Detector{det},
+	})
 
-	assert.Nil(t, det.resolved, "unknown component should resolve to nil")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "does_not_exist")
+	assert.True(t, det.setupCalled)
 }
 
 // TestEngine_SetupErrorPropagated verifies that newEngine returns an error when a

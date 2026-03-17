@@ -644,22 +644,23 @@ func (e *engine) ReplayStoredData() advanceResult {
 	}
 }
 
-// Returns a component (extractor, detector, correlator) by name or nil if not found.
-func (e *engine) getComponent(name string) any {
+// getComponent returns a component (extractor, detector, or correlator) by name.
+// Returns an error if no component with the given name is registered.
+func (e *engine) getComponent(name string) (any, error) {
 	for _, extractor := range e.extractors {
 		if extractor.Name() == name {
-			return extractor
+			return extractor, nil
 		}
 	}
 	for _, detector := range e.detectors {
 		if detector.Name() == name {
-			return detector
+			return detector, nil
 		}
 	}
 	for _, correlator := range e.correlators {
 		if correlator.Name() == name {
-			return correlator
+			return correlator, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("component %q not found", name)
 }

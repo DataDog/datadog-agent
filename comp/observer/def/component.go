@@ -477,8 +477,9 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
-// Will return a component (extractor) by name (not the display name).
-type GetComponentFunc func(name string) any
+// GetComponentFunc returns a component (extractor, detector, or correlator) by name.
+// Returns an error if no component with the given name is registered.
+type GetComponentFunc func(name string) (any, error)
 
 // Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.
