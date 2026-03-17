@@ -65,6 +65,17 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 	}, opts...)
 }
 
+// NewAWSManager creates a docker Manager with the Amazon ECR credentials helper pre-installed.
+// The ECR credentials helper enables automatic authentication against ECR registries,
+// including our pull-through cache. Use this instead of NewManager when the host is on AWS.
+func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOption) (*Manager, error) {
+	ecrCreds, err := InstallECRCredentialsHelper(e.CommonNamer().WithPrefix("docker"), host, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return NewManager(e, host, utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCreds))...)
+}
+
 func (d *Manager) Export(ctx *pulumi.Context, out *ManagerOutput) error {
 	return components.Export(ctx, d, out)
 }
@@ -168,13 +179,7 @@ func (d *Manager) install() (command.Command, error) {
 		return nil, err
 	}
 
-	// Install ECR credentials helper to auto-login to (among others) our pull-through ECR cache
-	ecrCredsHelperInstall, err := InstallECRCredentialsHelper(d.namer, d.Host, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	restartDockerDaemon, err := d.Host.OS.ServiceManger().EnsureRestarted("docker", nil, utils.MergeOptions(opts, utils.PulumiDependsOn(daemonPatch, ecrCredsHelperInstall))...)
+	restartDockerDaemon, err := d.Host.OS.ServiceManger().EnsureRestarted("docker", nil, utils.MergeOptions(opts, utils.PulumiDependsOn(daemonPatch))...)
 	if err != nil {
 		return nil, err
 	}
