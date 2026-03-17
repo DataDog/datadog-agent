@@ -32,6 +32,9 @@ pub struct Args {
 
     /// PID file path (--pid, optional)
     pub pid_path: Option<PathBuf>,
+
+    /// Unknown arguments encountered during parsing (logged after logger init).
+    pub unknown_args: Vec<String>,
 }
 
 impl Args {
@@ -52,6 +55,7 @@ impl Args {
         let mut log_level = None;
         let mut log_file = None;
         let mut pid_path = None;
+        let mut unknown_args = Vec::new();
 
         while let Some(arg) = iter.next() {
             if arg == "--socket" {
@@ -78,6 +82,10 @@ impl Args {
                 }
                 continue;
             }
+            // Collect rather than error so that newer helm charts that pass
+            // newly-added flags don't break older agents on upgrade.
+            // Warnings are logged after the logger is initialized.
+            unknown_args.push(arg);
         }
 
         let Some(socket_path) = socket_path else {
@@ -90,6 +98,7 @@ impl Args {
             log_level,
             log_file,
             pid_path,
+            unknown_args,
         })
     }
 }
@@ -218,6 +227,33 @@ mod tests {
             err.contains("Available commands: run"),
             "error should list available commands: {err}"
         );
+    }
+
+    #[test]
+    fn test_parse_unknown_flags_collected() {
+        let a = Args::parse(
+            args(&[
+                "system-probe-lite",
+                "run",
+                "--socket",
+                "/run/sysprobe.sock",
+                "--future-flag",
+                "future-value",
+            ])
+            .into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.socket_path, "/run/sysprobe.sock");
+        assert_eq!(a.unknown_args, vec!["--future-flag", "future-value"]);
+    }
+
+    #[test]
+    fn test_parse_no_unknown_flags() {
+        let a = Args::parse(
+            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert!(a.unknown_args.is_empty());
     }
 
     #[test]

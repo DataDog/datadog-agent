@@ -261,6 +261,9 @@ async fn main() -> Result<()> {
         log_file: args.log_file.clone(),
     })?;
     info!("Starting system-probe-lite");
+    for arg in &args.unknown_args {
+        warn!("unknown argument: {arg}");
+    }
 
     let result = run_system_probe_lite(&args.socket_path).await;
 
