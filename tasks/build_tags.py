@@ -63,6 +63,7 @@ ALL_TAGS = {
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "python",
+    "re2_cgo",  # enables the go-re2 / CRE2 CGo regex engine backed by Google RE2 for logs processing; only used in Omnibus builds where libre2 is available
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",

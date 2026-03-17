@@ -1,0 +1,13 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "cre2",
+    srcs = ["cre2.cpp"],
+    hdrs = ["cre2.h"],
+    copts = [
+        "-std=c++17",
+        "-fPIC",
+    ],
+    deps = ["@re2//:libre2"],
+    visibility = ["//visibility:public"],
+)
