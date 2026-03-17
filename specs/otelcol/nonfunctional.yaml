@@ -61,6 +61,21 @@ requirements:
     properties:
       source: https://opentelemetry.io/docs/collector/troubleshooting/#zpages
 
+  - id: OTELCOL036
+    short: Apply remote configuration without interrupting telemetry processing
+    long: |
+      When the Collector receives and applies a new configuration via OpAmp remote
+      configuration, in-flight telemetry being processed through the active pipelines
+      shall not be dropped or interrupted.
+
+      The Collector shall perform a hot reload: new components are started before old
+      ones are stopped, and the switchover is transparent to telemetry flowing through
+      the pipeline.
+    tags: [opamp, config, reliability]
+    ref: [OTELCOL030]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#remote-configuration
+
   - id: OTELCOL023
     short: Reject invalid configuration with a clear error message
     long: |

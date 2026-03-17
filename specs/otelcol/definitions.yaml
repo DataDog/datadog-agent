@@ -144,3 +144,19 @@ requirements:
       nodes such as collectors and telemetry backends.
     properties:
       source: https://opentelemetry.io/docs/specs/otlp/#protocol-details
+
+  - id: OTELCOL035
+    short: OpAmp — Open Agent Management Protocol
+    long: |
+      OpAmp (Open Agent Management Protocol) is a network protocol for remote management
+      of large fleets of telemetry agents.
+
+      It defines a bidirectional communication channel between a management server and
+      one or more agents (such as the OpenTelemetry Collector), over which the server
+      can push configuration updates, monitor agent health, receive status reports, and
+      orchestrate package installations or upgrades.
+
+      OpAmp messages are encoded in Protobuf and transmitted over either a persistent
+      WebSocket connection (full-duplex) or plain HTTP POST requests (half-duplex).
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/
