@@ -90,7 +90,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1, true)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -104,6 +104,6 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
+		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2, true)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
