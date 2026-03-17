@@ -211,6 +211,14 @@ impl ManagedProcess {
     }
 
     pub fn spawn(&mut self) -> Result<()> {
+        let result = self.try_spawn();
+        if result.is_err() {
+            self.transition_to(ProcessState::Failed);
+        }
+        result
+    }
+
+    fn try_spawn(&mut self) -> Result<()> {
         let mut cmd = self.build_command()?;
 
         let child = cmd
@@ -628,7 +636,7 @@ pub mod tests {
         let mut proc = ManagedProcess::new_config("bad".into(), cfg);
         assert!(proc.spawn().is_err());
         assert!(!proc.is_running());
-        assert_eq!(proc.state(), ProcessState::Created);
+        assert_eq!(proc.state(), ProcessState::Failed);
     }
 
     #[tokio::test]

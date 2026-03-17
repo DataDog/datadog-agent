@@ -7,6 +7,7 @@ mod helpers;
 
 use helpers::{pid_is_alive, CliRunner, TestEnv};
 use std::path::Path;
+use std::time::Duration;
 
 #[test]
 fn test_cli_daemon_starts_ok() {
@@ -57,4 +58,191 @@ fn test_cli_config_basic() {
         .assert_field("Location", &config_dir)
         .assert_field("Loaded Processes", "1")
         .assert_field("Runtime Processes", "0");
+}
+
+#[test]
+fn test_cli_list_empty() {
+    let env = TestEnv::new().start();
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_stdout_contains("No processes");
+}
+
+#[test]
+fn test_cli_list_one_running() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["list"]);
+    out.assert_success()
+        .assert_table_row("sleeper", &[("STATE", "Running"), ("COMMAND", "/bin/sleep")])
+        .assert_table_row_count(1);
+
+    let pid = out.pid_from_table_row("sleeper");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_list_multiple_processes() {
+    let env = TestEnv::new()
+        .with_config("alpha", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("beta", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[alpha] spawned");
+    env.daemon().wait_for_log_default("[beta] spawned");
+
+    let out = env.cli(&["list"]);
+    out.assert_success()
+        .assert_table_row("alpha", &[("STATE", "Running")])
+        .assert_table_row("beta", &[("STATE", "Running")])
+        .assert_table_row_count(2);
+
+    let pid_a = out.pid_from_table_row("alpha");
+    let pid_b = out.pid_from_table_row("beta");
+    assert!(pid_is_alive(pid_a), "alpha PID {pid_a} should be alive");
+    assert!(pid_is_alive(pid_b), "beta PID {pid_b} should be alive");
+}
+
+#[test]
+fn test_cli_list_mixed_states() {
+    let env = TestEnv::new()
+        .with_config("runner", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config(
+            "idle",
+            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[runner] spawned");
+
+    let out = env.cli(&["list"]);
+    out.assert_success()
+        .assert_table_row("runner", &[("STATE", "Running")])
+        .assert_table_row("idle", &[("STATE", "Created"), ("PID", "-")])
+        .assert_table_row_count(2);
+
+    let pid = out.pid_from_table_row("runner");
+    assert!(pid_is_alive(pid), "runner PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_list_spawn_failure() {
+    let env = TestEnv::new()
+        .with_config("bad", "command: /nonexistent/binary\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[bad] failed to spawn");
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("bad", &[("STATE", "Failed"), ("PID", "-")])
+        .assert_table_row_count(1);
+}
+
+#[test]
+fn test_cli_list_exited_state() {
+    let env = TestEnv::new()
+        .with_config("quick", "command: /usr/bin/true\nrestart: never\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[quick] exited with");
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("quick", &[("STATE", "Exited"), ("LAST EXIT", "exit 0")])
+        .assert_table_row_count(1);
+}
+
+#[test]
+fn test_cli_list_last_exit_column() {
+    let env = TestEnv::new()
+        .with_config("ok", "command: /usr/bin/true\nrestart: never\n")
+        .with_config(
+            "fail",
+            "command: /usr/bin/false\nrestart: never\n",
+        )
+        .with_config("alive", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[ok] exited with");
+    env.daemon().wait_for_log_default("[fail] exited with");
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("ok", &[("LAST EXIT", "exit 0")])
+        .assert_table_row("fail", &[("LAST EXIT", "exit 1")])
+        .assert_table_row("alive", &[("LAST EXIT", "-")]);
+}
+
+#[test]
+fn test_cli_list_json() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let out = env.cli(&["list", "--json"]);
+    out.assert_success();
+    let json = out.stdout_json();
+    let arr = json.as_array().expect("expected JSON array");
+    assert_eq!(arr.len(), 1);
+
+    let entry = &arr[0];
+    assert_eq!(entry["name"], "sleeper");
+    assert_eq!(entry["state"], "Running");
+    assert_eq!(entry["command"], "/bin/sleep");
+    assert_eq!(entry["args"], serde_json::json!(["300"]));
+    assert_eq!(entry["restart_count"], 0);
+    assert!(!entry["uuid"].as_str().unwrap_or("").is_empty());
+    assert!(entry["last_exit_code"].is_null());
+    assert!(entry["last_signal"].is_null());
+
+    let pid = entry["pid"].as_u64().expect("pid should be a number") as u32;
+    assert!(pid > 0, "running process should have a PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_list_json_empty() {
+    let env = TestEnv::new().start();
+
+    let out = env.cli(&["list", "--json"]);
+    out.assert_success();
+    let json = out.stdout_json();
+    let arr = json.as_array().expect("expected JSON array");
+    assert!(arr.is_empty(), "expected empty array, got {json}");
+}
+
+#[test]
+fn test_cli_list_shows_restart_count() {
+    let env = TestEnv::new()
+        .with_config(
+            "crasher",
+            "command: /usr/bin/false\nrestart: always\n",
+        )
+        .start();
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
+        "crasher should have restarted at least twice"
+    );
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row_count(1);
+
+    let out = env.cli(&["list", "--json"]);
+    out.assert_success();
+    let json = out.stdout_json();
+    let count = json[0]["restart_count"]
+        .as_u64()
+        .expect("restart_count should be a number");
+    assert!(count >= 2, "expected restart_count >= 2, got {count}");
 }

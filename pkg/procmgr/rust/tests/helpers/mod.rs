@@ -262,6 +262,136 @@ impl CliOutput {
         );
         self
     }
+
+    pub fn stdout_json(&self) -> serde_json::Value {
+        serde_json::from_str(&self.stdout).unwrap_or_else(|e| {
+            panic!("failed to parse stdout as JSON: {e}\nstdout: {}", self.stdout)
+        })
+    }
+
+    pub fn assert_stdout_contains(&self, pattern: &str) -> &Self {
+        assert!(
+            self.stdout.contains(pattern),
+            "stdout does not contain '{pattern}'\nstdout: {}",
+            self.stdout,
+        );
+        self
+    }
+
+    /// Find a table row by NAME and assert that each (column, expected) pair matches.
+    /// The header is the first line of stdout; columns are identified by their
+    /// header positions (supports multi-word headers like "LAST EXIT").
+    pub fn assert_table_row(&self, row_name: &str, expected: &[(&str, &str)]) -> &Self {
+        let (columns, rows) = self.parse_table();
+        let row = rows
+            .iter()
+            .find(|r| extract_column(r, 0, &columns).as_str() == row_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "row '{row_name}' not found in table\nstdout: {}",
+                    self.stdout
+                )
+            });
+        for &(col_name, expected_val) in expected {
+            let col_idx = columns
+                .iter()
+                .position(|&(name, _)| name == col_name)
+                .unwrap_or_else(|| panic!("column '{col_name}' not in header"));
+            let actual = extract_column(row, col_idx, &columns);
+            assert_eq!(
+                actual, expected_val,
+                "row '{row_name}', column '{col_name}': expected '{expected_val}', got '{actual}'",
+            );
+        }
+        self
+    }
+
+    pub fn assert_table_row_count(&self, n: usize) -> &Self {
+        let (_, rows) = self.parse_table();
+        assert_eq!(
+            rows.len(),
+            n,
+            "expected {n} table rows, got {}\nstdout: {}",
+            rows.len(),
+            self.stdout,
+        );
+        self
+    }
+
+    pub fn pid_from_table_row(&self, row_name: &str) -> u32 {
+        let (columns, rows) = self.parse_table();
+        let row = rows
+            .iter()
+            .find(|r| extract_column(r, 0, &columns).as_str() == row_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "row '{row_name}' not found in table\nstdout: {}",
+                    self.stdout
+                )
+            });
+        let pid_idx = columns
+            .iter()
+            .position(|&(name, _)| name == "PID")
+            .expect("no PID column");
+        let val = extract_column(row, pid_idx, &columns);
+        val.parse::<u32>()
+            .unwrap_or_else(|_| panic!("PID '{val}' is not a u32 for row '{row_name}'"))
+    }
+
+    fn parse_table(&self) -> (Vec<(&str, usize)>, Vec<&str>) {
+        let mut lines = self.stdout.lines();
+        let header = lines
+            .next()
+            .unwrap_or_else(|| panic!("empty stdout, expected table header"));
+        let columns = parse_table_columns(header);
+        let rows: Vec<&str> = lines.filter(|l| !l.trim().is_empty()).collect();
+        (columns, rows)
+    }
+}
+
+/// Detect column start positions from a table header line.
+/// Handles multi-word headers (e.g. "LAST EXIT") by matching known names
+/// before falling back to whitespace-delimited tokens.
+fn parse_table_columns(header: &str) -> Vec<(&str, usize)> {
+    let known_multi_word = ["LAST EXIT"];
+    let mut cols: Vec<(&str, usize)> = Vec::new();
+    let mut masked = header.to_string();
+
+    for name in &known_multi_word {
+        if let Some(pos) = header.find(name) {
+            cols.push((name, pos));
+            masked.replace_range(pos..pos + name.len(), &" ".repeat(name.len()));
+        }
+    }
+
+    let bytes = masked.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_uppercase() {
+            let start = i;
+            while i < bytes.len() && (bytes[i].is_ascii_uppercase() || bytes[i] == b'_') {
+                i += 1;
+            }
+            if !cols.iter().any(|&(_, p)| p == start) {
+                cols.push((&header[start..i], start));
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    cols.sort_by_key(|&(_, pos)| pos);
+    cols
+}
+
+fn extract_column(row: &str, col_idx: usize, columns: &[(&str, usize)]) -> String {
+    let start = columns[col_idx].1;
+    let end = if col_idx + 1 < columns.len() {
+        columns[col_idx + 1].1
+    } else {
+        row.len()
+    };
+    row.get(start..end).unwrap_or("").trim().to_string()
 }
 
 // ---------------------------------------------------------------------------
