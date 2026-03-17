@@ -39,9 +39,8 @@ static IGNORE_FAMILIES: phf::Set<&'static [u8]> = phf_set! {
 pub fn should_ignore_comm(pid: i32) -> bool {
     let comm_path = procfs::root_path().join(pid.to_string()).join("comm");
 
-    let mut file = match File::open(&comm_path) {
-        Ok(f) => f,
-        Err(_) => return true,
+    let Ok(mut file) = File::open(&comm_path) else {
+        return true;
     };
 
     let mut buf = [0u8; MAX_COMM_LEN];
