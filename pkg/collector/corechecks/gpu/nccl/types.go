@@ -95,7 +95,7 @@ func parseEvent(line []byte) (NCCLInspectorEvent, error) {
 		}
 		return nvidia.toNCCLInspectorEvent(), nil
 	}
-	var event NCCLInspectorEvent
+	event := NCCLInspectorEvent{GlobalRank: -1}
 	err := json.Unmarshal(line, &event)
 	return event, err
 }
