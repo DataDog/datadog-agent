@@ -268,6 +268,8 @@ type ProcessSerializer struct {
 	PPid *uint32 `json:"ppid,omitempty"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
+	// ForkFlags
+	ForkFlags int `json:"fork_flags"`
 	// User ID
 	UID int `json:"uid"`
 	// Group ID
@@ -960,6 +962,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
 			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),

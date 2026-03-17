@@ -1,0 +1,6 @@
+site: datadoghq.com
+api_key: test_api_key_123
+apm_config:
+  profiling_additional_endpoints:
+    https://intake.profile.us3.datadoghq.com/v1/input:
+      - us3_api_key
