@@ -18,22 +18,23 @@ import (
 )
 
 // WaitForContainerInstances waits for at least minInstances container instances to be registered
-// in the ECS cluster before returning. This ensures services can place tasks.
+// in the ECS cluster before returning. Returns the cluster ARN as a StringOutput so it can be
+// used as an implicit dependency for downstream resources.
 func WaitForContainerInstances(e aws.Environment, clusterArn pulumi.StringOutput, minInstances int) pulumi.StringOutput {
-	// Use pulumi.All to wait for the cluster ARN to be resolved
 	return pulumi.All(clusterArn).ApplyT(func(args []interface{}) (string, error) {
 		clusterArnStr := args[0].(string)
 
-		// Load AWS SDK config
 		ctx := context.Background()
-		cfg, err := awsconfig.LoadDefaultConfig(ctx)
+		cfg, err := awsconfig.LoadDefaultConfig(ctx,
+			awsconfig.WithRegion(e.Region()),
+			awsconfig.WithSharedConfigProfile(e.Profile()),
+		)
 		if err != nil {
 			return "", fmt.Errorf("failed to load AWS config: %w", err)
 		}
 
 		ecsClient := ecs.NewFromConfig(cfg)
 
-		// Wait for container instances with exponential backoff
 		maxWaitTime := 5 * time.Minute
 		pollInterval := 10 * time.Second
 		startTime := time.Now()
@@ -41,12 +42,10 @@ func WaitForContainerInstances(e aws.Environment, clusterArn pulumi.StringOutput
 		e.Ctx().Log.Info(fmt.Sprintf("Waiting for at least %d container instance(s) to register in cluster %s", minInstances, clusterArnStr), nil)
 
 		for {
-			// Check if we've exceeded max wait time
 			if time.Since(startTime) > maxWaitTime {
 				return "", fmt.Errorf("timeout waiting for container instances after %v", maxWaitTime)
 			}
 
-			// List container instances
 			listOutput, err := ecsClient.ListContainerInstances(ctx, &ecs.ListContainerInstancesInput{
 				Cluster: awssdk.String(clusterArnStr),
 				Status:  "ACTIVE",
@@ -60,13 +59,11 @@ func WaitForContainerInstances(e aws.Environment, clusterArn pulumi.StringOutput
 			registeredCount := len(listOutput.ContainerInstanceArns)
 			e.Ctx().Log.Info(fmt.Sprintf("Found %d registered container instance(s) (need %d)", registeredCount, minInstances), nil)
 
-			// Check if we have enough instances
 			if registeredCount >= minInstances {
 				e.Ctx().Log.Info(fmt.Sprintf("Container instances ready! Found %d instance(s)", registeredCount), nil)
-				return "ready", nil
+				return clusterArnStr, nil
 			}
 
-			// Wait before next poll
 			e.Ctx().Log.Info(fmt.Sprintf("Waiting %v before checking again...", pollInterval), nil)
 			time.Sleep(pollInterval)
 		}

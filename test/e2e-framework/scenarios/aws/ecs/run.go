@@ -105,38 +105,40 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		env.DisableFakeIntake()
 	}
 
-	// Wait for container instances to be ready before deploying EC2 workloads
-	// This prevents services from timing out while waiting for instances to register
+	// Wait for container instances to be ready before deploying EC2 workloads.
+	// The wait output returns the cluster ARN after instances are registered,
+	// creating an implicit Pulumi dependency for downstream resources.
+	ec2ClusterArn := cluster.ClusterArn
 	if isEC2ProviderSet(clusterParams) {
 		ctx.Log.Info("Waiting for EC2 container instances to register with the cluster...", nil)
-		_ = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 2)
+		ec2ClusterArn = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 1)
 	}
 
 	// Testing workload if at least one EC2 node group is present
 	if params.testingWorkload && isEC2ProviderSet(clusterParams) {
-		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := nginx.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := redis.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := redis.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := cpustress.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := cpustress.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := dogstatsd.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := dogstatsd.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := prometheus.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := prometheus.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := tracegen.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := tracegen.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
 	}
 
 	// User-defined EC2 apps
 	for _, appFunc := range params.workloadAppFuncs {
-		if _, err := appFunc(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := appFunc(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
 	}
