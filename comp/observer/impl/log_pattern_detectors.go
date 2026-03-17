@@ -201,7 +201,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 				}
 				cluster, err := d.extractor.PatternClusterer.GetCluster(patternKey.ClusterID)
 				if err != nil {
-					fmt.Printf("WARNING(LogPatternDetector): Error getting cluster for pattern key %s: %v\n", keyStr, err)
+					log.Warnf("Error getting cluster for pattern key %s: %v", keyStr, err)
 					continue
 				}
 				pattern := cluster.PatternString()
