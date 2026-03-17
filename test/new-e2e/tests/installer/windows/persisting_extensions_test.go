@@ -17,7 +17,6 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -30,7 +29,7 @@ const (
 )
 
 type testExtensionsSuite struct {
-	BaseSuite
+	testAgentUpgradeSuite
 }
 
 // TestExtensionPersistence tests Agent extension persistence behaviour on Windows.
@@ -183,6 +182,7 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 // Scenario: Install previous MSI -> install extension -> upgrade with WIXFAILWHENDEFERRED=1
 // -> verify rollback restores old version -> verify extension is restored
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
+	s.T().Skip("Skipping test -- incident-50789")
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
@@ -190,19 +190,9 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
 	s.verifyDDOTRunning(s.StableAgentVersion().Version())
+	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
-	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost,
-		`HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs",
-		[]string{"WIXFAILWHENDEFERRED=1"})
-	s.Require().NoError(err)
-
-	s.WaitForDaemonToStop(func() {
-		_, err := s.StartExperimentCurrentVersion()
-		s.Require().NoError(err, "daemon should stop cleanly")
-	})
-
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.waitForExperimentMSIRollback()
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().

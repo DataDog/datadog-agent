@@ -205,22 +205,27 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 
 		admissionReview := &admiv1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
-		admissionRequest := Request{
-			UID:           admissionReviewReq.Request.UID,
-			Kind:          admissionReviewReq.Request.Kind,
-			Name:          admissionReviewReq.Request.Name,
-			Namespace:     admissionReviewReq.Request.Namespace,
-			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
-			UserInfo:      &admissionReviewReq.Request.UserInfo,
-			Object:        admissionReviewReq.Request.Object.Raw,
-			OldObject:     admissionReviewReq.Request.OldObject.Raw,
-			DryRun:        admissionReviewReq.Request.DryRun,
-			DynamicClient: dc,
-			APIClient:     apiClient,
+
+		var admissionResponse *admiv1.AdmissionResponse
+		if probeResp := probeResponse(admissionReviewReq.Request.Object.Raw); probeResp != nil {
+			admissionResponse = probeResp
+		} else {
+			admissionRequest := Request{
+				UID:           admissionReviewReq.Request.UID,
+				Kind:          admissionReviewReq.Request.Kind,
+				Name:          admissionReviewReq.Request.Name,
+				Namespace:     admissionReviewReq.Request.Namespace,
+				Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+				UserInfo:      &admissionReviewReq.Request.UserInfo,
+				Object:        admissionReviewReq.Request.Object.Raw,
+				OldObject:     admissionReviewReq.Request.OldObject.Raw,
+				DryRun:        admissionReviewReq.Request.DryRun,
+				DynamicClient: dc,
+				APIClient:     apiClient,
+			}
+			admissionResponse = webhookFunc(&admissionRequest)
 		}
 
-		// Generate admission response
-		admissionResponse := webhookFunc(&admissionRequest)
 		admissionReview.Response = admissionResponse
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
@@ -232,22 +237,27 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 
 		admissionReview := &admiv1beta1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
-		admissionRequest := Request{
-			UID:           admissionReviewReq.Request.UID,
-			Kind:          admissionReviewReq.Request.Kind,
-			Name:          admissionReviewReq.Request.Name,
-			Namespace:     admissionReviewReq.Request.Namespace,
-			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
-			UserInfo:      &admissionReviewReq.Request.UserInfo,
-			Object:        admissionReviewReq.Request.Object.Raw,
-			OldObject:     admissionReviewReq.Request.OldObject.Raw,
-			DryRun:        admissionReviewReq.Request.DryRun,
-			DynamicClient: dc,
-			APIClient:     apiClient,
+
+		var admissionResponse *admiv1.AdmissionResponse
+		if probeResp := probeResponse(admissionReviewReq.Request.Object.Raw); probeResp != nil {
+			admissionResponse = probeResp
+		} else {
+			admissionRequest := Request{
+				UID:           admissionReviewReq.Request.UID,
+				Kind:          admissionReviewReq.Request.Kind,
+				Name:          admissionReviewReq.Request.Name,
+				Namespace:     admissionReviewReq.Request.Namespace,
+				Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+				UserInfo:      &admissionReviewReq.Request.UserInfo,
+				Object:        admissionReviewReq.Request.Object.Raw,
+				OldObject:     admissionReviewReq.Request.OldObject.Raw,
+				DryRun:        admissionReviewReq.Request.DryRun,
+				DynamicClient: dc,
+				APIClient:     apiClient,
+			}
+			admissionResponse = webhookFunc(&admissionRequest)
 		}
 
-		// Generate admission response
-		admissionResponse := webhookFunc(&admissionRequest)
 		admissionReview.Response = responseV1ToV1beta1(admissionResponse)
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
@@ -263,6 +273,41 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		log.Warnf("Failed to encode the response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+}
+
+// probeMeta is used for lightweight partial unmarshalling of an object's metadata.
+type probeMeta struct {
+	Metadata struct {
+		Labels map[string]string `json:"labels"`
+	} `json:"metadata"`
+}
+
+// isProbe checks whether the raw object carries the admission probe label.
+func isProbe(raw []byte) bool {
+	var meta probeMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return false
+	}
+	return meta.Metadata.Labels[admicommon.ProbeLabelKey] == "true"
+}
+
+// probeResponse returns a short-circuit AdmissionResponse for probe objects,
+// adding the probe-received annotation without running any mutation logic.
+// Returns nil for non-probe objects.
+func probeResponse(raw []byte) *admiv1.AdmissionResponse {
+	if !isProbe(raw) {
+		return nil
+	}
+
+	patch := []byte(`[{"op":"add","path":"/metadata/annotations","value":{"` +
+		admicommon.ProbeReceivedAnnotationKey + `":"true"}}]`)
+	patchType := admiv1.PatchTypeJSONPatch
+
+	return &admiv1.AdmissionResponse{
+		Allowed:   true,
+		Patch:     patch,
+		PatchType: &patchType,
 	}
 }
 

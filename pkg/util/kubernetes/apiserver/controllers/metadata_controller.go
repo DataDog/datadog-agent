@@ -60,7 +60,7 @@ type metadataController struct {
 	serviceToNodes     map[string]sets.Set[string]
 	serviceToNodesLock sync.RWMutex
 
-	store *metaBundleStore
+	store *MetaBundleStore
 
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.TypedRateLimitingInterface[string]
@@ -512,8 +512,9 @@ func (m *metadataController) cleanupStaleNodes(namespace, serviceName string, af
 	for nodeName := range staleNodes {
 		log.Tracef("Cleaning up stale service metadata for Node %s and Service %s/%s", nodeName, namespace, serviceName)
 		metaBundle := m.store.getCopyOrNew(nodeName)
-		metaBundle.Services.Delete(namespace, serviceName)
-		m.store.set(nodeName, metaBundle)
+		if metaBundle.Services.Delete(namespace, serviceName) {
+			m.store.set(nodeName, metaBundle)
+		}
 	}
 
 	m.serviceToNodes[serviceName] = affectedNodes
@@ -552,16 +553,16 @@ func (m *metadataController) deleteService(namespace, svc string) error {
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {
-		oldBundle, ok := m.store.get(node.Name)
+		oldBundle, ok := m.store.Get(node.Name)
 		if !ok {
 			// Nothing to delete.
 			continue
 		}
 		newMetaBundle := apiserver.NewMetadataMapperBundle()
 		newMetaBundle.DeepCopy(oldBundle)
-		newMetaBundle.Services.Delete(namespace, svc)
-
-		m.store.set(node.Name, newMetaBundle)
+		if newMetaBundle.Services.Delete(namespace, svc) {
+			m.store.set(node.Name, newMetaBundle)
+		}
 	}
 	return nil
 }
