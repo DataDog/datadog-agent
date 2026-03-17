@@ -76,7 +76,7 @@ func vmPlusDockerEnvProvisioner() provisioners.PulumiEnvRunFunc[vmPlusDockerEnv]
 		}
 
 		// Create a docker manager
-		dockerManager, err := docker.NewManager(&awsEnv, remoteHost)
+		dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
 		if err != nil {
 			return err
 		}

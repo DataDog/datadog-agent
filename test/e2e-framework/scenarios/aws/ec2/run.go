@@ -36,7 +36,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 	}
 
 	if params.installDocker {
-		dockerManager, err := docker.NewManager(&awsEnv, host)
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 
 		if err != nil {
 			return err

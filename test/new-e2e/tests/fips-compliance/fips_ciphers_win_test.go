@@ -170,7 +170,7 @@ func linuxDockerVMProvisioner(ctx *pulumi.Context, awsEnv aws.Environment, env *
 	// copied from docker environment/provisioner
 	//
 
-	manager, err := docker.NewManager(&awsEnv, linuxDockerVM)
+	manager, err := docker.NewAWSManager(&awsEnv, linuxDockerVM)
 	if err != nil {
 		return err
 	}

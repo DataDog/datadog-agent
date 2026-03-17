@@ -91,7 +91,7 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, clusterOpts *K
 
 func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
 	// Ensure we have Docker
-	dockerManager, err := docker.NewManager(env, vm, opts...)
+	dockerManager, err := docker.NewAWSManager(env, vm, opts...)
 	if err != nil {
 		return nil, err
 	}

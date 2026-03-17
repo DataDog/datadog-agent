@@ -76,7 +76,7 @@ func netflowDockerProvisioner() provisioners.Provisioner {
 			return err
 		}
 
-		dockerManager, err := docker.NewManager(&awsEnv, host)
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 		if err != nil {
 			return err
 		}
