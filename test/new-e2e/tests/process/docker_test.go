@@ -158,47 +158,6 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 	assertContainersCollected(t, payloads, []string{"fake-process"})
 }
 
-func (s *dockerTestSuite) TestProcessChecksInCoreAgentWithNPM() {
-	t := s.T()
-	agentOpts := []dockeragentparams.Option{
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
-
-		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
-	}
-	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
-	}, 1*time.Minute, 5*time.Second)
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := getAgentStatus(collect, s.Env().Agent.Client)
-
-		// verify the standalone process-agent is running with just the NPM check
-		assert.Empty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-
-		// Verify the process component is running in the core agent
-		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
-
-	}, 1*time.Minute, 5*time.Second)
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "dd")
-}
-
 func (s *dockerTestSuite) TestManualProcessCheck() {
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
 		"process-agent", "check", "process", "--json")

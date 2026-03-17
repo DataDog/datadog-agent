@@ -172,72 +172,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	assertProcessDiscoveryCollected(t, payloads, "stress-ng-cpu [run]")
 }
 
-type K8sCoreAgentSuite struct {
-	e2e.BaseSuite[environments.Kubernetes]
-}
-
-func TestK8sCoreAgentTestSuite(t *testing.T) {
-	t.Parallel()
-	helmValues, err := createHelmValues(helmConfig{
-		ProcessCollection: true,
-	})
-	require.NoError(t, err)
-
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(
-			provkindvm.Provisioner(
-				provkindvm.WithRunOptions(
-					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-					}),
-					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-				),
-			),
-		),
-	}
-
-	e2e.Run(t, &K8sCoreAgentSuite{}, options...)
-}
-
-func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgent() {
-	t := s.T()
-
-	var status AgentStatus
-	defer func() {
-		if t.Failed() {
-			t.Logf("status: %+v\n", status)
-		}
-	}()
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
-
-		// verify the standalone process-agent is not running
-		assert.NotEmpty(c, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.Empty(c, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-
-		// Verify the process component is running in the core agent
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-	}, 5*time.Minute, 10*time.Second)
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
-	requireProcessNotCollected(t, payloads, "process-agent")
-	assertContainersNotCollected(t, payloads, []string{"process-agent"})
-}
-
-func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgentWithNPM() {
+func (s *K8sSuite) TestProcessCheckWithNPM() {
 	// https://datadoghq.atlassian.net/browse/CXP-2767
 	flake.Mark(s.T())
 	t := s.T()
