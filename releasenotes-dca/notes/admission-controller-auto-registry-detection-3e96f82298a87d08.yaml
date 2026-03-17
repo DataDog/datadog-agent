@@ -7,7 +7,7 @@ enhancements:
     environments where no cloud provider is detected is ``registry.datadoghq.com``
     (previously ``gcr.io/datadoghq``). Explicit configuration via
     ``admission_controller.container_registry`` or webhook-specific overrides still
-    takes precedence. To restore the previous behavior, set
-    ``admission_controller.container_registry`` to ``gcr.io/datadoghq`` in your
-    ``datadog.yaml`` or via the ``DD_ADMISSION_CONTROLLER_CONTAINER_REGISTRY``
-    environment variable.
+    takes precedence. To restore the previous default, set
+    ``admission_controller.container_registry`` to ``gcr.io/datadoghq``. See
+    `Changing your container registry <https://docs.datadoghq.com/containers/guide/changing_container_registry/>`_
+    for all available registries and configuration options.
