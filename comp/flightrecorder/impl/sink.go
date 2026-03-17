@@ -82,12 +82,16 @@ func NewComponent(req Requires) (Provides, error) {
 	if hookBufSize <= 0 {
 		hookBufSize = 4096
 	}
+	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
+	if contextCap <= 0 {
+		contextCap = 500000
+	}
 
 	c := &counters{}
 	// Create transport and batcher. The reconnect callback is set after
 	// batcher creation to avoid a circular dependency.
 	transport := newUnixTransport(socketPath, func() { c.incReconnects() })
-	bat := newBatcher(transport, flushInterval, ptCapacity, defCapacity, logCapacity, c)
+	bat := newBatcher(transport, flushInterval, ptCapacity, defCapacity, logCapacity, contextCap, c)
 	// Replace the onReconnect callback to also reset context definitions.
 	transport.mu.Lock()
 	transport.onReconnect = func() {
@@ -166,8 +170,8 @@ func NewComponent(req Requires) (Provides, error) {
 		},
 	})
 
-	pkglog.Infof("flightrecorder: started (socket=%s flush=%s pts=%d defs=%d logs=%d hook_buffer=%d)",
-		socketPath, flushInterval, ptCapacity, defCapacity, logCapacity, hookBufSize)
+	pkglog.Infof("flightrecorder: started (socket=%s flush=%s pts=%d defs=%d logs=%d hook_buffer=%d ctx_cap=%d)",
+		socketPath, flushInterval, ptCapacity, defCapacity, logCapacity, hookBufSize, contextCap)
 
 	return Provides{Comp: impl}, nil
 }

@@ -7,7 +7,6 @@ package flightrecorderimpl
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -59,9 +58,9 @@ type batcher struct {
 	builderPool *builderPool
 
 	// seenContexts tracks context keys already sent with full name+tags.
-	// Atomic pointer allows lock-free reads from hook callbacks; swapped to
-	// an empty map on transport reconnect (sidecar lost state).
-	seenContexts atomic.Pointer[sync.Map]
+	// Sharded bounded map: ~16 bytes/entry vs ~120 bytes for sync.Map.
+	// Reset on transport reconnect (sidecar lost state) or when cap exceeded.
+	seenContexts *contextSet
 
 	// Watermark thresholds (80% of capacity). When any ring crosses its
 	// threshold, a non-blocking signal is sent to flushCh.
@@ -74,7 +73,7 @@ type batcher struct {
 	wg     sync.WaitGroup
 }
 
-func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity int, c *counters) *batcher {
+func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, contextCap int, c *counters) *batcher {
 	b := &batcher{
 		transport:     transport,
 		flushInterval: flushInterval,
@@ -92,14 +91,14 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		logsActive: make([]capturedLog, logCapacity),
 		logsDrain:  make([]capturedLog, logCapacity),
 
-		builderPool:  newBuilderPool(),
+		builderPool:   newBuilderPool(),
+		seenContexts: newContextSet(contextCap),
 		ptWatermark:  ptCapacity * 4 / 5,
 		defWatermark: defCapacity * 4 / 5,
 		logWatermark: logCapacity * 4 / 5,
 		flushCh:      make(chan struct{}, 1),
 		stopCh:       make(chan struct{}),
 	}
-	b.seenContexts.Store(&sync.Map{})
 	b.wg.Add(1)
 	go b.flushLoop()
 	return b
@@ -123,9 +122,19 @@ func (b *batcher) AddPoint(p metricPoint) {
 }
 
 // AddContextDef enqueues a context definition (first occurrence, with strings).
+// When the ring is full the oldest entry is evicted — its context key is
+// removed from seenContexts so the definition will be re-sent on the next
+// occurrence of that metric. This ensures all contexts eventually get their
+// definitions flushed even when the warm-up burst exceeds ring capacity.
 func (b *batcher) AddContextDef(d contextDef) {
 	b.mu.Lock()
 	if b.defsActiveN == b.defCap {
+		// Evict the oldest entry: un-mark its context so the definition
+		// is re-sent on the next occurrence.
+		evictedKey := b.defsActive[b.defsActiveH].ContextKey
+		if evictedKey != 0 {
+			b.seenContexts.Remove(evictedKey)
+		}
 		b.counters.incMetricsDroppedOverflow(1)
 	} else {
 		b.defsActiveN++
@@ -193,6 +202,9 @@ func (b *batcher) flush() {
 }
 
 func (b *batcher) flushMetrics() {
+	// Enforce context set cap periodically — cheap atomic load.
+	b.seenContexts.CheckCap()
+
 	b.mu.Lock()
 	if b.ptsActiveN == 0 && b.defsActiveN == 0 {
 		b.mu.Unlock()
@@ -275,15 +287,13 @@ func (b *batcher) flushLogs() {
 // IsContextKnown returns true if the context key has already been sent to the
 // sidecar with full name+tags. If unknown, it atomically marks it as known.
 func (b *batcher) IsContextKnown(key uint64) bool {
-	m := b.seenContexts.Load()
-	_, loaded := m.LoadOrStore(key, struct{}{})
-	return loaded
+	return b.seenContexts.IsKnown(key)
 }
 
 // ResetContexts clears the seen-context set, forcing all context definitions
 // to be re-sent. Called on transport reconnect because the sidecar lost state.
 func (b *batcher) ResetContexts() {
-	b.seenContexts.Store(&sync.Map{})
+	b.seenContexts.Reset()
 }
 
 // Stop drains the buffers and stops the flush goroutine.

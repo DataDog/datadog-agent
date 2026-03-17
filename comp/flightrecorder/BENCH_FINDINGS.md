@@ -192,7 +192,50 @@ recorder adds ~1 MB of memory overhead. CPU overhead is negligible.**
 4. **Sink wiring** (`sink.go`) — updated hook callbacks to use `AddPoint`/`AddContextDef`
    methods and pass separate capacity params to `newBatcher`.
 
+### Session 4: Unified ring experiment (reverted)
+
+**Goal**: Replace the two metric ring buffers + `sync.Map` context dedup with a
+single ring of full `capturedMetric` entries (always carrying name+tags). The
+hypothesis was that removing `sync.Map` (~24 MB at 200K contexts) and GC
+amplification would save ~30-35 MB, outweighing the slightly larger ring entries.
+
+**Changes made** (subsequently reverted):
+1. Removed `metricPoint` and `contextDef` types; promoted `capturedMetric` as the
+   single ring buffer element.
+2. Merged `ptsActive/ptsDrain` + `defsActive/defsDrain` into one pair:
+   `metricsActive/metricsDrain []capturedMetric`.
+3. Removed `seenContexts sync.Map`, `IsContextKnown`, `ResetContexts`.
+4. Replaced `AddPoint` + `AddContextDef` with single `AddMetric`.
+5. Added `EncodeMetricBatchRing` (replacing `EncodeSplitMetricBatch`).
+6. Hook callback always copies name+tags (no fast/slow path).
+
+**Benchmark result** (dogstatsd-high-cardinality, 200K contexts, 120s):
+
+| Metric | Split-buffer (before) | Unified ring (experiment) |
+|--------|----------------------|--------------------------|
+| Agent anon RSS mean delta | +22.8 MB | **+97.2 MB** |
+| Agent anon RSS P50 delta | — | +112.8 MB |
+| Agent anon RSS max delta | — | +130.8 MB |
+| Agent CPU P50 delta | +36 mc | +44 mc |
+| Metrics sent | 612,074 | 1,318,649 |
+| Metrics dropped (overflow) | 57 | 123,952 |
+
+**Why it failed**: Removing the fast path means every sample copies name+tags
+strings via `payload.GetName()` and tag slice copy. At 200K contexts with high
+throughput (~1.3M metrics/120s), the continuous string allocation pressure creates
+far more GC amplification than the `sync.Map` it replaced. The split-buffer design
+works because the compact 48-byte `metricPoint` fast path (no strings, no heap
+allocations) handles 99.9% of samples after context warm-up, keeping GC pressure
+minimal.
+
+**Key insight**: The `sync.Map` costs ~24 MB at 200K contexts, but the alternative
+(copying strings on every sample) costs ~75 MB more due to Go GC amplification from
+millions of short-lived string allocations per flush interval. The dedup map is the
+lesser evil by a wide margin.
+
 ### Remaining work
 - Investigate RSS overhead at p95+ scenarios (likely dominated by sync.Map / runtime).
+- Consider bounded LRU or bloom filter for context tracking (cap memory while
+  preserving the fast path).
 - Consider adaptive sampling for extreme throughput (>50K DSD/s).
 - Consider sharded context tracking to reduce sync.Map contention.
