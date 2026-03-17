@@ -54,6 +54,12 @@ pub fn should_ignore_comm(pid: i32) -> bool {
         return false;
     };
 
+    should_ignore_comm_bytes(comm_bytes)
+}
+
+/// Returns true if the given comm bytes (as read from /proc/<pid>/comm)
+/// match an ignored command name or family prefix.
+fn should_ignore_comm_bytes(comm_bytes: &[u8]) -> bool {
     // Check family prefix (before first `-`)
     if let Some(dash_pos) = comm_bytes.iter().position(|&b| b == b'-')
         && dash_pos > 0
@@ -65,6 +71,7 @@ pub fn should_ignore_comm(pid: i32) -> bool {
     }
 
     // Trim trailing newline and check exact match
+    let n = comm_bytes.len();
     let comm = match comm_bytes.last() {
         Some(&b'\n') => comm_bytes.get(..n.saturating_sub(1)).unwrap_or(comm_bytes),
         _ => comm_bytes,
@@ -100,5 +107,60 @@ mod tests {
                 "Ignore family entry {entry:?} exceeds max comm length {MAX_COMM_LEN}"
             );
         }
+    }
+
+    #[test]
+    fn test_exact_match_with_newline() {
+        assert!(should_ignore_comm_bytes(b"sshd\n"));
+        assert!(should_ignore_comm_bytes(b"kubelet\n"));
+        assert!(should_ignore_comm_bytes(b"chronyd\n"));
+        assert!(should_ignore_comm_bytes(b"dockerd\n"));
+    }
+
+    #[test]
+    fn test_exact_match_without_newline() {
+        // When the buffer is exactly full, there's no trailing newline.
+        assert!(should_ignore_comm_bytes(b"containerd"));
+        assert!(should_ignore_comm_bytes(b"sshd"));
+    }
+
+    #[test]
+    fn test_family_prefix_match() {
+        assert!(should_ignore_comm_bytes(b"docker-proxy\n"));
+        assert!(should_ignore_comm_bytes(b"datadog-agent\n"));
+        // "systemd-resolve" is 15 bytes, no newline (buffer full)
+        assert!(should_ignore_comm_bytes(b"systemd-resolve"));
+        // containerd-shim\n is 16 bytes; after reading 15 into the buffer
+        // we'd get "containerd-shim" which matches the containerd family.
+        assert!(should_ignore_comm_bytes(b"containerd-shim"));
+    }
+
+    #[test]
+    fn test_non_ignored_commands() {
+        assert!(!should_ignore_comm_bytes(b"node\n"));
+        assert!(!should_ignore_comm_bytes(b"python3\n"));
+        assert!(!should_ignore_comm_bytes(b"nginx\n"));
+    }
+
+    #[test]
+    fn test_non_ignored_family() {
+        // "java" is not in IGNORE_FAMILIES
+        assert!(!should_ignore_comm_bytes(b"java-some\n"));
+    }
+
+    #[test]
+    fn test_empty_input() {
+        assert!(!should_ignore_comm_bytes(b""));
+    }
+
+    #[test]
+    fn test_just_newline() {
+        assert!(!should_ignore_comm_bytes(b"\n"));
+    }
+
+    #[test]
+    fn test_leading_hyphen() {
+        // dash_pos == 0, family check should be skipped
+        assert!(!should_ignore_comm_bytes(b"-foo\n"));
     }
 }
