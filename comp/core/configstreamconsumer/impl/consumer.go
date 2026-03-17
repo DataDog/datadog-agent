@@ -154,8 +154,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 // Start initiates the config stream connection and processing loop
-func (c *consumer) Start(ctx context.Context) error {
-	c.ctx, c.cancel = context.WithCancel(ctx)
+func (c *consumer) Start(_ context.Context) error {
+	// Use context.Background() so the stream lifetime is not bounded by the
+	// Fx startup context, which expires after app.StartTimeout (~5 minutes).
+	c.ctx, c.cancel = context.WithCancel(context.Background())
 
 	c.initMetrics()
 
@@ -258,6 +260,8 @@ func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) er
 	if err != nil {
 		return fmt.Errorf("failed to connect to core agent: %w", err)
 	}
+	// Ensure conn is closed when this invocation exits (EOF, error, or context cancel).
+	defer conn.Close()
 
 	c.streamLock.Lock()
 	c.conn = conn
@@ -269,7 +273,6 @@ func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) er
 		var err error
 		sessionID, err = c.params.SessionIDProvider.WaitSessionID(c.ctx)
 		if err != nil {
-			_ = conn.Close()
 			return fmt.Errorf("waiting for session ID: %w", err)
 		}
 	}
@@ -282,7 +285,6 @@ func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) er
 		Name: c.params.ClientName,
 	})
 	if err != nil {
-		_ = conn.Close()
 		return fmt.Errorf("failed to start config stream: %w", err)
 	}
 
