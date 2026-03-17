@@ -1,0 +1,345 @@
+kind: tests
+category: functional
+tests:
+- id: T015
+  ref: [OTELCOL025, OTELCOL035]
+  short: Start an OpAmp test server
+  long: |
+    Set up a minimal OpAmp server using the example server from the `opamp-go`
+    repository. This server acts as the management plane for all subsequent OpAmp
+    tests and must be running before any of them are executed.
+  initial: |
+    Go is installed and the `opamp-go` repository is available:
+      git clone https://github.com/open-telemetry/opamp-go
+      cd opamp-go
+  steps:
+    - action: Build and start the example OpAmp server
+      run: |
+        go run ./examples/server/main.go
+      expected: |
+        OpAMP Server listening on [::]:4320
+
+- id: T016
+  ref: [OTELCOL025, OTELCOL026]
+  short: Collector connects to the OpAmp server over WebSocket
+  long: |
+    Verify that the Collector establishes a WebSocket connection to the OpAmp server
+    when the `opamp` extension is configured with a `ws:` endpoint. The server must
+    receive an initial `AgentToServer` message containing the agent's instance UID,
+    description, and declared capabilities.
+  prereq: [T001, T015]
+  steps:
+    - action: Prepare a configuration with the opamp extension using WebSocket transport
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        extensions:
+          opamp:
+            server:
+              ws:
+                endpoint: ws://127.0.0.1:4320/v1/opamp
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the otel-agent
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the OpAmp server received the agent connection and initial status report
+      sample: |
+        Agent connected, id: <instance-uid>
+        AgentDescription: { ... otel-agent ... }
+
+- id: T017
+  ref: [OTELCOL025, OTELCOL027]
+  short: Collector connects to the OpAmp server over HTTP
+  long: |
+    Verify that the Collector can use the HTTP transport for OpAmp instead of
+    WebSocket. The connection must be established and the initial `AgentToServer`
+    message received by the server, using HTTP POST to `/v1/opamp`.
+  prereq: [T001, T015]
+  steps:
+    - action: Prepare a configuration with the opamp extension using HTTP transport
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        extensions:
+          opamp:
+            server:
+              http:
+                endpoint: http://127.0.0.1:4320/v1/opamp
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the otel-agent
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the OpAmp server received the connection via HTTP
+      sample: |
+        Agent connected, id: <instance-uid>
+        AgentDescription: { ... otel-agent ... }
+
+- id: T018
+  ref: [OTELCOL028]
+  short: OpAmp server receives agent identity and capabilities on connection
+  long: |
+    Verify that upon connection the Collector sends an `AgentDescription` containing
+    its identity (agent type, version, OS) and a bitmask of declared OpAmp
+    capabilities, so the server knows which features the agent supports before
+    sending any commands.
+  prereq: [T016]
+  steps:
+    - action: Inspect the agent description reported to the server at connection time
+      sample: |
+        AgentDescription:
+          IdentifyingAttributes:
+            - service.name: otel-agent
+            - service.version: <version>
+          NonIdentifyingAttributes:
+            - os.type: <os>
+        Capabilities: ReportsStatus | AcceptsRemoteConfig | ReportsEffectiveConfig | ReportsHeartbeat
+
+- id: T019
+  ref: [OTELCOL030]
+  short: Push a remote configuration and verify the agent applies it
+  long: |
+    Verify that when the OpAmp server pushes an `AgentRemoteConfig` message, the
+    Collector applies the new configuration and reports success back to the server
+    via `RemoteConfigStatus`. The change in behavior must be observable (e.g. a
+    new exporter verbosity level takes effect without restarting the agent).
+  prereq: [T016]
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: From the opamp-go server UI, push a new configuration that changes debug verbosity to `normal`
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: normal
+          datadog:
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Verify the agent log shows the configuration was received and applied
+      sample: |
+        [...] | OTELCOL | INFO | (...) | [...] | Received remote config from server
+        [...] | OTELCOL | INFO | (...) | [...] | Starting otel-agent...
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+    - action: Verify the server received a successful RemoteConfigStatus
+      sample: |
+        RemoteConfigStatus: { status: APPLIED, error_message: "" }
+    - action: Send one trace and verify the debug exporter now uses normal (compact) verbosity
+      run: telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify the compact one-liner output from the debug exporter (normal verbosity)
+      sample: |
+        ResourceTraces #0 [...] service.name=telemetrygen
+
+- id: T020
+  ref: [OTELCOL029]
+  short: Collector sends periodic heartbeats to the OpAmp server
+  long: |
+    Verify that the Collector sends heartbeat messages at the configured interval
+    so the server can detect unresponsive agents. The default interval is 30 seconds;
+    the server may override it and the Collector must apply the new value.
+  prereq: [T016]
+  steps:
+    - action: Wait 30 seconds and verify the server received at least one heartbeat
+      sample: |
+        Heartbeat received from agent <instance-uid>
+    - action: From the server, set the heartbeat interval to 10 seconds
+      sample: |
+        OpAMPConnectionSettings: { heartbeat_interval_seconds: 10 }
+    - action: Wait 10 seconds and verify heartbeats now arrive at the new interval
+      sample: |
+        Heartbeat received from agent <instance-uid>
+        Heartbeat received from agent <instance-uid>
+
+- id: T021
+  ref: [OTELCOL031]
+  short: Collector reports health status and effective configuration to the server
+  long: |
+    Verify that the Collector continuously reports its runtime health via
+    `ComponentHealth` messages and, when the `ReportsEffectiveConfig` capability is
+    declared, includes its currently active configuration in each `AgentToServer`
+    message so the server can verify what is actually running.
+  prereq: [T016]
+  steps:
+    - action: Verify the server shows the agent as healthy immediately after connection
+      sample: |
+        ComponentHealth: { healthy: true, last_error: "" }
+    - action: Verify the server displays the agent's effective configuration
+      sample: |
+        EffectiveConfig:
+          ConfigMap:
+            config.yaml: |
+              receivers:
+                otlp: ...
+              exporters:
+                debug: ...
+              service:
+                extensions: [opamp]
+                pipelines: ...
+    - action: From the server, push an invalid configuration (e.g. referencing an undeclared component)
+      sample_lang: yaml
+      sample: |
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [nonexistent]
+    - action: Verify the agent reports an unhealthy status and a RemoteConfigStatus error
+      sample: |
+        RemoteConfigStatus: { status: FAILED, error_message: "references unavailable exporters: nonexistent" }
+        ComponentHealth: { healthy: false, last_error: "references unavailable exporters: nonexistent" }
+
+- id: T022
+  ref: [OTELCOL032]
+  short: Collector sends its own metrics to an OTLP endpoint directed by the OpAmp server
+  long: |
+    Verify that when the OpAmp server pushes `OtlpMetricsConnectionSettings`, the
+    Collector starts forwarding its internal performance metrics to the specified
+    OTLP endpoint. A second Collector instance running locally acts as the metrics
+    receiver and exposes them via the debug exporter.
+  prereq: [T016]
+  initial: |
+    A second otel-agent instance is running as a local OTLP metrics sink, exposing
+    an OTLP/gRPC receiver on port 5317 and a debug exporter:
+      ./otel-agent --config file:sink.yaml
+    where sink.yaml contains:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:5317
+      exporters:
+        debug:
+          verbosity: normal
+      service:
+        pipelines:
+          metrics:
+            receivers: [otlp]
+            exporters: [debug]
+  steps:
+    - action: From the server, push OtlpMetricsConnectionSettings pointing to the sink
+      sample_lang: yaml
+      sample: |
+        OtlpMetricsConnectionSettings:
+          destination_credentials:
+            endpoint: localhost:5317
+            tls:
+              insecure: true
+    - action: Verify the sink's debug exporter receives internal metrics from the agent
+      sample: |
+        ResourceMetrics #0
+        Resource attributes:
+             -> service.name: Str(otel-agent)
+        ScopeMetrics #0
+        Metric #0
+            Name: otelcol_receiver_accepted_spans
+
+- id: T023
+  ref: [OTELCOL033]
+  short: Server pushes a package update and the agent installs it
+  long: |
+    Verify that when the OpAmp server sends a `PackagesAvailable` message, the
+    Collector downloads the package, verifies its hash, installs it, and reports
+    the final installation status back to the server via `PackageStatuses`.
+  prereq: [T015]
+  steps:
+    - action: From the server, advertise a new agent package version with a download URL and hash
+      sample: |
+        PackagesAvailable:
+          packages:
+            otel-agent:
+              version: <new-version>
+              download: { url: "http://...", content_hash: "<sha256>" }
+    - action: Verify the agent downloads and installs the package
+      sample: |
+        [...] | OTELCOL | INFO | (...) | [...] | Downloading package otel-agent <new-version>
+        [...] | OTELCOL | INFO | (...) | [...] | Package hash verified
+        [...] | OTELCOL | INFO | (...) | [...] | Package otel-agent installed successfully
+    - action: Verify the server receives a PackageStatuses report with status installed
+      sample: |
+        PackageStatuses:
+          packages:
+            otel-agent:
+              installed_version: <new-version>
+              status: Installed
+
+- id: T024
+  ref: [OTELCOL034]
+  short: Server rotates the agent's TLS client certificate via OpAmp
+  long: |
+    Verify that when the OpAmp server pushes updated `OpAMPConnectionSettings`
+    containing a new TLS client certificate, the Collector applies the new
+    credentials and reports success via `ConnectionSettingsStatus`. Subsequent
+    communication must use the new certificate.
+  prereq: [T016]
+  steps:
+    - action: Generate a new client certificate and push it from the server
+      sample: |
+        OpAMPConnectionSettings:
+          opamp:
+            certificate:
+              cert: <new-cert-pem>
+              private_key: <new-key-pem>
+    - action: Verify the agent log shows the new certificate was applied
+      sample: |
+        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection settings updated
+    - action: Verify the server received a successful ConnectionSettingsStatus
+      sample: |
+        ConnectionSettingsStatus: { status: APPLIED, error_message: "" }
+    - action: Verify the agent reconnects using the new certificate and remains operational
+      sample: |
+        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
