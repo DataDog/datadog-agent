@@ -21,7 +21,7 @@ func (noopTransport) Close() error        { return nil }
 // a lock-contention perspective: every call hits the drop counter increment.
 func BenchmarkBatcher_AddPoint_Hot(b *testing.B) {
 	c := &counters{}
-	bat := newBatcher(noopTransport{}, time.Hour, 1000, 100, 1000, c)
+	bat := newBatcher(noopTransport{}, time.Hour, 1000, 100, 1000, 0, c)
 	defer bat.Stop()
 
 	p := metricPoint{
@@ -42,7 +42,7 @@ func BenchmarkBatcher_AddPoint_Hot(b *testing.B) {
 // goroutine runs at a realistic 100 ms interval.
 func BenchmarkBatcher_AddPoint_WithFlush(b *testing.B) {
 	c := &counters{}
-	bat := newBatcher(noopTransport{}, 100*time.Millisecond, 10_000, 1000, 5000, c)
+	bat := newBatcher(noopTransport{}, 100*time.Millisecond, 10_000, 1000, 5000, 0, c)
 	defer bat.Stop()
 
 	p := metricPoint{
@@ -79,7 +79,7 @@ func BenchmarkBatcher_Flush_1000(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		c := &counters{}
-		bat := newBatcher(noopTransport{}, time.Hour, 10_000, 1000, 5000, c)
+		bat := newBatcher(noopTransport{}, time.Hour, 10_000, 1000, 5000, 0, c)
 		for j := 0; j < 1000; j++ {
 			bat.AddPoint(p)
 		}
@@ -98,7 +98,7 @@ func BenchmarkBatcher_Flush_1000(b *testing.B) {
 // from using sync.Pool for tag slices instead of make([]string, n) per call.
 func BenchmarkSubscriberCallback(b *testing.B) {
 	c := &counters{}
-	bat := newBatcher(noopTransport{}, 100*time.Millisecond, 10_000, 1000, 5000, c)
+	bat := newBatcher(noopTransport{}, 100*time.Millisecond, 10_000, 1000, 5000, 0, c)
 	defer bat.Stop()
 
 	rawTags := []string{"env:prod", "host:web-01", "service:api", "version:1.2.3"}
@@ -123,7 +123,7 @@ func BenchmarkSubscriberCallback(b *testing.B) {
 // BenchmarkBatcher_AddLog_Hot measures raw AddLog latency on the drop path.
 func BenchmarkBatcher_AddLog_Hot(b *testing.B) {
 	c := &counters{}
-	bat := newBatcher(noopTransport{}, time.Hour, 1000, 100, 1000, c)
+	bat := newBatcher(noopTransport{}, time.Hour, 1000, 100, 1000, 0, c)
 	defer bat.Stop()
 
 	l := capturedLog{
