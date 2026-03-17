@@ -1313,6 +1313,45 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 	m.AssertNotCalled(t, "Gauge", "system.disk.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
+func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErrorReturned(t *testing.T) {
+	setupDefaultMocks()
+	// Use an explicit unblock channel to simulate a syscall that ignores
+	// context cancellation (like GetVolumeInformationW on an offline volume).
+	unblock := make(chan struct{})
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:  "/",
+			Total: 1024,
+			Free:  512,
+			Used:  512,
+		}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		<-unblock
+		return partitionsTrue, nil
+	})
+	defer close(unblock)
+
+	// Configure with a short timeout (1s) to keep the test fast.
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	config := integration.Data([]byte("timeout: 1"))
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
+	m.SetupAcceptAll()
+
+	err := diskCheck.Run()
+
+	assert.ErrorContains(t, err, "disk partition enumeration timed out")
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	// A second Run while the goroutine is still blocked should skip immediately
+	// rather than spawning another stuck goroutine.
+	err = diskCheck.Run()
+	assert.ErrorContains(t, err, "previous call is still in progress")
+}
+
 func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 	for _, fl := range []string{flavor.IotAgent, flavor.ClusterAgent} {
 		t.Run(fl, func(t *testing.T) {

@@ -233,8 +233,7 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldFor
 		SketchesBucketOffset: time.Second * 0,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
-	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
+	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer, serverlessTag.MapToArray(tags))
 	return metricAgent
 }
 
