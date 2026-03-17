@@ -423,8 +423,12 @@ type SeriesFilter struct {
 	TagMatchers map[string]string // required tag key=value pairs
 }
 
-// SeriesKey identifies a specific series.
-type SeriesKey struct {
+type SeriesHandle int
+
+// SeriesMeta describes a series discovered via ListSeries.
+// The Handle field is a stable numeric identifier for use in hot-path methods.
+type SeriesMeta struct {
+	Handle    SeriesHandle
 	Namespace string
 	Name      string
 	Tags      []string
@@ -443,33 +447,59 @@ const (
 
 // StorageReader provides read access to time series data.
 // Detectors use this to pull whatever data they need.
+//
+// Use ListSeries to discover series and obtain their numeric handles.
+// All hot-path methods take a SeriesHandle for O(1) lookups.
+//
+// Reading points: ForEachPoint and GetSeriesRange both read the same data;
+// they differ in allocation cost and ownership model.
+//
+//   - ForEachPoint reuses a pooled buffer internally — effectively zero
+//     allocation at steady state. The callback sees each point exactly once
+//     and must not retain the *Series pointer. Prefer this for streaming or
+//     incremental callers that process points one at a time.
+//
+//   - GetSeriesRange allocates a fresh []Point each call. The caller owns the
+//     returned data and may slice, index, or store it freely. Prefer this when
+//     the detector needs random access to the full window (e.g. baseline
+//     estimation, cross-series alignment).
+//
+// Use PointCountUpTo and WriteGeneration to cheaply detect new data before
+// reading points.
 type StorageReader interface {
-	// ListSeries returns keys of all series matching the filter.
-	ListSeries(filter SeriesFilter) []SeriesKey
+	// ListSeries returns metadata for all series matching the filter.
+	ListSeries(filter SeriesFilter) []SeriesMeta
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
-	GetSeriesRange(key SeriesKey, start, end int64, agg Aggregate) *Series
+	// Allocates a new []Point slice — see interface doc for when to prefer ForEachPoint.
+	GetSeriesRange(handle SeriesHandle, start, end int64, agg Aggregate) *Series
+
+	// ForEachPoint calls fn for every point in the time range (start, end].
+	// The Series pointer and its contents are valid only for the duration of
+	// the callback. Uses a pooled buffer internally so steady-state calls
+	// do not allocate. Returns false if the series was not found.
+	ForEachPoint(handle SeriesHandle, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.
-	PointCount(key SeriesKey) int
+	PointCount(handle SeriesHandle) int
 
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
-	PointCountUpTo(key SeriesKey, endTime int64) int
+	PointCountUpTo(handle SeriesHandle, endTime int64) int
 
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.
 	// Returns 0 if the series is not found.
-	WriteGeneration(key SeriesKey) int64
+	WriteGeneration(handle SeriesHandle) int64
 
 	// SeriesGeneration returns a global counter that increments only when the
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
- }
+}
 
 // Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.
