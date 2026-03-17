@@ -382,6 +382,10 @@ docker_build_agent7_full:
   needs:
     - job: datadog-agent-7-x64
     - job: datadog-otel-agent-x64
+    - job: build_flightrecorder_binary_x64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
@@ -391,6 +395,10 @@ docker_build_agent7_full_arm64:
   needs:
     - job: datadog-agent-7-arm64
     - job: datadog-otel-agent-arm64
+    - job: build_flightrecorder_binary_arm64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
@@ -400,6 +408,10 @@ docker_build_agent7_fips_full:
   needs:
     - job: datadog-agent-7-x64-fips
     - job: datadog-otel-agent-x64-fips
+    - job: build_flightrecorder_binary_x64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7-fips-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
@@ -409,6 +421,10 @@ docker_build_agent7_fips_full_arm64:
   needs:
     - job: datadog-agent-7-arm64-fips
     - job: datadog-otel-agent-arm64-fips
+    - job: build_flightrecorder_binary_arm64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7-fips-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
@@ -543,30 +559,3 @@ docker_build_dogstatsd_arm64:
   timeout: 20m
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"
-
-# build the flightrecorder image (signal recording sidecar)
-.docker_build_flightrecorder:
-  extends: .docker_build_job_definition
-  before_script:
-    - cp bin/flightrecorder/flightrecorder $BUILD_CONTEXT/
-    - ls -l $BUILD_CONTEXT/
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/flightrecorder
-    BUILD_CONTEXT: Dockerfiles/flightrecorder
-    FLATTEN_IMAGE: false
-    BUILD_ARG: --target release
-
-docker_build_flightrecorder_amd64:
-  extends:
-    [.docker_build_flightrecorder, .docker_build_amd64]
-  needs:
-    - job: build_flightrecorder_binary_x64
-
-docker_build_flightrecorder_arm64:
-  extends:
-    [.docker_build_flightrecorder, .docker_build_arm64]
-  needs:
-    - job: build_flightrecorder_binary_arm64
