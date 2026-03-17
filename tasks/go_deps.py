@@ -583,18 +583,18 @@ def validate_profiler_deps(ctx: Context):
     the profiler's unwinding e2e tests directly from the agent CI whenever a
     common transitive dependency changes.
     """
-    # Resolve the profiler module's local directory so we can read its go.mod.
-    res = ctx.run(f"go list -m -json {EBPF_PROFILER_MODULE}", hide=True, warn=True)
+    # Download the profiler module (extracts it from the cache if needed) and
+    # get the path to its go.mod directly from the download output.
+    res = ctx.run(f"go mod download -json {EBPF_PROFILER_MODULE}", hide=True, warn=True)
     if not res or not res.ok:
-        raise Exit(f"Could not resolve {EBPF_PROFILER_MODULE}. Run 'go mod download' first.", code=1)
+        raise Exit(f"Could not download {EBPF_PROFILER_MODULE}.", code=1)
 
-    mod_info = json.loads(res.stdout)
-    mod_dir = mod_info.get("Dir")
-    if not mod_dir:
-        raise Exit(f"{EBPF_PROFILER_MODULE} has no local directory. Run 'go mod download' first.", code=1)
+    go_mod_path = json.loads(res.stdout).get("GoMod")
+    if not go_mod_path:
+        raise Exit(f"Could not locate go.mod for {EBPF_PROFILER_MODULE}.", code=1)
 
     # Parse the profiler's go.mod to find its required cilium/ebpf version.
-    res = ctx.run(f"go mod edit -json {os.path.join(mod_dir, 'go.mod')}", hide=True, warn=True)
+    res = ctx.run(f"go mod edit -json {go_mod_path}", hide=True, warn=True)
     if not res or not res.ok:
         raise Exit(f"Could not parse {EBPF_PROFILER_MODULE} go.mod.", code=1)
     profiler_requires = {req["Path"]: req["Version"] for req in json.loads(res.stdout).get("Require", [])}
