@@ -64,12 +64,12 @@ pub fn get_services(params: Params) -> ServicesResponse {
     if let Some(new_pids) = &params.new_pids {
         // Check for APM injector even if process is not detected as a service.
         for pid in new_pids {
-            if comm::should_ignore_comm(*pid) {
-                continue;
-            }
-
             if is_apm_injector_in_process_maps(*pid) {
                 resp.injected_pids.push(*pid);
+            }
+
+            if comm::should_ignore_comm(*pid) {
+                continue;
             }
 
             let Ok(open_files_info) = procfs::fd::get_open_files_info(*pid) else {
