@@ -10,6 +10,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -103,7 +104,7 @@ func NewLogPatternDetector() *LogPatternDetector {
 	return &LogPatternDetector{
 		MetricsPrefix:    "_virtual.log.log_pattern_extractor",
 		WindowDurationMs: 60 * 1000,
-		ZThreshold:       2.0,
+		ZThreshold:       3.0,
 		Rates:            make(map[int64]*queue.Queue[float64]),
 		HistorySize:      120,
 		TooRecentSize:    5,
@@ -189,7 +190,9 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 				zScore = (rate - average) / standardDeviation
 			}
 			if math.Abs(zScore) >= d.ZThreshold && d.RateLimiter.CanCreateAnomaly(key, dataTime) {
-				anomalyScore := 1 - math.Exp(d.ZThreshold-math.Abs(zScore))
+				// Create a score between 0.5 and 1 based on the z-score (0.5 score is the baseline).
+				tolerance := 0.5
+				anomalyScore := 1 - math.Exp((d.ZThreshold-math.Abs(zScore))*tolerance-0.6932)
 
 				patternKey, ok := d.extractor.PatternKeys[key]
 				if !ok {
@@ -208,7 +211,7 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTime 
 				}
 				description := fmt.Sprintf("Sudden %s in rate of log pattern (z-score: %.1f, score: %.1f). Pattern: `%s`", action, zScore, anomalyScore, pattern)
 
-				fmt.Printf("[cc] Anomaly detected: %s\n", description)
+				fmt.Printf("[cc] Anomaly detected (%s): %s\n", time.Unix(dataTime, 0).Format(time.RFC3339), description)
 				anomalies = append(anomalies, observerdef.Anomaly{
 					Source:       observerdef.MetricName(seriesKey.Name),
 					DetectorName: d.Name(),
