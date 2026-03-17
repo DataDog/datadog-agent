@@ -434,7 +434,7 @@ func TestConvert(t *testing.T) {
 				acfg := config.NewMockFromYAML(t, string(f))
 				r.Conf = acfg
 				if tc.hostnameErr {
-					r.Hostname = &mockHostname{err: errors.New("hostname resolution failed")}
+					r.Hostname = &mockHostname{hostname: "", err: errors.New("hostname resolution failed")}
 				} else {
 					r.Hostname = &mockHostname{hostname: "test-host"}
 				}
