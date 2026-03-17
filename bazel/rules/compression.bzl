@@ -7,15 +7,21 @@ build vs. a CI run, vs. a deployment.
 
 load("@agent_volatile//:env_vars.bzl", "env_vars")
 
+COMPRESSION_HIGH = 9
+
+# Due to a bug in pkg_tar, setting compression to 0 results in using
+# the default, which is 6.
+# https://github.com/bazelbuild/rules_pkg/issues/1048
+COMPRESSION_OFF = 1
+
 def get_compression_level():
     """Returns the compression level we should use for archives.
 
     The logic is
+        - If FORCED_PACKAGE_COMPRESSION_LEVEL is set, use that.
         - For developer builds, do not (or use mimimal) compress.
-        - Otherwise, trigger off off --config=release, which should always be
-          used in CI.
-          - If FORCED_PACKAGE_COMPRESSION_LEVEL is set, use that.
-          - Otherwise set to 9
+        - Otherwise, trigger off --config=release (which should always be
+          used in CI) to set to high compression (9)
 
     This is different than the omnibus logic, which is essentially
       if ENV['FORCED_PACKAGE_COMPRESSION_LEVEL']
@@ -26,6 +32,7 @@ def get_compression_level():
         # build the release version, or simply to include the agent binary. It is only
         # set false for installer and integrations_core, so it seems the second, even if
         # the word deploy generally is associated with release.
+        # So, we'll oped
         COMPRESSION_LEVEL = 9
       else
         COMPRESSION_LEVEL = 5
@@ -35,12 +42,10 @@ def get_compression_level():
     """
     if env_vars.FORCED_PACKAGE_COMPRESSION_LEVEL:
         compression_level = int(env_vars.FORCED_PACKAGE_COMPRESSION_LEVEL)
-    else:
-        compression_level = 9
+        if compression_level > 0:
+            return compression_level
+
     return select({
-        "//:is_release": compression_level,
-        # Due to a bug in pkg_tar, setting compression to 0 results in using
-        # the default, which is 6.
-        # https://github.com/bazelbuild/rules_pkg/issues/1048
-        "//conditions:default": 1,
+        "//:is_release": COMPRESSION_HIGH,
+        "//conditions:default": COMPRESSION_OFF,
     })
