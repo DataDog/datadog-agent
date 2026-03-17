@@ -10,6 +10,8 @@ package modules
 import (
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -30,6 +32,18 @@ var NetworkTracer = &module.Factory{
 	Fn:               createNetworkTracerModule,
 }
 
+func logIISSiteTimeouts() {
+	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+		`Import-Module WebAdministration; Get-ChildItem IIS:\Sites | Select-Object name, @{n="ConnectionTimeout";e={$_.limits.connectionTimeout}} | Format-Table -AutoSize | Out-String`).CombinedOutput()
+	if err != nil {
+		log.Debugf("failed to query IIS site timeouts: %v", err)
+		return
+	}
+	if result := strings.TrimSpace(string(out)); result != "" {
+		log.Infof("IIS site connection timeouts:\n%s", result)
+	}
+}
+
 func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 	if !nt.cfg.DirectSend {
 		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
@@ -39,6 +53,8 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 			os.Exit(1)
 		})
 	}
+
+	go logIISSiteTimeouts()
 
 	httpMux.HandleFunc("/iis_tags", func(w http.ResponseWriter, req *http.Request) {
 		cache := httpprotocol.GetIISTagsCache()
