@@ -78,8 +78,18 @@ def _dd_collect_dependencies_impl(ctx):
 
 dd_collect_dependencies = rule(
     implementation = _dd_collect_dependencies_impl,
+    doc = """
+        Walks the build graph to collect all DdPackagingInfo providers to merge them
+        into a single PackageFilegroupInfo to be installed with the final artifact.
+
+        Intended to be used once at the top-level binary/library of a package
+        to gather all installed files (headers, configuration files, ...) that were
+        declared by dd_cc_packaged targets anywhere in the dependency graph.
+        The result can be passed directly to pkg_filegroup or pkg_install.
+    """,
     attrs = {
         "srcs": attr.label_list(
+            doc = "Top-level CC targets which dependency graph should be searched for DdPackagingInfo.",
             aspects = [_collect_dd_packaging_aspect],
             providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
