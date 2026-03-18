@@ -195,6 +195,13 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             }
             return 0;
         case 3:
+            if (flush_size == 3) {
+                // Perf path: batch is full (3 conns) but kretprobe hasn't
+                // flushed yet due to interleaved tcp_close calls (tcp_close
+                // can sleep on lock_sock). Don't write c3 — the perf copy
+                // only sends 3 conns. Fall through to unbatched path.
+                break;
+            }
             batch_ptr->c3 = conn;
             batch_ptr->len++;
             // flush_size is 4 on the ringbuf path (modern kernels)
@@ -222,7 +229,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     __u16 flush_size = get_batch_flush_size();
-    if (!batch_ptr || batch_ptr->len != flush_size) {
+    if (!batch_ptr || batch_ptr->len < flush_size) {
         return;
     }
 
