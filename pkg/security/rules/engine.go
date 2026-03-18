@@ -184,6 +184,17 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				seclog.Errorf("panic in reloadChan ReloadPolicies goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
 
 		for range reloadChan {
 			if err := e.ReloadPolicies(); err != nil {
@@ -195,6 +206,17 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				seclog.Errorf("panic in NewPolicyReady ReloadPolicies goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
 
 		for range e.policyLoader.NewPolicyReady() {
 			if err := e.ReloadPolicies(); err != nil {

@@ -274,9 +274,16 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
 		}
 
+		cid := uint32(vsock.Host)
+		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+			if cid, err = socket.ParseVSockAddress(vsockAddr); err != nil {
+				return nil, err
+			}
+		}
+
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
-			log.Infof("Dialing vsock socket on CID %d and port %d", vsock.Host, cmdPort)
-			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
+			log.Infof("Dialing vsock socket on CID %d and port %d", cid, cmdPort)
+			return vsock.Dial(cid, uint32(cmdPort), &vsock.Config{})
 		}))
 	}
 
