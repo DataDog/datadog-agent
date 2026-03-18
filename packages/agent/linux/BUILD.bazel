@@ -33,6 +33,12 @@ dd_collect_dependencies(
     srcs = ["@openscap//:oscap"],
 )
 
+pkg_filegroup(
+    name = "collected_oscap_deps_embedded",
+    srcs = [":collected_oscap_deps"],
+    prefix = "embedded",
+)
+
 # This is the list of things we depend on transitively. It is temporary.
 # They are really deps of things that the agent binary or python3 depends
 # on. We should pick up the dependencies from the build graph.
@@ -46,8 +52,8 @@ pkg_filegroup(
         "//deps/nfsiostat:all_files",
         # Keep the explicit list until we fully migrate to dd_collect_dependencies
         "//deps/openscap:all_files",
-        # But start collting dependencies automatically nonetheless
-        ":collected_oscap_deps",
+        # But start collecting dependencies automatically nonetheless
+        ":collected_oscap_deps_embedded",
         "@freetds//:all_files",
         "@nghttp2//:all_files",
         "@xz//:all_files",
