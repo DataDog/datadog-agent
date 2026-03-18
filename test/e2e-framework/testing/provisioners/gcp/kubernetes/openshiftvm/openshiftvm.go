@@ -69,7 +69,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
 		compute.WithOS(osDesc),
-		compute.WithInstancetype("n2-standard-16"),
+		compute.WithInstancetype("n2-standard-32"),
 		compute.WithNestedVirt(true),
 	)
 	if err != nil {
@@ -137,7 +137,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			kubernetesagentparams.WithClusterName(openshiftCluster.ClusterName),
 			kubernetesagentparams.WithNamespace("datadog"),
 			// OpenShift deployments need more time due to security context constraints and slower startup
-			kubernetesagentparams.WithTimeout(900), // 15 minutes
+			kubernetesagentparams.WithTimeout(1800), // 30 minutes
 			// Use the cluster name (DisplayName(49)) for the stackid tag instead of ctx.Stack(),
 			// because the cluster name may be truncated
 			kubernetesagentparams.WithStackIDTag(openshiftCluster.ClusterName),

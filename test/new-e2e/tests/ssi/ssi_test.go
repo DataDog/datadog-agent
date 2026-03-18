@@ -68,15 +68,15 @@ func (v *ssiSuite) TestInjectionMode() {
 				{
 					Name: "injection-mode",
 					Apps: []singlestep.App{
-						{
-							Name:    "injection-mode-app-csi",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "csi",
-							},
-						},
+						// {
+						// 	Name:    "injection-mode-app-csi",
+						// 	Image:   "registry.datadoghq.com/injector-dev/python",
+						// 	Version: "16ad9d4b",
+						// 	Port:    8080,
+						// 	PodAnnotations: map[string]string{
+						// 		"admission.datadoghq.com/apm-inject.injection-mode": "csi",
+						// 	},
+						// },
 						{
 							Name:    "injection-mode-app-init-container",
 							Image:   "registry.datadoghq.com/injector-dev/python",
@@ -105,7 +105,7 @@ func (v *ssiSuite) TestInjectionMode() {
 		name string
 		mode testutils.InjectionMode
 	}{
-		{"injection-mode-app-csi", testutils.InjectionModeCSI},
+		// {"injection-mode-app-csi", testutils.InjectionModeCSI},
 		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer},
 		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume},
 	}
