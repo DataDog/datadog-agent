@@ -324,7 +324,7 @@ func initMisc(deps miscDeps) error {
 // runInCoreAgent is enabled (the chart's doNotCheckTag logic prevents automatic detection).
 func shouldStayAlive() bool {
 	if env.IsKubernetes() {
-		log.Info("The process-agent is idle: process checks run in the core agent. To remove this container, set datadog.processAgent.runInCoreAgent.enabled=true in your Helm values.")
+		log.Error("The process-agent is idle: process checks run in the core agent. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true
 	}
 
