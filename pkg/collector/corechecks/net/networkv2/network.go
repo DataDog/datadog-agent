@@ -975,8 +975,8 @@ func Factory(cfg config.Component) option.Option[func() check.Check] {
 
 func newCheck(cfg config.Component) check.Check {
 	procfsPath := "/proc"
-	if cfg.IsConfigured("procfs_path") {
-		procfsPath = strings.TrimRight(cfg.GetString("procfs_path"), "/")
+	if v := cfg.GetString("procfs_path"); v != "" {
+		procfsPath = strings.TrimRight(v, "/")
 	}
 
 	return &NetworkCheck{

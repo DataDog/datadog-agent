@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -847,6 +848,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
+	// required to emit gpu.devices.unhealthy metric
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 	archFile, err := gpuspec.LoadArchitecturesSpec()

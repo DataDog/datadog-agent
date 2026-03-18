@@ -7,7 +7,7 @@ require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.182 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.184 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
@@ -190,6 +190,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
+	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
