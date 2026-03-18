@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ignore
+// go:build render_config
 
 package main
 
@@ -151,7 +151,9 @@ func renderAll(destFolder string, tplFolder string) {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
-			lint(destFile)
+			if err := lint(destFile); err != nil {
+				panic(err)
+			}
 			fmt.Println("Successfully wrote", destFile)
 		}
 	}
