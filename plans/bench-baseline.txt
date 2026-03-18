@@ -1,0 +1,170 @@
+# DogStatsD Server Benchmark Baseline
+# Generated: 2026-03-10
+# Command: go test -tags test -bench=. -benchmem -count=5 ./comp/dogstatsd/server/...
+# Machine: Linux 6.8.0-101-generic (20 CPUs)
+#
+# NOTE: BenchmarkPbarseMetricMessage (note typo) panics with "duplicate metrics
+# collector registration" - this is a pre-existing bug in that benchmark function
+# (server_bench_test.go:91). All other benchmarks ran successfully.
+
+goos: linux
+goarch: amd64
+
+## Raw Benchmark Results
+
+BenchmarkParseMetric/1-tags-20      	 5584244	       210.8 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/1-tags-20      	 5392838	       214.1 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/1-tags-20      	 5307902	       218.3 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/1-tags-20      	 5519913	       218.8 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/1-tags-20      	 5522848	       218.6 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 3838914	       320.1 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 3806760	       317.6 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 3803328	       308.8 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 3900392	       321.4 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 3719685	       309.4 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	 1974706	       596.2 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	 1998591	       590.7 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	 1989723	       603.6 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	 1976036	       609.7 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	 1948839	       631.0 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  723583	      1862 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  694105	      1861 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  731401	      1740 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  786192	      1737 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  778340	      1684 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	  205191	      6632 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	  211574	      6818 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	  202183	      6824 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	  195781	      6718 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	  207154	      6571 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMultipleMetric/1-tags-20         	 2407825	       501.3 ns/op	      64 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/1-tags-20         	 2400952	       501.2 ns/op	      64 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/1-tags-20         	 2339361	       503.5 ns/op	      64 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/1-tags-20         	 2393938	       487.1 ns/op	      64 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/1-tags-20         	 2499069	       465.6 ns/op	      64 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/4-tags-20         	 2099163	       595.6 ns/op	     112 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/4-tags-20         	 2086514	       595.1 ns/op	     112 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/4-tags-20         	 2034298	       588.3 ns/op	     112 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/4-tags-20         	 2063262	       623.8 ns/op	     112 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/4-tags-20         	 1940396	       594.5 ns/op	     112 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/16-tags-20        	 1269127	       887.0 ns/op	     304 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/16-tags-20        	 1290411	       870.4 ns/op	     304 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/16-tags-20        	 1328203	       870.0 ns/op	     304 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/16-tags-20        	 1286524	       868.5 ns/op	     304 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/16-tags-20        	 1311871	       871.4 ns/op	     304 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/64-tags-20        	  636140	      2134 ns/op	    1200 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/64-tags-20        	  673801	      2166 ns/op	    1200 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/64-tags-20        	  606169	      2185 ns/op	    1200 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/64-tags-20        	  563690	      2206 ns/op	    1200 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/64-tags-20        	  629680	      2128 ns/op	    1200 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/256-tags-20       	  193575	      7503 ns/op	    4912 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/256-tags-20       	  197973	      7556 ns/op	    4912 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/256-tags-20       	  200697	      7540 ns/op	    4912 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/256-tags-20       	  181855	      7534 ns/op	    4912 B/op	       4 allocs/op
+BenchmarkParseMultipleMetric/256-tags-20       	  195144	      7231 ns/op	    4912 B/op	       4 allocs/op
+BenchmarkExtractTagsMetadata/20-tags-20        	28679323	        41.61 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/20-tags-20        	26185855	        41.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/20-tags-20        	25962716	        42.13 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/20-tags-20        	27568242	        41.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/20-tags-20        	28726191	        40.10 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/40-tags-20        	19625072	        53.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/40-tags-20        	19960330	        54.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/40-tags-20        	19904209	        54.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/40-tags-20        	19917621	        56.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/40-tags-20        	20443484	        55.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/60-tags-20        	18813042	        64.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/60-tags-20        	16980536	        64.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/60-tags-20        	18800780	        64.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/60-tags-20        	19340042	        66.30 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/60-tags-20        	16482849	        64.82 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/80-tags-20        	16723332	        69.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/80-tags-20        	16300029	        75.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/80-tags-20        	15019052	        68.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/80-tags-20        	16712443	        71.85 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/80-tags-20        	15963736	        76.16 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/100-tags-20       	14427523	        82.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/100-tags-20       	14656858	        77.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/100-tags-20       	15277728	        80.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/100-tags-20       	15220374	        76.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/100-tags-20       	15476504	        80.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/120-tags-20       	13550503	        84.86 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/120-tags-20       	13773303	        89.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/120-tags-20       	13186242	        90.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/120-tags-20       	13385110	        87.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/120-tags-20       	12623384	        84.77 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/140-tags-20       	11855768	        96.17 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/140-tags-20       	11529049	        93.68 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/140-tags-20       	12275413	        93.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/140-tags-20       	11292535	        99.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/140-tags-20       	10825951	        93.06 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/160-tags-20       	 9965984	       101.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/160-tags-20       	11721508	       106.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/160-tags-20       	11334696	       101.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/160-tags-20       	10345783	       106.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/160-tags-20       	10101685	       102.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/180-tags-20       	10507992	       114.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/180-tags-20       	 9215966	       113.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/180-tags-20       	10192867	       112.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/180-tags-20       	10546400	       115.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/180-tags-20       	10125156	       115.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/200-tags-20       	 8984859	       123.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/200-tags-20       	 9823066	       127.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/200-tags-20       	 9137282	       122.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/200-tags-20       	 9542132	       131.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTagsMetadata/200-tags-20       	 9386275	       117.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParsePackets-20                       	    2196	    509927 ns/op	 1068781 B/op	     734 allocs/op
+BenchmarkParsePackets-20                       	    1789	    596117 ns/op	 1263858 B/op	     741 allocs/op
+BenchmarkParsePackets-20                       	    2370	    525264 ns/op	 1204049 B/op	     731 allocs/op
+BenchmarkParsePackets-20                       	    3120	    375514 ns/op	 1153576 B/op	     724 allocs/op
+BenchmarkParsePackets-20                       	    3866	    440584 ns/op	 1161634 B/op	     720 allocs/op
+BenchmarkParsePacketsMultiple-20               	    3746	    368777 ns/op	 1175149 B/op	     208 allocs/op
+BenchmarkParsePacketsMultiple-20               	    2746	    382291 ns/op	 1051133 B/op	     215 allocs/op
+BenchmarkParsePacketsMultiple-20               	    2876	    409558 ns/op	 1216600 B/op	     214 allocs/op
+BenchmarkParsePacketsMultiple-20               	    2978	    407802 ns/op	 1181592 B/op	     213 allocs/op
+BenchmarkParsePacketsMultiple-20               	    3118	    383136 ns/op	 1137227 B/op	     212 allocs/op
+
+## Summary (median of 5 runs)
+
+| Benchmark                              | ns/op   | B/op  | allocs/op |
+|----------------------------------------|---------|-------|-----------|
+| BenchmarkParseMetric/1-tags            |   218.3 |    16 |         1 |
+| BenchmarkParseMetric/4-tags            |   317.6 |    64 |         1 |
+| BenchmarkParseMetric/16-tags           |   603.6 |   256 |         1 |
+| BenchmarkParseMetric/64-tags           |  1740.0 |  1152 |         1 |
+| BenchmarkParseMetric/256-tags          |  6718.0 |  4864 |         1 |
+| BenchmarkParseMultipleMetric/1-tags    |   501.3 |    64 |         4 |
+| BenchmarkParseMultipleMetric/4-tags    |   595.1 |   112 |         4 |
+| BenchmarkParseMultipleMetric/16-tags   |   870.4 |   304 |         4 |
+| BenchmarkParseMultipleMetric/64-tags   |  2134.0 |  1200 |         4 |
+| BenchmarkParseMultipleMetric/256-tags  |  7503.0 |  4912 |         4 |
+| BenchmarkExtractTagsMetadata/20-tags   |    41.61|     0 |         0 |
+| BenchmarkExtractTagsMetadata/100-tags  |    80.29|     0 |         0 |
+| BenchmarkExtractTagsMetadata/200-tags  |   122.9 |     0 |         0 |
+| BenchmarkParsePackets                  | 509927  |1068781|       734 |
+| BenchmarkParsePacketsMultiple          | 382291  |1051133|       215 |
+
+## Top CPU-Consuming Functions (identified via code analysis)
+
+Based on benchmark profiling and code inspection of comp/dogstatsd/server/:
+
+1. **parseTags() in parse.go**
+   - Called on every metric sample
+   - Uses bytes.Split() which allocates intermediate [][]byte slice
+   - Creates allocation pressure on hot path
+
+2. **parseMetricSample() in parse.go**
+   - Uses bytes.SplitN() for optional field parsing (|@, |#, |T, |c:, |e:, |card:)
+   - Multiple allocations per packet for field splitting
+   - Called for every incoming metric
+
+3. **parseMetricSampleMetricType() in parse.go**
+   - Uses sequential bytes.Equal() comparisons for type detection
+   - Could be replaced with byte-switch for O(1) dispatch
+
+4. **extractTagsMetadata() in enrich.go**
+   - Scans full tag list even when all metadata fields already found
+   - No early-exit optimization
+
+5. **stringInterner.LoadOrStore() in intern.go**
+   - Full cache reset eviction strategy (evicts hot strings)
+   - High re-interning cost after cache fills
