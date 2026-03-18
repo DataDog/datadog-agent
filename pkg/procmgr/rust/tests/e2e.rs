@@ -169,7 +169,6 @@ fn test_cli_status_after_stop() {
         .assert_field("Stopped", "0");
 
     env.cli(&["stop", "svc-a"]).assert_success();
-    env.daemon().wait_for_log_default("[svc-a] stopped");
 
     env.cli(&["status"])
         .assert_success()
@@ -1283,4 +1282,299 @@ fn test_cli_reload_removed_process_stopped() {
     env.cli(&["list"])
         .assert_success()
         .assert_stdout_contains("No processes");
+}
+
+#[test]
+fn test_cli_full_lifecycle() {
+    let env = TestEnv::new().start();
+
+    env.cli(&[
+        "create",
+        "--name",
+        "svc",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+        "--no-auto-start",
+    ])
+    .assert_success();
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("svc", &[("STATE", "Created"), ("PID", "-")]);
+
+    env.cli(&["start", "svc"]).assert_success();
+    env.daemon().wait_for_log_default("[svc] spawned");
+
+    let out = env.cli(&["describe", "svc"]);
+    out.assert_success().assert_field("State", "Running");
+    let pid = out.pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+
+    env.cli(&["stop", "svc"]).assert_success();
+
+    assert!(
+        wait_for_pid_gone(pid, Duration::from_secs(5)),
+        "PID {pid} should be gone after stop"
+    );
+
+    env.cli(&["describe", "svc"])
+        .assert_success()
+        .assert_field("State", "Stopped")
+        .assert_field("PID", "-");
+}
+
+#[test]
+fn test_cli_create_stop_start_cycle() {
+    let env = TestEnv::new().start();
+
+    env.cli(&[
+        "create",
+        "--name",
+        "svc",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+    ])
+    .assert_success();
+    env.daemon().wait_for_log_default("[svc] spawned");
+
+    env.cli(&["describe", "svc"])
+        .assert_success()
+        .assert_field("State", "Running");
+
+    env.cli(&["stop", "svc"]).assert_success();
+    env.cli(&["describe", "svc"])
+        .assert_success()
+        .assert_field("State", "Stopped");
+
+    env.cli(&["start", "svc"]).assert_success();
+    env.daemon()
+        .wait_for_log_count("[svc] spawned", 2, Duration::from_secs(10));
+    env.cli(&["describe", "svc"])
+        .assert_success()
+        .assert_field("State", "Running");
+
+    let pid = env.cli(&["describe", "svc"]).pid_from_field("PID");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive after restart");
+
+    env.cli(&["stop", "svc"]).assert_success();
+    assert!(
+        wait_for_pid_gone(pid, Duration::from_secs(5)),
+        "PID {pid} should be gone after second stop"
+    );
+
+    env.cli(&["start", "svc"]).assert_success();
+    env.daemon()
+        .wait_for_log_count("[svc] spawned", 3, Duration::from_secs(10));
+
+    let new_pid = env.cli(&["describe", "svc"]).pid_from_field("PID");
+    assert!(pid_is_alive(new_pid), "PID {new_pid} should be alive");
+}
+
+#[test]
+fn test_cli_reload_then_start() {
+    let env = TestEnv::new().start();
+
+    write_config(
+        env.config_dir(),
+        "late",
+        "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+    );
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Added", "late");
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row("late", &[("STATE", "Created"), ("PID", "-")]);
+
+    env.cli(&["start", "late"]).assert_success();
+    env.daemon().wait_for_log_default("[late] spawned");
+
+    let pid = env.cli(&["list"]).pid_from_table_row("late");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_status_reflects_operations() {
+    let env = TestEnv::new()
+        .with_config("svc-a", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc-b", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[svc-a] spawned");
+    env.daemon().wait_for_log_default("[svc-b] spawned");
+
+    env.cli(&["status"])
+        .assert_success()
+        .assert_field("Total Processes", "2")
+        .assert_field("Running", "2")
+        .assert_field("Stopped", "0")
+        .assert_field("Created", "0")
+        .assert_field("Failed", "0")
+        .assert_field("Exited", "0");
+
+    env.cli(&["stop", "svc-a"]).assert_success();
+
+    env.cli(&["status"])
+        .assert_success()
+        .assert_field("Total Processes", "2")
+        .assert_field("Running", "1")
+        .assert_field("Stopped", "1")
+        .assert_field("Created", "0")
+        .assert_field("Failed", "0")
+        .assert_field("Exited", "0");
+
+    env.cli(&[
+        "create",
+        "--name",
+        "svc-c",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+    ])
+    .assert_success();
+    env.daemon().wait_for_log_default("[svc-c] spawned");
+
+    env.cli(&["status"])
+        .assert_success()
+        .assert_field("Total Processes", "3")
+        .assert_field("Running", "2")
+        .assert_field("Stopped", "1")
+        .assert_field("Created", "0")
+        .assert_field("Failed", "0")
+        .assert_field("Exited", "0");
+}
+
+#[test]
+fn test_cli_create_with_dependencies() {
+    let env = TestEnv::new().start();
+
+    env.cli(&[
+        "create",
+        "--name",
+        "backend",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+        "--no-auto-start",
+    ])
+    .assert_success();
+
+    env.cli(&[
+        "create",
+        "--name",
+        "frontend",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+        "--after",
+        "backend",
+        "--no-auto-start",
+    ])
+    .assert_success();
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row_count(2)
+        .assert_table_row("backend", &[("STATE", "Created"), ("PID", "-")])
+        .assert_table_row("frontend", &[("STATE", "Created"), ("PID", "-")]);
+
+    env.cli(&["start", "backend"]).assert_success();
+    env.daemon().wait_for_log_default("[backend] spawned");
+    env.cli(&["start", "frontend"]).assert_success();
+    env.daemon().wait_for_log_default("[frontend] spawned");
+
+    let backend_pid = env.cli(&["list"]).pid_from_table_row("backend");
+    let frontend_pid = env.cli(&["list"]).pid_from_table_row("frontend");
+    assert!(
+        pid_is_alive(backend_pid),
+        "backend PID {backend_pid} should be alive"
+    );
+    assert!(
+        pid_is_alive(frontend_pid),
+        "frontend PID {frontend_pid} should be alive"
+    );
+
+    let out = env.cli(&["describe", "--json", "frontend"]);
+    out.assert_success();
+    let json = out.stdout_json();
+    let after = json["after"].as_array().expect("after should be an array");
+    assert!(
+        after.iter().any(|v| v.as_str() == Some("backend")),
+        "frontend should depend on backend: {json}"
+    );
+}
+
+#[test]
+fn test_cli_create_nonexistent_dependency_ignored() {
+    let env = TestEnv::new().start();
+
+    let out = env.cli(&[
+        "create",
+        "--name",
+        "svc",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+        "--after",
+        "does-not-exist",
+    ]);
+    out.assert_success();
+    out.assert_stderr_contains("not found, ignoring");
+
+    env.daemon().wait_for_log_default("[svc] spawned");
+
+    let pid = env.cli(&["list"]).pid_from_table_row("svc");
+    assert!(
+        pid_is_alive(pid),
+        "PID {pid} should be alive despite missing dep"
+    );
+
+    let out = env.cli(&["describe", "--json", "svc"]);
+    out.assert_success();
+    let json = out.stdout_json();
+    let after = json["after"].as_array().expect("after should be an array");
+    assert!(
+        after.iter().any(|v| v.as_str() == Some("does-not-exist")),
+        "after should still list the nonexistent dep: {json}"
+    );
+}
+
+#[test]
+fn test_cli_create_nonexistent_dependency_json_warnings() {
+    let env = TestEnv::new().start();
+
+    let out = env.cli(&[
+        "create",
+        "--name",
+        "svc",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+        "--after",
+        "ghost",
+        "--json",
+    ]);
+    out.assert_success();
+    let json = out.stdout_json();
+    let warnings = json["warnings"]
+        .as_array()
+        .expect("warnings should be an array");
+    assert!(
+        warnings.iter().any(|w| {
+            let s = w.as_str().unwrap_or("");
+            s.contains("ghost") && s.contains("not found")
+        }),
+        "JSON warnings should mention missing dep: {json}"
+    );
 }

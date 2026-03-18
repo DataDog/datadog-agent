@@ -108,7 +108,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|result| Response::new(proto::CreateResponse { uuid: result.uuid }))
+            .map(|result| {
+                Response::new(proto::CreateResponse {
+                    uuid: result.uuid,
+                    warnings: result.warnings,
+                })
+            })
     }
 
     async fn start(

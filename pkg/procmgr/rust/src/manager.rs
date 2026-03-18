@@ -42,10 +42,10 @@ impl ProcessManager {
             .into_iter()
             .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
             .collect();
-        let startup_order = recompute_startup_order(&processes);
+        let startup_result = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
-            startup_order: Arc::new(RwLock::new(startup_order)),
+            startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
         }
@@ -229,8 +229,8 @@ impl ProcessManager {
                 }
             }
         }
-        self.update_startup_order().await;
-        Ok(CreateResult { uuid })
+        let warnings = self.update_startup_order().await;
+        Ok(CreateResult { uuid, warnings })
     }
 
     pub(crate) async fn handle_start(
@@ -374,9 +374,10 @@ impl ProcessManager {
         })
     }
 
-    async fn update_startup_order(&self) {
-        let new_order = recompute_startup_order(&self.processes.read().await);
-        *self.startup_order.write().await = new_order;
+    async fn update_startup_order(&self) -> Vec<String> {
+        let result = recompute_startup_order(&self.processes.read().await);
+        *self.startup_order.write().await = result.order;
+        result.warnings
     }
 
     async fn shutdown(&self) {
@@ -460,7 +461,12 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
 /// Build `ProcessDefinition`s from the live processes Vec and resolve their
 /// dependency order. Because the definitions are built in the same index order
 /// as the Vec, the returned indices can be used directly for indexing into it.
-fn recompute_startup_order(procs: &[ManagedProcess]) -> Vec<usize> {
+struct StartupOrderResult {
+    order: Vec<usize>,
+    warnings: Vec<String>,
+}
+
+fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
     let defs: Vec<ProcessDefinition> = procs
         .iter()
         .map(|p| ProcessDefinition {
@@ -477,7 +483,10 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> Vec<usize> {
     }
     let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
     debug!("startup order: {}", names.join(" -> "));
-    result.order
+    StartupOrderResult {
+        order: result.order,
+        warnings: result.warnings,
+    }
 }
 
 #[cfg(test)]
