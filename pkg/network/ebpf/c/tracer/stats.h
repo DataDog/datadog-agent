@@ -291,15 +291,14 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
         return 0;
     }
 
-    // initialize-if-no-exist the connection state, and load it
-    u32 u32_zero = 0;
-
-    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
-    // and do not provide any useful signal since the key is expected to be present sometimes.
-    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
     u32 *val = bpf_map_lookup_elem(&tcp_retransmits, &t);
     if (val == NULL) {
-        return 0;
+        u32 u32_zero = 0;
+        bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
+        val = bpf_map_lookup_elem(&tcp_retransmits, &t);
+        if (val == NULL) {
+            return 0;
+        }
     }
 
     __sync_fetch_and_add(val, count);
@@ -444,13 +443,17 @@ static __always_inline void handle_tcp_enter_loss(struct sock *sk) {
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         return;
     }
-    tcp_event_stats_t empty = {};
-    bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
-    bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
-    tcp_event_stats_t *val = bpf_map_lookup_elem(&tcp_event_stats, &t);
-    if (val) {
-        __sync_fetch_and_add(&val->rto_count, 1);
+    tcp_event_stats_t *tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (!tes) {
+        tcp_event_stats_t empty = {};
+        bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+        bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+        tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+        if (!tes) {
+            return;
+        }
     }
+    __sync_fetch_and_add(&tes->rto_count, 1);
 }
 
 static __always_inline void handle_tcp_enter_recovery(struct sock *sk) {
@@ -458,13 +461,17 @@ static __always_inline void handle_tcp_enter_recovery(struct sock *sk) {
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         return;
     }
-    tcp_event_stats_t empty = {};
-    bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
-    bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
-    tcp_event_stats_t *val = bpf_map_lookup_elem(&tcp_event_stats, &t);
-    if (val) {
-        __sync_fetch_and_add(&val->recovery_count, 1);
+    tcp_event_stats_t *tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (!tes) {
+        tcp_event_stats_t empty = {};
+        bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+        bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+        tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+        if (!tes) {
+            return;
+        }
     }
+    __sync_fetch_and_add(&tes->recovery_count, 1);
 }
 
 static __always_inline void handle_tcp_send_probe0(struct sock *sk) {
@@ -472,13 +479,17 @@ static __always_inline void handle_tcp_send_probe0(struct sock *sk) {
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         return;
     }
-    tcp_event_stats_t empty = {};
-    bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
-    bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
-    tcp_event_stats_t *val = bpf_map_lookup_elem(&tcp_event_stats, &t);
-    if (val) {
-        __sync_fetch_and_add(&val->probe0_count, 1);
+    tcp_event_stats_t *tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (!tes) {
+        tcp_event_stats_t empty = {};
+        bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+        bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+        tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+        if (!tes) {
+            return;
+        }
     }
+    __sync_fetch_and_add(&tes->probe0_count, 1);
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
