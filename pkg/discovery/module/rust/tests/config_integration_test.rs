@@ -87,20 +87,6 @@ fn test_config_endpoint_returns_yaml() {
         "Expected 200 OK, got: {status_line}"
     );
 
-    // Verify the YAML content
-    assert!(
-        body.contains("discovery:"),
-        "Expected YAML with discovery key, got: {body}"
-    );
-    assert!(
-        body.contains("enabled: true"),
-        "Expected enabled: true in YAML, got: {body}"
-    );
-    assert!(
-        body.contains("use_system_probe_lite: true"),
-        "Expected use_system_probe_lite: true in YAML, got: {body}"
-    );
-
     // Parse as YAML to verify structure
     let docs = yaml_rust2::YamlLoader::load_from_str(&body).expect("Failed to parse YAML");
     assert!(!docs.is_empty(), "Expected at least one YAML document");
