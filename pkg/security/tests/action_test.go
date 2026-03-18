@@ -1568,6 +1568,8 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.ttr`); err != nil || el == nil || el == "" {
 					t.Errorf("ttr not found in remediation event: %s => %v", string(msg.Data), err)
+				} else if s, ok := el.(string); !ok || s == "0s" {
+					t.Errorf("ttr has zero or invalid value: %v", el)
 				}
 
 			})
@@ -1654,6 +1656,8 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.ttr`); err != nil || el == nil || el == "" {
 					t.Errorf("ttr not found in remediation event: %s => %v", string(msg.Data), err)
+				} else if s, ok := el.(string); !ok || s == "0s" {
+					t.Errorf("ttr has zero or invalid value: %v", el)
 				}
 			})
 
