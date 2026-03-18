@@ -1,6 +1,6 @@
 // FlatBuffers schema for the flight recorder signal types.
 //
-// Generate Go:   flatc --go -o schema/flightrecorder/generated signals.fbs
+// Generate Go:   flatc --go -o comp/flightrecorder/impl signals.fbs
 // Generate Rust: flatc --rust -o tools/flightrecorder/src/generated signals.fbs
 
 namespace signals;

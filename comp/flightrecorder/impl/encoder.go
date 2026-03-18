@@ -12,7 +12,7 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 
-	signals "github.com/DataDog/datadog-agent/schema/flightrecorder/generated/signals"
+	signals "github.com/DataDog/datadog-agent/comp/flightrecorder/impl/signals"
 )
 
 // metricPoint is a compact data point for known contexts (fast path).
@@ -56,7 +56,7 @@ type capturedMetric struct {
 // capturedLog is an internal copy of a log entry, safe to retain across hook callbacks.
 type capturedLog struct {
 	Content          []byte
-	ContentPoolSlice *[]byte   // non-nil when Content was borrowed from contentPool
+	ContentPoolSlice *[]byte // non-nil when Content was borrowed from contentPool
 	Status           string
 	Tags             []string
 	TagPoolSlice     *[]string // non-nil when Tags was borrowed from tagPool

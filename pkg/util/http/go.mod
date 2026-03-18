@@ -110,6 +110,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
+	github.com/DataDog/datadog-agent/comp/flightrecorder/def => ../../../comp/flightrecorder/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../comp/logs-library
