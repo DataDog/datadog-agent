@@ -94,9 +94,19 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 		"docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null; " +
 		"docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null; " +
 		"true")
+	// Restart iperf3 server if it died (e.g. crashed during a previous test).
+	host.MustExecute("docker exec tcp-congestion-server pgrep iperf3 >/dev/null 2>&1 || docker exec -d tcp-congestion-server iperf3 -s -p 5201")
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
+}
+
+// startIperf3Client launches an iperf3 client in the background and verifies it started.
+func (v *ec2TCPCongestionSuite) startIperf3Client(extraArgs string) {
+	host := v.Env().RemoteHost
+	host.MustExecute(fmt.Sprintf("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60 %s", extraArgs))
+	// Verify iperf3 actually started — detached exec hides failures.
+	host.MustExecute("sleep 1 && docker exec tcp-congestion-client pgrep iperf3")
 }
 
 // AfterTest dumps fakeintake info on failure.
@@ -106,7 +116,7 @@ func (v *ec2TCPCongestionSuite) AfterTest(suiteName, testName string) {
 }
 
 // pollForTCPCongestionSignal polls fakeintake until a TCP connection on the 172.28.0.0/16
-// tcp-congestion-net network matches the given predicate, or times out after 90 seconds.
+// tcp-congestion-net network matches the given predicate, or times out after 120 seconds.
 func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, predicate func(*agentmodel.Connection) bool) {
 	t := v.T()
 	v.EventuallyWithT(func(c *assert.CollectT) {
@@ -139,7 +149,7 @@ func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, p
 			}
 		})
 		assert.True(c, found, "no TCP connection with %s on tcp-congestion-net network", description)
-	}, 90*time.Second, 2*time.Second, "timed out waiting for %s", description)
+	}, 120*time.Second, 2*time.Second, "timed out waiting for %s", description)
 }
 
 // TestTCPCongestion_Retransmits applies 5% packet loss and validates LastRetransmits > 0.
@@ -149,7 +159,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Retransmits() {
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("LastRetransmits > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastRetransmits > 0
@@ -164,7 +174,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_RTOCount() {
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("LastTcpRtoCount > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpRtoCount > 0
@@ -179,7 +189,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_RecoveryCount() {
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("LastTcpRecoveryCount > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpRecoveryCount > 0
@@ -221,7 +231,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Reordering() {
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("LastTcpReordSeen > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpReordSeen > 0
@@ -237,7 +247,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ECN() {
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60")
+	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("TcpEcnNegotiated", func(conn *agentmodel.Connection) bool {
 		return conn.TcpEcnNegotiated
@@ -258,7 +268,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_RcvOOOPack() {
 		host.MustExecute("docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
 	// -R: server sends data to client; client accumulates rcv_ooopack on its receiving socket.
-	host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60 -R")
+	v.startIperf3Client("-R")
 
 	v.pollForTCPCongestionSignal("LastTcpRcvOooPack > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpRcvOooPack > 0
