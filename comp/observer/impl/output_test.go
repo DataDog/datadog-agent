@@ -21,11 +21,13 @@ type staticCorrelator struct {
 	correlations []observerdef.ActiveCorrelation
 }
 
-func (c *staticCorrelator) Name() string                                        { return "static" }
-func (c *staticCorrelator) ProcessAnomaly(_ observerdef.Anomaly)                {}
-func (c *staticCorrelator) Advance(_ int64)                                     {}
-func (c *staticCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return c.correlations }
-func (c *staticCorrelator) Reset()                                              {}
+func (c *staticCorrelator) Name() string                         { return "static" }
+func (c *staticCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
+func (c *staticCorrelator) Advance(_ int64)                      {}
+func (c *staticCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
+	return c.correlations
+}
+func (c *staticCorrelator) Reset() {}
 
 // newTestBenchForOutput creates a minimal TestBench with injected state for testing
 // observer output. No scenarios dir or registry needed.

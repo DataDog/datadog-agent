@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -36,7 +37,7 @@ func newEventSender(cfg config.Component, logger log.Component) (*eventSender, e
 	}
 	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
-		return nil, fmt.Errorf("api_key is not set in configuration")
+		return nil, errors.New("api_key is not set in configuration")
 	}
 	ctx := context.WithValue(
 		datadog.NewDefaultContext(context.Background()),

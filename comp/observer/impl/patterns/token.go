@@ -26,8 +26,8 @@ const (
 	TypeURI
 	TypeAuthority
 	TypeEmailAddress
-	TypeHttpMethod
-	TypeHttpStatusCode
+	TypeHTTPMethod
+	TypeHTTPStatusCode
 	TypeSeverity
 	TypeHexDump
 	TypeKVSequence
@@ -61,9 +61,9 @@ func (t TokenType) String() string {
 		return "Authority"
 	case TypeEmailAddress:
 		return "EmailAddress"
-	case TypeHttpMethod:
+	case TypeHTTPMethod:
 		return "HttpMethod"
-	case TypeHttpStatusCode:
+	case TypeHTTPStatusCode:
 		return "HttpStatusCode"
 	case TypeSeverity:
 		return "Severity"
@@ -110,7 +110,7 @@ type Token struct {
 
 	// HexDump-specific
 	DispLen  int
-	HasAscii bool
+	HasASCII bool
 
 	// KV-specific
 	KVKeys    []string
@@ -151,7 +151,7 @@ func LocalTimeToken(format, rawText string) Token {
 	return Token{Type: TypeLocalTime, Value: rawText, DateFormat: format}
 }
 
-func IPv4Token(text string, a, b, c, d int) Token {
+func IPv4Token(text string, _, _, _, _ int) Token {
 	return Token{Type: TypeIPv4Address, Value: text}
 }
 
@@ -236,24 +236,24 @@ func EmailToken(localPart, domain string) Token {
 	}
 }
 
-func HttpMethodToken(method string) Token {
-	return Token{Type: TypeHttpMethod, Value: method}
+func HTTPMethodToken(method string) Token {
+	return Token{Type: TypeHTTPMethod, Value: method}
 }
 
-func HttpStatusCodeToken(code string) Token {
-	return Token{Type: TypeHttpStatusCode, Value: code}
+func HTTPStatusCodeToken(code string) Token {
+	return Token{Type: TypeHTTPStatusCode, Value: code}
 }
 
 func SeverityToken(level string) Token {
 	return Token{Type: TypeSeverity, Value: level}
 }
 
-func HexDumpToken(text string, dispLen int, hasAscii bool) Token {
+func HexDumpToken(text string, dispLen int, hasASCII bool) Token {
 	return Token{
 		Type:     TypeHexDump,
 		Value:    text,
 		DispLen:  dispLen,
-		HasAscii: hasAscii,
+		HasASCII: hasASCII,
 	}
 }
 
@@ -297,9 +297,9 @@ func (t Token) Signature() string {
 		return authoritySignature(t)
 	case TypeEmailAddress:
 		return "localPart@domain"
-	case TypeHttpMethod:
+	case TypeHTTPMethod:
 		return "HttpMethod{value=*}"
-	case TypeHttpStatusCode:
+	case TypeHTTPStatusCode:
 		return "HttpStatusCode{value=*}"
 	case TypeSeverity:
 		return "Severity{value=*}"
@@ -374,7 +374,7 @@ func hostSignature(t Token) string {
 
 func hexDumpSignature(t Token) string {
 	ascii := "F"
-	if t.HasAscii {
+	if t.HasASCII {
 		ascii = "T"
 	}
 	return fmt.Sprintf("HexDump[dl:%d|ascii:%s]", t.DispLen, ascii)
