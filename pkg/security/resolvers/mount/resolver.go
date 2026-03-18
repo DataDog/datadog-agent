@@ -9,6 +9,7 @@
 package mount
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,6 +57,15 @@ type Resolver struct {
 	minMountID     uint32 // used to find the first userspace visible mount ID
 	dangling       *simplelru.LRU[uint32, *model.Mount]
 	pidNs          *simplelru.LRU[uint32, uint32]
+
+	// background procfs sync: on cache miss, instead of doing blocking /proc reads
+	// inline on the hot path, we record the PID and let a background goroutine
+	// perform the I/O outside the main lock.
+	pendingPids map[uint32]struct{}
+	pendingMu   sync.Mutex
+	hasPending  atomic.Bool
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 
 	// stats
 	cacheHitsStats atomic.Int64
@@ -250,6 +260,81 @@ func (mr *Resolver) syncPidNamespace(pid uint32) error {
 	}
 
 	return fmt.Errorf("failed to sync PID namespace for pid %d / namespace %d: %w", pid, ns, err)
+}
+
+// requestProcfsSync records a PID for background procfs synchronization.
+// Called from the hot path on cache miss instead of doing blocking I/O inline.
+func (mr *Resolver) requestProcfsSync(pid uint32) {
+	mr.pendingMu.Lock()
+	mr.pendingPids[pid] = struct{}{}
+	mr.pendingMu.Unlock()
+	mr.hasPending.Store(true)
+}
+
+// collectPidMounts reads mount info for a PID from procfs and returns the mounts
+// without modifying the resolver's cache. This is safe to call without holding the
+// main lock.
+func (mr *Resolver) collectPidMounts(pid uint32) ([]*model.Mount, error) {
+	var mounts []*model.Mount
+	var err error
+
+	if mr.opts.SnapshotUsingListMount {
+		err = GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
+			mounts = append(mounts, sm)
+		})
+		if err != nil {
+			mounts = nil
+			err = GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
+				mounts = append(mounts, sm)
+			})
+		}
+	} else {
+		err = GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
+			mounts = append(mounts, sm)
+		})
+	}
+
+	return mounts, err
+}
+
+// syncPidNamespaceCollect reads procfs for the given PID (and retries with
+// sibling PIDs from the same namespace on failure), appending any discovered
+// mounts to collectedMounts. No resolver lock is held during I/O.
+func (mr *Resolver) syncPidNamespaceCollect(pid uint32, collectedMounts *[]*model.Mount) {
+	mounts, err := mr.collectPidMounts(pid)
+	if err == nil {
+		*collectedMounts = append(*collectedMounts, mounts...)
+		return
+	}
+
+	// Primary PID failed (likely exited). Try sibling PIDs from the same namespace.
+	// We need the read lock briefly to snapshot the pidNs LRU, then release it
+	// before doing any I/O.
+	mr.lock.RLock()
+	ns, ok := mr.pidNs.Peek(pid)
+	var siblingPids []uint32
+	if ok {
+		for k := range mr.pidNs.KeysIter() {
+			if k == pid {
+				continue
+			}
+			v, _ := mr.pidNs.Peek(k)
+			if v == ns {
+				siblingPids = append(siblingPids, k)
+			}
+		}
+	}
+	mr.lock.RUnlock()
+
+	for _, siblingPid := range siblingPids {
+		mounts, err = mr.collectPidMounts(siblingPid)
+		if err == nil {
+			*collectedMounts = append(*collectedMounts, mounts...)
+			return
+		}
+	}
+
+	mr.procMissStats.Inc()
 }
 
 // SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -572,22 +657,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 	}
 	mr.cacheMissStats.Inc()
 
-	if !mr.opts.UseProcFS {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
+	if mr.opts.UseProcFS {
+		mr.requestProcfsSync(pid)
 	}
 
-	if err := mr.syncPidNamespace(pid); err != nil {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
-	}
-
-	path, source, origin, err = mr.getMountPath(mountID, pid)
-	if err == nil {
-		mr.procHitsStats.Inc()
-		return path, source, origin, nil
-	}
-	mr.procMissStats.Inc()
-
-	return "", model.MountSourceUnknown, model.MountOriginUnknown, err
+	return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
 
 // ResolveMount returns the mount
@@ -613,18 +687,10 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	mr.cacheMissStats.Inc()
 
 	mr.traceCheckpoint("mount_cache_miss_sync")
-	if err := mr.syncPidNamespace(pid); err != nil {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+	if mr.opts.UseProcFS {
+		mr.requestProcfsSync(pid)
 	}
 	mr.traceCheckpoint("mount_cache_miss_sync_done")
-
-	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
-		mr.procHitsStats.Inc()
-		mr.traceCheckpoint("mount_proc_hit")
-		return mount, model.MountSourceMountID, mount.Origin, nil
-	}
-	mr.procMissStats.Inc()
-	mr.traceCheckpoint("mount_proc_miss")
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
@@ -715,6 +781,7 @@ func NewResolver(statsdClient statsd.ClientInterface, dentryResolver *dentry.Res
 		dentryResolver: dentryResolver,
 		dangling:       dangling,
 		pidNs:          pidNs,
+		pendingPids:    make(map[uint32]struct{}),
 	}
 
 	if mr.opts.SnapshotUsingListMount && !HasListMount() {
@@ -729,4 +796,64 @@ func (mr *Resolver) SetPidMntNs(pid uint32, ns uint32) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 	mr.pidNs.Add(pid, ns)
+}
+
+// syncPending drains the pending PID set, reads procfs outside the main lock,
+// then acquires the lock briefly to insert the results.
+func (mr *Resolver) syncPending() {
+	if !mr.hasPending.Load() {
+		return
+	}
+
+	mr.pendingMu.Lock()
+	pids := mr.pendingPids
+	mr.pendingPids = make(map[uint32]struct{})
+	mr.hasPending.Store(false)
+	mr.pendingMu.Unlock()
+
+	var collectedMounts []*model.Mount
+	for pid := range pids {
+		mr.syncPidNamespaceCollect(pid, &collectedMounts)
+	}
+
+	if len(collectedMounts) == 0 {
+		return
+	}
+
+	mr.lock.Lock()
+	for _, m := range collectedMounts {
+		mr.mounts.Remove(m.MountID)
+		mr.insert(m)
+	}
+	mr.lock.Unlock()
+	mr.procHitsStats.Inc()
+}
+
+// Start launches the background goroutine that periodically syncs pending
+// mount namespace data from procfs.
+func (mr *Resolver) Start(ctx context.Context) {
+	ctx, mr.cancel = context.WithCancel(ctx)
+	mr.wg.Add(1)
+	go func() {
+		defer mr.wg.Done()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				mr.syncPending()
+			}
+		}
+	}()
+}
+
+// Stop stops the background sync goroutine and waits for it to finish.
+func (mr *Resolver) Stop() {
+	if mr.cancel != nil {
+		mr.cancel()
+	}
+	mr.wg.Wait()
 }
