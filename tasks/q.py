@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import re
 import shlex
 import shutil
 import tempfile
@@ -261,3 +262,193 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
     ctx.run(f"kubectl cp {datadog_agent_pod}:/tmp/observer-metrics {dest}")
 
     print(color_message(f"Fetched observer parquet files to {dest}", Color.GREEN))
+
+
+# --- Benchmarks ---
+
+BENCH_PACKAGE = "./comp/observer/impl/"
+
+BENCH_PATTERNS = [
+    "BenchmarkDetection_Isolated_Cardinality",
+    "BenchmarkBOCPD_SteadyState",
+    "BenchmarkRRCF_SteadyState_v2",
+    "BenchmarkCorrelators",
+    "BenchmarkLogIngestion_Real",
+    "BenchmarkLogIngestionWithDetection_Real",
+]
+
+
+@task
+def benchmark(ctx, quick=False, count=3, output=""):
+    """
+    Runs observer engine benchmarks and prints a summary table.
+
+    Default (full) mode runs all benchmarks with 3 iterations each (~3-5 min).
+    Quick mode runs 1 iteration — useful for fast sanity checks after a code change.
+
+    Args:
+        quick: Fast mode — 1 run per benchmark, lower benchtime.
+        count: Number of independent runs per benchmark (default 3, ignored with --quick).
+        output: If set, write raw parsed results to this JSON file.
+    """
+    run_count = 1 if quick else count
+    benchtime = "1x" if quick else "5x"
+    mode = "quick" if quick else "full"
+
+    bench_regex = "|".join(BENCH_PATTERNS)
+    cmd = (
+        f"go test -run=^$ -bench='{bench_regex}' -benchmem"
+        f" -count={run_count} -benchtime={benchtime}"
+        f" {BENCH_PACKAGE}"
+    )
+
+    print(color_message(f"Running observer benchmarks ({mode} mode, count={run_count})...", Color.BLUE))
+    result = ctx.run(cmd, hide=True, warn=True)
+
+    if result is None or result.failed:
+        print(color_message("Benchmark run failed:", Color.RED))
+        if result and result.stderr:
+            print(result.stderr[:2000])
+        return
+
+    parsed = _parse_bench_output(result.stdout.splitlines())
+
+    if not parsed:
+        print(color_message("No benchmark results parsed. Check that the package compiles.", Color.RED))
+        return
+
+    if output:
+        with open(output, "w") as f:
+            json.dump(parsed, f, indent=2)
+        print(color_message(f"Raw results written to {output}", Color.GREEN))
+
+    _print_bench_summary(parsed)
+
+
+def _parse_bench_output(lines):
+    """
+    Parse go test -bench output into {benchmark_name: avg_ns_per_op}.
+    Handles multiple -count runs by averaging.
+    """
+    pattern = re.compile(r'^(Benchmark\S+?)(?:-\d+)?\s+\d+\s+([\d.]+)\s+ns/op')
+    raw = {}
+    for line in lines:
+        m = pattern.match(line)
+        if not m:
+            continue
+        name = m.group(1)
+        ns = float(m.group(2))
+        raw.setdefault(name, []).append(ns)
+    return {name: sum(vals) / len(vals) for name, vals in raw.items()}
+
+
+def _fmt_ns(ns):
+    """Format nanoseconds as a human-readable string."""
+    if ns < 1_000:
+        return f"{ns:.0f} ns"
+    if ns < 1_000_000:
+        return f"{ns / 1_000:.1f} µs"
+    return f"{ns / 1_000_000:.1f} ms"
+
+
+def _sub(results, prefix):
+    """Return {sub_key: ns} for all results whose name starts with prefix."""
+    return {k[len(prefix) :].lstrip("/"): v for k, v in results.items() if k.startswith(prefix)}
+
+
+def _print_kv_table(rows, key_width=12):
+    """Print a two-column key/value table."""
+    for k, v in rows:
+        print(f"  {k:<{key_width}} {v}")
+
+
+def _print_bench_summary(results):
+    SEP = "=" * 58
+
+    print(color_message(f"\n{SEP}", Color.GREEN))
+    print(color_message("  Observer Engine Benchmark Summary", Color.GREEN))
+    print(color_message(SEP, Color.GREEN))
+
+    # 1. Algorithm CPU cost in isolation (series=50 slice only)
+    isolated = _sub(results, "BenchmarkDetection_Isolated_Cardinality")
+    if isolated:
+        print(color_message("\nAlgorithm CPU Cost in Isolation  (series=50, steady-state advance)", Color.BLUE))
+        rows = []
+        for detector in ("bocpd", "rrcf", "all"):
+            key = f"detector={detector}/series=50"
+            if key in isolated:
+                rows.append((detector, _fmt_ns(isolated[key]) + "/advance"))
+        _print_kv_table(rows)
+
+    # 2. BOCPD steady-state scaling
+    bocpd_card = _sub(results, "BenchmarkBOCPD_SteadyState_Cardinality")
+    if bocpd_card:
+        print(color_message("\nBOCPD Steady-State — Cardinality Scaling  (advance cost)", Color.BLUE))
+        rows = sorted(bocpd_card.items(), key=lambda x: int(x[0].split("=")[1]))
+        _print_kv_table([(k, _fmt_ns(v) + "/advance") for k, v in rows])
+
+    # 3. BOCPD advance frequency
+    bocpd_freq = _sub(results, "BenchmarkBOCPD_SteadyState_AdvanceFrequency")
+    if bocpd_freq:
+        print(color_message("\nBOCPD Advance Frequency  — cost when the scheduler stalls  (50 series)", Color.BLUE))
+        rows = sorted(bocpd_freq.items(), key=lambda x: int(x[0].split("=")[1]))
+        baseline = rows[0][1] if rows else 1
+        formatted = []
+        for k, v in rows:
+            secs = int(k.split("=")[1])
+            label = "normal cadence" if secs == 1 else f"{secs}s stall"
+            formatted.append((k, f"{_fmt_ns(v):>10}  {v / baseline:.0f}x  — {label}"))
+        _print_kv_table(formatted, key_width=12)
+
+    # 4. RRCF steady-state scaling
+    rrcf_card = _sub(results, "BenchmarkRRCF_SteadyState_v2_Cardinality")
+    if rrcf_card:
+        print(color_message("\nRRCF Steady-State — Cardinality Scaling  (advance cost)", Color.BLUE))
+        rows = sorted(rrcf_card.items(), key=lambda x: int(x[0].split("=")[1]))
+        _print_kv_table([(k, _fmt_ns(v) + "/advance") for k, v in rows])
+
+    # 5. RRCF advance frequency
+    rrcf_freq = _sub(results, "BenchmarkRRCF_SteadyState_v2_AdvanceFrequency")
+    if rrcf_freq:
+        print(color_message("\nRRCF Advance Frequency  — cost when the scheduler stalls  (20 metrics)", Color.BLUE))
+        rows = sorted(rrcf_freq.items(), key=lambda x: int(x[0].split("=")[1]))
+        baseline = rows[0][1] if rows else 1
+        formatted = []
+        for k, v in rows:
+            secs = int(k.split("=")[1])
+            label = "normal cadence" if secs == 1 else f"{secs}s stall"
+            formatted.append((k, f"{_fmt_ns(v):>10}  {v / baseline:.0f}x  — {label}"))
+        _print_kv_table(formatted, key_width=12)
+
+    # 6. Per-correlator cost
+    corr = _sub(results, "BenchmarkCorrelators_Isolated")
+    if corr:
+        print(color_message("\nCorrelator Cost  (BOCPD baseline + each correlator, 50 series)", Color.BLUE))
+        baseline_ns = corr.get("correlator=none")
+        order = ("none", "cross_signal", "time_cluster", "lead_lag", "surprise", "all")
+        rows = []
+        for name in order:
+            key = f"correlator={name}"
+            if key not in corr:
+                continue
+            ns = corr[key]
+            if baseline_ns and name != "none":
+                delta = ns - baseline_ns
+                pct = delta / baseline_ns * 100
+                rows.append((name, f"{_fmt_ns(ns)}/advance  (+{_fmt_ns(delta)}, +{pct:.0f}%)"))
+            else:
+                rows.append((name, f"{_fmt_ns(ns)}/advance  (baseline)"))
+        _print_kv_table(rows, key_width=14)
+
+    # 7. Log ingestion
+    log_raw = _sub(results, "BenchmarkLogIngestion_Real_Cardinality")
+    log_det = _sub(results, "BenchmarkLogIngestionWithDetection_Real_Cardinality")
+    if log_raw:
+        print(color_message("\nLog Ingestion  (real extractors)", Color.BLUE))
+        rows = sorted(log_raw.items(), key=lambda x: int(x[0].split("=")[1]))
+        for k, ns in rows:
+            det_ns = log_det.get(k)
+            det_str = f"  +detection: {_fmt_ns(det_ns)}" if det_ns else ""
+            print(f"  {k:<12} {_fmt_ns(ns)}/log{det_str}")
+
+    print()
