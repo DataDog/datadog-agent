@@ -426,7 +426,7 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 
 // stateKey returns a unique key for per-series state tracking.
 func (b *BOCPDDetector) stateKey(key observer.SeriesKey, agg observer.Aggregate) string {
-	return resolveKey(key) + "|" + aggSuffix(agg)
+	return seriesKey(key.Namespace, key.Name, key.Tags) + "|" + aggSuffix(agg)
 }
 
 // newSeriesState creates a fresh per-series state entry.

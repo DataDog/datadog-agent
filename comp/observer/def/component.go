@@ -428,7 +428,6 @@ type SeriesKey struct {
 	Namespace string
 	Name      string
 	Tags      []string
-	CachedKey string
 }
 
 // Aggregate specifies which statistic to extract from summary stats.
@@ -470,7 +469,7 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
-}
+ }
 
 // Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.

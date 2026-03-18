@@ -466,15 +466,6 @@ func seriesKey(namespace, name string, tags []string) string {
 	return namespace + "|" + name + "|" + joinTags(tags)
 }
 
-// resolveKey returns the internal storage key for a SeriesKey, using the
-// pre-computed CachedKey when available to avoid repeated string concatenation.
-func resolveKey(key observer.SeriesKey) string {
-	if key.CachedKey != "" {
-		return key.CachedKey
-	}
-	return seriesKey(key.Namespace, key.Name, key.Tags)
-}
-
 // parseSeriesKey parses a series key back into its parts.
 func parseSeriesKey(key string) (namespace, name string, tags []string, ok bool) {
 	parts := strings.SplitN(key, "|", 3)
@@ -735,7 +726,7 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	defer s.mu.RUnlock()
 
 	var result []observer.SeriesKey
-	for k, stats := range s.series {
+	for _, stats := range s.series {
 		// Check namespace filter
 		if filter.Namespace != "" && stats.Namespace != filter.Namespace {
 			continue
@@ -752,7 +743,6 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 			Namespace: stats.Namespace,
 			Name:      stats.Name,
 			Tags:      stats.Tags,
-			CachedKey: k,
 		})
 	}
 	return result
@@ -763,7 +753,7 @@ func (s *timeSeriesStorage) PointCount(key observer.SeriesKey) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	k := resolveKey(key)
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
 	if stats, ok := s.series[k]; ok {
 		return stats.pointCount()
 	}
@@ -776,7 +766,7 @@ func (s *timeSeriesStorage) PointCountUpTo(key observer.SeriesKey, endTime int64
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	k := resolveKey(key)
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
 	stats, ok := s.series[k]
 	if !ok || stats.pointCount() == 0 {
 		return 0
@@ -802,7 +792,7 @@ func (s *timeSeriesStorage) WriteGeneration(key observer.SeriesKey) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	k := resolveKey(key)
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
 	if stats, ok := s.series[k]; ok {
 		return stats.writeGeneration
 	}
@@ -835,7 +825,7 @@ func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end in
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	internalKey := resolveKey(key)
+	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
 	stats := s.series[internalKey]
 	if stats == nil {
 		return nil
