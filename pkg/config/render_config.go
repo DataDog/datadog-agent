@@ -94,6 +94,7 @@ func mkContext(buildType string, osName string) context {
 			KubeApiServer:       true,
 			ClusterChecks:       true,
 			AdmissionController: true,
+			PrivateActionRunner: true,
 		}
 	case "dcacf":
 		return context{

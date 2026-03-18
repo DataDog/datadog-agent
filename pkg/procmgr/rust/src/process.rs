@@ -103,9 +103,16 @@ impl ManagedProcess {
         }
     }
 
-    #[cfg(test)]
     pub fn state(&self) -> ProcessState {
         self.state
+    }
+
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    pub fn config(&self) -> &ProcessConfig {
+        &self.config
     }
 
     fn transition_to(&mut self, next: ProcessState) {
@@ -319,15 +326,17 @@ impl ManagedProcess {
         &self.config.restart
     }
 
-    /// Single entry point for restart logic: check policy, burst limit, backoff, respawn.
-    /// Returns true if the process was restarted.
-    pub async fn handle_restart(&mut self) -> bool {
+    /// Check restart policy and burst limits. If a restart is warranted,
+    /// record the attempt, advance the backoff, and return the delay the
+    /// caller should sleep before calling [`spawn`]. Returns `None` if the
+    /// process should not be restarted.
+    pub fn handle_restart(&mut self) -> Option<Duration> {
         let should_restart = match (self.state, &self.config.restart) {
             (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => true,
             (ProcessState::Failed, RestartPolicy::OnFailure) => true,
             (ProcessState::Exited, RestartPolicy::OnSuccess) => true,
             (ProcessState::Exited | ProcessState::Failed, _) => false,
-            _ => return false,
+            _ => return None,
         };
 
         if !should_restart {
@@ -337,7 +346,7 @@ impl ManagedProcess {
                     self.name
                 );
             }
-            return false;
+            return None;
         }
 
         if self
@@ -345,7 +354,7 @@ impl ManagedProcess {
             .is_burst_limited(self.config.burst_limit(), self.config.burst_interval())
         {
             warn!("[{}] start limit reached, not restarting", self.name);
-            return false;
+            return None;
         }
 
         self.restarts
@@ -357,17 +366,9 @@ impl ManagedProcess {
             self.restarts.count,
             delay.as_secs_f64()
         );
-        tokio::time::sleep(delay).await;
         self.restarts
             .advance_backoff(self.config.max_restart_delay());
-
-        match self.spawn() {
-            Ok(()) => true,
-            Err(e) => {
-                warn!("[{}] restart failed: {e:#}", self.name);
-                false
-            }
-        }
+        Some(delay)
     }
 }
 
