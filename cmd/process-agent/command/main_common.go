@@ -59,6 +59,7 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -227,8 +228,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	err := app.Start(ctx)
 	if err != nil {
 		if errors.Is(err, errAgentDisabled) {
-			log.Info("process-agent is not enabled, exiting...")
-			return nil
+			if !shouldStayAlive() {
+				log.Info("process-agent is not enabled, exiting...")
+				return nil
+			}
 		} else {
 			// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
 			// stdout just in case.
@@ -312,4 +315,16 @@ func initMisc(deps miscDeps) error {
 	})
 
 	return nil
+}
+
+// shouldStayAlive determines whether the process agent should stay alive when no checks are running.
+// In Kubernetes, the Helm chart deploys a process-agent container. Without checks to run, the
+// process-agent stays alive idle to prevent the container from crash-looping.
+func shouldStayAlive() bool {
+	if env.IsKubernetes() {
+		log.Warn("The process-agent is staying alive to prevent crash loops. Process checks run in the core agent. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
+		return true
+	}
+
+	return false
 }
