@@ -7,7 +7,7 @@ claim_pattern:
   event_name: (issues|issue_comment|workflow_dispatch|workflow_run)
   ref: refs/heads/main
   ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/(assign_issue_triage|check_issue_status)\.yml@refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/(assign-issue-triage|check-issue-status)\.yml@refs/heads/main
 
 permissions:
   actions: read

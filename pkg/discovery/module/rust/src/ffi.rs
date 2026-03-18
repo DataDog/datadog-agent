@@ -88,7 +88,6 @@ pub struct dd_service {
     pub log_files: dd_strs,
     pub apm_instrumentation: bool,
     pub language: dd_str,
-    pub service_type: dd_str,
 }
 
 #[repr(C)]
@@ -236,7 +235,6 @@ impl From<Service> for dd_service {
             log_files: dd_strs::from(svc.log_files),
             apm_instrumentation: svc.apm_instrumentation,
             language: dd_str::from_str(svc.language.as_str()),
-            service_type: dd_str::from(svc.service_type),
         }
     }
 }
@@ -401,7 +399,6 @@ unsafe fn free_dd_service(service: &dd_service) {
         log_files,
         apm_instrumentation: _,
         language,
-        service_type,
     } = service;
     // SAFETY: Caller guarantees pointers are from `Box::into_raw` or NULL.
     unsafe {
@@ -414,7 +411,6 @@ unsafe fn free_dd_service(service: &dd_service) {
         free_dd_u16_slice(udp_ports);
         free_dd_strs(log_files);
         free_dd_str(language);
-        free_dd_str(service_type);
     }
 }
 
@@ -601,7 +597,6 @@ mod tests {
                 log_files: vec!["/var/log/app.log".to_string()],
                 apm_instrumentation: true,
                 language: Language::Python,
-                service_type: "web_service".to_string(),
             }],
             injected_pids: vec![5678, 9012],
             gpu_pids: vec![1111, 2222],
@@ -626,10 +621,6 @@ mod tests {
         );
         assert_eq!(service.apm_instrumentation, true);
         assert_eq!(unsafe { dd_str_to_str(&service.language) }, "python");
-        assert_eq!(
-            unsafe { dd_str_to_str(&service.service_type) },
-            "web_service"
-        );
 
         // Verify additional_generated_names
         assert!(!service.additional_generated_names.data.is_null());
@@ -719,7 +710,6 @@ mod tests {
                 log_files: vec![],
                 apm_instrumentation: false,
                 language: Language::Unknown,
-                service_type: "unknown".to_string(),
             }],
             injected_pids: vec![],
             gpu_pids: vec![],

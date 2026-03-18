@@ -107,7 +107,7 @@ pub fn get(
     exe = trim_symbols_from_exe(exe);
     exe = normalize_exe_name(exe);
 
-    match exe {
+    let metadata = match exe {
         "gunicorn" => Some(gunicorn::extract_name(cmdline, &ctx.envs)),
         "puma" => rails::extract_name(cmdline, ctx),
         "beam.smp" | "beam" => erlang::extract_name(cmdline),
@@ -119,18 +119,22 @@ pub fn get(
             Language::NodeJS => nodejs::extract_name(cmdline, ctx),
             Language::DotNet => dotnet::extract_name(cmdline),
             Language::PHP => php::extract_name(cmdline, ctx),
-            _ => {
-                if let Some(idx) = exe.find('.') {
-                    exe = exe.get(..idx)?;
-                }
-
-                Some(ServiceNameMetadata::new(
-                    exe,
-                    ServiceNameSource::CommandLine,
-                ))
-            }
+            _ => None,
         },
+    };
+    if metadata.is_some() {
+        return metadata;
     }
+
+    // Fallback: use the exe basename, stripping the trailing file extension.
+    let name = match exe.rfind('.') {
+        Some(idx) if idx > 0 => exe.get(..idx)?,
+        _ => exe,
+    };
+    Some(ServiceNameMetadata::new(
+        name,
+        ServiceNameSource::CommandLine,
+    ))
 }
 
 fn trim_at_sep_end(s: &str, sep: char) -> &str {
@@ -274,12 +278,21 @@ mod tests {
 
     #[test]
     fn test_integration_erlang_no_name() {
-        // Integration test: Erlang process without valid name returns None
+        // When the Erlang detector can't find a name, fall back to the exe
+        // basename with extension stripped: "beam.smp" -> "beam".
+        // Matches Go's ExtractServiceMetadata fallback
+        // (pkg/discovery/usm/service.go:340-347).
         let cmdline = cmdline!["beam.smp", "-smp", "auto", "-noinput"];
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         let result = get_name(&Language::Unknown, &cmdline, &mut ctx);
-        assert_eq!(result, None);
+        assert_eq!(
+            result,
+            Some(ServiceNameMetadata::new(
+                "beam",
+                ServiceNameSource::CommandLine,
+            ))
+        );
     }
 
     #[test]
@@ -526,6 +539,89 @@ mod tests {
             Some(ServiceNameMetadata::new(
                 "myapp.asgi",
                 ServiceNameSource::CommandLine
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_when_python_detector_fails() {
+        // A non-Python exe (sleep) with Language::Python should fall back to
+        // the exe name when the Python detector can't extract a name.
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(&Language::Python, &cmdline!["sleep", "1000"], &mut ctx),
+            Some(ServiceNameMetadata::new(
+                "sleep",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_when_java_detector_fails() {
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(
+                &Language::Java,
+                &cmdline!["my-daemon", "--config", "/etc/foo.conf"],
+                &mut ctx
+            ),
+            Some(ServiceNameMetadata::new(
+                "my-daemon",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_strips_last_extension() {
+        // Go uses strings.LastIndex(exe, ".") so "server.x86_64.bin"
+        // becomes "server.x86_64", not "server".
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(
+                &Language::Unknown,
+                &cmdline!["./server.x86_64.bin"],
+                &mut ctx
+            ),
+            Some(ServiceNameMetadata::new(
+                "server.x86_64",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_no_extension() {
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(
+                &Language::Unknown,
+                &cmdline!["my-service", "--flag"],
+                &mut ctx
+            ),
+            Some(ServiceNameMetadata::new(
+                "my-service",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_dotfile_exe() {
+        // An exe starting with '.' like ".hidden" should not be trimmed to
+        // empty — matches Go's `i > 0` guard.
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(&Language::Unknown, &cmdline![".hidden"], &mut ctx),
+            Some(ServiceNameMetadata::new(
+                ".hidden",
+                ServiceNameSource::CommandLine,
             ))
         );
     }

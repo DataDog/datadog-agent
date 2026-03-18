@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -643,7 +644,6 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 
 	resp.Body.Close()
 	server.Close()
-
 }
 
 // Test the response message when decoding with a mismatched type somewhere
@@ -673,7 +673,6 @@ func TestReceiverV1MsgpackDecoderError(t *testing.T) {
 
 	resp.Body.Close()
 	server.Close()
-
 }
 
 func TestReceiverV1DecodingError(t *testing.T) {
@@ -1087,6 +1086,79 @@ func TestHandleStats(t *testing.T) {
 	})
 }
 
+func TestStatsKeepaliveIdleTimeout(t *testing.T) {
+	// When IdleTimeout is unset, Go falls back to ReadTimeout for keepalive connections.
+	// Tracers reuse connections across their ~10s stats flush interval, so IdleTimeout
+	// must be set independently to avoid "connection reset by peer" errors.
+	runTest := func(t *testing.T, idleTimeout time.Duration) (firstErr, secondErr error) {
+		cfg := newTestReceiverConfig()
+		cfg.ReceiverIdleTimeout = idleTimeout
+		readTimeout := time.Duration(cfg.ReceiverTimeout) * time.Second
+
+		rcv := newTestReceiverFromConfig(cfg)
+		rcv.Start()
+		defer rcv.Stop()
+
+		addr := fmt.Sprintf("%s:%v", cfg.ReceiverHost, cfg.ReceiverPort)
+		require.Eventually(t, func() bool {
+			c, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+			if err != nil {
+				return false
+			}
+			c.Close()
+			return true
+		}, 2*time.Second, 10*time.Millisecond)
+
+		p := testutil.StatsPayloadSample()
+		var buf bytes.Buffer
+		require.NoError(t, msgp.Encode(&buf, p))
+		payload := buf.Bytes()
+
+		// doRequest bypasses http.Client's reconnect logic.
+		doRequest := func(conn net.Conn) error {
+			req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/v0.6/stats", bytes.NewReader(payload))
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Content-Type", "application/msgpack")
+			if err := req.Write(conn); err != nil {
+				return err
+			}
+			resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+			if err != nil {
+				return err
+			}
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			resp.Body.Close()
+			return nil
+		}
+
+		conn, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		firstErr = doRequest(conn)
+		time.Sleep(2 * readTimeout) // sleep past ReadTimeout
+		secondErr = doRequest(conn)
+		return firstErr, secondErr
+	}
+
+	t.Run("without idle timeout", func(t *testing.T) {
+		// With no IdleTimeout, Go falls back to ReadTimeout (1s). The second request on the
+		// same connection after 2s must fail with a connection reset.
+		firstErr, secondErr := runTest(t, 0)
+		require.NoError(t, firstErr)
+		require.Error(t, secondErr, "expected connection reset when IdleTimeout falls back to ReadTimeout")
+	})
+
+	t.Run("with idle timeout", func(t *testing.T) {
+		// With IdleTimeout > ReadTimeout, the connection stays alive and both requests succeed.
+		firstErr, secondErr := runTest(t, 5*time.Second)
+		require.NoError(t, firstErr)
+		require.NoError(t, secondErr, "keepalive connection must survive past ReadTimeout")
+	})
+}
+
 func TestClientComputedStatsHeader(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
@@ -1230,7 +1302,7 @@ func TestHandleTraces(t *testing.T) {
 		rawTraceChan := make(chan *Payload)
 		rawTraceChanV1 := make(chan *PayloadV1)
 		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
-		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
+		receiver.recvsem = make(chan struct{}) // overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 		rr := httptest.NewRecorder()

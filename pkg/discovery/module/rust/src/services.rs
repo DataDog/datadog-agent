@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-use log::info;
 use serde::Serialize;
 
 use crate::apm;
+use crate::comm;
 use crate::envs;
 use crate::fs::SubDirFs;
 use crate::injector::is_apm_injector_in_process_maps;
@@ -51,7 +51,6 @@ pub struct Service {
     pub log_files: Vec<String>,
     pub apm_instrumentation: bool,
     pub language: Language,
-    pub service_type: String,
 }
 
 // getServices processes categorized PID lists and returns service information
@@ -69,6 +68,10 @@ pub fn get_services(params: Params) -> ServicesResponse {
                 resp.injected_pids.push(*pid);
             }
 
+            if comm::should_ignore_comm(*pid) {
+                continue;
+            }
+
             let Ok(open_files_info) = procfs::fd::get_open_files_info(*pid) else {
                 continue;
             };
@@ -78,7 +81,6 @@ pub fn get_services(params: Params) -> ServicesResponse {
             }
 
             if let Some(service) = get_service(*pid, &mut context, &open_files_info) {
-                info!("found service {service:#?}");
                 resp.services.push(service);
             }
         }
@@ -86,8 +88,11 @@ pub fn get_services(params: Params) -> ServicesResponse {
 
     if let Some(heartbeat_pids) = &params.heartbeat_pids {
         for pid in heartbeat_pids {
+            if comm::should_ignore_comm(*pid) {
+                continue;
+            }
+
             if let Some(service) = get_heartbeat_service(*pid, &mut context) {
-                info!("handled heartbeat {service:#?}");
                 resp.services.push(service);
             }
         }
@@ -160,7 +165,6 @@ fn get_service(
         log_files,
         apm_instrumentation,
         language,
-        service_type: String::new(),
     })
 }
 
