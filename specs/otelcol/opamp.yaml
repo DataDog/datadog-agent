@@ -3,6 +3,9 @@ category: functional
 requirements:
   - id: OTELCOL025
     short: Connect to an OpAmp management server
+    client_statement: |
+      The default URL path for the connection is `/v1/opamp`.
+      The URL path MAY be configurable on the Client and on the Server.
     long: |
       The user shall be able to configure the Collector to connect to an OpAmp
       server for remote management.
@@ -22,6 +25,13 @@ requirements:
 
   - id: OTELCOL026
     short: Connect to an OpAmp server over WebSocket
+    client_statement: |
+      One of the supported transports for OpAMP protocol is WebSocket.
+      The OpAMP Client is a WebSocket client and the Server is a WebSocket Server.
+      The Client and the Server communicate using binary data WebSocket messages.
+
+      The content of each WebSocket message is an encoded header,
+      followed by a binary encoded Protobuf message data.
     long: |
       The Collector shall support the WebSocket transport for OpAmp, providing a
       full-duplex, persistent, asynchronous connection to the management server.
@@ -37,6 +47,14 @@ requirements:
 
   - id: OTELCOL027
     short: Connect to an OpAmp server over HTTP
+    client_statement: |
+      The second supported transport for OpAMP protocol is plain HTTP connection.
+      The OpAMP Client is an HTTP client and the Server is an HTTP server.
+      The Client makes POST requests to the Server.
+
+      The body of the POST request and response is a binary serialized Protobuf message.
+      The Client sends `AgentToServer` Protobuf messages in the request body
+      and the Server sends `ServerToAgent` Protobuf messages in the response body.
     long: |
       The Collector shall support the HTTP transport for OpAmp, using HTTP `POST`
       requests to `/v1/opamp`.  Each request carries an `AgentToServer` message in
@@ -49,6 +67,11 @@ requirements:
 
   - id: OTELCOL028
     short: Report agent identity and capabilities to the OpAmp server
+    client_statement: |
+      The `instance_uid` field is a globally unique identifier of the running instance of the Agent.
+      The Agent SHOULD self-generate this identifier and make the best effort to avoid creating
+      an identifier that may conflict with identifiers created by other Agents.
+      The `instance_uid` SHOULD remain unchanged for the lifetime of the Agent process.
     long: |
       The Collector shall include in every `AgentToServer` message a stable,
       globally unique instance UID that persists across restarts, along with an
@@ -64,6 +87,18 @@ requirements:
 
   - id: OTELCOL029
     short: Send heartbeats to the OpAmp server
+    client_statement: |
+      If the ReportsHeartbeat capability is true,
+      the Client MUST use the offered heartbeat interval to periodically send an AgentToServer message.
+      If the capability is true and the Server sets `heartbeat_interval_seconds` to `0`,
+      Agent heartbeats should be disabled.
+      At a minimum the AgentToServer.instance_uid field MUST be set in the heartbeats.
+      An HTTP-based client MUST use the heartbeat interval as its polling interval.
+
+      Any AgentToServer message where instance_uid field is set is considered a valid heartbeat.
+      Note that it is not necessary to send a separate AgentToServer message just for heartbeating
+      purposes if another AgentToServer message containing other data was just sent.
+      The Agent must count heartbeating interval from the last AgentToServer message sent.
     long: |
       When the `ReportsHeartbeat` capability is declared, the Collector shall
       periodically send heartbeat messages to the OpAmp server to signal that it
@@ -79,6 +114,16 @@ requirements:
 
   - id: OTELCOL030
     short: Accept and apply remote configuration from the OpAmp server
+    client_statement: |
+      Agent configuration is an optional capability of OpAMP protocol.
+      Remote configuration capability can be disabled if necessary
+      (for example when using existing configuration capabilities of an orchestration system such as Kubernetes).
+
+      The Server can offer a Remote Configuration to the Agent by setting
+      the `remote_config` field in the `ServerToAgent` message.
+      Since the `ServerToAgent` message is normally sent by the Server in response
+      to a status report the Server has the Agent’s description and may tailor
+      the configuration it offers to the specific Agent if necessary.
     long: |
       The user shall be able to manage Collector configuration centrally by pushing
       configuration updates from an OpAmp server.
@@ -90,7 +135,7 @@ requirements:
       error description shall be included to aid troubleshooting.
     tags: [opamp, config]
     properties:
-      source: https://opentelemetry.io/docs/specs/opamp/#remote-configuration
+      source: https://opentelemetry.io/docs/specs/opamp/#configuration
     ref: [OTELCOL012, OTELCOL014, OTELCOL025, OTELCOL028]
 
   - id: OTELCOL031
