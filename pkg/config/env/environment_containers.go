@@ -251,6 +251,27 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 			return
 		}
 	}
+	// Scan /home/ for rootless Podman installations.
+	detectPodmanInHomeDir("/home", features)
+}
+
+// detectPodmanInHomeDir scans the given base directory for rootless Podman
+// storage directories and sets the Podman feature if any are found.
+func detectPodmanInHomeDir(homeBase string, features FeatureMap) {
+	homeEntries, err := os.ReadDir(homeBase)
+	if err != nil {
+		return
+	}
+	for _, entry := range homeEntries {
+		if !entry.IsDir() {
+			continue
+		}
+		storagePath := path.Join(homeBase, entry.Name(), ".local/share/containers/storage")
+		if _, err := os.Stat(storagePath); err == nil {
+			features[Podman] = struct{}{}
+			return
+		}
+	}
 }
 
 func detectPodResources(features FeatureMap, cfg model.Reader) {

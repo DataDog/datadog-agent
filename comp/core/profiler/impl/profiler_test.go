@@ -54,7 +54,6 @@ func createGenericConfig(t *testing.T) model.Config {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockConfig.SetWithoutSource("process_config.run_in_core_agent.enabled", false)
 	mockConfig.SetWithoutSource("process_config.enabled", false)
 	mockConfig.SetWithoutSource("process_config.container_collection.enabled", false)
 	mockConfig.SetWithoutSource("process_config.process_collection.enabled", false)
@@ -200,37 +199,15 @@ func TestTimeout(t *testing.T) {
 			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
 		},
 		{
-			name: "Process Agent Enabled",
-			extraCfgs: map[string]interface{}{
-				"process_config.enabled": true,
-			},
-			extraSysCfgs:    map[string]interface{}{},
-			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second),
-		},
-		{
-			name: "Process Agent Enabled, Alternate Setting",
-			extraCfgs: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-			},
-			extraSysCfgs:    map[string]interface{}{},
-			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second),
-		},
-		{
-			name: "Process Agent Checks in Core Agent",
-			extraCfgs: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-			},
+			name:            "Process Agent Checks in Core Agent",
+			extraCfgs:       map[string]interface{}{},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second),
 		},
 		{
-			name: "Process Agent Enabled, via NPM",
-			extraCfgs: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-			},
+			name:      "Process Agent Enabled, via NPM",
+			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"network_config.enabled":      true,
 				"system_probe_config.enabled": true,
@@ -239,10 +216,8 @@ func TestTimeout(t *testing.T) {
 			expTimeout:      baseTimeout + 8*(10*time.Second),
 		},
 		{
-			name: "Process Agent Enabled, via USM",
-			extraCfgs: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-			},
+			name:      "Process Agent Enabled, via USM",
+			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"service_monitoring_config.enabled": true,
 				"system_probe_config.enabled":       true,

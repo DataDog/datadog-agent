@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
@@ -264,7 +265,7 @@ func (p profiler) processAgentEnabled() bool {
 	processChecksEnabled := p.cfg.GetBool("process_config.enabled") ||
 		p.cfg.GetBool("process_config.container_collection.enabled") ||
 		p.cfg.GetBool("process_config.process_collection.enabled")
-	processChecksInProcessAgent := !p.cfg.GetBool("process_config.run_in_core_agent.enabled") &&
+	processChecksInProcessAgent := !coreagent.ProcessChecksRunInCoreAgent() &&
 		processChecksEnabled
 	npmEnabled := p.sysProbeCfg.GetBool("network_config.enabled")
 	usmEnabled := p.sysProbeCfg.GetBool("service_monitoring_config.enabled")
