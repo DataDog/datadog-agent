@@ -32,11 +32,14 @@ const (
 	controllerRevisionHashLabel = "controller-revision-hash"
 )
 
+const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
+
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
 // subresource, which requires InPlacePodVerticalScaling to be enabled. The result
-// is cached on the first call since the feature gate cannot change without a restart.
+// is cached for 15 minutes so that an upgrade enabling the feature gate is picked
+// up without a controller restart.
 func (u *verticalController) isInPlaceResizeSupported() bool {
-	if u.inPlaceResizeSupported != nil {
+	if u.inPlaceResizeSupported != nil && u.clock.Since(u.inPlaceResizeSupportedTime) < inPlaceResizeSupportedCacheTTL {
 		return *u.inPlaceResizeSupported
 	}
 	resources, err := u.client.Discovery().ServerResourcesForGroupVersion("v1")
@@ -49,6 +52,7 @@ func (u *verticalController) isInPlaceResizeSupported() bool {
 		return false
 	}()
 	u.inPlaceResizeSupported = &supported
+	u.inPlaceResizeSupportedTime = u.clock.Now()
 	return supported
 }
 

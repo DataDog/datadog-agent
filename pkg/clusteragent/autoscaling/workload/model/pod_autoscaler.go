@@ -312,6 +312,10 @@ func (p *PodAutoscalerInternal) UpdateFromVerticalAction(action *datadoghqcommon
 
 	if action != nil {
 		p.verticalLastAction = action
+	} else if err == nil {
+		// (nil, nil) signals the resize cycle is complete — clear the action.
+		p.verticalLastAction = nil
+		p.verticalLastActionError = nil
 	}
 }
 

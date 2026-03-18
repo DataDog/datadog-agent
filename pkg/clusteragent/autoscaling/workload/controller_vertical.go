@@ -54,7 +54,8 @@ type verticalController struct {
 	patchClient              *workloadpatcher.Patcher
 	podWatcher               PodWatcher
 	progressTracker          *rolloutProgressTracker
-	inPlaceResizeSupported   *bool
+	inPlaceResizeSupported      *bool
+	inPlaceResizeSupportedTime time.Time
 }
 
 // newVerticalController creates a new *verticalController
@@ -289,16 +290,11 @@ func (u *verticalController) syncInternal(
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
-		lastAction := autoscalerInternal.VerticalLastAction()
-		if lastAction != nil && lastAction.Type != datadoghqcommon.DatadogPodAutoscalerResizeCompletedVerticalActionType {
+		if autoscalerInternal.VerticalLastAction() != nil {
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,
 				"All %d pods resized successfully for autoscaler %s/%s", totalActive, podAutoscaler.Namespace, podAutoscaler.Name)
-			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
-				Time:    metav1.NewTime(u.clock.Now()),
-				Version: recommendationID,
-				Type:    datadoghqcommon.DatadogPodAutoscalerResizeCompletedVerticalActionType,
-			}, nil)
 		}
+		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: inplaceResizeRequeueDelay}, nil

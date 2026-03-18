@@ -50,7 +50,7 @@ const (
 	ConditionReasonLimitedByScalingBehavior ConditionReasonType = "LimitedByScalingBehavior"
 	// ConditionReasonFailedToPatchInPlace indicates a failure when patching a pod in place.
 	ConditionReasonFailedToPatchInPlace ConditionReasonType = "FailedToPatchInPlace"
-	// ConiditionReasonFailedToEvict indicates a failure when evicting a pod.
+	// ConditionReasonFailedToEvict indicates a failure when evicting a pod.
 	ConditionReasonFailedToEvict ConditionReasonType = "FailedToEvict"
 )
 
