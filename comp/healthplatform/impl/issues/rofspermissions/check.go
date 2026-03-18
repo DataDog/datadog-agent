@@ -22,12 +22,21 @@ const (
 // Check if all directories agent could write to are writable by the agent.
 func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	writeDirs := []string{
-		cfg.GetString("run_path"),
-		cfg.GetString("log_file"),
-		cfg.GetString("logs_config.run_path"),
-		filepath.Dir(cfg.GetString("dogstatsd_socket")),
-		filepath.Dir(cfg.GetString("apm_config.receiver_socket")),
 		tmpDir,
+		cfg.GetString("run_path"),
+		cfg.GetString("logs_config.run_path"),
+	}
+
+	filePaths := []string{
+		cfg.GetString("log_file"),
+		cfg.GetString("dogstatsd_socket"),
+		cfg.GetString("apm_config.receiver_socket"),
+	}
+	for _, filePath := range filePaths {
+		if filePath == "" {
+			continue
+		}
+		writeDirs = append(writeDirs, filepath.Dir(filePath))
 	}
 
 	var nonWritableDirs []string
