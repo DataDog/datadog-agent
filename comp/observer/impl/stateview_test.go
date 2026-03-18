@@ -28,8 +28,14 @@ func TestStateView_StorageAccess(t *testing.T) {
 		t.Fatalf("expected 2 series, got %d", len(keys))
 	}
 
-	// GetSeriesRange
-	series := sv.GetSeriesRange(observerdef.SeriesKey{Namespace: "ns", Name: "cpu"}, 0, 200, observerdef.AggregateAverage)
+	// GetSeriesRange — find the "cpu" series ID from ListSeries
+	cpuHandle := observerdef.SeriesHandle(-1)
+	for _, m := range keys {
+		if m.Name == "cpu" {
+			cpuHandle = m.Handle
+		}
+	}
+	series := sv.GetSeriesRange(cpuHandle, 0, 200, observerdef.AggregateAverage)
 	if series == nil {
 		t.Fatal("expected series data, got nil")
 	}
@@ -208,7 +214,7 @@ func (c *mockCorrelator) Advance(_ int64)                                     {}
 func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return nil }
 func (c *mockCorrelator) Reset()                                              {}
 
-func TestFindingM11_StateViewListDetectorsRace(t *testing.T) {
+func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
@@ -240,7 +246,7 @@ func TestFindingM11_StateViewListDetectorsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingM11_StateViewListCorrelatorsRace(t *testing.T) {
+func TestFindingM11_StateViewListCorrelatorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
@@ -272,7 +278,7 @@ func TestFindingM11_StateViewListCorrelatorsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingM11_StateViewActiveCorrelationsRace(t *testing.T) {
+func TestFindingM11_StateViewActiveCorrelationsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 

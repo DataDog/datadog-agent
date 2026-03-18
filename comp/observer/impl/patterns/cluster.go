@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package patterns provides log tokenization and clustering utilities.
 package patterns
 
 import (
@@ -18,10 +19,10 @@ type IDComputeInfo struct {
 }
 
 func (idComputeInfo *IDComputeInfo) NextID() int64 {
-	newId := idComputeInfo.Offset + idComputeInfo.Index*idComputeInfo.Stride
+	newID := idComputeInfo.Offset + idComputeInfo.Index*idComputeInfo.Stride
 	idComputeInfo.Index++
 
-	return newId
+	return newID
 }
 
 // Cluster represents a group of similar log messages.
@@ -288,8 +289,8 @@ func canMergeTokenLists(pattern, incoming []Token) bool {
 func canMergeTokens(a, b Token) bool {
 	if a.Type != b.Type {
 		switch {
-		case (a.Type == TypeNumericValue && b.Type == TypeHttpStatusCode) ||
-			(a.Type == TypeHttpStatusCode && b.Type == TypeNumericValue):
+		case (a.Type == TypeNumericValue && b.Type == TypeHTTPStatusCode) ||
+			(a.Type == TypeHTTPStatusCode && b.Type == TypeNumericValue):
 			return true
 		default:
 			return false
@@ -323,9 +324,9 @@ func canMergeTokens(a, b Token) bool {
 		return true
 	case TypeEmailAddress:
 		return true
-	case TypeHttpMethod:
+	case TypeHTTPMethod:
 		return true
-	case TypeHttpStatusCode:
+	case TypeHTTPStatusCode:
 		return true
 	case TypeSeverity:
 		return true

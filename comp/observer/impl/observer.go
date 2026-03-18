@@ -182,18 +182,16 @@ func NewComponent(deps Requires) Provides {
 	// Build correlator overrides from config keys (observer.correlators.<name>.enabled).
 	cfg := deps.Config
 	var correlatorOverrides map[string]bool
-	if cfg != nil {
-		for _, entry := range catalog.Entries() {
-			if entry.kind != componentCorrelator {
-				continue
+	for _, entry := range catalog.Entries() {
+		if entry.kind != componentCorrelator {
+			continue
+		}
+		key := "observer.correlators." + entry.name + ".enabled"
+		if cfg.IsKnown(key) {
+			if correlatorOverrides == nil {
+				correlatorOverrides = make(map[string]bool)
 			}
-			key := "observer.correlators." + entry.name + ".enabled"
-			if deps.Config.IsKnown(key) {
-				if correlatorOverrides == nil {
-					correlatorOverrides = make(map[string]bool)
-				}
-				correlatorOverrides[entry.name] = deps.Config.GetBool(key)
-			}
+			correlatorOverrides[entry.name] = cfg.GetBool(key)
 		}
 	}
 
@@ -224,7 +222,7 @@ func NewComponent(deps Requires) Provides {
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (observer.recording.enabled) enables parquet writers and the fetcher.
 	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := cfg != nil && cfg.GetBool("observer.analysis.enabled")
+	analysisEnabled := cfg.GetBool("observer.analysis.enabled")
 
 	obs.handleFunc = obs.noopHandle
 	if analysisEnabled {
@@ -236,7 +234,7 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Optionally add the event reporter when sending is enabled via config.
-	if deps.Config != nil && deps.Config.GetBool("observer.event_reporter.sending_enabled") {
+	if cfg.GetBool("observer.event_reporter.sending_enabled") {
 		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
@@ -454,26 +452,25 @@ func (a *seriesDetectorAdapter) Reset() {
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
+	allSeries := storage.ListSeries(observerdef.SeriesFilter{})
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, key := range seriesKeys {
-		keyStr := seriesKey(key.Namespace, key.Name, key.Tags)
-		visibleCount := storage.PointCountUpTo(key, dataTime)
+	for _, meta := range allSeries {
+		keyStr := seriesKey(meta.Namespace, meta.Name, meta.Tags)
+		visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
 		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
 			continue
 		}
 		a.lastVisibleCount[keyStr] = visibleCount
 
-		// Series has new data — run detector on each aggregation.
 		for _, agg := range a.aggregations {
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
 			}
-			series := storage.GetSeriesRange(key, start, dataTime, agg)
+			series := storage.GetSeriesRange(meta.Handle, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
@@ -493,10 +490,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 		}
 	}
 
-	return observerdef.DetectionResult{
-		Anomalies: allAnomalies,
-		Telemetry: allTelemetry,
-	}
+	return observerdef.DetectionResult{Anomalies: allAnomalies, Telemetry: allTelemetry}
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.

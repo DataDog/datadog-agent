@@ -142,7 +142,7 @@ func (r *HTMLReporter) Start(addr string) error {
 
 	go func() {
 		if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			// Log error but don't crash - server might be stopped intentionally
+			log.Printf("[observer] HTMLReporter server error: %v", err)
 		}
 	}()
 
@@ -803,7 +803,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
 }
 
 // handleAPIReports returns JSON array of recent reports.
-func (r *HTMLReporter) handleAPIReports(w http.ResponseWriter, req *http.Request) {
+func (r *HTMLReporter) handleAPIReports(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
 	reports := make([]timestampedReport, len(r.reports))
 	copy(reports, r.reports)
@@ -1114,7 +1114,7 @@ type rawAnomalyOutput struct {
 }
 
 // handleAPICorrelations returns currently active correlations.
-func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Request) {
+func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
 	correlationState := r.correlationState
 	r.mu.RUnlock()
@@ -1164,7 +1164,7 @@ func seriesIDsToStringSlice(ids []observer.SeriesID) []string {
 }
 
 // handleAPIRawAnomalies returns all raw anomalies from detector implementations.
-func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
+func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
 	rawState := r.rawAnomalyState
 	r.mu.RUnlock()
@@ -1210,7 +1210,7 @@ func (r *HTMLReporter) handleAPITimeClusterClusters(w http.ResponseWriter, _ *ht
 	w.Header().Set("Content-Type", "application/json")
 
 	if tc == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"clusters": []interface{}{},
 			"error":    "TimeClusterCorrelator not enabled",
 		})
@@ -1218,7 +1218,7 @@ func (r *HTMLReporter) handleAPITimeClusterClusters(w http.ResponseWriter, _ *ht
 	}
 
 	clusters := tc.GetClusters()
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"clusters": clusters,
 	})
 }
@@ -1232,7 +1232,7 @@ func (r *HTMLReporter) handleAPITimeClusterStats(w http.ResponseWriter, _ *http.
 	w.Header().Set("Content-Type", "application/json")
 
 	if tc == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"enabled": false,
 			"error":   "TimeClusterCorrelator not enabled",
 		})
@@ -1241,7 +1241,7 @@ func (r *HTMLReporter) handleAPITimeClusterStats(w http.ResponseWriter, _ *http.
 
 	stats := tc.GetStats()
 	stats["enabled"] = true
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 const timeClusterPageHTML = `<!DOCTYPE html>

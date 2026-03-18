@@ -229,17 +229,8 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 	return result
 }
 
-// buildReport creates a ReportOutput for a matched pattern.
-// NOTE: This method is currently unused (dead code). It exists as a reference
-// for how a correlator might construct a ReportOutput.
-func (c *CrossSignalCorrelator) buildReport(pattern correlationPattern, _ map[observer.MetricName]struct{}) observer.ReportOutput {
-	return observer.ReportOutput{
-		ActiveCorrelations: c.ActiveCorrelations(),
-	}
-}
-
-// GetBuffer returns the current buffer (for testing).
-func (c *CrossSignalCorrelator) GetBuffer() []timestampedAnomaly {
+// getBuffer returns the current buffer (for testing).
+func (c *CrossSignalCorrelator) getBuffer() []timestampedAnomaly {
 	return c.buffer
 }
 
