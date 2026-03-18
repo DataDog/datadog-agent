@@ -97,23 +97,25 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("secret_backend_command '%s' timed out after %d seconds. Increase secret_backend_timeout in datadog.yaml (default: 30) or optimize your script. Docs: %s",
+			return nil, fmt.Errorf("'%s' timed out after %d seconds. You can increase secret_backend_timeout in datadog.yaml. Docs: %s",
 				r.backendCommand, r.backendTimeout, secretsManagementDocsURL)
 		}
 		errStr := strings.ToLower(err.Error())
 		stderrStr := stderr.buf.String()
 		if strings.Contains(errStr, "permission denied") || strings.Contains(errStr, "operation not permitted") || strings.Contains(errStr, "access is denied") {
-			log.Warnf("secret_backend_command '%s' failed: permission denied. On Linux: chmod 700 or 750; only owner (and optionally group) should have execute. On Windows: ensure the Agent user can execute the script. Docs: %s",
+			log.Warnf("'%s' failed: permission denied. See docs for more information on the setup secrets: %s",
 				r.backendCommand, secretsManagementDocsURL)
-			return nil, fmt.Errorf("secret_backend_command '%s' failed: permission denied. Docs: %s", r.backendCommand, secretsManagementDocsURL)
+			return nil, fmt.Errorf("permission denied executing secret command '%s'", r.backendCommand)
 		}
 		if strings.Contains(stderrStr, "invalid version") || strings.Contains(stderrStr, "expected 1.0") {
-			log.Warnf("secret_backend_command returned invalid output. The Agent sends payload version %s (with optional \"type\" and \"config\"). If your script expects version 1.0, update it to accept %s. Docs: %s",
-				secrets.PayloadVersion, secrets.PayloadVersion, secretsManagementDocsURL)
-			return nil, fmt.Errorf("secret_backend_command '%s' failed: script expects payload version 1.0, Agent sends %s. Docs: %s", r.backendCommand, secrets.PayloadVersion, secretsManagementDocsURL)
+			log.Warnf("'%s' seems to have detected an invalid version. The Agent sends payload with version '%s'. If your script only works with version '1.0', update it. Docs: %s",
+				r.backendCommand, secrets.PayloadVersion, secretsManagementDocsURL)
 		}
-		return nil, fmt.Errorf("secret_backend_command '%s' failed (exit code %s): %s. Common causes: (1) script expects payload version 1.0 — Agent sends %s; (2) script not executable or wrong permissions; (3) script path incorrect. Docs: %s",
-			r.backendCommand, exitCode, err, secrets.PayloadVersion, secretsManagementDocsURL)
+		} else {
+			log.Warnf("'%s' failed (exit code %s, message: '%s'): %s. See docs for FAQ and troubleshooting methods: %s",
+			r.backendCommand, exitCode, err, secretsManagementDocsURL)
+		}
+		return nil, fmt.Errorf("error while running '%s': %s", r.backendCommand, err)
 	}
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
@@ -202,7 +204,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
 		r.tlmSecretUnmarshalError.Inc()
-		return nil, fmt.Errorf("secret_backend_command '%s' returned invalid JSON: %s. Expected format: {\"handle1\":{\"value\":\"...\"},\"handle2\":{\"value\":\"...\"}} or {\"handle1\":{\"error\":\"error message\"}}. Docs: %s",
+		return nil, fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
 			r.backendCommand, err, secretsManagementDocsURL)
 	}
 
