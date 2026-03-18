@@ -32,7 +32,7 @@ def _get_app_key(cfg):
     return get_app_key(cfg)
 
 
-_VALID_MODES = ("record-parquet", "live-anomaly-detection")
+_VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
 
 
 @task(

@@ -31,6 +31,14 @@ datadog:
     - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
       value: "true"
 {{- end}}
+{{- if eq .Mode "live-and-record"}}
+    - name: DD_OBSERVER_RECORDING_ENABLED
+      value: "true"
+    - name: DD_OBSERVER_ANALYSIS_ENABLED
+      value: "true"
+    - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
+      value: "true"
+{{- end}}
     - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
       value: "1s"
 
@@ -51,6 +59,16 @@ agents:
         parquet_flush_interval: 30s
 {{- end}}
 {{- if eq .Mode "live-anomaly-detection"}}
+      analysis:
+        enabled: true
+      event_reporter:
+        sending_enabled: true
+{{- end}}
+{{- if eq .Mode "live-and-record"}}
+      recording:
+        enabled: true
+        parquet_output_dir: /tmp/observer-parquet
+        parquet_flush_interval: 30s
       analysis:
         enabled: true
       event_reporter:

@@ -701,7 +701,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
   # 4. Collect results (mode-dependent)
   PARQUET_COUNT=0
-  if [ "$GENSIM_MODE" = "record-parquet" ]; then
+  if [ "$GENSIM_MODE" = "record-parquet" ] || [ "$GENSIM_MODE" = "live-and-record" ]; then
     update_episode_status "$EP_SPEC" "running" '{"phase":"collecting-parquet"}'
     AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -z "$AGENT_POD" ]; then
