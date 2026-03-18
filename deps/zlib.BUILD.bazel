@@ -142,6 +142,7 @@ dd_cc_packaged(
 pkg_files(
     name = "lib_files",
     srcs = [":z"],
+    prefix = "lib",
 )
 
 pkg_filegroup(
