@@ -9,6 +9,8 @@ package metricsstore
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,35 +18,123 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// keyEntry holds the metrics for a single store key, protected by a RWMutex.
+// It stores both generated metrics (from Add) and pushed gauges (from PushGauge)
+// in the same map, keyed by metric identity.
+// keyTags holds per-key tags extracted from the object at Add time (e.g. from
+// the ad.datadoghq.com/tags annotation); they are appended to every metric for
+// this key when sending.
+type keyEntry struct {
+	mu      sync.RWMutex
+	metrics map[string]StructuredMetric // identity → metric
+	keyTags []string
+}
+
+func newKeyEntry() *keyEntry {
+	return &keyEntry{
+		metrics: make(map[string]StructuredMetric),
+	}
+}
+
+// metricIdentity returns a stable string key for a metric based on its name
+// and sorted tags, used as the upsert key in the pushed map.
+func metricIdentity(name string, tags []string) string {
+	sorted := slices.Clone(tags)
+	slices.Sort(sorted)
+
+	size := len(name) + 1 // name + '\x00'
+	for _, t := range sorted {
+		size += len(t) + 1 // tag + ','
+	}
+	if len(sorted) > 0 {
+		size-- // no trailing comma
+	}
+
+	var b strings.Builder
+	b.Grow(size)
+	b.WriteString(name)
+	b.WriteByte('\x00')
+	for i, t := range sorted {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(t)
+	}
+	return b.String()
+}
+
 // MetricsStore stores structured metrics for any cluster-agent resource
 // and sends them periodically via a Datadog Sender
 type MetricsStore[T any] struct {
-	metrics             sync.Map // map[string]StructuredMetrics
+	metrics             sync.Map // map[string]*keyEntry
 	generateMetricsFunc func(T) StructuredMetrics
+	keyTagsFunc         func(T) []string
 	sender              sender.Sender
 	isLeader            func() bool
 	globalTagsFunc      func() []string
 }
 
 // NewMetricsStore creates a new metrics store.
+// keyTagsFunc, if non-nil, is called on every Add to extract per-key tags from
+// the object (e.g. from the ad.datadoghq.com/tags annotation). Those tags are
+// stored in the keyEntry and appended to every metric for that key at send time.
 // globalTagsFunc, if non-nil, is called on every WriteAll to retrieve tags that
 // are appended to every metric (e.g. orch_cluster_id from the tagger).
-func NewMetricsStore[T any](generateFunc func(T) StructuredMetrics, senderInstance sender.Sender, isLeaderFunc func() bool, globalTagsFunc func() []string) *MetricsStore[T] {
+func NewMetricsStore[T any](generateFunc func(T) StructuredMetrics, keyTagsFunc func(T) []string, senderInstance sender.Sender, isLeaderFunc func() bool, globalTagsFunc func() []string) *MetricsStore[T] {
 	return &MetricsStore[T]{
 		generateMetricsFunc: generateFunc,
+		keyTagsFunc:         keyTagsFunc,
 		sender:              senderInstance,
 		isLeader:            isLeaderFunc,
 		globalTagsFunc:      globalTagsFunc,
 	}
 }
 
-// Add adds or updates metrics for an object.
+// Add adds or updates the generated metrics for an object.
+// It fully replaces all metrics for the key, including any previously pushed gauges.
+// If a keyTagsFunc was provided at construction, it is called to extract per-key
+// tags from obj (e.g. from the ad.datadoghq.com/tags annotation), which are
+// stored on the keyEntry and appended to every metric for this key at send time.
 func (m *MetricsStore[T]) Add(key string, obj T) {
 	log.Tracef("Adding/updating metrics for key: %s", key)
-	m.metrics.Store(key, m.generateMetricsFunc(obj))
+	generated := m.generateMetricsFunc(obj)
+
+	actual, _ := m.metrics.LoadOrStore(key, newKeyEntry())
+	e := actual.(*keyEntry)
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	newMetrics := make(map[string]StructuredMetric, len(generated))
+	for _, metric := range generated {
+		newMetrics[metricIdentity(metric.Name, metric.Tags)] = metric
+	}
+	e.metrics = newMetrics
+
+	if m.keyTagsFunc != nil {
+		e.keyTags = m.keyTagsFunc(obj)
+	}
 }
 
-// Delete removes metrics for an object.
+// PushGauge adds or updates a gauge metric for a specific key.
+// Multiple gauges with the same metric name but different tags are stored as separate entries.
+// Calling PushGauge again with the same name and tags updates the existing value.
+func (m *MetricsStore[T]) PushGauge(key, metricName string, value float64, tags []string) {
+	actual, _ := m.metrics.LoadOrStore(key, newKeyEntry())
+	e := actual.(*keyEntry)
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.metrics[metricIdentity(metricName, tags)] = StructuredMetric{
+		Name:  metricName,
+		Type:  MetricTypeGauge,
+		Value: value,
+		Tags:  slices.Clone(tags),
+	}
+}
+
+// Delete removes all metrics for a key, including both generated and pushed gauges.
 func (m *MetricsStore[T]) Delete(key string) {
 	log.Tracef("Deleting metrics for key: %s", key)
 	m.metrics.Delete(key)
@@ -62,29 +152,34 @@ func (m *MetricsStore[T]) WriteAll() error {
 		globalTags = m.globalTagsFunc()
 	}
 
-	m.metrics.Range(func(key, value interface{}) bool {
-		metrics, ok := value.(StructuredMetrics)
-		if !ok {
-			log.Warnf("Invalid metrics type in store for key %v", key)
-			return true
+	sendMetric := func(metric StructuredMetric, keyTags []string) {
+		tags := metric.Tags
+		if len(keyTags) > 0 || len(globalTags) > 0 {
+			tags = tags[:len(tags):len(tags)]
+			tags = append(tags, keyTags...)
+			tags = append(tags, globalTags...)
 		}
+		switch metric.Type {
+		case MetricTypeGauge:
+			m.sender.Gauge(metric.Name, metric.Value, "", tags)
+		case MetricTypeMonotonicCount:
+			m.sender.MonotonicCount(metric.Name, metric.Value, "", tags)
+		case MetricTypeCount:
+			m.sender.Count(metric.Name, metric.Value, "", tags)
+		default:
+			log.Warnf("Unknown metric type %v for metric %s", metric.Type, metric.Name)
+		}
+	}
 
-		log.Tracef("Submitting %d metrics for key: %v", len(metrics), key)
-		for _, metric := range metrics {
-			tags := metric.Tags
-			if len(globalTags) > 0 {
-				tags = append(tags, globalTags...)
-			}
-			switch metric.Type {
-			case MetricTypeGauge:
-				m.sender.Gauge(metric.Name, metric.Value, "", tags)
-			case MetricTypeMonotonicCount:
-				m.sender.MonotonicCount(metric.Name, metric.Value, "", tags)
-			case MetricTypeCount:
-				m.sender.Count(metric.Name, metric.Value, "", tags)
-			default:
-				log.Warnf("Unknown metric type %v for metric %s", metric.Type, metric.Name)
-			}
+	m.metrics.Range(func(key, value interface{}) bool {
+		e := value.(*keyEntry)
+
+		e.mu.RLock()
+		defer e.mu.RUnlock()
+
+		log.Tracef("Submitting %d metrics for key: %v", len(e.metrics), key)
+		for _, metric := range e.metrics {
+			sendMetric(metric, e.keyTags)
 		}
 		return true
 	})

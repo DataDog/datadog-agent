@@ -29,7 +29,7 @@ func TestWriteAll_Leader(t *testing.T) {
 			{Name: "test.gauge", Type: MetricTypeGauge, Value: 42.0, Tags: []string{"tag1:value1"}},
 			{Name: "test.count", Type: MetricTypeCount, Value: 10.0, Tags: []string{"tag2:value2"}},
 		}
-	}, mockSender, func() bool { return true }, nil)
+	}, nil, mockSender, func() bool { return true }, nil)
 
 	store.Add("key1", nil)
 
@@ -49,7 +49,7 @@ func TestWriteAll_NonLeader(t *testing.T) {
 		return StructuredMetrics{
 			{Name: "test.gauge", Type: MetricTypeGauge, Value: 42.0, Tags: []string{"tag1:value1"}},
 		}
-	}, mockSender, func() bool { return false }, nil)
+	}, nil, mockSender, func() bool { return false }, nil)
 
 	store.Add("key1", nil)
 
@@ -64,7 +64,7 @@ func TestWriteAll_EmptyStore(t *testing.T) {
 	mockSender := mocksender.NewMockSender("")
 	mockSender.On("Commit").Return()
 
-	store := NewMetricsStore(func(_ interface{}) StructuredMetrics { return nil }, mockSender, func() bool { return true }, nil)
+	store := NewMetricsStore(func(_ interface{}) StructuredMetrics { return nil }, nil, mockSender, func() bool { return true }, nil)
 
 	err := store.WriteAll()
 	assert.NoError(t, err)
@@ -84,7 +84,7 @@ func TestWriteAll_MultipleMetrics(t *testing.T) {
 			{Name: "test.metric2", Type: MetricTypeGauge, Value: 2.0, Tags: []string{"test:tag"}},
 			{Name: "test.metric3", Type: MetricTypeCount, Value: 3.0, Tags: []string{"test:tag"}},
 		}
-	}, mockSender, func() bool { return true }, nil)
+	}, nil, mockSender, func() bool { return true }, nil)
 
 	store.Add("key1", nil)
 	store.Add("key2", nil)
@@ -108,7 +108,71 @@ func TestWriteAll_GlobalTagsAppended(t *testing.T) {
 		return StructuredMetrics{
 			{Name: "test.gauge", Type: MetricTypeGauge, Value: 1.0, Tags: []string{"metric:tag"}},
 		}
-	}, mockSender, func() bool { return true }, func() []string { return []string{"global:tag"} })
+	}, nil, mockSender, func() bool { return true }, func() []string { return []string{"global:tag"} })
+
+	store.Add("key1", nil)
+
+	err := store.WriteAll()
+	assert.NoError(t, err)
+
+	mockSender.AssertExpectations(t)
+}
+
+func TestWriteAll_PushedGauges(t *testing.T) {
+	mockSender := mocksender.NewMockSender("")
+	mockSender.On("Gauge", "cpu.limit", 4.0, "", []string{"container:app"}).Return()
+	mockSender.On("Gauge", "cpu.limit", 8.0, "", []string{"container:sidecar"}).Return()
+	mockSender.On("Commit").Return()
+
+	store := NewMetricsStore(func(_ interface{}) StructuredMetrics { return nil }, nil, mockSender, func() bool { return true }, nil)
+
+	store.PushGauge("key1", "cpu.limit", 4.0, []string{"container:app"})
+	store.PushGauge("key1", "cpu.limit", 8.0, []string{"container:sidecar"})
+
+	err := store.WriteAll()
+	assert.NoError(t, err)
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 2)
+}
+
+func TestWriteAll_PushedGaugesCoexistWithGenerated(t *testing.T) {
+	mockSender := mocksender.NewMockSender("")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	store := NewMetricsStore(func(_ interface{}) StructuredMetrics {
+		return StructuredMetrics{
+			{Name: "generated.metric", Type: MetricTypeGauge, Value: 1.0, Tags: []string{"gen:tag"}},
+		}
+	}, nil, mockSender, func() bool { return true }, nil)
+
+	store.Add("key1", nil)
+	store.PushGauge("key1", "cpu.limit", 4.0, []string{"container:app"})
+	store.PushGauge("key1", "cpu.limit", 8.0, []string{"container:sidecar"})
+
+	err := store.WriteAll()
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "Gauge", 3)
+}
+
+func TestWriteAll_KeyTagsAppended(t *testing.T) {
+	mockSender := mocksender.NewMockSender("")
+	mockSender.On("Gauge", "test.gauge", 1.0, "", []string{"metric:tag", "env:prod", "global:tag"}).Return()
+	mockSender.On("Commit").Return()
+
+	store := NewMetricsStore(
+		func(_ interface{}) StructuredMetrics {
+			return StructuredMetrics{
+				{Name: "test.gauge", Type: MetricTypeGauge, Value: 1.0, Tags: []string{"metric:tag"}},
+			}
+		},
+		func(_ interface{}) []string { return []string{"env:prod"} },
+		mockSender,
+		func() bool { return true },
+		func() []string { return []string{"global:tag"} },
+	)
 
 	store.Add("key1", nil)
 
@@ -127,7 +191,7 @@ func TestWriteAllPeriodically_CancelsOnContext(t *testing.T) {
 		return StructuredMetrics{
 			{Name: "test.metric", Type: MetricTypeGauge, Value: 1.0, Tags: []string{"test:tag"}},
 		}
-	}, mockSender, func() bool { return true }, nil)
+	}, nil, mockSender, func() bool { return true }, nil)
 
 	store.Add("key1", nil)
 
