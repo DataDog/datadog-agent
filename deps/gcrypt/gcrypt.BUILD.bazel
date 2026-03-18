@@ -738,6 +738,7 @@ cc_library(
         ":libmpi",
         ":librandom",
     ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_shared_library(
