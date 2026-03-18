@@ -5,7 +5,7 @@
 
 mod helpers;
 
-use helpers::{CliRunner, TestEnv, pid_is_alive, wait_for_pid_gone};
+use helpers::{CliRunner, TestEnv, pid_is_alive, wait_for_pid_gone, write_config};
 use std::path::Path;
 use std::time::Duration;
 
@@ -1051,4 +1051,236 @@ fn test_cli_create_env_vars() {
     let env_map = json["env"].as_object().expect("env should be an object");
     assert_eq!(env_map.get("FOO").and_then(|v| v.as_str()), Some("bar"));
     assert_eq!(env_map.get("BAZ").and_then(|v| v.as_str()), Some("qux"));
+}
+
+#[test]
+fn test_cli_reload_no_changes() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Unchanged", "sleeper");
+}
+
+#[test]
+fn test_cli_reload_add_process() {
+    let env = TestEnv::new()
+        .with_config("existing", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[existing] spawned");
+
+    write_config(
+        env.config_dir(),
+        "new-svc",
+        "command: /bin/sleep\nargs:\n  - '300'\n",
+    );
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Added", "new-svc");
+
+    env.daemon().wait_for_log_default("[new-svc] spawned");
+
+    let out = env.cli(&["list"]);
+    out.assert_success()
+        .assert_table_row("new-svc", &[("STATE", "Running")])
+        .assert_table_row("existing", &[("STATE", "Running")])
+        .assert_table_row_count(2);
+
+    let pid_new = out.pid_from_table_row("new-svc");
+    let pid_existing = out.pid_from_table_row("existing");
+    assert!(
+        pid_is_alive(pid_new),
+        "new-svc PID {pid_new} should be alive"
+    );
+    assert!(
+        pid_is_alive(pid_existing),
+        "existing PID {pid_existing} should be alive"
+    );
+}
+
+#[test]
+fn test_cli_reload_remove_process() {
+    let env = TestEnv::new()
+        .with_config("keeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("doomed", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[keeper] spawned");
+    env.daemon().wait_for_log_default("[doomed] spawned");
+
+    let doomed_pid = env.cli(&["list"]).pid_from_table_row("doomed");
+
+    std::fs::remove_file(env.config_dir().join("doomed.yaml"))
+        .expect("failed to remove doomed.yaml");
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Removed", "doomed");
+
+    assert!(
+        wait_for_pid_gone(doomed_pid, Duration::from_secs(5)),
+        "removed process PID {doomed_pid} should be gone"
+    );
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_table_row_count(1)
+        .assert_table_row("keeper", &[("STATE", "Running")]);
+}
+
+#[test]
+fn test_cli_reload_modify_process() {
+    let env = TestEnv::new()
+        .with_config("svc", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[svc] spawned");
+
+    let old_pid = env.cli(&["list"]).pid_from_table_row("svc");
+
+    write_config(
+        env.config_dir(),
+        "svc",
+        "command: /bin/sleep\nargs:\n  - '600'\n",
+    );
+
+    env.cli(&["reload"])
+        .assert_success()
+        .assert_field("Modified", "svc");
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[svc] spawned", 2, Duration::from_secs(10)),
+        "svc should have been respawned after modify"
+    );
+
+    assert!(
+        wait_for_pid_gone(old_pid, Duration::from_secs(5)),
+        "old PID {old_pid} should be gone after modify+reload"
+    );
+
+    let new_pid = env.cli(&["list"]).pid_from_table_row("svc");
+    assert!(pid_is_alive(new_pid), "new PID {new_pid} should be alive");
+    assert_ne!(old_pid, new_pid, "PID should change after modify+reload");
+}
+
+#[test]
+fn test_cli_reload_add_and_remove() {
+    let env = TestEnv::new()
+        .with_config("old", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[old] spawned");
+
+    let old_pid = env.cli(&["list"]).pid_from_table_row("old");
+
+    std::fs::remove_file(env.config_dir().join("old.yaml")).expect("failed to remove old.yaml");
+    write_config(
+        env.config_dir(),
+        "new",
+        "command: /bin/sleep\nargs:\n  - '300'\n",
+    );
+
+    let out = env.cli(&["reload"]);
+    out.assert_success()
+        .assert_field("Added", "new")
+        .assert_field("Removed", "old");
+
+    assert!(
+        wait_for_pid_gone(old_pid, Duration::from_secs(5)),
+        "old PID {old_pid} should be gone after removal"
+    );
+
+    env.daemon().wait_for_log_default("[new] spawned");
+
+    let new_pid = env.cli(&["list"]).pid_from_table_row("new");
+    assert!(pid_is_alive(new_pid), "new PID {new_pid} should be alive");
+}
+
+#[test]
+fn test_cli_reload_json() {
+    let env = TestEnv::new()
+        .with_config("existing", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[existing] spawned");
+
+    write_config(
+        env.config_dir(),
+        "added",
+        "command: /bin/sleep\nargs:\n  - '300'\n",
+    );
+
+    let out = env.cli(&["reload", "--json"]);
+    out.assert_success();
+    let json = out.stdout_json();
+
+    let added = json["added"].as_array().expect("added should be an array");
+    assert!(
+        added.iter().any(|v| v.as_str() == Some("added")),
+        "expected 'added' in added array: {json}"
+    );
+
+    let unchanged = json["unchanged"]
+        .as_array()
+        .expect("unchanged should be an array");
+    assert!(
+        unchanged.iter().any(|v| v.as_str() == Some("existing")),
+        "expected 'existing' in unchanged array: {json}"
+    );
+
+    assert!(json["removed"].as_array().expect("array").is_empty());
+    assert!(json["modified"].as_array().expect("array").is_empty());
+}
+
+#[test]
+fn test_cli_reload_new_process_starts() {
+    let env = TestEnv::new().start();
+
+    write_config(
+        env.config_dir(),
+        "late",
+        "command: /bin/sleep\nargs:\n  - '300'\n",
+    );
+
+    env.cli(&["reload"]).assert_success();
+    env.daemon().wait_for_log_default("[late] spawned");
+
+    let out = env.cli(&["list"]);
+    out.assert_success()
+        .assert_table_row("late", &[("STATE", "Running")]);
+
+    let pid = out.pid_from_table_row("late");
+    assert!(pid_is_alive(pid), "PID {pid} should be alive");
+}
+
+#[test]
+fn test_cli_reload_removed_process_stopped() {
+    let env = TestEnv::new()
+        .with_config("ephemeral", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[ephemeral] spawned");
+
+    let pid = env.cli(&["list"]).pid_from_table_row("ephemeral");
+
+    std::fs::remove_file(env.config_dir().join("ephemeral.yaml"))
+        .expect("failed to remove ephemeral.yaml");
+
+    env.cli(&["reload"]).assert_success();
+
+    assert!(
+        wait_for_pid_gone(pid, Duration::from_secs(5)),
+        "removed process PID {pid} should be gone"
+    );
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_stdout_contains("No processes");
 }

@@ -21,6 +21,7 @@ use tonic::Status;
 
 pub(crate) struct ExitEvent {
     pub name: String,
+    pub pid: u32,
     pub status: std::process::ExitStatus,
 }
 
@@ -143,6 +144,15 @@ impl ProcessManager {
             warn!("exit event for unknown process '{}'", event.name);
             return;
         };
+        if proc.pid() != Some(event.pid) {
+            debug!(
+                "[{}] ignoring stale exit event for pid {} (current pid: {:?})",
+                proc.name(),
+                event.pid,
+                proc.pid()
+            );
+            return;
+        }
         if !proc.state().is_alive() {
             debug!(
                 "[{}] exit event after stop, skipping restart (state: {})",
@@ -420,6 +430,7 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
         let name = proc.name().to_owned();
+        let pid = proc.pid().unwrap_or(0);
         let handle = tokio::spawn(async move {
             let mut child = child;
             let status = match child.wait().await {
@@ -438,6 +449,7 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
             };
             let _ = tx.try_send(ExitEvent {
                 name: name.clone(),
+                pid,
                 status,
             });
         });
