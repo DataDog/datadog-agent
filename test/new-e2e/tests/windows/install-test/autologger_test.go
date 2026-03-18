@@ -218,14 +218,14 @@ func (s *testInstallWithoutAutologgerSuite) TestInstallWithoutAutologger() {
 			"autologger session key should not exist without DD_LOGON_DURATION_AUTOLOGGER=true")
 	})
 
-	s.Run("logonduration directory should not exist", func() {
+	s.Run("logonduration directory should exist", func() {
 		configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
 		require.NoError(s.T(), err)
 		logonDurationDir := filepath.Join(configRoot, "logonduration")
 		exists, err := vm.FileExists(logonDurationDir)
 		if assert.NoError(s.T(), err) {
-			assert.False(s.T(), exists,
-				"logonduration directory should not exist without DD_LOGON_DURATION_AUTOLOGGER=true")
+			assert.True(s.T(), exists,
+				"logonduration directory should exist even without DD_LOGON_DURATION_AUTOLOGGER=true")
 		}
 	})
 
