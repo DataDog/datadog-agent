@@ -43,7 +43,7 @@ _dd_cc_packaged_rule = rule(
         ),
         "installed_files": attr.label_list(
             doc = "A list of files that should be installed alongside the packaged dependency",
-            providers = [[PackageFilesInfo], [PackageFilegroupInfo]]
+            providers = [[PackageFilesInfo], [PackageFilegroupInfo]],
         ),
     },
 )

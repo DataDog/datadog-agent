@@ -36,7 +36,6 @@ _dd_packaging_installed_files = rule(
     attrs = {"dep": attr.label(providers = [DdPackagingInfo])},
 )
 
-
 def _outputs_of(env, target):
     return env.expect.that_target(target).default_outputs()
 
@@ -187,8 +186,10 @@ def _test_transitive_collected(name):
 
 def _test_transitive_collected_impl(env, target):
     outputs = _outputs_of(env, target)
+
     # outer's own patched .so
     outputs.contains_predicate(matching.file_path_matches("*patched/*"))
+
     # inner's header, reached transitively via dynamic_deps → input → dynamic_deps
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
 
