@@ -23,8 +23,8 @@ func NewTestConnectionHandler() *TestConnectionHandler {
 
 // TestConnectionOutputs defines the outputs for the testConnection action.
 type TestConnectionOutputs struct {
-	Success   bool   `json:"success"`
-	Version   string `json:"version"`
+	Success bool   `json:"success"`
+	Version string `json:"version"`
 }
 
 // Run returns success and the runner version to confirm the rshell bundle is reachable.
