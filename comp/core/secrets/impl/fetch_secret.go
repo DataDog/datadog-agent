@@ -110,10 +110,9 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		if strings.Contains(stderrStr, "invalid version") || strings.Contains(stderrStr, "expected 1.0") {
 			log.Warnf("'%s' seems to have detected an invalid version. The Agent sends payload with version '%s'. If your script only works with version '1.0', update it. Docs: %s",
 				r.backendCommand, secrets.PayloadVersion, secretsManagementDocsURL)
-		}
 		} else {
 			log.Warnf("'%s' failed (exit code %s, message: '%s'): %s. See docs for FAQ and troubleshooting methods: %s",
-			r.backendCommand, exitCode, err, secretsManagementDocsURL)
+				r.backendCommand, exitCode, err, secretsManagementDocsURL)
 		}
 		return nil, fmt.Errorf("error while running '%s': %s", r.backendCommand, err)
 	}
