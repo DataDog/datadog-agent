@@ -233,15 +233,6 @@ func (s *linuxTestSuite) TestManualProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
-		assertManualProcessCheck(c, check, false, "stress")
-	}, 2*time.Minute, 10*time.Second)
-}
-
-func (s *linuxTestSuite) TestManualProcessCheckCoreAgent() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
-
-	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
 		assertManualProcessCheck(c, check, false, "stress")
 	}, 2*time.Minute, 10*time.Second)
@@ -258,7 +249,7 @@ func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process_discovery --json")
 		assertManualProcessDiscoveryCheck(c, check, "stress")
 	}, 2*time.Minute, 10*time.Second)
 }
@@ -272,7 +263,7 @@ func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
 		assertManualProcessCheck(c, check, true, "stress")
 	}, 2*time.Minute, 10*time.Second)
 }

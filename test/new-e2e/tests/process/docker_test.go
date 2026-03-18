@@ -160,14 +160,14 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 
 func (s *dockerTestSuite) TestManualProcessCheck() {
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-		"process-agent", "check", "process", "--json")
+		"agent", "processchecks", "process", "--json")
 
 	assertManualProcessCheck(s.T(), check, false, "dd", "fake-process")
 }
 
 func (s *dockerTestSuite) TestManualProcessDiscoveryCheck() {
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-		"process-agent", "check", "process_discovery", "--json")
+		"agent", "processchecks", "process_discovery", "--json")
 
 	assertManualProcessDiscoveryCheck(s.T(), check, "dd")
 }
@@ -180,7 +180,7 @@ func (s *dockerTestSuite) TestManualProcessCheckWithIO() {
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
 
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-		"process-agent", "check", "process", "--json")
+		"agent", "processchecks", "process", "--json")
 
 	assertManualProcessCheck(s.T(), check, true, "dd")
 }
