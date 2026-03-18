@@ -24,7 +24,7 @@ type ObserverDemoPreset struct {
 }
 
 // FoodDeliveryDemoPreset is the tuned parameter bundle for demo deployments.
-// Optimised for the food_delivery_redis benchmark (F1: 0.00 → 0.95).
+// Optimised for the food_delivery_redis benchmark.
 var FoodDeliveryDemoPreset = ObserverDemoPreset{
 	BOCPDWarmupPoints:         180,
 	BOCPDHazard:               0.001,
@@ -39,10 +39,10 @@ func presetActive(cfg config.Component, preset bool) bool {
 	return preset || (cfg != nil && cfg.GetBool("observer.demo_preset"))
 }
 
-// bocpdFromConfig returns a BOCPDDetector with demo preset and/or individual config overrides.
+// NewBocpdDetectorFromConfig returns a BOCPDDetector with demo preset and/or individual config overrides.
 // Precedence: individual observer.bocpd.* keys > demo preset > code defaults.
 // cfg may be nil (testbench without a full agent config).
-func bocpdFromConfig(cfg config.Component, preset bool) *BOCPDDetector {
+func NewBocpdDetectorFromConfig(cfg config.Component, preset bool) *BOCPDDetector {
 	d := NewBOCPDDetector()
 
 	if presetActive(cfg, preset) {
@@ -83,9 +83,9 @@ func bocpdFromConfig(cfg config.Component, preset bool) *BOCPDDetector {
 	return d
 }
 
-// timeClusterFromConfig returns a TimeClusterCorrelator with demo preset and config overrides applied.
+// NewTimeClusterCorrelatorFromConfig returns a TimeClusterCorrelator with demo preset and config overrides applied.
 // Precedence: individual observer.time_cluster.* keys > demo preset > code defaults.
-func timeClusterFromConfig(cfg config.Component, preset bool) *TimeClusterCorrelator {
+func NewTimeClusterCorrelatorFromConfig(cfg config.Component, preset bool) *TimeClusterCorrelator {
 	tc := TimeClusterConfig{
 		ProximitySeconds: 10,
 		WindowSeconds:    120,
@@ -192,7 +192,7 @@ func defaultCatalog(cfg config.Component, preset bool) *componentCatalog {
 				displayName: "BOCPD",
 				kind:        componentDetector,
 				factory: func() any {
-					return bocpdFromConfig(cfg, preset)
+					return NewBocpdDetectorFromConfig(cfg, preset)
 				},
 				defaultEnabled: true,
 			},
@@ -220,7 +220,7 @@ func defaultCatalog(cfg config.Component, preset bool) *componentCatalog {
 				displayName: "TimeCluster",
 				kind:        componentCorrelator,
 				factory: func() any {
-					return timeClusterFromConfig(cfg, preset)
+					return NewTimeClusterCorrelatorFromConfig(cfg, preset)
 				},
 				defaultEnabled: true,
 			},

@@ -136,11 +136,8 @@ def demo_eval(
     sigma: float = 30.0,
 ):
     """
-    Runs the observer eval as configured for demo deployments.
-
-    Builds the testbench, replays the scenario headless with --demo-preset, and scores
-    the result. This mirrors what the deployed agent does with observer.demo_preset: true
-    in customAgentConfig (agent-values.yaml.tmpl).
+    Runs BOCPD+TimeCluster eval twice: once with defaults, once with --demo-preset.
+    Prints a side-by-side comparison so the effect of the preset is visible.
 
     Args:
         scenario: Scenario to run. Default: food_delivery_redis.
@@ -156,52 +153,71 @@ def demo_eval(
     if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
         _ensure_parquets(ctx, scenario, parquet_dir)
 
-    output_path = f"/tmp/observer-demo-eval-{scenario}.json"
+    disable_flag = "rrcf,cusum,scanmw,scanwelch,cross_signal,lead_lag,surprise,passthrough"
+    runs = [
+        ("defaults",     f"/tmp/observer-demo-eval-{scenario}-defaults.json",     ""),
+        ("demo-preset",  f"/tmp/observer-demo-eval-{scenario}-preset.json",       "--demo-preset"),
+    ]
 
-    print(color_message(f"\n{'='*60}", Color.BLUE))
-    print(color_message(f"  Demo eval: {scenario} (--demo-preset)", Color.BLUE))
-    print(color_message(f"{'='*60}", Color.BLUE))
+    scores = {}
+    for label, output_path, extra_flag in runs:
+        print(color_message(f"\n{'='*60}", Color.BLUE))
+        print(color_message(f"  {scenario} ({label})", Color.BLUE))
+        print(color_message(f"{'='*60}", Color.BLUE))
 
-    ctx.run(
-        f"bin/observer-testbench"
-        f" --headless {shlex.quote(scenario)}"
-        f" --output {shlex.quote(output_path)}"
-        f" --scenarios-dir {shlex.quote(scenarios_dir)}"
-        f" --demo-preset"
-    )
+        ctx.run(
+            f"bin/observer-testbench"
+            f" --headless {shlex.quote(scenario)}"
+            f" --output {shlex.quote(output_path)}"
+            f" --scenarios-dir {shlex.quote(scenarios_dir)}"
+            f" --enable bocpd,time_cluster"
+            f" --disable {disable_flag}"
+            + (f" {extra_flag}" if extra_flag else "")
+        )
 
-    if not os.path.isfile(output_path):
-        print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
-        return
+        if not os.path.isfile(output_path):
+            print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+            scores[label] = None
+            continue
 
-    scorer_result = ctx.run(
-        f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
-        hide=True,
-        warn=True,
-    )
+        scorer_result = ctx.run(
+            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
+            hide=True,
+            warn=True,
+        )
 
-    if scorer_result.failed:
-        print(color_message(f"Scorer failed:\n{scorer_result.stderr}", Color.RED))
-        return
+        if scorer_result.failed:
+            print(color_message(f"Scorer failed:\n{scorer_result.stderr}", Color.RED))
+            scores[label] = None
+            continue
 
-    try:
-        score = json.loads(scorer_result.stdout.strip())
-    except json.JSONDecodeError:
-        print(color_message(f"Scorer returned invalid JSON:\n{scorer_result.stdout}", Color.RED))
-        return
+        try:
+            scores[label] = json.loads(scorer_result.stdout.strip())
+        except json.JSONDecodeError:
+            print(color_message(f"Scorer returned invalid JSON:\n{scorer_result.stdout}", Color.RED))
+            scores[label] = None
 
+    # Side-by-side summary
     print(color_message(f"\n{'='*60}", Color.GREEN))
-    print(color_message("  Demo Eval Result", Color.GREEN))
+    print(color_message("  Comparison: defaults vs demo-preset", Color.GREEN))
     print(color_message(f"{'='*60}\n", Color.GREEN))
-    print(f"Scenario:  {scenario}")
-    print(f"Sigma:     {sigma}s")
+    print(f"{'Metric':<20}  {'defaults':>10}  {'demo-preset':>12}  {'delta':>8}")
+    print("-" * 56)
+    for key, label in [("f1", "F1"), ("precision", "Precision"), ("recall", "Recall")]:
+        d = scores.get("defaults") or {}
+        p = scores.get("demo-preset") or {}
+        dv = d.get(key, 0)
+        pv = p.get(key, 0)
+        delta = pv - dv
+        sign = "+" if delta >= 0 else ""
+        print(f"{label:<20}  {dv:>10.4f}  {pv:>12.4f}  {sign}{delta:>7.4f}")
     print()
-    print(f"  F1:        {score.get('f1', 0):.4f}")
-    print(f"  Precision: {score.get('precision', 0):.4f}")
-    print(f"  Recall:    {score.get('recall', 0):.4f}")
-    print(f"  TP={score.get('tp', 0):.4f}  FP={score.get('fp', 0):.4f}  FN={score.get('fn', 0):.4f}")
-    print(f"  Predictions: {score.get('num_predictions', 0)} scored")
-    print(f"\nOutput: {output_path}")
+    for label, output_path, _ in runs:
+        if scores.get(label):
+            s = scores[label]
+            print(f"{label}: {s.get('num_predictions', 0)} scored, "
+                  f"warmup_filtered={s.get('num_filtered_warmup', 0)}, "
+                  f"cascading_filtered={s.get('num_filtered_cascading', 0)}")
 
 
 def _ensure_parquets(ctx, name, parquet_dir):
