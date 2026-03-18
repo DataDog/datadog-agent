@@ -7,10 +7,10 @@ logs:
       - type: exclude_at_match
         name: source_exclude_regen_endpoints
         pattern: 'regenerating all endpoints'
-      - type: include_at_match
+      - type: exclude_at_match
         name: source_include_vaultdmetric
         pattern: 'vaultdmetric'
-      - type: include_at_match
+      - type: exclude_at_match
         name: source_include_error_code
         pattern: '(E|F)\d\d\d\d'
       - type: mask_sequences
