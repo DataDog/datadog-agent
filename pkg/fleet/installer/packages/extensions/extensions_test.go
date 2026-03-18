@@ -172,7 +172,8 @@ func TestInstallGroupsByRegistry(t *testing.T) {
 		[]string{"ddot", "other-ext"}, false, hooks, overrides)
 
 	// We expect download errors (no real registry), not a panic or grouping error.
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not download package")
 }
 
 // TestInstallNilOverridesBackwardsCompat verifies that nil overrides work (backwards compat).
@@ -202,7 +203,8 @@ func TestInstallNilOverridesBackwardsCompat(t *testing.T) {
 		[]string{"ddot"}, false, hooks, nil)
 
 	// Expect download failure (no real registry), not a grouping error
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not download package")
 }
 
 // TestHookErrorPropagation verifies that hook failures are properly propagated

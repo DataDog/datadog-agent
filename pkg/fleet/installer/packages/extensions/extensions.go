@@ -130,6 +130,7 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 	}
 
 	var installErrors []error
+	tagSet := false
 	for _, group := range groups {
 		// Download package metadata once per distinct registry
 		pkg, err := group.downloader.Download(ctx, url)
@@ -140,8 +141,11 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 			))
 			continue
 		}
-		span.SetTag("package_name", pkg.Name)
-		span.SetTag("package_version", pkg.Version)
+		if !tagSet {
+			span.SetTag("package_name", pkg.Name)
+			span.SetTag("package_version", pkg.Version)
+			tagSet = true
+		}
 
 		// Check if package is already installed
 		dbPkg, err := db.GetPackage(pkg.Name, isExperiment)

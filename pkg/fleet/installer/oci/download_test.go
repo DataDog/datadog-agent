@@ -287,11 +287,13 @@ func TestIsStreamResetError(t *testing.T) {
 
 func TestWithRegistryOverride(t *testing.T) {
 	original := &env.Env{
-		RegistryOverride:     "original.registry.com",
-		RegistryAuthOverride: "docker",
-		RegistryUsername:     "origuser",
-		RegistryPassword:     "origpass",
-		Site:                 "datadoghq.com",
+		RegistryOverride:            "original.registry.com",
+		RegistryAuthOverride:        "docker",
+		RegistryUsername:            "origuser",
+		RegistryPassword:            "origpass",
+		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.io"},
+		RegistryAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+		Site:                        "datadoghq.com",
 	}
 	client := http.DefaultClient
 	d := NewDownloader(original, client)
@@ -303,6 +305,10 @@ func TestWithRegistryOverride(t *testing.T) {
 	assert.Equal(t, "password", overridden.env.RegistryAuthOverride)
 	assert.Equal(t, "newuser", overridden.env.RegistryUsername)
 	assert.Equal(t, "newpass", overridden.env.RegistryPassword)
+
+	// Image-scoped override maps are preserved (env vars take precedence)
+	assert.Equal(t, map[string]string{"agent-package": "image-scoped.io"}, overridden.env.RegistryOverrideByImage)
+	assert.Equal(t, map[string]string{"agent-package": "gcr"}, overridden.env.RegistryAuthOverrideByImage)
 
 	// Original is unchanged
 	assert.Equal(t, "original.registry.com", d.env.RegistryOverride)
