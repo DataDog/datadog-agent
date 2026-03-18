@@ -50,7 +50,7 @@ tests_ebpf_arm64:
     TASK_ARCH: arm64
 
 .prepare_sysprobe_ebpf_functional_tests:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
@@ -88,7 +88,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 .prepare_secagent_ebpf_functional_tests:
-  extends: .bazel:defs:cache:ephemeral  # for `bazel run @libpcap//:install`
+  extends: .bazel:defs:cache:progressive
   stage: source_test
   rules:
     - !reference [.except_mergequeue]

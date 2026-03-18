@@ -22,8 +22,8 @@ import (
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -158,7 +158,7 @@ func (s *service) Run(svcctx context.Context) error {
 		statusimpl.Module(),
 
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{

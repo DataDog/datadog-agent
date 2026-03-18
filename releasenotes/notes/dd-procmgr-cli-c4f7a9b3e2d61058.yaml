@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    dd-procmgr: Add CLI for the dd-procmgrd process manager. Processes are addressable by name or UUID.

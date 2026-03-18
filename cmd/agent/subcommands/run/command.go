@@ -34,6 +34,7 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
@@ -51,7 +52,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
@@ -86,8 +87,8 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -122,8 +123,8 @@ import (
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
-	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
+	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
+	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	adschedulerfx "github.com/DataDog/datadog-agent/comp/logs/adscheduler/fx"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -214,12 +215,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runE := func(*cobra.Command, []string) error {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+		configOpts := []func(*config.Params){
+			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+		}
+		if globalParams.CommonRoot != "" {
+			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
+		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
@@ -279,7 +287,7 @@ func run(log log.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
-	_ langDetectionCl.Component,
+	_ option.Option[langDetectionCl.Component],
 	_ internalAPI.Component,
 	_ packagesigning.Component,
 	_ systemprobemetadata.Component,
@@ -560,6 +568,7 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
+		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
 	)

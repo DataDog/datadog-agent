@@ -6,13 +6,9 @@
 package cilium
 
 import (
-	"embed"
 	"fmt"
 	"net/url"
-	"strings"
-	"text/template"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"go.yaml.in/yaml/v3"
 
@@ -23,56 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
 
-//go:embed kind-cilium-cluster.yaml
-var kindCilumClusterFS embed.FS
-
-//go:embed kind-cluster-v1.35+.yaml
-var kindCiliumV135ClusterFS embed.FS
-
-//go:embed hosts.toml
-var containerdDockerioHostConfig string
-
-func kindKubeClusterConfigFromCiliumParams(params *Params, kubeVersion string) (string, error) {
-	o := struct {
-		KubeProxyReplacement bool
-	}{
-		KubeProxyReplacement: params.hasKubeProxyReplacement(),
-	}
-
-	var kindCiliumCluster embed.FS = kindCilumClusterFS
-	if index := strings.Index(kubeVersion, "@"); index != -1 {
-		kubeVersion = kubeVersion[:index]
-	}
-
-	if semver.MustParse(kubeVersion).GreaterThanEqual(semver.MustParse("v1.35.0")) {
-		kindCiliumCluster = kindCiliumV135ClusterFS
-	}
-
-	kindCiliumClusterTemplate, err := template.ParseFS(kindCiliumCluster, "kind-cilium-cluster.yaml")
-	if err != nil {
-		return "", err
-	}
-
-	var kindCilumClusterConfig strings.Builder
-	if err = kindCiliumClusterTemplate.Execute(&kindCilumClusterConfig, o); err != nil {
-		return "", err
-	}
-
-	return kindCilumClusterConfig.String(), nil
-}
-
 func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion string, ciliumOpts []Option, opts ...pulumi.ResourceOption) (*kubernetes.Cluster, error) {
 	params, err := NewParams(ciliumOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create cilium params from opts: %w", err)
 	}
 
-	clusterConfig, err := kindKubeClusterConfigFromCiliumParams(params, kubeVersion)
-	if err != nil {
-		return nil, err
+	kindClusterConfigFlags := kubernetes.KindConfigFlags{
+		KubeProxyReplacement: params.hasKubeProxyReplacement(),
+		DualNodeSetup:        true,
 	}
 
-	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, clusterConfig, containerdDockerioHostConfig, opts...)
+	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, kindClusterConfigFlags, opts...)
 	if err != nil {
 		return nil, err
 	}

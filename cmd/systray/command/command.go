@@ -30,8 +30,8 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/datadog-agent/comp/systray/systray"
-	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
+	systray "github.com/DataDog/datadog-agent/comp/systray/systray/def"
+	systrayfx "github.com/DataDog/datadog-agent/comp/systray/systray/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -121,7 +121,7 @@ func MakeCommand() *cobra.Command {
 				}),
 				// systray
 				fx.Supply(systrayParams),
-				systrayimpl.Module(),
+				systrayfx.Module(),
 
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),

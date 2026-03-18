@@ -204,19 +204,17 @@ func makeRealDependencies(
 		}
 	}()
 
-	logUploaderURL, err := url.Parse(config.LogUploaderURL)
+	logsURL, err := url.Parse(config.LogUploaderURL)
 	if err != nil {
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	ret.logUploader = uploader.NewLogsUploaderFactory(
-		uploader.WithURL(logUploaderURL),
-	)
+	ret.logUploader = uploader.NewLogsUploaderFactory(logsURL)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
 		return ret, fmt.Errorf("error parsing diagnostics uploader URL: %w", err)
 	}
-	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
+	diagsUploader := uploader.NewDiagnosticsUploader(diagsUploaderURL)
 	ret.diagsUploader = diagsUploader
 
 	var symdbUploaderURL *url.URL
@@ -291,9 +289,9 @@ func (m *Module) Register(router *module.Router) error {
 		"/check",
 		utils.WithConcurrencyLimit(
 			utils.DefaultMaxConcurrentRequests,
-			func(w http.ResponseWriter, _ *http.Request) {
+			func(w http.ResponseWriter, req *http.Request) {
 				utils.WriteAsJSON(
-					w, json.RawMessage(`{"status":"ok"}`), utils.CompactOutput,
+					req, w, json.RawMessage(`{"status":"ok"}`), utils.CompactOutput,
 				)
 			},
 		),
@@ -305,14 +303,14 @@ func (m *Module) Register(router *module.Router) error {
 		"/debug/goprocs",
 		utils.WithConcurrencyLimit(
 			utils.DefaultMaxConcurrentRequests,
-			func(w http.ResponseWriter, _ *http.Request) {
+			func(w http.ResponseWriter, req *http.Request) {
 				if m.shutdown.realDependencies.procSubscriber == nil {
-					utils.WriteAsJSON(w, nil, utils.PrettyPrint)
+					utils.WriteAsJSON(req, w, nil, utils.PrettyPrint)
 					return
 				}
 
 				report := m.shutdown.realDependencies.procSubscriber.GetReport()
-				utils.WriteAsJSON(w, report, utils.PrettyPrint)
+				utils.WriteAsJSON(req, w, report, utils.PrettyPrint)
 			},
 		),
 	)

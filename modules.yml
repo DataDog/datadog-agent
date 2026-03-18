@@ -195,6 +195,9 @@ modules:
   pkg/config/nodetreemodel:
     used_by_otel: true
   pkg/config/remote: default
+  pkg/config/render_config:
+    should_tag: false
+    should_test_condition: never
   pkg/config/setup:
     used_by_otel: true
   pkg/config/structure:
@@ -390,6 +393,10 @@ modules:
     - ./system-probe/
   test/otel:
     used_by_otel: true
+  tools/build-ddot-byoc:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   tools/retry_file_dump:
     independent: false
     should_tag: false

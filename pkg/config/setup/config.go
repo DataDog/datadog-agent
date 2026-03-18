@@ -974,6 +974,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
 	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
+	config.BindEnvAndSetDefault("admission_controller.probe.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.probe.interval", 60)     // in seconds
+	config.BindEnvAndSetDefault("admission_controller.probe.grace_period", 60) // in seconds
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1315,13 +1318,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 
 	// Remote agents
-	config.BindEnvAndSetDefault("remote_agent_registry.enabled", true)
-	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
-	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
-	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
-
-	// Config Stream
-	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+	config.BindEnvAndSetDefault("remote_agent.registry.enabled", true)
+	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
+	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
+	config.BindEnvAndSetDefault("remote_agent.registry.recommended_refresh_interval", time.Duration(10*time.Second))
+	config.BindEnvAndSetDefault("remote_agent.configstream.enabled", false)
+	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
@@ -1367,6 +1369,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetDefault("proxy.http", "")
 	config.SetDefault("proxy.https", "")
 	config.SetDefault("proxy.no_proxy", []string{})
+	config.BindEnvAndSetDefault("common_root", "", "DD_COMMON_ROOT") //nolint:forbidigo
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -1481,7 +1484,12 @@ func agent(config pkgconfigmodel.Setup) {
 		"ntp",
 		"process",
 		"service_discovery",
+		"snmp",
+		"cisco_sdwan",
+		"versa",
+		"cisco_aci",
 		"system",
+		"systemd",
 		"system_core",
 		"system_swap",
 		"telemetry",
@@ -1491,6 +1499,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"windows_service",
 	})
 	// integration.basic.excluded: checks to exclude (user configured)
 	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
@@ -1530,6 +1539,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
+	// Logon Duration (EUDM)
+	config.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
@@ -2208,6 +2220,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
+	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", false)    // Not exposed yet
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
@@ -2910,7 +2923,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceSecretBackend)
 		return nil
 	}
 
@@ -3024,7 +3037,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecretBackend)
 	return nil
 }
 

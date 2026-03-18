@@ -75,7 +75,6 @@ struct dd_service {
   struct dd_strs log_files;
   bool apm_instrumentation;
   struct dd_str language;
-  struct dd_str service_type;
 };
 
 struct dd_discovery_result {

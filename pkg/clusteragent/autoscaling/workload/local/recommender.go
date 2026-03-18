@@ -112,10 +112,10 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 		recommendation.Horizontal = horizontalRecommendation
 	}
 
-	podAutoscalerInternal, found := r.store.LockRead(key, true)
+	podAutoscalerInternal, found, unlock := r.store.LockRead(key, true)
 	if !found { // In case the object is deleted in between when we start calculating
 		log.Debugf("Object %s not found in store; local recommendation values not updated", key)
-		r.store.Unlock(key)
+		unlock()
 		return
 	}
 	podAutoscalerInternal.UpdateFromLocalValues(recommendation)
