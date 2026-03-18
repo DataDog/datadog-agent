@@ -17,6 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
+const (
+	// dnsBPFBufferSize is the per-interface BPF ring buffer used for DNS-only capture.
+	// DNS traffic is low-volume so 1 MB is sufficient.
+	dnsBPFBufferSize = 1 * 1024 * 1024
+	// dnsSnapLen is the maximum bytes captured per packet for DNS.
+	// DNS messages fit comfortably within 512 bytes for UDP.
+	dnsSnapLen = 512
+)
+
 // dnsMonitor implements ReverseDNS for macOS using libpcap packet capture.
 // It embeds socketFilterSnooper and overrides packet processing to dispatch
 // between ethernet and BSD loopback parsers based on per-packet layer type.
@@ -33,7 +42,8 @@ var _ ReverseDNS = &dnsMonitor{}
 func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error) {
 	src, err := filter.NewLibpcapSource(
 		filter.OptBPFFilter("port 53"),
-		filter.OptBPFBufferSize(filter.DNSBPFBufferSize),
+		filter.OptBPFBufferSize(dnsBPFBufferSize),
+		filter.OptSnapLen(dnsSnapLen),
 	)
 	if err != nil {
 		return nil, err
