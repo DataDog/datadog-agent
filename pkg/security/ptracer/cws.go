@@ -63,17 +63,18 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts         *Opts
-	wg           sync.WaitGroup
-	cancel       context.Context
-	cancelFnc    context.CancelFunc
-	containerID  containerutils.ContainerID
-	probeAddr    string
-	client       net.Conn
-	clientReady  chan bool
-	msgDataChan  chan []byte
-	helloMsg     *ebpfless.Message
-	processCache *ProcessCache
+	opts            *Opts
+	wg              sync.WaitGroup
+	cancel          context.Context
+	cancelFnc       context.CancelFunc
+	containerID     containerutils.ContainerID
+	probeAddr       string
+	client          net.Conn
+	clientReady     chan bool
+	msgDataChan     chan []byte
+	helloMsg        *ebpfless.Message
+	processCache    *ProcessCache
+	traceesReported []int
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
