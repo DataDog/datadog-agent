@@ -300,10 +300,12 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
+	// agentName is derived from the flavor set at startup. The flavor package-level
+	// variable is not reset by config re-initialization (unlike the iot_host config key),
+	// so it is the authoritative source for the IoT agent identity.
+	// iot_host can still promote a non-IoT agent to report as IoT when explicitly configured.
 	agentName := flavor.GetFlavor()
-	if agentName == flavor.IotAgent && !pkgconfigsetup.Datadog().GetBool("iot_host") {
-		agentName = flavor.DefaultAgent
-	} else if pkgconfigsetup.Datadog().GetBool("iot_host") {
+	if agentName != flavor.IotAgent && pkgconfigsetup.Datadog().GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}

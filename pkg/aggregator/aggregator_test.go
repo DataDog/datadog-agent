@@ -729,6 +729,49 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	recurrentSeries = metrics.Series{}
 }
 
+// TestIotAgentNameFromFlavor verifies that the IoT agent reports datadog.iot_agent.up
+// even when iot_host is reset to false by a config re-initialization (regression introduced in 7.76.0).
+// The agentFlavor package variable is authoritative and is not affected by InitConfigObjects.
+func TestIotAgentNameFromFlavor(t *testing.T) {
+	// configmock.New must be called first so it captures the original global config before
+	// flavor.SetFlavor modifies it (SetFlavor writes iot_host=true to the global config).
+	mockConfig := configmock.New(t)
+
+	// Save and restore the flavor to avoid polluting other tests.
+	originalFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(originalFlavor) })
+
+	flavor.SetFlavor(flavor.IotAgent)
+
+	// Simulate what happens when InitConfigObjects resets the config: iot_host becomes false.
+	mockConfig.SetWithoutSource("iot_host", false)
+
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+
+	assert.Equal(t, flavor.IotAgent, agg.agentName, "IoT agent must report as iot_agent even when iot_host is false after config re-init")
+}
+
+// TestIotHostOverridePromotesDefaultAgent verifies that setting iot_host=true on a non-IoT agent
+// still promotes it to report as iot_agent.
+func TestIotHostOverridePromotesDefaultAgent(t *testing.T) {
+	// configmock.New must be called before flavor.SetFlavor to correctly capture the original config.
+	mockConfig := configmock.New(t)
+
+	originalFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(originalFlavor) })
+
+	flavor.SetFlavor(flavor.DefaultAgent)
+	mockConfig.SetWithoutSource("iot_host", true)
+
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+
+	assert.Equal(t, flavor.IotAgent, agg.agentName, "iot_host=true must promote a default agent to report as iot_agent")
+}
+
 func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 	timeSamplerBucketSize := float64(10)
 	timestamps := []float64{10, 10 + timeSamplerBucketSize}
