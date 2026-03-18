@@ -3,7 +3,14 @@
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 def collect_includes(deps):
-    """Collect include directories from cc_library dependencies."""
+    """Collect include directories from cc_library dependencies.
+
+    Args:
+        deps: list of targets providing CcInfo.
+
+    Returns:
+        A list of include directory strings.
+    """
     dirs = []
     for dep in deps:
         if CcInfo in dep:
@@ -17,7 +24,14 @@ def collect_includes(deps):
     return dirs
 
 def collect_headers(deps):
-    """Collect header files from cc_library dependencies."""
+    """Collect header files from cc_library dependencies.
+
+    Args:
+        deps: list of targets providing CcInfo.
+
+    Returns:
+        A depset of header Files.
+    """
     hdrs = []
     for dep in deps:
         if CcInfo in dep:
