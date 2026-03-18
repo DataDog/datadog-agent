@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -25,6 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -113,7 +116,9 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	sendCLIHeuristic(logger, config, client, "agent status", os.Args[1:])
+
 	if cliParams.list {
 		return redactError(requestSections(client))
 	}
@@ -123,6 +128,28 @@ func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliP
 	}
 
 	return componentStatusCmd(logger, cliParams, client)
+}
+
+func sendCLIHeuristic(logger log.Component, config config.Component, client ipc.HTTPClient, command string, args []string) {
+	payload, err := heuristic.BuildScorePayload(command, args, time.Now().UTC())
+	if err != nil {
+		return
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	if err != nil {
+		return
+	}
+
+	urlstr := fmt.Sprintf("https://%v:%v/agent/cli-heuristic", ipcAddress, config.GetInt("cmd_port"))
+	if _, err = client.Post(urlstr, "application/json", bytes.NewBuffer(body), ipchttp.WithCloseConnection); err != nil {
+		logger.Debugf("unable to send llm_cli_heuristic event: %v", err)
+	}
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {

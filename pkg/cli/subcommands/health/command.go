@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -77,7 +79,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func requestHealth(logger log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	sendCLIHeuristic(logger, config, client, "agent health", os.Args[1:])
+
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
 		return err
@@ -141,4 +145,26 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 	}
 
 	return nil
+}
+
+func sendCLIHeuristic(logger log.Component, config config.Component, client ipc.HTTPClient, command string, args []string) {
+	payload, err := heuristic.BuildScorePayload(command, args, time.Now().UTC())
+	if err != nil {
+		return
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	if err != nil {
+		return
+	}
+
+	urlstr := fmt.Sprintf("https://%v:%v/agent/cli-heuristic", ipcAddress, config.GetInt("cmd_port"))
+	if _, err = client.Post(urlstr, "application/json", bytes.NewBuffer(body), ipchttp.WithCloseConnection); err != nil {
+		logger.Debugf("unable to send llm_cli_heuristic event: %v", err)
+	}
 }

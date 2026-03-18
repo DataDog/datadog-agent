@@ -11,6 +11,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -66,4 +68,33 @@ func TestStopAgent(t *testing.T) {
 	require.NoError(t, <-stopCh)
 
 	require.Equal(t, http.StatusOK, rr.Code)
+}
+
+type mockAgentTelemetry struct {
+	lastType string
+	lastBody []byte
+}
+
+func (m *mockAgentTelemetry) SendEvent(eventType string, eventPayload []byte) error {
+	m.lastType = eventType
+	m.lastBody = eventPayload
+	return nil
+}
+
+func (m *mockAgentTelemetry) StartStartupSpan(string) (*installertelemetry.Span, context.Context) {
+	return &installertelemetry.Span{}, context.Background()
+}
+
+func TestPostCLIHeuristic(t *testing.T) {
+	req, err := http.NewRequest("POST", "/cli-heuristic", strings.NewReader(`{"heuristic_score":42}`))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	mock := &mockAgentTelemetry{}
+	handler := http.HandlerFunc(postCLIHeuristic(mock))
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusAccepted, rr.Code)
+	require.Equal(t, "llm_cli_heuristic", mock.lastType)
+	require.JSONEq(t, `{"heuristic_score":42}`, string(mock.lastBody))
 }
