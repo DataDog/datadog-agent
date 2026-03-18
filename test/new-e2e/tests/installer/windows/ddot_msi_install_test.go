@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 )
 
@@ -71,7 +70,7 @@ func (s *testDDOTExtensionMSI) installPreviousAgentVersion(opts ...MsiOption) {
 	options := []MsiOption{
 		WithOption(WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		WithMSILogFile("install-previous-version.log"),
-		WithMSIArg("APIKEY=" + unixinstaller.GetAPIKey()),
+		WithMSIArg("APIKEY=" + installer.GetAPIKey()),
 		WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
