@@ -1,4 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":dd_packaging_test.bzl", "dd_packaging_test_suite")
 
 bzl_library(
     name = "dd_packaging_info_bzl",
@@ -28,3 +29,18 @@ bzl_library(
         "@rules_pkg//pkg:providers.bzl",
     ],
 )
+
+bzl_library(
+    name = "dd_packaging_test_bzl",
+    srcs = ["dd_packaging_test.bzl"],
+    deps = [
+        ":dd_cc_packaged_bzl",
+        ":dd_collect_dependencies_bzl",
+        "@rules_pkg//pkg:mappings.bzl",
+        "@rules_testing//lib:analysis_test_bzl",
+        "@rules_testing//lib:truth_bzl",
+        "@rules_testing//lib:util_bzl",
+    ],
+)
+
+dd_packaging_test_suite(name = "_dd_packaging_tests")
