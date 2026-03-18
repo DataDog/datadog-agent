@@ -1057,10 +1057,7 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	sshClientIP := ctx.SSHClientIP.IP.String()
-	if sshClientIP == "<nil>" {
-		sshClientIP = ""
-	}
+	sshClientIP := utils.GetIPStringFromIPNet(ctx.SSHClientIP)
 
 	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	if sshAuthMethod == "<nil>" {
