@@ -1678,3 +1678,335 @@ fn test_cli_exit_codes() {
         assert_eq!(out.status.code(), Some(1), "expected exit 1 for {:?}", args);
     }
 }
+
+#[test]
+fn test_cli_restart_on_failure_ignores_success_exit() {
+    let env = TestEnv::new()
+        .with_config("ok", "command: /usr/bin/true\nrestart: on-failure\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[ok] exited with");
+
+    let out = env.cli(&["list", "--json"]);
+    out.assert_success();
+    let json = out.stdout_json();
+    assert_eq!(json[0]["state"], "Exited");
+    assert_eq!(json[0]["restart_count"], 0);
+}
+
+#[test]
+fn test_cli_daemon_nonexistent_config_dir() {
+    let env = TestEnv::new();
+    let config_dir = env.config_dir().display().to_string();
+    std::fs::remove_dir(env.config_dir()).expect("failed to remove config dir");
+    let env = env.start();
+
+    env.daemon().wait_for_log_default(&format!(
+        "config directory {config_dir} does not exist, no processes to manage"
+    ));
+
+    env.cli(&["status"])
+        .assert_success()
+        .assert_field("Ready", "true")
+        .assert_field("Total Processes", "0");
+
+    env.cli(&["list"])
+        .assert_success()
+        .assert_stdout_contains("No processes");
+}
+
+#[test]
+fn test_cli_daemon_shutdown_stops_children() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let pid = env.cli(&["list"]).pid_from_table_row("sleeper");
+    assert!(pid_is_alive(pid), "child PID {pid} should be alive");
+
+    drop(env);
+
+    assert!(
+        wait_for_pid_gone(pid, Duration::from_secs(5)),
+        "child PID {pid} should be gone after daemon shutdown"
+    );
+}
+
+#[test]
+fn test_cli_daemon_shutdown_via_sigint() {
+    let env = TestEnv::new()
+        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    let child_pid = env.cli(&["list"]).pid_from_table_row("sleeper");
+    let daemon_pid = env.daemon_pid();
+
+    assert!(pid_is_alive(child_pid), "child should be alive");
+    assert!(pid_is_alive(daemon_pid), "daemon should be alive");
+
+    env.daemon().send_signal(nix::sys::signal::Signal::SIGINT);
+    drop(env);
+
+    assert!(
+        !pid_is_alive(daemon_pid),
+        "daemon PID {daemon_pid} should be gone after SIGINT"
+    );
+    assert!(
+        !pid_is_alive(child_pid),
+        "child PID {child_pid} should be gone after SIGINT shutdown"
+    );
+}
+
+#[test]
+fn test_cli_restart_on_success_restarts_on_exit_zero() {
+    let env = TestEnv::new()
+        .with_config("ok-loop", "command: /usr/bin/true\nrestart: on-success\n")
+        .start();
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[ok-loop] spawned", 3, Duration::from_secs(10)),
+        "on-success should restart on exit 0"
+    );
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    let count = json[0]["restart_count"].as_u64().unwrap();
+    assert!(count >= 2, "expected restart_count >= 2, got {count}");
+}
+
+#[test]
+fn test_cli_restart_on_failure_restarts_on_exit_nonzero() {
+    let env = TestEnv::new()
+        .with_config("crasher", "command: /usr/bin/false\nrestart: on-failure\n")
+        .start();
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
+        "on-failure should restart on exit 1"
+    );
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    let count = json[0]["restart_count"].as_u64().unwrap();
+    assert!(count >= 2, "expected restart_count >= 2, got {count}");
+}
+
+#[test]
+fn test_cli_restart_on_success_ignores_failure_exit() {
+    let env = TestEnv::new()
+        .with_config(
+            "fail-once",
+            "command: /usr/bin/false\nrestart: on-success\n",
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[fail-once] exited with");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Failed");
+    assert_eq!(json[0]["restart_count"], 0);
+}
+
+#[test]
+fn test_cli_burst_limiting_stops_restarts() {
+    let env = TestEnv::new()
+        .with_config(
+            "burst",
+            concat!(
+                "command: /usr/bin/false\n",
+                "restart: always\n",
+                "restart_sec: 2\n",
+                "restart_max_delay_sec: 2\n",
+                "start_limit_burst: 4\n",
+                "start_limit_interval_sec: 60\n",
+            ),
+        )
+        .start();
+
+    env.daemon()
+        .wait_for_log("[burst] start limit reached", Duration::from_secs(30));
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Failed");
+    assert_eq!(json[0]["restart_count"], 4);
+}
+
+#[test]
+fn test_cli_burst_interval_allows_spaced_restarts() {
+    let env = TestEnv::new()
+        .with_config(
+            "spaced",
+            concat!(
+                "command: /usr/bin/false\n",
+                "restart: always\n",
+                "restart_sec: 0.6\n",
+                "restart_max_delay_sec: 0.6\n",
+                "start_limit_burst: 2\n",
+                "start_limit_interval_sec: 1\n",
+            ),
+        )
+        .start();
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[spaced] spawned", 5, Duration::from_secs(10)),
+        "interval window should allow restarts to continue past burst limit"
+    );
+
+    assert_eq!(
+        env.daemon().count_log_matches("start limit reached"),
+        0,
+        "burst limiting should never trigger when restarts are spaced"
+    );
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    let count = json[0]["restart_count"].as_u64().unwrap();
+    assert!(count >= 4, "expected restart_count >= 4, got {count}");
+}
+
+#[test]
+fn test_cli_condition_path_exists_not_met() {
+    let env = TestEnv::new()
+        .with_config(
+            "missing-bin",
+            "command: /nonexistent/binary\ncondition_path_exists: /nonexistent/binary\n",
+        )
+        .start();
+
+    env.daemon()
+        .wait_for_log_default("[missing-bin] condition_path_exists not met");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["name"], "missing-bin");
+    assert_eq!(json[0]["state"], "Created");
+    assert_eq!(json[0]["pid"], 0);
+}
+
+#[test]
+fn test_cli_environment_file_loading() {
+    let env = TestEnv::new();
+    let env_file = env.config_dir().join("test.env");
+    std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
+
+    let env = env
+        .with_config(
+            "env-test",
+            &format!(
+                concat!(
+                    "command: /bin/sh\n",
+                    "args:\n",
+                    "  - '-c'\n",
+                    "  - 'exit $(test \"$MY_VAR\" = \"from_file\" && echo 0 || echo 1)'\n",
+                    "environment_file: {}\n",
+                    "restart: never\n",
+                ),
+                env_file.display()
+            ),
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[env-test] exited with");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Exited");
+    assert_eq!(json[0]["last_exit_code"], 0);
+}
+
+#[test]
+fn test_cli_env_overrides_environment_file() {
+    let env = TestEnv::new();
+    let env_file = env.config_dir().join("test.env");
+    std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
+
+    let env = env
+        .with_config(
+            "override-test",
+            &format!(
+                concat!(
+                    "command: /bin/sh\n",
+                    "args:\n",
+                    "  - '-c'\n",
+                    "  - 'exit $(test \"$MY_VAR\" = \"overridden\" && echo 0 || echo 1)'\n",
+                    "environment_file: {}\n",
+                    "env:\n",
+                    "  MY_VAR: overridden\n",
+                    "restart: never\n",
+                ),
+                env_file.display()
+            ),
+        )
+        .start();
+
+    env.daemon()
+        .wait_for_log_default("[override-test] exited with");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Exited");
+    assert_eq!(json[0]["last_exit_code"], 0);
+}
+
+#[test]
+fn test_cli_child_does_not_inherit_parent_env() {
+    let env = TestEnv::new()
+        .with_config(
+            "clean-env",
+            concat!(
+                "command: /bin/sh\n",
+                "args:\n",
+                "  - '-c'\n",
+                "  - 'test -z \"$HOME\" && exit 0 || exit 1'\n",
+                "restart: never\n",
+            ),
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[clean-env] exited with");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Exited");
+    assert_eq!(json[0]["last_exit_code"], 0);
+}
+
+#[test]
+fn test_cli_optional_environment_file_skipped_when_missing() {
+    let env = TestEnv::new()
+        .with_config(
+            "opt-env",
+            concat!(
+                "command: /bin/sh\n",
+                "args:\n",
+                "  - '-c'\n",
+                "  - 'exit 0'\n",
+                "environment_file: -/nonexistent/env\n",
+                "restart: never\n",
+            ),
+        )
+        .start();
+
+    env.daemon()
+        .wait_for_log_default("optional environment file not found, skipping");
+    env.daemon().wait_for_log_default("[opt-env] exited with");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Exited");
+    assert_eq!(json[0]["last_exit_code"], 0);
+}
+
+#[test]
+fn test_cli_invalid_yaml_skipped() {
+    let env = TestEnv::new().with_config("good", "command: /bin/sleep\nargs:\n  - '300'\n");
+
+    std::fs::write(env.config_dir().join("bad.yaml"), "not: valid: yaml: [").unwrap();
+
+    let env = env.start();
+
+    env.daemon().wait_for_log_default("[good] spawned");
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json.as_array().unwrap().len(), 1);
+    assert_eq!(json[0]["name"], "good");
+}
