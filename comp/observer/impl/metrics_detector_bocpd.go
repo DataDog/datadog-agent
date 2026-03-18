@@ -183,9 +183,11 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				}
 				// Re-process points from the merged timestamp onward.
 				for _, p := range series.Points {
-					if anomaly := b.processPoint(state, p, series, &allTelemetry); anomaly != nil {
+					anomaly, telemetry := b.processPoint(state, p, series)
+					if anomaly != nil {
 						allAnomalies = append(allAnomalies, *anomaly)
 					}
+					allTelemetry = append(allTelemetry, telemetry...)
 				}
 				state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
 				state.lastProcessedCount = visibleCount
@@ -201,9 +203,11 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 			// Process each new point incrementally.
 			for _, p := range series.Points {
-				if anomaly := b.processPoint(state, p, series, &allTelemetry); anomaly != nil {
+				anomaly, telemetry := b.processPoint(state, p, series)
+				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
+				allTelemetry = append(allTelemetry, telemetry...)
 			}
 
 			// Update cursor.
@@ -225,20 +229,20 @@ func (b *BOCPDDetector) Reset() {
 
 // processPoint handles a single new observation for a series.
 // Returns an anomaly (if new alert onset) and telemetry for observability.
-func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, telemetryOut *[]observer.ObserverTelemetry) *observer.Anomaly {
+func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series) (*observer.Anomaly, []observer.ObserverTelemetry) {
 	x := p.Value
 
 	// Phase 1: Warmup — accumulate baseline statistics.
 	if !state.initialized {
-		return b.warmupPoint(state, x)
+		return b.warmupPoint(state, x), nil
 	}
 
 	// Phase 2: Online BOCPD posterior update.
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
 
 	// Emit telemetry for cpProb and shortRunMass at each initialized point.
-	*telemetryOut = append(*telemetryOut,
-		observer.ObserverTelemetry{
+	telemetry := []observer.ObserverTelemetry{
+		{
 			DetectorName: b.Name(),
 			Metric: &metricObs{
 				name:      "cp_prob",
@@ -246,7 +250,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 				timestamp: p.Timestamp,
 			},
 		},
-		observer.ObserverTelemetry{
+		{
 			DetectorName: b.Name(),
 			Metric: &metricObs{
 				name:      "short_run_mass",
@@ -254,7 +258,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 				timestamp: p.Timestamp,
 			},
 		},
-	)
+	}
 
 	// Phase 3: Alert lifecycle.
 	if triggered {
@@ -263,10 +267,10 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 			// New alert onset — emit anomaly.
 			state.inAlert = true
 			state.alertStart = p.Timestamp
-			return b.makeAnomaly(state, p, series, cpProb, shortRunMass)
+			return b.makeAnomaly(state, p, series, cpProb, shortRunMass), telemetry
 		}
 		// Already in alert — suppress repeated emission.
-		return nil
+		return nil, telemetry
 	}
 
 	// Not triggered on this point.
@@ -277,7 +281,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 			state.recoveryCount = 0
 		}
 	}
-	return nil
+	return nil, telemetry
 }
 
 // warmupPoint accumulates a point during the warmup phase using Welford's algorithm.
