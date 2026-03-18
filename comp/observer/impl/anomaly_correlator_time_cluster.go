@@ -23,6 +23,12 @@ type TimeClusterConfig struct {
 	// WindowSeconds is how long to keep anomalies before eviction.
 	// Default: 60 seconds.
 	WindowSeconds int64
+
+	// MinClusterSize is the minimum number of anomalies a cluster must contain
+	// to be included in output (ActiveCorrelations, GetClusters).
+	// Clusters below this threshold are still tracked internally but not reported.
+	// Default: 0 (no minimum).
+	MinClusterSize int
 }
 
 // DefaultTimeClusterConfig returns a TimeClusterConfig with default values.
@@ -213,6 +219,9 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 
 	var result []TimeClusterInfo
 	for _, cluster := range c.clusters {
+		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
+			continue
+		}
 		seen := make(map[observer.SeriesID]bool)
 		for _, a := range cluster.anomalies {
 			seen[a.SourceSeriesID] = true
@@ -259,6 +268,7 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 		"largest_cluster_size": maxClusterSize,
 		"proximity_seconds":    c.config.ProximitySeconds,
 		"window_seconds":       c.config.WindowSeconds,
+		"min_cluster_size":     c.config.MinClusterSize,
 		"current_data_time":    c.currentDataTime,
 	}
 }
@@ -276,6 +286,9 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	var result []observer.ActiveCorrelation
 
 	for _, cluster := range c.clusters {
+		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
+			continue
+		}
 		// Collect unique series IDs
 		seen := make(map[observer.SeriesID]bool)
 		for _, a := range cluster.anomalies {
