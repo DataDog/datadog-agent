@@ -18,6 +18,7 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -38,7 +39,7 @@ func (s *testSystemProbeConfig) AfterTest(suiteName, testName string) {
 	s.baseSuite.AfterTest(suiteName, testName)
 }
 
-func (s *testSystemProbeConfig) TestInstallScriptEnablesSystemProbe() {
+func (s *testSystemProbeConfig) TestInstallScriptStartsSystemProbe() {
 	output, err := s.InstallScript().Run(
 		installerwindows.WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
@@ -50,24 +51,20 @@ func (s *testSystemProbeConfig) TestInstallScriptEnablesSystemProbe() {
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)
 	}
-	s.Require().NoErrorf(err, "failed to install: %s", output)
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-
 	s.assertSystemProbeEnabled()
+	s.Require().NoError(
+		s.WaitForServicesWithBackoff("Running", []string{"datadog-system-probe"},
+			backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))),
+		"system-probe service should be running after install script",
+	)
 }
 
-func (s *testSystemProbeConfig) TestStandaloneInstallEnablesSystemProbe() {
+func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
 	// Install agent without APM inject
 	output, err := s.InstallScript().Run()
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)
 	}
-	s.Require().NoErrorf(err, "failed to install agent: %s", output)
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogInstallerService().
-		HasARunningDatadogAgentService()
 
 	// Install apm-inject package separately
 	pkgOutput, err := s.Installer().InstallPackage("apm-inject-package",
@@ -76,7 +73,12 @@ func (s *testSystemProbeConfig) TestStandaloneInstallEnablesSystemProbe() {
 	)
 	s.Require().NoError(err, "failed to install apm-inject package: %s", pkgOutput)
 
+	// We don't restart the agent so the system probe will only be enabled at the next agent restart
 	s.assertSystemProbeEnabled()
+	status, err := windowsCommon.GetServiceStatus(s.Env().RemoteHost, "datadog-system-probe")
+	s.Require().NoError(err)
+	s.Require().NotEqual("Running", status,
+		"system-probe service should not be running after standalone apm-inject install")
 }
 
 // assertSystemProbeEnabled reads system-probe.yaml and asserts that
