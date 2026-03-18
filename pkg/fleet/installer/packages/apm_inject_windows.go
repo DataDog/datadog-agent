@@ -89,10 +89,8 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 
 // enableSystemProbeConfig writes windows_crash_detection.enabled: true into
 // system-probe.yaml when host instrumentation is enabled. This enables the
-// crash detection module (and implicitly injector telemetry) without triggering
-// the deprecated system_probe_config.enabled backward-compat path that
-// auto-enables NPM. This covers the standalone install path (e.g. remote
-// update) where the setup script config writing does not run.
+// crash detection module (and implicitly injector telemetry) to track the
+// ddinjector driver crashes and report its telemetry.
 func enableSystemProbeConfig(ctx HookContext) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "enable_system_probe_config")
 	defer func() { span.Finish(err) }()
