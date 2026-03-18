@@ -75,7 +75,7 @@ func NewScanWelchDetector() *ScanWelchDetector {
 		MinTStatistic:         8.0,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
-		MinDeviationMAD:       3.0,
+		MinDeviationMAD:       15.0,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
