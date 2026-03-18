@@ -18,5 +18,5 @@ func NewReverseDNS(cfg *config.Config, telemetrycomp telemetry.Component) (Rever
 	if err != nil {
 		return nil, err
 	}
-	return newSocketFilterSnooper(cfg, packetSrc)
+	return newSocketFilterSnooper(cfg, packetSrc, nil)
 }

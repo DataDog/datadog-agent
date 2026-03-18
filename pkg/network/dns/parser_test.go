@@ -21,7 +21,7 @@ func TestGetDefaultRecordedQueryTypes(t *testing.T) {
 	require.NotNil(t, result)
 
 	// Check platform-specific behavior
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		assert.Equal(t, result, map[layers.DNSType]struct{}{
 			layers.DNSTypeA:    {},
 			layers.DNSTypeAAAA: {},

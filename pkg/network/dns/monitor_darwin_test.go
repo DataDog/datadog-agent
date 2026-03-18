@@ -177,9 +177,9 @@ func buildNonDNSPacket() []byte {
 // Test helpers
 // ============================================================================
 
-// newTestMonitor constructs a darwinDNSMonitor with default config and the
+// newTestMonitor constructs a dnsMonitor with default config and the
 // given mock source, suitable for unit tests.
-func newTestMonitor(t *testing.T, src filter.PacketSource) *darwinDNSMonitor {
+func newTestMonitor(t *testing.T, src filter.PacketSource) *dnsMonitor {
 	t.Helper()
 	cfg := config.New()
 	m, err := newDarwinDNSMonitorWithSource(cfg, src)

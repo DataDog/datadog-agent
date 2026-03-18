@@ -74,8 +74,14 @@ func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 	dnsPayload := &layers.DNS{}
 	queryTypes := getRecordedQueryTypes(cfg)
 
+	var linkLayer gopacket.DecodingLayer
+	if layerType == layers.LayerTypeLoopback {
+		linkLayer = &layers.Loopback{}
+	} else {
+		linkLayer = &layers.Ethernet{}
+	}
 	stack := []gopacket.DecodingLayer{
-		&layers.Ethernet{},
+		linkLayer,
 		ipv4Payload,
 		ipv6Payload,
 		udpPayload,

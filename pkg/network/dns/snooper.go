@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
+//go:build (windows && npm) || linux_bpf || darwin
 
 package dns
 
@@ -14,8 +14,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const (
+	dnsCacheExpirationPeriod = 1 * time.Minute
+	dnsCacheSize             = 100000
+	dnsModuleName            = "network_tracer__dns"
+)
+
+// snooperTelemetry holds DNS packet processing counters shared across all DNS monitor implementations.
+var snooperTelemetry = struct {
+	decodingErrors *telemetry.StatCounterWrapper
+	truncatedPkts  *telemetry.StatCounterWrapper
+	queries        *telemetry.StatCounterWrapper
+	successes      *telemetry.StatCounterWrapper
+	errors         *telemetry.StatCounterWrapper
+}{
+	telemetry.NewStatCounterWrapper(dnsModuleName, "decoding_errors", []string{}, "Counter measuring the number of decoding errors while processing packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "truncated_pkts", []string{}, "Counter measuring the number of truncated packets while processing"),
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	telemetry.NewStatCounterWrapper(dnsModuleName, "queries", []string{}, "Counter measuring the number of packets that are DNS queries in processed packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "successes", []string{}, "Counter measuring the number of successful DNS responses in processed packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "errors", []string{}, "Counter measuring the number of failed DNS responses in processed packets"),
+}
 
 var _ ReverseDNS = &socketFilterSnooper{}
 
@@ -32,14 +55,22 @@ type socketFilterSnooper struct {
 
 	// cache translation object to avoid allocations
 	translation *translation
+
+	// packetHandler is called for each captured packet. Defaults to processPacket
+	// but can be overridden (e.g. by the darwin monitor for dual-parser dispatch).
+	packetHandler func(data []byte, info filter.PacketInfo, ts time.Time) error
 }
 
 func (s *socketFilterSnooper) WaitForDomain(domain string) error {
+	if s.statKeeper == nil {
+		return nil
+	}
 	return s.statKeeper.WaitForDomain(domain)
 }
 
-// newSocketFilterSnooper returns a new socketFilterSnooper
-func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource) (*socketFilterSnooper, error) {
+// newSocketFilterSnooper returns a new socketFilterSnooper. If handler is nil,
+// the snooper's own processPacket is used.
+func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, handler func([]byte, filter.PacketInfo, time.Time) error) (*socketFilterSnooper, error) {
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
@@ -60,15 +91,18 @@ func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource) (*so
 		exit:            make(chan struct{}),
 		collectLocalDNS: cfg.CollectLocalDNS,
 	}
+	if handler != nil {
+		snooper.packetHandler = handler
+	} else {
+		snooper.packetHandler = snooper.processPacket
+	}
 
-	// Start consuming packets
 	snooper.wg.Add(1)
 	go func() {
 		snooper.pollPackets()
 		snooper.wg.Done()
 	}()
 
-	// Start logging DNS stats
 	snooper.wg.Add(1)
 	go func() {
 		snooper.logDNSStats()
@@ -109,6 +143,20 @@ func (s *socketFilterSnooper) Close() {
 	})
 }
 
+// addToCache records a successful DNS response in the reverse DNS cache.
+// Used by the default processPacket and by darwin's dual-parser path.
+func (s *socketFilterSnooper) addToCache(t *translation) {
+	s.cache.Add(t)
+}
+
+// processPacketInfo feeds a parsed DNS packet into the stat keeper when enabled.
+// Used by the default processPacket and by darwin's dual-parser path.
+func (s *socketFilterSnooper) processPacketInfo(pktInfo dnsPacketInfo, ts time.Time) {
+	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
+		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
+	}
+}
+
 // processPacket retrieves DNS information from the received packet data and adds it to
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
 // call since the underlying memory content gets invalidated by `afpacket`.
@@ -130,12 +178,10 @@ func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts
 		return nil
 	}
 
-	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
-		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
-	}
+	s.processPacketInfo(pktInfo, ts)
 
 	if pktInfo.pktType == successfulResponse {
-		s.cache.Add(t)
+		s.addToCache(t)
 		snooperTelemetry.successes.Inc()
 	} else if pktInfo.pktType == failedResponse {
 		snooperTelemetry.errors.Inc()
@@ -148,7 +194,7 @@ func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts
 
 func (s *socketFilterSnooper) pollPackets() {
 	for {
-		err := s.source.VisitPackets(s.processPacket)
+		err := s.source.VisitPackets(s.packetHandler)
 
 		if err != nil {
 			log.Warnf("error reading packet: %s", err)

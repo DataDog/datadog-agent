@@ -87,7 +87,7 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 		}
 	}
 
-	snoop, err := newSocketFilterSnooper(cfg, packetSrc)
+	snoop, err := newSocketFilterSnooper(cfg, packetSrc, nil)
 	if err != nil {
 		return nil, err
 	}
