@@ -1578,3 +1578,103 @@ fn test_cli_create_nonexistent_dependency_json_warnings() {
         "JSON warnings should mention missing dep: {json}"
     );
 }
+
+#[test]
+fn test_cli_all_commands_json_parseable() {
+    let env = TestEnv::new()
+        .with_config("svc", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[svc] spawned");
+
+    let commands: Vec<&[&str]> = vec![
+        &["status", "--json"],
+        &["list", "--json"],
+        &["describe", "--json", "svc"],
+        &["config", "--json"],
+    ];
+    for args in &commands {
+        let out = env.cli(args);
+        out.assert_success();
+        out.stdout_json();
+    }
+
+    env.cli(&["stop", "--json", "svc"])
+        .assert_success()
+        .stdout_json();
+
+    env.cli(&["start", "--json", "svc"])
+        .assert_success()
+        .stdout_json();
+
+    env.cli(&[
+        "create",
+        "--json",
+        "--name",
+        "dyn",
+        "--command",
+        "/bin/sleep",
+        "--args",
+        "300",
+        "--no-auto-start",
+    ])
+    .assert_success()
+    .stdout_json();
+
+    write_config(
+        env.config_dir(),
+        "extra",
+        "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+    );
+    env.cli(&["reload", "--json"])
+        .assert_success()
+        .stdout_json();
+}
+
+#[test]
+fn test_cli_errors_on_stderr() {
+    let env = TestEnv::new().start();
+
+    let cases: Vec<(&[&str], &str)> = vec![
+        (&["describe", "nonexistent"], "not found"),
+        (&["start", "nonexistent"], "not found"),
+        (&["stop", "nonexistent"], "not found"),
+    ];
+    for (args, pattern) in &cases {
+        let out = env.cli(args);
+        out.assert_failure();
+        out.assert_stderr_contains(pattern);
+        assert!(
+            out.stdout.trim().is_empty(),
+            "stdout should be empty on error for {:?}, got: {}",
+            args,
+            out.stdout
+        );
+    }
+}
+
+#[test]
+fn test_cli_exit_codes() {
+    let env = TestEnv::new()
+        .with_config("svc", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .start();
+
+    env.daemon().wait_for_log_default("[svc] spawned");
+
+    let success_cmds: Vec<&[&str]> =
+        vec![&["status"], &["list"], &["describe", "svc"], &["config"]];
+    for args in &success_cmds {
+        let out = env.cli(args);
+        assert_eq!(out.status.code(), Some(0), "expected exit 0 for {:?}", args);
+    }
+
+    let failure_cmds: Vec<&[&str]> = vec![
+        &["describe", "nonexistent"],
+        &["start", "nonexistent"],
+        &["stop", "nonexistent"],
+    ];
+    for args in &failure_cmds {
+        let out = env.cli(args);
+        assert_eq!(out.status.code(), Some(1), "expected exit 1 for {:?}", args);
+    }
+}
