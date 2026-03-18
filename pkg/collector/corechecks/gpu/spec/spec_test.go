@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
@@ -52,6 +53,9 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
 func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
+	// required to emit gpu.devices.unhealthy metric
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+
 	archSpecFile, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
 
