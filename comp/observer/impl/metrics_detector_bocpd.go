@@ -531,8 +531,7 @@ func gaussianPDF(x, mean, variance float64) float64 {
 }
 
 // fastExp is a fast approximation of math.Exp using IEEE 754 bit manipulation.
-// Accuracy: ~5% relative error. Sufficient for BOCPD where normalizeProbs
-// corrects proportional errors.
+// Sufficient for BOCPD, which only requires relative magnitudes between run-length probabilities.
 // Reference: Schraudolph, "A Fast, Compact Approximation of the Exponential Function", 1999.
 func fastExp(x float64) float64 {
 	if x < -708 {
