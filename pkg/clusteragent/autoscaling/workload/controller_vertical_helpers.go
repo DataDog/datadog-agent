@@ -32,6 +32,26 @@ const (
 	controllerRevisionHashLabel = "controller-revision-hash"
 )
 
+// isInPlaceResizeSupported checks whether the API server exposes the pods/resize
+// subresource, which requires InPlacePodVerticalScaling to be enabled. The result
+// is cached on the first call since the feature gate cannot change without a restart.
+func (u *verticalController) isInPlaceResizeSupported() bool {
+	if u.inPlaceResizeSupported != nil {
+		return *u.inPlaceResizeSupported
+	}
+	resources, err := u.client.Discovery().ServerResourcesForGroupVersion("v1")
+	supported := err == nil && func() bool {
+		for _, r := range resources.APIResources {
+			if r.Name == "pods/resize" {
+				return true
+			}
+		}
+		return false
+	}()
+	u.inPlaceResizeSupported = &supported
+	return supported
+}
+
 // See https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
 const (
 	kubePodConditionResizePending                 = "PodResizePending"

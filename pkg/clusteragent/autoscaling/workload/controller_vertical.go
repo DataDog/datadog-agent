@@ -47,13 +47,14 @@ const (
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations
 type verticalController struct {
-	clock           clock.Clock
-	eventRecorder   record.EventRecorder
-	client          k8sclient.Interface
-	isLeader        func() bool
-	patchClient     *workloadpatcher.Patcher
-	podWatcher      PodWatcher
-	progressTracker *rolloutProgressTracker
+	clock                    clock.Clock
+	eventRecorder            record.EventRecorder
+	client                   k8sclient.Interface
+	isLeader                 func() bool
+	patchClient              *workloadpatcher.Patcher
+	podWatcher               PodWatcher
+	progressTracker          *rolloutProgressTracker
+	inPlaceResizeSupported   *bool
 }
 
 // newVerticalController creates a new *verticalController
@@ -73,6 +74,13 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// If vertical scaling is disabled, clear vertical state and exit.
 	if !autoscalerInternal.IsVerticalScalingEnabled() {
 		autoscalerInternal.ClearVerticalState()
+		return autoscaling.NoRequeue, nil
+	}
+
+	// Gate: in-place resize requires the pods/resize subresource (InPlacePodVerticalScaling feature gate).
+	if !u.isInPlaceResizeSupported() {
+		autoscalerInternal.UpdateFromVerticalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedTargetKind,
+			"in-place pod resize is not supported on this cluster (pods/resize subresource unavailable); upgrade to Kubernetes 1.31+ with InPlacePodVerticalScaling enabled"))
 		return autoscaling.NoRequeue, nil
 	}
 
@@ -281,7 +289,16 @@ func (u *verticalController) syncInternal(
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
-		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
+		lastAction := autoscalerInternal.VerticalLastAction()
+		if lastAction != nil && lastAction.Type != datadoghqcommon.DatadogPodAutoscalerResizeCompletedVerticalActionType {
+			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,
+				"All %d pods resized successfully for autoscaler %s/%s", totalActive, podAutoscaler.Namespace, podAutoscaler.Name)
+			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+				Time:    metav1.NewTime(u.clock.Now()),
+				Version: recommendationID,
+				Type:    datadoghqcommon.DatadogPodAutoscalerResizeCompletedVerticalActionType,
+			}, nil)
+		}
 		return autoscaling.NoRequeue, nil
 	}
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: inplaceResizeRequeueDelay}, nil
