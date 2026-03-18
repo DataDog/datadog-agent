@@ -5,19 +5,19 @@ tests:
   ref: [OTELCOL025]
   short: Start an OpAmp test server
   long: |
-    Set up a minimal OpAmp server using the example server from the `opamp-go`
-    repository. This server acts as the management plane for all subsequent OpAmp
-    tests and must be running before any of them are executed.
+    Set up a minimal OpAmp server using the `opamp-go` library. This server acts
+    as the management plane for all subsequent OpAmp tests and must be running
+    before any of them are executed.
   initial: |
-    Go is installed and the `opamp-go` repository is available:
-      git clone https://github.com/open-telemetry/opamp-go
-      cd opamp-go
+    Go is installed. A minimal server is written using the `opamp-go` library:
+      go get github.com/open-telemetry/opamp-go@v0.23.0
+    The server prints each incoming connection and message to stdout.
   steps:
-    - action: Build and start the example OpAmp server
+    - action: Build and start the minimal OpAmp server
       run: |
-        go run ./examples/server/main.go
+        go build -o opamp-server . && ./opamp-server
       expected: |
-        OpAMP Server listening on [::]:4320
+        OpAMP Server listening on 0.0.0.0:4320
 
 - id: T016
   ref: [OTELCOL025, OTELCOL026]
@@ -55,19 +55,26 @@ tests:
     - action: Start the otel-agent
       run: |
         DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
-          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=-1 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
           DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
-          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check" \
           ./otel-agent --config file:config.yaml
       expected: |
         [...]
-        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
-        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
-        [...]
+        [...] | info | extensions/extensions.go:44 | Extension is starting... | {"otelcol.component.id": "opamp", ...}
+        [...] | info | extensions/extensions.go:61 | Extension started.       | {"otelcol.component.id": "opamp", ...}
+        [...] | info | service@v0.147.0/service.go:264 | Everything is ready. Begin running and processing data.
     - action: Verify the OpAmp server received the agent connection and initial status report
       sample: |
-        Agent connected, id: <instance-uid>
-        AgentDescription: { ... otel-agent ... }
+        Agent connected
+        Message from agent id: <instance-uid-hex>
+        AgentDescription: identifying_attributes:{key:"service.name" value:{string_value:"otel-agent"}} \
+          identifying_attributes:{key:"service.version" value:{string_value:"v0.147.0"}} \
+          non_identifying_attributes:{key:"host.arch" value:{string_value:"arm64"}} \
+          non_identifying_attributes:{key:"os.type" value:{string_value:"darwin"}}
+        Health: healthy=true
+        EffectiveConfig received
+        Capabilities: 18437
 
 - id: T017
   ref: [OTELCOL025, OTELCOL027]
@@ -104,7 +111,7 @@ tests:
     - action: Start the otel-agent
       run: |
         DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
-          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=-1 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
           DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
           DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
           ./otel-agent --config file:config.yaml
@@ -131,12 +138,16 @@ tests:
     - action: Inspect the agent description reported to the server at connection time
       sample: |
         AgentDescription:
-          IdentifyingAttributes:
-            - service.name: otel-agent
-            - service.version: <version>
-          NonIdentifyingAttributes:
-            - os.type: <os>
-        Capabilities: ReportsStatus | AcceptsRemoteConfig | ReportsEffectiveConfig | ReportsHeartbeat
+          identifying_attributes:{key:"service.instance.id" value:{string_value:"<uuid>"}}
+          identifying_attributes:{key:"service.name" value:{string_value:"otel-agent"}}
+          identifying_attributes:{key:"service.version" value:{string_value:"v0.147.0"}}
+          non_identifying_attributes:{key:"datadoghq.com/deployment_type" value:{string_value:"daemonset"}}
+          non_identifying_attributes:{key:"datadoghq.com/site" value:{string_value:"datadoghq.com"}}
+          non_identifying_attributes:{key:"host.arch" value:{string_value:"arm64"}}
+          non_identifying_attributes:{key:"host.name" value:{string_value:"<hostname>"}}
+          non_identifying_attributes:{key:"os.description" value:{string_value:"macOS 26.2"}}
+          non_identifying_attributes:{key:"os.type" value:{string_value:"darwin"}}
+        Capabilities: 18437
 
 - id: T019
   ref: [OTELCOL030]
@@ -359,15 +370,13 @@ tests:
     - action: Start the otel-agent with the opamp extension configured but no server running
       run: |
         DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
-          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=-1 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
           DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
           DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
           ./otel-agent --config file:config.yaml
       expected: |
-        [...]
-        [...] | OTELCOL | WARN | (...) | [...] | OpAMP connection failed, retrying...
-        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
-        [...]
+        [...] | error | opampextension@v0.147.0/logger.go:26 | Connection failed (dial tcp [::1]:4320: connect: connection refused), will retry. | {"otelcol.component.id": "opamp", ...}
+        [...] | info  | service@v0.147.0/service.go:264      | Everything is ready. Begin running and processing data.
     - action: Verify the gRPC port is open and accepting telemetry despite the OpAmp failure
       run: nc -z localhost 4317 && echo "gRPC open"
       expected: gRPC open
@@ -382,19 +391,19 @@ tests:
     `AgentToServer` message to restore channel state.
   prereq: [T016]
   steps:
-    - action: Stop the opamp-go server
+    - action: Stop the opamp server
       run: kill <server-pid>
-    - action: Verify the agent logs a disconnection warning and begins retrying
+    - action: Verify the agent logs a connection failure and begins retrying
       sample: |
-        [...] | OTELCOL | WARN | (...) | [...] | OpAMP connection lost, retrying in <N>s...
-    - action: Restart the opamp-go server
-      run: go run ./examples/server/main.go
+        [...] | error | opampextension@v0.147.0/logger.go:26 | Connection failed (dial tcp [::1]:4320: connect: connection refused), will retry. | {"otelcol.component.id": "opamp", ...}
+    - action: Restart the opamp server
+      run: ./opamp-server
       expected: |
-        OpAMP Server listening on [::]:4320
+        OpAMP Server listening on 0.0.0.0:4320
     - action: Verify the agent reconnects and re-sends its identity to the server
       sample: |
-        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
-        Agent connected, id: <instance-uid>
+        Agent connected
+        Message from agent id: <same-instance-uid-hex>
 
 - id: T027
   ref: [OTELCOL033]
@@ -515,18 +524,18 @@ tests:
     - action: Restart the otel-agent with the same configuration
       run: |
         DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
-          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=-1 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
           DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
-          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check" \
           ./otel-agent --config file:config.yaml
       expected: |
-        [...]
-        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
-        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
-        [...]
+        [...] | info | extensions/extensions.go:61 | Extension started. | {"otelcol.component.id": "opamp", ...}
+        [...] | info | service@v0.147.0/service.go:264 | Everything is ready. Begin running and processing data.
     - action: Verify the server sees a reconnection with the same instance UID
       sample: |
-        Agent connected, id: <instance-uid>
+        Agent disconnected
+        Agent connected
+        Message from agent id: <same-instance-uid-hex-as-before>
 
 - id: T031
   ref: [OTELCOL031]
