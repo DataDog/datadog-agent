@@ -284,7 +284,11 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
                 event.source = SOURCE_MOVE_MOUNT;
             }
         }
-        if (syscall->type == EVENT_MOVE_MOUNT || syscall->type == EVENT_PIVOT_ROOT) {
+        if (syscall->type == EVENT_PIVOT_ROOT) {
+            send_event(ctx, EVENT_PIVOT_ROOT, event);
+            return 0;
+        }
+        if (syscall->type == EVENT_MOVE_MOUNT) {
             send_event(ctx, EVENT_MOVE_MOUNT, event);
             return 0;
         }

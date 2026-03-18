@@ -60,7 +60,7 @@ func TestPivotRoot(t *testing.T) {
 		}
 	}
 
-	t.Run("pivot-root-generates-move-mount-events", func(t *testing.T) {
+	t.Run("pivot-root-generates-pivot-root-events", func(t *testing.T) {
 		var eventCount atomic.Int32
 
 		err = test.GetProbeEvent(func() error {
@@ -94,7 +94,7 @@ func TestPivotRoot(t *testing.T) {
 			}()
 			return <-done
 		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" {
+			if event.GetType() != "pivot_root" {
 				return false
 			}
 
@@ -105,21 +105,21 @@ func TestPivotRoot(t *testing.T) {
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
 			if err == nil && mount != nil {
-				t.Logf("pivot_root move_mount event: mount_id=%d path=%q fstype=%s",
+				t.Logf("pivot_root event: mount_id=%d path=%q fstype=%s",
 					event.Mount.MountID, mount.Path, event.Mount.FSType)
 			}
 
 			assert.NotEqual(t, uint32(0), event.Mount.MountID, "mount ID should be non-zero")
 
 			count := eventCount.Add(1)
-			// pivot_root internally calls attach_mnt twice, producing 2 move_mount events
+			// pivot_root internally calls attach_mnt twice, producing 2 events
 			return count >= 2
-		}, 10*time.Second, model.FileMoveMountEventType)
+		}, 10*time.Second, model.PivotRootEventType)
 
 		if err != nil {
-			t.Error("timeout waiting for pivot_root move_mount events")
+			t.Error("timeout waiting for pivot_root events")
 		}
 		assert.GreaterOrEqual(t, eventCount.Load(), int32(2),
-			"pivot_root should produce at least 2 move_mount events")
+			"pivot_root should produce at least 2 pivot_root events")
 	})
 }
