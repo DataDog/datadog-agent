@@ -1,0 +1,7 @@
+api_key: api_key_test
+dd_url: https://app.datadoghq.com
+site: datadoghq.eu
+observability_pipelines_worker:
+  traces:
+    enabled: true
+    url: https://observability_pipelines_worker.domain.tld:8443

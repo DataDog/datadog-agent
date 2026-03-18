@@ -1454,6 +1454,17 @@ def build_cws_object_files(
 def clean_object_files(ctx):
     run_ninja(ctx, task="clean")
 
+    # Remove Bazel-copied eBPF .o files that ninja no longer tracks.
+    build_root = Path("pkg/ebpf/bytecode/build")
+    if build_root.exists():
+        shutil.rmtree(build_root)
+
+    for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+        name = target.rsplit(":", 1)[1]
+        for candidate in [Path(dest_dir) / f"{name}.o", Path(dest_dir) / name]:
+            if candidate.exists():
+                candidate.unlink()
+
 
 @task
 def generate_lookup_tables(ctx):
