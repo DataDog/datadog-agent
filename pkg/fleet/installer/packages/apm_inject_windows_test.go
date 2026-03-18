@@ -30,15 +30,15 @@ func TestEnableSystemProbeConfig_NoExistingFile(t *testing.T) {
 	data, err := os.ReadFile(configPath)
 	require.NoError(t, err)
 	require.NoError(t, yaml.Unmarshal(data, &cfg))
-	require.NotNil(t, cfg.SystemProbeSettings.Enabled)
-	assert.True(t, *cfg.SystemProbeSettings.Enabled)
+	require.NotNil(t, cfg.WindowsCrashDetection.Enabled)
+	assert.True(t, *cfg.WindowsCrashDetection.Enabled)
 }
 
 func TestEnableSystemProbeConfig_AlreadyEnabled(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "system-probe.yaml")
 
-	writeFile(t, configPath, `system_probe_config:
+	writeFile(t, configPath, `windows_crash_detection:
   enabled: true
 runtime_security_config:
   enabled: true
@@ -72,8 +72,8 @@ gpu_monitoring:
 	require.NoError(t, err)
 	require.NoError(t, yaml.Unmarshal(data, &result))
 
-	require.NotNil(t, result.SystemProbeSettings.Enabled)
-	assert.True(t, *result.SystemProbeSettings.Enabled)
+	require.NotNil(t, result.WindowsCrashDetection.Enabled)
+	assert.True(t, *result.WindowsCrashDetection.Enabled)
 	require.NotNil(t, result.RuntimeSecurityConfig.Enabled)
 	assert.True(t, *result.RuntimeSecurityConfig.Enabled)
 	require.NotNil(t, result.GPUMonitoringConfig.Enabled)
@@ -84,7 +84,7 @@ func TestEnableSystemProbeConfig_FlipsDisabledToEnabled(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "system-probe.yaml")
 
-	writeFile(t, configPath, `system_probe_config:
+	writeFile(t, configPath, `windows_crash_detection:
   enabled: false
 runtime_security_config:
   enabled: true
@@ -98,7 +98,7 @@ runtime_security_config:
 	require.NoError(t, err)
 	require.NoError(t, yaml.Unmarshal(data, &result))
 
-	assert.True(t, *result.SystemProbeSettings.Enabled)
+	assert.True(t, *result.WindowsCrashDetection.Enabled)
 	assert.True(t, *result.RuntimeSecurityConfig.Enabled, "existing settings should be preserved")
 }
 
@@ -106,8 +106,9 @@ func TestEnableSystemProbeConfig_PreservesUnknownKeys(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "system-probe.yaml")
 
-	writeFile(t, configPath, `system_probe_config:
+	writeFile(t, configPath, `windows_crash_detection:
   enabled: false
+system_probe_config:
   max_tracked_connections: 65536
 network_config:
   enabled: true
@@ -126,10 +127,12 @@ some_future_key:
 	var raw map[string]any
 	require.NoError(t, yaml.Unmarshal(data, &raw))
 
-	// system_probe_config.enabled should be flipped to true
-	spc := raw["system_probe_config"].(map[string]any)
-	assert.Equal(t, true, spc["enabled"])
+	// windows_crash_detection.enabled should be flipped to true
+	wcd := raw["windows_crash_detection"].(map[string]any)
+	assert.Equal(t, true, wcd["enabled"])
+
 	// unknown key under system_probe_config preserved
+	spc := raw["system_probe_config"].(map[string]any)
 	assert.Equal(t, 65536, spc["max_tracked_connections"])
 
 	// top-level unknown sections preserved

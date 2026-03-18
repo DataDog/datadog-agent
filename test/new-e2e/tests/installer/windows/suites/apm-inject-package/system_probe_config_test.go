@@ -82,7 +82,7 @@ func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
 }
 
 // assertSystemProbeEnabled reads system-probe.yaml and asserts that
-// system_probe_config.enabled is true.
+// windows_crash_detection.enabled is true.
 func (s *testSystemProbeConfig) assertSystemProbeEnabled() {
 	host := s.Env().RemoteHost
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
@@ -95,7 +95,7 @@ func (s *testSystemProbeConfig) assertSystemProbeEnabled() {
 	cfg := map[string]interface{}{}
 	s.Require().NoError(yaml.Unmarshal(configBytes, &cfg), "failed to unmarshal system-probe.yaml")
 
-	spCfg, ok := cfg["system_probe_config"].(map[string]interface{})
-	s.Require().True(ok, "system_probe_config key missing in system-probe.yaml, got: %v", cfg)
-	s.Require().Equal(true, spCfg["enabled"], "system_probe_config.enabled should be true")
+	wcdCfg, ok := cfg["windows_crash_detection"].(map[string]interface{})
+	s.Require().True(ok, "windows_crash_detection key missing in system-probe.yaml, got: %v", cfg)
+	s.Require().Equal(true, wcdCfg["enabled"], "windows_crash_detection.enabled should be true")
 }

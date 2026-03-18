@@ -87,10 +87,12 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 	return nil
 }
 
-// enableSystemProbeConfig writes system_probe_config.enabled: true into system-probe.yaml
-// when host instrumentation is enabled. This covers the standalone install path (e.g. remote
-// update) where the setup script config writing does not run. Needed for monitoring and crash
-// detection of driver crashes.
+// enableSystemProbeConfig writes windows_crash_detection.enabled: true into
+// system-probe.yaml when host instrumentation is enabled. This enables the
+// crash detection module (and implicitly injector telemetry) without triggering
+// the deprecated system_probe_config.enabled backward-compat path that
+// auto-enables NPM. This covers the standalone install path (e.g. remote
+// update) where the setup script config writing does not run.
 func enableSystemProbeConfig(ctx HookContext) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "enable_system_probe_config")
 	defer func() { span.Finish(err) }()
@@ -99,8 +101,8 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 	return enableSystemProbeConfigAt(configPath)
 }
 
-// enableSystemProbeConfigAt merges system_probe_config.enabled: true into the
-// given config file, preserving all existing settings. No-op if already enabled.
+// enableSystemProbeConfigAt merges windows_crash_detection.enabled: true into
+// the given config file, preserving all existing settings. No-op if already enabled.
 func enableSystemProbeConfigAt(configPath string) error {
 	existing, err := os.ReadFile(configPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -111,13 +113,13 @@ func enableSystemProbeConfigAt(configPath string) error {
 		if err := yaml.Unmarshal(existing, &cfg); err != nil {
 			return fmt.Errorf("failed to unmarshal system-probe.yaml: %w", err)
 		}
-		if cfg.SystemProbeSettings.Enabled != nil && *cfg.SystemProbeSettings.Enabled {
+		if cfg.WindowsCrashDetection.Enabled != nil && *cfg.WindowsCrashDetection.Enabled {
 			return nil
 		}
 	}
 
 	update := config.SystemProbeConfig{
-		SystemProbeSettings: config.SystemProbeSettings{Enabled: config.BoolToPtr(true)},
+		WindowsCrashDetection: config.WindowsCrashDetection{Enabled: config.BoolToPtr(true)},
 	}
 	return config.WriteConfig(configPath, update, 0640, true)
 }
