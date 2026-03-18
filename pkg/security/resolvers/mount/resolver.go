@@ -677,7 +677,7 @@ func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMount(mountID uint32, _pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
