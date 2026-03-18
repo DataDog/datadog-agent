@@ -689,7 +689,7 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	if aggStr != "" {
 		return fmt.Sprintf("%d:%s", numID, aggStr)
 	}
-	return strconv.Itoa(numID)
+	return strconv.Itoa(int(numID))
 }
 
 // FullKeyForNumericID returns the internal storage key for a compact numeric ID.
