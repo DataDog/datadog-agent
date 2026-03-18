@@ -37,7 +37,7 @@ var clearAddEp = map[string][]string{
 }
 
 var scrubbedAddEp = map[string][]string{
-	"ep": {"***************************abbbb", "***********************************abbbb"},
+	"ep": {"****************************bbbb", "************************************bbbb"},
 }
 
 type testServerHandler struct {

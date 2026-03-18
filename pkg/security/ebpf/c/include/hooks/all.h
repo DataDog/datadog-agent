@@ -19,6 +19,7 @@
 #include "mprotect.h"
 #include "namespaces.h"
 #include "open.h"
+#include "pivot_root.h"
 #include "procfs.h"
 #include "ptrace.h"
 #include "raw_syscalls.h"

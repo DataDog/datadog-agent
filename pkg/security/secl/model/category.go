@@ -157,6 +157,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		StatEventType.String(),
 		FileFsmountEventType.String(),
 		FileMoveMountEventType.String(),
+		PivotRootEventType.String(),
 		FileOpenTreeEventType.String(),
 		// windows
 		CreateNewFileEventType.String(),

@@ -74,6 +74,7 @@ enum event_type
     FAILED_DNS,
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
+    EVENT_PIVOT_ROOT,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
@@ -260,6 +261,7 @@ enum mount_source_t
     SOURCE_FSMOUNT,
     SOURCE_OPEN_TREE,
     SOURCE_MOVE_MOUNT,
+    SOURCE_PIVOT_ROOT,
 };
 
 #endif

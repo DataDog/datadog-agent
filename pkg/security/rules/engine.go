@@ -163,7 +163,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname, runtime.GOOS)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
