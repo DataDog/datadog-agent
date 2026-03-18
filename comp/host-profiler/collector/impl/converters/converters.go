@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
@@ -24,8 +25,10 @@ import (
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
-func NewFactoryWithoutAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithoutAgent)
+func NewFactoryWithoutAgent(p params.CollectorParams) confmap.ConverterFactory {
+	return confmap.NewConverterFactory(func(convSettings confmap.ConverterSettings) confmap.Converter {
+		return newConverterWithoutAgent(convSettings, p)
+	})
 }
 
 type confMap = map[string]any

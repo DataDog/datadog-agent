@@ -18,7 +18,7 @@ import (
 )
 
 func TestExtraFactoriesWithoutAgentCore_GetProcessors(t *testing.T) {
-	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	extraFactories := NewExtraFactoriesWithoutAgentCore(NewParams("", false))
 	factories, err := createFactories(extraFactories)()
 	require.NoError(t, err)
 
@@ -31,7 +31,7 @@ func TestExtraFactoriesWithoutAgentCore_GetProcessors(t *testing.T) {
 }
 
 func TestExtraFactoriesWithoutAgentCore_GetReceivers(t *testing.T) {
-	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	extraFactories := NewExtraFactoriesWithoutAgentCore(NewParams("", false))
 	factories, err := createFactories(extraFactories)()
 	require.NoError(t, err)
 

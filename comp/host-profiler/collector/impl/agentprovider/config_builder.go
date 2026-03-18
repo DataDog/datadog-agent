@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -108,9 +109,6 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
-<<<<<<< HEAD
-func buildConfig(agent configManager) confMap {
-=======
 func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesProcessors, profilesExporters []any) {
 	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
 
@@ -126,6 +124,7 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesPro
 	// Build metrics processors: cumulativetodelta + profile processors (infraattributes, metadata)
 	metricsProcessors := []any{"filter", "cumulativetodelta"}
 	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+	metricsReceivers := []any{"prometheus"}
 	if enableGoRuntimeMetrics {
 		receivers["otlp"] = confMap{
 			"protocols": confMap{
@@ -133,29 +132,21 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesPro
 				"http": nil,
 			},
 		}
+		metricsReceivers = append(metricsReceivers, "otlp")
 	}
 
-	// Use all exporters from profiles pipeline (they all have metrics_endpoint)
-	metricsPipeline["receivers"] = []any{"otlp", "prometheus"}
+	metricsPipeline["receivers"] = metricsReceivers
 	metricsPipeline["processors"] = metricsProcessors
+
+	// Use all exporters from profiles pipeline (they all have metrics_endpoint)
 	metricsPipeline["exporters"] = profilesExporters
 }
 
-func buildConfig(agent configManager, params CollectorParams) confMap {
->>>>>>> 93b7f8b7555 (generate pipeline for bundled mode)
+func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	config := make(confMap)
 
 	profilesPipeline, _ := converters.Ensure[confMap](config, "service::pipelines::profiles")
 
-<<<<<<< HEAD
-	profilesPipeline["processors"] = buildProcessors(config)
-	profilesPipeline["exporters"] = buildExporters(config, agent)
-	profilesPipeline["receivers"] = buildReceivers(config, agent)
-
-	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
-	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
-	_ = converters.Set(config, "service::telemetry::metrics::level", "none")
-=======
 	profilesProcessors := buildProcessors(config)
 	profilesExporters := buildExporters(config, agent)
 	profilesReceivers := buildReceivers(config, agent)
@@ -164,11 +155,10 @@ func buildConfig(agent configManager, params CollectorParams) confMap {
 	profilesPipeline["exporters"] = profilesExporters
 	profilesPipeline["receivers"] = profilesReceivers
 
-	buildMetricsPipeline(config, params.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
+	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
 
 	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
->>>>>>> 93b7f8b7555 (generate pipeline for bundled mode)
 
 	log.Debugf("Generated configuration: %+v", config)
 

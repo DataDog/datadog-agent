@@ -133,13 +133,15 @@ func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory 
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is not available.
-type extraFactoriesWithoutAgentCore struct{}
+type extraFactoriesWithoutAgentCore struct {
+	params Params
+}
 
 var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
 
 // NewExtraFactoriesWithoutAgentCore creates a new ExtraFactories instance when the Agent Core is not available.
-func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
-	return extraFactoriesWithoutAgentCore{}
+func NewExtraFactoriesWithoutAgentCore(p Params) ExtraFactories {
+	return extraFactoriesWithoutAgentCore{params: p}
 }
 
 // GetLoggingOptions returns the logging options for the collector when the Agent Core is not available.
@@ -178,7 +180,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 // GetConverters returns the converters for the collector when the Agent Core is not available.
 func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFactory {
 	return []confmap.ConverterFactory{
-		converters.NewFactoryWithoutAgent(),
+		converters.NewFactoryWithoutAgent(e.params),
 	}
 }
 
