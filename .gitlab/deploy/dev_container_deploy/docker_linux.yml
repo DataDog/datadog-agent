@@ -267,6 +267,7 @@ dev_deploy-host-profiler-devtest:
 .trigger_relenv_base:
   stage: dev_container_deploy
   trigger:
+    branch: master
     project: DataDog/apm-reliability/datadog-reliability-env
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
@@ -280,8 +281,6 @@ deploy_host_profiler_to_reliability_env_nightly:
     - !reference [.on_deploy_nightly_repo_branch]
   needs:
     - dev_nightly-host-profiler-standalone
-  trigger:
-    branch: master
 
 deploy_host_profiler_to_reliability_env_devtest:
   extends: .trigger_relenv_base
@@ -290,5 +289,3 @@ deploy_host_profiler_to_reliability_env_devtest:
     - when: on_success
   needs:
     - dev_deploy-host-profiler-devtest
-  trigger:
-    branch: master
