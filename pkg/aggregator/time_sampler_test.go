@@ -36,7 +36,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler(store *tags.Store) *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host", nil)
 	return sampler
 }
 
@@ -780,7 +780,7 @@ func TestTimeSamplerStripCounterAggregates(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host", nil)
 	matcher := filterlist.NewNoopTagMatcher()
 
 	sample := metrics.MetricSample{

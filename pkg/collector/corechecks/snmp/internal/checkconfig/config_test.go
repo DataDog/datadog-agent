@@ -40,7 +40,7 @@ func TestConfigurations(t *testing.T) {
 	setupHostname(t)
 
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), nil)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -352,7 +352,7 @@ profiles:
 func TestInlineProfileConfiguration(t *testing.T) {
 	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), nil)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

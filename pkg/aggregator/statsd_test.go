@@ -24,7 +24,7 @@ func TestStatsdDirect(t *testing.T) {
 	opts.FlushInterval = time.Hour
 	opts.DontStartForwarders = true
 	demuxDeps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "")
+	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "", nil)
 
 	hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
 		fx.Options(

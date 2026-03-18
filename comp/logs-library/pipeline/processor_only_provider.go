@@ -34,7 +34,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
 	processor := processor.New(nil, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
+		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID, nil)
 
 	p := &processorOnlyProvider{
 		processor:       processor,
