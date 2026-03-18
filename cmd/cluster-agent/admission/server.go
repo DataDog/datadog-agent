@@ -276,25 +276,25 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	}
 }
 
-// podMeta is used for lightweight partial unmarshalling of a pod's metadata.
-type podMeta struct {
+// probeMeta is used for lightweight partial unmarshalling of an object's metadata.
+type probeMeta struct {
 	Metadata struct {
 		Labels map[string]string `json:"labels"`
 	} `json:"metadata"`
 }
 
-// isProbe checks whether the raw pod object carries the admission probe label.
+// isProbe checks whether the raw object carries the admission probe label.
 func isProbe(raw []byte) bool {
-	var meta podMeta
+	var meta probeMeta
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return false
 	}
 	return meta.Metadata.Labels[admicommon.ProbeLabelKey] == "true"
 }
 
-// probeResponse returns a short-circuit AdmissionResponse for probe pods,
+// probeResponse returns a short-circuit AdmissionResponse for probe objects,
 // adding the probe-received annotation without running any mutation logic.
-// Returns nil for non-probe pods.
+// Returns nil for non-probe objects.
 func probeResponse(raw []byte) *admiv1.AdmissionResponse {
 	if !isProbe(raw) {
 		return nil

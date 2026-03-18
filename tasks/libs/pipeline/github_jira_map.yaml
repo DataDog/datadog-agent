@@ -11,7 +11,7 @@
 '@datadog/core-authn': AUTHN
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
-'@datadog/ndm-core': NDMC
+'@datadog/network-device-monitoring-core': NDMC
 '@datadog/ndm-integrations': NDINT
 '@datadog/container-experiences': CXP
 '@datadog/ecs-experiences': EXP

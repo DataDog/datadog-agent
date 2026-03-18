@@ -7,7 +7,7 @@
 // component system.
 package status
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface {

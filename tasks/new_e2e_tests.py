@@ -331,6 +331,33 @@ def run(
             parsed_params["ddagent:imagePullRegistry"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
             parsed_params["ddagent:imagePullUsername"] += ",AWS"
 
+        # Auto-detect pipeline ID and commit SHA for local runs if not already set
+        if "E2E_PIPELINE_ID" not in os.environ:
+            print(
+                color_message(
+                    "E2E_PIPELINE_ID is not set. The E2E job you are running may require build and packaging "
+                    "jobs to have completed in the pipeline (e.g. container images, deb/rpm packages, OCI deploys). "
+                    "Check the `needs:` of your target job in .gitlab/test/e2e/e2e.yml and ensure those jobs "
+                    "have run on your branch before triggering the E2E job.",
+                    "yellow",
+                )
+            )
+            commit_sha = get_commit_sha(ctx)
+            short_commit_sha = get_commit_sha(ctx, short=True)
+            print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
+            pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
+            if pipeline_id:
+                print(color_message(f"Auto-detected pipeline {pipeline_id} for commit {short_commit_sha}", "blue"))
+                env_vars["E2E_PIPELINE_ID"] = pipeline_id
+                env_vars["E2E_COMMIT_SHA"] = short_commit_sha
+            else:
+                print(
+                    color_message(
+                        f"No pipeline with passing packaging and deploy_packages stages found for commit {short_commit_sha}, skipping pipeline auto-detection",
+                        "yellow",
+                    )
+                )
+
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -1161,6 +1188,66 @@ def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) ->
         return None
     except Exception as e:
         print(f"Warning: Could not query GitLab for recent pipelines: {e}")
+        if 'GITLAB_TOKEN' not in os.environ:
+            print(
+                "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)"
+            )
+        return None
+
+
+def _find_pipeline_for_commit_sha(ctx: Context, commit_sha: str) -> str | None:
+    """
+    Find the most recent pipeline for a given commit SHA where stages
+    'packaging' and 'deploy_packages' have all jobs successfully completed (success or skipped).
+    Searches by branch ref and matches on SHA, as GitLab's sha filter is unreliable.
+    Returns pipeline_id or None if not found.
+    """
+    required_stages = {"packaging", "deploy_packages"}
+
+    try:
+        token = os.environ.get('GITLAB_TOKEN')
+        repo = get_gitlab_repo(token=token)
+
+        branch = get_current_branch(ctx)
+        pipelines = repo.pipelines.list(ref=branch, per_page=20, order_by='updated_at', get_all=False)
+        for pipeline in pipelines:
+            if not pipeline.sha.startswith(commit_sha) and not commit_sha.startswith(pipeline.sha):
+                continue
+            jobs = pipeline.jobs.list(get_all=True)
+
+            stage_jobs: dict[str, list] = {}
+            for job in jobs:
+                if job.stage in required_stages:
+                    stage_jobs.setdefault(job.stage, []).append(job)
+
+            # All required stages must be present
+            if not required_stages.issubset(stage_jobs.keys()):
+                missing = required_stages - stage_jobs.keys()
+                print(
+                    f"Pipeline {pipeline.id} skipped: missing stages {missing}",
+                    file=sys.stderr,
+                )
+                continue
+
+            # All jobs in required stages must have passed (success, skipped, or manual/not triggered)
+            failed_jobs = [
+                f"{job.stage}/{job.name} ({job.status})"
+                for stage in required_stages
+                for job in stage_jobs[stage]
+                if job.status not in ("success", "skipped", "manual")
+            ]
+            if failed_jobs:
+                print(
+                    f"Pipeline {pipeline.id} skipped: jobs not passed: {', '.join(failed_jobs)}",
+                    file=sys.stderr,
+                )
+                continue
+
+            return str(pipeline.id)
+
+        return None
+    except Exception as e:
+        print(f"Warning: Could not query GitLab for pipelines for commit {commit_sha[:8]}: {e}")
         if 'GITLAB_TOKEN' not in os.environ:
             print(
                 "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)"

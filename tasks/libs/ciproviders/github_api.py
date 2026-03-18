@@ -611,27 +611,13 @@ class GithubAPI:
         Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
         """
         pr = self._repository.get_pull(pr_id)
-        # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
-        # - easy PRs are merged in less than 1 day
-        # - hard PRs are merged in more than 1 week
-        # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
-        criteria = {
-            'easy': {'files': 4, 'lines': 150, 'comments': 2},
-            'hard': {'files': 12, 'lines': 650, 'comments': 9},
+        size = get_pr_size(pr)
+        size_to_label = {
+            'small': 'short review',
+            'medium': 'medium review',
+            'large': 'long review',
         }
-        if (
-            pr.changed_files < criteria['easy']['files']
-            and pr.additions + pr.deletions < criteria['easy']['lines']
-            and pr.review_comments < criteria['easy']['comments']
-        ):
-            return 'short review'
-        elif (
-            pr.changed_files > criteria['hard']['files']
-            or pr.additions + pr.deletions > criteria['hard']['lines']
-            or pr.review_comments > criteria['hard']['comments']
-        ):
-            return 'long review'
-        return 'medium review'
+        return size_to_label[size]
 
     def find_teams(self, obj, exclude_teams=None, exclude_permissions=None, depth=None):
         """Get teams from a Github object (repository or team)"""
@@ -778,3 +764,29 @@ def generate_local_github_token(ctx):
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
         return token
+
+
+def get_pr_size(pr) -> str:
+    """Return 'small', 'medium', or 'large' based on PR stats."""
+    # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
+    # - easy PRs are merged in less than 1 day
+    # - hard PRs are merged in more than 1 week
+    # More details: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
+    _SIZE_CRITERIA = {
+        'easy': {'files': 4, 'lines': 150, 'comments': 2},
+        'hard': {'files': 12, 'lines': 650, 'comments': 9},
+    }
+
+    if (
+        pr.changed_files < _SIZE_CRITERIA['easy']['files']
+        and pr.additions + pr.deletions < _SIZE_CRITERIA['easy']['lines']
+        and pr.review_comments < _SIZE_CRITERIA['easy']['comments']
+    ):
+        return 'small'
+    if (
+        pr.changed_files > _SIZE_CRITERIA['hard']['files']
+        or pr.additions + pr.deletions > _SIZE_CRITERIA['hard']['lines']
+        or pr.review_comments > _SIZE_CRITERIA['hard']['comments']
+    ):
+        return 'large'
+    return 'medium'
