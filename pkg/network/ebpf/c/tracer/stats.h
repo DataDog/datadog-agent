@@ -250,6 +250,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
+    bpf_memset(&empty, 0, sizeof(tcp_stats_t));
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
@@ -306,6 +307,135 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
     return 0;
 }
 
+// handle_congestion_stats reads TCP congestion fields from tcp_sock into the
+// tcp_stats map.
+static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+#if !defined(COMPILE_PREBUILT)
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+    if (val == NULL) {
+        return;
+    }
+
+    // On CO-RE, we cannot use BPF_CORE_READ_INTO because poisoned CO-RE
+    // relocations for missing fields are not pruned by the BPF verifier on
+    // older kernels (e.g. 4.15), even when guarded by bpf_core_field_exists().
+    // Instead, Go looks up the field offsets via BTF at startup and passes them
+    // as constants. A zero offset means the field doesn't exist on this kernel.
+#if defined(COMPILE_CORE)
+    // Use bpf_probe_read, not bpf_probe_read_kernel. CO-RE targets kernels
+    // 4.18+ (BTF required), but bpf_probe_read_kernel was added in 5.5.
+    // Direct calls to it would fail to load on 4.18–5.4. BPF_CORE_READ_INTO
+    // handles this internally via loader rewrites, but our manual offset-based
+    // reads don't get that treatment.
+    __u64 reord_seen_offset = 0;
+    LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
+    if (reord_seen_offset > 0) {
+        __u32 tmp = 0;
+        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
+        val->reord_seen = tmp;
+    }
+    __u64 rcv_ooopack_offset = 0;
+    LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
+    if (rcv_ooopack_offset > 0) {
+        __u32 tmp = 0;
+        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + rcv_ooopack_offset);
+        val->rcv_ooopack = tmp;
+    }
+    __u64 delivered_ce_offset = 0;
+    LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
+    if (delivered_ce_offset > 0) {
+        __u32 tmp = 0;
+        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + delivered_ce_offset);
+        val->delivered_ce = tmp;
+    }
+    // ECN negotiation: ecn_flags is a u8 in vmlinux headers (was a bitfield
+    // in kernel source on older versions, but BTF exposes it as a full byte).
+    // Read via offset to avoid poisoned CO-RE relocations on older kernels.
+    __u64 ecn_flags_offset = 0;
+    LOAD_CONSTANT("ecn_flags_offset", ecn_flags_offset);
+    if (ecn_flags_offset > 0) {
+        __u8 ecn = 0;
+        bpf_probe_read(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
+        val->ecn_negotiated = (ecn & 1) ? 1 : 0;
+    }
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+    BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+    BPF_CORE_READ_INTO(&val->rcv_ooopack,  tcp_sk(sk), rcv_ooopack);
+#endif
+    // ECN negotiation: ecn_flags is u8 in vmlinux headers. Bit 0 (TCP_ECN_OK)
+    // indicates ECN was successfully negotiated for this connection.
+    {
+        u8 ecn = 0;
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        val->ecn_negotiated = (ecn & 1) ? 1 : 0;
+    }
+#endif
+#endif
+}
+
+// finalize_congestion_stats reads the final tcp_sock congestion field values at
+// connection close time and takes the max of the tcp_stats value vs the sock value.
+static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats_t *ts) {
+#if defined(COMPILE_CORE)
+    __u32 val = 0;
+    __u64 reord_seen_offset = 0;
+    LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
+    if (reord_seen_offset > 0) {
+        val = 0;
+        bpf_probe_read(&val, sizeof(val), (char *)sk + reord_seen_offset);
+        if (val > ts->reord_seen)
+            ts->reord_seen = val;
+    }
+    __u64 rcv_ooopack_offset = 0;
+    LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
+    if (rcv_ooopack_offset > 0) {
+        val = 0;
+        bpf_probe_read(&val, sizeof(val), (char *)sk + rcv_ooopack_offset);
+        if (val > ts->rcv_ooopack)
+            ts->rcv_ooopack = val;
+    }
+    __u64 delivered_ce_offset = 0;
+    LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
+    if (delivered_ce_offset > 0) {
+        val = 0;
+        bpf_probe_read(&val, sizeof(val), (char *)sk + delivered_ce_offset);
+        if (val > ts->delivered_ce)
+            ts->delivered_ce = val;
+    }
+    // ECN negotiation: read via offset (same approach as handle_congestion_stats).
+    __u64 ecn_flags_offset = 0;
+    LOAD_CONSTANT("ecn_flags_offset", ecn_flags_offset);
+    if (ecn_flags_offset > 0) {
+        __u8 ecn = 0;
+        bpf_probe_read(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
+        ts->ecn_negotiated = (ecn & 1) ? 1 : 0;
+    }
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    __u32 val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
+    if (val > ts->reord_seen)
+        ts->reord_seen = val;
+    val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), delivered_ce);
+    if (val > ts->delivered_ce)
+        ts->delivered_ce = val;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+    val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), rcv_ooopack);
+    if (val > ts->rcv_ooopack)
+        ts->rcv_ooopack = val;
+#endif
+    // ECN negotiation: not a counter, just a flag — always overwrite.
+    {
+        u8 ecn = 0;
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        ts->ecn_negotiated = (ecn & 1) ? 1 : 0;
+    }
+#endif
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0, rtt_var = 0;
 #ifdef COMPILE_PREBUILT
@@ -316,11 +446,15 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     BPF_CORE_READ_INTO(&rtt_var, tcp_sk(sk), mdev_us);
 #endif
 
-    tcp_stats_t stats = { .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = {};
+    bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+    stats.rtt = rtt;
+    stats.rtt_var = rtt_var;
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
     update_tcp_stats(t, stats);
+    handle_congestion_stats(t, sk);
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
@@ -427,7 +561,9 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
         return false;
     }
     if (is_tcp_failure_recognized(err)) {
-        tcp_stats_t stats = { .failure_reason = err };
+        tcp_stats_t stats = {};
+        bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+        stats.failure_reason = err;
         update_tcp_stats(t, stats);
         return true;
     }
