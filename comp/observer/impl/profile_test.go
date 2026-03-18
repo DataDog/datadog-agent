@@ -35,7 +35,7 @@ func buildRealisticStorage(numMetrics, numSeconds int) *timeSeriesStorage {
 func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 	storage := buildRealisticStorage(numMetrics, numSeconds)
 
-	catalog := testbenchCatalog(nil, false)
+	catalog := testbenchCatalog()
 	detectors, correlators, _, _ := catalog.Instantiate(nil)
 
 	// Apply window to all seriesDetectorAdapters.
