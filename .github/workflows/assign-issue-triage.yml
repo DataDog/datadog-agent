@@ -13,14 +13,11 @@ jobs:
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
       contents: read # Read-only token for Claude code action
+      issues: write # Required for adding labels
+      actions: read # Required for downloading artifacts
     environment:
       name: main
     steps:
-    - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
-      id: octo-sts
-      with:
-        scope: DataDog/datadog-agent
-        policy: self.assign-issue.label-issue
 
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -29,7 +26,7 @@ jobs:
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: triage-data
-        github-token: ${{ steps.octo-sts.outputs.token }}
+        github-token: ${{ github.token }}
         run-id: ${{ github.event.workflow_run.id }}
 
     - name: Intelligent Issue Triage
@@ -37,8 +34,7 @@ jobs:
       uses: anthropics/claude-code-action@bee87b3258c251f9279e5371b0cc3660f37f3f77 # v1.0.83
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-        claude_args : --allowedTools "Read,Write"
-        github_token: ${{ github.token }}
+        claude_args : --allowedTools "Read(issue_details.json),Edit(claude.txt)"
         prompt: |
           # Datadog Agent - Intelligent Issue Triage System
 
@@ -223,7 +219,6 @@ jobs:
         ISSUE_NUMBER: ${{ steps.extract-info.outputs.issue_number }}
         TEAM: ${{ steps.extract-info.outputs.team }}
       with:
-        github-token: ${{ steps.octo-sts.outputs.token }}
         script: |
           const teamLabel = process.env.TEAM;
           if (teamLabel && teamLabel !== 'unknown') {
