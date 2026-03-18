@@ -349,27 +349,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	initCommonWithServerless(config)
 
-	// Observer
-	// Capture agent-internal logs via pkg/util/log hook and route them through the observer.
-	// Default enabled; can be disabled if needed.
-	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.enabled", true)
-	// Sampling for agent-internal logs forwarded to the observer.
-	// Warn+ and above are never sampled; these apply to info/debug/trace only.
-	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_info", 0.2)
-	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_debug", 0.05)
-	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_trace", 0.0)
-	// Debug: dump all observer metrics to a file periodically
-	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
-	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
-	config.BindEnvAndSetDefault("observer.debug_events_dump_path", "")
-
-	// Observer recording: enables fetching traces/profiles from remote trace-agents via gRPC
-	// Requires remote_agent_registry.enabled=true
-	config.BindEnvAndSetDefault("observer.recording.enabled", false)
-	config.BindEnvAndSetDefault("observer.recording.parquet_output_dir", "/var/run/datadog/observer") // Directory for parquet files
-	config.BindEnvAndSetDefault("observer.recording.parquet_flush_interval", 60*time.Second)          // File rotation interval
-	config.BindEnvAndSetDefault("observer.recording.parquet_retention", 24*time.Hour)                 // Cleanup after 24 hours
-
 	// Flight recorder: forwards signal data over Unix socket to the Rust flightrecorder sidecar
 	config.BindEnvAndSetDefault("flightrecorder.enabled", false)
 	config.BindEnvAndSetDefault("flightrecorder.socket_path", "/var/run/flightrecorder/pipeline.sock")
@@ -379,15 +358,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("flightrecorder.log_buffer_capacity", 5000)   // Log entries
 	config.BindEnvAndSetDefault("flightrecorder.hook_buffer_size", 16384)
 	config.BindEnvAndSetDefault("flightrecorder.reconnect_max_interval", 30*time.Second)
-
-	// Observer component configuration for anomaly detection
-	config.BindEnvAndSetDefault("observer.analysis.enabled", true)
-	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)
-	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)
-	config.BindEnvAndSetDefault("observer.profiles.fetch_interval", 10*time.Second)
-	config.BindEnvAndSetDefault("observer.profiles.max_fetch_batch", 50)
-	config.BindEnvAndSetDefault("observer.metrics.enabled", false)
-	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
