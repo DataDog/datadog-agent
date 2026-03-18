@@ -17,7 +17,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
@@ -25,10 +24,8 @@ import (
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
-func NewFactoryWithoutAgent(p params.CollectorParams) confmap.ConverterFactory {
-	return confmap.NewConverterFactory(func(convSettings confmap.ConverterSettings) confmap.Converter {
-		return newConverterWithoutAgent(convSettings, p)
-	})
+func NewFactoryWithoutAgent() confmap.ConverterFactory {
+	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
 type confMap = map[string]any
@@ -52,9 +49,10 @@ const (
 
 // Reserved component names for internal metrics pipeline
 const (
-	reservedPrometheusReceiver        = "prometheus/dd-hp-internal"
-	reservedFilterProcessor           = "filter/dd-hp-drop-internal"
-	internalHealthMetricsPipelineName = "metrics/profiler-internal-health"
+	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
+	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
+	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
 // Configuration paths used multiple times across converters
@@ -291,7 +289,6 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 //
 // Returns an error if the URL cannot be parsed or if the site cannot be extracted.
 func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
-	// Use existing utility to extract site from URL
 	site := configutils.ExtractSiteFromURL(profilesEndpoint)
 	if site == "" {
 		return "", fmt.Errorf("cannot extract site from URL: %s", profilesEndpoint)
@@ -302,7 +299,7 @@ func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
 
 // PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
 // that scrapes OTel collector's internal telemetry metrics.
-func PrometheusReceiverConfig() confMap {
+func PrometheusReceiverConfig() map[string]any {
 	return confMap{
 		"config": confMap{
 			"scrape_configs": []any{
@@ -326,14 +323,14 @@ func PrometheusReceiverConfig() confMap {
 
 // FilterProcessorConfig returns the default configuration for the filter processor
 // that drops internal prometheus scrape metrics from being exported.
-func FilterProcessorConfig() confMap {
+func FilterProcessorConfig() map[string]any {
 	return confMap{
 		"metrics": confMap{
 			"exclude": confMap{
 				"match_type": "regexp",
 				"metric_names": []any{
-					"^scrape_.*$",                          // Prometheus scraper timing metrics
-					"^up$",                                  // Scraper up/down status
+					"^scrape_.*$",                            // Prometheus scraper timing metrics
+					"^up$",                                   // Scraper up/down status
 					"^promhttp_metric_handler_errors_total$", // Prometheus HTTP handler errors
 				},
 			},

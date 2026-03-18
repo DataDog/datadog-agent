@@ -112,16 +112,13 @@ func buildProcessors(conf confMap) []any {
 func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesProcessors, profilesExporters []any) {
 	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
 
-	// Add OTLP receiver
 	receivers, _ := converters.Ensure[confMap](conf, "receivers")
 	receivers["prometheus"] = converters.PrometheusReceiverConfig()
 
-	// Add cumulativetodelta processor
 	processors, _ := converters.Ensure[confMap](conf, "processors")
 	processors["cumulativetodelta"] = confMap{}
 	processors["filter"] = converters.FilterProcessorConfig()
 
-	// Build metrics processors: cumulativetodelta + profile processors (infraattributes, metadata)
 	metricsProcessors := []any{"filter", "cumulativetodelta"}
 	metricsProcessors = append(metricsProcessors, profilesProcessors...)
 	metricsReceivers := []any{"prometheus"}
@@ -137,8 +134,6 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesPro
 
 	metricsPipeline["receivers"] = metricsReceivers
 	metricsPipeline["processors"] = metricsProcessors
-
-	// Use all exporters from profiles pipeline (they all have metrics_endpoint)
 	metricsPipeline["exporters"] = profilesExporters
 }
 

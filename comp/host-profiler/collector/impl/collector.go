@@ -17,7 +17,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/agentprovider"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/component"
@@ -109,7 +108,7 @@ func (c *collectorImpl) Run() error {
 	return c.collector.Run(context.Background())
 }
 
-func newCollectorSettings(uri string, extraFactories ExtraFactories, p params.CollectorParams) (otelcol.CollectorSettings, error) {
+func newCollectorSettings(uri string, extraFactories ExtraFactories, p Params) (otelcol.CollectorSettings, error) {
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Command:     filepath.Base(os.Args[0]),
