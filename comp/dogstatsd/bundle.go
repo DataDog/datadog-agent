@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpltopk"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
