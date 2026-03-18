@@ -35,10 +35,10 @@ const testNamespace = "test-probe-ns"
 func newTestProbe(client *fakeclientset.Clientset) *Probe {
 	return &Probe{
 		k8sClient:      client,
-		namespace:       testNamespace,
-		isLeaderFunc:    func() bool { return true },
-		logLimiter:      log.NewLogLimit(10, time.Minute),
-		healthPlatform:  option.None[healthplatformdef.Component](),
+		namespace:      testNamespace,
+		isLeaderFunc:   func() bool { return true },
+		logLimiter:     log.NewLogLimit(10, time.Minute),
+		healthPlatform: option.None[healthplatformdef.Component](),
 	}
 }
 
@@ -46,10 +46,10 @@ func newTestProbeWithHP(t *testing.T, client *fakeclientset.Clientset) (*Probe, 
 	hp := healthplatformmock.Mock(t)
 	return &Probe{
 		k8sClient:      client,
-		namespace:       testNamespace,
-		isLeaderFunc:    func() bool { return true },
-		logLimiter:      log.NewLogLimit(10, time.Minute),
-		healthPlatform:  option.New[healthplatformdef.Component](hp),
+		namespace:      testNamespace,
+		isLeaderFunc:   func() bool { return true },
+		logLimiter:     log.NewLogLimit(10, time.Minute),
+		healthPlatform: option.New[healthplatformdef.Component](hp),
 	}, hp
 }
 
