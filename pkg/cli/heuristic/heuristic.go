@@ -87,9 +87,19 @@ func BuildScore(command string, args []string, now time.Time) (score int, label 
 
 func isDiagnosticCommand(command string) bool {
 	switch command {
-	case "agent status", "status", "agent health", "health",
-		"agent flare", "flare", "agent config", "config",
-		"agent taggerlist", "taggerlist", "agent workloadlist", "workloadlist":
+	case "agent status", "status",
+		"agent health", "health",
+		"agent flare", "flare",
+		"agent config", "config",
+		"agent configcheck", "configcheck",
+		"agent diagnose", "diagnose",
+		"agent hostname", "hostname",
+		"agent secret", "secret",
+		"agent tagger-list", "tagger-list",
+		"agent workload-list", "workload-list",
+		"agent dogstatsd-stats", "dogstatsd-stats",
+		"agent stream-logs", "stream-logs",
+		"agent stream-event-platform", "stream-event-platform":
 		return true
 	default:
 		return false

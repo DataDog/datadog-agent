@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -20,7 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -69,14 +73,16 @@ func streamEventPlatform(_ log.Component, config config.Component, client ipc.HT
 		return err
 	}
 
+	_, heuristicLabel := heuristic.BuildScore("agent stream-event-platform", os.Args[1:], time.Now().UTC())
+
 	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-event-platform", ipcAddress, config.GetInt("cmd_port"))
 	return streamRequest(client, urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
-	})
+	}, ipchttp.WithCLIHeaders("agent stream-event-platform", heuristicLabel))
 }
 
-func streamRequest(client ipc.HTTPClient, url string, body []byte, onChunk func([]byte)) error {
-	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk)
+func streamRequest(client ipc.HTTPClient, url string, body []byte, onChunk func([]byte), extraOpts ...ipc.RequestOption) error {
+	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, extraOpts...)
 
 	if e == io.EOF {
 		return nil

@@ -8,6 +8,7 @@ package secret
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -64,12 +66,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func showSecretInfo(_ log.Component, client ipc.HTTPClient) error {
+	_, heuristicLabel := heuristic.BuildScore("agent secret", os.Args[1:], time.Now().UTC())
+
 	endpoint, err := client.NewIPCEndpoint("/agent/secrets")
 	if err != nil {
 		return err
 	}
 
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(ipchttp.WithCLIHeaders("agent secret", heuristicLabel))
 	if err != nil {
 		return err
 	}
@@ -78,12 +82,14 @@ func showSecretInfo(_ log.Component, client ipc.HTTPClient) error {
 }
 
 func secretRefresh(config config.Component, _ log.Component, client ipc.HTTPClient) error {
+	_, heuristicLabel := heuristic.BuildScore("agent secret", os.Args[1:], time.Now().UTC())
+
 	fmt.Println("Agent refresh:")
 	endpoint, err := client.NewIPCEndpoint("/agent/secret/refresh")
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(ipchttp.WithCLIHeaders("agent secret", heuristicLabel))
 	if err != nil {
 		return err
 	}

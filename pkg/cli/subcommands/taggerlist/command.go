@@ -9,6 +9,8 @@ package taggerlist
 import (
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -16,8 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -96,7 +100,9 @@ func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient,
 		searchTerm = cliParams.args[0]
 	}
 
-	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON, searchTerm)
+	_, heuristicLabel := heuristic.BuildScore("agent tagger-list", os.Args[1:], time.Now().UTC())
+
+	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON, searchTerm, ipchttp.WithCLIHeaders("agent tagger-list", heuristicLabel))
 }
 
 func getTaggerURL(config config.Component) (string, error) {

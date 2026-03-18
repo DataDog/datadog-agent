@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -21,7 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -86,12 +89,14 @@ func getHostname(params *cliParams, client ipc.HTTPClient) (string, error) {
 }
 
 func getRemoteHostname(client ipc.HTTPClient) (string, error) {
+	_, heuristicLabel := heuristic.BuildScore("agent hostname", os.Args[1:], time.Now().UTC())
+
 	endpoint, err := client.NewIPCEndpoint("/agent/hostname")
 	if err != nil {
 		return "", err
 	}
 
-	hname, err := endpoint.DoGet()
+	hname, err := endpoint.DoGet(ipchttp.WithCLIHeaders("agent hostname", heuristicLabel))
 	if err != nil {
 		return "", err
 	}

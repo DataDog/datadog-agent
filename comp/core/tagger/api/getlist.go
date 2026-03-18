@@ -22,10 +22,10 @@ import (
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, prettyJSON bool, search string) error {
+func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, prettyJSON bool, search string, opts ...ipc.RequestOption) error {
 
 	// get the tagger-list from server
-	r, err := c.Get(url, ipchttp.WithLeaveConnectionOpen)
+	r, err := c.Get(url, append([]ipc.RequestOption{ipchttp.WithLeaveConnectionOpen}, opts...)...)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while getting tags list: %s\n", string(r))
