@@ -97,7 +97,7 @@ func TestEnsureOpampInstanceUID_PreservesExisting(t *testing.T) {
 	const userUID = "12345678-1234-4234-8234-123456789abc"
 	dir := t.TempDir()
 	c := &ddConverter{
-		coreConfig: config.NewMockFromYAML(t, "run_path: "+dir),
+		coreConfig: config.NewMockFromYAML(t, "run_path: "+dir+"\nsite: datadoghq.com"),
 	}
 
 	conf := confmapFromYAML(t, `
@@ -118,6 +118,12 @@ service:
 	ext := m["extensions"].(map[string]any)
 	opampCfg := ext["opamp"].(map[string]any)
 	assert.Equal(t, userUID, opampCfg["instance_uid"])
+
+	// AgentDescription must still be enriched even when the user supplied their own UID.
+	desc := opampCfg["agent_description"].(map[string]any)
+	attrs := desc["non_identifying_attributes"].(map[string]any)
+	assert.NotEmpty(t, attrs["datadoghq.com/site"])
+	assert.NotEmpty(t, attrs["datadoghq.com/deployment_type"])
 }
 
 // TestEnsureOpampInstanceUID_NoOpamp verifies that the converter is a no-op when

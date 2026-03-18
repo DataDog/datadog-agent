@@ -23,6 +23,10 @@ const opampExtensionName = "opamp"
 // instance_uid set, a UUID is read from (or generated and written to) the agent
 // state directory so it persists across restarts.
 //
+// It also enriches the agent_description with DDOT identity attributes
+// unconditionally, so that the OpAmp server always receives site and deployment
+// type metadata even when the user supplies their own instance_uid.
+//
 // speky:OTELCOL#OTELCOL028
 func (c *ddConverter) ensureOpampInstanceUID(conf *confmap.Conf) {
 	stringMapConf := conf.ToStringMap()
@@ -32,23 +36,18 @@ func (c *ddConverter) ensureOpampInstanceUID(conf *confmap.Conf) {
 		return
 	}
 
-	// Leave it untouched when the user has already set it explicitly.
-	if opampCfg != nil {
-		if uid, ok := opampCfg["instance_uid"]; ok && uid != "" {
-			return
-		}
-	}
-
-	uid, err := c.loadOrCreateInstanceUID()
-	if err != nil {
-		return
-	}
-
 	if opampCfg == nil {
 		opampCfg = make(map[string]any)
 	}
-	opampCfg["instance_uid"] = uid
 
+	// Inject a persistent UID only when the user has not provided one.
+	if uid, ok := opampCfg["instance_uid"]; !ok || uid == "" {
+		if uid, err := c.loadOrCreateInstanceUID(); err == nil {
+			opampCfg["instance_uid"] = uid
+		}
+	}
+
+	// Always enrich agent_description regardless of who set the UID.
 	c.enrichOpampAgentDescription(opampCfg)
 
 	extensions := stringMapConf["extensions"].(map[string]any)
