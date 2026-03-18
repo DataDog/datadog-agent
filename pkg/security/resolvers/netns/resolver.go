@@ -154,23 +154,6 @@ func (nr *Resolver) insertNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc fun
 	return netns, true
 }
 
-// HasValidCachedNetworkNamespace returns true if the namespace is already cached with a valid handle.
-// This uses a read lock and does not modify the LRU recency, making it safe to call at high frequency
-// to avoid unnecessary goroutine spawning for namespace resolution.
-func (nr *Resolver) HasValidCachedNetworkNamespace(nsID uint32) bool {
-	if !nr.config.NetworkEnabled || nsID == 0 {
-		return true
-	}
-
-	nr.RLock()
-	defer nr.RUnlock()
-
-	if ns, found := nr.networkNamespaces.Peek(nsID); found {
-		return ns.hasValidHandle()
-	}
-	return false
-}
-
 // ResolveNetworkNamespace returns a file descriptor to the network namespace. WARNING: it is up to the caller to
 // close this file descriptor when it is done using it. Do not forget to close this file descriptor, otherwise we might
 // exhaust the host IPs by keeping all network namespaces alive.
