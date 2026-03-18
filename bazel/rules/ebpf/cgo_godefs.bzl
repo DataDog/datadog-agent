@@ -189,6 +189,8 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
             check_that_out_file_exists = False,
         )
 
+INTERNAL_FOR_TESTING = {"relpath": _relpath}
+
 cgo_godefs = macro(
     doc = """Generate Go type definitions from a CGo source file.
 
