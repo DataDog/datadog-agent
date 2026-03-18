@@ -101,12 +101,21 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
-// startIperf3Client launches an iperf3 client in the background and verifies it started.
+// startIperf3Client launches an iperf3 client in the background and verifies
+// it started. Retries up to 3 times because the server may still be processing
+// the previous session (iperf3 -s only handles one client at a time).
 func (v *ec2TCPCongestionSuite) startIperf3Client(extraArgs string) {
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60 %s", extraArgs))
-	// Verify iperf3 actually started — detached exec hides failures.
-	host.MustExecute("sleep 1 && docker exec tcp-congestion-client pgrep iperf3")
+	for attempt := 0; attempt < 3; attempt++ {
+		host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60 " + extraArgs)
+		_, err := host.Execute("sleep 2 && docker exec tcp-congestion-client pgrep iperf3")
+		if err == nil {
+			return
+		}
+		v.T().Logf("iperf3 client not running after attempt %d, retrying...", attempt+1)
+		time.Sleep(3 * time.Second)
+	}
+	v.T().Fatal("iperf3 client failed to start after 3 attempts")
 }
 
 // AfterTest dumps fakeintake info on failure.
