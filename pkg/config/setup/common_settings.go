@@ -665,6 +665,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.csi_registry_allow_list", []string{})                                     // restricts which registries can be used for CSI-based library injection
+	config.ParseEnvAsStringSlice("admission_controller.auto_instrumentation.csi_registry_allow_list", func(s string) []string {
+		var result []string
+		for _, r := range strings.Split(s, ",") {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				result = append(result, r)
+			}
+		}
+		return result
+	})
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")                                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")                                                                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("admission_controller.auto_instrumentation.init_security_context")                                                                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
