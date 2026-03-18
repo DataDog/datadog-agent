@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
+	github.com/DataDog/datadog-agent/pkg/hook v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12

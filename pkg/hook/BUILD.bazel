@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hook",
+    srcs = [
+        "doc.go",
+        "hook.go",
+        "noop_impl.go",
+        "views.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/hook",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_datadog_datadog_agent_pkg_telemetry//:telemetry"],
+)
+
+go_test(
+    name = "hook_test",
+    srcs = ["hook_test.go"],
+    embed = [":hook"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)
