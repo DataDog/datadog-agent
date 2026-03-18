@@ -217,6 +217,10 @@ export function MetricsChart({
     // Clear previous content
     d3.select(svgRef.current).selectAll('*').remove();
 
+    if (width <= margin.left + margin.right || innerWidth <= 0 || innerHeight <= 0) {
+      return;
+    }
+
     const svg = d3
       .select(svgRef.current)
       .attr('width', width)
