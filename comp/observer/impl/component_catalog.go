@@ -142,6 +142,24 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
 				defaultEnabled: true,
 			},
+			{
+				name:        "scanmw",
+				displayName: "ScanMW",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewScanMWDetector()
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "scanwelch",
+				displayName: "ScanWelch",
+				kind:        componentDetector,
+				factory: func() any {
+					return NewScanWelchDetector()
+				},
+				defaultEnabled: false,
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
@@ -174,6 +192,15 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentCorrelator,
 				defaultConfig:  DefaultSurpriseConfig(),
 				factory:        func(cfg any) any { return NewSurpriseCorrelator(cfg.(SurpriseConfig)) },
+				defaultEnabled: false,
+			},
+			{
+				name:        "passthrough",
+				displayName: "Passthrough",
+				kind:        componentCorrelator,
+				factory: func() any {
+					return NewDetectorPassthroughCorrelator()
+				},
 				defaultEnabled: false,
 			},
 		},

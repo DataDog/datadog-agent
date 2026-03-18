@@ -12,6 +12,17 @@ from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
+# All component names from the catalog (component_catalog.go).
+# Used by eval_tp to compute the disable list from an enable list.
+ALL_COMPONENTS = [
+    # extractors
+    "log_metrics_extractor", "connection_error_extractor", "log_pattern_extractor",
+    # detectors
+    "cusum", "bocpd", "rrcf", "scanmw", "scanwelch",
+    # correlators
+    "cross_signal", "time_cluster", "lead_lag", "surprise", "passthrough",
+]
+
 # S3 zip key for each scenario. Update when re-recording.
 SCENARIO_ZIPS = {
     "213_pagerduty": "gensim-results-213_PagerDuty_June_2014_Outage-20260303-1309-78229d.zip",
@@ -124,6 +135,131 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
                 f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
                 f"  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
             )
+
+        print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
+
+
+@task
+def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, enable: str = ""):
+    """
+    Runs observer eval with true positive metric scoring (--score-tp).
+
+    Replays scenarios headless, scores both timestamp-level and metric-level TP detection,
+    and prints a summary table with metric precision/recall/F1.
+
+    Only components listed in --enable are active; everything else is disabled.
+    Extractors are always enabled.
+
+    Args:
+        scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for scoring.
+        enable: Comma-separated components to enable (e.g. "scanmw,passthrough"). All others disabled.
+    """
+    if not enable:
+        print(color_message("--enable is required (e.g. --enable scanmw,passthrough)", Color.RED))
+        return
+
+    enabled_set = {name.strip() for name in enable.split(",") if name.strip()}
+    # Extractors are always on; compute disable list for everything else
+    extractors = {"log_metrics_extractor", "connection_error_extractor", "log_pattern_extractor"}
+    disable_set = {c for c in ALL_COMPONENTS if c not in enabled_set and c not in extractors}
+    enable_flag = ",".join(sorted(enabled_set))
+    disable_flag = ",".join(sorted(disable_set))
+
+    print(color_message(f"Enable:  {enable_flag}", Color.BLUE))
+    print(color_message(f"Disable: {disable_flag}", Color.BLUE))
+
+    print(color_message("Building observer-testbench...", Color.BLUE))
+    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
+    print(color_message("Building observer-scorer...", Color.BLUE))
+    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+
+    scenarios_to_run = [scenario] if scenario else SCENARIOS
+
+    results = []
+    for name in scenarios_to_run:
+        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        scenario_root = os.path.join(scenarios_dir, name)
+        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
+            _ensure_parquets(ctx, name, parquet_dir)
+        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
+            if not glob.glob(os.path.join(scenario_root, "*.parquet")):
+                print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+                continue
+
+        output_path = f"/tmp/observer-eval-{name}.json"
+        print(color_message(f"\n{'='*60}", Color.BLUE))
+        print(color_message(f"  {name}", Color.BLUE))
+        print(color_message(f"{'='*60}", Color.BLUE))
+
+        ctx.run(
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
+            f" --scenarios-dir {shlex.quote(scenarios_dir)}"
+            f" --enable {shlex.quote(enable_flag)} --disable {shlex.quote(disable_flag)}"
+        )
+
+        if not os.path.isfile(output_path):
+            print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+            continue
+        try:
+            with open(output_path) as f:
+                json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(color_message(f"Testbench output at {output_path} is not valid JSON: {e}", Color.RED))
+            continue
+
+        scorer_result = ctx.run(
+            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --score-tp --json",
+            hide=True,
+            warn=True,
+        )
+
+        if scorer_result.failed:
+            print(color_message(f"Scorer failed for {name}:\n{scorer_result.stderr}", Color.RED))
+            continue
+
+        try:
+            score = json.loads(scorer_result.stdout.strip())
+        except json.JSONDecodeError:
+            print(color_message(f"Scorer returned invalid JSON for {name}:\n{scorer_result.stdout}", Color.RED))
+            continue
+        results.append({"name": name, **score})
+
+    if results:
+        print(color_message(f"\n{'='*60}", Color.GREEN))
+        print(color_message("  Observer TP Eval Summary", Color.GREEN))
+        print(color_message(f"{'='*60}\n", Color.GREEN))
+
+        # Timestamp score header
+        header = f"{'Scenario':<25}  {'TS F1':>6}  {'TS Prec':>7}  {'TS Rec':>6}  {'M F1':>6}  {'M Prec':>7}  {'M Rec':>6}  {'TP':>4}  {'Unk':>4}  {'Found':>5}  {'Missed':>6}"
+        print(header)
+        print("-" * len(header))
+
+        for r in results:
+            ts = r.get("timestamp_score", {})
+            ms = r.get("metric_score", {})
+            print(
+                f"{r['name']:<25}"
+                f"  {ts.get('f1', 0):>6.4f}  {ts.get('precision', 0):>7.4f}  {ts.get('recall', 0):>6.4f}"
+                f"  {ms.get('metric_f1', 0):>6.4f}  {ms.get('metric_precision', 0):>7.4f}  {ms.get('metric_recall', 0):>6.4f}"
+                f"  {ms.get('tp_count', 0):>4}  {ms.get('unknown_count', 0):>4}"
+                f"  {len(ms.get('tp_metrics_found', [])):>5}  {len(ms.get('tp_metrics_missed', [])):>6}"
+            )
+
+        # Print per-scenario metric details
+        for r in results:
+            ms = r.get("metric_score", {})
+            detections = ms.get("detections", [])
+            if not detections:
+                continue
+            print(color_message(f"\n  {r['name']} detections:", Color.BLUE))
+            for d in detections:
+                if d.get("detected"):
+                    status = f"HIT (count={d['count']}, first={d.get('delta_from_disruption_sec', 0):.0f}s after disruption)"
+                else:
+                    status = "MISS"
+                print(f"    [{d['classification']}] {d['service']}/{d['metric']}: {status}")
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
