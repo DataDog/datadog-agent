@@ -2000,6 +2000,20 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
+	switch eventType {
+	case model.FileOpenEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingOpenEnabled
+	case model.ConnectEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
+	case model.BindEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingBindEnabled
+	case model.DNSEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingDNSEnabled
+	}
+	return false
+}
+
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	switch eventType {
 	case model.DNSEventType.String():
@@ -2047,6 +2061,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
+			p.isNeededForEventSampling(eventType) ||
 			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 
@@ -2661,12 +2676,36 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
 		manager.ConstantEditor{
-			Name:  "open_sampling_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.OpenSamplingEnabled),
+			Name:  "event_sampling_open_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "open_sampling_rate",
-			Value: uint64(p.config.RuntimeSecurity.OpenSamplingRate),
+			Name:  "event_sampling_open_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -2733,6 +2772,10 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
+		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
+		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
+		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
+		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -3366,7 +3409,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 			if report != nil {
-				p.HandleKillRemediation(rule, ev, report, action)
+				p.HandleKillRemediation(rule, ev, action)
 			}
 
 		case action.Def.CoreDump != nil:
