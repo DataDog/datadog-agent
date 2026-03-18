@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-#![allow(dead_code)]
-
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::io::{BufRead, BufReader};
@@ -29,6 +27,7 @@ pub struct DaemonHandle {
 
 impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
+    /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
         let mut child = Command::new(bin)
@@ -157,20 +156,6 @@ impl DaemonHandle {
                 }
             }
         }
-    }
-
-    /// Extract PIDs from "spawned (pid=NNN" log lines.
-    pub fn spawned_pids(&self) -> Vec<u32> {
-        let lines = self.log_lines.lock().unwrap();
-        lines
-            .iter()
-            .filter_map(|l| {
-                let marker = "spawned (pid=";
-                let start = l.find(marker)? + marker.len();
-                let end = l[start..].find(|c: char| !c.is_ascii_digit())? + start;
-                l[start..end].parse().ok()
-            })
-            .collect()
     }
 }
 
