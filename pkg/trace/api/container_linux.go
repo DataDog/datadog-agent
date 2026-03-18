@@ -70,11 +70,6 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
-// IDProvider implementations are able to look up a container ID given a ctx and http header.
-type IDProvider interface {
-	GetContainerID(context.Context, http.Header) string
-}
-
 // noCgroupsProvider is a fallback IDProvider that only looks in the http header for a container ID.
 type noCgroupsProvider struct{}
 

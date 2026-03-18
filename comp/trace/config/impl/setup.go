@@ -126,15 +126,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.ContainerTags = func(cid string) ([]string, error) {
 		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
-	if env.IsContainerized() {
-		cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
-			return tagger.GenerateContainerIDFromOriginInfo(originInfo)
-		}
-	} else {
-		// In non-containerized environments, we will never be able to generate a container ID from the origin info, so don't bother the remote tagger.
-		cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
-			return "", nil
-		}
+	cfg.IsContainerized = env.IsContainerized()
+	cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
+		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.AuthToken = ipc.GetAuthToken()
