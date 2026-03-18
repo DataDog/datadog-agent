@@ -34,6 +34,8 @@ const (
 	containerTTL = 10 * time.Minute
 	// cleanerInterval: how often to evict old containers
 	cleanerInterval = 5 * time.Minute
+	// errorRetryInterval: how long to wait before retrying a failed read
+	errorRetryInterval = time.Minute
 )
 
 var containerStoreTelemetry = struct {
@@ -151,9 +153,15 @@ func (cs *ContainerStore) HandleProcessEvent(entry *events.Process) {
 
 func (cs *ContainerStore) addProcess(entry *events.Process) {
 	prevItem, ok := cs.cache.Get(entry.ContainerID)
-	if ok && prevItem.resolvConf != nil {
-		// we already have resolv.conf for this container, no need to re-read
-		return
+	if ok {
+		if prevItem.resolvConf != nil {
+			// we already have resolv.conf for this container, no need to re-read
+			return
+		}
+		// previous read failed (resolvConf is nil); only retry after errorRetryInterval
+		if time.Since(prevItem.timestamp) < errorRetryInterval {
+			return
+		}
 	}
 
 	result, err := cs.readContainerItem(cs.ctx, entry)
