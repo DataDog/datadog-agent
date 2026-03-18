@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -101,13 +102,10 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	socketDir := t.TempDir()
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
 
+	cfg := &splite.Config{Socket: socketPath}
+
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, binaryPath, "--", "/bin/true", "-c", "/dev/null")
-	cmd.Env = append(os.Environ(),
-		"DD_DISCOVERY_ENABLED=true",
-		"DD_DISCOVERY_USE_SYSTEM_PROBE_LITE=true",
-		"DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET="+socketPath,
-	)
+	cmd := exec.CommandContext(ctx, binaryPath, cfg.Args()...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Start())
@@ -134,20 +132,40 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 type discoveryTestSuite struct {
 	suite.Suite
-	setupModule func(t *testing.T) *testDiscoveryModule
-	discovery   *testDiscoveryModule
+	setupModule            func(t *testing.T) *testDiscoveryModule
+	discovery              *testDiscoveryModule
+	expectedImplementation string
 }
 
 func (s *discoveryTestSuite) SetupTest() {
 	s.discovery = s.setupModule(s.T())
 }
 
+func (s *discoveryTestSuite) TestState() {
+	t := s.T()
+
+	url := s.discovery.url + "/" + string(config.DiscoveryModule) + "/state"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	resp, err := s.discovery.client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var state map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&state)
+	require.NoError(t, err)
+
+	require.Equal(t, s.expectedImplementation, state["implementation"])
+}
+
 func TestDiscovery(t *testing.T) {
 	t.Run("go", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
+		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule, expectedImplementation: "system-probe"})
 	})
 	t.Run("rust", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule})
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule, expectedImplementation: "system-probe-lite"})
 	})
 }
 

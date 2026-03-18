@@ -211,7 +211,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 88
+	const size = PidCacheEntrySize
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -231,19 +231,21 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	e.ExitTime = unmarshalTime(data[24:32])
 	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
 
+	e.ForkFlags = binary.NativeEndian.Uint64(data[40:48])
+
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := e.Credentials.UnmarshalBinary(data[40:])
+	read, err := e.Credentials.UnmarshalBinary(data[48:])
 	if err != nil {
 		return 0, err
 	}
-	read += 40
+	read += 48
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 292 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 300 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -492,6 +494,8 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Mount.Origin = MountOriginFsmount
 	case MountEventSourceMoveMountSyscall:
 		e.Mount.Origin = MountOriginMoveMount
+	case MountEventSourcePivotRootSyscall:
+		e.Mount.Origin = MountOriginPivotRoot
 	}
 	e.Origin = e.Mount.Origin
 	return n + 4, nil
