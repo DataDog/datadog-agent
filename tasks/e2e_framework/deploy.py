@@ -186,7 +186,7 @@ def _deploy(
 
     global_flags = " ".join(global_flags_array)
     _create_stack(ctx, stack_name, global_flags)
-    cmd = f"PULUMI_SKIP_UPDATE_CHECK=1 pulumi {global_flags} up --yes --non-interactive --refresh -s {stack_name} {up_flags}"
+    cmd = f"PULUMI_SKIP_UPDATE_CHECK=1 PULUMI_K8S_DELETE_UNREACHABLE=true pulumi {global_flags} up --yes --non-interactive --refresh -s {stack_name} {up_flags}"
 
     ctx.run(cmd, pty=False)
     return stack_name
