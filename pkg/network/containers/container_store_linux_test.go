@@ -166,6 +166,48 @@ func TestContainerStoreNoData(t *testing.T) {
 	require.True(t, ok, "Container should be in cache")
 	require.Equal(t, resolvConf, item.resolvConf, "ResolvConf should match")
 }
+
+func TestContainerStoreAccessRefreshesTimestamp(t *testing.T) {
+	t.Parallel()
+	cs, err := NewContainerStore(10)
+	require.NoError(t, err)
+	defer cs.Stop()
+
+	containerID := intern.GetByString("container-1")
+	processEvent := &events.Process{
+		Pid:         12345,
+		ContainerID: containerID,
+		StartTime:   time.Now().UnixNano(),
+	}
+
+	resolvConf := stringInterner.GetString("nameserver 8.8.8.8")
+	// mock readContainerItem to return an item with a timestamp far in the past
+	insertTime := time.Now().Add(-containerTTL + time.Minute)
+	cs.readContainerItem = func(_ context.Context, _ *events.Process) (readContainerItemResult, error) {
+		return readContainerItemResult{
+			item: containerStoreItem{
+				timestamp:  insertTime,
+				resolvConf: resolvConf,
+			},
+		}, nil
+	}
+
+	cs.HandleProcessEvent(processEvent)
+
+	require.Eventually(t, func() bool {
+		return cs.cache.Len() == 1
+	}, 2*time.Second, 50*time.Millisecond)
+
+	// verify GetResolvConf refreshes the timestamp
+	result := cs.GetResolvConf(containerID)
+	require.Equal(t, resolvConf, result)
+
+	item, ok := cs.cache.Get(containerID)
+	require.True(t, ok)
+	require.True(t, item.timestamp.After(insertTime),
+		"GetResolvConf should refresh the timestamp to prevent expiry")
+}
+
 func TestContainerStoreDuplicate(t *testing.T) {
 	t.Parallel()
 	// makes sure that nothing weird happens when you repeat a process entry
