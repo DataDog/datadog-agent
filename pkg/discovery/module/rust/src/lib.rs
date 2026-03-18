@@ -21,9 +21,7 @@
 
 mod apm;
 mod binary;
-pub mod cli;
 mod comm;
-pub mod config;
 mod envs;
 mod ephemeral;
 mod errors;
