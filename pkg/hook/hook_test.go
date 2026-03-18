@@ -151,7 +151,7 @@ func TestUnsubscribeIdempotent(t *testing.T) {
 
 // TestConcurrentPublish exercises the race detector: multiple goroutines
 // publishing simultaneously while the hook has active subscribers.
-func TestConcurrentPublish(t *testing.T) {
+func TestConcurrentPublish(_ *testing.T) {
 	h := NewHook[int]("concurrent-publish")
 	var received atomic.Int64
 	unsub := h.Subscribe("consumer", func(_ int) { received.Add(1) })
@@ -172,7 +172,7 @@ func TestConcurrentPublish(t *testing.T) {
 
 // TestConcurrentSubscribePublish exercises the race detector: subscribing and
 // unsubscribing concurrently with active publishers.
-func TestConcurrentSubscribePublish(t *testing.T) {
+func TestConcurrentSubscribePublish(_ *testing.T) {
 	h := NewHook[int]("concurrent-sub")
 
 	var wg sync.WaitGroup
