@@ -9,6 +9,8 @@
 package metrics
 
 import (
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -16,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -24,21 +27,35 @@ const (
 
 // Tag generation helper functions
 
-// baseAutoscalerTags generates the common base tags for autoscaler metrics
-func baseAutoscalerTags(namespace, targetName, autoscalerName string) []string {
-	return []string{
+// baseAutoscalerTags generates the common base tags for autoscaler metrics, including
+// per-object tags from annotations (ad.datadoghq.com/tags) and UST labels.
+func baseAutoscalerTags(internal *model.PodAutoscalerInternal) []string {
+	namespace := internal.Namespace()
+	name := internal.Name()
+
+	var targetName, targetKind string
+	if internal.Spec() != nil {
+		targetName = internal.Spec().TargetRef.Name
+		targetKind = strings.ToLower(internal.Spec().TargetRef.Kind)
+	}
+
+	tags := []string{
 		"namespace:" + namespace, // keep "namespace" for backward compatibility, even if it's redundant with "kube_namespace"
 		"kube_namespace:" + namespace,
 		"target_name:" + targetName,
-		"autoscaler_name:" + autoscalerName, // keep it for backward compatibility, even if it's redundant with "name"
-		"name:" + autoscalerName,
+		"target_kind:" + targetKind,
+		"autoscaler_name:" + name, // keep it for backward compatibility, even if it's redundant with "name"
+		"name:" + name,
 		le.JoinLeaderLabel + ":" + le.JoinLeaderValue,
 	}
+	tags = append(tags, keyTagsFromObjectMetadata(internal)...)
+	return tags
 }
 
-func resourceTags(resournceName string) []string {
+func resourceTags(containerName, resourceName string) []string {
 	return []string{
-		"resource_name:" + resournceName,
+		"resource_name:" + resourceName,
+		"kube_container_name:" + containerName,
 	}
 }
 
@@ -55,20 +72,11 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 
 	var metrics metricsstore.StructuredMetrics
 
-	namespace := internal.Namespace()
-	name := internal.Name()
-
-	// Get target name
-	var targetName string
-	if internal.Spec() != nil {
-		targetName = internal.Spec().TargetRef.Name
-	}
-
 	// Get scaling values
 	scalingValues := internal.MainScalingValues()
 
 	// Precompute base tags shared across all metrics for this autoscaler
-	baseTags := baseAutoscalerTags(namespace, targetName, name)
+	baseTags := baseAutoscalerTags(internal)
 	var baseWithHorizontalSourceTags []string
 	if scalingValues.Horizontal != nil {
 		baseWithHorizontalSourceTags = append(baseWithHorizontalSourceTags, "source:"+string(scalingValues.Horizontal.Source))
@@ -102,7 +110,21 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		})
 	}
 
-	// 2. Horizontal scaling received replicas
+	// 2. Local fallback enabled
+	// Check the active horizontal source (not main), matching the old behaviour that only tracked horizontal fallback
+	localFallbackValue := 0.0
+	if activeHorizontal := internal.ScalingValues().Horizontal; activeHorizontal != nil && activeHorizontal.Source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
+		localFallbackValue = 1.0
+	}
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".local_fallback_enabled",
+		Type:  metricsstore.MetricTypeGauge,
+		Value: localFallbackValue,
+		Tags:  baseTags,
+	})
+
+	// 3. Horizontal scaling received replicas
 	if scalingValues.Horizontal != nil {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".horizontal_scaling_received_replicas",
@@ -112,7 +134,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		})
 	}
 
-	// 3. Vertical scaling received requests and limits
+	// 4. Vertical scaling received requests and limits
 	if scalingValues.Vertical != nil {
 		for _, containerResources := range scalingValues.Vertical.ContainerResources {
 			// Requests
@@ -121,7 +143,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 					Name:  metricPrefix + ".vertical_scaling_received_requests",
 					Type:  metricsstore.MetricTypeGauge,
 					Value: value.AsApproximateFloat64(),
-					Tags:  append(baseWithVerticalSourceTags, resourceTags(string(resource))...),
+					Tags:  append(baseWithVerticalSourceTags, resourceTags(containerResources.Name, string(resource))...),
 				})
 			}
 
@@ -131,13 +153,13 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 					Name:  metricPrefix + ".vertical_scaling_received_limits",
 					Type:  metricsstore.MetricTypeGauge,
 					Value: value.AsApproximateFloat64(),
-					Tags:  append(baseWithVerticalSourceTags, resourceTags(string(resource))...),
+					Tags:  append(baseWithVerticalSourceTags, resourceTags(containerResources.Name, string(resource))...),
 				})
 			}
 		}
 	}
 
-	// 4. Horizontal scaling last action metrics
+	// 5. Horizontal scaling last action metrics
 	lastHorizontalActions := internal.HorizontalLastActions()
 	actionSource := ""
 	if sv := internal.ScalingValues(); sv.Horizontal != nil {
@@ -157,42 +179,55 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 
 	// Cap the slice to its length so each status append allocates independently
 	horizontalTags = horizontalTags[:len(horizontalTags):len(horizontalTags)]
-	if internal.HorizontalActionErrorCount() > 0 {
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".horizontal_scaling_actions",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.HorizontalActionErrorCount()),
+		Tags:  append(horizontalTags, "status:error"),
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".horizontal_scaling_actions",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.HorizontalActionSuccessCount()),
+		Tags:  append(horizontalTags, "status:ok"),
+	})
+
+	// 6. Vertical scaling last action metrics
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_rollout_triggered",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.VerticalActionErrorCount()),
+		Tags:  append(baseWithVerticalSourceTags, "status:error"),
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_rollout_triggered",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.VerticalActionSuccessCount()),
+		Tags:  append(baseWithVerticalSourceTags, "status:ok"),
+	})
+
+	// 8. Local recommender horizontal metrics
+	if fallbackHorizontal := internal.FallbackScalingValues().Horizontal; fallbackHorizontal != nil {
+		localSourceTags := append(baseTags[:len(baseTags):len(baseTags)], "source:"+string(fallbackHorizontal.Source))
 		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".horizontal_scaling_actions",
-			Type:  metricsstore.MetricTypeMonotonicCount,
-			Value: float64(internal.HorizontalActionErrorCount()),
-			Tags:  append(horizontalTags, "status:error"),
+			Name:  metricPrefix + ".local.horizontal_scaling_recommended_replicas",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: float64(fallbackHorizontal.Replicas),
+			Tags:  localSourceTags,
 		})
-	}
-	if internal.HorizontalActionSuccessCount() > 0 {
-		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".horizontal_scaling_actions",
-			Type:  metricsstore.MetricTypeMonotonicCount,
-			Value: float64(internal.HorizontalActionSuccessCount()),
-			Tags:  append(horizontalTags, "status:ok"),
-		})
+		if fallbackHorizontal.UtilizationPct != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".local.horizontal_utilization_pct",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: *fallbackHorizontal.UtilizationPct,
+				Tags:  localSourceTags,
+			})
+		}
 	}
 
-	// 5. Vertical scaling last action metrics
-	if internal.VerticalActionErrorCount() > 0 {
-		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".vertical_rollout_triggered",
-			Type:  metricsstore.MetricTypeMonotonicCount,
-			Value: float64(internal.VerticalActionErrorCount()),
-			Tags:  append(baseWithVerticalSourceTags, "status:error"),
-		})
-	}
-	if internal.VerticalActionSuccessCount() > 0 {
-		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".vertical_rollout_triggered",
-			Type:  metricsstore.MetricTypeMonotonicCount,
-			Value: float64(internal.VerticalActionSuccessCount()),
-			Tags:  append(baseWithVerticalSourceTags, "status:ok"),
-		})
-	}
-
-	// 6. Autoscaler conditions (from upstream CR)
+	// 7. Autoscaler conditions (from upstream CR)
 	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
 		for _, condition := range podAutoscaler.Status.Conditions {
 			value := 0.0
@@ -208,19 +243,6 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 7. Local fallback enabled
-	// Check the active horizontal source (not main), matching the old behaviour that only tracked horizontal fallback
-	localFallbackValue := 0.0
-	if activeHorizontal := internal.ScalingValues().Horizontal; activeHorizontal != nil && activeHorizontal.Source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
-		localFallbackValue = 1.0
-	}
-
-	metrics = append(metrics, metricsstore.StructuredMetric{
-		Name:  metricPrefix + ".local_fallback_enabled",
-		Type:  metricsstore.MetricTypeGauge,
-		Value: localFallbackValue,
-		Tags:  baseTags,
-	})
-
+	log.Tracef("GeneratePodAutoscalerMetrics: generated %d metrics for autoscaler %s/%s", len(metrics), internal.Namespace(), internal.Name())
 	return metrics
 }

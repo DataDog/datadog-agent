@@ -27,25 +27,48 @@ import (
 )
 
 func TestBaseAutoscalerTags(t *testing.T) {
-	tags := baseAutoscalerTags("test-ns", "test-target", "test-autoscaler")
+	internal := model.FakePodAutoscalerInternal{
+		Namespace: "test-ns",
+		Name:      "test-autoscaler",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name: "test-target",
+				Kind: "Deployment",
+			},
+		},
+	}.Build()
 
-	assert.Len(t, tags, 6)
+	tags := baseAutoscalerTags(&internal)
+
+	assert.Len(t, tags, 7)
 	assert.Contains(t, tags, "namespace:test-ns")
 	assert.Contains(t, tags, "kube_namespace:test-ns")
 	assert.Contains(t, tags, "target_name:test-target")
+	assert.Contains(t, tags, "target_kind:deployment")
 	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
 	assert.Contains(t, tags, "name:test-autoscaler")
 	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
 }
 
 func TestConditionTags(t *testing.T) {
-	baseTags := baseAutoscalerTags("test-ns", "test-target", "test-autoscaler")
+	internal := model.FakePodAutoscalerInternal{
+		Namespace: "test-ns",
+		Name:      "test-autoscaler",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name: "test-target",
+				Kind: "Deployment",
+			},
+		},
+	}.Build()
+	baseTags := baseAutoscalerTags(&internal)
 	tags := conditionTags(baseTags, "Active")
 
-	assert.Len(t, tags, 7)
+	assert.Len(t, tags, 8)
 	assert.Contains(t, tags, "namespace:test-ns")
 	assert.Contains(t, tags, "kube_namespace:test-ns")
 	assert.Contains(t, tags, "target_name:test-target")
+	assert.Contains(t, tags, "target_kind:deployment")
 	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
 	assert.Contains(t, tags, "name:test-autoscaler")
 	assert.Contains(t, tags, "type:Active")
@@ -68,6 +91,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 					Spec: &datadoghq.DatadogPodAutoscalerSpec{
 						TargetRef: v2.CrossVersionObjectReference{
 							Name: "test-deployment",
+							Kind: "Deployment",
 						},
 					},
 					MainScalingValues: model.ScalingValues{
@@ -79,7 +103,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 2, // horizontal_scaling_received_replicas + local_fallback_enabled
+			expectedCount: 6, // horizontal_scaling_received_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
@@ -89,6 +113,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Equal(t, 5.0, m.Value)
 						assert.Contains(t, m.Tags, "namespace:test-ns")
 						assert.Contains(t, m.Tags, "target_name:test-deployment")
+						assert.Contains(t, m.Tags, "target_kind:deployment")
 						assert.Contains(t, m.Tags, "autoscaler_name:test-dpa")
 						assert.Contains(t, m.Tags, "source:Autoscaling")
 					}
@@ -128,7 +153,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 5, // 2 requests + 2 limits + local_fallback_enabled
+			expectedCount: 9, // 2 requests + 2 limits + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var requestsCount, limitsCount int
 				for _, m := range metrics {
@@ -136,19 +161,54 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						requestsCount++
 						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
 						assert.Contains(t, m.Tags, "source:Autoscaling")
-						assert.NotContains(t, m.Tags, "kube_container_name:app-container",
-							"container name should not be in vertical received metrics tags")
+						assert.Contains(t, m.Tags, "kube_container_name:app-container",
+							"container name should be in vertical received metrics tags")
 					}
 					if m.Name == metricPrefix+".vertical_scaling_received_limits" {
 						limitsCount++
 						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
 						assert.Contains(t, m.Tags, "source:Autoscaling")
-						assert.NotContains(t, m.Tags, "kube_container_name:app-container",
-							"container name should not be in vertical received metrics tags")
+						assert.Contains(t, m.Tags, "kube_container_name:app-container",
+							"container name should be in vertical received metrics tags")
 					}
 				}
 				assert.Equal(t, 2, requestsCount, "expected 2 request metrics (cpu + memory)")
 				assert.Equal(t, 2, limitsCount, "expected 2 limit metrics (cpu + memory)")
+			},
+		},
+		{
+			name: "extra tags from annotations and UST labels propagated to all metrics",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				crd := &datadoghq.DatadogPodAutoscaler{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-dpa",
+						Namespace: "test-ns",
+						Annotations: map[string]string{
+							"ad.datadoghq.com/tags": `{"team":"autoscaling"}`,
+						},
+						Labels: map[string]string{
+							"tags.datadoghq.com/env": "prod",
+						},
+					},
+				}
+				internal := model.FakePodAutoscalerInternal{
+					Namespace:  "test-ns",
+					Name:       "test-dpa",
+					UpstreamCR: crd,
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 5, // horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				for _, m := range metrics {
+					assert.Contains(t, m.Tags, "team:autoscaling", "annotation tag should be in metric %s", m.Name)
+					assert.Contains(t, m.Tags, "env:prod", "UST label tag should be in metric %s", m.Name)
+				}
 			},
 		},
 		{
@@ -184,7 +244,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 3, // 2 conditions + local_fallback_enabled
+			expectedCount: 7, // 2 conditions + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var activeFound, readyFound bool
 				for _, m := range metrics {
@@ -226,7 +286,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 3, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(ok) + local_fallback_enabled
+			expectedCount: 6, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var appliedFound, actionsFound bool
 				for _, m := range metrics {
@@ -236,11 +296,10 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Equal(t, 5.0, m.Value)
 						assert.Contains(t, m.Tags, "source:Autoscaling")
 					}
-					if m.Name == metricPrefix+".horizontal_scaling_actions" {
+					if m.Name == metricPrefix+".horizontal_scaling_actions" && slices.Contains(m.Tags, "status:ok") {
 						actionsFound = true
 						assert.Equal(t, metricsstore.MetricTypeMonotonicCount, m.Type)
 						assert.Equal(t, 4.0, m.Value)
-						assert.Contains(t, m.Tags, "status:ok")
 						assert.Contains(t, m.Tags, "source:Autoscaling")
 					}
 				}
@@ -263,17 +322,16 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 2, // horizontal_scaling_actions(error) + local_fallback_enabled
+			expectedCount: 5, // horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var actionsFound bool
 				for _, m := range metrics {
 					assert.NotEqual(t, metricPrefix+".horizontal_scaling_applied_replicas", m.Name,
 						"horizontal_scaling_applied_replicas should not be emitted with no actions list")
-					if m.Name == metricPrefix+".horizontal_scaling_actions" {
+					if m.Name == metricPrefix+".horizontal_scaling_actions" && slices.Contains(m.Tags, "status:error") {
 						actionsFound = true
 						assert.Equal(t, metricsstore.MetricTypeMonotonicCount, m.Type)
 						assert.Equal(t, 2.0, m.Value)
-						assert.Contains(t, m.Tags, "status:error")
 					}
 				}
 				assert.True(t, actionsFound, "horizontal_scaling_actions metric not found")
@@ -298,7 +356,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 3, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(ok) + local_fallback_enabled
+			expectedCount: 6, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				for _, m := range metrics {
 					if m.Name == metricPrefix+".horizontal_scaling_applied_replicas" {
@@ -327,7 +385,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 4, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error) + horizontal_scaling_actions(ok) + local_fallback_enabled
+			expectedCount: 6, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var appliedFound, okFound, errorFound bool
 				for _, m := range metrics {
@@ -366,15 +424,14 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 2, // vertical_rollout_triggered(ok) + local_fallback_enabled
+			expectedCount: 5, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
-					if m.Name == metricPrefix+".vertical_rollout_triggered" {
+					if m.Name == metricPrefix+".vertical_rollout_triggered" && slices.Contains(m.Tags, "status:ok") {
 						found = true
 						assert.Equal(t, metricsstore.MetricTypeMonotonicCount, m.Type)
 						assert.Equal(t, 3.0, m.Value)
-						assert.Contains(t, m.Tags, "status:ok")
 					}
 				}
 				assert.True(t, found, "vertical_rollout_triggered metric not found")
@@ -395,15 +452,14 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 2, // vertical_rollout_triggered(error) + local_fallback_enabled
+			expectedCount: 5, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
-					if m.Name == metricPrefix+".vertical_rollout_triggered" {
+					if m.Name == metricPrefix+".vertical_rollout_triggered" && slices.Contains(m.Tags, "status:error") {
 						found = true
 						assert.Equal(t, metricsstore.MetricTypeMonotonicCount, m.Type)
 						assert.Equal(t, 2.0, m.Value)
-						assert.Contains(t, m.Tags, "status:error")
 					}
 				}
 				assert.True(t, found, "vertical_rollout_triggered metric not found")
@@ -425,7 +481,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 3, // vertical_rollout_triggered(error) + vertical_rollout_triggered(ok) + local_fallback_enabled
+			expectedCount: 5, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var foundOk, foundError bool
 				for _, m := range metrics {
@@ -442,6 +498,83 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}
 				assert.True(t, foundOk, "vertical_rollout_triggered status:ok metric not found")
 				assert.True(t, foundError, "vertical_rollout_triggered status:error metric not found")
+			},
+		},
+		{
+			name: "local recommender recommended replicas and utilization",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				utilizationPct := 0.85
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+					},
+					FallbackScalingValues: model.ScalingValues{
+						Horizontal: &model.HorizontalScalingValues{
+							Replicas:       3,
+							Source:         datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+							UtilizationPct: &utilizationPct,
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 7, // local_horizontal_scaling_recommended_replicas + local_horizontal_utilization_pct + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var replicasFound, utilizationFound bool
+				for _, m := range metrics {
+					if m.Name == metricPrefix+".local.horizontal_scaling_recommended_replicas" {
+						replicasFound = true
+						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+						assert.Equal(t, 3.0, m.Value)
+						assert.Contains(t, m.Tags, "source:Local")
+					}
+					if m.Name == metricPrefix+".local.horizontal_utilization_pct" {
+						utilizationFound = true
+						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+						assert.InDelta(t, 0.85, m.Value, 1e-9)
+						assert.Contains(t, m.Tags, "source:Local")
+					}
+				}
+				assert.True(t, replicasFound, "local_horizontal_scaling_recommended_replicas metric not found")
+				assert.True(t, utilizationFound, "local_horizontal_utilization_pct metric not found")
+			},
+		},
+		{
+			name: "local recommender recommended replicas without utilization",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+					},
+					FallbackScalingValues: model.ScalingValues{
+						Horizontal: &model.HorizontalScalingValues{
+							Replicas: 2,
+							Source:   datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 6, // local_horizontal_scaling_recommended_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var replicasFound bool
+				for _, m := range metrics {
+					assert.NotEqual(t, metricPrefix+".local.horizontal_utilization_pct", m.Name,
+						"local.horizontal_utilization_pct should not be emitted when UtilizationPct is nil")
+					if m.Name == metricPrefix+".local.horizontal_scaling_recommended_replicas" {
+						replicasFound = true
+						assert.Equal(t, 2.0, m.Value)
+					}
+				}
+				assert.True(t, replicasFound, "local_horizontal_scaling_recommended_replicas metric not found")
 			},
 		},
 		{
@@ -471,7 +604,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 2, // horizontal_scaling_received_replicas + local_fallback_enabled
+			expectedCount: 6, // horizontal_scaling_received_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {

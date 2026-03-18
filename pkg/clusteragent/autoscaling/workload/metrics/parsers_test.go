@@ -11,7 +11,104 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
+
+func newInternalWithObjectMeta(ns, name string, annotations, labels map[string]string) *model.PodAutoscalerInternal {
+	internal := model.NewFakePodAutoscalerInternal(ns, name, &model.FakePodAutoscalerInternal{
+		UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   ns,
+				Name:        name,
+				Annotations: annotations,
+				Labels:      labels,
+			},
+		},
+	})
+	return &internal
+}
+
+func newInternalWithAnnotations(ns, name string, annotations map[string]string) *model.PodAutoscalerInternal {
+	return newInternalWithObjectMeta(ns, name, annotations, nil)
+}
+
+func TestKeyTagsFromObjectMetadata(t *testing.T) {
+	tests := []struct {
+		name         string
+		internal     *model.PodAutoscalerInternal
+		expectedTags []string
+	}{
+		{
+			name:         "nil internal returns nil",
+			internal:     nil,
+			expectedTags: nil,
+		},
+		{
+			name: "no upstream CR returns nil",
+			internal: func() *model.PodAutoscalerInternal {
+				internal := model.NewFakePodAutoscalerInternal("ns", "name", nil)
+				return &internal
+			}(),
+			expectedTags: nil,
+		},
+		{
+			name:         "no annotations and no UST labels returns nil",
+			internal:     newInternalWithAnnotations("ns", "name", map[string]string{"other": "value"}),
+			expectedTags: nil,
+		},
+		{
+			name:         "empty annotation value and no labels returns nil",
+			internal:     newInternalWithAnnotations("ns", "name", map[string]string{"ad.datadoghq.com/tags": ""}),
+			expectedTags: nil,
+		},
+		{
+			name:         "single annotation tag",
+			internal:     newInternalWithAnnotations("ns", "name", map[string]string{"ad.datadoghq.com/tags": `{"team":"autoscaling"}`}),
+			expectedTags: []string{"team:autoscaling"},
+		},
+		{
+			name:         "multiple annotation tags",
+			internal:     newInternalWithAnnotations("ns", "name", map[string]string{"ad.datadoghq.com/tags": `{"team":"autoscaling","group":"modern-compute"}`}),
+			expectedTags: []string{"team:autoscaling", "group:modern-compute"},
+		},
+		{
+			name:         "invalid JSON falls back to labels only",
+			internal:     newInternalWithObjectMeta("ns", "name", map[string]string{"ad.datadoghq.com/tags": `{not valid json`}, map[string]string{"tags.datadoghq.com/env": "prod"}),
+			expectedTags: []string{"env:prod"},
+		},
+		{
+			name:         "JSON array value (non-object) returns nil when no labels",
+			internal:     newInternalWithAnnotations("ns", "name", map[string]string{"ad.datadoghq.com/tags": `["team:autoscaling"]`}),
+			expectedTags: nil,
+		},
+		{
+			name:         "UST labels only",
+			internal:     newInternalWithObjectMeta("ns", "name", nil, map[string]string{"tags.datadoghq.com/env": "prod", "tags.datadoghq.com/service": "my-svc", "tags.datadoghq.com/version": "1.0"}),
+			expectedTags: []string{"env:prod", "service:my-svc", "version:1.0"},
+		},
+		{
+			name:         "annotations and UST labels combined",
+			internal:     newInternalWithObjectMeta("ns", "name", map[string]string{"ad.datadoghq.com/tags": `{"team":"autoscaling"}`}, map[string]string{"tags.datadoghq.com/env": "staging"}),
+			expectedTags: []string{"team:autoscaling", "env:staging"},
+		},
+		{
+			name:         "non-UST labels ignored",
+			internal:     newInternalWithObjectMeta("ns", "name", nil, map[string]string{"app": "my-app", "other-label": "val"}),
+			expectedTags: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := keyTagsFromObjectMetadata(tt.internal)
+			assert.ElementsMatch(t, tt.expectedTags, result)
+		})
+	}
+}
 
 func TestParseContainerAnnotationTags(t *testing.T) {
 	tests := []struct {

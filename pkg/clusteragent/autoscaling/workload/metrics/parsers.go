@@ -14,8 +14,40 @@ import (
 
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// keyTagsFromObjectMetadata extracts per-object tags from the upstream DatadogPodAutoscaler CR
+// by combining:
+//   - the "ad.datadoghq.com/tags" annotation (JSON map of arbitrary key:value tags)
+//   - the Unified Service Tagging labels (env, service, version)
+//
+// Returns nil if no tags are found.
+func keyTagsFromObjectMetadata(internal *model.PodAutoscalerInternal) []string {
+	if internal == nil {
+		return nil
+	}
+	cr := internal.UpstreamCR()
+	if cr == nil {
+		return nil
+	}
+	var tags []string
+	if tagsJSON := cr.Annotations[kubernetes.ADTagsAnnotation]; tagsJSON != "" {
+		annotationTags, err := parseTagsFromJSON(kubernetes.ADTagsAnnotation, tagsJSON)
+		if err != nil {
+			log.Tracef("Failed to parse %s annotation for %s/%s: %v", kubernetes.ADTagsAnnotation, cr.Namespace, cr.Name, err)
+		} else {
+			tags = append(tags, annotationTags...)
+		}
+	}
+	tags = append(tags, kubernetes.GetStandardTags(cr.Labels)...)
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
+}
 
 // parseContainerAnnotationTags parses all "ad.datadoghq.com/<container-name>.tags" annotations
 // and returns a map keyed by container name, with the annotation-derived tags as values.

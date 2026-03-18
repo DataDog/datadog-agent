@@ -62,6 +62,18 @@ func (m *MetricsStore[T]) WriteAll() error {
 		globalTags = m.globalTagsFunc()
 	}
 
+	var totalKeys, totalMetrics int
+	m.metrics.Range(func(key, value interface{}) bool {
+		totalKeys++
+		metrics, ok := value.(StructuredMetrics)
+		if !ok {
+			log.Warnf("Invalid metrics type in store for key %v", key)
+			return true
+		}
+		totalMetrics += len(metrics)
+		return true
+	})
+
 	m.metrics.Range(func(key, value interface{}) bool {
 		metrics, ok := value.(StructuredMetrics)
 		if !ok {
@@ -69,7 +81,6 @@ func (m *MetricsStore[T]) WriteAll() error {
 			return true
 		}
 
-		log.Tracef("Submitting %d metrics for key: %v", len(metrics), key)
 		for _, metric := range metrics {
 			tags := metric.Tags
 			if len(globalTags) > 0 {
