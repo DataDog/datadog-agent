@@ -12,4 +12,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/template/text",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/template/internal/fmtsort"],
 )
