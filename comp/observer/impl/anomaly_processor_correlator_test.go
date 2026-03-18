@@ -124,7 +124,7 @@ func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
 	correlator.Advance(1031)
 
 	// Verify buffer only contains the two recent anomalies
-	assert.Len(t, correlator.GetBuffer(), 2)
+	assert.Len(t, correlator.getBuffer(), 2)
 }
 
 func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
@@ -185,7 +185,7 @@ func TestCorrelator_BufferNotClearedAfterAdvance(t *testing.T) {
 	require.Len(t, activeCorrs2, 3)
 
 	// Buffer should still have all entries
-	assert.Len(t, correlator.GetBuffer(), 3)
+	assert.Len(t, correlator.getBuffer(), 3)
 }
 
 func TestCorrelator_Name(t *testing.T) {

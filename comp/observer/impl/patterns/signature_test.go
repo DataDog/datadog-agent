@@ -74,13 +74,13 @@ func TestSignatureAuthority(t *testing.T) {
 	assertTokenSignature(t, "regularHostName:port",
 		AuthorityToken(&hostReg, 22, true, "", false))
 
-	hostIp := Token{Type: TypeIPv4Address, Value: "12.23.34.45"}
+	hostIP := Token{Type: TypeIPv4Address, Value: "12.23.34.45"}
 	assertTokenSignature(t, "user@ipv4:port",
-		AuthorityToken(&hostIp, 22, true, "user", true))
+		AuthorityToken(&hostIP, 22, true, "user", true))
 
-	hostIp6 := Token{Type: TypeIPv6Address, Value: "2001:db8:85a3::8a2e:370:7334"}
+	hostIP6 := Token{Type: TypeIPv6Address, Value: "2001:db8:85a3::8a2e:370:7334"}
 	assertTokenSignature(t, "user@ipv6:port",
-		AuthorityToken(&hostIp6, 22, true, "user", true))
+		AuthorityToken(&hostIP6, 22, true, "user", true))
 }
 
 func TestSignatureWord(t *testing.T) {
@@ -148,13 +148,13 @@ func TestSignatureSeverity(t *testing.T) {
 }
 
 func TestSignatureHttpMethod(t *testing.T) {
-	assertTokenSignature(t, "HttpMethod{value=*}", HttpMethodToken("GET"))
-	assertTokenSignature(t, "HttpMethod{value=*}", HttpMethodToken("POST"))
+	assertTokenSignature(t, "HttpMethod{value=*}", HTTPMethodToken("GET"))
+	assertTokenSignature(t, "HttpMethod{value=*}", HTTPMethodToken("POST"))
 }
 
 func TestSignatureHttpStatusCode(t *testing.T) {
-	assertTokenSignature(t, "HttpStatusCode{value=*}", HttpStatusCodeToken("200"))
-	assertTokenSignature(t, "HttpStatusCode{value=*}", HttpStatusCodeToken("404"))
+	assertTokenSignature(t, "HttpStatusCode{value=*}", HTTPStatusCodeToken("200"))
+	assertTokenSignature(t, "HttpStatusCode{value=*}", HTTPStatusCodeToken("404"))
 }
 
 func TestSignatureWhitespace(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 type engineEventKind int
 
 const (
-	eventAdvanceCompleted  engineEventKind = iota
+	eventAdvanceCompleted engineEventKind = iota
 	eventAnomalyCreated
 	eventCorrelationUpdated
 )
