@@ -221,7 +221,7 @@ api_key:
 # dogstatsd_tag_cardinality: "low"
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
-## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: 'max median avg count'
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: "max median avg count"
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -232,7 +232,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
-## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: '0.95'
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: "0.95"
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -382,7 +382,7 @@ api_key:
 # forwarder_backoff_max: 64
 
 ## @param cloud_provider_metadata - list of strings - optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: 'aws gcp azure alibaba oracle ibm'
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: "aws gcp azure alibaba oracle ibm"
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -1298,12 +1298,11 @@ api_key:
 #   # Set to 0 to disable the HTTP receiver.
 #
 #   receiver_port: 8126
-
-{{ if (eq .OS "windows") -}}
+{{ if (eq .OS "windows") }}
 #   # @param receiver_socket - string - optional - default: ""
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
 #   # Please note that UDS receiver is not available in Windows.
-#   # @ Enabling this setting may result in unexpected behavior.
+#   # Enabling this setting may result in unexpected behavior.
 #   #
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
@@ -1604,8 +1603,9 @@ api_key:
 #       pattern: "<REGEX_PATTERN>"
 #       repl: "<PATTERN_TO_INLINE>"
 
-#   # @param ignore_resources - list of strings - optional
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
+#   # @param ignore_resources - list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - comma separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
@@ -1817,6 +1817,7 @@ api_key:
 #   process_collection:
 
 #     # @param enabled - boolean - optional - default: false
+#     # @env DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED - boolean - optional - default: false
 #     # Enables collection of information about running processes.
 #
 #     enabled: false
@@ -1827,33 +1828,25 @@ api_key:
 #   container_collection:
 
 #     # @param enabled - boolean - optional - default: true
+#     # @env DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED - boolean - optional - default: true
 #     # Enables collection of information about running containers.
 #
 #     enabled: true
 
-#   # Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
-#   # @param enabled - string - optional - default: "false"
-#   # @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
-#   #  A string indicating the enabled state of the Process Agent:
-#   #    * "false"    : The Agent collects only containers information.
-#   #    * "true"     : The Agent collects containers and processes information.
-#   #    * "disabled" : The Agent process collection is disabled.
-#
-#   enabled: "true"
-
-#   # @param expvar_port - string - optional - default: 6062
-#   # @env DD_PROCESS_CONFIG_EXPVAR_PORT - string - optional - default: 6062
+#   # @param expvar_port - integer - optional - default: 6062
+#   # @env DD_PROCESS_CONFIG_EXPVAR_PORT - integer - optional - default: 6062
 #   # Port for the debug endpoints for the process Agent.
 #
 #   expvar_port: 6062
 
-#   # @param cmd_port - string - optional - default: 6162
+#   # @param cmd_port - integer - optional - default: 6162
+#   # @env DD_PROCESS_CONFIG_CMD_PORT - integer - optional - default: 6162
 #   # Port for configuring runtime settings for the process Agent.
 #
 #   cmd_port: 6162
 
-#   # @param log_file - string - optional
-#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional
+#   # @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
 #   # The full path to the file where process Agent logs are written.
 #
 #   log_file: <PROCESS_LOG_FILE_PATH>
@@ -1894,17 +1887,20 @@ api_key:
 #   process_discovery:
 
 #     # @param enabled - boolean - optional - default: true
+#     # @env DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED - boolean - optional - default: true
+#     # @env DD_PROCESS_CONFIG_DISCOVERY_ENABLED - boolean - optional - default: true
 #     # Toggles the `process_discovery` check. If enabled, this check gathers information about running integrations.
 #
 #     enabled: true
 
-#     # @param interval - duration - optional - default: 4h - minimum: 10m
-#     # An interval in hours that specifies how often the process discovery check should run.
+#     # @param interval - duration - optional - default: "4h0m0s"
+#     # @env DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL - duration - optional - default: "4h0m0s"
+#     # An interval in hours that specifies how often the process discovery check should run (minimum is 10min).
 #
 #     interval: 4h
 
-#   # @param blacklist_patterns - list of strings - optional
-#   # @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
+#   # @param blacklist_patterns - list of strings - optional - default: []
+#   # @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional - default: []
 #   # A list of regex patterns that exclude processes if matched.
 #
 #   blacklist_patterns:
@@ -1934,10 +1930,10 @@ api_key:
 #
 #   max_per_message: 100
 
-#   # @param dd_agent_bin - string - optional
-#   # @env DD_PROCESS_CONFIG_DD_AGENT_BIN - string - optional
+#   # @param dd_agent_bin - string - optional - default: {{ if ((eq .OS "windows")) }}"c:\\program files\\datadog\\datadog agent\\bin\\agent.exe"{{else}}"/opt/datadog-agent/bin/agent/agent"{{ end }}
+#   # @env DD_PROCESS_CONFIG_DD_AGENT_BIN - string - optional - default: {{ if ((eq .OS "windows")) }}"c:\\program files\\datadog\\datadog agent\\bin\\agent.exe"{{else}}"/opt/datadog-agent/bin/agent/agent"{{ end }}
 #   # Overrides the path to the Agent bin used for getting the hostname. Defaults are:
-#   #   * Windows: <AGENT_DIRECTORY>\embedded\\agent.exe
+#   #   * Windows: <AGENT_DIRECTORY>\\embedded\\agent.exe
 #   #   * Unix: /opt/datadog-agent/bin/agent/agent
 #
 #   dd_agent_bin: <AGENT_BIN_PATH>
@@ -1949,13 +1945,15 @@ api_key:
 #   dd_agent_env: ""
 
 #   # @param scrub_args - boolean - optional - default: true
+#   # @env DD_SCRUB_ARGS - boolean - optional - default: true
 #   # @env DD_PROCESS_CONFIG_SCRUB_ARGS - boolean - optional - default: true
 #   # Hide sensitive data on the Live Processes page.
 #
 #   scrub_args: true
 
-#   # @param custom_sensitive_words - list of strings - optional
-#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
+#   # @param custom_sensitive_words - list of strings - optional - default: []
+#   # @env DD_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional - default: []
+#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional - default: []
 #   # Define your own list of sensitive data to be merged with the default one.
 #   # Read more on Datadog documentation:
 #   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
@@ -1967,7 +1965,7 @@ api_key:
 #     - '*pass*d*'
 
 #   # @param disable_realtime_checks - boolean - optional - default: false
-#   # @env DD_PROCESS_CONFIG_DISABLE_REALTIME - boolean - optional - default: false
+#   # @env DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS - boolean - optional - default: false
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
@@ -2864,7 +2862,11 @@ api_key:
 
 ## @param podman_db_path - string - optional - default: ""
 ## @env DD_PODMAN_DB_PATH - string - optional - default: ""
-## Settings for Podman DB that Datadog Agent collects container metrics.
+## Path(s) to Podman container database file(s) used by the Datadog Agent to collect container metrics.
+## Accepts a comma-separated list of paths to support monitoring containers from multiple users
+## (e.g. root and rootless users).
+## Example: "/var/lib/containers/storage/db.sql,/home/myuser/.local/share/containers/storage/db.sql"
+## When left empty, the Agent auto-discovers accessible Podman databases for root and all users under /home/.
 #
 # podman_db_path: ""
 {{ end -}}

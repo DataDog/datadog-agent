@@ -1240,7 +1240,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 	eventType := event.GetEventType()
 	switch eventType {
 
-	case model.FileMountEventType, model.FileMoveMountEventType:
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
 		if !p.regularUnmarshalEvent(&event.Mount, eventType, offset, dataLen, data) {
 			return false
 		}
@@ -1253,7 +1253,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.RootPathKey, event.PIDContext.Pid)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -1268,7 +1268,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(model.PathKey{MountID: event.Umount.MountID}, event.PIDContext.Pid)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -2000,6 +2000,20 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
+	switch eventType {
+	case model.FileOpenEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingOpenEnabled
+	case model.ConnectEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
+	case model.BindEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingBindEnabled
+	case model.DNSEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingDNSEnabled
+	}
+	return false
+}
+
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	switch eventType {
 	case model.DNSEventType.String():
@@ -2047,6 +2061,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
+			p.isNeededForEventSampling(eventType) ||
 			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 
@@ -2295,7 +2310,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntriesForMountID(m.MountID)
 
-	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
+	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType && ev.GetEventType() != model.PivotRootEventType {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
@@ -2308,7 +2323,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	var err error
-	if ev.GetEventType() == model.FileMoveMountEventType {
+	if ev.GetEventType() == model.FileMoveMountEventType || ev.GetEventType() == model.PivotRootEventType {
 		err = p.Resolvers.MountResolver.InsertMoved(*m)
 	} else {
 		err = p.Resolvers.MountResolver.Insert(*m)
@@ -2661,12 +2676,36 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
 		manager.ConstantEditor{
-			Name:  "open_sampling_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.OpenSamplingEnabled),
+			Name:  "event_sampling_open_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "open_sampling_rate",
-			Value: uint64(p.config.RuntimeSecurity.OpenSamplingRate),
+			Name:  "event_sampling_open_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -2733,6 +2772,10 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
+		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
+		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
+		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
+		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
