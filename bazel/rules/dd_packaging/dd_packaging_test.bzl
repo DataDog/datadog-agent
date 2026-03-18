@@ -3,6 +3,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:truth.bzl", "matching")
 load("@rules_testing//lib:util.bzl", "util")
@@ -38,6 +39,26 @@ _dd_packaging_installed_files = rule(
 
 def _outputs_of(env, target):
     return env.expect.that_target(target).default_outputs()
+
+# Helper rule that inspects PackageFilegroupInfo.pkg_files for duplicate
+# destinations.  Produces a marker file if any destination appears more than
+# once so analysis tests can assert the output is empty (no duplicates).
+def _duplicate_destinations_impl(ctx):
+    pfgi = ctx.attr.dep[PackageFilegroupInfo]
+    seen = {}
+    for pkg_files_info, _ in pfgi.pkg_files:
+        for dest in pkg_files_info.dest_src_map:
+            if dest in seen:
+                marker = ctx.actions.declare_file(ctx.label.name + "_duplicate_detected")
+                ctx.actions.write(marker, dest)
+                return DefaultInfo(files = depset([marker]))
+            seen[dest] = True
+    return DefaultInfo(files = depset([]))
+
+_duplicate_destinations = rule(
+    implementation = _duplicate_destinations_impl,
+    attrs = {"dep": attr.label(providers = [PackageFilegroupInfo])},
+)
 
 # ── Test cases ───────────────────────────────────────────────────────────────
 
@@ -321,6 +342,98 @@ def _test_cc_binary_no_cc_shared_library_info(name):
 def _test_cc_binary_no_cc_shared_library_info_impl(env, target):
     env.expect.that_bool(CcSharedLibraryInfo in target).equals(False)
 
+# Test 9: diamond dependency — shared_so is reachable via two independent
+# paths; its installed files must appear exactly once in the merged output.
+#
+#   top_so --[dynamic_deps]--> left_so  --[dynamic_deps]--> shared_so
+#                          \-> right_so --[dynamic_deps]--> shared_so
+#
+# Without depset-based deduplication in _CollectedPackagingInfo the same
+# PackageFilegroupInfo would be accumulated twice, triggering a duplicate-
+# destination error at pkg_rpm / pkg_deb time.
+def _test_diamond_no_duplicates(name):
+    cc_library(
+        name = name + "_shared_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_shared_so",
+        deps = [":" + name + "_shared_lib"],
+    )
+    pkg_files(
+        name = name + "_shared_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_shared_packaged",
+        input = ":" + name + "_shared_so",
+        installed_files = [":" + name + "_shared_hdrs"],
+    )
+
+    cc_library(
+        name = name + "_left_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_left_so",
+        deps = [":" + name + "_left_lib"],
+        dynamic_deps = [":" + name + "_shared_packaged"],
+    )
+    dd_cc_packaged(
+        name = name + "_left_packaged",
+        input = ":" + name + "_left_so",
+    )
+
+    cc_library(
+        name = name + "_right_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_right_so",
+        deps = [":" + name + "_right_lib"],
+        dynamic_deps = [":" + name + "_shared_packaged"],
+    )
+    dd_cc_packaged(
+        name = name + "_right_packaged",
+        input = ":" + name + "_right_so",
+    )
+
+    cc_library(
+        name = name + "_top_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_top_so",
+        deps = [":" + name + "_top_lib"],
+        dynamic_deps = [
+            ":" + name + "_left_packaged",
+            ":" + name + "_right_packaged",
+        ],
+    )
+    dd_cc_packaged(
+        name = name + "_top_packaged",
+        input = ":" + name + "_top_so",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_collected",
+        srcs = [":" + name + "_top_packaged"],
+    )
+    util.helper_target(
+        _duplicate_destinations,
+        name = name + "_subject",
+        dep = ":" + name + "_collected",
+    )
+    analysis_test(
+        name = name,
+        impl = _test_diamond_no_duplicates_impl,
+        target = name + "_subject",
+    )
+
+def _test_diamond_no_duplicates_impl(env, target):
+    _outputs_of(env, target).contains_exactly([])
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -335,5 +448,6 @@ def dd_packaging_test_suite(name):
             _test_packaged_forwards_unpatched_so,
             _test_cc_binary_collected,
             _test_cc_binary_no_cc_shared_library_info,
+            _test_diamond_no_duplicates,
         ],
     )
