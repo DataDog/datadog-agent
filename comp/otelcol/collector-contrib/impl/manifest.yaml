@@ -32,6 +32,8 @@ extensions:
     v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension
     v0.152.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage
     v0.152.0
 processors:

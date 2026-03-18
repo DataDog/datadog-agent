@@ -1,0 +1,85 @@
+kind: tests
+category: functional
+tests:
+- id: T033
+  ref: [OTELCOL016]
+  short: Attributes processor inserts a span attribute
+  long: |
+    Verify that the attributes processor can insert a new attribute on every span
+    passing through the pipeline, and that the attribute is visible in the debug
+    exporter output.
+  prereq: [T001]
+  steps:
+    - action: Prepare a configuration with the attributes processor configured to insert an attribute
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+        processors:
+          attributes:
+            actions:
+              - key: my.custom.attribute
+                value: "hello-world"
+                action: insert
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [attributes]
+              exporters: [debug]
+    - action: Start the otel-agent
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=-1 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...] | info | service@v0.147.0/service.go:264 | Everything is ready. Begin running and processing data.
+    - action: Send one trace through the pipeline
+      run: |
+        telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
+      expected: |
+        ... traces generated {"worker": 0, "traces": 1}
+    - action: Verify the inserted attribute appears on all spans in the debug output
+      sample: |
+             -> my.custom.attribute: Str(hello-world)
+
+- id: T034
+  ref: [OTELCOL016]
+  short: Attributes processor deletes a span attribute
+  long: |
+    Verify that the attributes processor can delete an existing attribute from spans
+    so that it is absent from the debug exporter output. Using the same pipeline as
+    T033, add a `delete` action for `net.peer.name` (an attribute set by telemetrygen)
+    and confirm it no longer appears.
+  prereq: [T033]
+  steps:
+    - action: Add a delete action for `net.peer.name` to the processor config
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        processors:
+          attributes:
+            actions:
+              - key: my.custom.attribute
+                value: "hello-world"
+                action: insert
+              - key: net.peer.name
+                action: delete
+    - action: Send one trace and verify `net.peer.name` is absent from the debug output
+      run: |
+        telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
+      expected: |
+        ... traces generated {"worker": 0, "traces": 1}
+    - action: "Verify `net.peer.name` is absent and `my.custom.attribute` is still present"
+      sample: |
+        -> my.custom.attribute: Str(hello-world)
+        (no net.peer.name line in the span attributes)
