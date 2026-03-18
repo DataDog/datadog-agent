@@ -15,22 +15,33 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// InstallECRCredentialsHelper installs the Amazon ECR credential helper on the given host
-// and configures Docker to use it. This enables automatic authentication against ECR registries
-// (including pull-through cache registries).
+// InstallECRCredentialsHelper installs the Amazon ECR credential helper and jq on the host,
+// then merges credsStore=ecr-login into ~/.docker/config.json (preserving existing keys).
+// This enables automatic authentication against ECR registries (including pull-through caches).
 func InstallECRCredentialsHelper(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
 	ecrCredsHelperInstall, err := host.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login", os.WithPulumiResourceOptions(opts...))
 	if err != nil {
 		return nil, err
 	}
 
+	jqInstall, err := host.OS.PackageManager().Ensure("jq", nil, "jq", os.WithPulumiResourceOptions(opts...))
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge credsStore into existing ~/.docker/config.json so we do not wipe auths, credHelpers, proxies, etc.
+	mergeDockerConfig := `mkdir -p "${HOME}/.docker" && ` +
+		`([ -s "${HOME}/.docker/config.json" ] || echo '{}' > "${HOME}/.docker/config.json") && ` +
+		`TMP=$(mktemp) && jq '. + {"credsStore": "ecr-login"}' "${HOME}/.docker/config.json" > "$TMP" && ` +
+		`mv "$TMP" "${HOME}/.docker/config.json"`
+
 	ecrConfigCommand, err := host.OS.Runner().Command(
 		n.ResourceName("ecr-config"),
 		&command.Args{
-			Create: pulumi.String("mkdir -p ~/.docker && echo '{\"credsStore\": \"ecr-login\"}' > ~/.docker/config.json"),
+			Create: pulumi.String(mergeDockerConfig),
 			Sudo:   false,
 		},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCredsHelperInstall))...,
+		utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCredsHelperInstall, jqInstall))...,
 	)
 	if err != nil {
 		return nil, err
