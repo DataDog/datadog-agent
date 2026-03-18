@@ -62,10 +62,6 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 	contextExpireTime := pkgconfigsetup.Datadog().GetInt64("dogstatsd_context_expiry_seconds")
 	counterExpireTime := contextExpireTime + pkgconfigsetup.Datadog().GetInt64("dogstatsd_expiry_seconds")
 
-	if metricHook == nil {
-		metricHook = hook.NewNoopHook[hook.MetricView]()
-	}
-
 	s := &TimeSampler{
 		interval:           interval,
 		contextResolver:    newTimestampContextResolver(tagger, cache, idString, contextExpireTime, counterExpireTime),
