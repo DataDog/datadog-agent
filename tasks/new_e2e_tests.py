@@ -315,15 +315,26 @@ def run(
 
     parsed_params = {}
 
-    # Image pull credentials: pass through from env, or use ECR defaults when not in CI.
-    registry = os.environ.get("E2E_IMAGE_PULL_REGISTRY", "")
-    username = os.environ.get("E2E_IMAGE_PULL_USERNAME", "")
-    password = os.environ.get("E2E_IMAGE_PULL_PASSWORD", "")
-    if not running_in_ci() and not password:
-        password = _get_agent_qa_ecr_password(ctx)
-        if password:
-            registry = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-            username = "AWS"
+    # Image pull credentials: build as aligned lists, then join with commas.
+    registries: list[str] = []
+    usernames: list[str] = []
+    passwords: list[str] = []
+
+    env_registry = os.environ.get("E2E_IMAGE_PULL_REGISTRY", "")
+    env_username = os.environ.get("E2E_IMAGE_PULL_USERNAME", "")
+    env_password = os.environ.get("E2E_IMAGE_PULL_PASSWORD", "")
+    if env_password:
+        registries = env_registry.split(",") if env_registry else []
+        usernames = env_username.split(",") if env_username else []
+        passwords = env_password.split(",")
+
+    if not running_in_ci() and not passwords:
+        ecr_password = _get_agent_qa_ecr_password(ctx)
+        if ecr_password:
+            registries.append("669783387624.dkr.ecr.us-east-1.amazonaws.com")
+            usernames.append("AWS")
+            passwords.append(ecr_password)
+
     if not running_in_ci():
         # TODO(agent-devx): Add GCP authentication (follow-up to #47298)
         # If we use an agent image from sandbox registry we need to authenticate against it
@@ -332,15 +343,14 @@ def run(
                 "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password",
                 hide=True,
             ).stdout.strip()
-            password += f",{sandbox_pwd}"
-            registry += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
-            username += ",AWS"
-    if registry:
-        env_vars["E2E_IMAGE_PULL_REGISTRY"] = registry
-    if username:
-        env_vars["E2E_IMAGE_PULL_USERNAME"] = username
-    if password:
-        env_vars["E2E_IMAGE_PULL_PASSWORD"] = password
+            registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
+            usernames.append("AWS")
+            passwords.append(sandbox_pwd)
+
+    if passwords:
+        env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
+        env_vars["E2E_IMAGE_PULL_USERNAME"] = ",".join(usernames)
+        env_vars["E2E_IMAGE_PULL_PASSWORD"] = ",".join(passwords)
     if not running_in_ci():
         # Auto-detect pipeline ID and commit SHA for local runs if not already set
         if "E2E_PIPELINE_ID" not in os.environ:
