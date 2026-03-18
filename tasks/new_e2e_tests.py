@@ -593,7 +593,7 @@ def run(
             if args.get(param_key):
                 params.append(f"-{args[param_key]}")
 
-        params.extend(f"-c {configparam}" for configparam in configparams)
+        params.extend(f"-c {param}" for param in configparams if "password" not in param.split("=", 1)[0].casefold())
 
         command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -- -e new-e2e-tests.run {' '.join(params)}"
         print(
