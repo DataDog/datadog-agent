@@ -124,9 +124,9 @@ type RRCFDetector struct {
 	// Each metric becomes a dimension in the feature vector.
 	metrics []RRCFMetricDef
 
-	// resolvedKeys caches the actual SeriesKey (with tags) for each metric.
+	// resolvedKeys caches the numeric series ID for each metric.
 	// Populated lazily on first Detect call via ListSeries discovery.
-	resolvedKeys map[string]observer.SeriesKey
+	resolvedKeys map[string]observer.SeriesHandle
 
 	// cursors tracks read position per metric for incremental reads.
 	cursors map[string]int64
@@ -166,7 +166,7 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 	return &RRCFDetector{
 		config:       config,
 		metrics:      metrics,
-		resolvedKeys: make(map[string]observer.SeriesKey),
+		resolvedKeys: make(map[string]observer.SeriesHandle),
 		cursors:      make(map[string]int64),
 		forest:       forest,
 		recentScores: make([]float64, 0, 100),
@@ -217,12 +217,12 @@ func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 	return r.scoreAndDetect(shingles, dataTime)
 }
 
-// resolveKey returns the cached SeriesKey for a metric definition.
+// resolveKey returns the cached numeric series ID for a metric definition.
 // Keys are populated by resolveAllKeys on the first Detect call.
-func (r *RRCFDetector) resolveKey(m RRCFMetricDef) (observer.SeriesKey, bool) {
+func (r *RRCFDetector) resolveKey(m RRCFMetricDef) (observer.SeriesHandle, bool) {
 	cursorKey := m.Namespace + "|" + m.Name
-	key, ok := r.resolvedKeys[cursorKey]
-	return key, ok
+	id, ok := r.resolvedKeys[cursorKey]
+	return id, ok
 }
 
 // resolveAllKeys discovers series keys for all metrics at once, ensuring they share
@@ -235,22 +235,21 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	}
 
 	// For each metric, collect all matching series grouped by tag string
-	// Collect all series per metric
-	seriesByMetric := make(map[string][]observer.SeriesKey) // cursorKey -> all matching keys
+	seriesByMetric := make(map[string][]observer.SeriesMeta) // cursorKey -> all matching series
 	for _, m := range r.metrics {
 		cursorKey := m.Namespace + "|" + m.Name
 		matches := storage.ListSeries(observer.SeriesFilter{
 			Namespace:   m.Namespace,
 			NamePattern: m.Name,
 		})
-		for _, key := range matches {
-			if key.Name == m.Name {
-				seriesByMetric[cursorKey] = append(seriesByMetric[cursorKey], key)
+		for _, meta := range matches {
+			if meta.Name == m.Name {
+				seriesByMetric[cursorKey] = append(seriesByMetric[cursorKey], meta)
 			}
 		}
 	}
 
-	// Build a tag signature for each series key
+	// Build a tag signature for each series
 	tagSig := func(tags []string) string {
 		sorted := make([]string, len(tags))
 		copy(sorted, tags)
@@ -259,14 +258,14 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	}
 
 	// Group series by tag signature and find a tag set that has ALL metrics
-	tagSetMetrics := make(map[string]map[string]observer.SeriesKey) // tagSig -> cursorKey -> SeriesKey
-	for cursorKey, keys := range seriesByMetric {
-		for _, key := range keys {
-			sig := tagSig(key.Tags)
+	tagSetMetrics := make(map[string]map[string]observer.SeriesMeta) // tagSig -> cursorKey -> SeriesMeta
+	for cursorKey, metas := range seriesByMetric {
+		for _, meta := range metas {
+			sig := tagSig(meta.Tags)
 			if tagSetMetrics[sig] == nil {
-				tagSetMetrics[sig] = make(map[string]observer.SeriesKey)
+				tagSetMetrics[sig] = make(map[string]observer.SeriesMeta)
 			}
-			tagSetMetrics[sig][cursorKey] = key
+			tagSetMetrics[sig][cursorKey] = meta
 		}
 	}
 
@@ -282,8 +281,8 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 		}
 		// Count total points across all metrics for this tag set
 		pc := 0
-		for _, key := range metricsMap {
-			pc += storage.PointCount(key)
+		for _, meta := range metricsMap {
+			pc += storage.PointCount(meta.Handle)
 		}
 		if mc > bestMetricCount || (mc == bestMetricCount && pc > bestPointCount) {
 			bestMetricCount = mc
@@ -302,8 +301,8 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	log.Printf("  RRCF: resolved %d metrics to tag set with %d total points\n", bestMetricCount, bestPointCount)
 
 	// Resolve all metrics to this tag set
-	for cursorKey, key := range tagSetMetrics[bestSig] {
-		r.resolvedKeys[cursorKey] = key
+	for cursorKey, meta := range tagSetMetrics[bestSig] {
+		r.resolvedKeys[cursorKey] = meta.Handle
 	}
 
 	return true
@@ -314,7 +313,7 @@ func (r *RRCFDetector) readNewPoints(storage observer.StorageReader, dataTime in
 	result := make(map[string][]observer.Point)
 
 	for _, m := range r.metrics {
-		key, found := r.resolveKey(m)
+		id, found := r.resolveKey(m)
 		if !found {
 			continue
 		}
@@ -322,7 +321,7 @@ func (r *RRCFDetector) readNewPoints(storage observer.StorageReader, dataTime in
 		cursorKey := m.Namespace + "|" + m.Name
 		cursor := r.cursors[cursorKey]
 
-		series := storage.GetSeriesRange(key, cursor, dataTime, m.Agg)
+		series := storage.GetSeriesRange(id, cursor, dataTime, m.Agg)
 		if series == nil || len(series.Points) == 0 {
 			continue
 		}
@@ -556,7 +555,7 @@ func (r *RRCFDetector) scoreShingle(s shingle) float64 {
 
 // Reset clears all state, useful for testing or after major regime changes.
 func (r *RRCFDetector) Reset() {
-	r.resolvedKeys = make(map[string]observer.SeriesKey)
+	r.resolvedKeys = make(map[string]observer.SeriesHandle)
 	r.cursors = make(map[string]int64)
 	r.recentScores = r.recentScores[:0]
 	r.allScores = r.allScores[:0]
