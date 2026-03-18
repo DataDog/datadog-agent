@@ -10,7 +10,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -216,7 +215,6 @@ func (d *LogPatternDetector) Detect(storage observerdef.StorageReader, dataTimeS
 					action = "decrease"
 				}
 				description := fmt.Sprintf("Sudden %s in rate of log pattern (rate: %.1f logs/s, z-score: %.1f, score: %.1f). Pattern: `%s`", action, rate, zScore, anomalyScore, pattern)
-				fmt.Printf("Anomaly detected(%s): %s\n", time.Unix(dataTimeSec, 0).Format(time.RFC3339), description)
 
 				anomalies = append(anomalies, observerdef.Anomaly{
 					Type:         observerdef.AnomalyTypeLog,
