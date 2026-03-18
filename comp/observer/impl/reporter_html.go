@@ -415,9 +415,9 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
 
         // Detector colors for distinguishing different detection algorithms
         const detectorColors = {
-            'bocpd':     { bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },  // red
-            'scanwelch': { bg: 'rgba(59, 130, 246, 0.15)', border: '#3b82f6' }, // blue
-            'scanmw':    { bg: 'rgba(34, 197, 94, 0.15)', border: '#22c55e' },  // green
+            'bocpd_detector': { bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },  // red
+            'scanwelch':      { bg: 'rgba(59, 130, 246, 0.15)', border: '#3b82f6' }, // blue
+            'scanmw':         { bg: 'rgba(34, 197, 94, 0.15)', border: '#22c55e' },  // green
             'default':        { bg: 'rgba(168, 85, 247, 0.15)', border: '#a855f7' }  // purple
         };
 

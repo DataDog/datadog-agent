@@ -13,14 +13,17 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// scanmwStateKey identifies per-series state by handle and aggregation.
+type scanmwStateKey struct {
+	handle observer.SeriesHandle
+	agg    observer.Aggregate
+}
+
 // scanmwSeriesState holds per-series streaming state for the ScanMW detector.
 // NOTE: This per-series state struct follows the same pattern used by BOCPD
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	key observer.SeriesKey
-	agg observer.Aggregate
-
 	// Cursor (same pattern as BOCPD: metrics_detector_bocpd.go:16-22)
 	lastProcessedCount int
 	lastWriteGen       int64
@@ -64,12 +67,12 @@ type ScanMWDetector struct {
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
-	// per-series state keyed by "namespace|name|tags|agg"
-	series map[string]*scanmwSeriesState
+	// per-series state keyed by handle+agg
+	series map[scanmwStateKey]*scanmwSeriesState
 
 	// Cache the discovered series list across Detect calls.
-	cachedKeys []observer.SeriesKey
-	cachedGen  uint64
+	cachedSeries []observer.SeriesMeta
+	cachedGen    uint64
 }
 
 // NewScanMWDetector creates a ScanMW detector with default settings.
@@ -84,7 +87,7 @@ func NewScanMWDetector() *ScanMWDetector {
 			observer.AggregateAverage,
 			observer.AggregateCount,
 		},
-		series: make(map[string]*scanmwSeriesState),
+		series: make(map[scanmwStateKey]*scanmwSeriesState),
 	}
 }
 
@@ -95,8 +98,8 @@ func (d *ScanMWDetector) Name() string {
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
-	d.series = make(map[string]*scanmwSeriesState)
-	d.cachedKeys = nil
+	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
+	d.cachedSeries = nil
 	d.cachedGen = 0
 }
 
@@ -110,39 +113,39 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
-	if d.cachedKeys == nil || gen != d.cachedGen {
-		d.cachedKeys = storage.ListSeries(observer.SeriesFilter{})
+	if d.cachedSeries == nil || gen != d.cachedGen {
+		d.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
 		d.cachedGen = gen
 	}
 
 	var allAnomalies []observer.Anomaly
 
-	for _, key := range d.cachedKeys {
+	for _, meta := range d.cachedSeries {
 		for _, agg := range d.Aggregations {
-			stateKey := d.stateKey(key, agg)
+			sk := scanmwStateKey{handle: meta.Handle, agg: agg}
 
-			state, exists := d.series[stateKey]
+			state, exists := d.series[sk]
 			if !exists {
-				state = &scanmwSeriesState{key: key, agg: agg}
-				d.series[stateKey] = state
+				state = &scanmwSeriesState{}
+				d.series[sk] = state
 			}
 
 			// Check if there are new points.
-			visibleCount := storage.PointCountUpTo(key, dataTime)
-			currentGen := storage.WriteGeneration(key)
+			visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
+			currentGen := storage.WriteGeneration(meta.Handle)
 			if visibleCount <= state.lastProcessedCount && currentGen == state.lastWriteGen {
 				continue
 			}
 
 			// Read the active segment.
-			series := storage.GetSeriesRange(key, state.segmentStartTime, dataTime, agg)
+			series := storage.GetSeriesRange(meta.Handle, state.segmentStartTime, dataTime, agg)
 			if series == nil || len(series.Points) < d.MinPoints {
 				state.lastProcessedCount = visibleCount
 				state.lastWriteGen = currentGen
 				continue
 			}
 
-			anomaly, changeIdx, found := d.scanMW(series.Points, key, agg)
+			anomaly, changeIdx, found := d.scanMW(series.Points, series, agg)
 			if found {
 				allAnomalies = append(allAnomalies, anomaly)
 				// Advance segment start to the changepoint timestamp.
@@ -159,7 +162,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 
 // scanMW runs the scan algorithm on points within the current segment.
 // Returns (anomaly, changeIndex, found). Pure function over the input data.
-func (d *ScanMWDetector) scanMW(points []observer.Point, key observer.SeriesKey, agg observer.Aggregate) (observer.Anomaly, int, bool) {
+func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
 
 	values := make([]float64, n)
@@ -263,16 +266,16 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, key observer.SeriesKey,
 		score = 300.0
 	}
 
-	seriesName := key.Name + ":" + aggSuffix(agg)
+	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
 		Source:         observer.MetricName(seriesName),
-		SourceSeriesID: observer.SeriesID(seriesKey(key.Namespace, seriesName, key.Tags)),
+		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
 		DetectorName:   d.Name(),
 		Title:          fmt.Sprintf("ScanMW changepoint: %s", seriesName),
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
 			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
-		Tags:      key.Tags,
+		Tags:      series.Tags,
 		Timestamp: changePtTime,
 		Score:     &score,
 		DebugInfo: &observer.AnomalyDebugInfo{
@@ -284,11 +287,6 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, key observer.SeriesKey,
 	}
 
 	return anomaly, bestK, true
-}
-
-// stateKey returns a unique key for per-series state tracking.
-func (d *ScanMWDetector) stateKey(key observer.SeriesKey, agg observer.Aggregate) string {
-	return seriesKey(key.Namespace, key.Name, key.Tags) + "|" + aggSuffix(agg)
 }
 
 // ensureDefaults fills in zero-valued config fields with sensible defaults.
@@ -309,7 +307,7 @@ func (d *ScanMWDetector) ensureDefaults() {
 		d.MinDeviationMAD = 3.0
 	}
 	if d.series == nil {
-		d.series = make(map[string]*scanmwSeriesState)
+		d.series = make(map[scanmwStateKey]*scanmwSeriesState)
 	}
 	if len(d.Aggregations) == 0 {
 		d.Aggregations = []observer.Aggregate{

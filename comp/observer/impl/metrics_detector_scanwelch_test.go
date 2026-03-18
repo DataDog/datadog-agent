@@ -148,5 +148,5 @@ func TestScanWelch_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "reset should clear all state")
-	assert.Nil(t, d.cachedKeys, "reset should clear cached keys")
+	assert.Nil(t, d.cachedSeries, "reset should clear cached series")
 }

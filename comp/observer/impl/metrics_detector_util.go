@@ -9,8 +9,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // detectorMedian computes the median of a float64 slice without modifying the input.
@@ -80,39 +78,6 @@ func detectorSampleStddev(vals []float64, mean float64) float64 {
 		sumSq += d * d
 	}
 	return math.Sqrt(sumSq / float64(n-1))
-}
-
-// detectorSeriesLabel builds a human-readable label from a SeriesKey.
-// Format: "service/metricName" if a service tag exists, else "namespace/metricName".
-func detectorSeriesLabel(key observer.SeriesKey) string {
-	svc := detectorService(key)
-	if svc != "" {
-		return svc + "/" + key.Name
-	}
-	if key.Namespace != "" {
-		return key.Namespace + "/" + key.Name
-	}
-	return key.Name
-}
-
-// detectorMetricID builds a metric identifier in "service:metricName" format,
-// matching the scorer's expected format for service-level fallback matching.
-func detectorMetricID(key observer.SeriesKey) string {
-	svc := detectorService(key)
-	if svc != "" {
-		return svc + ":" + key.Name
-	}
-	return key.Name
-}
-
-// detectorService extracts the service name from a SeriesKey's tags.
-func detectorService(key observer.SeriesKey) string {
-	for _, tag := range key.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			return tag[len("service:"):]
-		}
-	}
-	return ""
 }
 
 // detectorHasServiceTag checks whether any of the tags is a service: tag.
