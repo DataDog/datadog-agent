@@ -8,9 +8,9 @@ load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 _CollectedPackagingInfo = provider(
     doc = "Internal provider used by _collect_dd_packaging_aspect to accumulate PackageFilegroupInfo instances.",
     fields = {
-        # Flat list of PackageFilegroupInfo gathered from this node and all
-        # nodes reachable through dynamic_deps / input edges.
-        "pkg_filegroups": "list of PackageFilegroupInfo accumulated transitively",
+        # Depset of PackageFilegroupInfo gathered from this node and all nodes
+        # reachable through dynamic_deps / input edges.
+        "pkg_filegroups": "depset of PackageFilegroupInfo accumulated transitively",
     },
 )
 
@@ -27,16 +27,15 @@ def _get_deps(ctx, attr_names):
     return deps
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
-    pkg_filegroups = []
-
-    if DdPackagingInfo in target:
-        pkg_filegroups.extend(target[DdPackagingInfo].installed_files)
-
-    for dep in _get_deps(ctx, ["dynamic_deps", "input"]):
-        if _CollectedPackagingInfo in dep:
-            pkg_filegroups.extend(dep[_CollectedPackagingInfo].pkg_filegroups)
-
-    return [_CollectedPackagingInfo(pkg_filegroups = pkg_filegroups)]
+    direct = target[DdPackagingInfo].installed_files if DdPackagingInfo in target else []
+    transitive = [
+        dep[_CollectedPackagingInfo].pkg_filegroups
+        for dep in _get_deps(ctx, ["dynamic_deps", "input"])
+        if _CollectedPackagingInfo in dep
+    ]
+    return [_CollectedPackagingInfo(
+        pkg_filegroups = depset(direct, transitive = transitive),
+    )]
 
 _collect_dd_packaging_aspect = aspect(
     implementation = _collect_dd_packaging_aspect_impl,
@@ -56,7 +55,7 @@ def _dd_collect_dependencies_impl(ctx):
 
     for src in ctx.attr.srcs:
         if _CollectedPackagingInfo in src:
-            for fg in src[_CollectedPackagingInfo].pkg_filegroups:
+            for fg in src[_CollectedPackagingInfo].pkg_filegroups.to_list():
                 pkg_files.extend(fg.pkg_files)
                 pkg_dirs.extend(fg.pkg_dirs)
                 pkg_symlinks.extend(fg.pkg_symlinks)
