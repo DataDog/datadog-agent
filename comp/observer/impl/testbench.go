@@ -683,7 +683,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.engine.Storage().Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.engine.Storage().Add("telemetry", telemetryMetricName(telemetryEvent.DetectorName, metric.name), metric.value, metric.timestamp, metric.tags)
 		}
 
 		if telemetryEvent.Log != nil {
@@ -796,7 +796,7 @@ func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []
 	for i := range anomalies {
 		a := &anomalies[i]
 		if a.SourceSeriesID == "" && a.Source != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + string(a.Source)
+			telemetryName := telemetryMetricName(a.DetectorName, string(a.Source))
 			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
 		}
 	}
@@ -1348,4 +1348,8 @@ func getDemoPhaseValueInverse(elapsed, baseline, trough, delay float64) float64 
 	default:
 		return baseline
 	}
+}
+
+func telemetryMetricName(detectorName string, metricName string) string {
+	return "telemetry." + detectorName + "." + metricName
 }

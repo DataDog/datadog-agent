@@ -356,6 +356,8 @@ type DetectionResult struct {
 	Anomalies []Anomaly
 	// Used to debug anomaly detectors
 	Telemetry []ObserverTelemetry
+	// Virtual metrics
+	Metrics []MetricOutput
 }
 
 // SeriesDetector analyzes a time series for anomalies.

@@ -180,8 +180,9 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	view := &logView{obs: l}
 	for _, extractor := range e.extractors {
 		metrics := extractor.ProcessLog(view)
+		name := extractor.Name()
 		for _, m := range metrics {
-			e.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			e.storage.Add(source, virtualMetricName(name, m.Name), m.Value, l.timestampMs/1000, m.Tags)
 		}
 	}
 	for _, lo := range e.logObservers {
@@ -283,6 +284,10 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			})
 		}
 		allTelemetry = append(allTelemetry, result.Telemetry...)
+		name := detector.Name()
+		for _, m := range result.Metrics {
+			e.storage.Add("detector", virtualMetricName(name, m.Name), m.Value, upTo, m.Tags)
+		}
 	}
 
 	// Advance correlators so they can update their internal state.
@@ -623,4 +628,9 @@ func (e *engine) ReplayStoredData() advanceResult {
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
 	}
+}
+
+// Returns the name of a virtual metric for a given detector and metric name.
+func virtualMetricName(detectorName string, metricName string) string {
+	return "_virtual." + detectorName + "." + metricName
 }
