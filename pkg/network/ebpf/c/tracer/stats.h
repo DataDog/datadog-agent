@@ -436,6 +436,51 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
 #endif
 }
 
+// Helpers for tcp_event_stats kprobe handlers. Shared between tracer.c and
+// tracer-fentry.c. Each initializes the map entry if needed and atomically
+// increments the counter.
+static __always_inline void handle_tcp_enter_loss(struct sock *sk) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return;
+    }
+    tcp_event_stats_t empty = {};
+    bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+    bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_event_stats_t *val = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->rto_count, 1);
+    }
+}
+
+static __always_inline void handle_tcp_enter_recovery(struct sock *sk) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return;
+    }
+    tcp_event_stats_t empty = {};
+    bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+    bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_event_stats_t *val = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->recovery_count, 1);
+    }
+}
+
+static __always_inline void handle_tcp_send_probe0(struct sock *sk) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return;
+    }
+    tcp_event_stats_t empty = {};
+    bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+    bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_event_stats_t *val = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->probe0_count, 1);
+    }
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0, rtt_var = 0;
 #ifdef COMPILE_PREBUILT
