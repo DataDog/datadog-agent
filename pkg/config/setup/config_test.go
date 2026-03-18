@@ -1346,12 +1346,12 @@ additional_endpoints:
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, commonConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonWithServerless(conf)
+	initCommonConfigComponents(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1456,9 +1456,9 @@ yet_another_key: 'dddd'`
 
 	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
-	expected := `api_key: '***************************aaaaa'
+	expected := `api_key: '****************************aaaa'
 some_other_key: "********"
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
 }
