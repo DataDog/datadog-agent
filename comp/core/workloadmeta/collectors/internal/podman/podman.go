@@ -178,6 +178,9 @@ func convertToEvent(container *podman.Container, rootDir string) workloadmeta.Co
 	if spec := container.Config.Spec; spec != nil {
 		maps.Copy(annotations, spec.Annotations)
 	}
+	// The annotation `com.datadoghq.podman.root_dir` is not coming from the container itself.
+	// It is solely added in the WorkloadMeta list and not on the real workload (container).
+	// Refer to `pkg/util/log/log_podman_util.go` for an extended description.
 	if rootDir != "" {
 		annotations[log.ContainerRootDirAnnotationKey] = rootDir
 	}
