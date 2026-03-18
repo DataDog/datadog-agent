@@ -24,7 +24,7 @@ exports_files(
 def _release_json_impl(rctx):
     rctx.file("BUILD.bazel", BUILD_FILE_CONTENT)
     release_json = json.decode(rctx.read(rctx.path(rctx.attr._release_json)))
-    rctx.file("release_json.bzl", """release_json = %s\n""" % json.encode_indent(release_json, indent = " "))
+    rctx.file("release_json.bzl", """release_json = %s\n""" % str(release_json))
 
 release_json = repository_rule(
     implementation = _release_json_impl,
