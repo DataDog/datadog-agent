@@ -318,11 +318,13 @@ func initMisc(deps miscDeps) error {
 }
 
 // shouldStayAlive determines whether the process agent should stay alive when no checks are running.
-// In Kubernetes, the Helm chart deploys a process-agent container. Without checks to run, the
-// process-agent stays alive idle to prevent the container from crash-looping.
+// In Kubernetes, the Helm chart may deploy a process-agent container even when process checks run
+// in the core agent. The process-agent stays alive idle to prevent the container from crash-looping.
+// TODO: remove this once the Helm chart no longer deploys the process-agent container when
+// runInCoreAgent is enabled (the chart's doNotCheckTag logic prevents automatic detection).
 func shouldStayAlive() bool {
 	if env.IsKubernetes() {
-		log.Warn("The process-agent is staying alive to prevent crash loops. Process checks run in the core agent. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
+		log.Info("The process-agent is idle: process checks run in the core agent. To remove this container, set datadog.processAgent.runInCoreAgent.enabled=true in your Helm values.")
 		return true
 	}
 
