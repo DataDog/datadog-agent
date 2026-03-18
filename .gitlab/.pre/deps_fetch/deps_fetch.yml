@@ -30,7 +30,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: ["setup_agent_version"]
   variables:
-    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_CPU_REQUEST: 12
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       variables:
@@ -38,7 +38,7 @@
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       variables:
         POLICY: pull
-  retry: 3
+  retry: 2
 
 # HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
 go_deps:
