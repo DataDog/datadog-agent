@@ -115,6 +115,11 @@ type server struct {
 	// demultiplexer will receive the metrics processed by the DogStatsD server,
 	// will take care of processing them concurrently if possible, and will
 	// also take care of forwarding the metrics to the intake.
+	//
+	// TODO: DogStatsD metrics already flow through the aggregator's TimeSampler
+	// where they are observed via metricHook. A dedicated dogstatsd-pipeline hook
+	// can be added here if pre-aggregation observation is needed:
+	//   metricHook := hook.NewHook[hook.MetricView]("dogstatsd-pipeline")
 	demultiplexer aggregator.Demultiplexer
 
 	// running in their own routine, workers are responsible of parsing the packets

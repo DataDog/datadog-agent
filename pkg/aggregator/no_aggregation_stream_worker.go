@@ -12,6 +12,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -54,6 +55,8 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	metricHook hook.Hook[hook.MetricView]
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -85,7 +88,11 @@ func init() {
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 	tagger tagger.Component,
+	metricHook hook.Hook[hook.MetricView],
 ) *noAggregationStreamWorker {
+	if metricHook == nil {
+		metricHook = hook.NewNoopHook[hook.MetricView]()
+	}
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,
@@ -105,7 +112,8 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
 
-		tagger: tagger,
+		tagger:     tagger,
+		metricHook: metricHook,
 	}
 }
 
@@ -192,7 +200,8 @@ func (w *noAggregationStreamWorker) run() {
 						countProcessed := 0
 						countUnsupportedType := 0
 
-						for _, sample := range samples {
+						for idx, sample := range samples {
+							w.metricHook.Publish("dogstatsd-no-aggr", &samples[idx])
 							mtype, supported := metricSampleAPIType(sample)
 
 							if !supported {

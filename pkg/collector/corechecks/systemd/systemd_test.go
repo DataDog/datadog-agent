@@ -1226,7 +1226,7 @@ unit_names:
 func TestCheckID(t *testing.T) {
 	check1 := newCheck()
 	check2 := newCheck()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), nil)
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

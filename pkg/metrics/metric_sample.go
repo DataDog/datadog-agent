@@ -149,3 +149,23 @@ func (m *MetricSample) IsNoIndex() bool {
 func (m *MetricSample) GetSource() MetricSource {
 	return m.Source
 }
+
+// GetValue returns the metric sample value (implements hook.MetricView)
+func (m *MetricSample) GetValue() float64 {
+	return m.Value
+}
+
+// GetRawTags returns the raw tags of the metric sample (implements hook.MetricView)
+func (m *MetricSample) GetRawTags() []string {
+	return m.Tags
+}
+
+// GetTimestamp returns the metric sample timestamp (implements hook.MetricView)
+func (m *MetricSample) GetTimestamp() float64 {
+	return m.Timestamp
+}
+
+// GetSampleRate returns the metric sample rate (implements hook.MetricView)
+func (m *MetricSample) GetSampleRate() float64 {
+	return m.SampleRate
+}
