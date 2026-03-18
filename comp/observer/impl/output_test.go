@@ -35,7 +35,7 @@ func newTestBenchForOutput() *TestBench {
 	eng := newEngine(engineConfig{storage: newTimeSeriesStorage()})
 	return &TestBench{
 		engine:     eng,
-		catalog:    testbenchCatalog(),
+		catalog:    testbenchCatalog(nil, false),
 		components: make(map[string]*componentInstance),
 	}
 }

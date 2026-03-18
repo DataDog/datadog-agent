@@ -128,6 +128,82 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
 
+@task
+def demo_eval(
+    ctx,
+    scenario: str = "food_delivery_redis",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+):
+    """
+    Runs the observer eval as configured for demo deployments.
+
+    Builds the testbench, replays the scenario headless with --demo-preset, and scores
+    the result. This mirrors what the deployed agent does with observer.demo_preset: true
+    in customAgentConfig (agent-values.yaml.tmpl).
+
+    Args:
+        scenario: Scenario to run. Default: food_delivery_redis.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for scoring.
+    """
+    print(color_message("Building observer-testbench...", Color.BLUE))
+    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
+    print(color_message("Building observer-scorer...", Color.BLUE))
+    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+
+    parquet_dir = os.path.join(scenarios_dir, scenario, "parquet")
+    if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
+        _ensure_parquets(ctx, scenario, parquet_dir)
+
+    output_path = f"/tmp/observer-demo-eval-{scenario}.json"
+
+    print(color_message(f"\n{'='*60}", Color.BLUE))
+    print(color_message(f"  Demo eval: {scenario} (--demo-preset)", Color.BLUE))
+    print(color_message(f"{'='*60}", Color.BLUE))
+
+    ctx.run(
+        f"bin/observer-testbench"
+        f" --headless {shlex.quote(scenario)}"
+        f" --output {shlex.quote(output_path)}"
+        f" --scenarios-dir {shlex.quote(scenarios_dir)}"
+        f" --demo-preset"
+    )
+
+    if not os.path.isfile(output_path):
+        print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+        return
+
+    scorer_result = ctx.run(
+        f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
+        hide=True,
+        warn=True,
+    )
+
+    if scorer_result.failed:
+        print(color_message(f"Scorer failed:\n{scorer_result.stderr}", Color.RED))
+        return
+
+    try:
+        score = json.loads(scorer_result.stdout.strip())
+    except json.JSONDecodeError:
+        print(color_message(f"Scorer returned invalid JSON:\n{scorer_result.stdout}", Color.RED))
+        return
+
+    print(color_message(f"\n{'='*60}", Color.GREEN))
+    print(color_message("  Demo Eval Result", Color.GREEN))
+    print(color_message(f"{'='*60}\n", Color.GREEN))
+    print(f"Scenario:  {scenario}")
+    print(f"Sigma:     {sigma}s")
+    print()
+    print(f"  F1:        {score.get('f1', 0):.4f}")
+    print(f"  Precision: {score.get('precision', 0):.4f}")
+    print(f"  Recall:    {score.get('recall', 0):.4f}")
+    print(f"  TP={score.get('tp', 0):.4f}  FP={score.get('fp', 0):.4f}  FN={score.get('fn', 0):.4f}")
+    print(f"  Predictions: {score.get('num_predictions', 0)} scored")
+    print(f"\nOutput: {output_path}")
+
+
 def _ensure_parquets(ctx, name, parquet_dir):
     """Download and extract parquet files from S3 if not present locally."""
     zip_key = SCENARIO_ZIPS.get(name)

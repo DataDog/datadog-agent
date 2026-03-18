@@ -177,7 +177,7 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
-	catalog := defaultCatalog()
+	catalog := defaultCatalog(deps.Config, false)
 
 	// Build correlator overrides from config keys (observer.correlators.<name>.enabled).
 	cfg := deps.Config

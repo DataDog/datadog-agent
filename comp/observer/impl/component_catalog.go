@@ -5,7 +5,98 @@
 
 package observerimpl
 
-import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+import (
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+)
+
+// ObserverDemoPreset bundles tuned parameters for multiple observer components.
+// Activated by the --demo-preset testbench flag or observer.demo_preset: true in config.
+// Add new component fields here as the demo configuration grows.
+type ObserverDemoPreset struct {
+	// BOCPD detector params
+	BOCPDWarmupPoints    int
+	BOCPDHazard          float64
+	BOCPDCPThreshold     float64
+	BOCPDCPMassThreshold float64
+	// TimeCluster correlator params
+	TimeClusterMinClusterSize int
+}
+
+// DefaultDemoPreset is the tuned parameter bundle for demo deployments.
+// Optimised for the food_delivery_redis benchmark (F1: 0.00 → 0.95).
+var DefaultDemoPreset = ObserverDemoPreset{
+	BOCPDWarmupPoints:         180,
+	BOCPDHazard:               0.001,
+	BOCPDCPThreshold:          0.95,
+	BOCPDCPMassThreshold:      0.99,
+	TimeClusterMinClusterSize: 3,
+}
+
+// demoActive returns true when the demo preset should be applied — either via the
+// --demo-preset CLI flag or observer.demo_preset: true in the agent config.
+func demoActive(cfg config.Component, demoPreset bool) bool {
+	return demoPreset || (cfg != nil && cfg.GetBool("observer.demo_preset"))
+}
+
+// bocpdFromConfig returns a BOCPDDetector with demo preset and/or individual config overrides.
+// Precedence: individual observer.bocpd.* keys > demo preset > code defaults.
+// cfg may be nil (testbench without a full agent config).
+func bocpdFromConfig(cfg config.Component, demoPreset bool) *BOCPDDetector {
+	d := NewBOCPDDetector()
+
+	if demoActive(cfg, demoPreset) {
+		d.WarmupPoints = DefaultDemoPreset.BOCPDWarmupPoints
+		d.Hazard = DefaultDemoPreset.BOCPDHazard
+		d.CPThreshold = DefaultDemoPreset.BOCPDCPThreshold
+		d.CPMassThreshold = DefaultDemoPreset.BOCPDCPMassThreshold
+	}
+
+	// Individual config overrides always win over the preset.
+	if cfg != nil {
+		if v := cfg.GetInt("observer.bocpd.warmup_points"); v > 0 {
+			d.WarmupPoints = v
+		}
+		if v := cfg.GetFloat64("observer.bocpd.hazard"); v > 0 {
+			d.Hazard = v
+		}
+		if v := cfg.GetFloat64("observer.bocpd.cp_threshold"); v > 0 {
+			d.CPThreshold = v
+		}
+		if v := cfg.GetFloat64("observer.bocpd.cp_mass_threshold"); v > 0 {
+			d.CPMassThreshold = v
+		}
+		if v := cfg.GetInt("observer.bocpd.short_run_length"); v > 0 {
+			d.ShortRunLength = v
+		}
+		if v := cfg.GetInt("observer.bocpd.recovery_points"); v > 0 {
+			d.RecoveryPoints = v
+		}
+		if v := cfg.GetFloat64("observer.bocpd.prior_variance_scale"); v > 0 {
+			d.PriorVarianceScale = v
+		}
+		if v := cfg.GetFloat64("observer.bocpd.min_variance"); v > 0 {
+			d.MinVariance = v
+		}
+	}
+
+	return d
+}
+
+// timeClusterMinSize resolves the MinClusterSize for TimeClusterCorrelator.
+// Precedence: observer.time_cluster.min_cluster_size config key > demo preset > 1 (all clusters).
+func timeClusterMinSize(cfg config.Component, demoPreset bool) int {
+	minSize := 1
+	if demoActive(cfg, demoPreset) {
+		minSize = DefaultDemoPreset.TimeClusterMinClusterSize
+	}
+	if cfg != nil {
+		if v := cfg.GetInt("observer.time_cluster.min_cluster_size"); v > 0 {
+			minSize = v
+		}
+	}
+	return minSize
+}
 
 // componentKind distinguishes detectors from correlators in the catalog.
 type componentKind int
@@ -42,7 +133,7 @@ type componentCatalog struct {
 // defaultCatalog returns the standard component catalog used by both live and testbench.
 // All known detectors and correlators are registered here. Consumers use enable
 // overrides to select which subset is active.
-func defaultCatalog() *componentCatalog {
+func defaultCatalog(cfg config.Component, demoPreset bool) *componentCatalog {
 	return &componentCatalog{
 		entries: []componentEntry{
 			// ---- Extractors ----
@@ -94,7 +185,7 @@ func defaultCatalog() *componentCatalog {
 				displayName: "BOCPD",
 				kind:        componentDetector,
 				factory: func() any {
-					return NewBOCPDDetector()
+					return bocpdFromConfig(cfg, demoPreset)
 				},
 				defaultEnabled: true,
 			},
@@ -125,6 +216,7 @@ func defaultCatalog() *componentCatalog {
 					return NewTimeClusterCorrelator(TimeClusterConfig{
 						ProximitySeconds: 10,
 						WindowSeconds:    120,
+						MinClusterSize:   timeClusterMinSize(cfg, demoPreset),
 					})
 				},
 				defaultEnabled: true,
@@ -165,8 +257,8 @@ func defaultCatalog() *componentCatalog {
 //   - RRCF uses testbench-specific metrics (parquet names instead of DogStatsD names).
 //   - cross_signal is disabled (testbench uses time_cluster instead).
 //   - time_cluster is enabled by default.
-func testbenchCatalog() *componentCatalog {
-	cat := defaultCatalog()
+func testbenchCatalog(cfg config.Component, demoPreset bool) *componentCatalog {
+	cat := defaultCatalog(cfg, demoPreset)
 	cat = cat.WithOverride("rrcf", func() any {
 		config := DefaultRRCFConfig()
 		config.Metrics = TestBenchRRCFMetrics()

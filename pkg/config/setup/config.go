@@ -366,10 +366,30 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
 	// Observer correlator toggles (override catalog defaults)
+	// TimeCluster correlator: minimum anomalies in a cluster to be reported.
+	// Non-zero overrides the demo preset value (default preset: 3, no preset: 1).
+	// Maps to DD_OBSERVER_TIME_CLUSTER_MIN_CLUSTER_SIZE.
+	config.BindEnvAndSetDefault("observer.time_cluster.min_cluster_size", 0)
+
 	config.BindEnvAndSetDefault("observer.correlators.cross_signal.enabled", true)
 	config.BindEnvAndSetDefault("observer.correlators.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", true)
 	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", true)
+
+	// Observer demo preset — activates the full tuned parameter bundle (BOCPD + TimeCluster).
+	// Equivalent to passing --demo-preset to the testbench. Maps to DD_OBSERVER_DEMO_PRESET.
+	config.BindEnvAndSetDefault("observer.demo_preset", false)
+
+	// Observer BOCPD detector individual tuning params. Non-zero values override the demo preset.
+	// Maps to DD_OBSERVER_BOCPD_* env vars.
+	config.BindEnvAndSetDefault("observer.bocpd.warmup_points", 0)
+	config.BindEnvAndSetDefault("observer.bocpd.hazard", 0.0)
+	config.BindEnvAndSetDefault("observer.bocpd.cp_threshold", 0.0)
+	config.BindEnvAndSetDefault("observer.bocpd.cp_mass_threshold", 0.0)
+	config.BindEnvAndSetDefault("observer.bocpd.short_run_length", 0)
+	config.BindEnvAndSetDefault("observer.bocpd.recovery_points", 0)
+	config.BindEnvAndSetDefault("observer.bocpd.prior_variance_scale", 0.0)
+	config.BindEnvAndSetDefault("observer.bocpd.min_variance", 0.0)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

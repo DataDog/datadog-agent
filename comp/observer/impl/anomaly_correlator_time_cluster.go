@@ -23,6 +23,12 @@ type TimeClusterConfig struct {
 	// WindowSeconds is how long to keep anomalies before eviction.
 	// Default: 60 seconds.
 	WindowSeconds int64
+
+	// MinClusterSize is the minimum number of anomalies a cluster must contain
+	// to be reported by ActiveCorrelations. Clusters smaller than this are
+	// suppressed, reducing single-series false positive correlations.
+	// Default: 1 (all clusters reported).
+	MinClusterSize int
 }
 
 // DefaultTimeClusterConfig returns a TimeClusterConfig with default values.
@@ -30,6 +36,7 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 	return TimeClusterConfig{
 		ProximitySeconds: 10,
 		WindowSeconds:    60,
+		MinClusterSize:   1,
 	}
 }
 
@@ -58,6 +65,9 @@ func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
 	}
 	if config.WindowSeconds == 0 {
 		config.WindowSeconds = 60
+	}
+	if config.MinClusterSize == 0 {
+		config.MinClusterSize = 1
 	}
 	return &TimeClusterCorrelator{
 		config:   config,
@@ -276,6 +286,11 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	var result []observer.ActiveCorrelation
 
 	for _, cluster := range c.clusters {
+		// Skip clusters that don't meet the minimum size threshold.
+		if len(cluster.anomalies) < c.config.MinClusterSize {
+			continue
+		}
+
 		// Collect unique series IDs
 		seen := make(map[observer.SeriesID]bool)
 		for _, a := range cluster.anomalies {

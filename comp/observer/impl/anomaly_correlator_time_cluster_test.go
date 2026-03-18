@@ -239,6 +239,26 @@ func TestTimeClusterCorrelator_DefaultConfig(t *testing.T) {
 	config := DefaultTimeClusterConfig()
 	assert.Equal(t, int64(10), config.ProximitySeconds)
 	assert.Equal(t, int64(60), config.WindowSeconds)
+	assert.Equal(t, 1, config.MinClusterSize)
+}
+
+func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		WindowSeconds:    60,
+		MinClusterSize:   3,
+	})
+
+	// Two anomalies in one cluster, one anomaly in another
+	c.ProcessAnomaly(observer.Anomaly{Source: "a", SourceSeriesID: "ns|a|", Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{Source: "b", SourceSeriesID: "ns|b|", Timestamp: 105})
+	c.ProcessAnomaly(observer.Anomaly{Source: "c", SourceSeriesID: "ns|c|", Timestamp: 108})
+	c.ProcessAnomaly(observer.Anomaly{Source: "d", SourceSeriesID: "ns|d|", Timestamp: 200}) // isolated
+
+	correlations := c.ActiveCorrelations()
+	// Only the 3-anomaly cluster meets the threshold; the singleton at t=200 is suppressed
+	require.Len(t, correlations, 1)
+	assert.Len(t, correlations[0].Anomalies, 3)
 }
 
 func TestTimeClusterCorrelator_Name(t *testing.T) {

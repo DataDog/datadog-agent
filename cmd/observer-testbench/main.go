@@ -40,6 +40,9 @@ type CLIParams struct {
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
+
+	// DemoPreset activates the demo parameter bundle (BOCPD + TimeCluster tuned params).
+	DemoPreset bool
 }
 
 func main() {
@@ -51,6 +54,7 @@ func main() {
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
+	demoPreset := flag.Bool("demo-preset", false, "Activate the demo parameter bundle (tuned BOCPD + TimeCluster). Equivalent to observer.demo_preset: true in config.")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -94,6 +98,7 @@ func main() {
 			Output:           *output,
 			Verbose:          *verbose,
 			SendAnomalyEvent: *sendAnomalyEvent,
+			DemoPreset:       *demoPreset,
 		}),
 	)
 	if err != nil {
@@ -111,6 +116,7 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 		Cfg:             cfg,
 		Logger:          logger,
 		EnableOverrides: params.EnableOverrides,
+		DemoPreset:      params.DemoPreset,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)

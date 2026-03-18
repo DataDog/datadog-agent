@@ -87,6 +87,10 @@ type TestBenchConfig struct {
 	Cfg          config.Component
 	Logger       log.Component
 
+	// DemoPreset activates the ObserverDemoPreset bundle (BOCPD + TimeCluster tuned params).
+	// Equivalent to observer.demo_preset: true in config. See DefaultDemoPreset in component_catalog.go.
+	DemoPreset bool
+
 	// EnableOverrides controls which components are enabled at startup.
 	// Keys are component names (e.g. "cusum", "lead_lag").
 	// If a name is present, its value overrides the registry DefaultEnabled.
@@ -178,7 +182,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		config.EnableOverrides = make(map[string]bool)
 	}
 
-	catalog := testbenchCatalog()
+	catalog := testbenchCatalog(config.Cfg, config.DemoPreset)
 	detectors, correlators, extractors, components := catalog.Instantiate(config.EnableOverrides)
 
 	eng := newEngine(engineConfig{
