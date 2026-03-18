@@ -260,11 +260,12 @@ func makeRangeStorage() *timeSeriesStorage {
 	return s
 }
 
-var rangeKey = observer.SeriesKey{Namespace: "ns", Name: "m"}
+// rangeID is the numeric ID for the first (and only) series added by makeRangeStorage.
+const rangeID = observer.SeriesHandle(0)
 
 func TestGetSeriesRange_EmptySeries(t *testing.T) {
 	s := newTimeSeriesStorage()
-	result := s.GetSeriesRange(observer.SeriesKey{Namespace: "ns", Name: "m"}, 0, 100, AggregateSum)
+	result := s.GetSeriesRange(observer.SeriesHandle(-1), 0, 100, AggregateSum)
 	assert.Nil(t, result)
 }
 
@@ -272,22 +273,23 @@ func TestGetSeriesRange_SinglePoint(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns", "m", 42.0, 100, nil)
 
-	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+	// First series added gets ID 0
+	id := observer.SeriesHandle(0)
 
 	// Range that includes the point: (0, 100]
-	result := s.GetSeriesRange(key, 0, 100, AggregateSum)
+	result := s.GetSeriesRange(id, 0, 100, AggregateSum)
 	require.NotNil(t, result)
 	require.Len(t, result.Points, 1)
 	assert.Equal(t, int64(100), result.Points[0].Timestamp)
 	assert.Equal(t, 42.0, result.Points[0].Value)
 
 	// Range that excludes the point: start == point timestamp (exclusive)
-	result = s.GetSeriesRange(key, 100, 200, AggregateSum)
+	result = s.GetSeriesRange(id, 100, 200, AggregateSum)
 	require.NotNil(t, result)
 	assert.Empty(t, result.Points)
 
 	// Range before the point
-	result = s.GetSeriesRange(key, 0, 99, AggregateSum)
+	result = s.GetSeriesRange(id, 0, 99, AggregateSum)
 	require.NotNil(t, result)
 	assert.Empty(t, result.Points)
 }
@@ -296,7 +298,7 @@ func TestGetSeriesRange_StartExclusiveEndInclusive(t *testing.T) {
 	s := makeRangeStorage()
 
 	// (20, 40] should include 30, 40 but not 20
-	result := s.GetSeriesRange(rangeKey, 20, 40, AggregateSum)
+	result := s.GetSeriesRange(rangeID, 20, 40, AggregateSum)
 	require.NotNil(t, result)
 	require.Len(t, result.Points, 2)
 	assert.Equal(t, int64(30), result.Points[0].Timestamp)
@@ -307,14 +309,14 @@ func TestGetSeriesRange_ExactBoundaryHits(t *testing.T) {
 	s := makeRangeStorage()
 
 	// (10, 50] should include 20, 30, 40, 50 but not 10
-	result := s.GetSeriesRange(rangeKey, 10, 50, AggregateSum)
+	result := s.GetSeriesRange(rangeID, 10, 50, AggregateSum)
 	require.NotNil(t, result)
 	require.Len(t, result.Points, 4)
 	assert.Equal(t, int64(20), result.Points[0].Timestamp)
 	assert.Equal(t, int64(50), result.Points[3].Timestamp)
 
 	// (0, 10] should include only 10
-	result = s.GetSeriesRange(rangeKey, 0, 10, AggregateSum)
+	result = s.GetSeriesRange(rangeID, 0, 10, AggregateSum)
 	require.NotNil(t, result)
 	require.Len(t, result.Points, 1)
 	assert.Equal(t, int64(10), result.Points[0].Timestamp)
@@ -324,7 +326,7 @@ func TestGetSeriesRange_StartZeroReadsAll(t *testing.T) {
 	s := makeRangeStorage()
 
 	// (0, 999] with start=0 should include all 5 points
-	result := s.GetSeriesRange(rangeKey, 0, 999, AggregateSum)
+	result := s.GetSeriesRange(rangeID, 0, 999, AggregateSum)
 	require.NotNil(t, result)
 	assert.Len(t, result.Points, 5)
 }
@@ -333,12 +335,12 @@ func TestGetSeriesRange_NoOverlap(t *testing.T) {
 	s := makeRangeStorage()
 
 	// Range entirely before data
-	result := s.GetSeriesRange(rangeKey, 0, 5, AggregateSum)
+	result := s.GetSeriesRange(rangeID, 0, 5, AggregateSum)
 	require.NotNil(t, result)
 	assert.Empty(t, result.Points)
 
 	// Range entirely after data
-	result = s.GetSeriesRange(rangeKey, 50, 100, AggregateSum)
+	result = s.GetSeriesRange(rangeID, 50, 100, AggregateSum)
 	require.NotNil(t, result)
 	assert.Empty(t, result.Points)
 }
@@ -349,7 +351,7 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
 
-	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+	id := observer.SeriesHandle(0)
 
 	for _, tc := range []struct {
 		agg      Aggregate
@@ -361,7 +363,7 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 		{AggregateMax, 20.0},
 		{AggregateAverage, 15.0},
 	} {
-		result := s.GetSeriesRange(key, 0, 200, tc.agg)
+		result := s.GetSeriesRange(id, 0, 200, tc.agg)
 		require.NotNil(t, result)
 		require.Len(t, result.Points, 1)
 		assert.Equal(t, tc.expected, result.Points[0].Value, "agg=%d", tc.agg)
@@ -371,12 +373,18 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
-	assert.Equal(t, 5, s.PointCountUpTo(rangeKey, 50))
-	assert.Equal(t, 3, s.PointCountUpTo(rangeKey, 30))
-	assert.Equal(t, 2, s.PointCountUpTo(rangeKey, 25))
-	assert.Equal(t, 0, s.PointCountUpTo(rangeKey, 9))
-	assert.Equal(t, 1, s.PointCountUpTo(rangeKey, 10))
-	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesKey{Namespace: "x", Name: "y"}, 100))
+	// All points <= 50
+	assert.Equal(t, 5, s.PointCountUpTo(rangeID, 50))
+	// Points <= 30: timestamps 10, 20, 30
+	assert.Equal(t, 3, s.PointCountUpTo(rangeID, 30))
+	// Points <= 25: timestamps 10, 20
+	assert.Equal(t, 2, s.PointCountUpTo(rangeID, 25))
+	// Points <= 9: none
+	assert.Equal(t, 0, s.PointCountUpTo(rangeID, 9))
+	// Points <= 10: just one
+	assert.Equal(t, 1, s.PointCountUpTo(rangeID, 10))
+	// Non-existent series
+	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesHandle(999), 100)) // non-existent ID
 }
 
 func TestPointCountUpTo_MultipleEventsPerBucket(t *testing.T) {
@@ -391,24 +399,24 @@ func TestPointCountUpTo_MultipleEventsPerBucket(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		s.Add("ns", "m", 1.0, 30, nil)
 	}
-	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+	handle := observer.SeriesHandle(0)
 
-	assert.Equal(t, 10, s.PointCountUpTo(key, 100)) // all 10 events
-	assert.Equal(t, 8, s.PointCountUpTo(key, 20))   // 3+5
-	assert.Equal(t, 3, s.PointCountUpTo(key, 10))   // 3
-	assert.Equal(t, 0, s.PointCountUpTo(key, 9))    // none
+	assert.Equal(t, 10, s.PointCountUpTo(handle, 100)) // all 10 events
+	assert.Equal(t, 8, s.PointCountUpTo(handle, 20))   // 3+5
+	assert.Equal(t, 3, s.PointCountUpTo(handle, 10))   // 3
+	assert.Equal(t, 0, s.PointCountUpTo(handle, 9))    // none
 }
 
 func TestPointCountSince_BinarySearch(t *testing.T) {
 	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
-	assert.Equal(t, 5, s.PointCountSince(rangeKey, 0))
-	assert.Equal(t, 5, s.PointCountSince(rangeKey, 10))
-	assert.Equal(t, 4, s.PointCountSince(rangeKey, 20))
-	assert.Equal(t, 3, s.PointCountSince(rangeKey, 30))
-	assert.Equal(t, 2, s.PointCountSince(rangeKey, 40))
-	assert.Equal(t, 1, s.PointCountSince(rangeKey, 50))
-	assert.Equal(t, 0, s.PointCountSince(rangeKey, 51))
+	assert.Equal(t, 5, s.PointCountSince(rangeID, 0))
+	assert.Equal(t, 5, s.PointCountSince(rangeID, 10))
+	assert.Equal(t, 4, s.PointCountSince(rangeID, 20))
+	assert.Equal(t, 3, s.PointCountSince(rangeID, 30))
+	assert.Equal(t, 2, s.PointCountSince(rangeID, 40))
+	assert.Equal(t, 1, s.PointCountSince(rangeID, 50))
+	assert.Equal(t, 0, s.PointCountSince(rangeID, 51))
 }
 
 func TestPointCountSince_MultipleEventsPerBucket(t *testing.T) {
@@ -423,26 +431,26 @@ func TestPointCountSince_MultipleEventsPerBucket(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		s.Add("ns", "m", 1.0, 30, nil)
 	}
-	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+	handle := observer.SeriesHandle(0)
 
-	assert.Equal(t, 10, s.PointCountSince(key, 0))  // all 10 events
-	assert.Equal(t, 10, s.PointCountSince(key, 10)) // all 10 (inclusive)
-	assert.Equal(t, 7, s.PointCountSince(key, 20))  // 5+2
-	assert.Equal(t, 2, s.PointCountSince(key, 30))  // 2
-	assert.Equal(t, 0, s.PointCountSince(key, 31))  // none
+	assert.Equal(t, 10, s.PointCountSince(handle, 0))  // all 10 events
+	assert.Equal(t, 10, s.PointCountSince(handle, 10)) // all 10 (inclusive)
+	assert.Equal(t, 7, s.PointCountSince(handle, 20))  // 5+2
+	assert.Equal(t, 2, s.PointCountSince(handle, 30))  // 2
+	assert.Equal(t, 0, s.PointCountSince(handle, 31))  // none
 }
 
 func TestPointCountBetween_BinarySearch(t *testing.T) {
 	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
-	assert.Equal(t, 1, s.PointCountBetween(rangeKey, 10, 10))
-	assert.Equal(t, 1, s.PointCountBetween(rangeKey, 50, 50))
-	assert.Equal(t, 5, s.PointCountBetween(rangeKey, 0, 50))
-	assert.Equal(t, 3, s.PointCountBetween(rangeKey, 0, 30))
-	assert.Equal(t, 2, s.PointCountBetween(rangeKey, 0, 25))
-	assert.Equal(t, 0, s.PointCountBetween(rangeKey, 0, 9))
-	assert.Equal(t, 1, s.PointCountBetween(rangeKey, 0, 10))
-	assert.Equal(t, 0, s.PointCountBetween(observer.SeriesKey{Namespace: "x", Name: "y"}, 0, 100))
+	assert.Equal(t, 1, s.PointCountBetween(rangeID, 10, 10))
+	assert.Equal(t, 1, s.PointCountBetween(rangeID, 50, 50))
+	assert.Equal(t, 5, s.PointCountBetween(rangeID, 0, 50))
+	assert.Equal(t, 3, s.PointCountBetween(rangeID, 0, 30))
+	assert.Equal(t, 2, s.PointCountBetween(rangeID, 0, 25))
+	assert.Equal(t, 0, s.PointCountBetween(rangeID, 0, 9))
+	assert.Equal(t, 1, s.PointCountBetween(rangeID, 0, 10))
+	assert.Equal(t, 0, s.PointCountBetween(observer.SeriesHandle(999), 0, 100))
 }
 
 func TestPointCountBetween_MultipleEventsPerBucket(t *testing.T) {
@@ -457,18 +465,18 @@ func TestPointCountBetween_MultipleEventsPerBucket(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		s.Add("ns", "m", 1.0, 30, nil)
 	}
-	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
+	handle := observer.SeriesHandle(0)
 
-	assert.Equal(t, 10, s.PointCountBetween(key, 0, 100)) // all 10 events
-	assert.Equal(t, 8, s.PointCountBetween(key, 0, 20))   // 3+5
-	assert.Equal(t, 3, s.PointCountBetween(key, 0, 10))   // 3
-	assert.Equal(t, 0, s.PointCountBetween(key, 0, 9))    // none
+	assert.Equal(t, 10, s.PointCountBetween(handle, 0, 100)) // all 10 events
+	assert.Equal(t, 8, s.PointCountBetween(handle, 0, 20))   // 3+5
+	assert.Equal(t, 3, s.PointCountBetween(handle, 0, 10))   // 3
+	assert.Equal(t, 0, s.PointCountBetween(handle, 0, 9))    // none
 }
 
 func TestPointCount_ColumnarLayout(t *testing.T) {
 	s := makeRangeStorage()
-	assert.Equal(t, 5, s.PointCount(rangeKey))
-	assert.Equal(t, 0, s.PointCount(observer.SeriesKey{Namespace: "x", Name: "y"}))
+	assert.Equal(t, 5, s.PointCount(rangeID))
+	assert.Equal(t, 0, s.PointCount(observer.SeriesHandle(999))) // non-existent ID
 }
 
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
@@ -478,8 +486,7 @@ func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	s.Add("ns", "m", 10.0, 10, nil)
 	s.Add("ns", "m", 20.0, 20, nil)
 
-	key := observer.SeriesKey{Namespace: "ns", Name: "m"}
-	result := s.GetSeriesRange(key, 0, 100, AggregateSum)
+	result := s.GetSeriesRange(observer.SeriesHandle(0), 0, 100, AggregateSum)
 	require.NotNil(t, result)
 	require.Len(t, result.Points, 3)
 	assert.Equal(t, int64(10), result.Points[0].Timestamp)
