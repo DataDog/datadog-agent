@@ -13,7 +13,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flightrecorder "github.com/DataDog/datadog-agent/comp/flightrecorder/def"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,8 +30,8 @@ type Requires struct {
 	Lc     compdef.Lifecycle
 	Config config.Component
 
-	MetricsHooks []hook.Hook[observer.MetricView] `group:"hook"`
-	LogsHooks    []hook.Hook[observer.LogView]    `group:"hook"`
+	MetricsHooks []hook.Hook[hook.MetricView] `group:"hook"`
+	LogsHooks    []hook.Hook[hook.LogView]    `group:"hook"`
 }
 
 // Provides defines what the component exposes to the fx graph.
@@ -108,7 +107,7 @@ func NewComponent(req Requires) (Provides, error) {
 	//                        check metrics (check_sampler), no-agg pipeline
 	for _, mh := range fxutil.GetAndFilterGroup(req.MetricsHooks) {
 		source := mh.Name()
-		mh.SubscribeWithBuffer("flightrecorder-metrics", hookBufSize, func(payload observer.MetricView) {
+		mh.SubscribeWithBuffer("flightrecorder-metrics", hookBufSize, func(payload hook.MetricView) {
 			name := payload.GetName()
 			raw := payload.GetRawTags()
 			ckey := computeContextKey(name, raw)
@@ -143,7 +142,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 	// Subscribe to all log hooks.
 	for _, lh := range fxutil.GetAndFilterGroup(req.LogsHooks) {
-		lh.SubscribeWithBuffer("flightrecorder-logs", hookBufSize, func(payload observer.LogView) {
+		lh.SubscribeWithBuffer("flightrecorder-logs", hookBufSize, func(payload hook.LogView) {
 			raw := payload.GetContent()
 			cp := contentPool.Get().(*[]byte)
 			contentCopy := append((*cp)[:0], raw...)
