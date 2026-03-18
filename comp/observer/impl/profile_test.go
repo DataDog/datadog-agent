@@ -104,11 +104,33 @@ func BenchmarkGetSeriesRange(b *testing.B) {
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}
-	key := observerdef.SeriesKey{Namespace: "ns", Name: "metric_0"}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.GetSeriesRange(key, 0, 576, observerdef.AggregateAverage)
+		storage.GetSeriesRange(observerdef.SeriesHandle(0), 0, 576, observerdef.AggregateAverage)
+	}
+}
+
+// BenchmarkForEachPoint isolates the ForEachPoint read path.
+func BenchmarkForEachPoint(b *testing.B) {
+	storage := newTimeSeriesStorage()
+	for sec := int64(0); sec < 576; sec++ {
+		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		storage.ForEachPoint(observerdef.SeriesHandle(0), 0, 576, observerdef.AggregateAverage, func(_ *observerdef.Series, _ observerdef.Point) {})
+	}
+}
+
+// BenchmarkForEachPoint_Small exercises ForEachPoint for a typical incremental read (5 points).
+func BenchmarkForEachPoint_Small(b *testing.B) {
+	storage := newTimeSeriesStorage()
+	for sec := int64(0); sec < 576; sec++ {
+		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		storage.ForEachPoint(observerdef.SeriesHandle(0), 570, 576, observerdef.AggregateAverage, func(_ *observerdef.Series, _ observerdef.Point) {})
 	}
 }
 
@@ -118,10 +140,8 @@ func BenchmarkPointCountUpTo(b *testing.B) {
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}
-	key := observerdef.SeriesKey{Namespace: "ns", Name: "metric_0"}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.PointCountUpTo(key, 300)
+		storage.PointCountUpTo(observerdef.SeriesHandle(0), 300)
 	}
 }
