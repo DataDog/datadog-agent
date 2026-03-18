@@ -261,6 +261,7 @@ enum mount_source_t
     SOURCE_FSMOUNT,
     SOURCE_OPEN_TREE,
     SOURCE_MOVE_MOUNT,
+    SOURCE_PIVOT_ROOT,
 };
 
 #endif

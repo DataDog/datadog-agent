@@ -285,6 +285,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             }
         }
         if (syscall->type == EVENT_PIVOT_ROOT) {
+            event.source = SOURCE_PIVOT_ROOT;
             send_event(ctx, EVENT_PIVOT_ROOT, event);
             return 0;
         }
