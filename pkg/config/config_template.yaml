@@ -221,7 +221,7 @@ api_key:
 # dogstatsd_tag_cardinality: "low"
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
-## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: 'max median avg count'
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: "max median avg count"
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -232,7 +232,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
-## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: '0.95'
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: "0.95"
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -382,7 +382,7 @@ api_key:
 # forwarder_backoff_max: 64
 
 ## @param cloud_provider_metadata - list of strings - optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: 'aws gcp azure alibaba oracle ibm'
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: "aws gcp azure alibaba oracle ibm"
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -1298,12 +1298,11 @@ api_key:
 #   # Set to 0 to disable the HTTP receiver.
 #
 #   receiver_port: 8126
-
-{{ if (eq .OS "windows") -}}
+{{ if (eq .OS "windows") }}
 #   # @param receiver_socket - string - optional - default: ""
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
 #   # Please note that UDS receiver is not available in Windows.
-#   # @ Enabling this setting may result in unexpected behavior.
+#   # Enabling this setting may result in unexpected behavior.
 #   #
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
@@ -1604,8 +1603,9 @@ api_key:
 #       pattern: "<REGEX_PATTERN>"
 #       repl: "<PATTERN_TO_INLINE>"
 
-#   # @param ignore_resources - list of strings - optional
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
+#   # @param ignore_resources - list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - comma separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
@@ -2862,7 +2862,11 @@ api_key:
 
 ## @param podman_db_path - string - optional - default: ""
 ## @env DD_PODMAN_DB_PATH - string - optional - default: ""
-## Settings for Podman DB that Datadog Agent collects container metrics.
+## Path(s) to Podman container database file(s) used by the Datadog Agent to collect container metrics.
+## Accepts a comma-separated list of paths to support monitoring containers from multiple users
+## (e.g. root and rootless users).
+## Example: "/var/lib/containers/storage/db.sql,/home/myuser/.local/share/containers/storage/db.sql"
+## When left empty, the Agent auto-discovers accessible Podman databases for root and all users under /home/.
 #
 # podman_db_path: ""
 {{ end -}}
