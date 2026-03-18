@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -125,7 +126,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
 	}
 
-	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	containerRegistry := mutatecommon.ContainerRegistry(context.TODO(), datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{

@@ -951,7 +951,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.mutation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
-	config.BindEnvAndSetDefault("admission_controller.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.container_registry", "registry.datadoghq.com")
 	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 10) // in seconds (see kubernetes/kubernetes#71508)
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
@@ -984,6 +984,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		"gcr.io/datadoghq",
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
+		"datadoghq.azurecr.io",
+		"registry.datadoghq.com",
 	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")

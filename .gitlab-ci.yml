@@ -1207,6 +1207,15 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_admission_controller_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/clusteragent/admission/**/*
+        - pkg/util/kubernetes/cloudprovider/**/*
+        - test/new-e2e/tests/admission-controller/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_ssi_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:

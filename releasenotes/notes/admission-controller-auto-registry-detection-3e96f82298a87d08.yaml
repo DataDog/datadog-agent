@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    The default container registry for the admission controller has changed from
+    ``gcr.io/datadoghq`` to ``registry.datadoghq.com``. On managed Kubernetes
+    environments, the cluster agent now auto-selects a cloud-provider-specific
+    registry (EKS: ``public.ecr.aws/datadog``, GKE: ``gcr.io/datadoghq``, AKS:
+    ``datadoghq.azurecr.io``). To restore the previous default, set
+    ``admission_controller.container_registry`` to ``gcr.io/datadoghq``. See
+    `Changing your container registry <https://docs.datadoghq.com/containers/guide/changing_container_registry/>`_
+    for all available registries and configuration options.

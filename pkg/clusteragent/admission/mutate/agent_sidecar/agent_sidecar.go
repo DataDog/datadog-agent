@@ -85,7 +85,7 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 
 	nsSelector, objSelector := labelSelectors(datadogConfig, profileOverrides)
 
-	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.agent_sidecar.container_registry")
+	containerRegistry := mutatecommon.ContainerRegistry(context.TODO(), datadogConfig, "admission_controller.agent_sidecar.container_registry")
 
 	return &Webhook{
 		name:              webhookName,

@@ -8,12 +8,15 @@
 package common
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func Test_contains(t *testing.T) {
@@ -323,4 +326,67 @@ func TestMarkVolumeAsSafeToEvictForAutoscaler(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_defaultRegistryForProvider(t *testing.T) {
+	tests := []struct {
+		provider string
+		expected string
+	}{
+		{"eks", "public.ecr.aws/datadog"},
+		{"gke", "gcr.io/datadoghq"},
+		{"aks", "datadoghq.azurecr.io"},
+		{"", "registry.datadoghq.com"},
+		{"unknown", "registry.datadoghq.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run("provider_"+tt.provider, func(t *testing.T) {
+			assert.Equal(t, tt.expected, defaultRegistryForProvider(tt.provider))
+		})
+	}
+}
+
+func Test_ContainerRegistry(t *testing.T) {
+	tests := []struct {
+		name           string
+		specificKey    string
+		specificValue  string
+		globalValue    string
+		expectedPrefix string
+	}{
+		{
+			name:           "webhook-specific config wins",
+			specificKey:    "admission_controller.auto_instrumentation.container_registry",
+			specificValue:  "my-custom-registry.io/datadog",
+			globalValue:    "global-registry.io/datadog",
+			expectedPrefix: "my-custom-registry.io/datadog",
+		},
+		{
+			name:           "global config used when no specific config",
+			specificKey:    "admission_controller.auto_instrumentation.container_registry",
+			globalValue:    "global-registry.io/datadog",
+			expectedPrefix: "global-registry.io/datadog",
+		},
+		{
+			name:           "auto-detection when no config set",
+			specificKey:    "admission_controller.auto_instrumentation.container_registry",
+			expectedPrefix: "registry.datadoghq.com", // no cloud provider detected in tests → default
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if tt.specificValue != "" {
+				mockConfig.SetWithoutSource(tt.specificKey, tt.specificValue)
+			}
+			if tt.globalValue != "" {
+				mockConfig.SetWithoutSource("admission_controller.container_registry", tt.globalValue)
+			}
+
+			result := ContainerRegistry(context.TODO(), mockConfig, tt.specificKey)
+			assert.Equal(t, tt.expectedPrefix, result)
+		})
+	}
 }

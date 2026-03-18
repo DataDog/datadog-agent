@@ -1381,7 +1381,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			shouldMutate: true,
 			expected: &expected{
 				initContainerImages: []string{
-					"gcr.io/datadoghq/dd-lib-php-init:v1",
+					"registry.datadoghq.com/dd-lib-php-init:v1",
 					"docker.io/library/apm-inject-package:v27",
 				},
 				containerNames: defaultContainerNames,
@@ -1409,7 +1409,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			shouldMutate: true,
 			expected: &expected{
 				initContainerImages: []string{
-					"gcr.io/datadoghq/apm-inject:0",
+					"registry.datadoghq.com/apm-inject:0",
 					"foo/bar:1",
 				},
 				containerNames: defaultContainerNames,
