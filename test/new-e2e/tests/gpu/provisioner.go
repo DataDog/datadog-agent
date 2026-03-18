@@ -191,7 +191,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
-		// Install Docker (only after GPU devices are validated and the ECR credentials helper is installed)
+		// Install Docker (after GPU devices are validated); NewAWSManager ensures the ECR credentials helper is installed first
 		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 		if err != nil {
 			return fmt.Errorf("docker.NewAWSManager: %w", err)
