@@ -57,6 +57,7 @@ cc_library(
     ],
     strip_include_prefix = "src",
     visibility = ["//visibility:public"],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_shared_library(

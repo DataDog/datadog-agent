@@ -9,6 +9,8 @@ package standalone
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
@@ -66,19 +68,27 @@ func execJmxCommand(command string,
 
 	runner.Reporter = reporter
 	runner.Command = command
-	runner.IPCPort = agentAPI.CMDServerAddress().Port
+
+	_, ipcPortStr, err := net.SplitHostPort(agentAPI.CMDServerAddress().String())
+	if err != nil {
+		return fmt.Errorf("invalid CMD server address: %v", err)
+	}
+	ipcPort, err := strconv.ParseUint(ipcPortStr, 10, 16)
+	if err != nil {
+		return fmt.Errorf("invalid port for IPC listener: %v", err)
+	}
+	runner.IPCPort = int(ipcPort)
+
 	runner.Output = output
 	runner.LogLevel = logLevel
 
 	loadJMXConfigs(runner, selectedChecks, configs)
 
-	err := runner.Start(false)
-	if err != nil {
+	if err := runner.Start(false); err != nil {
 		return err
 	}
 
-	err = runner.Wait()
-	if err != nil {
+	if err := runner.Wait(); err != nil {
 		return err
 	}
 

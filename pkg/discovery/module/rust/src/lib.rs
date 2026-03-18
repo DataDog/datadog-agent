@@ -21,6 +21,7 @@
 
 mod apm;
 mod binary;
+mod comm;
 mod envs;
 mod ephemeral;
 mod errors;

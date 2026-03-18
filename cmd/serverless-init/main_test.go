@@ -23,6 +23,7 @@ import (
 
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -90,4 +91,23 @@ func TestFlushTimeout(t *testing.T) {
 	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
+}
+
+// TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
+func TestSetupOtlpAgentNoPanic(t *testing.T) {
+	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")
+	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
+
+	configmock.New(t)
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	metricAgent := setupMetricAgent(map[string]string{}, fakeTagger, false)
+	defer metricAgent.Stop()
+
+	assert.NotPanics(t, func() { setupOtlpAgent(metricAgent, fakeTagger) })
+
+	// Timeout to allow the goroutine in ServerlessOTLPAgent.Start() to run.
+	// If it panics the process crashes. Without this the test can pass flakily when the goroutine hasn't run yet.
+	const panicWindow = 500 * time.Millisecond
+	<-time.After(panicWindow)
 }
