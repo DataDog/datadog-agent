@@ -17,6 +17,7 @@ proto_library(
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 

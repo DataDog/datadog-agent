@@ -64,6 +64,7 @@ Create a `.env` file in `cmd/host-profiler` containing:
 DD_SITE=datad0g.com # optional, defaults to "datadoghq.com"
 UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
 GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
+DD_TAGS="key:value,key1:value2" # optional, defaults to workspace:${workspace-name} on a Datadog workspace
 ```
 
 Then run

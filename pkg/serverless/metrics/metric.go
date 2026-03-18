@@ -7,6 +7,7 @@
 package metrics
 
 import (
+	"runtime"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -88,6 +89,17 @@ func (c *ServerlessMetricAgent) IsReady() bool {
 func (c *ServerlessMetricAgent) Flush() {
 	if c.IsReady() {
 		c.dogStatsDServer.ServerlessFlush(c.SketchesBucketOffset)
+	}
+}
+
+// WaitForPendingSamples blocks until all buffered metric samples have been
+// consumed by the worker. Only safe during shutdown when no new samples
+// are being submitted.
+func (c *ServerlessMetricAgent) WaitForPendingSamples() {
+	if sd, ok := c.Demux.(*aggregator.ServerlessDemultiplexer); ok {
+		for sd.PendingSamples() > 0 {
+			runtime.Gosched()
+		}
 	}
 }
 

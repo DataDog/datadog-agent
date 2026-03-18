@@ -1,0 +1,32 @@
+load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+
+_COMMON_DEPS = ["//pkg/ebpf/c:ebpf_c_headers"]
+
+_TEST_FLAGS = [
+    "-g",
+    "-DDEBUG=1",
+]
+
+ebpf_prog(
+    name = "logdebug-test",
+    src = "logdebug-test.c",
+    core = True,
+    extra_flags = _TEST_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_prog(
+    name = "error_telemetry",
+    src = "error_telemetry.c",
+    core = True,
+    extra_flags = _TEST_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_prog(
+    name = "uprobe_attacher-test",
+    src = "uprobe_attacher-test.c",
+    core = True,
+    extra_flags = _TEST_FLAGS,
+    deps = _COMMON_DEPS,
+)

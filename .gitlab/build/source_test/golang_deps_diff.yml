@@ -19,7 +19,11 @@ golang_deps_diff:
   script:
     # Get API key to send metrics
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - dda inv -- -e go-deps.diff --report-file=deps-report.md --report-metrics --git-ref "${CI_COMMIT_REF_NAME}"
+    # Get GitHub app credentials to check PR draft status
+    - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
+    - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
+    - dda inv -- -e github.is-pr-ready --git-ref "${CI_COMMIT_REF_NAME}" && REPORT_METRICS="--report-metrics" || REPORT_METRICS=""
+    - dda inv -- -e go-deps.diff --report-file=deps-report.md ${REPORT_METRICS} --git-ref "${CI_COMMIT_REF_NAME}"
   artifacts:
     paths:
       - deps-report.md
@@ -52,4 +56,8 @@ golang_deps_send_count_metrics:
   script:
     # Get API key to send metrics
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - dda inv -- -e go-deps.send-count-metrics --git-sha "${CI_COMMIT_SHA}" --git-ref "${CI_COMMIT_REF_NAME}"
+    # Get GitHub app credentials to check PR draft status
+    - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
+    - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
+    - dda inv -- -e github.is-pr-ready --git-ref "${CI_COMMIT_REF_NAME}" && NO_SEND_SERIES="" || NO_SEND_SERIES="--no-send-series"
+    - dda inv -- -e go-deps.send-count-metrics --git-sha "${CI_COMMIT_SHA}" --git-ref "${CI_COMMIT_REF_NAME}" ${NO_SEND_SERIES}

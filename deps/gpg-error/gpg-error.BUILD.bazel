@@ -124,6 +124,7 @@ copy_file(
         "@//:linux_arm64": "config-linux-aarch64.h",
     }),
     out = "src/config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
@@ -210,6 +211,7 @@ genrule(
     tools = [":mkheader"],
     outs = ["src/gpg-error.h"],
     cmd = select({"@@//:%s" % config: mkheader_cmds[config] for config in config_to_abi.keys()}),
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
