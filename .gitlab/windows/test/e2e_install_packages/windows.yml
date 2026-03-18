@@ -137,7 +137,9 @@ new-e2e-windows-ddot-package-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - deploy_ddot_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_windows
   before_script:
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
