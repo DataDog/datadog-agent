@@ -34,8 +34,6 @@ import (
 type fakeNetworkStats struct {
 	counterStats                 []net.IOCountersStat
 	counterStatsError            error
-	protoCountersStats           []net.ProtoCountersStat
-	protoCountersStatsError      error
 	connectionStatsUDP4          []net.ConnectionStat
 	connectionStatsUDP4Error     error
 	connectionStatsUDP6          []net.ConnectionStat
@@ -52,11 +50,6 @@ type fakeNetworkStats struct {
 // IOCounters returns the inner values of counterStats and counterStatsError
 func (n *fakeNetworkStats) IOCounters(_ bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
-}
-
-// ProtoCounters returns the inner values of counterStats and counterStatsError
-func (n *fakeNetworkStats) ProtoCounters(_ []string) ([]net.ProtoCountersStat, error) {
-	return n.protoCountersStats, n.protoCountersStatsError
 }
 
 // Connections returns the inner values of counterStats and counterStatsError
