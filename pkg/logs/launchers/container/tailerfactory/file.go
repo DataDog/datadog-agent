@@ -33,10 +33,9 @@ import (
 )
 
 var (
-	podLogsBasePath            = "/var/log/pods"
-	dockerLogsBasePathNix      = "/var/lib/docker"
-	dockerLogsBasePathWin      = "c:\\programdata\\docker"
-	podmanRootfullLogsBasePath = "/var/lib/containers"
+	podLogsBasePath       = "/var/log/pods"
+	dockerLogsBasePathNix = "/var/lib/docker"
+	dockerLogsBasePathWin = "c:\\programdata\\docker"
 )
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
@@ -117,7 +116,10 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
-	path := tf.findDockerLogPath(containerID)
+	path, err := tf.findDockerLogPath(containerID)
+	if err != nil {
+		return nil, err
+	}
 
 	// check access to the file; if it is not readable, then returning an error will
 	// try to fall back to reading from a socket.
@@ -156,37 +158,42 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 }
 
 // findDockerLogPath returns a path for the given container.
-func (tf *factory) findDockerLogPath(containerID string) string {
+func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 	// if the user has set a custom docker data root, this will pick it up
 	// and set it in place of the usual docker base path
 	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
-		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log")
+		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log"), nil
 	}
 
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(
 			dockerLogsBasePathWin, "containers", containerID,
-			containerID+"-json.log")
+			containerID+"-json.log"), nil
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
 		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
-			// Default path for podman rootfull containers
-			podmanLogsBasePath := podmanRootfullLogsBasePath
-			podmanDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
-			// User provided a custom podman DB path, they are running rootless containers or modified the root directory.
-			if len(podmanDBPath) > 0 {
-				podmanLogsBasePath = log.ExtractPodmanRootDirFromDBPath(podmanDBPath)
+			// The podman collector adds annotation to containers it pulls with their storage location
+			// This is used to construct the log location (podman k8s-file driver)
+			wmeta, ok := tf.workloadmetaStore.Get()
+			if !ok {
+				return "", fmt.Errorf("cannot determine Podman log root for container %q: workloadmeta store is not initialized", containerID)
 			}
-			return filepath.Join(
-				podmanLogsBasePath, "storage/overlay-containers", containerID,
-				"userdata/ctr.log")
+			ctr, err := wmeta.GetContainer(containerID)
+			if err != nil {
+				return "", fmt.Errorf("cannot determine Podman log root for container %q: cannot find container in workloadmeta: %w", containerID, err)
+			}
+			rootDir := ctr.Annotations[log.ContainerRootDirAnnotationKey]
+			if rootDir == "" {
+				return "", fmt.Errorf("cannot determine Podman log root for container %q: missing annotation %q", containerID, log.ContainerRootDirAnnotationKey)
+			}
+			return filepath.Join(rootDir, "storage/overlay-containers", containerID, "userdata/ctr.log"), nil
 		}
 		return filepath.Join(
 			dockerLogsBasePathNix, "containers", containerID,
-			containerID+"-json.log")
+			containerID+"-json.log"), nil
 	}
 }
 
