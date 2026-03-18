@@ -47,6 +47,7 @@ use (
 	comp/core/tagger/utils
 	comp/core/telemetry
 	comp/def
+	comp/flightrecorder/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs-library
@@ -194,6 +195,4 @@ use (
 	test/otel
 	tools/build-ddot-byoc
 	tools/retry_file_dump
-	schema/flightrecorder
-	comp/flightrecorder/def
 )

@@ -61,7 +61,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
-	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	flightrecorderfx "github.com/DataDog/datadog-agent/comp/flightrecorder/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -579,7 +578,6 @@ func getSharedFxOption() fx.Option {
 		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
-		recorderfx.Module(),
 		flightrecorderfx.Module(),
 	)
 }

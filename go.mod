@@ -954,6 +954,7 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/flightrecorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs-library v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -985,6 +986,7 @@ require (
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/google/flatbuffers v25.2.10+incompatible
 	github.com/goware/modvendor v0.5.0
 	github.com/hashicorp/vault v1.21.2
 	github.com/hashicorp/vault/api v1.22.0
@@ -1303,6 +1305,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ./comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def
+	github.com/DataDog/datadog-agent/comp/flightrecorder/def => ./comp/flightrecorder/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ./comp/logs-library
