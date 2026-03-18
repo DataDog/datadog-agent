@@ -1,5 +1,6 @@
 """Bazel rule for generating Go type definitions from C headers via cgo -godefs."""
 
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_go//go:def.bzl", "go_context")
 
@@ -72,6 +73,7 @@ def _cgo_godefs_impl(ctx):
     include_flags = " ".join(["-I " + d for d in rel_includes])
 
     genpost_args = ""
+    test_out = None
     if platform == "linux":
         test_name = base + "_" + platform + "_test.go"
         test_out = ctx.actions.declare_file(test_name)
@@ -113,7 +115,14 @@ def _cgo_godefs_impl(ctx):
         progress_message = "Generating Go types from %{label}",
     )
 
-    return [DefaultInfo(files = depset(outputs))]
+    output_groups = {"main": depset([out])}
+    if test_out:
+        output_groups["test_file"] = depset([test_out])
+
+    return [
+        DefaultInfo(files = depset(outputs)),
+        OutputGroupInfo(**output_groups),
+    ]
 
 _cgo_godefs = rule(
     implementation = _cgo_godefs_impl,
@@ -150,10 +159,10 @@ _cgo_godefs = rule(
     toolchains = ["@rules_go//go:toolchain"],
 )
 
-def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs):
+def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
+    gen = name + "_gen"
     _cgo_godefs(
-        name = name,
-        visibility = visibility,
+        name = gen,
         src = src,
         deps = deps,
         hdrs = hdrs,
@@ -164,6 +173,36 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs):
         }),
     )
 
+    base = src.name.removesuffix(".go")
+    main_file = base + "_" + platform + ".go"
+
+    native.filegroup(
+        name = name + "_main_out",
+        srcs = [":" + gen],
+        output_group = "main",
+    )
+    write_source_file(
+        name = name,
+        visibility = visibility,
+        in_file = ":" + name + "_main_out",
+        out_file = main_file,
+        check_that_out_file_exists = False,
+    )
+
+    if platform == "linux":
+        test_file = base + "_" + platform + "_test.go"
+        native.filegroup(
+            name = name + "_test_out",
+            srcs = [":" + gen],
+            output_group = "test_file",
+        )
+        write_source_file(
+            name = name + "_test_file",
+            in_file = ":" + name + "_test_out",
+            out_file = test_file,
+            check_that_out_file_exists = False,
+        )
+
 cgo_godefs = macro(
     doc = """Generate Go type definitions from a CGo source file.
 
@@ -172,11 +211,15 @@ cgo_godefs = macro(
 
     The standard include deps (pkg/network/ebpf/c and pkg/ebpf/c) are
     provided automatically. Use deps/hdrs only for additional headers.
+
+    The main target (`name`) verifies the generated output matches the
+    committed file. Use `bazel test` to verify, `bazel run` to update.
     """,
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".go"], configurable = False),
         "deps": attr.label_list(default = [], configurable = False),
         "hdrs": attr.label_list(default = [], configurable = False),
+        "platform": attr.string(default = "linux", configurable = False, values = ["linux", "windows"]),
     },
     implementation = _cgo_godefs_macro_impl,
 )

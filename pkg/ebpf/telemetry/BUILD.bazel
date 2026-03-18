@@ -2,6 +2,11 @@
 
 load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
 
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
 cgo_godefs(
     name = "types_godefs",
     src = "types.go",

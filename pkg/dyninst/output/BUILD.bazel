@@ -2,6 +2,11 @@
 
 load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
 
+exports_files([
+    "framing_linux.go",
+    "framing_linux_test.go",
+])
+
 cgo_godefs(
     name = "framing_godefs",
     src = "framing.go",

@@ -6,6 +6,15 @@
 
 load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
 
+exports_files([
+    "conntrack_types_linux.go",
+    "conntrack_types_linux_test.go",
+    "tuple_types_linux.go",
+    "tuple_types_linux_test.go",
+    "kprobe_types_linux.go",
+    "kprobe_types_linux_test.go",
+])
+
 cgo_godefs(
     name = "conntrack_types_godefs",
     src = "conntrack_types.go",

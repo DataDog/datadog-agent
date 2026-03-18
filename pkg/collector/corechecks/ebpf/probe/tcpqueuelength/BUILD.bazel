@@ -2,6 +2,11 @@
 
 load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
 
+exports_files([
+    "tcp_queue_length_kern_types_linux.go",
+    "tcp_queue_length_kern_types_linux_test.go",
+])
+
 cgo_godefs(
     name = "tcp_queue_length_kern_types_godefs",
     src = "tcp_queue_length_kern_types.go",
