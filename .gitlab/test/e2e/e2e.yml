@@ -1041,7 +1041,7 @@ new-e2e-ssi-gke:
 
 .new-e2e_package_signing:
   variables:
-    TARGETS: ./tests/agent-platform
+    TARGETS: ./tests/agent-platform/tests
     TEAM: agent-delivery
     EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS --run TestPackageSigningComponent
     ON_NIGHTLY_FIPS: "true"
