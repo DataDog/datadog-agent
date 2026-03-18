@@ -50,6 +50,7 @@ type Remediation struct {
 	policy             string
 	isolationReApplied bool
 	isolationNew       bool
+	isolationPerformed bool
 	ruleTags           RuleTags
 }
 
@@ -118,14 +119,14 @@ func generateKillActionKey(ruleID string, scope string, signal string) string {
 	return KillKeyPrefix + ruleID + scope + signal
 }
 
-func generateNetworkIsolationActionKey(ruleID string, filter string) string {
-	// prefix + ruleID + sha256(filter)
+func generateNetworkIsolationActionKey(ruleID string, scope string, filter string) string {
+	// prefix + ruleID + scope + sha256(filter)
 	hash := sha256.Sum256([]byte(filter))
-	return NetworkIsolationKeyPrefix + ruleID + hex.EncodeToString(hash[:])
+	return NetworkIsolationKeyPrefix + ruleID + scope + hex.EncodeToString(hash[:])
 
 }
 func generateRemediationActionKey(key string) string {
-	// prefix + agent_event_id
+	// prefix + key
 	return RemediationKeyPrefix + key
 }
 
@@ -139,7 +140,7 @@ func getRemediationKeyFromAction(rule *rules.Rule, action *rules.Action) string 
 		key = generateKillActionKey(rule.ID, action.Def.Kill.Scope, action.Def.Kill.Signal)
 	} else if action.Def.NetworkFilter != nil {
 		// ruleID + bpffilter
-		key = generateNetworkIsolationActionKey(rule.ID, action.Def.NetworkFilter.BPFFilter)
+		key = generateNetworkIsolationActionKey(rule.ID, action.Def.NetworkFilter.Scope, action.Def.NetworkFilter.BPFFilter)
 	}
 
 	if getRemediationTagBool(rule) {
@@ -221,7 +222,7 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 		}
 	}
 
-	// When a new ruleset is loaded, reset all flags
+	// When a new ruleset is loaded, reset all flags except the performed flag
 	for _, state := range p.activeRemediations {
 		state.triggered = false
 		state.isolationReApplied = false
@@ -333,9 +334,17 @@ func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, 
 		return
 	}
 	remediation.triggered = true
-	if remediation.isolationReApplied {
-		// We already re-applied the isolation, no need to send the event
+
+	// if the isolation is from the same rule and was already performed, don't send an event
+	if remediation.isolationReApplied && remediation.isolationPerformed {
 		return
+	}
+
+	// if the status is performed, update the isolationPerformed field
+	if report.Status == RawPacketActionStatusPerformed {
+		remediation.isolationPerformed = true
+	} else {
+		remediation.isolationPerformed = false
 	}
 
 	remediation.processContext.PID = ev.ProcessContext.Process.Pid
@@ -369,6 +378,8 @@ func (p *EBPFProbe) HandleRemediationNotTriggered() {
 		var remediationStr string
 		if !remediation.triggered {
 			if remediation.actionType == RemediationTypeNetworkIsolation {
+				// If the isolation was not triggered, set isolationPerformed to false since the ressource might have been killed
+				remediation.isolationPerformed = false
 				remediationStr = RemediationTypeNetworkIsolationStr
 			} else if remediation.actionType == RemediationTypeKill {
 				remediationStr = RemediationTypeKillStr

@@ -8,9 +8,12 @@
 package env
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_merge(t *testing.T) {
@@ -62,4 +65,38 @@ func Test_merge(t *testing.T) {
 			assert.EqualValues(t, tt.want, merge(tt.s1, tt.s2))
 		})
 	}
+}
+
+func TestDetectPodmanInHomeDir(t *testing.T) {
+	tmp := t.TempDir()
+
+	t.Run("detects podman when storage dir exists under home", func(t *testing.T) {
+		userStoragePath := filepath.Join(tmp, "testuser", ".local", "share", "containers", "storage")
+		require.NoError(t, os.MkdirAll(userStoragePath, 0o755))
+
+		features := make(FeatureMap)
+		detectPodmanInHomeDir(tmp, features)
+
+		_, found := features[Podman]
+		assert.True(t, found, "Podman feature should be detected")
+	})
+
+	t.Run("no detection when storage dir does not exist", func(t *testing.T) {
+		emptyDir := filepath.Join(tmp, "empty")
+		require.NoError(t, os.MkdirAll(emptyDir, 0o755))
+
+		features := make(FeatureMap)
+		detectPodmanInHomeDir(emptyDir, features)
+
+		_, found := features[Podman]
+		assert.False(t, found, "Podman feature should not be detected")
+	})
+
+	t.Run("no detection when home base does not exist", func(t *testing.T) {
+		features := make(FeatureMap)
+		detectPodmanInHomeDir(filepath.Join(tmp, "nonexistent"), features)
+
+		_, found := features[Podman]
+		assert.False(t, found, "Podman feature should not be detected")
+	})
 }
