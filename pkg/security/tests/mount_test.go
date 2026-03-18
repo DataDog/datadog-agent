@@ -569,7 +569,7 @@ func TestMountEvent(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 
-			test.validateMountSchema(t, event)
+			test.validateMopuntSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")
 			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
 			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
