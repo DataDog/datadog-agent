@@ -46,6 +46,11 @@ type staticConfig struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
+	// registryAllowList restricts which registries can be used for CSI-based library injection.
+	// When non-empty, CSI volumes will only be added for libraries from these registries.
+	// An empty list allows all registries (default).
+	registryAllowList []string
+
 	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
 	mutateUnlabelled bool
 
@@ -126,6 +131,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	registryAllowList := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.csi_registry_allow_list")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
@@ -134,6 +140,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 			Instrumentation:               instrumentationConfig,
 			containerRegistry:             containerRegistry,
+			registryAllowList:             registryAllowList,
 			mutateUnlabelled:              mutateUnlabelled,
 			initResources:                 initResources,
 			initSecurityContext:           initSecurityContext,
