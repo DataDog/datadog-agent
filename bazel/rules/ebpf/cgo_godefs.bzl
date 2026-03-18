@@ -202,6 +202,10 @@ cgo_godefs = macro(
 
     The main target (`name`) verifies the generated output matches the
     committed file. Use `bazel test` to verify, `bazel run` to update.
+
+    The committed output files (e.g. `c_types_linux.go`) must be listed
+    in `exports_files()` in the same BUILD so that `write_source_file`
+    can reference them for comparison.
     """,
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".go"], configurable = False),
