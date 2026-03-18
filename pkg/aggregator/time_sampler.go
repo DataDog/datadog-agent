@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -45,10 +46,12 @@ type TimeSampler struct {
 	idString string
 
 	hostname string
+
+	metricHook hook.Hook[hook.MetricView]
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string, metricHook hook.Hook[hook.MetricView]) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -59,6 +62,10 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 	contextExpireTime := pkgconfigsetup.Datadog().GetInt64("dogstatsd_context_expiry_seconds")
 	counterExpireTime := contextExpireTime + pkgconfigsetup.Datadog().GetInt64("dogstatsd_expiry_seconds")
 
+	if metricHook == nil {
+		metricHook = hook.NewNoopHook[hook.MetricView]()
+	}
+
 	s := &TimeSampler{
 		interval:           interval,
 		contextResolver:    newTimestampContextResolver(tagger, cache, idString, contextExpireTime, counterExpireTime),
@@ -67,6 +74,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 		id:                 id,
 		idString:           idString,
 		hostname:           hostname,
+		metricHook:         metricHook,
 	}
 
 	return s
@@ -81,6 +89,8 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
+	s.metricHook.Publish("dogstatsd", metricSample)
+
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp

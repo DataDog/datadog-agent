@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -55,12 +56,14 @@ type Processor struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+
+	logHook hook.Hook[hook.LogView]
 }
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, logHook hook.Hook[hook.LogView]) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -75,6 +78,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		logHook:                   logHook,
 	}
 
 	// Initialize cached failover config
@@ -203,6 +207,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
+
+		if p.logHook != nil {
+			p.logHook.Publish("logs", msg)
+		}
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)

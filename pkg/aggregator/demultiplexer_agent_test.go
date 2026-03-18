@@ -79,7 +79,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", nil)
 
 	batch := testDemuxSamples(t)
 
@@ -101,7 +101,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.EnableNoAggregationPipeline = true
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", nil)
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.run()
@@ -198,6 +198,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		deps.Tagger,
 		filterList,
 		"",
+		nil,
 	)
 
 	// Set up a mock serializer so we con examine the metrics sent to it.
@@ -407,6 +408,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		deps.Tagger,
 		filterList,
 		"",
+		nil,
 	)
 
 	// Set up a mock serializer so we con examine the metrics sent to it.
