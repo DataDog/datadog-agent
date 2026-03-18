@@ -275,8 +275,8 @@ func getDefaultRecordedQueryTypes() map[layers.DNSType]struct{} {
 	defaultRecordedQueryTypes := map[layers.DNSType]struct{}{
 		layers.DNSTypeA: {},
 	}
-	if runtime.GOOS == "linux" {
-		// ipv6 DNS is current not support on Windows
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		// ipv6 DNS is currently not supported on Windows
 		// TODO: Add layers.DNSTypeAAAA for windows once supported
 		defaultRecordedQueryTypes[layers.DNSTypeAAAA] = struct{}{}
 	}

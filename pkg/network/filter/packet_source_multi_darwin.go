@@ -151,13 +151,22 @@ func (m *MultiPacketSource) dispatch(data []byte, info PacketInfo, ts time.Time)
 }
 
 // subClosed is called by SubSource.Close(). When the last sub closes,
-// the underlying PacketSource is also closed.
+// the underlying PacketSource is also closed and the package-level singleton
+// is reset so that a subsequent NewSubSource call creates a fresh source.
 func (m *MultiPacketSource) subClosed() {
 	if m.activeCount.Add(-1) == 0 {
 		m.closeOnce.Do(func() {
 			m.source.Close()
 		})
 		m.wg.Wait()
+
+		globalMultiMu.Lock()
+		if globalMultiSource == m {
+			globalMultiSource = nil
+			globalMultiSourceErr = nil
+			globalMultiSourceOnce = sync.Once{}
+		}
+		globalMultiMu.Unlock()
 	}
 }
 
@@ -214,16 +223,23 @@ func IsDNSPacket(data []byte, info *DarwinPacketInfo) bool {
 }
 
 // Package-level singleton — one MultiPacketSource shared across all callers.
+// globalMultiMu protects all three vars; NewSubSource and subClosed both hold
+// it when reading or resetting them so that a stop+restart in the same process
+// always gets a fresh, live source.
 var (
 	globalMultiSource     *MultiPacketSource
 	globalMultiSourceErr  error
 	globalMultiSourceOnce sync.Once
+	globalMultiMu         sync.Mutex
 )
 
 // NewSubSource returns a SubSource from the shared LibpcapSource, creating it
 // on the first call. predicate is an optional userspace filter; pass nil to
 // receive all packets.
 func NewSubSource(_ *config.Config, predicate func([]byte, *DarwinPacketInfo) bool) (*SubSource, error) {
+	globalMultiMu.Lock()
+	defer globalMultiMu.Unlock()
+
 	globalMultiSourceOnce.Do(func() {
 		src, err := NewLibpcapSource()
 		if err != nil {

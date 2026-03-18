@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf || darwin
+//go:build (windows && npm) || linux_bpf
 
 package dns
 
@@ -14,31 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const (
-	dnsCacheExpirationPeriod = 1 * time.Minute
-	dnsCacheSize             = 100000
-	dnsModuleName            = "network_tracer__dns"
-)
-
-// Telemetry
-var snooperTelemetry = struct {
-	decodingErrors *telemetry.StatCounterWrapper
-	truncatedPkts  *telemetry.StatCounterWrapper
-	queries        *telemetry.StatCounterWrapper
-	successes      *telemetry.StatCounterWrapper
-	errors         *telemetry.StatCounterWrapper
-}{
-	telemetry.NewStatCounterWrapper(dnsModuleName, "decoding_errors", []string{}, "Counter measuring the number of decoding errors while processing packets"),
-	telemetry.NewStatCounterWrapper(dnsModuleName, "truncated_pkts", []string{}, "Counter measuring the number of truncated packets while processing"),
-	// DNS telemetry, values calculated *till* the last tick in pollStats
-	telemetry.NewStatCounterWrapper(dnsModuleName, "queries", []string{}, "Counter measuring the number of packets that are DNS queries in processed packets"),
-	telemetry.NewStatCounterWrapper(dnsModuleName, "successes", []string{}, "Counter measuring the number of successful DNS responses in processed packets"),
-	telemetry.NewStatCounterWrapper(dnsModuleName, "errors", []string{}, "Counter measuring the number of failed DNS responses in processed packets"),
-}
 
 var _ ReverseDNS = &socketFilterSnooper{}
 
