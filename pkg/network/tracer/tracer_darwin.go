@@ -185,15 +185,19 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 
 // DebugNetworkMaps returns connections for debugging (similar to GetActiveConnections but without delta)
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
-	buffer := network.ClientPool.Get("debug")
-	err := t.connTracer.GetConnections(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
+	activeBuffer := network.NewConnectionBuffer(512, 512)
+	err := t.connTracer.GetConnections(activeBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error getting connections: %w", err)
 	}
 
-	return network.NewConnections(buffer), nil
+	return &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: activeBuffer.Connections(),
+		},
+	}, nil
 }
 
 // DebugEBPFMaps is not applicable on Darwin (no eBPF)
