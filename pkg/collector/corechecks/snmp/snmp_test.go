@@ -110,7 +110,7 @@ tags:
   - "mytag:foo"
 `)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
@@ -424,7 +424,7 @@ metrics:
     tag: interface
 `)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
 
@@ -544,7 +544,7 @@ metrics:
     name: SomeCounter64Metric
 `)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
@@ -624,6 +624,7 @@ tags:
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
@@ -1013,7 +1014,7 @@ ip_address: 1.2.3.4
 community_string: public
 `)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
@@ -1266,7 +1267,7 @@ namespace: '%s'
 			deps := createDeps(t)
 			senderManager := deps.Demultiplexer
 
-			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 			assert.Nil(t, err)
 
 			sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
@@ -1321,7 +1322,7 @@ metrics:
     name: myMetric
 `)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
@@ -1373,7 +1374,7 @@ tags:
   - "autodiscovery_subnet:127.0.0.0/30"
 `)
 	// language=yaml
-	rawInitConfig := []byte(``)
+	rawInitConfig := []byte(`enrich_device_tags_from_resource: false`)
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
@@ -1707,7 +1708,7 @@ tags:
   - "autodiscovery_subnet:127.0.0.0/30"
 `)
 	// language=yaml
-	rawInitConfig := []byte(``)
+	rawInitConfig := []byte(`enrich_device_tags_from_resource: false`)
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
@@ -1852,7 +1853,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
@@ -2209,7 +2210,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
@@ -2275,7 +2276,7 @@ metrics:
 use_device_id_as_hostname: true
 `)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
@@ -2494,7 +2495,7 @@ metrics:
 	}
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
@@ -2686,7 +2687,7 @@ ip_address: 1.2.3.4
 community_string: public
 `)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(`enrich_device_tags_from_resource: false`), "test")
 	assert.Nil(t, err)
 
 	// check Cancel does not panic when called with single check

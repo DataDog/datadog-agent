@@ -47,6 +47,7 @@ collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
@@ -194,6 +195,7 @@ use_global_metrics: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
@@ -349,6 +351,7 @@ collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
@@ -645,6 +648,114 @@ profiles:
 	sender.AssertNotCalled(t, "Gauge", "datadog.snmp.requests", mock.Anything, mock.Anything, mock.Anything)
 }
 
+func TestEnrichDeviceTagsFromResource(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_device_metadata: false
+metrics:
+- symbol:
+    OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.0
+    name: myMetric
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	config.EnrichDeviceTagsFromResource = true
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123")
+	sender.SetupAcceptAll()
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	sysObjectIDPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+
+	packets := []gosnmp.SnmpPacket{
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.2.1.1.1.0",
+					Type:  gosnmp.OctetString,
+					Value: []byte("my_desc"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.1.2.0",
+					Type:  gosnmp.ObjectIdentifier,
+					Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+				},
+				{
+					Name:  "1.3.6.1.2.1.1.3.0",
+					Type:  gosnmp.TimeTicks,
+					Value: 20,
+				},
+				{
+					Name:  "1.3.6.1.2.1.1.5.0",
+					Type:  gosnmp.OctetString,
+					Value: []byte("foo_sys_name"),
+				},
+			},
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+					Type:  gosnmp.Integer,
+					Value: 30,
+				},
+			},
+		},
+	}
+
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
+	sess.On("Get", mock.MatchedBy(func(oids []string) bool {
+		return len(oids) > 1 // scalar fetch
+	})).Return(&packets[0], nil)
+	sess.On("Get", mock.MatchedBy(func(oids []string) bool {
+		return len(oids) == 1
+	})).Return(&packets[1], nil)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+
+	// Metrics should have the resource tag
+	sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{resourceTag})
+
+	// Metrics should NOT have device-level tags (those come from backend enrichment)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", deviceReachableMetric, []string{"snmp_device:1.2.3.4"})
+	sender.AssertMetricNotTaggedWith(t, "Gauge", deviceReachableMetric, []string{"device_namespace:default"})
+
+	// Service checks should still have device tags (they are not resource-enriched)
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", []string{"snmp_device:1.2.3.4"}, "")
+}
+
 func TestRun_sessionCloseError(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -665,6 +776,7 @@ metrics:
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
@@ -711,6 +823,7 @@ ping:
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml
@@ -873,6 +986,7 @@ ping:
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
+enrich_device_tags_from_resource: false
 profiles:
  f5-big-ip:
    definition_file: f5-big-ip.yaml

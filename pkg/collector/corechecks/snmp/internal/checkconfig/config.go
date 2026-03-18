@@ -85,47 +85,49 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
-	UseRCProfiles         Boolean                           `yaml:"use_remote_config_profiles"`
-	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
-	OidBatchSize          Number                            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
-	CollectTopology       Boolean                           `yaml:"collect_topology"`
-	CollectVPN            Boolean                           `yaml:"collect_vpn"`
-	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval int                               `yaml:"min_collection_interval"`
-	Namespace             string                            `yaml:"namespace"`
-	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
-	Loader                string                            `yaml:"loader"`
+	Profiles                     profile.ProfileConfigMap          `yaml:"profiles"`
+	UseRCProfiles                Boolean                           `yaml:"use_remote_config_profiles"`
+	GlobalMetrics                []profiledefinition.MetricsConfig `yaml:"global_metrics"`
+	OidBatchSize                 Number                            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions           Number                            `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata        Boolean                           `yaml:"collect_device_metadata"`
+	CollectTopology              Boolean                           `yaml:"collect_topology"`
+	CollectVPN                   Boolean                           `yaml:"collect_vpn"`
+	UseDeviceIDAsHostname        Boolean                           `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval        int                               `yaml:"min_collection_interval"`
+	Namespace                    string                            `yaml:"namespace"`
+	PingConfig                   snmpintegration.PackedPingConfig  `yaml:"ping"`
+	Loader                       string                            `yaml:"loader"`
+	EnrichDeviceTagsFromResource Boolean                           `yaml:"enrich_device_tags_from_resource"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	Name                  string                              `yaml:"name"`
-	IPAddress             string                              `yaml:"ip_address"`
-	Port                  Number                              `yaml:"port"`
-	CommunityString       string                              `yaml:"community_string"`
-	SnmpVersion           string                              `yaml:"snmp_version"`
-	Timeout               Number                              `yaml:"timeout"`
-	Retries               Number                              `yaml:"retries"`
-	User                  string                              `yaml:"user"`
-	AuthProtocol          string                              `yaml:"authProtocol"`
-	AuthKey               string                              `yaml:"authKey"`
-	PrivProtocol          string                              `yaml:"privProtocol"`
-	PrivKey               string                              `yaml:"privKey"`
-	ContextName           string                              `yaml:"context_name"`
-	Metrics               []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
-	MetricTags            []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
-	Profile               string                              `yaml:"profile"`
-	UseGlobalMetrics      bool                                `yaml:"use_global_metrics"`
-	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
-	CollectTopology       *Boolean                            `yaml:"collect_topology"`
-	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
-	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
-	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
-	Loader                string                              `yaml:"loader"`
-	UseRCProfiles         *Boolean                            `yaml:"use_remote_config_profiles"`
+	Name                         string                              `yaml:"name"`
+	IPAddress                    string                              `yaml:"ip_address"`
+	Port                         Number                              `yaml:"port"`
+	CommunityString              string                              `yaml:"community_string"`
+	SnmpVersion                  string                              `yaml:"snmp_version"`
+	Timeout                      Number                              `yaml:"timeout"`
+	Retries                      Number                              `yaml:"retries"`
+	User                         string                              `yaml:"user"`
+	AuthProtocol                 string                              `yaml:"authProtocol"`
+	AuthKey                      string                              `yaml:"authKey"`
+	PrivProtocol                 string                              `yaml:"privProtocol"`
+	PrivKey                      string                              `yaml:"privKey"`
+	ContextName                  string                              `yaml:"context_name"`
+	Metrics                      []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags                   []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
+	Profile                      string                              `yaml:"profile"`
+	UseGlobalMetrics             bool                                `yaml:"use_global_metrics"`
+	CollectDeviceMetadata        *Boolean                            `yaml:"collect_device_metadata"`
+	CollectTopology              *Boolean                            `yaml:"collect_topology"`
+	CollectVPN                   *Boolean                            `yaml:"collect_vpn"`
+	UseDeviceIDAsHostname        *Boolean                            `yaml:"use_device_id_as_hostname"`
+	PingConfig                   snmpintegration.PackedPingConfig    `yaml:"ping"`
+	Loader                       string                              `yaml:"loader"`
+	UseRCProfiles                *Boolean                            `yaml:"use_remote_config_profiles"`
+	EnrichDeviceTagsFromResource *Boolean                            `yaml:"enrich_device_tags_from_resource"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -208,6 +210,8 @@ type CheckConfig struct {
 	PingConfig  pinger.Config
 
 	UseUnconnectedUDPSocket bool
+
+	EnrichDeviceTagsFromResource bool
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -285,6 +289,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
 	initConfig.CollectTopology = true
+	initConfig.EnrichDeviceTagsFromResource = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -340,6 +345,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.UseDeviceIDAsHostname = bool(*instance.UseDeviceIDAsHostname)
 	} else {
 		c.UseDeviceIDAsHostname = bool(initConfig.UseDeviceIDAsHostname)
+	}
+
+	if instance.EnrichDeviceTagsFromResource != nil {
+		c.EnrichDeviceTagsFromResource = bool(*instance.EnrichDeviceTagsFromResource)
+	} else {
+		c.EnrichDeviceTagsFromResource = bool(initConfig.EnrichDeviceTagsFromResource)
 	}
 
 	if instance.ExtraTags != "" {
