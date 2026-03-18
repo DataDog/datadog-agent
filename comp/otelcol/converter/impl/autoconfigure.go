@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.uber.org/zap"
 )
 
 var ddAutoconfiguredSuffix = "dd-autoconfigured"
@@ -57,9 +56,11 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 			if c.coreConfig.GetBool("otelcollector.gateway.mode") {
 				deploymentType = "gateway"
 			}
-			resolvedHostname, err := c.hostname.Get(ctx)
-			if err != nil {
-				c.logger.Warn("Failed to resolve agent hostname for datadogextension", zap.Error(err))
+			resolvedHostname := ""
+			if c.hostname != nil {
+				if hostname, err := c.hostname.Get(ctx); err == nil {
+					resolvedHostname = hostname
+				}
 			}
 			extension.Config = map[string]any{
 				"api": map[string]any{
