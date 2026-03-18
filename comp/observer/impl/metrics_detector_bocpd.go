@@ -12,10 +12,14 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// bocpdStateKey uniquely identifies a (series, aggregation) pair for BOCPD state.
+type bocpdStateKey struct {
+	seriesHandle observer.SeriesHandle
+	agg          observer.Aggregate
+}
+
 // bocpdSeriesState holds per-series streaming BOCPD state.
 type bocpdSeriesState struct {
-	key observer.SeriesKey
-	agg observer.Aggregate
 
 	// Cursor: how many points we've processed so far (count-based for safety).
 	lastProcessedTime  int64
@@ -97,13 +101,13 @@ type BOCPDDetector struct {
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
-	// per-series state keyed by "namespace|name|tags|agg"
-	series map[string]*bocpdSeriesState
+	// per-(series, aggregation) state.
+	series map[bocpdStateKey]*bocpdSeriesState
 
 	// Cache the discovered series list across Detect calls. Refresh when storage
 	// reports that new series were added.
-	cachedKeys []observer.SeriesKey
-	cachedGen  uint64
+	cachedSeries []observer.SeriesMeta
+	cachedGen    uint64
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with sensible defaults.
@@ -122,7 +126,7 @@ func NewBOCPDDetector() *BOCPDDetector {
 			observer.AggregateAverage,
 			observer.AggregateCount,
 		},
-		series: make(map[string]*bocpdSeriesState),
+		series: make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 }
 
@@ -139,141 +143,92 @@ func (b *BOCPDDetector) Name() string {
 // visible point counts rather than raw slice positions.
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	b.ensureDefaults()
+
 	gen := storage.SeriesGeneration()
-	if b.cachedKeys == nil || gen != b.cachedGen {
-		b.cachedKeys = storage.ListSeries(observer.SeriesFilter{})
+	if b.cachedSeries == nil || gen != b.cachedGen {
+		b.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
 		b.cachedGen = gen
 	}
-	seriesKeys := b.cachedKeys
 
 	var allAnomalies []observer.Anomaly
-	var allTelemetry []observer.ObserverTelemetry
 
-	for _, key := range seriesKeys {
+	for _, meta := range b.cachedSeries {
 		for _, agg := range b.Aggregations {
-			stateKey := b.stateKey(key, agg)
+			sk := bocpdStateKey{seriesHandle: meta.Handle, agg: agg}
 
-			// Get or create per-series state.
-			state, exists := b.series[stateKey]
+			state, exists := b.series[sk]
 			if !exists {
-				state = b.newSeriesState(key, agg)
-				b.series[stateKey] = state
+				state = &bocpdSeriesState{}
+				b.series[sk] = state
 			}
 
-			// Check if there are new points or merged values.
-			visibleCount := storage.PointCountUpTo(key, dataTime)
-			currentGen := storage.WriteGeneration(key)
+			visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
+			currentGen := storage.WriteGeneration(meta.Handle)
 			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
 			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
 				continue
 			}
 
+			startTime := state.lastProcessedTime
 			if mergeOccurred {
-				// A same-bucket merge changed values we already processed.
-				// Re-read from the start of the last processed timestamp
-				// (inclusive) by using lastProcessedTime-1 as start.
-				startTime := state.lastProcessedTime - 1
+				startTime = state.lastProcessedTime - 1
 				if startTime < 0 {
 					startTime = 0
 				}
-				series := storage.GetSeriesRange(key, startTime, dataTime, agg)
-				if series == nil || len(series.Points) == 0 {
-					state.lastWriteGen = currentGen
-					continue
-				}
-				// Re-process points from the merged timestamp onward.
-				for _, p := range series.Points {
-					anomaly, telemetry := b.processPoint(state, p, series)
-					if anomaly != nil {
-						allAnomalies = append(allAnomalies, *anomaly)
-					}
-					allTelemetry = append(allTelemetry, telemetry...)
-				}
-				state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
-				state.lastProcessedCount = visibleCount
-				state.lastWriteGen = currentGen
-				continue
 			}
 
-			// Read only new points since last processed time.
-			series := storage.GetSeriesRange(key, state.lastProcessedTime, dataTime, agg)
-			if series == nil || len(series.Points) == 0 {
-				continue
-			}
-
-			// Process each new point incrementally.
-			for _, p := range series.Points {
-				anomaly, telemetry := b.processPoint(state, p, series)
+			pointsSeen := false
+			storage.ForEachPoint(meta.Handle, startTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
+				pointsSeen = true
+				anomaly := b.processPoint(state, p, series, agg)
 				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
-				allTelemetry = append(allTelemetry, telemetry...)
-			}
+				state.lastProcessedTime = p.Timestamp
+			})
 
-			// Update cursor.
-			state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
-			state.lastProcessedCount = visibleCount
-			state.lastWriteGen = currentGen
+			if !pointsSeen && mergeOccurred {
+				state.lastWriteGen = currentGen
+				continue
+			}
+			if pointsSeen {
+				state.lastProcessedCount = visibleCount
+				state.lastWriteGen = currentGen
+			}
 		}
 	}
 
-	return observer.DetectionResult{Anomalies: allAnomalies, Telemetry: allTelemetry}
+	return observer.DetectionResult{Anomalies: allAnomalies}
 }
 
 // Reset clears all per-series state for replay/reanalysis.
 func (b *BOCPDDetector) Reset() {
-	b.series = make(map[string]*bocpdSeriesState)
-	b.cachedKeys = nil
+	b.series = make(map[bocpdStateKey]*bocpdSeriesState)
+	b.cachedSeries = nil
 	b.cachedGen = 0
 }
 
 // processPoint handles a single new observation for a series.
-// Returns an anomaly (if new alert onset) and telemetry for observability.
-func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series) (*observer.Anomaly, []observer.ObserverTelemetry) {
+// Returns an anomaly pointer if this point triggers a new alert onset.
+func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
 	x := p.Value
 
-	// Phase 1: Warmup — accumulate baseline statistics.
 	if !state.initialized {
-		return b.warmupPoint(state, x), nil
+		return b.warmupPoint(state, x)
 	}
 
-	// Phase 2: Online BOCPD posterior update.
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
 
-	// Emit telemetry for cpProb and shortRunMass at each initialized point.
-	telemetry := []observer.ObserverTelemetry{
-		{
-			DetectorName: b.Name(),
-			Metric: &metricObs{
-				name:      "cp_prob",
-				value:     cpProb,
-				timestamp: p.Timestamp,
-			},
-		},
-		{
-			DetectorName: b.Name(),
-			Metric: &metricObs{
-				name:      "short_run_mass",
-				value:     shortRunMass,
-				timestamp: p.Timestamp,
-			},
-		},
-	}
-
-	// Phase 3: Alert lifecycle.
 	if triggered {
 		state.recoveryCount = 0
 		if !state.inAlert {
-			// New alert onset — emit anomaly.
 			state.inAlert = true
 			state.alertStart = p.Timestamp
-			return b.makeAnomaly(state, p, series, cpProb, shortRunMass), telemetry
+			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
 		}
-		// Already in alert — suppress repeated emission.
-		return nil, telemetry
+		return nil
 	}
 
-	// Not triggered on this point.
 	if state.inAlert {
 		state.recoveryCount++
 		if state.recoveryCount >= b.RecoveryPoints {
@@ -281,7 +236,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 			state.recoveryCount = 0
 		}
 	}
-	return nil, telemetry
+	return nil
 }
 
 // warmupPoint accumulates a point during the warmup phase using Welford's algorithm.
@@ -395,8 +350,8 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 }
 
 // makeAnomaly constructs an Anomaly for a new alert onset.
-func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, cpProb, shortRunMass float64) *observer.Anomaly {
-	seriesName := series.Name + ":" + aggSuffix(state.agg)
+func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass float64) *observer.Anomaly {
+	seriesName := series.Name + ":" + aggSuffix(agg)
 	deviation := (p.Value - state.baselineMean) / state.baselineStddev
 
 	triggerType := "short-run posterior mass"
@@ -425,19 +380,6 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 			CurrentValue:   p.Value,
 			DeviationSigma: deviation,
 		},
-	}
-}
-
-// stateKey returns a unique key for per-series state tracking.
-func (b *BOCPDDetector) stateKey(key observer.SeriesKey, agg observer.Aggregate) string {
-	return seriesKey(key.Namespace, key.Name, key.Tags) + "|" + aggSuffix(agg)
-}
-
-// newSeriesState creates a fresh per-series state entry.
-func (b *BOCPDDetector) newSeriesState(key observer.SeriesKey, agg observer.Aggregate) *bocpdSeriesState {
-	return &bocpdSeriesState{
-		key: key,
-		agg: agg,
 	}
 }
 
@@ -471,7 +413,7 @@ func (b *BOCPDDetector) ensureDefaults() {
 		b.RecoveryPoints = 10
 	}
 	if b.series == nil {
-		b.series = make(map[string]*bocpdSeriesState)
+		b.series = make(map[bocpdStateKey]*bocpdSeriesState)
 	}
 	if len(b.Aggregations) == 0 {
 		b.Aggregations = []observer.Aggregate{
