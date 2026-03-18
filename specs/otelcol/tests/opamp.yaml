@@ -2,7 +2,7 @@ kind: tests
 category: functional
 tests:
 - id: T015
-  ref: [OTELCOL025, OTELCOL035]
+  ref: [OTELCOL025]
   short: Start an OpAmp test server
   long: |
     Set up a minimal OpAmp server using the example server from the `opamp-go`
@@ -343,3 +343,243 @@ tests:
       sample: |
         [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
         [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+
+- id: T025
+  ref: [OTELCOL025, OTELCOL026]
+  short: Agent starts normally when the OpAmp server is unreachable
+  long: |
+    Verify that a missing or unreachable OpAmp server does not prevent the Collector
+    from starting. The OpAmp connection is a management channel, not a data path;
+    telemetry pipelines must become operational regardless. The Collector shall log
+    the connection failure and retry in the background.
+  prereq: [T001]
+  initial: |
+    No OpAmp server is running on port 4320.
+  steps:
+    - action: Start the otel-agent with the opamp extension configured but no server running
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | WARN | (...) | [...] | OpAMP connection failed, retrying...
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the gRPC port is open and accepting telemetry despite the OpAmp failure
+      run: nc -z localhost 4317 && echo "gRPC open"
+      expected: gRPC open
+
+- id: T026
+  ref: [OTELCOL025, OTELCOL026]
+  short: Agent reconnects to the OpAmp server after a disconnection
+  long: |
+    Verify that when the OpAmp server becomes unavailable and then restarts, the
+    Collector detects the disconnection, retries using exponential back-off, and
+    re-establishes the connection. Upon reconnection, the agent must send a new
+    `AgentToServer` message to restore channel state.
+  prereq: [T016]
+  steps:
+    - action: Stop the opamp-go server
+      run: kill <server-pid>
+    - action: Verify the agent logs a disconnection warning and begins retrying
+      sample: |
+        [...] | OTELCOL | WARN | (...) | [...] | OpAMP connection lost, retrying in <N>s...
+    - action: Restart the opamp-go server
+      run: go run ./examples/server/main.go
+      expected: |
+        OpAMP Server listening on [::]:4320
+    - action: Verify the agent reconnects and re-sends its identity to the server
+      sample: |
+        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
+        Agent connected, id: <instance-uid>
+
+- id: T027
+  ref: [OTELCOL033]
+  short: Package with mismatched hash is rejected
+  long: |
+    Verify that the Collector rejects a package whose downloaded content does not
+    match the hash advertised in the `PackagesAvailable` message. No installation
+    must take place, and the agent must report a `FAILED` status with an error
+    message identifying the integrity failure.
+  prereq: [T015]
+  steps:
+    - action: From the server, advertise a package with a hash that does not match the download URL content
+      sample: |
+        PackagesAvailable:
+          packages:
+            otel-agent:
+              version: <new-version>
+              download: { url: "http://...", content_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    - action: Verify the agent rejects the package after download
+      sample: |
+        [...] | OTELCOL | ERROR | (...) | [...] | Package hash verification failed
+    - action: Verify the server receives a FAILED PackageStatuses with an error message
+      sample: |
+        PackageStatuses:
+          packages:
+            otel-agent:
+              status: InstallFailed
+              error_message: "hash mismatch: expected aaaaaa... got <actual>"
+    - action: Verify the currently running agent version is unchanged
+      run: ./otel-agent --version
+      expected: <previous-version>
+
+- id: T028
+  ref: [OTELCOL034]
+  short: Invalid TLS certificate pushed by server is rejected
+  long: |
+    Verify that when the OpAmp server pushes an `OpAMPConnectionSettings` containing
+    a malformed or expired TLS certificate, the Collector rejects it, keeps using
+    the existing credentials, and reports a `FAILED` `ConnectionSettingsStatus` with
+    an error description.
+  prereq: [T016]
+  steps:
+    - action: From the server, push a certificate with an invalid PEM payload
+      sample: |
+        OpAMPConnectionSettings:
+          opamp:
+            certificate:
+              cert: "not-a-valid-pem"
+              private_key: "not-a-valid-pem"
+    - action: Verify the agent rejects the new credentials and logs an error
+      sample: |
+        [...] | OTELCOL | ERROR | (...) | [...] | Failed to apply OpAMP connection settings: invalid certificate
+    - action: Verify the server received a FAILED ConnectionSettingsStatus
+      sample: |
+        ConnectionSettingsStatus: { status: FAILED, error_message: "invalid certificate" }
+    - action: Verify the agent remains connected using its previous credentials
+      sample: |
+        Heartbeat received from agent <instance-uid>
+
+- id: T029
+  ref: [OTELCOL036]
+  short: No telemetry is dropped during a hot reload triggered by remote config
+  long: |
+    Verify that applying a remote configuration change does not cause in-flight
+    telemetry to be dropped. A continuous stream of spans is sent throughout the
+    reload; the number of spans accepted by the receiver must equal the number
+    exported, as reported by the Collector's internal Prometheus metrics.
+  prereq: [T016]
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: Record the baseline span counters from the Prometheus metrics endpoint
+      run: |
+        curl -s http://localhost:8888/metrics | grep -E "otelcol_(receiver_accepted|exporter_sent)_spans"
+      expected: |
+        otelcol_receiver_accepted_spans_total{...} 0
+        otelcol_exporter_sent_spans_total{...} 0
+    - action: Start sending a continuous stream of traces for 20 seconds
+      run: |
+        telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 \
+          --duration 20s --rate 10 &
+    - action: After 10 seconds, push a remote config change from the server (e.g. change debug verbosity)
+      sample_lang: yaml
+      sample: |
+        exporters:
+          debug:
+            verbosity: normal
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Wait for telemetrygen to finish, then query the span counters again
+      run: |
+        wait && curl -s http://localhost:8888/metrics | grep -E "otelcol_(receiver_accepted|exporter_sent)_spans"
+    - action: Verify accepted span count equals exported span count (no data loss)
+      sample: |
+        otelcol_receiver_accepted_spans_total{...} N
+        otelcol_exporter_sent_spans_total{...} N
+
+- id: T030
+  ref: [OTELCOL028]
+  short: Instance UID is preserved across agent restarts
+  long: |
+    Verify that the Collector's `instance_uid` is stable across process restarts so
+    that the OpAmp server can recognise it as the same agent after a restart. The
+    UID reported in the first connection must match the UID reported after a stop
+    and restart.
+  prereq: [T016]
+  steps:
+    - action: Record the instance UID currently reported to the server
+      sample: |
+        Agent connected, id: <instance-uid>
+    - action: Stop the otel-agent
+      run: kill <agent-pid>
+    - action: Restart the otel-agent with the same configuration
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config file:config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...] | OpAMP connection established
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Verify the server sees a reconnection with the same instance UID
+      sample: |
+        Agent connected, id: <instance-uid>
+
+- id: T031
+  ref: [OTELCOL031]
+  short: Effective configuration reported to the server reflects the latest applied config
+  long: |
+    Verify that after a remote configuration update is applied (T019), the effective
+    configuration reported by the Collector in subsequent `AgentToServer` messages
+    matches the newly active configuration, not the original one. This ensures the
+    server always has an accurate view of what is actually running.
+  prereq: [T019]
+  steps:
+    - action: Query the effective configuration currently shown by the server
+      sample: |
+        EffectiveConfig:
+          ConfigMap:
+            config.yaml: |
+              exporters:
+                debug:
+                  verbosity: normal
+              service:
+                extensions: [opamp]
+                pipelines:
+                  traces:
+                    receivers: [otlp]
+                    exporters: [debug]
+    - action: "Verify the effective config reflects `verbosity: normal` (the value pushed in T019) not the original `verbosity: detailed`"
+      sample: |
+        verbosity: normal
+
+- id: T032
+  ref: [OTELCOL030]
+  short: Pushing an identical remote config does not trigger a pipeline restart
+  long: |
+    Verify that when the OpAmp server pushes a configuration whose content hash is
+    identical to the currently active one, the Collector recognises the no-op and
+    reports `APPLIED` immediately without reloading any pipeline components. No
+    restart log lines should appear.
+  prereq: [T019]
+  steps:
+    - action: Push the same configuration that was applied in T019 a second time
+      sample_lang: yaml
+      sample: |
+        exporters:
+          debug:
+            verbosity: normal
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Verify the server receives APPLIED status without any pipeline restart in the agent log
+      sample: |
+        RemoteConfigStatus: { status: APPLIED, error_message: "" }
+    - action: Verify no pipeline restart occurred
+      sample: The agent log does not contain a second `Starting otel-agent...` line after the initial startup.
