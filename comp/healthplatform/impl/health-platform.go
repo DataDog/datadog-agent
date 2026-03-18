@@ -310,7 +310,7 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		h.forwarder.Start()
 	}
 
-	go h.startupChecks()
+	h.startupChecks()
 
 	return nil
 }

@@ -140,12 +140,16 @@ func (r *checkRunner) RunCheck(checkID, checkName string, checkFn healthplatform
 		return errors.New("check function cannot be nil")
 	}
 
-	go r.executeCheck(&registeredCheck{
-		checkID:   checkID,
-		checkName: checkName,
-		checkFn:   checkFn,
-		stopCh:    make(chan struct{}),
-	})
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		r.executeCheck(&registeredCheck{
+			checkID:   checkID,
+			checkName: checkName,
+			checkFn:   checkFn,
+			stopCh:    make(chan struct{}),
+		})
+	}()
 	return nil
 }
 
