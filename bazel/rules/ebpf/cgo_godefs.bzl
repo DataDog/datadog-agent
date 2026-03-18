@@ -35,20 +35,28 @@ def _cgo_godefs_impl(ctx):
     outputs = [out]
 
     all_deps = list(ctx.attr._std_deps) + list(ctx.attr.deps)
-    include_dirs = collect_include_dirs(all_deps)
+    inc = collect_include_dirs(all_deps)
     headers = collect_headers(all_deps + list(ctx.attr.hdrs))
     src_dir = src.dirname
 
     # Filter out bazel-out and root dirs; keep only source-tree includes.
     # CcInfo adds generated output dirs that don't affect correctness but
     # would pollute the cgo -godefs comment line embedded in the output.
-    source_includes = [d for d in include_dirs if not d.startswith("bazel-out") and d != "."]
-    rel_includes = []
-    for d in source_includes:
-        r = _relpath(d, src_dir)
-        if r not in rel_includes:
-            rel_includes.append(r)
-    include_flags = " ".join(["-I " + d for d in rel_includes])
+    def _filter_and_rel(dirs):
+        result = []
+        for d in dirs:
+            if d.startswith("bazel-out") or d == ".":
+                continue
+            r = _relpath(d, src_dir)
+            if r not in result:
+                result.append(r)
+        return result
+
+    include_flags = " ".join(
+        ["-I " + d for d in _filter_and_rel(inc.includes)] +
+        ["-isystem " + d for d in _filter_and_rel(inc.system_includes)] +
+        ["-iquote " + d for d in _filter_and_rel(inc.quote_includes)],
+    )
 
     genpost_args = ""
     test_out = None

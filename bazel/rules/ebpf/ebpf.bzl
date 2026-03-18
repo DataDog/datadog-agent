@@ -56,7 +56,7 @@ def _ebpf_prog_impl(ctx):
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
-    include_dirs = collect_include_dirs(ctx.attr.deps)
+    inc = collect_include_dirs(ctx.attr.deps)
     header_files = collect_headers(ctx.attr.deps)
 
     # Build flags
@@ -85,9 +85,12 @@ def _ebpf_prog_impl(ctx):
     clang_args.add("-emit-llvm")
     clang_args.add_all(flags)
 
-    # Include directories from deps
-    for d in include_dirs:
+    for d in inc.includes:
         clang_args.add("-I", d)
+    for d in inc.system_includes:
+        clang_args.add("-isystem", d)
+    for d in inc.quote_includes:
+        clang_args.add("-iquote", d)
 
     # Kernel headers for prebuilt programs
     kernel_header_inputs = []

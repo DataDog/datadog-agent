@@ -9,19 +9,23 @@ def collect_include_dirs(deps):
         deps: list of targets providing CcInfo.
 
     Returns:
-        A list of include directory strings.
+        A struct with three fields (each a list of directory strings):
+          includes, system_includes, quote_includes.
     """
-    dirs = []
+    includes = []
+    system_includes = []
+    quote_includes = []
     for dep in deps:
         if CcInfo in dep:
-            cc_info = dep[CcInfo]
-            for inc in cc_info.compilation_context.includes.to_list():
-                dirs.append(inc)
-            for inc in cc_info.compilation_context.system_includes.to_list():
-                dirs.append(inc)
-            for inc in cc_info.compilation_context.quote_includes.to_list():
-                dirs.append(inc)
-    return dirs
+            ctx = dep[CcInfo].compilation_context
+            includes.extend(ctx.includes.to_list())
+            system_includes.extend(ctx.system_includes.to_list())
+            quote_includes.extend(ctx.quote_includes.to_list())
+    return struct(
+        includes = includes,
+        system_includes = system_includes,
+        quote_includes = quote_includes,
+    )
 
 def collect_headers(deps):
     """Collect header files from cc_library dependencies.
