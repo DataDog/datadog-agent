@@ -33,6 +33,9 @@ const (
 	defaultSnapLen      = 4096
 	pcapTimeout         = time.Second
 	pcapBPFBufferSize   = 16 * 1024 * 1024 // 16 MB per-interface BPF ring buffer
+	// DNSBPFBufferSize is a smaller ring buffer suitable for DNS-only capture,
+	// where packet rates are much lower than general traffic.
+	DNSBPFBufferSize = 1 * 1024 * 1024 // 1 MB
 
 	// localAddrRefreshInterval controls how often we discover new interfaces
 	// and refresh local address caches. After a BPF error (e.g. interface
@@ -92,9 +95,11 @@ type interfaceHandle struct {
 
 // LibpcapSource provides packet capture using libpcap/BPF on macOS
 type LibpcapSource struct {
-	interfacesMu sync.RWMutex
-	interfaces   map[string]*interfaceHandle // keyed by interface name
-	snapLen      int
+	interfacesMu  sync.RWMutex
+	interfaces    map[string]*interfaceHandle // keyed by interface name
+	snapLen       int
+	bpfBufferSize int
+	bpfFilter     string
 
 	exit      chan struct{}
 	closeOnce sync.Once // ensures Close() is safe to call multiple times
@@ -147,7 +152,9 @@ func (d *DarwinPacketInfo) LinkLayerType() gopacket.LayerType {
 type Option func(*libpcapConfig)
 
 type libpcapConfig struct {
-	snapLen int
+	snapLen       int
+	bpfBufferSize int
+	bpfFilter     string
 }
 
 // OptSnapLen specifies the maximum length of the packet to read.
@@ -155,6 +162,23 @@ type libpcapConfig struct {
 func OptSnapLen(n int) Option {
 	return func(c *libpcapConfig) {
 		c.snapLen = n
+	}
+}
+
+// OptBPFBufferSize sets the per-interface kernel BPF ring buffer size in bytes.
+// Defaults to pcapBPFBufferSize (16 MB). Use a smaller value for low-volume
+// capture (e.g. DNS-only) to reduce memory usage.
+func OptBPFBufferSize(n int) Option {
+	return func(c *libpcapConfig) {
+		c.bpfBufferSize = n
+	}
+}
+
+// OptBPFFilter sets the BPF filter expression applied to each interface handle.
+// Defaults to "tcp or udp".
+func OptBPFFilter(expr string) Option {
+	return func(c *libpcapConfig) {
+		c.bpfFilter = expr
 	}
 }
 
@@ -187,7 +211,11 @@ func isEligibleInterface(iface net.Interface) bool {
 
 // NewLibpcapSource creates a LibpcapSource using libpcap
 func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
-	cfg := libpcapConfig{snapLen: defaultSnapLen}
+	cfg := libpcapConfig{
+		snapLen:       defaultSnapLen,
+		bpfBufferSize: pcapBPFBufferSize,
+		bpfFilter:     "tcp or udp",
+	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -195,12 +223,17 @@ func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
 	if snapLen <= 0 || snapLen > 65536 {
 		return nil, errors.New("snap len should be between 0 and 65536")
 	}
+	if cfg.bpfBufferSize <= 0 {
+		return nil, errors.New("BPF buffer size must be positive")
+	}
 
 	ps := &LibpcapSource{
-		interfaces: make(map[string]*interfaceHandle),
-		snapLen:    snapLen,
-		exit:       make(chan struct{}),
-		packetChan: make(chan packetWithInfo, packetChannelSize),
+		interfaces:    make(map[string]*interfaceHandle),
+		snapLen:       snapLen,
+		bpfBufferSize: cfg.bpfBufferSize,
+		bpfFilter:     cfg.bpfFilter,
+		exit:          make(chan struct{}),
+		packetChan:    make(chan packetWithInfo, packetChannelSize),
 	}
 	ps.bufPool = ddsync.NewSlicePool[byte](snapLen, snapLen)
 
@@ -267,7 +300,7 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		p.readerWg.Done()
 		return fmt.Errorf("error setting timeout on %s: %w", ifaceName, err)
 	}
-	if err := inactive.SetBufferSize(pcapBPFBufferSize); err != nil {
+	if err := inactive.SetBufferSize(p.bpfBufferSize); err != nil {
 		inactive.CleanUp()
 		p.readerWg.Done()
 		return fmt.Errorf("error setting buffer size on %s: %w", ifaceName, err)
@@ -279,7 +312,7 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		return fmt.Errorf("error activating pcap handle on %s: %w", ifaceName, err)
 	}
 
-	if err := handle.SetBPFFilter("tcp or udp"); err != nil {
+	if err := handle.SetBPFFilter(p.bpfFilter); err != nil {
 		handle.Close()
 		p.readerWg.Done()
 		return fmt.Errorf("error setting BPF filter on %s: %w", ifaceName, err)

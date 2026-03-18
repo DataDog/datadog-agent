@@ -31,7 +31,10 @@ var _ ReverseDNS = &dnsMonitor{}
 // NewReverseDNS starts DNS traffic monitoring on macOS and returns a ReverseDNS
 // implementation backed by libpcap packet capture.
 func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error) {
-	src, err := filter.NewSubSource(cfg, filter.IsDNSPacket)
+	src, err := filter.NewLibpcapSource(
+		filter.OptBPFFilter("port 53"),
+		filter.OptBPFBufferSize(filter.DNSBPFBufferSize),
+	)
 	if err != nil {
 		return nil, err
 	}
