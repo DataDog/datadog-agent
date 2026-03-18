@@ -90,9 +90,6 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 	tagger tagger.Component,
 	metricHook hook.Hook[hook.MetricView],
 ) *noAggregationStreamWorker {
-	if metricHook == nil {
-		metricHook = hook.NewNoopHook[hook.MetricView]()
-	}
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,

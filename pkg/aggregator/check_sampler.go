@@ -53,9 +53,6 @@ func newCheckSampler(
 	tagger tagger.Component,
 	metricHook hook.Hook[hook.MetricView],
 ) *CheckSampler {
-	if metricHook == nil {
-		metricHook = hook.NewNoopHook[hook.MetricView]()
-	}
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
