@@ -266,6 +266,43 @@ func TestResolveSecretError(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+// TestResolvePartialFailure verifies that when some secret handles fail to resolve
+// (e.g. unknown backend, backend error), the successfully resolved handles are still
+// substituted in the config. A failed backend or secret must not affect working ones.
+func TestResolvePartialFailure(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	// backendConfigs is intentionally left empty so "bad_backend" is unknown.
+
+	// commandHookFunc mocks execCommand for the default backend.
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		return []byte(`{"pass1":{"value":"password1"}}`), nil
+	}
+
+	conf := []byte(`instances:
+- password: ENC[pass1]
+  user: test
+- password: ENC[bad_backend::bad_handle]
+  user: test2
+`)
+
+	resolvedConf, err := resolver.Resolve(conf, "test", "", "", true)
+
+	// Error is returned because bad_backend could not be resolved.
+	require.Error(t, err)
+
+	// The successfully resolved handle must be substituted.
+	resolved := string(resolvedConf)
+	assert.Contains(t, resolved, "password1", "resolved handle should be substituted")
+
+	// The failed handle must remain as ENC[] in the config.
+	assert.Contains(t, resolved, "ENC[bad_backend::bad_handle]", "unresolved handle should remain as ENC[]")
+
+	// The failed handle must appear in unresolvedSecrets.
+	assert.NotEmpty(t, resolver.unresolvedSecrets)
+}
+
 func TestResolveDoestSendDuplicates(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
@@ -1374,4 +1411,43 @@ func TestResolveNoNotify(t *testing.T) {
 
 	_, err := resolver.Resolve(testSimpleConf, "origin1", "", "", false)
 	require.NoError(t, err)
+}
+
+// TestShouldResolvedSecretMultiBackendNamespace verifies that the backendID:: prefix is
+// stripped before parsing the Kubernetes namespace from a handle, so that namespace
+// scoping works correctly for named extra backends.
+func TestShouldResolvedSecretMultiBackendNamespace(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+
+	t.Run("scopeIntegrationToNamespace strips backendID prefix", func(t *testing.T) {
+		resolver := newEnabledSecretResolver(tel)
+		resolver.scopeIntegrationToNamespace = true
+
+		// Handle: "prodk8s::namespace1/secret;key" — namespace is "namespace1", not "prodk8s::namespace1"
+		// Container is in "namespace1", so access should be allowed.
+		assert.True(t, resolver.shouldResolvedSecret("prodk8s::namespace1/secret;key", "origin", "img", "namespace1"))
+
+		// Container is in a different namespace — should be denied.
+		assert.False(t, resolver.shouldResolvedSecret("prodk8s::namespace1/secret;key", "origin", "img", "namespace2"))
+	})
+
+	t.Run("allowedNamespace strips backendID prefix", func(t *testing.T) {
+		resolver := newEnabledSecretResolver(tel)
+		resolver.allowedNamespace = []string{"namespace1"}
+
+		// "namespace1" is in the allowlist — should be allowed.
+		assert.True(t, resolver.shouldResolvedSecret("prodk8s::namespace1/secret;key", "origin", "img", "namespace1"))
+
+		// "namespace2" is not in the allowlist — should be denied.
+		assert.False(t, resolver.shouldResolvedSecret("prodk8s::namespace2/secret;key", "origin", "img", "namespace2"))
+	})
+
+	t.Run("k8s_secret@ format strips backendID prefix", func(t *testing.T) {
+		resolver := newEnabledSecretResolver(tel)
+		resolver.scopeIntegrationToNamespace = true
+
+		// Handle: "prodk8s::k8s_secret@namespace1/secret/key"
+		assert.True(t, resolver.shouldResolvedSecret("prodk8s::k8s_secret@namespace1/secret/key", "origin", "img", "namespace1"))
+		assert.False(t, resolver.shouldResolvedSecret("prodk8s::k8s_secret@namespace1/secret/key", "origin", "img", "namespace2"))
+	})
 }

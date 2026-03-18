@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -148,6 +149,56 @@ func TestSecretResolve(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
+
+	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
+}
+
+// TestDecryptConfigPartialFailure verifies that when one section fails to resolve,
+// the other sections are still substituted using the partial results from Resolve.
+func TestDecryptConfigPartialFailure(t *testing.T) {
+	digest := sharedTpl.Digest()
+	mockResolve := &MockSecretResolver{
+		t: t,
+		scenarios: []mockSecretScenario{
+			{
+				expectedData:   []byte("param1: ENC[foo]"),
+				expectedOrigin: digest,
+				returnedData:   []byte("param1: foo"),
+				returnedError:  nil,
+			},
+			{
+				// instance Resolve returns partial data alongside an error
+				expectedData:   []byte("param2: ENC[bar]"),
+				expectedOrigin: digest,
+				returnedData:   []byte("param2: ENC[bar]"),
+				returnedError:  errors.New("could not resolve 1 secret handle(s)"),
+			},
+			{
+				expectedData:   []byte("param3: ENC[met]"),
+				expectedOrigin: digest,
+				returnedData:   []byte("param3: met"),
+				returnedError:  nil,
+			},
+			{
+				expectedData:   []byte("param4: ENC[log]"),
+				expectedOrigin: digest,
+				returnedData:   []byte("param4: log"),
+				returnedError:  nil,
+			},
+		},
+	}
+
+	newConfig, err := decryptConfig(sharedTpl, mockResolve, digest)
+
+	// error must be propagated
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not resolve")
+
+	// successfully resolved sections must use the partial results, not original values
+	assert.Equal(t, integration.Data("param1: foo"), newConfig.InitConfig)
+	assert.Equal(t, integration.Data("param2: ENC[bar]"), newConfig.Instances[0])
+	assert.Equal(t, integration.Data("param3: met"), newConfig.MetricConfig)
+	assert.Equal(t, integration.Data("param4: log"), newConfig.LogsConfig)
 
 	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
 }

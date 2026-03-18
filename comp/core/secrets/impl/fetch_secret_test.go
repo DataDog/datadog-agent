@@ -151,7 +151,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		// Error because resolver was not configured and has no command
 		require.NotNil(t, err)
 	})
@@ -160,7 +160,7 @@ func TestExecCommandError(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
 		// The "timeout" arg makes the command sleep for 2 second, it should timeout
 		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"timeout"}, Timeout: 1})
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "timed out after 1 seconds")
 		require.Contains(t, err.Error(), "secret_backend_timeout")
@@ -174,7 +174,7 @@ func TestExecCommandError(t *testing.T) {
 			Timeout:          30,
 			AuditFileMaxSize: 1024 * 1024,
 		})
-		resp, err := resolver.execCommand(inputPayload)
+		resp, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NoError(t, err)
 		require.Equal(t, "{\"sec1\":{\"value\":\"arg_password\"}}", string(resp))
 	})
@@ -183,7 +183,7 @@ func TestExecCommandError(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
 		// This "error" arg makes the command return an erroneous exit code
 		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"error"}})
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NotNil(t, err)
 	})
 
@@ -197,7 +197,7 @@ func TestExecCommandError(t *testing.T) {
 			Timeout:          30,
 			AuditFileMaxSize: 1024 * 1024,
 		})
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NotNil(t, err)
 		assert.Contains(t, err.Error(), "command output was too long: exceeded 20 bytes")
 		assert.Contains(t, err.Error(), secretsManagementDocsURL)
@@ -208,16 +208,16 @@ func TestFetchSecretExecError(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, errors.New("some error") }
-	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
-	assert.NotNil(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1", "handle2"})
+	assert.NotEmpty(t, handleErrors)
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
 	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
-	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
-	assert.NotNil(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1", "handle2"})
+	assert.NotEmpty(t, handleErrors)
 
 	metrics, err := tel.GetCountMetric("secret_backend", "unmarshal_errors_count")
 	require.NoError(t, err)
@@ -231,10 +231,10 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 	secrets := []string{"handle1", "handle2"}
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
-	_, err := resolver.fetchSecret(secrets)
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "secret handle 'handle1' was not resolved by the secret_backend_command")
-	assert.Contains(t, err.Error(), secretsManagementDocsURL)
+	_, handleErrors := resolver.fetchSecret(secrets)
+	assert.NotEmpty(t, handleErrors)
+	assert.Contains(t, handleErrors["handle1"].Error(), "secret handle 'handle1' was not resolved by the secret_backend_command")
+	assert.Contains(t, handleErrors["handle1"].Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 1, "missing", "handle1")
 }
 
@@ -244,9 +244,9 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
-	assert.NotNil(t, err)
-	assert.Equal(t, "an error occurred while resolving 'handle1': some error", err.Error())
+	_, handleErrors := resolver.fetchSecret([]string{"handle1"})
+	assert.NotEmpty(t, handleErrors)
+	assert.Equal(t, "an error occurred while resolving 'handle1': some error", handleErrors["handle1"].Error())
 	checkErrorCountMetric(t, tel, 1, "error", "handle1")
 }
 
@@ -256,18 +256,19 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "resolved secret for 'handle1' is empty")
-	assert.Contains(t, err.Error(), secretsManagementDocsURL)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1"})
+	assert.NotEmpty(t, handleErrors)
+	assert.Contains(t, handleErrors["handle1"].Error(), "resolved secret for 'handle1' is empty")
+	assert.Contains(t, handleErrors["handle1"].Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 1, "empty", "handle1")
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": \"\"}}"), nil
 	}
-	_, err = resolver.fetchSecret([]string{"handle1"})
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "resolved secret for 'handle1' is empty")
+	_, handleErrors = resolver.fetchSecret([]string{"handle1"})
+	assert.NotEmpty(t, handleErrors)
+	assert.Contains(t, handleErrors["handle1"].Error(), "resolved secret for 'handle1' is empty")
+	assert.Contains(t, handleErrors["handle1"].Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
 }
 
@@ -297,8 +298,8 @@ func TestFetchSecret(t *testing.T) {
 		                "handle3":{"value":"p3"}}`)
 		return res, nil
 	}
-	resp, err := resolver.fetchSecret(secrets)
-	require.NoError(t, err)
+	resp, handleErrors := resolver.fetchSecret(secrets)
+	require.Empty(t, handleErrors)
 	assert.Equal(t, map[string]string{
 		"handle1": "p1",
 		"handle2": "p2",
@@ -316,8 +317,8 @@ func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
 	}
 	resolver.removeTrailingLinebreak = true
 	secrets := []string{"handle1"}
-	resp, err := resolver.fetchSecret(secrets)
-	require.NoError(t, err)
+	resp, handleErrors := resolver.fetchSecret(secrets)
+	require.Empty(t, handleErrors)
 	assert.Equal(t, map[string]string{"handle1": "some data"}, resp)
 }
 
@@ -331,8 +332,8 @@ func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
 		capturedPayload = payload
 		return []byte(`{"handle1":{"value":"test_value"}}`), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
-	require.NoError(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1"})
+	require.Empty(t, handleErrors)
 	assert.Contains(t, capturedPayload, `"type":"aws.secrets"`)
 	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
 }
@@ -346,8 +347,8 @@ func TestFetchSecretPayloadIncludesTimeout(t *testing.T) {
 		capturedPayload = payload
 		return []byte(`{"handle1":{"value":"test_value"}}`), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
-	require.NoError(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1"})
+	require.Empty(t, handleErrors)
 	assert.Contains(t, capturedPayload, `"secret_backend_timeout":60`)
 }
 
