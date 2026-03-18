@@ -63,7 +63,7 @@ filegroup(
         "@pcre2//:pcre2-8",
         "@popt",
         "@zstd",
-        "@rpm"
+        "@rpm",
     ],
 )
 

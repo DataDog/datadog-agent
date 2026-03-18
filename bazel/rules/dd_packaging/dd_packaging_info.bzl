@@ -3,6 +3,6 @@
 DdPackagingInfo = provider(
     "Common provider for automated dependencies packaging",
     fields = {
-        "installed_files": "list of PackageFilesInfo or PackageFilegroupInfo",
+        "installed_files": "list of PackageFilegroupInfo to be installed alongside this target",
     },
 )

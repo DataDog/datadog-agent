@@ -28,12 +28,23 @@ def _dd_cc_packaged_rule_impl(ctx):
 
 _dd_cc_packaged_rule = rule(
     implementation = _dd_cc_packaged_rule_impl,
+    doc = """
+        Provides a convenience wrapper on top of a CcInfo or CcSharedLibraryInfo
+        This wrapper can be used just like the providers it wraps, but also
+        includes a list of files that should be installed alongside the wrapped object.
+        It is meant to be provided to dd_collect_dependencies which will walk the tree
+        to gather all installed files from all dependencies.
+    """,
     attrs = {
         "input": attr.label(
+            doc = "A CcInfo or CcSharedLibrary provider representing a shared library or an executable",
             mandatory = True,
             providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
-        "installed_files": attr.label_list(providers = [[PackageFilesInfo], [PackageFilegroupInfo]]),
+        "installed_files": attr.label_list(
+            doc = "A list of files that should be installed alongside the packaged dependency",
+            providers = [[PackageFilesInfo], [PackageFilegroupInfo]]
+        ),
     },
 )
 
@@ -72,16 +83,31 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
     )
 
 dd_cc_packaged = macro(
+    doc = """
+    A macro used to prepare a cc_shared_library or cc_binary for packaging.
+
+    If installed_files is provided, these files will be installed with the
+    packaged object at installation time if the final artifact
+    depends, directly or indirectly, on the wrapped binary.
+
+    If a version is provided and the input is a cc_shared_library, the library
+    will be installed along with the versioned symlink (see so_symlink).
+    This will also handle the rpath rewriting at install time.
+
+    The returned object transparently provides the input, which can be used as `dynamic_deps`
+    if the input is a cc_shared_library.
+    """,
     attrs = {
         "input": attr.label(
             mandatory = True,
             configurable = False,
+            providers = [[CcInfo], [CcSharedLibraryInfo]],
+        ),
+        "installed_files": attr.label_list(
+            configurable = False,
         ),
         "version": attr.string(
             default = "",
-            configurable = False,
-        ),
-        "installed_files": attr.label_list(
             configurable = False,
         ),
     },
