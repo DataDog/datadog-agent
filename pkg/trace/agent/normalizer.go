@@ -164,6 +164,9 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 // normalizeSpanLinks handles span links normalization for both pb.Span and idx.InternalSpan
 func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
+		if link == nil {
+			continue
+		}
 		if val, ok := link.Attributes["link.name"]; ok {
 			newName, err := normalizeutil.NormalizeName(val)
 			if err != nil {
@@ -202,6 +205,9 @@ func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, durat
 // normalizeSpanLinksV1 handles span links normalization for idx.InternalSpan
 func (a *Agent) normalizeSpanLinksV1(links []*idx.InternalSpanLink) {
 	for _, link := range links {
+		if link == nil {
+			continue
+		}
 		if val, ok := link.GetAttributeAsString("link.name"); ok {
 			newName, err := normalizeutil.NormalizeName(val)
 			if err != nil {
