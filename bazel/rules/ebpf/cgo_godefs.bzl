@@ -3,6 +3,7 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_go//go:def.bzl", "go_context")
+load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_includes")
 
 def _relpath(target, base):
     """Compute a relative path from base to target (both relative to execroot)."""
@@ -21,29 +22,6 @@ def _relpath(target, base):
     parts = [".."] * ups + remainder
     return "/".join(parts) if parts else "."
 
-def _collect_includes(deps):
-    """Collect include directories from cc_library dependencies."""
-    dirs = []
-    for dep in deps:
-        if CcInfo in dep:
-            cc_info = dep[CcInfo]
-            for inc in cc_info.compilation_context.includes.to_list():
-                dirs.append(inc)
-            for inc in cc_info.compilation_context.system_includes.to_list():
-                dirs.append(inc)
-            for inc in cc_info.compilation_context.quote_includes.to_list():
-                dirs.append(inc)
-    return dirs
-
-def _collect_headers(deps):
-    """Collect header files from cc_library dependencies."""
-    hdrs = []
-    for dep in deps:
-        if CcInfo in dep:
-            cc_info = dep[CcInfo]
-            hdrs.append(cc_info.compilation_context.headers)
-    return depset(transitive = hdrs)
-
 def _cgo_godefs_impl(ctx):
     go = go_context(ctx)
 
@@ -57,8 +35,8 @@ def _cgo_godefs_impl(ctx):
     outputs = [out]
 
     all_deps = list(ctx.attr._std_deps) + list(ctx.attr.deps)
-    include_dirs = _collect_includes(all_deps)
-    headers = _collect_headers(all_deps + list(ctx.attr.hdrs))
+    include_dirs = collect_includes(all_deps)
+    headers = collect_headers(all_deps + list(ctx.attr.hdrs))
     src_dir = src.dirname
 
     # Filter out bazel-out and root dirs; keep only source-tree includes.

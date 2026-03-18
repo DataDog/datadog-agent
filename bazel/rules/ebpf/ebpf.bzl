@@ -2,6 +2,7 @@
 
 load("@linux_headers//:defs.bzl", "KERNEL_ARCH", "KERNEL_HEADER_DIRS")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_includes")
 
 _TOOLCHAIN_TYPE = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type"
 
@@ -49,37 +50,14 @@ def _get_arch_flags(target_arch):
         return _ARCH_DEFINES.get("aarch64", [])
     return _ARCH_DEFINES.get("x86_64", [])
 
-def _collect_includes(deps):
-    """Collect include directories from cc_library dependencies."""
-    dirs = []
-    for dep in deps:
-        if CcInfo in dep:
-            cc_info = dep[CcInfo]
-            for inc in cc_info.compilation_context.includes.to_list():
-                dirs.append(inc)
-            for inc in cc_info.compilation_context.system_includes.to_list():
-                dirs.append(inc)
-            for inc in cc_info.compilation_context.quote_includes.to_list():
-                dirs.append(inc)
-    return dirs
-
-def _collect_headers(deps):
-    """Collect header files from cc_library dependencies."""
-    hdrs = []
-    for dep in deps:
-        if CcInfo in dep:
-            cc_info = dep[CcInfo]
-            hdrs.append(cc_info.compilation_context.headers)
-    return depset(transitive = hdrs)
-
 def _ebpf_prog_impl(ctx):
     tc = ctx.toolchains[_TOOLCHAIN_TYPE].llvm_bpf
     if not tc.valid:
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
-    include_dirs = _collect_includes(ctx.attr.deps)
-    header_files = _collect_headers(ctx.attr.deps)
+    include_dirs = collect_includes(ctx.attr.deps)
+    header_files = collect_headers(ctx.attr.deps)
 
     # Build flags
     flags = list(_COMMON_FLAGS)
