@@ -55,8 +55,9 @@ def _cgo_godefs_impl(ctx):
     out = ctx.actions.declare_file(out_name)
     outputs = [out]
 
-    include_dirs = _collect_includes(ctx.attr.deps)
-    headers = _collect_headers(ctx.attr.deps)
+    all_deps = list(ctx.attr._std_deps) + list(ctx.attr.deps)
+    include_dirs = _collect_includes(all_deps)
+    headers = _collect_headers(all_deps + list(ctx.attr.hdrs))
     src_dir = src.dirname
 
     # Filter out bazel-out and root dirs; keep only source-tree includes.
@@ -122,9 +123,20 @@ _cgo_godefs = rule(
             allow_single_file = [".go"],
             doc = "The Go source file containing C type references (import \"C\").",
         ),
+        "_std_deps": attr.label_list(
+            default = [
+                "//pkg/network/ebpf/c:ebpf_c_network",
+                "//pkg/ebpf/c:ebpf_c_headers",
+            ],
+            providers = [CcInfo],
+        ),
         "deps": attr.label_list(
             providers = [CcInfo],
-            doc = "cc_library targets providing the C headers included by src.",
+            doc = "Additional cc_library targets providing C headers and -I include paths beyond the standard ebpf ones.",
+        ),
+        "hdrs": attr.label_list(
+            providers = [CcInfo],
+            doc = "cc_library targets whose headers are needed in the sandbox but whose include dirs should not appear as -I flags.",
         ),
         "_genpost": attr.label(
             default = "//pkg/ebpf/cgo:genpost",
@@ -138,27 +150,33 @@ _cgo_godefs = rule(
     toolchains = ["@rules_go//go:toolchain"],
 )
 
-def cgo_godefs(name, src, deps = [], **kwargs):
-    """Generate Go type definitions from a CGo source file.
-
-    Creates a target that runs `go tool cgo -godefs` on the source file,
-    post-processes the output with genpost, and on Linux also generates
-    alignment test stubs.
-
-    Args:
-        name: Target name.
-        src: The Go source file with `import "C"` and C type references.
-        deps: cc_library targets providing the required C headers.
-        **kwargs: Additional arguments passed to the underlying rule.
-    """
+def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs):
     _cgo_godefs(
         name = name,
+        visibility = visibility,
         src = src,
         deps = deps,
+        hdrs = hdrs,
         target_compatible_with = select({
             "@platforms//os:linux": [],
             "@platforms//os:windows": [],
             "//conditions:default": ["@platforms//:incompatible"],
         }),
-        **kwargs
     )
+
+cgo_godefs = macro(
+    doc = """Generate Go type definitions from a CGo source file.
+
+    Runs `go tool cgo -godefs` on the source file, post-processes with genpost,
+    and on Linux also generates alignment test stubs.
+
+    The standard include deps (pkg/network/ebpf/c and pkg/ebpf/c) are
+    provided automatically. Use deps/hdrs only for additional headers.
+    """,
+    attrs = {
+        "src": attr.label(mandatory = True, allow_single_file = [".go"], configurable = False),
+        "deps": attr.label_list(default = [], configurable = False),
+        "hdrs": attr.label_list(default = [], configurable = False),
+    },
+    implementation = _cgo_godefs_macro_impl,
+)

@@ -3,6 +3,6 @@
 load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
 
 cgo_godefs(
-    name = "types_godefs",
-    src = "types.go",
+    name = "ebpf_types_godefs",
+    src = "ebpf_types.go",
 )

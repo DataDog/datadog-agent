@@ -1,0 +1,9 @@
+# gazelle:ignore
+
+load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
+
+cgo_godefs(
+    name = "offsetguess_types_godefs",
+    src = "offsetguess_types.go",
+    hdrs = ["//pkg/network/ebpf/c/prebuilt:prebuilt_headers"],
+)

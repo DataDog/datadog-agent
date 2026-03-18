@@ -5,7 +5,7 @@ cc_library(
     name = "prebuilt_headers",
     hdrs = glob(["*.h"]),
     includes = ["."],
-    visibility = ["//pkg/network/ebpf/c:__subpackages__"],
+    visibility = ["//visibility:public"],
 )
 
 _COMMON_DEPS = [

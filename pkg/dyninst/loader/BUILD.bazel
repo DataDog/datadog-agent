@@ -5,4 +5,5 @@ load("//bazel/rules:cgo_godefs.bzl", "cgo_godefs")
 cgo_godefs(
     name = "types_godefs",
     src = "types.go",
+    hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
 )
