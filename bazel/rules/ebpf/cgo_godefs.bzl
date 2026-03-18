@@ -3,7 +3,7 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_go//go:def.bzl", "go_context")
-load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_includes")
+load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
 def _relpath(target, base):
     """Compute a relative path from base to target (both relative to execroot)."""
@@ -35,7 +35,7 @@ def _cgo_godefs_impl(ctx):
     outputs = [out]
 
     all_deps = list(ctx.attr._std_deps) + list(ctx.attr.deps)
-    include_dirs = collect_includes(all_deps)
+    include_dirs = collect_include_dirs(all_deps)
     headers = collect_headers(all_deps + list(ctx.attr.hdrs))
     src_dir = src.dirname
 

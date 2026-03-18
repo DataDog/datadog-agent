@@ -2,7 +2,7 @@
 
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
-def collect_includes(deps):
+def collect_include_dirs(deps):
     """Collect include directories from cc_library dependencies.
 
     Args:

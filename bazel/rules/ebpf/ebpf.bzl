@@ -2,7 +2,7 @@
 
 load("@linux_headers//:defs.bzl", "KERNEL_ARCH", "KERNEL_HEADER_DIRS")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_includes")
+load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
 _TOOLCHAIN_TYPE = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type"
 
@@ -56,7 +56,7 @@ def _ebpf_prog_impl(ctx):
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
-    include_dirs = collect_includes(ctx.attr.deps)
+    include_dirs = collect_include_dirs(ctx.attr.deps)
     header_files = collect_headers(ctx.attr.deps)
 
     # Build flags
