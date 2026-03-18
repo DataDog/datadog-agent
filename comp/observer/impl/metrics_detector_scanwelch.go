@@ -75,7 +75,7 @@ func NewScanWelchDetector() *ScanWelchDetector {
 		MinTStatistic:         8.0,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
-		MinDeviationMAD:       3.0,
+		MinDeviationMAD:       15.0,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -121,7 +121,13 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 			visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
 			currentGen := storage.WriteGeneration(meta.Handle)
-			if visibleCount <= state.lastProcessedCount && currentGen == state.lastWriteGen {
+			// Replay optimization: skip unless MinSegment new points are visible.
+			// The scan needs MinSegment points per side to evaluate a split, so
+			// fewer new points can't create a new valid split boundary. This cuts
+			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
+			// During live ingestion, writeGen changes on every write so this
+			// condition falls through to the gen check and behaves as before.
+			if visibleCount < state.lastProcessedCount+d.MinSegment && currentGen == state.lastWriteGen {
 				continue
 			}
 
@@ -309,7 +315,7 @@ func (d *ScanWelchDetector) ensureDefaults() {
 		d.MinEffectSize = 0.85
 	}
 	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = 3.0
+		d.MinDeviationMAD = 15.0
 	}
 	if d.series == nil {
 		d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)

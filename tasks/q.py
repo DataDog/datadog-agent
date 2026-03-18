@@ -197,6 +197,7 @@ def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scena
             f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
             f" --scenarios-dir {shlex.quote(scenarios_dir)}"
             f" --enable {shlex.quote(enable_flag)} --disable {shlex.quote(disable_flag)}"
+            f" --verbose"
         )
 
         if not os.path.isfile(output_path):
@@ -244,7 +245,7 @@ def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scena
                 f"  {ts.get('f1', 0):>6.4f}  {ts.get('precision', 0):>7.4f}  {ts.get('recall', 0):>6.4f}"
                 f"  {ms.get('metric_f1', 0):>6.4f}  {ms.get('metric_precision', 0):>7.4f}  {ms.get('metric_recall', 0):>6.4f}"
                 f"  {ms.get('tp_count', 0):>4}  {ms.get('unknown_count', 0):>4}"
-                f"  {len(ms.get('tp_metrics_found', [])):>5}  {len(ms.get('tp_metrics_missed', [])):>6}"
+                f"  {len(ms.get('tp_metrics_found') or []):>5}  {len(ms.get('tp_metrics_missed') or []):>6}"
             )
 
         # Print per-scenario metric details
