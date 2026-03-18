@@ -111,6 +111,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 			Debug:                       m.isDebugEnabled(pod),
 			AutoDetected:                autoDetected,
 			InjectionType:               injectionType,
+			RegistryAllowList:           m.config.registryAllowList,
 			Injector: libraryinjection.InjectorConfig{
 				Package: m.resolveInjectorImage(pod),
 			},
