@@ -69,7 +69,7 @@ Provisioners are in `test/e2e-framework/testing/provisioners/`:
 ### Installing Docker with ECR Support
 
 ```go
-dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 ```
 
 ### Pulling Docker Images
