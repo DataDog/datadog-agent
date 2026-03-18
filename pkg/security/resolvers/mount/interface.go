@@ -9,6 +9,8 @@
 package mount
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -27,4 +29,6 @@ type ResolverInterface interface {
 	SetPidMntNs(pid uint32, ns uint32)
 	ToJSON() ([]byte, error)
 	Iterate(cb func(*model.Mount))
+	Start(ctx context.Context)
+	Stop()
 }
