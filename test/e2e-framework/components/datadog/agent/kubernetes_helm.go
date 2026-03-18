@@ -732,6 +732,10 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"originDetection": pulumi.Bool(true),
 				"tagCardinality":  pulumi.String("high"),
 			},
+			"privateActionRunner": pulumi.Map{
+				"enabled":    pulumi.BoolPtr(true),
+				"selfEnroll": pulumi.BoolPtr(true),
+			},
 		},
 		"agents": pulumi.Map{
 			"enabled": pulumi.Bool(true),
@@ -801,6 +805,10 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"securityContextConstraints": pulumi.Map{
 					"create": pulumi.Bool(true),
 				},
+			},
+			"privateActionRunner": pulumi.Map{
+				"enabled":    pulumi.BoolPtr(true),
+				"selfEnroll": pulumi.BoolPtr(true),
 			},
 		},
 	}
