@@ -326,6 +326,69 @@ def status_gensim_eks(
 @task(
     help={
         "stack_name": doc.stack_name,
+        "namespace": "Kubernetes namespace (default: default)",
+    }
+)
+def stop_all_gensim_eks(
+    ctx: Context,
+    stack_name: str = _DEFAULT_STACK_NAME,
+    namespace: str = "default",
+) -> None:
+    """
+    Stop all gensim workloads without destroying the EKS cluster.
+
+    Kills the orchestrator job, uninstalls all helm releases, deletes
+    remaining pods, and clears the run status configmap. The cluster
+    stays up for fast resubmission.
+
+    Example:
+        inv aws.eks.gensim.stop-all
+    """
+    kubeconfig_path = _find_kubeconfig(stack_name)
+    if not os.path.exists(kubeconfig_path):
+        tool.warn("No gensim cluster found.")
+        return
+
+    kube = f"KUBECONFIG={kubeconfig_path}"
+
+    # 1. Kill orchestrator job
+    tool.info("Deleting orchestrator job...")
+    ctx.run(
+        f"{kube} kubectl delete job gensim-orchestrator -n {namespace} --force --grace-period=0", warn=True, hide=True
+    )
+
+    # 2. Uninstall all helm releases cleanly
+    tool.info("Uninstalling helm releases...")
+    result = ctx.run(f"{kube} helm ls -n {namespace} -a -q", warn=True, hide=True)
+    if result and result.ok and result.stdout.strip():
+        for release in result.stdout.strip().splitlines():
+            release = release.strip()
+            if release:
+                tool.info(f"  helm uninstall {release}")
+                ctx.run(f"{kube} helm uninstall {release} -n {namespace} --wait", warn=True, hide=True)
+
+    # 3. Clean up orphaned helm secrets (in case helm uninstall missed any)
+    ctx.run(f"{kube} kubectl delete secrets -l owner=helm -n {namespace}", warn=True, hide=True)
+
+    # 4. Delete all workload resources (Deployments, DaemonSets, Services, etc.)
+    tool.info("Deleting workload resources...")
+    ctx.run(
+        f"{kube} kubectl delete deployment,daemonset,statefulset,service,configmap,secret,job"
+        f" --all -n {namespace} --force --grace-period=0",
+        warn=True,
+        hide=True,
+    )
+
+    # 5. Delete remaining pods
+    tool.info("Deleting remaining pods...")
+    ctx.run(f"{kube} kubectl delete pods --all -n {namespace} --force --grace-period=0", warn=True, hide=True)
+
+    tool.info("Cluster cleaned. Ready for next submit.")
+
+
+@task(
+    help={
+        "stack_name": doc.stack_name,
         "config_path": doc.config_path,
     }
 )

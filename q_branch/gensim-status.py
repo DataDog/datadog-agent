@@ -204,6 +204,30 @@ async def fetch_node_pod_counts() -> tuple[str, str]:
     return f"{node_ready}/{node_total}", f"{pod_ready}/{pod_total}"
 
 
+async def fetch_pod_list() -> list[dict[str, str]]:
+    """Fetch pod names and statuses in default namespace."""
+    raw = await run_cmd(
+        ["kubectl", "get", "pods", "-n", "default", "-o", "json"],
+        env=KUBECTL_ENV,
+    )
+    if not raw:
+        return []
+    try:
+        items = json.loads(raw).get("items", [])
+    except json.JSONDecodeError:
+        return []
+    pods = []
+    for p in items:
+        name = p.get("metadata", {}).get("name", "?")
+        phase = p.get("status", {}).get("phase", "?")
+        containers = p.get("status", {}).get("containerStatuses", [])
+        ready = sum(1 for c in containers if c.get("ready"))
+        total = len(containers)
+        restarts = sum(c.get("restartCount", 0) for c in containers)
+        pods.append({"name": name, "phase": phase, "ready": f"{ready}/{total}", "restarts": restarts})
+    return pods
+
+
 # ---------------------------------------------------------------------------
 # Log parsing helpers
 # ---------------------------------------------------------------------------
@@ -395,6 +419,29 @@ def build_infra_markup(
     return "\n".join(lines)
 
 
+def build_pods_markup(pods: list[dict[str, str]]) -> str:
+    if not pods:
+        return "[bold]Pods[/bold]\n[dim]No pods in default namespace[/dim]"
+    lines: list[str] = ["[bold]Pods[/bold]", ""]
+    for p in pods:
+        name = _truncate(p["name"], 38)
+        phase = p["phase"]
+        ready = p["ready"]
+        restarts = p["restarts"]
+        if phase == "Running" and ready.split("/")[0] == ready.split("/")[1]:
+            color = "green"
+        elif phase in ("Succeeded", "Completed"):
+            color = "dim"
+        elif phase == "Running":
+            color = "yellow"
+        else:
+            color = "red"
+        restart_str = f" [red]R:{restarts}[/red]" if restarts else ""
+        lines.append(f"  [{color}]{name}[/{color}]")
+        lines.append(f"    [{color}]{phase}[/{color}] {ready}{restart_str}")
+    return "\n".join(lines)
+
+
 def build_log_markup(log_text: str) -> str:
     if not log_text:
         return "[bold]Orchestrator Logs[/bold]\n[dim]No orchestrator logs yet...[/dim]"
@@ -457,6 +504,24 @@ class InfraWidget(Static):
     """
 
     content_text: reactive[str] = reactive("[bold]Infra Status[/bold]\n\n  [dim]Loading...[/dim]", layout=True)
+
+    def watch_content_text(self, value: str) -> None:
+        self.update(value)
+
+
+class PodsWidget(Static):
+    """Right panel: live pod list."""
+
+    DEFAULT_CSS = """
+    PodsWidget {
+        width: 45;
+        height: 100%;
+        padding: 1 2;
+        border-left: solid $surface-lighten-2;
+    }
+    """
+
+    content_text: reactive[str] = reactive("[bold]Pods[/bold]\n\n  [dim]Loading...[/dim]", layout=True)
 
     def watch_content_text(self, value: str) -> None:
         self.update(value)
@@ -608,6 +673,7 @@ class GensimStatus(App):
         self._eks_status: str = ""
         self._node_counts: str = "?"
         self._pod_counts: str = "?"
+        self._pod_list: list[dict[str, str]] = []
 
     # Minimum terminal height to show the pod logs panel
     _POD_LOGS_MIN_HEIGHT = 40
@@ -617,6 +683,7 @@ class GensimStatus(App):
         with Horizontal(id="top-row"):
             yield EpisodePlanWidget()
             yield InfraWidget()
+            yield PodsWidget()
         yield LogWidget()
         yield PodLogsWidget()
         yield Footer()
@@ -627,6 +694,7 @@ class GensimStatus(App):
         self.set_interval(10, self._poll_configmap)
         self.set_interval(5, self._poll_logs)
         self.set_interval(30, self._poll_infra_kube)
+        self.set_interval(10, self._poll_pods)
         self.set_interval(60, self._poll_eks)
         self._update_pod_logs_visibility()
 
@@ -651,6 +719,7 @@ class GensimStatus(App):
             self._poll_configmap(),
             self._poll_logs(),
             self._poll_infra_kube(),
+            self._poll_pods(),
             self._poll_eks(),
         )
 
@@ -672,6 +741,10 @@ class GensimStatus(App):
     async def _poll_infra_kube(self) -> None:
         self._node_counts, self._pod_counts = await fetch_node_pod_counts()
         self._refresh_infra()
+
+    async def _poll_pods(self) -> None:
+        self._pod_list = await fetch_pod_list()
+        self.query_one(PodsWidget).content_text = build_pods_markup(self._pod_list)
 
     async def _poll_eks(self) -> None:
         self._eks_status = await fetch_eks_status()
