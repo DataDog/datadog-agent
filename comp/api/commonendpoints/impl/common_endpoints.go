@@ -8,12 +8,10 @@ package impl
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/api/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,25 +19,22 @@ import (
 
 // Requires is a struct that contains the components required by the common endpoints
 type Requires struct {
-	Hostname       hostnameinterface.Component
-	AgentTelemetry agenttelemetry.Component `optional:"true"`
+	Hostname hostnameinterface.Component
 }
 
 // Provider provides the common Agent API endpoints
 type Provider struct {
-	VersionEndpoint      api.AgentEndpointProvider
-	HostnameEndpoint     api.AgentEndpointProvider
-	StopEndpoint         api.AgentEndpointProvider
-	CLIHeuristicEndpoint api.AgentEndpointProvider
+	VersionEndpoint  api.AgentEndpointProvider
+	HostnameEndpoint api.AgentEndpointProvider
+	StopEndpoint     api.AgentEndpointProvider
 }
 
 // CommonEndpointProvider return a filled Provider struct
 func CommonEndpointProvider(requires Requires) Provider {
 	return Provider{
-		VersionEndpoint:      api.NewAgentEndpointProvider(version.Get, "/version", "GET"),
-		HostnameEndpoint:     api.NewAgentEndpointProvider(getHostname(requires.Hostname), "/hostname", "GET"),
-		StopEndpoint:         api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
-		CLIHeuristicEndpoint: api.NewAgentEndpointProvider(postCLIHeuristic(requires.AgentTelemetry), "/cli-heuristic", "POST"),
+		VersionEndpoint:  api.NewAgentEndpointProvider(version.Get, "/version", "GET"),
+		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname(requires.Hostname), "/hostname", "GET"),
+		StopEndpoint:     api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
 	}
 }
 
@@ -63,26 +58,4 @@ func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
 	w.Write(j)
-}
-
-func postCLIHeuristic(atel agenttelemetry.Component) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if atel == nil {
-			http.Error(w, "agent telemetry is not available", http.StatusServiceUnavailable)
-			return
-		}
-
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "failed to read payload", http.StatusBadRequest)
-			return
-		}
-
-		if err := atel.SendEvent("llm_cli_heuristic", payload); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		w.WriteHeader(http.StatusAccepted)
-	}
 }

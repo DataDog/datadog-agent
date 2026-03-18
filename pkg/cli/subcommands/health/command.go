@@ -79,8 +79,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(logger log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
-	sendCLIHeuristic(logger, config, client, "agent health", os.Args[1:])
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	_, heuristicLabel := heuristic.BuildScore("agent health", os.Args[1:], time.Now().UTC())
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
@@ -96,7 +96,7 @@ func requestHealth(logger log.Component, config config.Component, cliParams *cli
 
 	timeout := time.Duration(cliParams.timeout) * time.Second
 
-	r, err := client.Get(urlstr, ipchttp.WithTimeout(timeout), ipchttp.WithCloseConnection)
+	r, err := client.Get(urlstr, ipchttp.WithTimeout(timeout), ipchttp.WithCloseConnection, ipchttp.WithCLIHeaders("agent health", heuristicLabel))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -145,26 +145,4 @@ func requestHealth(logger log.Component, config config.Component, cliParams *cli
 	}
 
 	return nil
-}
-
-func sendCLIHeuristic(logger log.Component, config config.Component, client ipc.HTTPClient, command string, args []string) {
-	payload, err := heuristic.BuildScorePayload(command, args, time.Now().UTC())
-	if err != nil {
-		return
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return
-	}
-
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
-	if err != nil {
-		return
-	}
-
-	urlstr := fmt.Sprintf("https://%v:%v/agent/cli-heuristic", ipcAddress, config.GetInt("cmd_port"))
-	if _, err = client.Post(urlstr, "application/json", bytes.NewBuffer(body), ipchttp.WithCloseConnection); err != nil {
-		logger.Debugf("unable to send llm_cli_heuristic event: %v", err)
-	}
 }

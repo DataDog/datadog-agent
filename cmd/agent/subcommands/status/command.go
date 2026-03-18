@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -116,40 +115,18 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
-	sendCLIHeuristic(logger, config, client, "agent status", os.Args[1:])
+func statusCmd(_ log.Component, _ config.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	_, heuristicLabel := heuristic.BuildScore("agent status", os.Args[1:], time.Now().UTC())
 
 	if cliParams.list {
-		return redactError(requestSections(client))
+		return redactError(requestSections(client, heuristicLabel))
 	}
 
 	if len(cliParams.args) < 1 {
-		return redactError(requestStatus(cliParams, client))
+		return redactError(requestStatus(cliParams, client, heuristicLabel))
 	}
 
-	return componentStatusCmd(logger, cliParams, client)
-}
-
-func sendCLIHeuristic(logger log.Component, config config.Component, client ipc.HTTPClient, command string, args []string) {
-	payload, err := heuristic.BuildScorePayload(command, args, time.Now().UTC())
-	if err != nil {
-		return
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return
-	}
-
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
-	if err != nil {
-		return
-	}
-
-	urlstr := fmt.Sprintf("https://%v:%v/agent/cli-heuristic", ipcAddress, config.GetInt("cmd_port"))
-	if _, err = client.Post(urlstr, "application/json", bytes.NewBuffer(body), ipchttp.WithCloseConnection); err != nil {
-		logger.Debugf("unable to send llm_cli_heuristic event: %v", err)
-	}
+	return componentStatusCmd(cliParams, client, heuristicLabel)
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {
@@ -188,7 +165,7 @@ func renderResponse(res []byte, cliParams *cliParams) error {
 	return nil
 }
 
-func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
+func requestStatus(cliParams *cliParams, client ipc.HTTPClient, heuristicLabel string) error {
 
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
@@ -201,7 +178,7 @@ func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
 		return err
 	}
 
-	res, err := endpoint.DoGet(ipchttp.WithValues(v))
+	res, err := endpoint.DoGet(ipchttp.WithValues(v), ipchttp.WithCLIHeaders("agent status", heuristicLabel))
 	if err != nil {
 		return err
 	}
@@ -215,15 +192,15 @@ func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
 	return nil
 }
 
-func componentStatusCmd(_ log.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func componentStatusCmd(cliParams *cliParams, client ipc.HTTPClient, heuristicLabel string) error {
 	if len(cliParams.args) > 1 {
 		return errors.New("only one section must be specified")
 	}
 
-	return redactError(componentStatus(cliParams, cliParams.args[0], client))
+	return redactError(componentStatus(cliParams, cliParams.args[0], client, heuristicLabel))
 }
 
-func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClient) error {
+func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClient, heuristicLabel string) error {
 
 	v := setIpcURL(cliParams)
 
@@ -231,7 +208,7 @@ func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClie
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet(ipchttp.WithValues(v))
+	res, err := endpoint.DoGet(ipchttp.WithValues(v), ipchttp.WithCLIHeaders("agent status", heuristicLabel))
 	if err != nil {
 		return err
 	}
@@ -245,13 +222,13 @@ func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClie
 	return nil
 }
 
-func requestSections(client ipc.HTTPClient) error {
+func requestSections(client ipc.HTTPClient, heuristicLabel string) error {
 	endpoint, err := client.NewIPCEndpoint("/agent/status/sections")
 	if err != nil {
 		return err
 	}
 
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(ipchttp.WithCLIHeaders("agent status", heuristicLabel))
 	if err != nil {
 		return err
 	}

@@ -43,6 +43,8 @@ func (server *apiServer) startCMDServer(
 
 	// Validate token for every request
 	agentMux.Use(server.ipc.HTTPMiddleware)
+	// Track CLI invocations via X-DD-CLI-* headers
+	agentMux.Use(server.cliMetricsMiddleware())
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(

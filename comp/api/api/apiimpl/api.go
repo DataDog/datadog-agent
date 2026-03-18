@@ -35,6 +35,7 @@ type apiServer struct {
 	cmdServer         *http.Server
 	ipcServer         *http.Server
 	telemetry         telemetry.Component
+	cliInvocations    telemetry.Counter
 	endpointProviders []api.EndpointProvider
 	grpcComponent     grpc.Component
 }
@@ -58,6 +59,7 @@ func newAPIServer(deps dependencies) api.Component {
 		ipc:               deps.IPC,
 		cfg:               deps.Cfg,
 		telemetry:         deps.Telemetry,
+		cliInvocations:    deps.Telemetry.NewCounter("agent", "cli_invocations", []string{"command", "heuristic_label"}, "Number of agent CLI subcommand invocations"),
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 		grpcComponent:     deps.GrpcComponent,
 	}

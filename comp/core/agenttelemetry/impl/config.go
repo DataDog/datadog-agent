@@ -341,10 +341,17 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
-      - name: llm_cli_heuristic
-        request_type: agent-cli-heuristic
-        payload_key: agent_cli_heuristic
-        message: 'Agent CLI LLM heuristic'
+  - name: cli
+    metric:
+      metrics:
+        - name: agent.cli_invocations
+          aggregate_tags:
+            - command
+            - heuristic_label
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
   - name: service-discovery
     metric:
       metrics:
