@@ -71,13 +71,17 @@ log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 # Copy conf.yaml.default files for the system checks that work on AIX.
 # These enable the checks automatically on first install without any operator
 # action — the same behaviour as Linux packages.
-# network is a Python check; its conf.yaml.default is included since it works
-# correctly when the agent is installed with the proper LIBPATH environment.
+# network is excluded: datadog_checks.network is not bundled in the embedded
+# Python, so including its default config would produce a permanent loading
+# error in agent status.
 
 log "Installing default check configs"
 DIST_CONFD=/opt/datadog-agent/cmd/agent/dist/conf.d
 STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
-for check in cpu disk io load memory network ntp uptime; do
+# Remove and recreate to avoid stale entries from prior builds.
+rm -rf "$STAGING_CONFD"
+mkdir -p "$STAGING_CONFD"
+for check in cpu disk io load memory ntp uptime; do
     src="$DIST_CONFD/${check}.d/conf.yaml.default"
     if [ -f "$src" ]; then
         mkdir -p "$STAGING_CONFD/${check}.d"
@@ -113,6 +117,10 @@ if [ ! -d "$PYTHON_LIB_DIR" ]; then
     exit 1
 fi
 cp "$SITECUSTOMIZE_SRC" "$PYTHON_LIB_DIR/sitecustomize.py"
+# Remove any stale .pyc that may have been compiled against an older version of
+# this file in a previous build.  The .pyc is not needed in the BFF — Python
+# regenerates it on first import on the target host.
+rm -f "$PYTHON_LIB_DIR/__pycache__/sitecustomize.cpython-313.pyc"
 log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
 
 # ─── Step 3: Create required empty directories ────────────────────────────────
