@@ -22,6 +22,12 @@ pub struct TracerMetadata {
     pub service_name: Option<String>,
     pub service_env: Option<String>,
     pub service_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process_tags: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container_id: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub logs_collected: bool,
 }
 
 /// Reads and parses tracer metadata from a process's memfd file (streaming).
