@@ -38,8 +38,11 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 	}{
 		{
 			// the container collection is enabled by default in containerized environments
-			name:             "empty config - container collection is enabled",
-			configs:          nil,
+			name:    "empty config - container collection is enabled",
+			configs: nil,
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			containerizedEnv: true,
 			enabled:          true,
 		},
@@ -57,6 +60,9 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
 			},
 			containerizedEnv: true,
 			enabled:          true,
@@ -98,7 +104,9 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
 			},
-
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			containerizedEnv: true,
 			flavor:           flavor.DefaultAgent,
 			enabled:          true,
