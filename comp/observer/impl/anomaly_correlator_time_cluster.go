@@ -35,8 +35,17 @@ type TimeClusterConfig struct {
 func DefaultTimeClusterConfig() TimeClusterConfig {
 	return TimeClusterConfig{
 		ProximitySeconds: 10,
-		WindowSeconds:    60,
+		WindowSeconds:    120,
 	}
+}
+
+// readTimeClusterConfig reads TimeCluster settings from the agent config.
+func readTimeClusterConfig(reader ConfigReader, prefix string) any {
+	cfg := DefaultTimeClusterConfig()
+	if key := prefix + "min_cluster_size"; reader.IsKnown(key) {
+		cfg.MinClusterSize = reader.GetInt(key)
+	}
+	return cfg
 }
 
 // timeCluster represents a group of temporally-related anomalies.

@@ -13,18 +13,8 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// CUSUMDetector uses the Cumulative Sum (CUSUM) algorithm to detect when a
-// metric shifts from its baseline. CUSUM is designed for detecting change points.
-//
-// Algorithm:
-//
-//	S[0] = 0
-//	S[t] = max(0, S[t-1] + (x[t] - μ - k))
-//
-// Where μ is the baseline mean and k is the slack parameter (allowance for noise).
-// An anomaly is emitted when S[t] first exceeds threshold h, representing the
-// point of change detection.
-type CUSUMDetector struct {
+// CUSUMConfig holds configuration for the CUSUM detector.
+type CUSUMConfig struct {
 	// MinPoints is the minimum number of points required for analysis.
 	// Default: 5
 	MinPoints int
@@ -44,14 +34,48 @@ type CUSUMDetector struct {
 	ThresholdFactor float64
 }
 
-// NewCUSUMDetector creates a CUSUMDetector with default settings.
-func NewCUSUMDetector() *CUSUMDetector {
-	return &CUSUMDetector{
+// DefaultCUSUMConfig returns a CUSUMConfig with default values.
+func DefaultCUSUMConfig() CUSUMConfig {
+	return CUSUMConfig{
 		MinPoints:        5,
 		BaselineFraction: 0.25,
 		SlackFactor:      0.5,
 		ThresholdFactor:  4.0,
 	}
+}
+
+// CUSUMDetector uses the Cumulative Sum (CUSUM) algorithm to detect when a
+// metric shifts from its baseline. CUSUM is designed for detecting change points.
+//
+// Algorithm:
+//
+//	S[0] = 0
+//	S[t] = max(0, S[t-1] + (x[t] - μ - k))
+//
+// Where μ is the baseline mean and k is the slack parameter (allowance for noise).
+// An anomaly is emitted when S[t] first exceeds threshold h, representing the
+// point of change detection.
+type CUSUMDetector struct {
+	config CUSUMConfig
+}
+
+// NewCUSUMDetector creates a CUSUMDetector with the given config.
+// Zero-valued fields are filled from DefaultCUSUMConfig().
+func NewCUSUMDetector(config CUSUMConfig) *CUSUMDetector {
+	defaults := DefaultCUSUMConfig()
+	if config.MinPoints <= 0 {
+		config.MinPoints = defaults.MinPoints
+	}
+	if config.BaselineFraction <= 0 {
+		config.BaselineFraction = defaults.BaselineFraction
+	}
+	if config.SlackFactor <= 0 {
+		config.SlackFactor = defaults.SlackFactor
+	}
+	if config.ThresholdFactor <= 0 {
+		config.ThresholdFactor = defaults.ThresholdFactor
+	}
+	return &CUSUMDetector{config: config}
 }
 
 // Name returns the detector name.
@@ -62,30 +86,15 @@ func (c *CUSUMDetector) Name() string {
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult {
-	minPoints := c.MinPoints
-	if minPoints <= 0 {
-		minPoints = 5
-	}
-	baselineFrac := c.BaselineFraction
-	if baselineFrac <= 0 {
-		baselineFrac = 0.25
-	}
-	slackFactor := c.SlackFactor
-	if slackFactor <= 0 {
-		slackFactor = 0.5
-	}
-	thresholdFactor := c.ThresholdFactor
-	if thresholdFactor <= 0 {
-		thresholdFactor = 4.0
-	}
+	cfg := c.config
 
 	n := len(series.Points)
-	if n < minPoints {
+	if n < cfg.MinPoints {
 		return observer.DetectionResult{}
 	}
 
 	// Estimate baseline from first portion of data
-	baselineEnd := int(float64(n) * baselineFrac)
+	baselineEnd := int(float64(n) * cfg.BaselineFraction)
 	if baselineEnd < 2 {
 		baselineEnd = 2
 	}
@@ -111,8 +120,8 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult 
 	}
 
 	// CUSUM parameters
-	k := slackFactor * baselineStddev     // slack: ignore small deviations
-	h := thresholdFactor * baselineStddev // threshold: trigger level
+	k := cfg.SlackFactor * baselineStddev     // slack: ignore small deviations
+	h := cfg.ThresholdFactor * baselineStddev // threshold: trigger level
 
 	// Build debug info
 	debugInfo := &observer.AnomalyDebugInfo{

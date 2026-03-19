@@ -56,10 +56,8 @@ type bocpdSeriesState struct {
 	recoveryCount int // consecutive non-triggering points since last trigger
 }
 
-// BOCPDDetector detects changepoints using Bayesian Online Changepoint Detection.
-// This is a streaming, stateful Detector implementation that maintains per-series
-// posterior state and processes only newly visible points on each advance.
-type BOCPDDetector struct {
+// BOCPDConfig holds configuration for the BOCPD detector.
+type BOCPDConfig struct {
 	// WarmupPoints is the number of initial points used for baseline estimation.
 	// A longer warmup captures more of the metric's natural variability, reducing
 	// false positives from normal fluctuation. Default: 120 (~2 minutes at 1Hz).
@@ -100,19 +98,11 @@ type BOCPDDetector struct {
 
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
-
-	// per-(series, aggregation) state.
-	series map[bocpdStateKey]*bocpdSeriesState
-
-	// Cache the discovered series list across Detect calls. Refresh when storage
-	// reports that new series were added.
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
 }
 
-// NewBOCPDDetector creates a streaming BOCPD detector with sensible defaults.
-func NewBOCPDDetector() *BOCPDDetector {
-	return &BOCPDDetector{
+// DefaultBOCPDConfig returns a BOCPDConfig with default values.
+func DefaultBOCPDConfig() BOCPDConfig {
+	return BOCPDConfig{
 		WarmupPoints:       120,
 		Hazard:             0.05,
 		CPThreshold:        0.6,
@@ -126,6 +116,61 @@ func NewBOCPDDetector() *BOCPDDetector {
 			observer.AggregateAverage,
 			observer.AggregateCount,
 		},
+	}
+}
+
+// BOCPDDetector detects changepoints using Bayesian Online Changepoint Detection.
+// This is a streaming, stateful Detector implementation that maintains per-series
+// posterior state and processes only newly visible points on each advance.
+type BOCPDDetector struct {
+	config BOCPDConfig
+
+	// per-(series, aggregation) state.
+	series map[bocpdStateKey]*bocpdSeriesState
+
+	// Cache the discovered series list across Detect calls. Refresh when storage
+	// reports that new series were added.
+	cachedSeries []observer.SeriesMeta
+	cachedGen    uint64
+}
+
+// NewBOCPDDetector creates a streaming BOCPD detector with the given config.
+// Zero-valued fields are filled from DefaultBOCPDConfig().
+func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
+	defaults := DefaultBOCPDConfig()
+	// Warmup needs at least 2 points for Bessel's correction (n-1 denominator).
+	if config.WarmupPoints < 2 {
+		config.WarmupPoints = defaults.WarmupPoints
+	}
+	if config.Hazard <= 0 || config.Hazard >= 1 {
+		config.Hazard = defaults.Hazard
+	}
+	if config.CPThreshold <= 0 || config.CPThreshold >= 1 {
+		config.CPThreshold = defaults.CPThreshold
+	}
+	if config.ShortRunLength <= 0 {
+		config.ShortRunLength = defaults.ShortRunLength
+	}
+	if config.CPMassThreshold <= 0 || config.CPMassThreshold >= 1 {
+		config.CPMassThreshold = defaults.CPMassThreshold
+	}
+	if config.MaxRunLength <= 0 {
+		config.MaxRunLength = defaults.MaxRunLength
+	}
+	if config.PriorVarianceScale <= 0 {
+		config.PriorVarianceScale = defaults.PriorVarianceScale
+	}
+	if config.MinVariance <= 0 {
+		config.MinVariance = defaults.MinVariance
+	}
+	if config.RecoveryPoints <= 0 {
+		config.RecoveryPoints = defaults.RecoveryPoints
+	}
+	if len(config.Aggregations) == 0 {
+		config.Aggregations = defaults.Aggregations
+	}
+	return &BOCPDDetector{
+		config: config,
 		series: make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 }
@@ -142,8 +187,6 @@ func (b *BOCPDDetector) Name() string {
 // points into existing history, so this detector gates incremental work on
 // visible point counts rather than raw slice positions.
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	b.ensureDefaults()
-
 	gen := storage.SeriesGeneration()
 	if b.cachedSeries == nil || gen != b.cachedGen {
 		b.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
@@ -153,7 +196,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 	var allAnomalies []observer.Anomaly
 
 	for _, meta := range b.cachedSeries {
-		for _, agg := range b.Aggregations {
+		for _, agg := range b.config.Aggregations {
 			sk := bocpdStateKey{seriesHandle: meta.Handle, agg: agg}
 
 			state, exists := b.series[sk]
@@ -231,7 +274,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 
 	if state.inAlert {
 		state.recoveryCount++
-		if state.recoveryCount >= b.RecoveryPoints {
+		if state.recoveryCount >= b.config.RecoveryPoints {
 			state.inAlert = false
 			state.recoveryCount = 0
 		}
@@ -248,7 +291,7 @@ func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, x float64) *observe
 	delta2 := x - state.warmupMean
 	state.warmupM2 += delta * delta2
 
-	if state.warmupCount >= b.WarmupPoints {
+	if state.warmupCount >= b.config.WarmupPoints {
 		b.initializeFromWarmup(state)
 	}
 	return nil
@@ -259,8 +302,8 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 	variance := state.warmupM2 / float64(state.warmupCount-1) // sample variance (Bessel's correction)
 	stddev := math.Sqrt(variance)
 
-	if variance < b.MinVariance {
-		variance = b.MinVariance
+	if variance < b.config.MinVariance {
+		variance = b.config.MinVariance
 		stddev = math.Sqrt(variance)
 	}
 
@@ -268,10 +311,10 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 	state.baselineStddev = stddev
 	state.obsVar = variance
 	state.priorMean = state.warmupMean
-	state.priorPrecision = 1.0 / (variance * b.PriorVarianceScale)
+	state.priorPrecision = 1.0 / (variance * b.config.PriorVarianceScale)
 
 	// Initialize posterior arrays.
-	bufSize := b.MaxRunLength + 2
+	bufSize := b.config.MaxRunLength + 2
 	state.runProbs = make([]float64, 1, bufSize)
 	state.means = make([]float64, 1, bufSize)
 	state.precisions = make([]float64, 1, bufSize)
@@ -297,7 +340,7 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 // updatePosterior performs one step of the BOCPD recurrence.
 // Returns (triggered, cpProb, shortRunMass).
 func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64) {
-	hazard := b.Hazard
+	hazard := b.config.Hazard
 
 	// Standard BOCPD recurrence (Adams & MacKay 2007):
 	// cpMass = hazard * sum_r(runProbs[r] * pred(x|r))
@@ -316,7 +359,7 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 
 	normalizeProbs(state.newRunProbs)
 	cpProb := state.newRunProbs[0]
-	shortRunMass := shortRunLengthMass(state.newRunProbs, b.ShortRunLength)
+	shortRunMass := shortRunLengthMass(state.newRunProbs, b.config.ShortRunLength)
 
 	// Update posterior means and precisions.
 	state.newMeans = state.newMeans[:newLen]
@@ -327,8 +370,8 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	}
 
 	// Truncate to MaxRunLength.
-	if newLen > b.MaxRunLength+1 {
-		newLen = b.MaxRunLength + 1
+	if newLen > b.config.MaxRunLength+1 {
+		newLen = b.config.MaxRunLength + 1
 		state.newRunProbs = state.newRunProbs[:newLen]
 		state.newMeans = state.newMeans[:newLen]
 		state.newPrecisions = state.newPrecisions[:newLen]
@@ -343,8 +386,8 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	// Check trigger conditions.
 	// Short-run mass is only meaningful when there are run-length hypotheses
 	// beyond the short-run window; otherwise all mass is trivially "short."
-	triggeredByPeak := cpProb >= b.CPThreshold
-	triggeredByShift := shortRunMass >= b.CPMassThreshold && len(state.runProbs) > b.ShortRunLength+1
+	triggeredByPeak := cpProb >= b.config.CPThreshold
+	triggeredByShift := shortRunMass >= b.config.CPMassThreshold && len(state.runProbs) > b.config.ShortRunLength+1
 	triggered := triggeredByPeak || triggeredByShift
 	return triggered, cpProb, shortRunMass
 }
@@ -360,11 +403,11 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 
 	triggerType := "short-run posterior mass"
 	triggerValue := shortRunMass
-	triggerThreshold := b.CPMassThreshold
-	if cpProb >= b.CPThreshold {
+	triggerThreshold := b.config.CPMassThreshold
+	if cpProb >= b.config.CPThreshold {
 		triggerType = "changepoint probability"
 		triggerValue = cpProb
-		triggerThreshold = b.CPThreshold
+		triggerThreshold = b.config.CPThreshold
 	}
 
 	displayName := source.String()
@@ -375,7 +418,7 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 		DetectorName:   b.Name(),
 		Title:          "BOCPD changepoint detected: " + displayName,
 		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
-			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.ShortRunLength, shortRunMass),
+			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
 		Tags:      series.Tags,
 		Timestamp: p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
@@ -385,46 +428,6 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 			CurrentValue:   p.Value,
 			DeviationSigma: deviation,
 		},
-	}
-}
-
-// ensureDefaults fills in zero-valued config fields with sensible defaults.
-func (b *BOCPDDetector) ensureDefaults() {
-	if b.WarmupPoints < 2 {
-		b.WarmupPoints = 120
-	}
-	if b.Hazard <= 0 || b.Hazard >= 1 {
-		b.Hazard = 0.05
-	}
-	if b.CPThreshold <= 0 || b.CPThreshold >= 1 {
-		b.CPThreshold = 0.6
-	}
-	if b.ShortRunLength <= 0 {
-		b.ShortRunLength = 5
-	}
-	if b.CPMassThreshold <= 0 || b.CPMassThreshold >= 1 {
-		b.CPMassThreshold = 0.7
-	}
-	if b.MaxRunLength <= 0 {
-		b.MaxRunLength = 200
-	}
-	if b.PriorVarianceScale <= 0 {
-		b.PriorVarianceScale = 10.0
-	}
-	if b.MinVariance <= 0 {
-		b.MinVariance = 1.0
-	}
-	if b.RecoveryPoints <= 0 {
-		b.RecoveryPoints = 10
-	}
-	if b.series == nil {
-		b.series = make(map[bocpdStateKey]*bocpdSeriesState)
-	}
-	if len(b.Aggregations) == 0 {
-		b.Aggregations = []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		}
 	}
 }
 

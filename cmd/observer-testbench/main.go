@@ -29,9 +29,9 @@ import (
 )
 
 type CLIParams struct {
-	ScenariosDir    string
-	HTTPAddr        string
-	EnableOverrides map[string]bool
+	ScenariosDir string
+	HTTPAddr     string
+	Enabled      map[string]bool
 
 	// Headless mode: run a scenario and exit (no HTTP server)
 	Headless string // scenario name to run (empty = interactive mode)
@@ -89,7 +89,7 @@ func main() {
 		fx.Supply(CLIParams{
 			ScenariosDir:     *scenariosDir,
 			HTTPAddr:         *httpAddr,
-			EnableOverrides:  overrides,
+			Enabled:          overrides,
 			Headless:         *headless,
 			Output:           *output,
 			Verbose:          *verbose,
@@ -105,12 +105,14 @@ func main() {
 func run(recorder recorderdef.Component, cfg config.Component, logger log.Component, params CLIParams) error {
 	// Create the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
-		ScenariosDir:    params.ScenariosDir,
-		HTTPAddr:        params.HTTPAddr,
-		Recorder:        recorder,
-		Cfg:             cfg,
-		Logger:          logger,
-		EnableOverrides: params.EnableOverrides,
+		ScenariosDir: params.ScenariosDir,
+		HTTPAddr:     params.HTTPAddr,
+		Recorder:     recorder,
+		Cfg:          cfg,
+		Logger:       logger,
+		ComponentSettings: observerimpl.ComponentSettings{
+			Enabled: params.Enabled,
+		},
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)

@@ -14,12 +14,12 @@ import (
 )
 
 func TestCUSUMDetector_Name(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 	assert.Equal(t, "cusum_detector", d.Name())
 }
 
 func TestCUSUMDetector_NotEnoughPoints(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	series := observer.Series{
 		Namespace: "test",
@@ -35,7 +35,7 @@ func TestCUSUMDetector_NotEnoughPoints(t *testing.T) {
 }
 
 func TestCUSUMDetector_StableData(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	// 20 points of stable data around 10 with small noise
 	points := make([]observer.Point, 20)
@@ -57,7 +57,7 @@ func TestCUSUMDetector_StableData(t *testing.T) {
 }
 
 func TestCUSUMDetector_DetectsShift(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	// Build a series: baseline around 10, then shifts to 50
 	points := make([]observer.Point, 20)
@@ -94,7 +94,7 @@ func TestCUSUMDetector_DetectsShift(t *testing.T) {
 }
 
 func TestCUSUMDetector_GradualIncrease(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	// Baseline, then gradual increase
 	points := make([]observer.Point, 30)
@@ -126,7 +126,7 @@ func TestCUSUMDetector_GradualIncrease(t *testing.T) {
 }
 
 func TestCUSUMDetector_ConstantBaseline(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	// Constant baseline of 1, then jumps to 3
 	points := make([]observer.Point, 20)
@@ -155,12 +155,12 @@ func TestCUSUMDetector_ConstantBaseline(t *testing.T) {
 
 func TestCUSUMDetector_CustomParameters(t *testing.T) {
 	// More sensitive detector
-	d := &CUSUMDetector{
+	d := NewCUSUMDetector(CUSUMConfig{
 		MinPoints:        3,
 		BaselineFraction: 0.5,
 		SlackFactor:      0.25, // less slack = more sensitive
 		ThresholdFactor:  2.0,  // lower threshold = triggers earlier
-	}
+	})
 
 	// Small shift that default detector might miss
 	points := make([]observer.Point, 10)
@@ -188,7 +188,7 @@ func TestCUSUMDetector_CustomParameters(t *testing.T) {
 }
 
 func TestCUSUMDetector_SourceAndTags(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	points := make([]observer.Point, 20)
 	for i := 0; i < 10; i++ {
@@ -216,7 +216,7 @@ func TestCUSUMDetector_SourceAndTags(t *testing.T) {
 }
 
 func TestCUSUMDetector_EmitsAtThresholdCrossing(t *testing.T) {
-	d := NewCUSUMDetector()
+	d := NewCUSUMDetector(DefaultCUSUMConfig())
 
 	// Build a series: baseline (10), then elevated (50), then back to baseline (10)
 	// With the new point-based approach, we should emit at the first threshold crossing
