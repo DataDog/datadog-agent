@@ -67,8 +67,6 @@ type ebpfLessTracer struct {
 	dnsServerPorts map[uint16]struct{}
 
 	connPool *syncutil.TypedPool[network.ConnectionStats]
-
-	ns netns.NsHandle
 }
 
 // newEbpfLessTracer creates a new ebpfLessTracer instance
