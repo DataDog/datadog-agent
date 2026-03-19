@@ -21,17 +21,17 @@ import sys
 
 # Metrics to compare and their preferred direction.
 METRICS = [
-    ("actual_rate",        "higher_is_better"),
-    ("drop_rate_pct",      "lower_is_better"),
-    ("compression_ratio",  "higher_is_better"),
-    ("rate_drift_pct",     "lower_is_better"),
-    ("bytes_sent_total",   "higher_is_better"),
+    ("actual_rate", "higher_is_better"),
+    ("drop_rate_pct", "lower_is_better"),
+    ("compression_ratio", "higher_is_better"),
+    ("rate_drift_pct", "lower_is_better"),
+    ("bytes_sent_total", "higher_is_better"),
     ("vortex_bytes_on_disk", "lower_is_better"),
 ]
 
 # A metric is flagged as a regression when it moves in the wrong direction
 # by more than this fraction.
-REGRESSION_THRESHOLD = 0.05   # 5 %
+REGRESSION_THRESHOLD = 0.05  # 5 %
 
 
 def compare(base: dict, pr: dict) -> list:
@@ -80,10 +80,12 @@ def main() -> None:
         description="Compare two bench_result.json files for pipeline performance regressions."
     )
     ap.add_argument("baseline", help="Path to the baseline JSON (e.g. from main branch)")
-    ap.add_argument("current",  help="Path to the current JSON (e.g. from a PR)")
+    ap.add_argument("current", help="Path to the current JSON (e.g. from a PR)")
     ap.add_argument(
-        "--threshold", type=float, default=REGRESSION_THRESHOLD,
-        help=f"Regression threshold as a fraction (default: {REGRESSION_THRESHOLD})"
+        "--threshold",
+        type=float,
+        default=REGRESSION_THRESHOLD,
+        help=f"Regression threshold as a fraction (default: {REGRESSION_THRESHOLD})",
     )
     args = ap.parse_args()
 
@@ -92,12 +94,16 @@ def main() -> None:
     with open(args.current) as f:
         pr = json.load(f)
 
-    print(f"Baseline : {args.baseline}  (git: {base.get('git_sha', '?')},"
-          f" workload: {base.get('workload', '?')},"
-          f" {base.get('duration_secs', '?')}s)")
-    print(f"Current  : {args.current}  (git: {pr.get('git_sha', '?')},"
-          f" workload: {pr.get('workload', '?')},"
-          f" {pr.get('duration_secs', '?')}s)")
+    print(
+        f"Baseline : {args.baseline}  (git: {base.get('git_sha', '?')},"
+        f" workload: {base.get('workload', '?')},"
+        f" {base.get('duration_secs', '?')}s)"
+    )
+    print(
+        f"Current  : {args.current}  (git: {pr.get('git_sha', '?')},"
+        f" workload: {pr.get('workload', '?')},"
+        f" {pr.get('duration_secs', '?')}s)"
+    )
 
     regressions = compare(base, pr)
     sys.exit(1 if regressions else 0)
