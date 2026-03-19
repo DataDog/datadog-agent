@@ -599,7 +599,7 @@ mod tests {
                 generated_name_source: Some(ServiceNameSource::CommandLine),
                 additional_generated_names: vec!["alt1".to_string(), "alt2".to_string()],
                 tracer_metadata: vec![TracerMetadata {
-                    schema_version: 1,
+                    schema_version: 2,
                     runtime_id: Some("runtime123".to_string()),
                     tracer_language: "python".to_string(),
                     tracer_version: "1.0.0".to_string(),
@@ -607,9 +607,11 @@ mod tests {
                     service_name: Some("my-service".to_string()),
                     service_env: Some("prod".to_string()),
                     service_version: Some("2.0.0".to_string()),
-                    process_tags: None,
-                    container_id: None,
-                    logs_collected: false,
+                    process_tags: Some(
+                        "entrypoint.name:myapp,entrypoint.type:executable".to_string(),
+                    ),
+                    container_id: Some("abc123-container-id".to_string()),
+                    logs_collected: true,
                 }],
                 ust: UST {
                     service: Some("ust-service".to_string()),
@@ -662,12 +664,28 @@ mod tests {
         assert!(!service.tracer_metadata.data.is_null());
         assert_eq!(service.tracer_metadata.len, 1);
         let metadata = unsafe { &*service.tracer_metadata.data };
-        assert_eq!(metadata.schema_version, 1);
+        assert_eq!(metadata.schema_version, 2);
         assert_eq!(unsafe { dd_str_to_str(&metadata.runtime_id) }, "runtime123");
         assert_eq!(
             unsafe { dd_str_to_str(&metadata.tracer_language) },
             "python"
         );
+        assert_eq!(unsafe { dd_str_to_str(&metadata.hostname) }, "localhost");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.service_name) },
+            "my-service"
+        );
+        assert_eq!(unsafe { dd_str_to_str(&metadata.service_env) }, "prod");
+        assert_eq!(unsafe { dd_str_to_str(&metadata.service_version) }, "2.0.0");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.process_tags) },
+            "entrypoint.name:myapp,entrypoint.type:executable"
+        );
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.container_id) },
+            "abc123-container-id"
+        );
+        assert_eq!(metadata.logs_collected, true);
 
         // Verify UST
         assert_eq!(
