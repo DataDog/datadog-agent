@@ -1695,6 +1695,8 @@ github.com/linode/go-metadata v0.2.4 h1:iif+14PN5T0u/wRnu6i/UlLQrlaFlWvDJzm0Wl9R
 github.com/linode/go-metadata v0.2.4/go.mod h1:h6yHiRupdKvyPkydU9g8kUA3QKdAgj3WX2wrF+mUv1c=
 github.com/linode/linodego v1.63.0 h1:MdjizfXNJDVJU6ggoJmMO5O9h4KGPGivNX0fzrAnstk=
 github.com/linode/linodego v1.63.0/go.mod h1:GoiwLVuLdBQcAebxAVKVL3mMYUgJZR/puOUSla04xBE=
+github.com/liustanley/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca h1:cvhpIVbFRXK1c7lEG/rKlbFpi0MAzAJwrylyNC9j7Ek=
+github.com/liustanley/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca/go.mod h1:X2RsZAzB4956LB2UFWcz6GG9MF3X/paAZtIEnzmkL4c=
 github.com/lorenzosaino/go-sysctl v0.3.1 h1:3phX80tdITw2fJjZlwbXQnDWs4S30beNcMbw0cn0HtY=
 github.com/lorenzosaino/go-sysctl v0.3.1/go.mod h1:5grcsBRpspKknNS1qzt1eIeRDLrhpKZAtz8Fcuvs1Rc=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
@@ -1947,8 +1949,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusrem
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.147.0/go.mod h1:D3DB/PjNFYlR55EedzK2GIOUzpiBjPuvp4B4ykABPIA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0 h1:sd8NTDoFHhjyo8MApx5f7KPNMyQZIZ7uyWwymPoKIKA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0/go.mod h1:aVmsD2wCy0mf5ip57XJDLxg/V0JuSU/ON/SBgp7pz5U=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0 h1:ko9NECw/NvfijhXuF4Jlg/E4vrhIilQW5Qq7qRUmGc0=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0/go.mod h1:oEtnx72ZTngBi9ZRg/peukG8v6PZ95qunECMuzOesYA=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0 h1:pfSn3AhNXu+YWDPidCVWRAZcjAk0rPImioBF9P/Uv7M=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0/go.mod h1:m6GGqZbwf2okyQtylKTU/0cT56E6xdftYAkg3TE9jWE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.147.0 h1:6tIXAmOQQvTa/e323EPhetYIWWbNZ3ABKrVzqseqVnA=
