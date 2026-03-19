@@ -32,6 +32,10 @@ def _get_app_key(cfg):
     return get_app_key(cfg)
 
 
+# Observer modes for the gensim agent:
+#   record-parquet          - Record observer data to parquet files for offline testbench replay
+#   live-anomaly-detection  - Run live edge anomaly detection, send events to Datadog
+#   live-and-record         - Both simultaneously (for A/B comparison of testbench vs live)
 _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
 
 
@@ -479,8 +483,8 @@ def _find_episode_dir(repo_path: Path, ep_name: str) -> Path:
         candidate = repo_path / subdir / ep_name
         if candidate.exists():
             return candidate
-    searched = ", ".join(f"{subdir}/" for subdir in _EPISODE_SUBDIRS)
-    raise Exit(f"Episode '{ep_name}' not found. Searched: {repo_path} and {searched} under {repo_path}")
+    checked = [str(repo_path / ep_name)] + [str(repo_path / s / ep_name) for s in _EPISODE_SUBDIRS]
+    raise Exit(f"Episode '{ep_name}' not found. Checked: {', '.join(checked)}")
 
 
 def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:

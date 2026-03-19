@@ -689,7 +689,7 @@ class PodLogsWidget(Static):
 # ---------------------------------------------------------------------------
 
 
-class GensimStatus(App):
+class GensimStatusApp(App):
     """Gensim EKS evaluation run monitor."""
 
     CSS = """
@@ -813,5 +813,5 @@ if __name__ == "__main__":
     import sys
 
     headless = "--headless" in sys.argv
-    app = GensimStatus()
+    app = GensimStatusApp()
     app.run(headless=headless)
