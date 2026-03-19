@@ -64,8 +64,13 @@ def package_licenses(name = None, src = None):
         name = name,
         srcs = [
             ":%s_license_dir_stripped_" % name,
-            ":%s_offer_dir_stripped_" % name,
-        ],
+        ] + select({
+            # ship_source_offer is not declared by any dep, so offers_dir is always empty. rules_python 1.9.0 makes
+            # `bazel run` on Windows copy runfiles to a fresh temp dir; Bazel skips empty dirs in that copy, causing
+            # pkg_install to fail with FileNotFoundError (Linux/macOS use symlinks, so empty trees are fine).
+            "@platforms//os:windows": [],  #TODO(agent-build): remove `select` when ship_source_offer is actually used
+            "//conditions:default": [":%s_offer_dir_stripped_" % name],
+        }),
         visibility = ["//visibility:public"],
     )
 
