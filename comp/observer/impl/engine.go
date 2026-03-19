@@ -185,7 +185,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	for _, extractor := range e.extractors {
 		metrics := extractor.ProcessLog(view)
 		for _, m := range metrics {
-			tags := append(m.Tags, sourceTag)
+			tags := append(copyTags(m.Tags), sourceTag)
 			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
 		}
 	}
@@ -326,9 +326,11 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	if !ok {
 		return
 	}
-	ctxCopy := ctx
-	ctxCopy.Example = truncate(ctxCopy.Example, 120)
-	a.Context = &ctxCopy
+	a.Context = &observerdef.MetricContext{
+		Pattern: ctx.Pattern,
+		Example: truncate(ctx.Example, 120),
+		Source:  ctx.Source,
+	}
 }
 
 // processAnomaly sends an anomaly to all registered correlators.

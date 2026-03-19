@@ -209,7 +209,9 @@ func TestCUSUMDetector_SourceAndTags(t *testing.T) {
 	require.Len(t, result.Anomalies, 1)
 
 	anomaly := result.Anomalies[0]
-	assert.Equal(t, "my.metric:avg", anomaly.Source.Name, "Source name should match series name")
+	assert.Equal(t, "my.metric", anomaly.Source.Name, "Source name should exclude the aggregate suffix")
+	assert.Equal(t, observer.AggregateAverage, anomaly.Source.Aggregate, "Source aggregate should be parsed from the series name")
+	assert.Equal(t, "my.metric:avg", anomaly.Source.String(), "Source display should round-trip to the original series name")
 	assert.Equal(t, []string{"env:prod", "service:api"}, anomaly.Tags, "Tags should be preserved")
 }
 

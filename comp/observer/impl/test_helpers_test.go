@@ -76,3 +76,14 @@ func (e *noopLogExtractor) Name() string { return "noop_extractor" }
 func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) []observerdef.MetricOutput {
 	return nil
 }
+
+type sharedTagsExtractor struct{}
+
+func (e *sharedTagsExtractor) Name() string { return "shared_tags_extractor" }
+func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) []observerdef.MetricOutput {
+	tags := log.GetTags()
+	return []observerdef.MetricOutput{
+		{Name: "metric.a", Value: 1, Tags: tags},
+		{Name: "metric.b", Value: 1, Tags: tags},
+	}
+}

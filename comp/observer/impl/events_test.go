@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
@@ -231,6 +232,12 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
 	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
 	assert.Contains(t, got.Context.Example, "very long example line")
+}
+
+func TestTruncatePreservesUTF8RuneBoundaries(t *testing.T) {
+	got := truncate("hello世界", 6)
+	assert.Equal(t, "hello世...", got)
+	assert.True(t, utf8.ValidString(got))
 }
 
 func TestAdvanceEmitsCorrelationUpdatedEvents(t *testing.T) {
@@ -718,4 +725,27 @@ func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
 	assert.True(t, has103,
 		"DataTimestamps() should include timestamp 103 from the log observation, "+
 			"but it only returns metric timestamps: %v", dataTS)
+}
+
+func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{&sharedTagsExtractor{}},
+	})
+
+	e.IngestLog("source-a", &logObs{
+		content:     []byte("hello"),
+		tags:        []string{"env:test"},
+		timestampMs: 1000,
+	})
+
+	seriesA := storage.GetSeries("shared_tags_extractor", "metric.a", []string{"env:test", "observer_source:source-a"}, AggregateAverage)
+	require.NotNil(t, seriesA)
+
+	seriesB := storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a"}, AggregateAverage)
+	require.NotNil(t, seriesB)
+
+	assert.Nil(t, storage.GetSeries("shared_tags_extractor", "metric.a", []string{"env:test", "observer_source:source-a", "observer_source:source-a"}, AggregateAverage))
+	assert.Nil(t, storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a", "observer_source:source-a"}, AggregateAverage))
 }
