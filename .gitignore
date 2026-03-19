@@ -99,6 +99,9 @@ pkg/trace/info/git_version.go
 # process agent test artifacts
 pkg/process/config/logs
 
+# sd-agent
+/pkg/discovery/module/rust/sd-agent
+
 # sysprobe artifacts
 **/.ninja_log
 **/.ninja_deps

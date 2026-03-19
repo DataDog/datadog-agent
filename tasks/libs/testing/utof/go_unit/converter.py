@@ -23,11 +23,13 @@ from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata, UTOFTestR
 
 if TYPE_CHECKING:
     from tasks.testwasher import TestWasher
+    from invoke import Context
 
 _TEST_TYPE = "unit"
 
 
 def convert_unit_test_results(
+    ctx: Context,
     result_json: ResultJson,
     test_washer: TestWasher | None = None,
     metadata: UTOFMetadata | None = None,
@@ -43,8 +45,7 @@ def convert_unit_test_results(
         A UTOFDocument containing all test results.
     """
     if metadata is None:
-        metadata = generate_metadata(test_system=_TEST_TYPE)
-
+        metadata = generate_metadata(ctx, test_system=_TEST_TYPE)
     set_total_duration(metadata, result_json)
 
     flaky_failures: dict[str, set[str]] = test_washer.get_flaky_failures() if test_washer else {}

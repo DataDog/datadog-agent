@@ -202,7 +202,7 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None) -> None:
+def _generate_unified_output(ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None) -> None:
     """Generate a UTOF JSON file alongside the test output JSON."""
     if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
         return
@@ -212,8 +212,8 @@ def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: T
         from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
 
         result_json = ResultJson.from_file(test_result.result_json_path)
-        metadata = generate_metadata(test_system="unit", flavor=flavor.name)
-        utof = convert_unit_test_results(result_json, test_washer=tw, metadata=metadata)
+        metadata = generate_metadata(ctx, test_system="unit", flavor=flavor.name)
+        utof = convert_unit_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
         utof_path = test_result.result_json_path.replace('.json', '_unified.json')
         utof.write_json(utof_path)
         print(f"Unified test output written to {utof_path}")
@@ -226,7 +226,7 @@ def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: T
 
 
 def process_test_result(
-    test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
+    ctx, test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
 ) -> bool:
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
@@ -236,7 +236,7 @@ def process_test_result(
 
     if success:
         print(color_message("All tests passed", "green"))
-        _generate_unified_output(test_result, flavor, tw=None)
+        _generate_unified_output(ctx, test_result, flavor, tw=None)
         return True
 
     if test_washer or running_in_ci():
@@ -252,10 +252,10 @@ def process_test_result(
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
             )
-            _generate_unified_output(test_result, flavor, tw=tw)
+            _generate_unified_output(ctx, test_result, flavor, tw=tw)
             return True
 
-    _generate_unified_output(test_result, flavor, tw=tw)
+    _generate_unified_output(ctx, test_result, flavor, tw=tw)
     return False
 
 
@@ -432,7 +432,7 @@ def test(
             # print("\n--- Top 15 packages sorted by run time:")
             test_profiler.print_sorted(15)
 
-        success = process_test_result(test_result, junit_tar, [result_junit], flavor, test_washer)
+        success = process_test_result(ctx, test_result, junit_tar, [result_junit], flavor, test_washer)
         if not success:
             raise Exit(code=1)
 

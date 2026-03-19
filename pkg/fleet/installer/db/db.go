@@ -76,6 +76,12 @@ func New(ctx context.Context, dbPath string, opts ...Option) (*PackagesDB, error
 
 	select {
 	case <-ctx.Done():
+		// The goroutine is still running; drain the channel and close the DB once it finishes.
+		go func() {
+			if r := <-ch; r.db != nil {
+				r.db.Close()
+			}
+		}()
 		return nil, ctx.Err()
 	case r := <-ch:
 		if r.err != nil {

@@ -57,6 +57,16 @@ type Metadata struct {
 	Labels      map[string]string
 }
 
+// NodeSystemInfo is the subset of NodeSystemInfo from k8s.io/api/core/v1
+type NodeSystemInfo struct {
+	KernelVersion           string
+	OSImage                 string
+	ContainerRuntimeVersion string
+	KubeletVersion          string
+	OperatingSystem         string
+	Architecture            string
+}
+
 // DCAClientInterface is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
 	Version(withRefresh bool) version.Version
@@ -64,6 +74,8 @@ type DCAClientInterface interface {
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error)
+	GetNodeInfo(nodeName string, filter ...string) (*NodeSystemInfo, error)
+
 	GetNodeUID(nodeName string) (string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetNamespaceMetadata(nsName string) (*Metadata, error)
@@ -393,6 +405,19 @@ func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[s
 
 	err = c.doJSONQuery(context.TODO(), path, "GET", nil, &result, false)
 	return result, err
+}
+
+// GetNodeInfo returns the node system info from the Cluster Agent.
+func (c *DCAClient) GetNodeInfo(nodeName string, filter ...string) (*NodeSystemInfo, error) {
+	ni := NodeSystemInfo{}
+	base := "api/v1/info/node/" + nodeName
+	path, err := buildQueryList(base, "filter", filter)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.doJSONQuery(context.TODO(), path, "GET", nil, &ni, false)
+	return &ni, err
 }
 
 // GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.

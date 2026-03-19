@@ -400,9 +400,9 @@ def run(
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
     if use_prebuilt_binaries:
-        if not os.path.exists("test-binaries.tar.gz") or not os.path.exists("manifest.json"):
+        if not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
             print(
-                "WARNING: required artifacts test-binaries.tar.gz and manifest.json not found, disabling use_prebuilt_binaries"
+                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
             )
             use_prebuilt_binaries = False
 
@@ -561,7 +561,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
+    success = process_test_result(ctx, test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

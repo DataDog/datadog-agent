@@ -87,6 +87,8 @@ type Endpoint struct {
 	TrackType IntakeTrackType
 	Protocol  IntakeProtocol
 	Origin    IntakeOrigin
+
+	ExtraHTTPHeaders map[string]string
 }
 
 // unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.
@@ -281,7 +283,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	host := e.Host
 	port := e.Port
 	pathPrefix := e.PathPrefix
-	redactedAPIKey := scrubber.HideKeyExceptLastFiveChars(e.GetAPIKey())
+	redactedAPIKey := scrubber.HideKeyExceptLastFourChars(e.GetAPIKey())
 	var protocol string
 	if useHTTP {
 		if e.UseSSL() {
@@ -340,8 +342,8 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 			}
 			log.Infof("rotating API key for '%s': %s -> %s",
 				e.configSettingPath,
-				scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
-				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+				scrubber.HideKeyExceptLastFourChars(e.apiKey.Load()),
+				scrubber.HideKeyExceptLastFourChars(newAPIKey),
 			)
 			e.apiKey.Store(newAPIKey)
 		}
@@ -367,8 +369,8 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
-			scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
-			scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+			scrubber.HideKeyExceptLastFourChars(e.apiKey.Load()),
+			scrubber.HideKeyExceptLastFourChars(newAPIKey),
 		)
 		e.apiKey.Store(newAPIKey)
 	})
