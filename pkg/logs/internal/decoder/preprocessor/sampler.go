@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -46,6 +47,19 @@ func (s *NoopSampler) Flush() *message.Message {
 var tlmAdaptiveSamplerDropped = telemetry.NewCounter("logs_adaptive_sampler", "dropped",
 	[]string{"source"}, "Number of log messages dropped by the adaptive sampler")
 
+var tlmAdaptiveSamplerKept = telemetry.NewCounter("logs_adaptive_sampler", "kept",
+	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
+
+var tlmAdaptiveSamplerNewPatterns = telemetry.NewCounter("logs_adaptive_sampler", "new_patterns",
+	[]string{"source"}, "Number of new log patterns added to the adaptive sampler pattern table")
+
+var tlmAdaptiveSamplerEvictions = telemetry.NewCounter("logs_adaptive_sampler", "evictions",
+	[]string{"source"}, "Number of pattern table evictions performed by the adaptive sampler")
+
+func adaptiveSamplerSampledCountTag(count int64) string {
+	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
+}
+
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
 type AdaptiveSamplerConfig struct {
 	// MaxPatterns is the maximum number of distinct patterns tracked simultaneously.
@@ -67,6 +81,7 @@ type samplerEntry struct {
 	credits    float64   // remaining log allowance; decremented on each emitted log
 	lastSeen   time.Time // used for credit refill
 	matchCount int64     // total number of times this pattern has matched; drives sort order
+	sampled    int64     // number of times this pattern has been emitted
 }
 
 // AdaptiveSampler rate-limits logs by structural pattern using per-pattern credit allowances.
@@ -118,6 +133,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		allow := e.credits >= 1.0
 		if allow {
 			e.credits--
+			e.sampled++
 		}
 
 		// Bubble the matched entry toward the front to maintain descending order.
@@ -127,6 +143,8 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
+			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
@@ -134,7 +152,9 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 
 	// No match — this is a new pattern. Evict the least-frequently-matched entry if full.
+	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
+		tlmAdaptiveSamplerEvictions.Inc(s.source)
 		s.entries = s.entries[:len(s.entries)-1]
 	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
@@ -143,7 +163,10 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
+		sampled:    1,
 	})
+	msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(1))
+	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
 }
 

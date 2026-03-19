@@ -335,7 +335,7 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60, pkgconfigmodel.SourceAgentRuntime)
-	mockConfig.Set("logs_adaptive_sampler_EXPERIMENTAL.tokenizer_max_input_bytes", 256, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 256, pkgconfigmodel.SourceAgentRuntime)
 
 	sourceOverride20 := 20
 	sourceOverride500 := 500
@@ -392,7 +392,7 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig.Set("logs_adaptive_sampler_EXPERIMENTAL.enabled", tt.samplerEnabled, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.samplerEnabled, pkgconfigmodel.SourceAgentRuntime)
 			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceSettings)
 			assert.Equal(t, tt.wantTokenizerMax, gotTokenizerMax)
 			assert.Equal(t, tt.wantLabelerMax, gotLabelerMax)

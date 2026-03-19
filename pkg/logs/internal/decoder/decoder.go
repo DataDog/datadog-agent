@@ -152,8 +152,8 @@ func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.Source
 	}
 
 	tokenizerMaxInputBytes = labelerMaxBytes
-	if pkgconfigsetup.Datadog().GetBool("logs_adaptive_sampler_EXPERIMENTAL.enabled") {
-		if samplerMin := pkgconfigsetup.Datadog().GetInt("logs_adaptive_sampler_EXPERIMENTAL.tokenizer_max_input_bytes"); samplerMin > tokenizerMaxInputBytes {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled") {
+		if samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes"); samplerMin > tokenizerMaxInputBytes {
 			tokenizerMaxInputBytes = samplerMin
 		}
 	}
@@ -166,12 +166,12 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
 	var sampler preprocessor.Sampler
-	if pkgconfigsetup.Datadog().GetBool("logs_adaptive_sampler_EXPERIMENTAL.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled") {
 		sampler = preprocessor.NewAdaptiveSampler(validateAdaptiveSamplerConfig(preprocessor.AdaptiveSamplerConfig{
-			MaxPatterns:    pkgconfigsetup.Datadog().GetInt("logs_adaptive_sampler_EXPERIMENTAL.max_patterns"),
-			RateLimit:      pkgconfigsetup.Datadog().GetFloat64("logs_adaptive_sampler_EXPERIMENTAL.rate_limit"),
-			BurstSize:      pkgconfigsetup.Datadog().GetFloat64("logs_adaptive_sampler_EXPERIMENTAL.burst_size"),
-			MatchThreshold: pkgconfigsetup.Datadog().GetFloat64("logs_adaptive_sampler_EXPERIMENTAL.match_threshold"),
+			MaxPatterns:    pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
+			RateLimit:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
+			BurstSize:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
+			MatchThreshold: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
 		}), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
