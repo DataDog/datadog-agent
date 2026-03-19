@@ -67,8 +67,8 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 					"key":  c.coreConfig.GetString("api_key"),
 					"site": site,
 				},
-				"deployment_type": deploymentType,
-				"hostname":        resolvedHostname,
+				"deployment_type":     deploymentType,
+				"hostname":            resolvedHostname,
 				"installation_method": c.coreConfig.GetString("otelcollector.installation_method"),
 			}
 		}
