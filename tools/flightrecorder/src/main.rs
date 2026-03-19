@@ -4,6 +4,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 mod config;
 mod framing;
 mod generated;
+mod janitor;
 mod transport;
 mod writers;
 
@@ -35,12 +36,27 @@ async fn main() -> Result<()> {
         flush_rows = cfg.flush_rows,
         flush_interval_secs = cfg.flush_interval_secs,
         retention_hours = cfg.retention_hours,
+        max_disk_mb = cfg.max_disk_mb,
         "flightrecorder starting"
     );
 
     std::fs::create_dir_all(&cfg.output_dir)?;
 
-    run(cfg).await
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let janitor = janitor::Janitor::new(
+        &cfg.output_dir,
+        Duration::from_secs(cfg.retention_hours * 3600),
+        cfg.max_disk_mb * 1024 * 1024,
+    );
+    let janitor_cancel = cancel.clone();
+    let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });
+
+    let result = run(cfg).await;
+
+    cancel.cancel();
+    let _ = janitor_handle.await;
+
+    result
 }
 
 pub async fn run(cfg: config::Config) -> Result<()> {
@@ -83,6 +99,9 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         // New connection — agent will re-send all context definitions.
         if let Err(e) = metrics_writer.reset_contexts().await {
             warn!("error resetting contexts: {}", e);
+        }
+        if let Err(e) = logs_writer.reset_contexts().await {
+            warn!("error resetting log contexts: {}", e);
         }
 
         // Read frames from this connection until EOF or shutdown.
