@@ -91,8 +91,7 @@ modules:
     used_by_otel: true
   comp/def:
     used_by_otel: true
-  comp/flightrecorder/def:
-    used_by_otel: false
+  comp/flightrecorder/def: default
   comp/forwarder/defaultforwarder:
     used_by_otel: true
   comp/forwarder/orchestrator/orchestratorinterface:
