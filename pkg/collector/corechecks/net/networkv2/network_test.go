@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/safchain/ethtool"
 )
@@ -32,16 +34,6 @@ import (
 type fakeNetworkStats struct {
 	counterStats                 []net.IOCountersStat
 	counterStatsError            error
-	protoCountersStats           []net.ProtoCountersStat
-	protoCountersStatsError      error
-	connectionStatsUDP4          []net.ConnectionStat
-	connectionStatsUDP4Error     error
-	connectionStatsUDP6          []net.ConnectionStat
-	connectionStatsUDP6Error     error
-	connectionStatsTCP4          []net.ConnectionStat
-	connectionStatsTCP4Error     error
-	connectionStatsTCP6          []net.ConnectionStat
-	connectionStatsTCP6Error     error
 	netstatAndSnmpCountersValues map[string]net.ProtoCountersStat
 	netstatAndSnmpCountersError  error
 	getProcPath                  string
@@ -50,26 +42,6 @@ type fakeNetworkStats struct {
 // IOCounters returns the inner values of counterStats and counterStatsError
 func (n *fakeNetworkStats) IOCounters(_ bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
-}
-
-// ProtoCounters returns the inner values of counterStats and counterStatsError
-func (n *fakeNetworkStats) ProtoCounters(_ []string) ([]net.ProtoCountersStat, error) {
-	return n.protoCountersStats, n.protoCountersStatsError
-}
-
-// Connections returns the inner values of counterStats and counterStatsError
-func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
-	switch kind {
-	case "udp4":
-		return n.connectionStatsUDP4, n.connectionStatsUDP4Error
-	case "udp6":
-		return n.connectionStatsUDP6, n.connectionStatsUDP6Error
-	case "tcp4":
-		return n.connectionStatsTCP4, n.connectionStatsTCP4Error
-	case "tcp6":
-		return n.connectionStatsTCP6, n.connectionStatsTCP6Error
-	}
-	return nil, nil
 }
 
 func (n *fakeNetworkStats) NetstatAndSnmpCounters(_ []string) (map[string]net.ProtoCountersStat, error) {
@@ -1302,6 +1274,20 @@ excluded_interface_re: "eth.*"
 	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
 }
 
+// TestGlobalProcfsPathUsedWhenInContainer validates that when procfs_path is set in the
+// global agent config (as done automatically when running in a container with the host
+// proc mounted at /host/proc), newCheck picks it up correctly. This was broken before
+// the fix because cfg.IsConfigured did not match keys set via the config system, causing
+// the check to always fall back to the container's own /proc.
+func TestGlobalProcfsPathUsedWhenInContainer(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("procfs_path", "/host/proc", configmodel.SourceAgentRuntime)
+
+	check := newCheck(cfg).(*NetworkCheck)
+
+	assert.Equal(t, "/host/proc", check.net.GetProcPath())
+}
+
 func TestNetworkCheck(t *testing.T) {
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -1378,123 +1364,6 @@ func TestNetworkCheck(t *testing.T) {
 					"TCPToZeroWindowAdv":   55,
 					"TWRecycled":           56,
 				},
-			},
-		},
-		connectionStatsUDP4: []net.ConnectionStat{
-			{
-				Status: "NONE",
-			},
-		},
-		connectionStatsUDP6: []net.ConnectionStat{
-			{
-				Status: "NONE",
-			},
-			{
-				Status: "NONE",
-			},
-		},
-		connectionStatsTCP4: []net.ConnectionStat{
-			{
-				Status: "ESTABLISHED",
-			},
-			{
-				Status: "SYN_SENT",
-			},
-			{
-				Status: "SYN_RECV",
-			},
-			{
-				Status: "FIN_WAIT1",
-			},
-			{
-				Status: "FIN_WAIT2",
-			},
-			{
-				Status: "TIME_WAIT",
-			},
-			{
-				Status: "CLOSE",
-			},
-			{
-				Status: "CLOSE_WAIT",
-			},
-			{
-				Status: "LAST_ACK",
-			},
-			{
-				Status: "LISTEN",
-			},
-			{
-				Status: "CLOSING",
-			},
-		},
-
-		connectionStatsTCP6: []net.ConnectionStat{
-			{
-				Status: "ESTABLISHED",
-			},
-			{
-				Status: "SYN_SENT",
-			},
-			{
-				Status: "SYN_RECV",
-			},
-			{
-				Status: "FIN_WAIT1",
-			},
-			{
-				Status: "FIN_WAIT2",
-			},
-			{
-				Status: "TIME_WAIT",
-			},
-			{
-				Status: "CLOSE",
-			},
-			{
-				Status: "CLOSE_WAIT",
-			},
-			{
-				Status: "LAST_ACK",
-			},
-			{
-				Status: "LISTEN",
-			},
-			{
-				Status: "CLOSING",
-			},
-			{
-				Status: "ESTABLISHED",
-			},
-			{
-				Status: "SYN_SENT",
-			},
-			{
-				Status: "SYN_RECV",
-			},
-			{
-				Status: "FIN_WAIT1",
-			},
-			{
-				Status: "FIN_WAIT2",
-			},
-			{
-				Status: "TIME_WAIT",
-			},
-			{
-				Status: "CLOSE",
-			},
-			{
-				Status: "CLOSE_WAIT",
-			},
-			{
-				Status: "LAST_ACK",
-			},
-			{
-				Status: "LISTEN",
-			},
-			{
-				Status: "CLOSING",
 			},
 		},
 	}

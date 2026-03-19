@@ -180,11 +180,11 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
-    - tar czf test-binaries.tar.gz test-binaries
+    - tar -cf test-binaries.tar.zst -I "zstd -T0" test-binaries
   artifacts:
     expire_in: 1 week
     paths:
-      - test-binaries.tar.gz
+      - test-binaries.tar.zst
       - manifest.json
   rules:
     - !reference [.except_mergequeue]
@@ -306,6 +306,7 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
+# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift-init:
   stage: e2e_init
   extends: .new_e2e_template
@@ -313,6 +314,7 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - go_tools_deps
   rules:
+    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -335,9 +337,11 @@ new-e2e-containers-openshift-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
+    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:

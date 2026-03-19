@@ -351,11 +351,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
-	cfg.BindEnvAndSetDefault("discovery.ignored_command_names", []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)
+
+	// Logon Duration config (macOS)
+	cfg.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
