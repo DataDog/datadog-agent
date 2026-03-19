@@ -43,6 +43,7 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "Mount writable volumes to the following directories: " + directoriesStr},
 			{Order: 2, Text: "Use a bind mount or emptyDir volume depending on your container platform (Docker, Kubernetes, ECS)."},
+			{Order: 3, Text: "Verify the Agent has write access to all necessary directories."},
 		},
 	}
 
