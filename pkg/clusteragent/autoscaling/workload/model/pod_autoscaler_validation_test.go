@@ -338,34 +338,6 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 				},
 			},
 		},
-		"resizePendingPeriod 3600 is invalid": {
-			spec: datadoghq.DatadogPodAutoscalerSpec{
-				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-						ResizePendingPeriod: 3600,
-					},
-				},
-			},
-			wantErr: "applyPolicy.update.resizePendingPeriod (3600) must be 0 (disabled) or between 1 and 3599 seconds",
-		},
-		"resizePendingPeriod negative is invalid": {
-			spec: datadoghq.DatadogPodAutoscalerSpec{
-				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-						ResizePendingPeriod: -1,
-					},
-				},
-			},
-			wantErr: "applyPolicy.update.resizePendingPeriod (-1) must be 0 (disabled) or between 1 and 3599 seconds",
-		},
-
-		"rolloutFallbackDelay zero is valid (disabled)": {
-			spec: datadoghq.DatadogPodAutoscalerSpec{
-				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 0},
-				},
-			},
-		},
 		"rolloutFallbackDelay 1 is valid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
@@ -379,22 +351,6 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 3599},
 				},
 			},
-		},
-		"rolloutFallbackDelay 3600 is invalid": {
-			spec: datadoghq.DatadogPodAutoscalerSpec{
-				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 3600},
-				},
-			},
-			wantErr: "applyPolicy.update.rolloutFallbackDelay (3600) must be 0 (disabled) or between 1 and 3599 seconds",
-		},
-		"rolloutFallbackDelay negative is invalid": {
-			spec: datadoghq.DatadogPodAutoscalerSpec{
-				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: -1},
-				},
-			},
-			wantErr: "applyPolicy.update.rolloutFallbackDelay (-1) must be 0 (disabled) or between 1 and 3599 seconds",
 		},
 	}
 

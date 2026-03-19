@@ -38,16 +38,6 @@ func validateApplyPolicy(policy *datadoghq.DatadogPodAutoscalerApplyPolicy) erro
 	if policy == nil || policy.Update == nil {
 		return nil
 	}
-	period := policy.Update.ResizePendingPeriod
-	if period != 0 && (period < 1 || period >= 3600) {
-		return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec,
-			"applyPolicy.update.resizePendingPeriod (%d) must be 0 (disabled) or between 1 and 3599 seconds", period)
-	}
-	delay := policy.Update.RolloutFallbackDelay
-	if delay != 0 && (delay < 1 || delay >= 3600) {
-		return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec,
-			"applyPolicy.update.rolloutFallbackDelay (%d) must be 0 (disabled) or between 1 and 3599 seconds", delay)
-	}
 	return nil
 }
 

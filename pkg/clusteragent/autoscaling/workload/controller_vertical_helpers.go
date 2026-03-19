@@ -36,8 +36,7 @@ const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
 // subresource, which requires InPlacePodVerticalScaling to be enabled. The result
-// is cached for 15 minutes so that an upgrade enabling the feature gate is picked
-// up without a controller restart.
+// is cached for 15 minutes.
 func (u *verticalController) isInPlaceResizeSupported() bool {
 	if u.inPlaceResizeSupported != nil && u.clock.Since(u.inPlaceResizeSupportedTime) < inPlaceResizeSupportedCacheTTL {
 		return *u.inPlaceResizeSupported
@@ -59,14 +58,15 @@ func (u *verticalController) isInPlaceResizeSupported() bool {
 	return supported
 }
 
+// Pod resize condition types and reasons sourced directly from k8s.io/api/core/v1.
 // See https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
 const (
-	kubePodConditionResizePending                 = "PodResizePending"
-	kubePodConditionResizePendingReasonInfeasible = "Infeasible"
-	kubePodConditionResizePendingReasonDeferred   = "Deferred"
+	kubePodConditionResizePending                 = string(corev1.PodResizePending)
+	kubePodConditionResizePendingReasonInfeasible = corev1.PodReasonInfeasible
+	kubePodConditionResizePendingReasonDeferred   = corev1.PodReasonDeferred
 
-	kubePodConditionResizeInProgress            = "PodResizeInProgress"
-	kubePodConditionResizeInProgressReasonError = "Error"
+	kubePodConditionResizeInProgress            = string(corev1.PodResizeInProgress)
+	kubePodConditionResizeInProgressReasonError = corev1.PodReasonError
 )
 
 type PodResizeStatus int

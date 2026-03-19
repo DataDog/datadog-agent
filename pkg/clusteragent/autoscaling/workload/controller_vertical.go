@@ -125,8 +125,8 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 
 	// Classify each non-terminating pod by resize status so we can set scaled replicas
-	// accurately (only truly complete pods count) and hand pre-classified slices to
-	// syncInternal, avoiding a second getPodResizeStatus pass there.
+	// (completed pods count) accurately. Pass this slice to syncInternal to avoid
+	// a duplicate call to getPodResizeStatus.
 	podsByResizeStatus := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
@@ -184,7 +184,6 @@ func (u *verticalController) syncInternal(
 	if needsPatch := podsByResizeStatus[PodResizeStatusNeedsPatch]; len(needsPatch) > 0 {
 		lastAction := autoscalerInternal.VerticalLastAction()
 		if lastAction == nil || lastAction.Version != recommendationID {
-			autoscalerInternal.VerticalActionSuccessInc()
 			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 				Time:    metav1.NewTime(u.clock.Now()),
 				Version: recommendationID,
@@ -235,7 +234,6 @@ func (u *verticalController) syncInternal(
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				log.Debugf("pod %s/%s not found during eviction", cp.pod.Namespace, cp.pod.Name)
-				evictedThisSync++
 			} else {
 				log.Warnf("error while evicting pod %s/%s: %v", cp.pod.Namespace, cp.pod.Name, err)
 				failedEvictions++

@@ -392,7 +392,7 @@ func TestPodParser(t *testing.T) {
 			{
 				Type:               "Ready",
 				Status:             "True",
-			LastTransitionTime: conditionTransitionTime,
+				LastTransitionTime: conditionTransitionTime,
 			},
 		},
 		Volumes: []workloadmeta.KubernetesPodVolume{

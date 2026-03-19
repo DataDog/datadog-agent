@@ -48,8 +48,6 @@ const (
 	// ConditionReasonLimitedByScalingBehavior indicates scaling was limited by behavior settings
 	// (e.g. stabilization window, scaling rules).
 	ConditionReasonLimitedByScalingBehavior ConditionReasonType = "LimitedByScalingBehavior"
-	// ConditionReasonFailedToPatchInPlace indicates a failure when patching a pod in place.
-	ConditionReasonFailedToPatchInPlace ConditionReasonType = "FailedToPatchInPlace"
 	// ConditionReasonFailedToEvict indicates a failure when evicting a pod.
 	ConditionReasonFailedToEvict ConditionReasonType = "FailedToEvict"
 )
