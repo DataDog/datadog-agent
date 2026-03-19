@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.155.1"
+	HelmVersion = "3.188.0"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -321,6 +321,10 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 				"originDetection": pulumi.Bool(true),
 				"tagCardinality":  pulumi.String("high"),
 				"useHostPort":     pulumi.Bool(true),
+			},
+			"privateActionRunner": pulumi.Map{
+				"enabled":    pulumi.BoolPtr(true),
+				"selfEnroll": pulumi.BoolPtr(true),
 			},
 			"apm": pulumi.Map{
 				"portEnabled": pulumi.Bool(true),
@@ -781,6 +785,10 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"securityContextConstraints": pulumi.Map{
 					"create": pulumi.Bool(true),
 				},
+			},
+			"privateActionRunner": pulumi.Map{
+				"enabled":    pulumi.BoolPtr(true),
+				"selfEnroll": pulumi.BoolPtr(true),
 			},
 		},
 	}
