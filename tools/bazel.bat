@@ -54,50 +54,10 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Not in CI nor GitHub Actions: simply execute `bazel` - done
-if defined CI if not defined GITHUB_ACTIONS goto :ci_config
-"%BAZEL_REAL%" !bazel_home_startup_option! %*
-exit /b !errorlevel!
-:ci_config
-
-:: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
-(
-  echo startup --connect_timeout_secs=5  # instead of 30s, for quicker iterations in diagnostics
-  echo startup --local_startup_timeout_secs=30  # instead of 120s, to fail faster for diagnostics
-  echo startup !bazel_home_startup_option:\=/!  # forward slashes: https://github.com/bazelbuild/bazel/issues/3275
-  echo common --config=ci
-) >"%~dp0..\user.bazelrc"
-
-:: Diagnostics: print any stalled client/server before `bazel` execution
->&2 powershell -NoProfile -Command "Get-Process bazel,java -ErrorAction SilentlyContinue | Select-Object 🟡,ProcessName,StartTime"
-
-:: Payload: execute `bazel` and remember exit status
-"%BAZEL_REAL%" %*
-set bazel_exit=!errorlevel!
-
-:: Diagnostics: dump logs on non-trivial failures (https://bazel.build/run/scripts#exit-codes)
-:: TODO(regis): adjust (probably `== 37`) next time a `cannot connect to Bazel server` error happens (#incident-42947)
-set should_diagnose=1
-for %%c in (0 1 3 34 36 48) do if !bazel_exit!==%%c set should_diagnose=0
-if !should_diagnose!==1 (
-  >&2 echo 🔴 Bazel failed [!bazel_exit!], dumping available info in !bazel_home! ^(excluding junctions^):
-  for /f "delims=" %%d in ('dir /a:d-l /b "!bazel_home!"') do (
-    >&2 echo 🟡 [%%d]
-    for %%f in ("!bazel_home!\%%d\java.log.*" "!bazel_home!\%%d\server\*") do (
-      if exist "%%f" (
-        >&2 echo 🟡 %%f:
-        >&2 type "%%f"
-        >&2 echo.
-      ) else (
-        >&2 echo 🟡 %%f doesn't exist
-      )
-    )
-  )
+set "bazel_args=%*"
+if defined bazel_args if defined CI if not defined GITHUB_ACTIONS (
+  :: In CI except GitHub: "$@" -> "$1" --config=ci "${@:2}"
+  call set "bazel_args=%1 --config=ci%%bazel_args:*%1=%%"
 )
-
-:: Stop `bazel` (if still running) to close files and proceed with cleanup
->&2 "%BAZEL_REAL%" shutdown --ui_event_filters=-info
->&2 del /f /q "%~dp0..\user.bazelrc"
-
-:: Done
-exit /b !bazel_exit!
+"%BAZEL_REAL%" !bazel_home_startup_option! !bazel_args!
+exit /b !errorlevel!
