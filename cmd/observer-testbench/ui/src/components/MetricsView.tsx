@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChartWithAnomalyDetails } from './ChartWithAnomalyDetails';
 import { SeriesTree } from './SeriesTree';
 import { api } from '../api/client';
-import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
+import type { SeriesData, SeriesInfo, ScenarioInfo, Point } from '../api/client';
 import type { SeriesVariant } from './MetricsChart';
 import { getDetectorColorStable } from './MetricsChart';
 import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
@@ -50,6 +50,7 @@ interface MetricsViewProps {
   smoothLines: boolean;
   phaseMarkers?: PhaseMarker[];
   focusedGroupKey?: string | null;
+  onJumpToPattern?: (patternHash: string) => void;
 }
 
 export function MetricsView({
@@ -61,6 +62,7 @@ export function MetricsView({
   smoothLines,
   phaseMarkers,
   focusedGroupKey,
+  onJumpToPattern,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
@@ -69,13 +71,107 @@ export function MetricsView({
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
   const [tagFilterInput, setTagFilterInput] = useState('');
 
+  // Parse a virtual series group key and return its log pattern hash, or null.
+  // Group keys for pattern series look like: "parquet/_virtual.log.log_pattern_extractor.<hash>.count"
+  const getPatternHash = (groupKey: string): string | null => {
+    const match = groupKey.match(/\/_virtual\.log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
+    return match ? match[1] : null;
+  };
+
+  // Fill the bucket grid: snap stored timestamps to slots and emit 0 for missing ones.
+  // Returns [bucketSec, denseSeries] where denseSeries covers [first, last] completely.
+  const fillBuckets = (points: Point[]): [number, Point[]] => {
+    if (points.length < 2) return [0, points];
+    const bucketSec = Math.round(points[1].timestamp - points[0].timestamp);
+    if (bucketSec <= 0) return [0, points];
+    const first = Math.round(points[0].timestamp);
+    const last = Math.round(points[points.length - 1].timestamp);
+    const bySlot = new Map<number, number>();
+    for (const p of points) {
+      const slot = first + Math.round((p.timestamp - first) / bucketSec) * bucketSec;
+      bySlot.set(slot, p.value);
+    }
+    const dense: Point[] = [];
+    for (let ts = first; ts <= last; ts += bucketSec) {
+      dense.push({ timestamp: ts, value: bySlot.get(ts) ?? 0 });
+    }
+    return [bucketSec, dense];
+  };
+
+  // Rate (evt/s): count per bucket ÷ bucket size in seconds.
+  const toRateSeries = (points: Point[]): Point[] => {
+    if (points.length === 0) return points;
+    if (points.length === 1) return [{ timestamp: points[0].timestamp, value: 0 }];
+    const [bucketSec, dense] = fillBuckets(points);
+    if (bucketSec <= 0) return points;
+    return dense.map((p) => ({ timestamp: p.timestamp, value: p.value / bucketSec }));
+  };
+
+  // Rate (evt/min): sliding-window sum over the last 60 s of dense buckets — O(N).
+  const toRatePerMinSeries = (points: Point[]): Point[] => {
+    if (points.length === 0) return points;
+    if (points.length === 1) return [{ timestamp: points[0].timestamp, value: 0 }];
+    const [bucketSec, dense] = fillBuckets(points);
+    if (bucketSec <= 0) return points;
+    const windowSec = 60;
+    const result: Point[] = [];
+    let windowSum = 0;
+    let left = 0;
+    for (let right = 0; right < dense.length; right++) {
+      windowSum += dense[right].value;
+      // Evict buckets that fall outside the 60 s window.
+      while (dense[right].timestamp - dense[left].timestamp >= windowSec) {
+        windowSum -= dense[left].value;
+        left++;
+      }
+      result.push({ timestamp: dense[right].timestamp, value: windowSum });
+    }
+    return result;
+  };
+
+  type PatternViewMode = 'raw' | 'rate-sec' | 'rate-min';
+
+  // Per-group view mode for pattern series. Defaults to 'rate-sec' when first selected.
+  const [patternViewMode, setPatternViewMode] = useState<Map<string, PatternViewMode>>(new Map());
+  const setGroupViewMode = (groupKey: string, mode: PatternViewMode) => {
+    setPatternViewMode((prev) => new Map([...prev, [groupKey, mode]]));
+  };
+
   // When LogView requests a jump to a specific series group, select it.
   // Virtual series (pattern counts) use the :count aggregation, so switch to it.
+  // Default to rate-sec view for pattern series.
   useEffect(() => {
     if (!focusedGroupKey) return;
     setAggregationType('count');
     setSelectedGroups((prev) => new Set([...prev, focusedGroupKey]));
+    if (getPatternHash(focusedGroupKey)) {
+      setPatternViewMode((prev) => new Map([...prev, [focusedGroupKey, 'rate-sec']]));
+    }
   }, [focusedGroupKey]);
+
+  // Auto-set rate-sec view for pattern groups when they're newly selected from the sidebar.
+  const prevSelectedForRateRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const prev = prevSelectedForRateRef.current;
+    const added = [...selectedGroups].filter((k) => !prev.has(k) && getPatternHash(k) !== null);
+    if (added.length > 0) {
+      setPatternViewMode((m) => {
+        const next = new Map(m);
+        for (const k of added) if (!next.has(k)) next.set(k, 'rate-sec');
+        return next;
+      });
+    }
+    prevSelectedForRateRef.current = new Set(selectedGroups);
+  }, [selectedGroups]);
+
+  // Fetch log patterns to annotate pattern metric series with human-readable labels.
+  const [logPatternByHash, setLogPatternByHash] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (state.connectionState !== 'ready') return;
+    api.getLogPatterns().then((patterns) => {
+      setLogPatternByHash(new Map(patterns.map((p) => [p.hash, p.patternString])));
+    }).catch(console.error);
+  }, [state.connectionState, state.activeScenario, state.scenarioDataVersion]);
 
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
@@ -610,17 +706,69 @@ export function MetricsView({
                           const seriesIDs = new Set(chartSeries.map((d) => d.id));
                           const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                           const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                          const patternHash = getPatternHash(groupKey);
+                          const isPatternSeries = patternHash !== null;
+                          const viewMode: PatternViewMode = (isPatternSeries && patternViewMode.get(groupKey)) || 'raw';
+                          const transformPoints =
+                            viewMode === 'rate-sec' ? toRateSeries :
+                            viewMode === 'rate-min' ? toRatePerMinSeries :
+                            (pts: Point[]) => pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
                             label: formatSeriesLabel(d.tags),
-                            points: d.points,
+                            points: transformPoints(d.points),
                             seriesId: d.id,
                           }));
                           const primary = chartSeries[0];
+                          const primaryPoints = transformPoints(primary.points);
+                          const patternString = patternHash ? logPatternByHash.get(patternHash) : undefined;
+                          const modeLabel = viewMode === 'rate-sec' ? ' (evt/s)' : viewMode === 'rate-min' ? ' (evt/min)' : '';
+                          const subtitle = (patternString || isPatternSeries) ? (
+                            <div className="space-y-2">
+                              {patternString && (
+                                <div>
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Log Pattern</div>
+                                  <pre className="text-xs text-slate-200 font-mono bg-slate-900/60 rounded px-2 py-1 whitespace-pre-wrap break-all">
+                                    {patternString}
+                                  </pre>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <div className="flex rounded overflow-hidden border border-slate-600 text-xs">
+                                  {(
+                                    [
+                                      { mode: 'raw' as PatternViewMode, label: 'Raw', title: 'Count per bucket' },
+                                      { mode: 'rate-sec' as PatternViewMode, label: 'evt/s', title: 'Events per second (count ÷ bucket size)' },
+                                      { mode: 'rate-min' as PatternViewMode, label: 'evt/min', title: 'Events per minute (60 s sliding window)' },
+                                    ] as const
+                                  ).map(({ mode, label, title }) => (
+                                    <button
+                                      key={mode}
+                                      onClick={() => setGroupViewMode(groupKey, mode)}
+                                      className={`px-2.5 py-1 transition-colors ${viewMode === mode ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                      title={title}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex-1" />
+                                {onJumpToPattern && patternHash && (
+                                  <button
+                                    onClick={() => onJumpToPattern(patternHash)}
+                                    className="text-xs px-2.5 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                    title="Filter logs by this pattern in the Logs tab"
+                                  >
+                                    ↗ View in logs
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : undefined;
                           return (
                             <ChartWithAnomalyDetails
-                              key={groupKey}
-                              name={primary.name}
-                              points={primary.points}
+                              key={`${groupKey}-${viewMode}`}
+                              name={`${primary.name}${modeLabel}`}
+                              points={primaryPoints}
                               anomalyMarkers={anomalyMarkers}
                               anomalies={seriesAnomalies}
                               correlationRanges={[]}
@@ -630,6 +778,7 @@ export function MetricsView({
                               smoothLines={smoothLines}
                               seriesVariants={seriesVariants}
                               phaseMarkers={phaseMarkers}
+                              subtitle={subtitle}
                             />
                           );
                         })}

@@ -21,6 +21,8 @@ interface LogViewProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
   phaseMarkers?: PhaseMarker[];
   onJumpToSeries?: (groupKey: string) => void;
+  requestedPatternFilter?: string | null;
+  onRequestedPatternFilterConsumed?: () => void;
 }
 
 const LOG_CHART_HEIGHT = 80;
@@ -768,7 +770,7 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle, onHoverEnter, onHoverLe
 
 const LOG_PAGE_SIZE = 50;
 
-export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries, requestedPatternFilter, onRequestedPatternFilterConsumed }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
@@ -792,12 +794,28 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const [patternSortBy, setPatternSortBy] = useState<'count' | 'pattern'>('count');
   const [selectedPatternHash, setSelectedPatternHash] = useState<string | null>(null);
   const [activePatternFilter, setActivePatternFilter] = useState<string | null>(null);
+  const patternRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   const [rawLogsPage, setRawLogsPage] = useState<LogEntry[]>([]);
   const [rawLogsTotal, setRawLogsTotal] = useState(0);
   const [telemetryLogsPage, setTelemetryLogsPage] = useState<LogEntry[]>([]);
   const [telemetryLogsTotal, setTelemetryLogsTotal] = useState(0);
   const [logsSummary, setLogsSummary] = useState<LogsSummary | null>(state.logsSummary);
+
+  // Apply a pattern filter requested from an external tab (e.g. MetricsView "↗ View in logs" button).
+  // Also expand the pattern section, open the detail row, and scroll it into view.
+  useEffect(() => {
+    if (!requestedPatternFilter) return;
+    setActivePatternFilter(requestedPatternFilter);
+    setSelectedPatternHash(requestedPatternFilter);
+    setPatternsExpanded(true);
+    setLogPage(1);
+    onRequestedPatternFilterConsumed?.();
+    // Scroll the row into view after the next paint.
+    requestAnimationFrame(() => {
+      patternRowRefs.current.get(requestedPatternFilter)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [requestedPatternFilter, onRequestedPatternFilterConsumed]);
 
   // Fetch log patterns when scenario is ready
   useEffect(() => {
@@ -1296,6 +1314,10 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                                   <Fragment key={p.hash}>
                                     {/* Pattern row */}
                                     <tr
+                                      ref={(el) => {
+                                        if (el) patternRowRefs.current.set(p.hash, el);
+                                        else patternRowRefs.current.delete(p.hash);
+                                      }}
                                       onClick={() => setSelectedPatternHash(isSelected ? null : p.hash)}
                                       className={`border-b border-slate-800/60 cursor-pointer hover:bg-slate-700/30 transition-colors ${
                                         isSelected
@@ -1326,11 +1348,17 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                                     {isSelected && (
                                       <tr className="border-b border-teal-700/20">
                                         <td colSpan={3} className="px-4 py-3 bg-slate-800/70">
-                                          <div className="mb-2">
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Pattern</div>
-                                            <pre className="text-xs text-slate-200 font-mono bg-slate-900/60 rounded px-2 py-1 whitespace-pre-wrap break-all">
-                                              {p.patternString}
-                                            </pre>
+                                          <div className="flex items-center gap-3 mb-2">
+                                            <div className="flex-1 min-w-0">
+                                              <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Pattern</div>
+                                              <pre className="text-xs text-slate-200 font-mono bg-slate-900/60 rounded px-2 py-1 whitespace-pre-wrap break-all">
+                                                {p.patternString}
+                                              </pre>
+                                            </div>
+                                            <div className="flex-shrink-0 text-right">
+                                              <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">ID</div>
+                                              <code className="text-xs text-slate-400 font-mono bg-slate-900/60 rounded px-2 py-1">{p.hash}</code>
+                                            </div>
                                           </div>
                                           <div className="flex items-start justify-between gap-3 mb-2">
                                             {p.exampleLog && (
