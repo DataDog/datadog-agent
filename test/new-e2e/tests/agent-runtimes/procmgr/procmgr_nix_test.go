@@ -104,7 +104,7 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 
 	if s.hasCLI {
 		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod 0777 %s", procmgrSocket))
+			_, err := s.Env().RemoteHost.Execute("sudo chmod 0777 " + procmgrSocket)
 			assert.NoError(t, err, "socket not yet available")
 		}, 30*time.Second, 2*time.Second)
 	}
@@ -214,7 +214,7 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	pid := fieldValue(out, "PID")
 	require.NotEmpty(s.T(), pid, "PID should be reported for a Running process")
 	require.NotEqual(s.T(), "-", pid, "PID should not be '-' for a Running process")
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("test -d /proc/%s", pid))
+	s.Env().RemoteHost.MustExecute("test -d /proc/" + pid)
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
