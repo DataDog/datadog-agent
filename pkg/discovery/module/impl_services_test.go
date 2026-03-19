@@ -241,7 +241,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 	tests := []struct {
 		name             string
 		dataFile         string
-		expectedMeta     tracermetadata.TracerMetadata
+		expectedMeta     []tracermetadata.TracerMetadata
 		expectedLanguage string
 		ddService        string
 		ddEnv            string
@@ -250,7 +250,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 		{
 			name:     "go_v2",
 			dataFile: "testdata/tracer_go_v2.data",
-			expectedMeta: tracermetadata.TracerMetadata{
+			expectedMeta: []tracermetadata.TracerMetadata{{
 				SchemaVersion:  2,
 				RuntimeID:      "bfed5675-a8f9-4d3d-a630-64713d543d1a",
 				TracerLanguage: "go",
@@ -261,7 +261,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				ServiceVersion: "abc123",
 				ProcessTags:    "entrypoint.basedir:exe,entrypoint.name:gotrace,entrypoint.type:executable,entrypoint.workdir:gotrace",
 				ContainerID:    "d7827075-010c-4e21-a663-daa3cd34e6f2",
-			},
+			}},
 			expectedLanguage: string(language.Go),
 			ddService:        "foo😀bar",
 			ddEnv:            "my😀dd-env",
@@ -270,7 +270,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 		{
 			name:     "java",
 			dataFile: "testdata/tracer_java.data",
-			expectedMeta: tracermetadata.TracerMetadata{
+			expectedMeta: []tracermetadata.TracerMetadata{{
 				SchemaVersion:  2,
 				RuntimeID:      "62af2d66-bb47-4801-b64d-6c12b0f8a11b",
 				TracerLanguage: "java",
@@ -279,7 +279,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				ServiceName:    "com.example.demo.DemoApplication",
 				ProcessTags:    "entrypoint.name:com.example.demo.demoapplication,entrypoint.type:class,entrypoint.workdir:java_app,svc.auto:com.example.demo.demoapplication",
 				LogsCollected:  true,
-			},
+			}},
 			expectedLanguage: string(language.Java),
 			ddService:        "my-java-svc",
 			ddEnv:            "staging",
@@ -288,7 +288,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 		{
 			name:     "cpp_v1",
 			dataFile: "testdata/tracer_cpp.data",
-			expectedMeta: tracermetadata.TracerMetadata{
+			expectedMeta: []tracermetadata.TracerMetadata{{
 				SchemaVersion:  1,
 				RuntimeID:      "f685d66a-7c12-4c47-84d0-c8ba75856374",
 				TracerLanguage: "cpp",
@@ -297,11 +297,19 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				ServiceName:    "my-service",
 				ServiceEnv:     "my-env",
 				ServiceVersion: "my-version",
-			},
+			}},
 			expectedLanguage: string(language.CPlusPlus),
 			ddService:        "my-cpp-svc",
 			ddEnv:            "dev",
 			ddVersion:        "0.1.0",
+		},
+		{
+			name:         "invalid",
+			dataFile:     "testdata/tracer_invalid.data",
+			expectedMeta: nil,
+			ddService:    "my-invalid-svc",
+			ddEnv:        "test",
+			ddVersion:    "0.0.1",
 		},
 	}
 
@@ -350,8 +358,13 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 			}, 30*time.Second, 100*time.Millisecond)
 
-			assert.Equal(t, []tracermetadata.TracerMetadata{tc.expectedMeta}, svc.TracerMetadata)
-			assert.Equal(t, tc.expectedLanguage, svc.Language)
+			if tc.expectedMeta != nil {
+				assert.Equal(t, tc.expectedMeta, svc.TracerMetadata)
+				assert.Equal(t, tc.expectedLanguage, svc.Language)
+			} else {
+				assert.Empty(t, svc.TracerMetadata)
+				assert.False(t, svc.APMInstrumentation)
+			}
 		})
 	}
 }
