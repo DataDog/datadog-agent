@@ -2,6 +2,8 @@
 
 load("//pkg/config/render_config:agent_config.bzl", "agent_config")
 
+package(default_visibility = ["//visibility:public"])
+
 agent_config(
     name = "agent_config",
     out = "datadog.yaml",

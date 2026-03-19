@@ -44,7 +44,7 @@ func runWriteConfigTestCase(t *testing.T, tc writeConfigTestCase) {
 	// Call writeConfig twice to ensure that the content does not change on re-run
 	// e.g. disclaimer added once or not at all
 	for i := 0; i < 2; i++ {
-		err := writeConfig(configPath, tc.config, 0644, tc.merge)
+		err := WriteConfig(configPath, tc.config, 0644, tc.merge)
 		if err != nil {
 			t.Fatalf("writeConfig failed: %v", err)
 		}

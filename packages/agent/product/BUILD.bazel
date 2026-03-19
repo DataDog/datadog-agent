@@ -1,0 +1,97 @@
+"""The Agent 'Product' bundle.
+
+Gathering spot for all the components shipped as part of the product.
+This gradually replaces datadog-agent.rb.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+CONF_DIR_PREFIX_SELECT = {
+    "@platforms//os:macos": "etc",
+    "//conditions:default": "etc/datadog-agent",
+}
+
+# All the components to be installed in {install_dir}
+# This list is probably too long because it includes transitive deps of some
+# of the components. It serves as a checklist of what we need to account for.
+pkg_filegroup(
+    name = "all_install_dir_files",
+    srcs = [
+        # TODO: dependency "python3"
+        # TODO: dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target?
+        # TODO: dependencies:all_files belongs here, but that adding it will essentially
+        # mean all builds build dependencies. That would break the repackage workflow, so
+        # we'll do that in April.
+        # "//packages/agent/dependencies:all_files",
+        ":dirs",
+        ":example_config",
+
+        # TODO: rtloader
+        # TODO: sysprobe - windows
+        # TODO: systray - windows
+        # TODO: agent main binary
+        # TODO: trace-loader
+        # TODO: trace-agent
+        # TODO: installer
+        # TODO: process-agent
+        # TODO: private-action-runner
+        # TODO: system-probe
+        # TODO: system-probe - selinux policy
+        # TODO: system-probe - eBPF
+
+        # TODO: //pkg/discovery/module/rust
+        # TODO: //pkg/procmgr/rust
+        # TODO: security-agent
+        # TODO: cws-instrumentation
+        # TODO: secret-generic-connector
+        # TODO: cacerts
+        # TODO: dependency 'datadog-agent-integrations-py3'
+    ],
+)
+
+# Temporary during migration, to call from omnibus build after we have built the agent with dda.
+pkg_install(
+    name = "post_build_install",
+    srcs = [
+        ":all_install_dir_files",
+    ],
+    destdir_flag = "//:install_dir",
+)
+
+# Dirs that should exist with particular permissions.
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "bin",
+    ] + select({
+        "@platforms//os:macos": ["etc"],
+        "//conditions:default": ["etc/datadog-agent"],
+    }) + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "run",
+            "scripts",
+        ],
+    }),
+)
+
+pkg_files(
+    name = "example_config",
+    srcs = [
+        "//pkg/config:agent_config",
+    ],
+    prefix = select(CONF_DIR_PREFIX_SELECT),
+    renames = {
+        "//pkg/config:agent_config": "datadog.yaml.example",
+    },
+)
