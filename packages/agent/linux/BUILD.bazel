@@ -45,6 +45,7 @@ pkg_filegroup(
 
 _agent_components = [
     "@openscap//:oscap",
+    "@curl//:curl_pkg",
 ]
 
 # This is the list of things we depend on transitively. It is temporary.
