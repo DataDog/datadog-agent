@@ -160,7 +160,7 @@ func TestTimeout(t *testing.T) {
 			extraCfgs:       map[string]interface{}{},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 4*(10*time.Second),
+			expTimeout:      baseTimeout + 6*(10*time.Second),
 		},
 		{
 			name:            "Base Disabled Case",
@@ -176,7 +176,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(4*time.Second), // APM default runtime has a ceiling of 4
+			expTimeout:      baseTimeout + 6*(10*time.Second) + 2*(4*time.Second), // APM default runtime has a ceiling of 4
 		},
 		{
 			name: "APM Enabled, Small Runtime",
@@ -186,7 +186,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second), // APM timeout is floored to the profile duration
+			expTimeout:      baseTimeout + 8*(10*time.Second), // APM timeout is floored to the profile duration
 		},
 		{
 			name: "APM Enabled, Large Runtime",
@@ -196,12 +196,22 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
+			expTimeout:      baseTimeout + 6*(10*time.Second) + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
 		},
 		{
 			name:            "Process Agent Checks in Core Agent",
 			extraCfgs:       map[string]interface{}{},
 			extraSysCfgs:    map[string]interface{}{},
+			profileDuration: 10 * time.Second,
+			expTimeout:      baseTimeout + 6*(10*time.Second),
+		},
+		{
+			name:      "SysProbe Explicitly Disabled",
+			extraCfgs: map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"system_probe_config.enabled": false,
+				"discovery.enabled":           false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second),
 		},
