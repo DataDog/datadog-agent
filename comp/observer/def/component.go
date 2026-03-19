@@ -498,7 +498,7 @@ func AggregateString(agg Aggregate) string {
 // more descriptive anomaly reports.
 type ContextProvider interface {
 	// GetContext returns contextual information about a metric, if available.
-	GetContext(metricName string) (MetricContext, bool)
+	GetContext(metricName string, tags []string) (MetricContext, bool)
 }
 
 // MetricContext describes the origin of a synthesized metric.

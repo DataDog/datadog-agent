@@ -6,8 +6,23 @@
 package observerimpl
 
 import (
+	"fmt"
+
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
+
+// validateUniqueExtractorNames rejects duplicate runtime extractor names since
+// they are used as namespaces in storage and context lookup.
+func validateUniqueExtractorNames(extractors []observer.LogMetricsExtractor) {
+	seen := make(map[string]struct{}, len(extractors))
+	for _, ext := range extractors {
+		name := ext.Name()
+		if _, ok := seen[name]; ok {
+			panic(fmt.Sprintf("duplicate log extractor name: %q", name))
+		}
+		seen[name] = struct{}{}
+	}
+}
 
 // collectContextProviders discovers ContextProvider implementations among
 // instantiated extractors via type assertion. Returns a map keyed by the

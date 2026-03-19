@@ -125,3 +125,46 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res[0].Name)
 }
+
+func TestLogMetricsExtractor_GetContextUsesCanonicalizedTags(t *testing.T) {
+	a := &LogMetricsExtractor{}
+	log := &mockLogView{
+		content: []byte("Request completed in 45ms"),
+		tags:    []string{"service:web", "env:prod"},
+	}
+
+	res := a.ProcessLog(log)
+	require.Len(t, res, 1)
+
+	ctx, ok := a.GetContext(res[0].Name, []string{"env:prod", "service:web"})
+	require.True(t, ok)
+	assert.Equal(t, "log_metrics_extractor", ctx.Source)
+	assert.Equal(t, "Request completed in 45ms", ctx.Example)
+}
+
+func TestLogMetricsExtractor_ContextSeparatesSameMetricByTags(t *testing.T) {
+	a := &LogMetricsExtractor{}
+	logA := &mockLogView{
+		content: []byte("Request completed in 45ms"),
+		tags:    []string{"service:api"},
+	}
+	logB := &mockLogView{
+		content: []byte("Request completed in 45ms"),
+		tags:    []string{"service:worker"},
+	}
+
+	resA := a.ProcessLog(logA)
+	resB := a.ProcessLog(logB)
+	require.Len(t, resA, 1)
+	require.Len(t, resB, 1)
+	require.Equal(t, resA[0].Name, resB[0].Name)
+
+	ctxA, ok := a.GetContext(resA[0].Name, []string{"service:api"})
+	require.True(t, ok)
+	ctxB, ok := a.GetContext(resB[0].Name, []string{"service:worker"})
+	require.True(t, ok)
+
+	assert.Equal(t, "Request completed in 45ms", ctxA.Example)
+	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
+	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+}

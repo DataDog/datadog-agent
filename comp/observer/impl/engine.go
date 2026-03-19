@@ -111,6 +111,7 @@ func newEngine(cfg engineConfig) *engine {
 	if sched == nil {
 		sched = &currentBehaviorPolicy{}
 	}
+	validateUniqueExtractorNames(cfg.extractors)
 
 	e := &engine{
 		storage:          cfg.storage,
@@ -322,7 +323,7 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	if !ok {
 		return
 	}
-	ctx, ok := provider.GetContext(a.Source.Name)
+	ctx, ok := provider.GetContext(a.Source.Name, a.Tags)
 	if !ok {
 		return
 	}
@@ -517,7 +518,9 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
+	e.contextProviders = collectContextProviders(extractors)
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
@@ -537,6 +540,12 @@ func (e *engine) Reset() {
 
 	for _, correlator := range e.correlators {
 		correlator.Reset()
+	}
+
+	for _, extractor := range e.extractors {
+		if resetter, ok := extractor.(interface{ Reset() }); ok {
+			resetter.Reset()
+		}
 	}
 }
 

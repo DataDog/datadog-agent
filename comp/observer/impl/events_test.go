@@ -114,12 +114,37 @@ func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64) observerd
 }
 
 type stubContextProvider struct {
-	context observerdef.MetricContext
-	ok      bool
+	context             observerdef.MetricContext
+	ok                  bool
+	requestedMetricName string
+	requestedTags       []string
 }
 
-func (p *stubContextProvider) GetContext(_ string) (observerdef.MetricContext, bool) {
+func (p *stubContextProvider) GetContext(metricName string, tags []string) (observerdef.MetricContext, bool) {
+	p.requestedMetricName = metricName
+	p.requestedTags = copyTags(tags)
 	return p.context, p.ok
+}
+
+type stubExtractor struct {
+	name            string
+	contextBySeries map[string]observerdef.MetricContext
+	resetCount      int
+}
+
+func (e *stubExtractor) Name() string { return e.name }
+
+func (e *stubExtractor) ProcessLog(_ observerdef.LogView) []observerdef.MetricOutput {
+	return nil
+}
+
+func (e *stubExtractor) GetContext(metricName string, tags []string) (observerdef.MetricContext, bool) {
+	ctx, ok := e.contextBySeries[logMetricContextKey(metricName, tags)]
+	return ctx, ok
+}
+
+func (e *stubExtractor) Reset() {
+	e.resetCount++
 }
 
 type resettableDetector struct {
@@ -190,6 +215,14 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 }
 
 func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {
+	provider := &stubContextProvider{
+		context: observerdef.MetricContext{
+			Pattern: "error <*> timeout",
+			Example: "very long example line that should still be attached as context without replacing the detector description",
+			Source:  "log_metrics_extractor",
+		},
+		ok: true,
+	}
 	anomalies := []observerdef.Anomaly{{
 		Source: observerdef.AnomalySource{
 			Namespace: "log_metrics_extractor",
@@ -198,6 +231,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 		},
 		DetectorName:   "test",
 		Description:    "detector-authored description",
+		Tags:           []string{"observer_source:source-a", "service:api"},
 		Timestamp:      99,
 		SourceSeriesID: "ns|log.pattern.abc.count|",
 	}}
@@ -208,14 +242,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 			&anomalyDetector{name: "test", anomalies: anomalies},
 		},
 		contextProviders: map[string]observerdef.ContextProvider{
-			"log_metrics_extractor": &stubContextProvider{
-				context: observerdef.MetricContext{
-					Pattern: "error <*> timeout",
-					Example: "very long example line that should still be attached as context without replacing the detector description",
-					Source:  "log_metrics_extractor",
-				},
-				ok: true,
-			},
+			"log_metrics_extractor": provider,
 		},
 	})
 
@@ -232,6 +259,53 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
 	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
 	assert.Contains(t, got.Context.Example, "very long example line")
+	assert.Equal(t, "log.pattern.abc.count", provider.requestedMetricName)
+	assert.Equal(t, []string{"observer_source:source-a", "service:api"}, provider.requestedTags)
+}
+
+func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
+	first := &stubExtractor{name: "first", contextBySeries: map[string]observerdef.MetricContext{}}
+	second := &stubExtractor{name: "second", contextBySeries: map[string]observerdef.MetricContext{
+		logMetricContextKey("metric", []string{"service:api"}): {Pattern: "p2", Example: "e2", Source: "second"},
+	}}
+	e := newEngine(engineConfig{
+		storage:          newTimeSeriesStorage(),
+		extractors:       []observerdef.LogMetricsExtractor{first},
+		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{first}),
+		detectors: []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{{
+			Source:    observerdef.AnomalySource{Namespace: "second", Name: "metric"},
+			Tags:      []string{"service:api"},
+			Timestamp: 1,
+		}}}},
+	})
+
+	e.SetExtractors([]observerdef.LogMetricsExtractor{second})
+	result := e.Advance(2)
+	require.Len(t, result.anomalies, 1)
+	require.NotNil(t, result.anomalies[0].Context)
+	assert.Equal(t, "second", result.anomalies[0].Context.Source)
+}
+
+func TestNewEnginePanicsOnDuplicateExtractorNames(t *testing.T) {
+	first := &stubExtractor{name: "dup", contextBySeries: map[string]observerdef.MetricContext{}}
+	second := &stubExtractor{name: "dup", contextBySeries: map[string]observerdef.MetricContext{}}
+
+	assert.PanicsWithValue(t, `duplicate log extractor name: "dup"`, func() {
+		_ = newEngine(engineConfig{
+			storage:    newTimeSeriesStorage(),
+			extractors: []observerdef.LogMetricsExtractor{first, second},
+		})
+	})
+}
+
+func TestSetExtractorsPanicsOnDuplicateExtractorNames(t *testing.T) {
+	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	first := &stubExtractor{name: "dup", contextBySeries: map[string]observerdef.MetricContext{}}
+	second := &stubExtractor{name: "dup", contextBySeries: map[string]observerdef.MetricContext{}}
+
+	assert.PanicsWithValue(t, `duplicate log extractor name: "dup"`, func() {
+		e.SetExtractors([]observerdef.LogMetricsExtractor{first, second})
+	})
 }
 
 func TestTruncatePreservesUTF8RuneBoundaries(t *testing.T) {
@@ -314,16 +388,19 @@ func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {
 func TestEngineResetResetsDetectorsAndCorrelators(t *testing.T) {
 	detector := &resettableDetector{name: "detector"}
 	correlator := &resettableCorrelator{name: "correlator"}
+	extractor := &stubExtractor{name: "extractor", contextBySeries: map[string]observerdef.MetricContext{}}
 	e := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
 		detectors:   []observerdef.Detector{detector},
 		correlators: []observerdef.Correlator{correlator},
+		extractors:  []observerdef.LogMetricsExtractor{extractor},
 	})
 
 	e.Reset()
 
 	assert.Equal(t, 1, detector.resetCount)
 	assert.Equal(t, 1, correlator.resetCount)
+	assert.Equal(t, 1, extractor.resetCount)
 }
 
 func TestReporterEventSink(t *testing.T) {

@@ -36,19 +36,26 @@ type LogMetricsExtractor struct {
 	ExcludeFields map[string]struct{}
 
 	// patternContext tracks the signature and a recent example for each
-	// pattern metric key. Populated during ProcessLog, read via GetContext.
+	// pattern metric series key (metric name + canonicalized tags). Populated
+	// during ProcessLog, read via GetContext.
 	patternContext map[string]observer.MetricContext
 }
 
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
+// Reset clears cached per-series context so replay/reanalysis starts from the
+// currently observed data instead of reusing stale examples.
+func (a *LogMetricsExtractor) Reset() {
+	a.patternContext = nil
+}
+
 // GetContext implements observer.ContextProvider. It returns the pattern
 // signature and a recent example log line for metrics emitted by this extractor.
-func (a *LogMetricsExtractor) GetContext(metricName string) (observer.MetricContext, bool) {
+func (a *LogMetricsExtractor) GetContext(metricName string, tags []string) (observer.MetricContext, bool) {
 	if a.patternContext == nil {
 		return observer.MetricContext{}, false
 	}
-	ctx, ok := a.patternContext[metricName]
+	ctx, ok := a.patternContext[logMetricContextKey(metricName, tags)]
 	return ctx, ok
 }
 
@@ -68,7 +75,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.Metric
 	if a.patternContext == nil {
 		a.patternContext = make(map[string]observer.MetricContext)
 	}
-	a.patternContext[metricName] = observer.MetricContext{
+	a.patternContext[logMetricContextKey(metricName, tags)] = observer.MetricContext{
 		Pattern: patternSig,
 		Example: string(content),
 		Source:  "log_metrics_extractor",
@@ -157,6 +164,10 @@ func coerceNumber(v any) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func logMetricContextKey(metricName string, tags []string) string {
+	return seriesKey("", metricName, tags)
 }
 
 func patternCountMetricName(signature string) string {
