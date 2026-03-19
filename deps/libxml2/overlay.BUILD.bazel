@@ -152,7 +152,7 @@ cc_shared_library(
     visibility = ["//visibility:public"],
     dynamic_deps = [
         "@zlib//:z_pkg",
-        "@xz//:lzma",
+        "@xz//:lzma_pkg",
     ],
 )
 
