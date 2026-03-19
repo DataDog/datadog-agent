@@ -36,7 +36,10 @@ func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.
 		cgroupContext:    cgroupContext,
 		pids:             make(map[uint32]bool, 10),
 	}
-	cacheEntry.pids[pid] = true
+
+	if pid != 0 {
+		cacheEntry.pids[pid] = true
+	}
 
 	// should not happen but added as a safe-guard to avoid overriding
 	// a Releasable pointer which would cause Releasable callbacks to not be called

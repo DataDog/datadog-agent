@@ -794,8 +794,10 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             parent_inode = parent_pc->entry.executable.path_key.ino;
 
             // inherit the parent cgroup context
-            if ((fork_entry->fork_flags & (CLONE_INTO_CGROUP | CLONE_NEWCGROUP)) == 0) {
+            if ((fork_entry->fork_flags & CLONE_INTO_CGROUP) == 0) {
                 fill_cgroup_context(parent_pc, &pc.cgroup);
+            } else {
+                pc.cgroup.cgroup_file.ino = bpf_get_current_cgroup_id();
             }
         }
     }

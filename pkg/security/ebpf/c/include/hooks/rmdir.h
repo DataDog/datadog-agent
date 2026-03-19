@@ -63,6 +63,12 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         syscall->rmdir.dentry = dentry;
         syscall->policy = fetch_policy(EVENT_RMDIR);
 
+        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
+        if (is_cgroup2fs(syscall->rmdir.dentry) && S_ISDIR(syscall->rmdir.file.metadata.mode)) {
+            syscall->state = ACCEPTED;
+            break;
+        }
+
         if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
             return 0;
@@ -86,6 +92,12 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
 
         // fake rmdir event as we will generate and rmdir event at the end
         syscall->policy = fetch_policy(EVENT_RMDIR);
+
+        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
+        if (is_cgroup2fs(syscall->unlink.dentry) && S_ISDIR(syscall->unlink.file.metadata.mode)) {
+            syscall->state = ACCEPTED;
+            break;
+        }
 
         if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded

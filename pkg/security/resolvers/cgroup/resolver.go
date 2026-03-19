@@ -45,17 +45,6 @@ const (
 	maxHistoryEntries           = 1024
 )
 
-// ResolverInterface defines the interface implemented by a cgroup resolver
-type ResolverInterface interface {
-	Start(context.Context)
-	AddPID(*model.ProcessCacheEntry)
-	DelPID(uint32)
-	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
-	GetWorkloadByCGroupID(containerutils.CGroupID) (*cgroupModel.CacheEntry, bool)
-	Len() int
-	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
-}
-
 // FSInterface defines the interface for CGroupFS operations
 type FSInterface interface {
 	FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, utils.CGroupContext, string, error)
@@ -205,7 +194,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	if !cgroupContext.IsResolved() {
 		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false)
 		if err != nil {
-			seclog.Debugf("failed to fallback to resolve dentry for pid %d and path key %v", pid, cgroupContext.CGroupPathKey)
+			seclog.Debugf("failed to fallback to resolve dentry for pid %d and path key %+v: %v", pid, cgroupContext.CGroupPathKey, err)
 			return nil
 		}
 
@@ -293,6 +282,35 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, createdAt time.
 	cr.fallbackFailed.Inc()
 
 	return nil
+}
+
+// Add registers a new cgroup entry
+func (cr *Resolver) Add(cgroupContext model.CGroupContext, createdAt time.Time) *cgroupModel.CacheEntry {
+	cr.Lock()
+	defer cr.Unlock()
+
+	if cacheEntry, found := cr.cacheEntriesByPathKey.Get(cgroupContext.CGroupPathKey.Inode); found {
+		return cacheEntry
+	}
+
+	seclog.Tracef("add a new empty cgroup : %d", cgroupContext.CGroupPathKey.Inode)
+
+	return cr.resolveAndPushNewCacheEntry(0, cgroupContext, createdAt)
+}
+
+// Delete removes the cgroup associated with the given inode
+func (cr *Resolver) Delete(inode uint64) {
+	cr.Lock()
+	defer cr.Unlock()
+
+	cacheEntry, ok := cr.cacheEntriesByPathKey.Get(inode)
+	if !ok {
+		return
+	}
+
+	seclog.Tracef("delete cgroup : %d", inode)
+
+	cr.removeCacheEntry(cacheEntry)
 }
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
