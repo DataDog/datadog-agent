@@ -42,7 +42,9 @@ def build_scorer(ctx):
 
 # --- Eval ---
 @task
-def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""):
+def eval_scenarios(
+    ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""
+):
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
 
@@ -146,7 +148,9 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
 
 
 @task
-def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""):
+def eval_tp(
+    ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""
+):
     """
     Runs TP metric scoring: replays scenarios with passthrough correlator and scores
     each detected anomaly against ground truth metric labels in ground_truth.json.
@@ -210,7 +214,8 @@ def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scena
 
         scorer_result = ctx.run(
             f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --score-tp --json",
-            hide=True, warn=True,
+            hide=True,
+            warn=True,
         )
 
         if scorer_result.failed:
@@ -250,12 +255,14 @@ def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scena
             print(color_message(f"\n  {r['name']} detections:", Color.BLUE))
             for d in detections:
                 if d.get("detected"):
-                    status = f"HIT (count={d['count']}, first={d.get('delta_from_disruption_sec', 0):.0f}s after disruption)"
+                    status = (
+                        f"HIT (count={d['count']}, first={d.get('delta_from_disruption_sec', 0):.0f}s after disruption)"
+                    )
                 else:
                     status = "MISS"
                 print(f"    [{d['classification']}] {d['service']}/{d['metric']}: {status}")
 
-        print(f"\nOutput JSONs: /tmp/observer-eval-*-tp.json")
+        print("\nOutput JSONs: /tmp/observer-eval-*-tp.json")
 
 
 def _ensure_parquets(ctx, name, parquet_dir):
@@ -335,7 +342,7 @@ def launch_testbench(
     else:
         print("Launching observer-testbench backend and UI, use ^C to exit")
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd  & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
         )
 
 
