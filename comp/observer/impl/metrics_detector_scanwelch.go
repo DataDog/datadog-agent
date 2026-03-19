@@ -305,7 +305,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 		Source:         observer.MetricName(seriesName),
 		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
 		DetectorName:   d.Name(),
-		Title:          fmt.Sprintf("ScanWelch changepoint: %s", seriesName),
+		Title:          "ScanWelch changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
 			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
 		Tags:      series.Tags,

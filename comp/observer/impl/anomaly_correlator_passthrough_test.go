@@ -78,6 +78,6 @@ func TestDetectorPassthroughCorrelator_Empty(t *testing.T) {
 	assert.Empty(t, c.ActiveCorrelations())
 }
 
-func TestDetectorPassthroughCorrelator_ImplementsCorrelator(t *testing.T) {
+func TestDetectorPassthroughCorrelator_ImplementsCorrelator(_ *testing.T) {
 	var _ observer.Correlator = NewDetectorPassthroughCorrelator()
 }

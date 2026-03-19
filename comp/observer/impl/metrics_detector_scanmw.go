@@ -213,13 +213,13 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		}
 
 		fk := float64(k)
-		fn_k := float64(n - k)
+		fnK := float64(n - k)
 
 		U1 := R1 - fk*(fk+1)/2
-		U := math.Min(U1, fk*fn_k-U1)
+		U := math.Min(U1, fk*fnK-U1)
 
-		meanU := fk * fn_k / 2
-		varU := (fk * fn_k / 12) * (fN + 1 - tieCorrection/(fN*(fN-1)))
+		meanU := fk * fnK / 2
+		varU := (fk * fnK / 12) * (fN + 1 - tieCorrection/(fN*(fN-1)))
 		if varU <= 0 {
 			continue
 		}
@@ -296,7 +296,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		Source:         observer.MetricName(seriesName),
 		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
 		DetectorName:   d.Name(),
-		Title:          fmt.Sprintf("ScanMW changepoint: %s", seriesName),
+		Title:          "ScanMW changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
 			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
 		Tags:      series.Tags,
