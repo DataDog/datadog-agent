@@ -47,6 +47,7 @@ func main() {
 	httpAddr := flag.String("http", ":8080", "HTTP server address for the API")
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
+	onlyStr := flag.String("only", "", "Enable ONLY these components (plus extractors); disable everything else. Mutually exclusive with --enable/--disable.")
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
@@ -54,19 +55,36 @@ func main() {
 	flag.Parse()
 
 	overrides := make(map[string]bool)
-	if *enableStr != "" {
-		for _, name := range strings.Split(*enableStr, ",") {
+	if *onlyStr != "" {
+		// --only: enable listed components + extractors, disable everything else.
+		onlySet := make(map[string]bool)
+		for _, name := range strings.Split(*onlyStr, ",") {
 			name = strings.TrimSpace(name)
 			if name != "" {
-				overrides[name] = true
+				onlySet[name] = true
 			}
 		}
-	}
-	if *disableStr != "" {
-		for _, name := range strings.Split(*disableStr, ",") {
-			name = strings.TrimSpace(name)
-			if name != "" {
-				overrides[name] = false
+		for _, entry := range observerimpl.TestbenchCatalogEntries() {
+			if entry.Kind == "extractor" {
+				continue // extractors always enabled
+			}
+			overrides[entry.Name] = onlySet[entry.Name]
+		}
+	} else {
+		if *enableStr != "" {
+			for _, name := range strings.Split(*enableStr, ",") {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					overrides[name] = true
+				}
+			}
+		}
+		if *disableStr != "" {
+			for _, name := range strings.Split(*disableStr, ",") {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					overrides[name] = false
+				}
 			}
 		}
 	}

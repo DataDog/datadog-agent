@@ -1,0 +1,26 @@
+{
+  "213_pagerduty": {
+    "true_positives": [
+      {"service": "cassandra-cluster", "metrics": ["system.cpu.user"]},
+      {"service": "cassandra-cluster", "metrics": ["cassandra.write_latency.99th_percentile"]},
+      {"service": "notification-pipeline", "metrics": ["trace.notification.delivery.errors"]},
+      {"service": "integration-api", "metrics": ["trace.flask.request.errors"]}
+    ]
+  },
+  "353_postmark": {
+    "true_positives": [
+      {"service": "dns-resolver-service", "metrics": ["trace.dns.lookup.errors"]},
+      {"service": "outbound-delivery-service", "metrics": ["trace.http.request"]},
+      {"service": "queue-manager", "metrics": ["redis.net.commands"]},
+      {"service": "smtp-gateway", "metrics": ["trace.http.request"]}
+    ]
+  },
+  "food_delivery_redis": {
+    "true_positives": [
+      {"service": "redis", "metrics": ["redis.cpu.sys"]},
+      {"service": "order-gateway", "metrics": ["trace.http.request"]},
+      {"service": "driver-location-service", "metrics": ["trace.http.request.hits"]},
+      {"service": "redis", "metrics": ["redis.info.latency_ms"]}
+    ]
+  }
+}
