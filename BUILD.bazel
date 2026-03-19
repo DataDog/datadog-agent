@@ -331,6 +331,9 @@ exports_files(glob(
 # gazelle:exclude pkg/gpu/tags
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/hosttags
+# gazelle:exclude pkg/hook
+# gazelle:exclude pkg/inventory
+>>>>>>> b9b8d11ce02 (remove pkg/hook from BUILD.bazel)
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/logonduration
