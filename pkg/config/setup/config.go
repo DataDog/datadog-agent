@@ -354,8 +354,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("flightrecorder.socket_path", "/var/run/flightrecorder/pipeline.sock")
 	config.BindEnvAndSetDefault("flightrecorder.flush_interval", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("flightrecorder.point_buffer_capacity", 20000) // Compact metric points (32 bytes each)
-	config.BindEnvAndSetDefault("flightrecorder.def_buffer_capacity", 2000)   // Context definitions (with strings, first-occurrence only)
-	config.BindEnvAndSetDefault("flightrecorder.log_buffer_capacity", 5000)   // Log entries
+	config.BindEnvAndSetDefault("flightrecorder.def_buffer_capacity", 2000)    // Context definitions (with strings, first-occurrence only)
+	config.BindEnvAndSetDefault("flightrecorder.log_buffer_capacity", 5000)    // Log entries
 	config.BindEnvAndSetDefault("flightrecorder.hook_buffer_size", 16384)
 	config.BindEnvAndSetDefault("flightrecorder.reconnect_max_interval", 30*time.Second)
 
