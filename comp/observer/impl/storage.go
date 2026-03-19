@@ -234,6 +234,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.seriesIDKeys = append(s.seriesIDKeys, key)
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
+		log.Printf("[INFO] new observer series: namespace=%q name=%q tags=%v", namespace, name, tags)
 	}
 	stats.writeGeneration++
 
