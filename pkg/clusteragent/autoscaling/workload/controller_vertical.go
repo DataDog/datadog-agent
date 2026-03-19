@@ -47,14 +47,14 @@ const (
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations
 type verticalController struct {
-	clock                    clock.Clock
-	eventRecorder            record.EventRecorder
-	client                   k8sclient.Interface
-	isLeader                 func() bool
-	patchClient              *workloadpatcher.Patcher
-	podWatcher               PodWatcher
-	progressTracker          *rolloutProgressTracker
-	inPlaceResizeSupported      *bool
+	clock                      clock.Clock
+	eventRecorder              record.EventRecorder
+	client                     k8sclient.Interface
+	isLeader                   func() bool
+	patchClient                *workloadpatcher.Patcher
+	podWatcher                 PodWatcher
+	progressTracker            *rolloutProgressTracker
+	inPlaceResizeSupported     *bool
 	inPlaceResizeSupportedTime time.Time
 }
 
@@ -75,13 +75,6 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// If vertical scaling is disabled, clear vertical state and exit.
 	if !autoscalerInternal.IsVerticalScalingEnabled() {
 		autoscalerInternal.ClearVerticalState()
-		return autoscaling.NoRequeue, nil
-	}
-
-	// Gate: in-place resize requires the pods/resize subresource (InPlacePodVerticalScaling feature gate).
-	if !u.isInPlaceResizeSupported() {
-		autoscalerInternal.UpdateFromVerticalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedTargetKind,
-			"in-place pod resize is not supported on this cluster (pods/resize subresource unavailable); upgrade to Kubernetes 1.31+ with InPlacePodVerticalScaling enabled"))
 		return autoscaling.NoRequeue, nil
 	}
 
@@ -168,8 +161,9 @@ func (u *verticalController) syncInternal(
 	podsByResizeStatus map[PodResizeStatus][]classifiedPod,
 ) (autoscaling.ProcessResult, error) {
 
-	// TriggerRollout mode: delegate to the workload-kind-specific rollout path.
-	if isRolloutRequired(autoscalerInternal) {
+	// Fall back to rollout if TriggerRollout mode is set or if the API server
+	// does not support in-place resize (pods/resize subresource unavailable).
+	if isRolloutRequired(autoscalerInternal) || !u.isInPlaceResizeSupported() {
 		switch targetGVK.Kind {
 		case k8sutil.DeploymentKind:
 			return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner)
@@ -290,11 +284,16 @@ func (u *verticalController) syncInternal(
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
-		if autoscalerInternal.VerticalLastAction() != nil {
+		if lastAction := autoscalerInternal.VerticalLastAction(); lastAction != nil &&
+			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerResizeTriggeredVerticalActionType {
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,
 				"All %d pods resized successfully for autoscaler %s/%s", totalActive, podAutoscaler.Namespace, podAutoscaler.Name)
+			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+				Time:    metav1.NewTime(u.clock.Now()),
+				Version: recommendationID,
+				Type:    datadoghqcommon.DatadogPodAutoscalerResizeCompletedVerticalActionType,
+			}, nil)
 		}
-		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: inplaceResizeRequeueDelay}, nil

@@ -74,6 +74,8 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 				// Patching controller and horizontal controller scaler to use the fake scaler
 				c.scaler = scaler
 				c.horizontalController.scaler = scaler
+				c.verticalController.inPlaceResizeSupported = func() *bool { b := true; return &b }()
+				c.verticalController.inPlaceResizeSupportedTime = clock.Now()
 				return c.Controller, err
 			},
 		),

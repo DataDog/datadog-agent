@@ -42,6 +42,9 @@ func (u *verticalController) isInPlaceResizeSupported() bool {
 	if u.inPlaceResizeSupported != nil && u.clock.Since(u.inPlaceResizeSupportedTime) < inPlaceResizeSupportedCacheTTL {
 		return *u.inPlaceResizeSupported
 	}
+	if u.client == nil {
+		return false
+	}
 	resources, err := u.client.Discovery().ServerResourcesForGroupVersion("v1")
 	supported := err == nil && func() bool {
 		for _, r := range resources.APIResources {

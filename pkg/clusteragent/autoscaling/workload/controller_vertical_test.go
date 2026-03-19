@@ -55,11 +55,13 @@ func newVerticalControllerFixture(t *testing.T, testTime time.Time) *verticalCon
 		clock:         fakeClock,
 		dynamicClient: dynamicClient,
 		controller: &verticalController{
-			clock:           fakeClock,
-			eventRecorder:   record.NewFakeRecorder(100),
-			patchClient:     workloadpatcher.NewPatcher(dynamicClient, nil),
-			progressTracker: newRolloutProgressTracker(),
-			client:          k8sfake.NewSimpleClientset(),
+			clock:                      fakeClock,
+			eventRecorder:              record.NewFakeRecorder(100),
+			patchClient:                workloadpatcher.NewPatcher(dynamicClient, nil),
+			progressTracker:            newRolloutProgressTracker(),
+			client:                     k8sfake.NewSimpleClientset(),
+			inPlaceResizeSupported:     func() *bool { b := true; return &b }(),
+			inPlaceResizeSupportedTime: fakeClock.Now(),
 		},
 	}
 }
@@ -690,7 +692,6 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 }
 
 // runSyncInPlaceMode runs syncInternal against a deployment target using the in-place path
-// (no ApplyPolicy = default in-place mode per the RFC).
 func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datadoghq.DatadogPodAutoscaler, sv *model.VerticalScalingValues, recommendationID string, pods []*workloadmeta.KubernetesPod) (autoscaling.ProcessResult, error) {
 	t.Helper()
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
