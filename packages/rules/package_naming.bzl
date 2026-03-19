@@ -22,8 +22,18 @@ load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
 
 # Map of architecture names we might see into those we need to use in package names
 _arch_names = {
-    "x86_64": "amd64",
-    "aarch64": "arm64",
+    # debs use amd64.  E.g. datadog-agent-dbg-7.78.0~devel.git.684.d9f682a.pipeline.103327127-1.x86_64.rpm
+    "deb": {
+        "aarch64": "arm64",
+        "x86_64": "amd64",
+        "x86": "amd64",
+    },
+    # rpms use x86_64.  E.g. datadog-agent-dbg-7.78.0~devel.git.684.d9f682a.pipeline.103327127-1.x86_64.rpm
+    "rpm": {
+        "aarch64": "arm64",
+        "amd64": "x86_64",
+        "x86": "x86_64",
+    },
 }
 
 _DOCSTRING = """
@@ -59,12 +69,12 @@ def _make_version():
     # 'localbuild' is just a placeholder choice for now.
     return milestone + "-localbuild"
 
-def _extract_arch(cpu):
+def _extract_arch(cpu, style):
     """Extract the arch part from a os/arch pair."""
     arch = cpu
     if "_" in cpu:
         arch = cpu.split("_")[-1]
-    return _arch_names.get(arch) or arch
+    return _arch_names[style].get(arch) or arch
 
 def _inject_flavor(name, flavor):
     """Forms a canonical name from the base product name and the flavor"""
@@ -87,7 +97,8 @@ def _package_name_variables_impl(ctx):
 
     # Package names often like to know what they are compiled for
     cc_toolchain = find_cc_toolchain(ctx)
-    values["arch"] = _extract_arch(cc_toolchain.cpu)
+    values["arch_deb"] = _extract_arch(cc_toolchain.cpu, "deb")
+    values["arch_rpm"] = _extract_arch(cc_toolchain.cpu, "rpm")
     values["cpu"] = cc_toolchain.cpu
     values["compiler"] = cc_toolchain.compiler
     values["libc"] = cc_toolchain.libc
