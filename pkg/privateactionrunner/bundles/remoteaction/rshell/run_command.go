@@ -23,7 +23,7 @@ import (
 // allowedPaths is the hardcoded list of filesystem paths that the rshell
 // interpreter is permitted to access. Adjust this list to restrict or expand
 // the set of directories available to executed commands.
-var allowedPaths = []string{"/"}
+var allowedPaths = []string{"/var/log"}
 
 // RunCommandHandler implements the runCommand action.
 type RunCommandHandler struct{}
