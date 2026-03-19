@@ -166,7 +166,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
 			if found {
 				allAnomalies = append(allAnomalies, anomaly)
-				state.segmentStartTime = state.buf[changeIdx].Timestamp
+				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
 			state.lastProcessedCount = status.pointCount
