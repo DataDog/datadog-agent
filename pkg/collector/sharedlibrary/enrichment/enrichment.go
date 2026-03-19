@@ -16,13 +16,13 @@ import (
 // Field names and types must match the Rust EnrichmentData struct in
 // pkg/collector/sharedlibrary/rustchecks/core/src/enrichment.rs
 type EnrichmentData struct {
-	Hostname          string                 `yaml:"hostname"`
-	HostTags          map[string]string      `yaml:"host_tags"`
-	ClusterName       *string                `yaml:"cluster_name,omitempty"`
-	AgentVersion      string                 `yaml:"agent_version"`
-	ConfigValues      map[string]any `yaml:"config_values"`
-	ProcessStartTime  uint64                 `yaml:"process_start_time"`
-	K8sConnectionInfo *K8sConnectionInfo     `yaml:"k8s_connection_info,omitempty"`
+	Hostname          string             `yaml:"hostname"`
+	HostTags          map[string]string  `yaml:"host_tags"`
+	ClusterName       *string            `yaml:"cluster_name,omitempty"`
+	AgentVersion      string             `yaml:"agent_version"`
+	ConfigValues      map[string]any     `yaml:"config_values"`
+	ProcessStartTime  uint64             `yaml:"process_start_time"`
+	K8sConnectionInfo *K8sConnectionInfo `yaml:"k8s_connection_info,omitempty"`
 }
 
 // K8sConnectionInfo contains Kubernetes connection details.
