@@ -13,7 +13,10 @@ ebpf_prog(
 cc_binary(
     name = "detect-seccomp-bug",
     srcs = ["detect-seccomp-bug.c"],
-    linkopts = ["-static"],
+    linkopts = [
+        "-static",
+        "-Wl,--gc-sections",
+    ],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
