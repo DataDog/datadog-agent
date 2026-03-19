@@ -9,7 +9,7 @@ load(":package_naming.bzl", "package_name_variables")
 # Each transition forces //packages/agent:flavor to a specific value so we can
 # verify _inject_flavor() output without changing the default flag in the repo.
 
-def _fips_transition_impl(settings, attr):
+def _fips_transition_impl(_settings, _attr):
     return {"//packages/agent:flavor": "fips"}
 
 _fips_transition = transition(
@@ -18,7 +18,7 @@ _fips_transition = transition(
     outputs = ["//packages/agent:flavor"],
 )
 
-def _heroku_transition_impl(settings, attr):
+def _heroku_transition_impl(_settings, _attr):
     return {"//packages/agent:flavor": "heroku"}
 
 _heroku_transition = transition(

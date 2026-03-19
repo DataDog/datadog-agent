@@ -69,9 +69,16 @@ def _make_version():
     # 'localbuild' is just a placeholder choice for now.
     return milestone + "-localbuild"
 
-def _extract_arch(cpu, style):
+def _extract_arch(ctx, cpu, style):
     """Extract the arch part from a os/arch pair."""
+
+    # The current linux toolchain that we use does not return the target CPU.
+    # It returns "local", probably because we are building without --platforms.
+    if cpu == "local" and ctx.var.get("TARGET_CPU"):
+        cpu = ctx.var.get("TARGET_CPU")
     arch = cpu
+
+    # darwin has the strange habit of calling a cpu "darwin_arm64".
     if "_" in cpu:
         arch = cpu.split("_")[-1]
     return _arch_names[style].get(arch) or arch
@@ -96,8 +103,8 @@ def _package_name_variables_impl(ctx):
 
     # Package names often like to know what they are compiled for
     cc_toolchain = find_cc_toolchain(ctx)
-    values["arch_deb"] = _extract_arch(cc_toolchain.cpu, "deb")
-    values["arch_rpm"] = _extract_arch(cc_toolchain.cpu, "rpm")
+    values["arch_deb"] = _extract_arch(ctx, cc_toolchain.cpu, "deb")
+    values["arch_rpm"] = _extract_arch(ctx, cc_toolchain.cpu, "rpm")
     values["cpu"] = cc_toolchain.cpu
     values["compiler"] = cc_toolchain.compiler
     values["libc"] = cc_toolchain.libc
