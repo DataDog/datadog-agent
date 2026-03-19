@@ -189,7 +189,9 @@
                         "unshare",
                         "fsmount",
                         "open_tree",
-                        "listmount"
+                        "listmount",
+                        "move_mount",
+                        "pivot_root"
                     ]
                 }
             },

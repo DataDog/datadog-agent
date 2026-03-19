@@ -345,6 +345,12 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 		}
 	}
 
+	// if direction is still unknown after processing, don't persist this
+	// connection (it's preexisting and we can't determine direction)
+	if conn.Direction == network.UNKNOWN {
+		return ProcessResultNone, nil
+	}
+
 	// if the connection is still established, we should update the connection map
 	if st.tcpState == connStatEstablished {
 		return ProcessResultStoreConn, nil
