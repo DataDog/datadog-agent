@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 )
 
 // Test fixtures and mocks
