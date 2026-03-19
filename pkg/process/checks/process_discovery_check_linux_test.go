@@ -25,6 +25,7 @@ func TestProcessDiscoveryLinuxWithRunInCoreAgent(t *testing.T) {
 	cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 	cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 	cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
+	sysCfg.SetWithoutSource("discovery.enabled", false)
 
 	tests := []struct {
 		name    string
