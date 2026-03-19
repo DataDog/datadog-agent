@@ -67,7 +67,7 @@ func TestHTTPCheckPlugin(t *testing.T) {
 	}
 
 	// Start a local HTTP server that returns 200 OK
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	}))
@@ -170,7 +170,7 @@ func TestHTTPCheckPluginFailure(t *testing.T) {
 	}
 
 	// Start and immediately close a server so the port is unreachable
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	unreachableURL := ts.URL
 	ts.Close()
 

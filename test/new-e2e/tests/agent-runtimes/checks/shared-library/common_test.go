@@ -140,6 +140,6 @@ func (v *sharedLibrarySuite) testCheckExampleExecutionAndMetrics() {
 func (v *sharedLibrarySuite) testCheckWithoutRunSymbolExecutionError() {
 	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"no-run-symbol", "--json"}))
 
-	// expect to have an error about the `Run` symbol
-	assert.ErrorContains(v.T(), err, "can't find 'Run' symbol")
+	// expect to have an error about the `check_run` symbol
+	assert.ErrorContains(v.T(), err, "can't find 'check_run' symbol")
 }

@@ -16,8 +16,8 @@ import (
 	"sync"
 	"unsafe"
 
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
