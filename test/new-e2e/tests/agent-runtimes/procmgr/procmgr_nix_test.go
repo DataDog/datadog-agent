@@ -229,7 +229,7 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	require.NotEqual(s.T(), "-", pid, "PID should not be '-' for a Running process")
 	s.Env().RemoteHost.MustExecute("test -d /proc/" + pid)
 
-	s.assertProcessBinary(pid, ddotExtBinaryPath)
+	s.assertProcessBinary(s.T(), pid, ddotExtBinaryPath)
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
@@ -254,6 +254,8 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 		}
 	}, 60*time.Second, 2*time.Second)
 
+	s.assertProcessBinary(s.T(), originalPID, ddotExtBinaryPath)
+
 	// Kill the DDOT process. Since restart policy is on-failure, procmgrd should restart it.
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
@@ -263,13 +265,17 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 		assertField(t, out, "State", "Running")
 
 		newPID := fieldValue(out, "PID")
-		assert.NotEmpty(t, newPID, "PID should be present after restart")
-		assert.NotEqual(t, "-", newPID, "PID should not be '-' after restart")
+		if !assert.NotEmpty(t, newPID, "PID should be present after restart") ||
+			!assert.NotEqual(t, "-", newPID, "PID should not be '-' after restart") {
+			return
+		}
 		assert.NotEqual(t, originalPID, newPID,
 			"PID should differ after restart (was %s)", originalPID)
 
 		restarts := fieldValue(out, "Restarts")
 		assert.Equal(t, "1", restarts, "Restarts count should be 1 after one kill")
+
+		s.assertProcessBinary(t, newPID, ddotExtBinaryPath)
 	}, 30*time.Second, 2*time.Second)
 }
 
@@ -405,11 +411,10 @@ func extractColumn(line string, idx int, columns []tableColumn) string {
 	return strings.TrimSpace(line[start:end])
 }
 
-func (s *procmgrLinuxSuite) assertProcessBinary(pid, expectedBinary string) {
-	s.T().Helper()
+func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expectedBinary string) {
 	exePath := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("sudo readlink -f /proc/" + pid + "/exe"))
-	assert.Equal(s.T(), expectedBinary, exePath,
+	assert.Equal(t, expectedBinary, exePath,
 		"process %s should be running %s", pid, expectedBinary)
 }
 
