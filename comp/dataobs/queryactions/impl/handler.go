@@ -57,7 +57,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		}
 
 		seenConfigIDs[configID] = true
-		c.log.Infof("Received DO query action config: %s (config_id: %s, queries: %d)", path, configID, len(payload.Queries))
+		c.log.Debugf("Received DO query action config: %s (config_id: %s, queries: %d)", path, configID, len(payload.Queries))
 
 		// Empty queries list signals all queries for this config should be removed
 		if len(payload.Queries) == 0 {
@@ -244,7 +244,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 
 	// Copy auth fields into instance config. Auth fields from dbCredentialAllowList
 	// will overwrite any matching keys already set (none currently overlap).
-	// dbCredentialAllowList must not include "remote_config_id", "db_type", or "queries".
+	// dbCredentialAllowList must not include "remote_config_id", "db_type", "db_identifier", or "queries".
 	maps.Copy(instanceFields, auth)
 
 	instanceYAML, err := yaml.Marshal(instanceFields)

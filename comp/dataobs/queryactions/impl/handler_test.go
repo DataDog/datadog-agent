@@ -410,7 +410,7 @@ func collectStatuses(c *component, updates map[string]state.RawConfig) (map[stri
 	return statuses, changes
 }
 
-func TestOnDebugConfig_InvalidJSON(t *testing.T) {
+func TestOnRCUpdate_InvalidJSON(t *testing.T) {
 	c := newTestComponent(t)
 	updates := map[string]state.RawConfig{
 		"path/bad": {Config: []byte(`{not valid json`)},
@@ -420,7 +420,7 @@ func TestOnDebugConfig_InvalidJSON(t *testing.T) {
 	assert.Empty(t, c.activeConfigs)
 }
 
-func TestOnDebugConfig_EmptyConfigID(t *testing.T) {
+func TestOnRCUpdate_EmptyConfigID(t *testing.T) {
 	c := newTestComponent(t)
 	updates := map[string]state.RawConfig{
 		"path/config": {Config: []byte(`{"config_id": ""}`)},
@@ -430,7 +430,7 @@ func TestOnDebugConfig_EmptyConfigID(t *testing.T) {
 	assert.Empty(t, c.activeConfigs)
 }
 
-func TestOnDebugConfig_EmptyQueriesUnschedules(t *testing.T) {
+func TestOnRCUpdate_EmptyQueriesUnschedules(t *testing.T) {
 	existing := integration.Config{Name: "do_query_actions"}
 	c := newTestComponent(t)
 	c.activeConfigs["cfg-1"] = existing
@@ -446,7 +446,7 @@ func TestOnDebugConfig_EmptyQueriesUnschedules(t *testing.T) {
 	assert.Equal(t, "do_query_actions", changes.Unschedule[0].Name)
 }
 
-func TestOnDebugConfig_ReconcileRemovesStaleConfigs(t *testing.T) {
+func TestOnRCUpdate_ReconcileRemovesStaleConfigs(t *testing.T) {
 	existing := integration.Config{Name: "do_query_actions"}
 	c := newTestComponent(t)
 	c.activeConfigs["stale-config"] = existing
@@ -542,6 +542,52 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 	assert.Equal(t, "SELECT count(*) FROM orders", q["query"])
 
 	require.Contains(t, c.activeConfigs, "cfg-happy")
+}
+
+// TestOnRCUpdate_UpdateReplacesExistingCheck verifies that two sequential onRCUpdate calls
+// with the same config_id correctly unschedule the previous check and schedule the updated one.
+func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	mkPayload := func(query string) []byte {
+		b, err := json.Marshal(DOQueryPayload{
+			ConfigID:     "cfg-update",
+			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+			Queries:      []QuerySpec{{Type: "run_query", Query: query, IntervalSeconds: 60, TimeoutSeconds: 10}},
+		})
+		require.NoError(t, err)
+		return b
+	}
+
+	// First update: schedule initial version.
+	_, changes1 := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg": {Config: mkPayload("SELECT 1")},
+	})
+	require.Len(t, changes1.Schedule, 1, "first update should schedule the check")
+	assert.Empty(t, changes1.Unschedule, "first update should not unschedule anything")
+	require.Contains(t, c.activeConfigs, "cfg-update")
+
+	firstCfg := changes1.Schedule[0]
+
+	// Second update: same config_id, different query. Should unschedule the old and schedule the new.
+	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg": {Config: mkPayload("SELECT 2")},
+	})
+	require.Len(t, changes2.Schedule, 1, "second update should schedule the updated check")
+	require.Len(t, changes2.Unschedule, 1, "second update should unschedule the previous check")
+	assert.Equal(t, firstCfg, changes2.Unschedule[0], "unscheduled config should be the previous version")
+
+	// Verify the new instance has the updated query.
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes2.Schedule[0].Instances[0], &instance))
+	queries, ok := instance["queries"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	assert.Equal(t, "SELECT 2", queries[0].(map[string]interface{})["query"])
 }
 
 // TestOnRCUpdate_NoMatchingPostgres_ReportsError verifies that when no postgres instance
