@@ -1028,7 +1028,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
 
-		// Integration security
+	// Integration security
 
 	// When enabled, integrations will ignore configuration parameters that refer to file paths
 	// Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
