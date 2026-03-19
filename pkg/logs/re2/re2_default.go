@@ -9,6 +9,12 @@
 // Google's RE2 via CGo (re2_cgo build tag) or by stub implementations.
 package re2
 
+// SetEnabled is a no-op when the re2_cgo build tag is inactive.
+func SetEnabled(_ bool) {}
+
+// Enabled always returns false when the re2_cgo build tag is inactive.
+func Enabled() bool { return false }
+
 // Regexp is a placeholder type when the re2_cgo build tag is inactive.
 // Compile always returns nil, so *Regexp values are never instantiated.
 type Regexp struct{}

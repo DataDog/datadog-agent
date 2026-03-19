@@ -17,9 +17,14 @@ import (
 // For regex patterns, it uses go-re2 when the DFA advantage outweighs
 // CGo overhead: complex patterns (no literal prefix) always route to
 // RE2, while simple patterns only use RE2 on large content.
+// RE2 can be disabled at runtime via logs_config.use_re2_regex.
 func re2MatchContent(rule *config.ProcessingRule, content []byte) bool {
 	if rule.HasLiteralContents() {
 		return matchLiterals(rule, content)
+	}
+
+	if !re2.Enabled() {
+		return rule.Regex.Match(content)
 	}
 
 	compiled := rule.RE2Compiled()
@@ -48,10 +53,15 @@ const re2CGoThreshold = 4096
 //
 // The literal-prefix guard is applied internally as a fast reject.
 // For simple patterns on short content, it falls back to stdlib to
-// avoid CGo overhead.
+// avoid CGo overhead. RE2 can be disabled at runtime via
+// logs_config.use_re2_regex.
 func re2MaskReplace(rule *config.ProcessingRule, content []byte) ([]byte, bool) {
 	if !isMatchingLiteralPrefix(rule.Regex, content) {
 		return content, false
+	}
+
+	if !re2.Enabled() {
+		return replaceAllLazy(rule.Regex, content, rule.Placeholder, rule.PlaceholderHasExpansion())
 	}
 
 	if rule.HasLiteralPrefix() && len(content) <= re2CGoThreshold {

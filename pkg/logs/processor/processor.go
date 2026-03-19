@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	re2 "github.com/DataDog/datadog-agent/pkg/logs/re2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,6 +74,11 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+	}
+
+	// Apply RE2 engine toggle from config
+	if config != nil {
+		re2.SetEnabled(config.GetBool("logs_config.use_re2_regex"))
 	}
 
 	// Initialize cached failover config
@@ -250,49 +256,35 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	for _, rule := range p.processingRules {
-		content = applyRule(rule, msg, content)
-		if content == nil {
-			return false
+	rules := append(p.processingRules, extraRules...)
+	for _, rule := range rules {
+		switch rule.Type {
+		case config.ExcludeAtMatch:
+			if re2MatchContent(rule, content) {
+				msg.RecordProcessingRule(rule.GetDesignation())
+				return false
+			}
+		case config.IncludeAtMatch:
+			if !re2MatchContent(rule, content) {
+				return false
+			}
+			msg.RecordProcessingRule(rule.GetDesignation())
+		case config.MaskSequences:
+			newContent, changed := re2MaskReplace(rule, content)
+			if changed {
+				content = newContent
+				msg.RecordProcessingRule(rule.GetDesignation())
+			}
+		case config.ExcludeTruncated:
+			if msg.IsTruncated {
+				msg.RecordProcessingRule(rule.GetDesignation())
+				return false
+			}
 		}
 	}
 
-	for _, rule := range extraRules {
-		content = applyRule(rule, msg, content)
-		if content == nil {
-			return false
-		}
-	}
 	msg.SetContent(content)
 	return true // we want to send this message
-}
-
-// applyRule applies a single processing rule to content and returns the
-// (possibly modified) content, or nil if the message should be dropped.
-func applyRule(rule *config.ProcessingRule, msg *message.Message, content []byte) []byte {
-	switch rule.Type {
-	case config.ExcludeAtMatch:
-		if re2MatchContent(rule, content) {
-			msg.RecordProcessingRule(rule.GetDesignation())
-			return nil
-		}
-	case config.IncludeAtMatch:
-		if !re2MatchContent(rule, content) {
-			return nil
-		}
-		msg.RecordProcessingRule(rule.GetDesignation())
-	case config.MaskSequences:
-		if result, matched := re2MaskReplace(rule, content); matched {
-			content = result
-			msg.RecordProcessingRule(rule.GetDesignation())
-		}
-	case config.ExcludeTruncated:
-		if msg.IsTruncated {
-			msg.RecordProcessingRule(rule.GetDesignation())
-			return nil
-		}
-	}
-	return content
 }
 
 // GetHostname returns the hostname to applied the given log message

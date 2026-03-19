@@ -8,7 +8,20 @@
 // Package re2 provides a CGo wrapper for Google's RE2 regular expression library.
 package re2
 
-import gre2 "github.com/DataDog/datadog-agent/pkg/logs/re2/internal/go-re2"
+import (
+	"sync/atomic"
+
+	gre2 "github.com/DataDog/datadog-agent/pkg/logs/re2/internal/go-re2"
+)
+
+var disabled atomic.Bool
+
+// SetEnabled controls whether the RE2 engine is active at runtime.
+// When set to false, Compile returns nil and callers fall back to stdlib.
+func SetEnabled(v bool) { disabled.Store(!v) }
+
+// Enabled reports whether the RE2 engine is currently active.
+func Enabled() bool { return !disabled.Load() }
 
 // Regexp is the go-re2 compiled regular expression. Under the re2_cgo
 // build tag it is a type alias for the vendored go-re2 Regexp, which
@@ -16,7 +29,11 @@ import gre2 "github.com/DataDog/datadog-agent/pkg/logs/re2/internal/go-re2"
 type Regexp = gre2.Regexp
 
 // Compile compiles a regular expression using the go-re2 engine.
+// Returns nil when RE2 has been disabled via SetEnabled(false).
 func Compile(expr string) (*Regexp, error) {
+	if disabled.Load() {
+		return nil, nil
+	}
 	return gre2.Compile(expr)
 }
 
