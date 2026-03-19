@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 
-go 1.25
+go 1.23.1
+
+toolchain go1.24.4
 
 require (
 	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.0.1
@@ -28,7 +30,7 @@ require (
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
-	github.com/DataDog/go-sqllexer v0.2.1 // indirect
+	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
