@@ -102,6 +102,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
+		start := time.Now()
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.AndSelectors(
@@ -120,11 +121,25 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 
 			for _, pod := range linuxPods.Items {
 				for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+					if !containerStatus.Ready {
+						suite.T().Logf("[DEBUG] Container %s of pod %s not ready (started=%v, state=%+v) at %s since start",
+							containerStatus.Name, pod.Name, containerStatus.Started, containerStatus.State, time.Since(start).Round(time.Second))
+					}
 					assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn't ready", containerStatus.Name, pod.Name)
 					assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
 				}
 			}
 		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
+		suite.T().Logf("[DEBUG] agent pods became ready in %s", time.Since(start).Round(time.Second))
+
+		// Collect flare for debugging startup timing regardless of test outcome
+		suite.T().Logf("[DEBUG] Collecting flare for startup timing analysis")
+		diagnose, err := suite.Env().Diagnose(suite.SessionOutputDir())
+		if err != nil {
+			suite.T().Logf("[DEBUG] Flare collection failed: %v", err)
+		} else {
+			suite.T().Logf("[DEBUG] Flare collected: %s", diagnose)
+		}
 	})
 }
 
