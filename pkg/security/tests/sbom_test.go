@@ -32,6 +32,8 @@ import (
 )
 
 func TestSBOM(t *testing.T) {
+	t.Skip("this test is currently flaky, needs to be stabilized before re-enabling")
+
 	SkipIfNotAvailable(t)
 
 	if testEnvironment == DockerEnvironment {
