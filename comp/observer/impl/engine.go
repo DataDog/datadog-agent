@@ -182,10 +182,12 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	view := &logView{obs: l}
+	sourceTag := "observer_source:" + source
 	for _, extractor := range e.extractors {
 		metrics := extractor.ProcessLog(view)
 		for _, m := range metrics {
-			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			tags := append(m.Tags, sourceTag)
+			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
 		}
 	}
 	for _, lo := range e.logObservers {

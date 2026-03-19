@@ -51,7 +51,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	metricName := "log.pattern." + toHex64(h.Sum64()) + ".count"
-	tags := []string{"source:datadog-agent", "component:core", "level:info"}
+	tags := []string{"component:core", "level:info", "observer_source:agent-internal-logs", "source:datadog-agent"}
 
 	// Poll briefly since observer processes asynchronously.
 	// Namespace is the extractor component name (log_metrics_extractor).
