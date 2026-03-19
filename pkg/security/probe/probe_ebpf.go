@@ -1240,7 +1240,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 	eventType := event.GetEventType()
 	switch eventType {
 
-	case model.FileMountEventType, model.FileMoveMountEventType:
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
 		if !p.regularUnmarshalEvent(&event.Mount, eventType, offset, dataLen, data) {
 			return false
 		}
@@ -2310,7 +2310,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntriesForMountID(m.MountID)
 
-	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
+	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType && ev.GetEventType() != model.PivotRootEventType {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
@@ -2323,7 +2323,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	var err error
-	if ev.GetEventType() == model.FileMoveMountEventType {
+	if ev.GetEventType() == model.FileMoveMountEventType || ev.GetEventType() == model.PivotRootEventType {
 		err = p.Resolvers.MountResolver.InsertMoved(*m)
 	} else {
 		err = p.Resolvers.MountResolver.Insert(*m)

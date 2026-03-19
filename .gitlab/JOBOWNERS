@@ -25,6 +25,7 @@ tests_windows_sysprobe*                 @DataDog/windows-products
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
+procmgr_rust_tests                      @DataDog/agent-runtimes
 protobuf_test                           @DataDog/multiple
 test_kmt_local_setup*                   @DataDog/ebpf-platform
 
