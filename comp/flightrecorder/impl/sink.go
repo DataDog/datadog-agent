@@ -10,11 +10,10 @@ import (
 	"sync"
 	"time"
 
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	flightrecorder "github.com/DataDog/datadog-agent/comp/flightrecorder/def"
 	"github.com/DataDog/datadog-agent/pkg/hook"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -105,7 +104,10 @@ func NewComponent(req Requires) (Provides, error) {
 	//   dogstatsd-pipeline — raw DogStatsD samples (pre-aggregation, per UDP packet)
 	//   metrics-pipeline   — post-aggregated series: DogStatsD (time-sampler),
 	//                        check metrics (check_sampler), no-agg pipeline
-	for _, mh := range fxutil.GetAndFilterGroup(req.MetricsHooks) {
+	for _, mh := range req.MetricsHooks {
+		if mh == nil {
+			continue
+		}
 		source := mh.Name()
 		mh.SubscribeWithBuffer("flightrecorder-metrics", hookBufSize, func(payload hook.MetricView) {
 			name := payload.GetName()
@@ -141,7 +143,10 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 
 	// Subscribe to all log hooks.
-	for _, lh := range fxutil.GetAndFilterGroup(req.LogsHooks) {
+	for _, lh := range req.LogsHooks {
+		if lh == nil {
+			continue
+		}
 		lh.SubscribeWithBuffer("flightrecorder-logs", hookBufSize, func(payload hook.LogView) {
 			raw := payload.GetContent()
 			cp := contentPool.Get().(*[]byte)

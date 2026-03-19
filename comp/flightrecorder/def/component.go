@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// team: agent-runtimes
+
 // Package flightrecorder provides the Component interface for the flight recorder.
 package flightrecorder
 
