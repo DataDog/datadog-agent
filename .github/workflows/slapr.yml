@@ -25,7 +25,7 @@ jobs:
       with:
         review-map: tasks/libs/pipeline/github_slack_map.yaml
         github-token: ${{ steps.octo-sts.outputs.token }}
-        slack-api-token: ${{ secrets.SLAPR_SLACK_API_TOKEN }}
-        slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
-        bot-user-id: ${{ vars.SLAPR_BOT_USER_ID }}
+        slack-api-token: ${{ secrets.SLACK_SLAPR_BOT_TOKEN }}
+        slack-channel-id: ${{ vars.DEFAULT_CHANNEL_ID }}
+        bot-user-id: ${{ vars.SLAPR_BOT_ID }}
         emoji-approved: done
