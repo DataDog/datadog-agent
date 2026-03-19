@@ -423,12 +423,12 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 	assert.True(t, found, "expected to find log file %s in LogFiles: %v", logFileName, svc.LogFiles)
 }
 
-// TestServicesGoDetectionMovedExe tests that Go language detection works even
-// when the binary has been moved after the process started. This simulates
+// TestServicesGoDetectionDeletedExe tests that Go language detection works even
+// when the binary has been deleted after the process started. This simulates
 // the container case where /proc/<pid>/exe points to a path inside the
 // container's filesystem that doesn't exist on the host — resolving the
 // symlink separately won't work, but opening /proc/<pid>/exe directly does.
-func (s *discoveryTestSuite) TestServicesGoDetectionMovedExe() {
+func (s *discoveryTestSuite) TestServicesGoDetectionDeletedExe() {
 	t := s.T()
 	discovery := s.discovery
 
@@ -438,7 +438,7 @@ func (s *discoveryTestSuite) TestServicesGoDetectionMovedExe() {
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
 	require.NoError(t, err)
 
-	// Copy the Go binary to a temp directory so we can move it
+	// Copy the Go binary to a temp directory so we can delete it
 	tmpDir := t.TempDir()
 	tmpBin := filepath.Join(tmpDir, "fake_server")
 	data, err := os.ReadFile(serverBin)
@@ -457,11 +457,10 @@ func (s *discoveryTestSuite) TestServicesGoDetectionMovedExe() {
 
 	pid := cmd.Process.Pid
 
-	// Move the binary so that the original path no longer exists.
-	// /proc/<pid>/exe still works (the kernel follows the inode), but
-	// resolving the symlink target gives a "(deleted)" path.
-	movedBin := filepath.Join(tmpDir, "fake_server_moved")
-	err = os.Rename(tmpBin, movedBin)
+	// Delete the binary so that the original path no longer exists.
+	// /proc/<pid>/exe still works (the kernel keeps the inode alive), but
+	// resolving the symlink target gives a path with " (deleted)" appended.
+	err = os.Remove(tmpBin)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -470,7 +469,7 @@ func (s *discoveryTestSuite) TestServicesGoDetectionMovedExe() {
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
 		assert.Equal(collect, string(language.Go), svc.Language,
-			"Go binary should be detected as Go even after the exe has been moved")
+			"Go binary should be detected as Go even after the exe has been deleted")
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
