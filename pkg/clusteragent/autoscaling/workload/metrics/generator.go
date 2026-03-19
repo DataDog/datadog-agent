@@ -49,7 +49,9 @@ func baseAutoscalerTags(internal *model.PodAutoscalerInternal) []string {
 		le.JoinLeaderLabel + ":" + le.JoinLeaderValue,
 	}
 	tags = append(tags, keyTagsFromObjectMetadata(internal)...)
-	return tags
+	// Cap to prevent slice aliasing when callers append to this slice multiple times
+	// (e.g. horizontalTags and conditionTags loop both append to baseTags)
+	return tags[:len(tags):len(tags)]
 }
 
 func resourceTags(containerName, resourceName string) []string {
@@ -83,7 +85,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 	}
 	baseWithHorizontalSourceTags = append(baseWithHorizontalSourceTags, baseTags...)
 	// Cap to prevent slice aliasing in the container resources loop below
-	baseWithHorizontalSourceTags = baseWithHorizontalSourceTags[:len(baseWithHorizontalSourceTags):len(baseWithHorizontalSourceTags)] // Cap to prevent slice aliasing in the horizontal metrics below
+	baseWithHorizontalSourceTags = baseWithHorizontalSourceTags[:len(baseWithHorizontalSourceTags):len(baseWithHorizontalSourceTags)]
 
 	var baseWithVerticalSourceTags []string
 	if scalingValues.Vertical != nil {
@@ -166,6 +168,8 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		actionSource = string(sv.Horizontal.Source)
 	}
 	horizontalTags := append(baseTags, "source:"+actionSource)
+	// Cap the slice to its length so each status append allocates independently
+	horizontalTags = horizontalTags[:len(horizontalTags):len(horizontalTags)]
 
 	if len(lastHorizontalActions) > 0 {
 		lastAction := lastHorizontalActions[len(lastHorizontalActions)-1]
@@ -177,8 +181,6 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		})
 	}
 
-	// Cap the slice to its length so each status append allocates independently
-	horizontalTags = horizontalTags[:len(horizontalTags):len(horizontalTags)]
 	metrics = append(metrics, metricsstore.StructuredMetric{
 		Name:  metricPrefix + ".horizontal_scaling_actions",
 		Type:  metricsstore.MetricTypeMonotonicCount,
@@ -208,9 +210,9 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  append(baseWithVerticalSourceTags, "status:ok"),
 	})
 
-	// 8. Local recommender horizontal metrics
+	// 7. Local recommender horizontal metrics
 	if fallbackHorizontal := internal.FallbackScalingValues().Horizontal; fallbackHorizontal != nil {
-		localSourceTags := append(baseTags[:len(baseTags):len(baseTags)], "source:"+string(fallbackHorizontal.Source))
+		localSourceTags := append(baseTags, "source:"+string(fallbackHorizontal.Source))
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".local.horizontal_scaling_recommended_replicas",
 			Type:  metricsstore.MetricTypeGauge,
@@ -227,7 +229,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 7. Autoscaler conditions (from upstream CR)
+	// 8. Autoscaler conditions (from upstream CR)
 	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
 		for _, condition := range podAutoscaler.Status.Conditions {
 			value := 0.0

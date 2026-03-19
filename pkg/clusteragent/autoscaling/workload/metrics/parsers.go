@@ -37,7 +37,7 @@ func keyTagsFromObjectMetadata(internal *model.PodAutoscalerInternal) []string {
 	if tagsJSON := cr.Annotations[kubernetes.ADTagsAnnotation]; tagsJSON != "" {
 		annotationTags, err := parseTagsFromJSON(kubernetes.ADTagsAnnotation, tagsJSON)
 		if err != nil {
-			log.Tracef("Failed to parse %s annotation for %s/%s: %v", kubernetes.ADTagsAnnotation, cr.Namespace, cr.Name, err)
+			log.Debugf("Failed to parse %s annotation for %s/%s: %v", kubernetes.ADTagsAnnotation, cr.Namespace, cr.Name, err)
 		} else {
 			tags = append(tags, annotationTags...)
 		}
@@ -80,7 +80,7 @@ func parseContainerAnnotationTags(annotations map[string]string) (map[string][]s
 }
 
 // parseTagsFromJSON parses a JSON map {"key":"val"} or {"key":["v1","v2"]} into []string tags.
-// Returns nil on absent/invalid input.
+// Returns nil on absent input; returns an error for invalid JSON.
 func parseTagsFromJSON(annotationKey, tagsJSON string) ([]string, error) {
 	if tagsJSON == "" {
 		return nil, nil
