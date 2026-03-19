@@ -16,7 +16,7 @@ import (
 
 const (
 	// the segment length to read on Darwin
-	segmentLen = 134
+	segmentLen = 142
 )
 
 // createPacketSource creates a Darwin-specific libpcap packet source
