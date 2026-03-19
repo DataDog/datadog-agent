@@ -445,6 +445,26 @@ const (
 	AggregateMax
 )
 
+// ContextProvider resolves metric keys back to richer context about their
+// origin. Components that synthesize metrics from richer data (e.g. log
+// extractors that turn log patterns into count metrics) can implement this
+// interface so that downstream consumers (detectors, reporters) can produce
+// more descriptive anomaly reports.
+type ContextProvider interface {
+	// GetContext returns contextual information about a metric, if available.
+	GetContext(metricName string) (MetricContext, bool)
+}
+
+// MetricContext describes the origin of a synthesized metric.
+type MetricContext struct {
+	// Pattern is the normalized pattern that generated this metric (e.g. a log signature).
+	Pattern string
+	// Example is a recent raw input that matched the pattern.
+	Example string
+	// Source identifies the originating component or data stream.
+	Source string
+}
+
 // StorageReader provides read access to time series data.
 // Detectors use this to pull whatever data they need.
 //
@@ -499,6 +519,12 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
+
+	// GetContext returns contextual information about a metric's origin.
+	// For metrics synthesized from richer data (e.g. log pattern counts),
+	// this provides the pattern, an example input, and the source component.
+	// Returns false if no context is available for the given metric name.
+	GetContext(metricName string) (MetricContext, bool)
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.

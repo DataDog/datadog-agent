@@ -37,10 +37,11 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
+	storage          *timeSeriesStorage
+	extractors       []observerdef.LogMetricsExtractor
+	detectors        []observerdef.Detector
+	correlators      []observerdef.Correlator
+	contextProviders []observerdef.ContextProvider
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -91,10 +92,11 @@ type engine struct {
 
 // engineConfig holds the parameters for constructing an engine.
 type engineConfig struct {
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
+	storage          *timeSeriesStorage
+	extractors       []observerdef.LogMetricsExtractor
+	detectors        []observerdef.Detector
+	correlators      []observerdef.Correlator
+	contextProviders []observerdef.ContextProvider
 
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
@@ -111,11 +113,12 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	e := &engine{
-		storage:     cfg.storage,
-		extractors:  cfg.extractors,
-		detectors:   cfg.detectors,
-		correlators: cfg.correlators,
-		scheduler:   sched,
+		storage:          cfg.storage,
+		extractors:       cfg.extractors,
+		detectors:        cfg.detectors,
+		correlators:      cfg.correlators,
+		contextProviders: cfg.contextProviders,
+		scheduler:        sched,
 
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
 		maxRawAnomalies:  cfg.maxRawAnomalies,
@@ -260,8 +263,17 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
+	// Wrap storage with context providers so detectors can call GetContext.
+	var storage observerdef.StorageReader = e.storage
+	if len(e.contextProviders) > 0 {
+		storage = &contextAwareStorage{
+			StorageReader: e.storage,
+			providers:     e.contextProviders,
+		}
+	}
+
 	for _, detector := range detectors {
-		result := detector.Detect(e.storage, upTo)
+		result := detector.Detect(storage, upTo)
 		for _, anomaly := range result.Anomalies {
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate — skip correlators, events, and reporters

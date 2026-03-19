@@ -182,11 +182,12 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	detectors, correlators, extractors, components := catalog.Instantiate(config.EnableOverrides)
 
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
-		extractors:  extractors,
-		detectors:   detectors,
-		correlators: correlators,
-		scheduler:   &currentBehaviorPolicy{},
+		storage:          newTimeSeriesStorage(),
+		extractors:       extractors,
+		detectors:        detectors,
+		correlators:      correlators,
+		contextProviders: collectContextProviders(extractors),
+		scheduler:        &currentBehaviorPolicy{},
 	})
 
 	hub := newSSEHub()

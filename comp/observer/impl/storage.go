@@ -777,6 +777,12 @@ func (s *timeSeriesStorage) WriteGeneration(handle observer.SeriesHandle) int64 
 	return 0
 }
 
+// GetContext on bare storage always returns false — context comes from
+// the contextAwareStorage wrapper that layers ContextProviders on top.
+func (s *timeSeriesStorage) GetContext(_ string) (observer.MetricContext, bool) {
+	return observer.MetricContext{}, false
+}
+
 // matchTags checks if tags contain all required key=value pairs.
 func matchTags(tags []string, matchers map[string]string) bool {
 	if len(matchers) == 0 {

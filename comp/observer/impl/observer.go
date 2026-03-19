@@ -198,11 +198,12 @@ func NewComponent(deps Requires) Provides {
 	detectors, correlators, extractors, _ := catalog.Instantiate(correlatorOverrides)
 
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
-		extractors:  extractors,
-		detectors:   detectors,
-		correlators: correlators,
-		scheduler:   &currentBehaviorPolicy{},
+		storage:          newTimeSeriesStorage(),
+		extractors:       extractors,
+		detectors:        detectors,
+		correlators:      correlators,
+		contextProviders: collectContextProviders(extractors),
+		scheduler:        &currentBehaviorPolicy{},
 	})
 
 	// Wire reporters via event subscription.
