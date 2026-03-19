@@ -8,7 +8,41 @@ package observerimpl
 import (
 	"math"
 	"sort"
+
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
+
+// seriesStatus holds point count and write generation for a single series.
+// Used by bulkSeriesStatus and scan-based detectors.
+type seriesStatus struct {
+	pointCount      int
+	writeGeneration int64
+}
+
+// bulkStatusReader is an optional optimization interface for StorageReader
+// implementations that support batch status queries in a single lock acquisition.
+type bulkStatusReader interface {
+	BulkSeriesStatus(handles []observer.SeriesHandle, endTime int64) []seriesStatus
+}
+
+// bulkSeriesStatus returns the point count and write generation for each handle.
+// If storage implements bulkStatusReader (e.g. timeSeriesStorage), it uses a
+// single lock acquisition. Otherwise falls back to individual PointCountUpTo +
+// WriteGeneration calls per handle.
+func bulkSeriesStatus(storage observer.StorageReader, handles []observer.SeriesHandle, endTime int64) []seriesStatus {
+	if br, ok := storage.(bulkStatusReader); ok {
+		return br.BulkSeriesStatus(handles, endTime)
+	}
+	// Fallback: individual calls (2 lock acquisitions per handle).
+	result := make([]seriesStatus, len(handles))
+	for i, h := range handles {
+		result[i] = seriesStatus{
+			pointCount:      storage.PointCountUpTo(h, endTime),
+			writeGeneration: storage.WriteGeneration(h),
+		}
+	}
+	return result
+}
 
 // detectorMedian computes the median of a float64 slice without modifying the input.
 func detectorMedian(vals []float64) float64 {

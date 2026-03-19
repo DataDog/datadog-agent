@@ -140,6 +140,19 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 	foundTPKeys := make(map[string]*metricHit)
 	firedFPKeys := make(map[string]*metricHit)
 
+	// Sort keys for deterministic iteration order across runs.
+	sortedTPKeys := make([]string, 0, len(tpSet))
+	for key := range tpSet {
+		sortedTPKeys = append(sortedTPKeys, key)
+	}
+	sort.Strings(sortedTPKeys)
+
+	sortedFPKeys := make([]string, 0, len(fpSet))
+	for key := range fpSet {
+		sortedFPKeys = append(sortedFPKeys, key)
+	}
+	sort.Strings(sortedFPKeys)
+
 	for _, period := range output.AnomalyPeriods {
 		source := period.metricSource()
 		if source == "" {
@@ -149,8 +162,8 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		}
 
 		matched := false
-		// Check against TP metrics
-		for key := range tpSet {
+		// Check against TP metrics (sorted for determinism)
+		for _, key := range sortedTPKeys {
 			if metricMatches(source, key) {
 				result.TPCount++
 				if hit, ok := foundTPKeys[key]; ok {
@@ -166,8 +179,8 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 			continue
 		}
 
-		// Check against FP metrics
-		for key := range fpSet {
+		// Check against FP metrics (sorted for determinism)
+		for _, key := range sortedFPKeys {
 			if metricMatches(source, key) {
 				result.FPCount++
 				if hit, ok := firedFPKeys[key]; ok {
@@ -187,16 +200,18 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		result.UnknownDetectionCount++
 	}
 
-	// Collect found/missed TP metrics
-	for key := range allTPKeys {
+	// Collect found/missed TP metrics (use sorted keys for determinism)
+	for _, key := range sortedTPKeys {
 		if _, ok := foundTPKeys[key]; ok {
 			result.TPMetricsFound = append(result.TPMetricsFound, key)
 		} else {
 			result.TPMetricsMissed = append(result.TPMetricsMissed, key)
 		}
 	}
-	for key := range firedFPKeys {
-		result.FPMetricsFired = append(result.FPMetricsFired, key)
+	for _, key := range sortedFPKeys {
+		if _, ok := firedFPKeys[key]; ok {
+			result.FPMetricsFired = append(result.FPMetricsFired, key)
+		}
 	}
 
 	// Build per-metric detection timeline
@@ -287,7 +302,13 @@ func (oc *ObserverCorrelation) metricSource() string {
 //
 // Matching rules:
 // 1. Strip aggregate suffix from source (e.g., ":avg", ":max")
-// 2. Check if stripped source == metric or contains metric as substring
+// 2. Check exact match, then substring containment
+//
+// Substring matching is intentional: "trace.http.request.hits" matches ground
+// truth "trace.http.request" because hits is a derived sub-metric of the same
+// trace endpoint. When multiple ground truth keys could match the same source,
+// the caller must iterate in sorted order for deterministic results — which
+// key wins depends on the full "service:metric" sort order.
 func metricMatches(source, key string) bool {
 	parts := strings.SplitN(key, ":", 2)
 	if len(parts) != 2 {

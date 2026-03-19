@@ -780,8 +780,9 @@ func (s *timeSeriesStorage) WriteGeneration(handle observer.SeriesHandle) int64 
 // BulkSeriesStatus returns the point count (up to endTime) and write generation
 // for each handle in a single lock acquisition. This avoids the overhead of
 // 2×len(handles) individual RLock/RUnlock calls in hot detector loops.
-func (s *timeSeriesStorage) BulkSeriesStatus(handles []observer.SeriesHandle, endTime int64) []observer.SeriesStatus {
-	result := make([]observer.SeriesStatus, len(handles))
+// Implements bulkStatusReader (metrics_detector_util.go).
+func (s *timeSeriesStorage) BulkSeriesStatus(handles []observer.SeriesHandle, endTime int64) []seriesStatus {
+	result := make([]seriesStatus, len(handles))
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -791,9 +792,9 @@ func (s *timeSeriesStorage) BulkSeriesStatus(handles []observer.SeriesHandle, en
 		if stats == nil || stats.pointCount() == 0 {
 			continue
 		}
-		result[i] = observer.SeriesStatus{
-			PointCount:      searchAfter(stats.timestamps, endTime),
-			WriteGeneration: stats.writeGeneration,
+		result[i] = seriesStatus{
+			pointCount:      searchAfter(stats.timestamps, endTime),
+			writeGeneration: stats.writeGeneration,
 		}
 	}
 	return result

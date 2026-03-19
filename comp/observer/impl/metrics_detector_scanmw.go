@@ -127,7 +127,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	for i, meta := range d.cachedSeries {
 		handles[i] = meta.Handle
 	}
-	bulkStatus := storage.BulkSeriesStatus(handles, dataTime)
+	bulkStatus := bulkSeriesStatus(storage, handles, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
@@ -149,7 +149,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
 			// During live ingestion, writeGen changes on every write so this
 			// condition falls through to the gen check and behaves as before.
-			if status.PointCount < state.lastProcessedCount+d.MinSegment && status.WriteGeneration == state.lastWriteGen {
+			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
@@ -165,8 +165,8 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.PointCount
-				state.lastWriteGen = status.WriteGeneration
+				state.lastProcessedCount = status.pointCount
+				state.lastWriteGen = status.writeGeneration
 				continue
 			}
 
@@ -176,8 +176,8 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.segmentStartTime = state.buf[changeIdx].Timestamp
 			}
 
-			state.lastProcessedCount = status.PointCount
-			state.lastWriteGen = status.WriteGeneration
+			state.lastProcessedCount = status.pointCount
+			state.lastWriteGen = status.writeGeneration
 		}
 	}
 
