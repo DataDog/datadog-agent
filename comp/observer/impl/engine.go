@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -275,6 +276,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	for _, detector := range detectors {
 		result := detector.Detect(storage, upTo)
 		for _, anomaly := range result.Anomalies {
+			e.enrichAnomaly(storage, &anomaly)
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate — skip correlators, events, and reporters
 			}
@@ -315,6 +317,20 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	return advanceResult{
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
+	}
+}
+
+// enrichAnomaly decorates an anomaly with context from the originating
+// extractor, if available. This runs automatically on every anomaly so
+// detectors don't need to be aware of context providers.
+func (e *engine) enrichAnomaly(storage observerdef.StorageReader, a *observerdef.Anomaly) {
+	ctx, ok := storage.GetContext(string(a.Source))
+	if !ok {
+		return
+	}
+	if a.Description == "" {
+		a.Description = fmt.Sprintf("Pattern %q from %s (e.g. %q)",
+			ctx.Pattern, ctx.Source, truncate(ctx.Example, 120))
 	}
 }
 

@@ -39,3 +39,11 @@ func collectContextProviders(extractors []observer.LogMetricsExtractor) []observ
 	}
 	return providers
 }
+
+// truncate shortens s to maxLen, appending "..." if truncated.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
