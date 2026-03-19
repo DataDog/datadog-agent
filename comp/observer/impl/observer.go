@@ -179,25 +179,27 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 func NewComponent(deps Requires) Provides {
 	catalog := defaultCatalog()
 
-	// Build correlator overrides from config keys (observer.correlators.<name>.enabled).
+	// Apply config overrides to catalog defaults
+	// (observer.detectors.<name>.enabled, observer.correlators.<name>.enabled).
 	cfg := deps.Config
-	var correlatorOverrides map[string]bool
 	if cfg != nil {
 		for _, entry := range catalog.Entries() {
-			if entry.kind != componentCorrelator {
+			var key string
+			switch entry.kind {
+			case componentDetector:
+				key = "observer.detectors." + entry.name + ".enabled"
+			case componentCorrelator:
+				key = "observer.correlators." + entry.name + ".enabled"
+			default:
 				continue
 			}
-			key := "observer.correlators." + entry.name + ".enabled"
-			if deps.Config.IsKnown(key) {
-				if correlatorOverrides == nil {
-					correlatorOverrides = make(map[string]bool)
-				}
-				correlatorOverrides[entry.name] = deps.Config.GetBool(key)
+			if cfg.IsKnown(key) {
+				catalog = catalog.WithDefaultEnabled(entry.name, cfg.GetBool(key))
 			}
 		}
 	}
 
-	detectors, correlators, extractors, _ := catalog.Instantiate(correlatorOverrides)
+	detectors, correlators, extractors, _ := catalog.Instantiate(nil)
 
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),

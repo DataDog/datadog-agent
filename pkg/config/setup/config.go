@@ -365,10 +365,15 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
+	// Observer detector toggles (override catalog defaults)
+	config.BindEnvAndSetDefault("observer.detectors.cusum.enabled", true)
+	config.BindEnvAndSetDefault("observer.detectors.bocpd.enabled", false)
+	config.BindEnvAndSetDefault("observer.detectors.rrcf.enabled", false)
+
 	// Observer correlator toggles (override catalog defaults)
-	config.BindEnvAndSetDefault("observer.correlators.cross_signal.enabled", true)
+	config.BindEnvAndSetDefault("observer.correlators.cross_signal.enabled", false)
 	config.BindEnvAndSetDefault("observer.correlators.time_cluster.enabled", true)
-	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", true)
+	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", false)
 	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", false)
 
 	// Auto exit configuration
