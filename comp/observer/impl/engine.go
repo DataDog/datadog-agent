@@ -42,7 +42,7 @@ type engine struct {
 	extractors       []observerdef.LogMetricsExtractor
 	detectors        []observerdef.Detector
 	correlators      []observerdef.Correlator
-	contextProviders []observerdef.ContextProvider
+	contextProviders map[string]observerdef.ContextProvider // namespace → provider
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -64,8 +64,8 @@ type engine struct {
 	rawAnomalyWindow     int64                           // seconds to keep (0 = unlimited)
 	maxRawAnomalies      int                             // max count to keep (0 = unlimited)
 	currentDataTime      int64                           // latest anomaly timestamp seen
-	totalAnomalyCount    int                             // total count ever (no cap)
-	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
+	totalAnomalyCount    int                                  // total count ever (no cap)
+	uniqueAnomalySources map[observerdef.AnomalySource]bool // unique sources that had anomalies
 
 	// Accumulated correlations from all advance cycles.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -97,7 +97,7 @@ type engineConfig struct {
 	extractors       []observerdef.LogMetricsExtractor
 	detectors        []observerdef.Detector
 	correlators      []observerdef.Correlator
-	contextProviders []observerdef.ContextProvider
+	contextProviders map[string]observerdef.ContextProvider // namespace → provider
 
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
@@ -185,7 +185,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	for _, extractor := range e.extractors {
 		metrics := extractor.ProcessLog(view)
 		for _, m := range metrics {
-			e.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, m.Tags)
 		}
 	}
 	for _, lo := range e.logObservers {
@@ -276,7 +276,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	for _, detector := range detectors {
 		result := detector.Detect(storage, upTo)
 		for _, anomaly := range result.Anomalies {
-			e.enrichAnomaly(storage, &anomaly)
+			e.enrichAnomaly(&anomaly)
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate — skip correlators, events, and reporters
 			}
@@ -323,8 +323,14 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // enrichAnomaly decorates an anomaly with context from the originating
 // extractor, if available. This runs automatically on every anomaly so
 // detectors don't need to be aware of context providers.
-func (e *engine) enrichAnomaly(storage observerdef.StorageReader, a *observerdef.Anomaly) {
-	ctx, ok := storage.GetContext(string(a.Source))
+// Lookup is keyed by the anomaly's namespace (= extractor component name),
+// so there's no string munging — the namespace is a direct map key.
+func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
+	provider, ok := e.contextProviders[a.Source.Namespace]
+	if !ok {
+		return
+	}
+	ctx, ok := provider.GetContext(a.Source.Name)
 	if !ok {
 		return
 	}
@@ -351,7 +357,7 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	e.totalAnomalyCount++
 
 	if e.uniqueAnomalySources == nil {
-		e.uniqueAnomalySources = make(map[observerdef.MetricName]bool)
+		e.uniqueAnomalySources = make(map[observerdef.AnomalySource]bool)
 	}
 	const maxUniqueSources = 500
 	if len(e.uniqueAnomalySources) < maxUniqueSources {

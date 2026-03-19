@@ -259,6 +259,27 @@ type MetricOutput struct {
 // Multiple series can share a MetricName if they differ by tags.
 type MetricName string
 
+// AnomalySource identifies the metric that an anomaly is about using
+// structured fields rather than string concatenation.
+type AnomalySource struct {
+	// Namespace identifies the component that produced this metric
+	// (e.g. an extractor name like "log_metrics_extractor", or "dogstatsd").
+	Namespace string
+	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
+	Name string
+	// Aggregate is the aggregation applied when reading the series.
+	Aggregate Aggregate
+}
+
+// String returns a human-readable representation (e.g. "cpu.user:avg").
+// Namespace is structural and not included in the display string.
+func (s AnomalySource) String() string {
+	if s.Name == "" {
+		return ""
+	}
+	return s.Name + ":" + AggregateString(s.Aggregate)
+}
+
 // SeriesID uniquely identifies a time series (namespace + name + tags).
 type SeriesID string
 
@@ -279,10 +300,8 @@ type Anomaly struct {
 	// Type distinguishes log-based anomalies from metric-based ones.
 	// Defaults to AnomalyTypeMetric if not set.
 	Type AnomalyType
-	// Source identifies which metric/signal or log source the anomaly is about.
-	// For metric anomalies: the metric name (e.g., "network.retransmits:avg").
-	// For log anomalies: a descriptive source identifier (e.g., "logs").
-	Source MetricName
+	// Source identifies which metric/signal the anomaly is about.
+	Source AnomalySource
 	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
 	// Empty for log anomalies.
 	SourceSeriesID SeriesID
@@ -445,6 +464,24 @@ const (
 	AggregateMax
 )
 
+// AggregateString returns a short string label for the aggregation type.
+func AggregateString(agg Aggregate) string {
+	switch agg {
+	case AggregateAverage:
+		return "avg"
+	case AggregateSum:
+		return "sum"
+	case AggregateCount:
+		return "count"
+	case AggregateMin:
+		return "min"
+	case AggregateMax:
+		return "max"
+	default:
+		return "avg"
+	}
+}
+
 // ContextProvider resolves metric keys back to richer context about their
 // origin. Components that synthesize metrics from richer data (e.g. log
 // extractors that turn log patterns into count metrics) can implement this
@@ -521,10 +558,10 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 
 	// GetContext returns contextual information about a metric's origin.
-	// For metrics synthesized from richer data (e.g. log pattern counts),
-	// this provides the pattern, an example input, and the source component.
-	// Returns false if no context is available for the given metric name.
-	GetContext(metricName string) (MetricContext, bool)
+	// The namespace identifies the component that produced the metric;
+	// name is the bare metric name within that namespace.
+	// Returns false if no context is available.
+	GetContext(namespace, name string) (MetricContext, bool)
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.

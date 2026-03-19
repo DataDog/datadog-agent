@@ -21,13 +21,13 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 
 	// Two anomalies with nearby timestamps should cluster together
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.b",
+		Source:         observer.AnomalySource{Name: "metric.b"},
 		SourceSeriesID: "ns|metric.b|",
 		Title:          "Anomaly B",
 		Timestamp:      105, // 5 seconds later, within 10s proximity
@@ -48,13 +48,13 @@ func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 
 	// Anomalies within proximity window should cluster
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.b",
+		Source:         observer.AnomalySource{Name: "metric.b"},
 		SourceSeriesID: "ns|metric.b|",
 		Title:          "Anomaly B",
 		Timestamp:      108, // 8 seconds later, within 10s proximity
@@ -73,13 +73,13 @@ func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 
 	// Anomalies outside proximity window should form separate clusters
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.b",
+		Source:         observer.AnomalySource{Name: "metric.b"},
 		SourceSeriesID: "ns|metric.b|",
 		Title:          "Anomaly B",
 		Timestamp:      150, // 50 seconds later, outside 10s proximity
@@ -100,13 +100,13 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 
 	// Create two separate clusters
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.b",
+		Source:         observer.AnomalySource{Name: "metric.b"},
 		SourceSeriesID: "ns|metric.b|",
 		Title:          "Anomaly B",
 		Timestamp:      120, // Far enough to be separate (20s apart)
@@ -117,7 +117,7 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 
 	// Add anomaly that bridges both clusters
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.c",
+		Source:         observer.AnomalySource{Name: "metric.c"},
 		SourceSeriesID: "ns|metric.c|",
 		Title:          "Anomaly C",
 		Timestamp:      110, // Near both clusters
@@ -138,14 +138,14 @@ func TestTimeClusterCorrelator_SameSeriesMultipleAnomalies(t *testing.T) {
 
 	// Multiple anomalies from the same series should all be kept
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A v1",
 		Description:    "first",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A v2",
 		Description:    "second",
@@ -168,13 +168,13 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	// Same metric name, different tags = different SourceSeriesIDs
 	// Both should be separate members in the cluster
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|host:A",
 		Title:          "Anomaly from host A",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|host:B",
 		Title:          "Anomaly from host B",
 		Timestamp:      102,
@@ -195,7 +195,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	// Add old anomaly
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.old",
+		Source:         observer.AnomalySource{Name: "metric.old"},
 		SourceSeriesID: "ns|metric.old|",
 		Title:          "Old Anomaly",
 		Timestamp:      100,
@@ -203,7 +203,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	// Add recent anomaly (advances currentDataTime)
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.new",
+		Source:         observer.AnomalySource{Name: "metric.new"},
 		SourceSeriesID: "ns|metric.new|",
 		Title:          "New Anomaly",
 		Timestamp:      200, // 100 seconds later, old one should be evicted
@@ -225,7 +225,7 @@ func TestTimeClusterCorrelator_SingletonCluster(t *testing.T) {
 
 	// A single anomaly should form a cluster of one
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Timestamp:      100,
 	})
@@ -244,28 +244,28 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 
 	// Create a cluster of 2 and a cluster of 3
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.a",
+		Source:         observer.AnomalySource{Name: "metric.a"},
 		SourceSeriesID: "ns|metric.a|",
 		Timestamp:      100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.b",
+		Source:         observer.AnomalySource{Name: "metric.b"},
 		SourceSeriesID: "ns|metric.b|",
 		Timestamp:      105,
 	})
 
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.c",
+		Source:         observer.AnomalySource{Name: "metric.c"},
 		SourceSeriesID: "ns|metric.c|",
 		Timestamp:      200,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.d",
+		Source:         observer.AnomalySource{Name: "metric.d"},
 		SourceSeriesID: "ns|metric.d|",
 		Timestamp:      205,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.e",
+		Source:         observer.AnomalySource{Name: "metric.e"},
 		SourceSeriesID: "ns|metric.e|",
 		Timestamp:      208,
 	})
@@ -284,7 +284,7 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 
 	// Once the small cluster grows to meet threshold, it should appear
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:         "metric.f",
+		Source:         observer.AnomalySource{Name: "metric.f"},
 		SourceSeriesID: "ns|metric.f|",
 		Timestamp:      103,
 	})

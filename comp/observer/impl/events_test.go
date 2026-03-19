@@ -157,8 +157,8 @@ func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 
 func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
-		{Source: "cpu", DetectorName: "test", Timestamp: 99, SourceSeriesID: "ns|cpu|"},
-		{Source: "mem", DetectorName: "test", Timestamp: 99, SourceSeriesID: "ns|mem|"},
+		{Source: observerdef.AnomalySource{Name: "cpu"}, DetectorName: "test", Timestamp: 99, SourceSeriesID: "ns|cpu|"},
+		{Source: observerdef.AnomalySource{Name: "mem"}, DetectorName: "test", Timestamp: 99, SourceSeriesID: "ns|mem|"},
 	}
 
 	e := newEngine(engineConfig{
@@ -175,8 +175,8 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 
 	anomalyEvents := sink.eventsOfKind(eventAnomalyCreated)
 	assert.Len(t, anomalyEvents, 2)
-	assert.Equal(t, "cpu", string(anomalyEvents[0].anomalyCreated.anomaly.Source))
-	assert.Equal(t, "mem", string(anomalyEvents[1].anomalyCreated.anomaly.Source))
+	assert.Equal(t, "cpu:avg", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
 func TestAdvanceEmitsCorrelationUpdatedEvents(t *testing.T) {
@@ -286,7 +286,7 @@ func TestReporterEventSink(t *testing.T) {
 		kind:      eventAnomalyCreated,
 		timestamp: 100,
 		anomalyCreated: &anomalyCreatedEvent{
-			anomaly: observerdef.Anomaly{Source: "cpu"},
+			anomaly: observerdef.Anomaly{Source: observerdef.AnomalySource{Name: "cpu"}},
 		},
 	})
 	assert.Equal(t, 1, reported, "anomaly events should not trigger reporter")
@@ -303,7 +303,7 @@ func (r *countingReporter) Report(_ observerdef.ReportOutput) { *r.count++ }
 func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
-			Source:         "cpu",
+			Source:         observerdef.AnomalySource{Name: "cpu"},
 			SourceSeriesID: "ns|cpu:avg|",
 			DetectorName:   "test_detector",
 			Title:          "Spike detected",
@@ -311,7 +311,7 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 			Timestamp:      100,
 		},
 		{
-			Source:         "cpu",
+			Source:         observerdef.AnomalySource{Name: "cpu"},
 			SourceSeriesID: "ns|cpu:avg|",
 			DetectorName:   "test_detector",
 			Title:          "Trend change detected",
@@ -339,7 +339,7 @@ func TestFindingM2_EmptySourceSeriesIDCollision(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Type:           observerdef.AnomalyTypeLog,
-			Source:         "logs",
+			Source:         observerdef.AnomalySource{Name: "logs"},
 			SourceSeriesID: "", // empty for log anomalies
 			DetectorName:   "log_detector",
 			Title:          "Error pattern A detected",
@@ -348,7 +348,7 @@ func TestFindingM2_EmptySourceSeriesIDCollision(t *testing.T) {
 		},
 		{
 			Type:           observerdef.AnomalyTypeLog,
-			Source:         "logs",
+			Source:         observerdef.AnomalySource{Name: "logs"},
 			SourceSeriesID: "", // empty for log anomalies
 			DetectorName:   "log_detector",
 			Title:          "Error pattern B detected",
@@ -376,14 +376,14 @@ func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	// Two identical anomalies (same dedup key) -- one will be deduped from rawAnomalies.
 	anomalies := []observerdef.Anomaly{
 		{
-			Source:         "cpu",
+			Source:         observerdef.AnomalySource{Name: "cpu"},
 			SourceSeriesID: "ns|cpu:avg|",
 			DetectorName:   "test_detector",
 			Title:          "Spike",
 			Timestamp:      100,
 		},
 		{
-			Source:         "cpu",
+			Source:         observerdef.AnomalySource{Name: "cpu"},
 			SourceSeriesID: "ns|cpu:avg|",
 			DetectorName:   "test_detector",
 			Title:          "Spike",

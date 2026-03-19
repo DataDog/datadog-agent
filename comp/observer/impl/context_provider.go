@@ -9,32 +9,34 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// contextAwareStorage wraps a StorageReader with a set of ContextProviders,
+// contextAwareStorage wraps a StorageReader with namespace-keyed ContextProviders,
 // adding GetContext resolution to the storage interface. Detectors receive
-// this instead of bare storage so they can enrich anomalies with origin info.
+// this instead of bare storage so they can query context by namespace + name.
 type contextAwareStorage struct {
 	observer.StorageReader
-	providers []observer.ContextProvider
+	providers map[string]observer.ContextProvider // namespace → provider
 }
 
-// GetContext queries registered ContextProviders in order, returning the first match.
-func (s *contextAwareStorage) GetContext(metricName string) (observer.MetricContext, bool) {
-	for _, cp := range s.providers {
-		if info, ok := cp.GetContext(metricName); ok {
-			return info, true
-		}
+// GetContext looks up the provider for the given namespace, then queries it
+// with the bare metric name. Returns false if no provider exists for the
+// namespace or if the provider has no context for the name.
+func (s *contextAwareStorage) GetContext(namespace, name string) (observer.MetricContext, bool) {
+	cp, ok := s.providers[namespace]
+	if !ok {
+		return observer.MetricContext{}, false
 	}
-	return observer.MetricContext{}, false
+	return cp.GetContext(name)
 }
 
 // collectContextProviders discovers ContextProvider implementations among
-// instantiated extractors via type assertion. This is called during catalog
-// instantiation so the engine receives providers without any schema changes.
-func collectContextProviders(extractors []observer.LogMetricsExtractor) []observer.ContextProvider {
-	var providers []observer.ContextProvider
+// instantiated extractors via type assertion. Returns a map keyed by the
+// extractor's component name (which is used as the storage namespace for
+// its metrics), enabling O(1) lookup during anomaly enrichment.
+func collectContextProviders(extractors []observer.LogMetricsExtractor) map[string]observer.ContextProvider {
+	providers := make(map[string]observer.ContextProvider)
 	for _, ext := range extractors {
 		if cp, ok := ext.(observer.ContextProvider); ok {
-			providers = append(providers, cp)
+			providers[ext.Name()] = cp
 		}
 	}
 	return providers

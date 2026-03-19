@@ -779,7 +779,7 @@ func (s *timeSeriesStorage) WriteGeneration(handle observer.SeriesHandle) int64 
 
 // GetContext on bare storage always returns false — context comes from
 // the contextAwareStorage wrapper that layers ContextProviders on top.
-func (s *timeSeriesStorage) GetContext(_ string) (observer.MetricContext, bool) {
+func (s *timeSeriesStorage) GetContext(_, _ string) (observer.MetricContext, bool) {
 	return observer.MetricContext{}, false
 }
 

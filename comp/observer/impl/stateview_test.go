@@ -69,12 +69,12 @@ func TestStateView_Anomalies(t *testing.T) {
 
 	// Add some anomalies via the engine
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:       "cpu",
+		Source:       observerdef.AnomalySource{Name: "cpu"},
 		DetectorName: "cusum",
 		Timestamp:    100,
 	})
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:       "mem",
+		Source:       observerdef.AnomalySource{Name: "mem"},
 		DetectorName: "bocpd",
 		Timestamp:    101,
 	})
@@ -112,7 +112,7 @@ func TestStateView_Anomalies(t *testing.T) {
 
 	// AnomaliesForSeries filters by SourceSeriesID
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:         "disk",
+		Source:         observerdef.AnomalySource{Name: "disk"},
 		DetectorName:   "cusum",
 		Timestamp:      102,
 		SourceSeriesID: "ns|disk:avg|",
@@ -121,8 +121,8 @@ func TestStateView_Anomalies(t *testing.T) {
 	if len(diskAnomalies) != 1 {
 		t.Fatalf("expected 1 disk anomaly, got %d", len(diskAnomalies))
 	}
-	if diskAnomalies[0].Source != "disk" {
-		t.Fatalf("expected disk source, got %s", diskAnomalies[0].Source)
+	if diskAnomalies[0].Source.Name != "disk" {
+		t.Fatalf("expected disk source, got %s", diskAnomalies[0].Source.Name)
 	}
 	// Empty SourceSeriesID should not match
 	emptyAnomalies := sv.AnomaliesForSeries("")

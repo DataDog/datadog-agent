@@ -487,7 +487,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		if r.config.ThresholdSigma > 0 && threshold > 0 && score > threshold {
 			anomaly := observer.Anomaly{
-				Source:       "score",
+				Source:       observer.AnomalySource{Namespace: "rrcf", Name: "score"},
 				DetectorName: r.Name(),
 				Title:        "RRCF multivariate anomaly",
 				Description:  fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),

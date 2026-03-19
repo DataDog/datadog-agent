@@ -483,7 +483,11 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			for j := range result.Anomalies {
 				result.Anomalies[j].Type = observerdef.AnomalyTypeMetric
 				result.Anomalies[j].DetectorName = a.detector.Name()
-				result.Anomalies[j].Source = observerdef.MetricName(seriesWithAgg.Name)
+				result.Anomalies[j].Source = observerdef.AnomalySource{
+					Namespace: series.Namespace,
+					Name:      series.Name,
+					Aggregate: agg,
+				}
 				result.Anomalies[j].SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			}
 			allAnomalies = append(allAnomalies, result.Anomalies...)
@@ -496,20 +500,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 // aggSuffix returns a short suffix for the given aggregation type.
 func aggSuffix(agg observerdef.Aggregate) string {
-	switch agg {
-	case observerdef.AggregateAverage:
-		return "avg"
-	case observerdef.AggregateSum:
-		return "sum"
-	case observerdef.AggregateCount:
-		return "count"
-	case observerdef.AggregateMin:
-		return "min"
-	case observerdef.AggregateMax:
-		return "max"
-	default:
-		return "unknown"
-	}
+	return observerdef.AggregateString(agg)
 }
 
 // RawAnomalies returns a copy of currently tracked raw anomalies.

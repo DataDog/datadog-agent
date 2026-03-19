@@ -1127,7 +1127,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Requ
 			anomalies := make([]anomalyOutput, len(ac.Anomalies))
 			for j, a := range ac.Anomalies {
 				anomalies[j] = anomalyOutput{
-					Source:      string(a.Source),
+					Source:      a.Source.String(),
 					Title:       a.Title,
 					Description: a.Description,
 					Tags:        a.Tags,
@@ -1175,7 +1175,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, _ *http.Requ
 		anomalies = make([]rawAnomalyOutput, len(raw))
 		for i, a := range raw {
 			anomalies[i] = rawAnomalyOutput{
-				Source:       string(a.Source),
+				Source:       a.Source.String(),
 				DetectorName: a.DetectorName,
 				Title:        a.Title,
 				Description:  a.Description,
