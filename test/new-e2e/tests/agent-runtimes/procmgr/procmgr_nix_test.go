@@ -220,6 +220,8 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	require.NotEqual(s.T(), "-", pid, "PID should not be '-' for a Running process")
 	s.Env().RemoteHost.MustExecute("test -d /proc/" + pid)
 
+	s.assertProcessBinary(pid, ddotExtBinaryPath)
+
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
 	assert.Equal(s.T(), pid, pidFileContent, "PID file should match procmgrd-reported PID")
@@ -227,6 +229,39 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	unitState := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("systemctl is-active datadog-agent-ddot.service || true"))
 	assert.NotEqual(s.T(), "active", unitState, "systemd unit should not be active; procmgrd manages DDOT")
+}
+
+func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
+	s.requireDDOT()
+
+	// Wait for DDOT to be Running and capture original PID.
+	var originalPID string
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
+		assertField(t, out, "State", "Running")
+		pid := fieldValue(out, "PID")
+		if assert.NotEmpty(t, pid) && pid != "-" {
+			originalPID = pid
+		}
+	}, 60*time.Second, 2*time.Second)
+
+	// Kill the DDOT process. Since restart policy is on-failure, procmgrd should restart it.
+	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
+
+	// Wait for procmgrd to restart DDOT with a new PID.
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
+		assertField(t, out, "State", "Running")
+
+		newPID := fieldValue(out, "PID")
+		assert.NotEmpty(t, newPID, "PID should be present after restart")
+		assert.NotEqual(t, "-", newPID, "PID should not be '-' after restart")
+		assert.NotEqual(t, originalPID, newPID,
+			"PID should differ after restart (was %s)", originalPID)
+
+		restarts := fieldValue(out, "Restarts")
+		assert.Equal(t, "1", restarts, "Restarts count should be 1 after one kill")
+	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
@@ -359,6 +394,14 @@ func extractColumn(line string, idx int, columns []tableColumn) string {
 		end = len(line)
 	}
 	return strings.TrimSpace(line[start:end])
+}
+
+func (s *procmgrLinuxSuite) assertProcessBinary(pid, expectedBinary string) {
+	s.T().Helper()
+	exePath := strings.TrimSpace(
+		s.Env().RemoteHost.MustExecute("sudo readlink -f /proc/" + pid + "/exe"))
+	assert.Equal(s.T(), expectedBinary, exePath,
+		"process %s should be running %s", pid, expectedBinary)
 }
 
 func (s *procmgrLinuxSuite) requireCLI() {
