@@ -842,4 +842,4 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @scottopell @val06
-/q.py                                    @scottopell @lukesteensen
+/tasks/q.py                              @scottopell @lukesteensen
