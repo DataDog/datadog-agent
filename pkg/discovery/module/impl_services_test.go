@@ -311,6 +311,78 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	assert.Equal(t, uint8(2), svc.TracerMetadata[0].SchemaVersion)
 }
 
+// TestServicesTracerMetadataJava uses a real Java tracer binary dump (v2 schema)
+// which includes the logs_collected field (true), ensuring both Go and Rust
+// implementations parse it correctly.
+func (s *discoveryTestSuite) TestServicesTracerMetadataJava() {
+	t := s.T()
+	discovery := s.discovery
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	testDataPath := filepath.Join(curDir, "testdata/tracer_java.data")
+	data, err := os.ReadFile(testDataPath)
+	require.NoError(t, err)
+
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  2,
+		RuntimeID:      "62af2d66-bb47-4801-b64d-6c12b0f8a11b",
+		TracerLanguage: "java",
+		TracerVersion:  "1.59.0~7e1bb03bc3",
+		Hostname:       "raphael-debian12",
+		ServiceName:    "com.example.demo.DemoApplication",
+		ProcessTags:    "entrypoint.name:com.example.demo.demoapplication,entrypoint.type:class,entrypoint.workdir:java_app,svc.auto:com.example.demo.demoapplication",
+		LogsCollected:  true,
+	}
+
+	createTracerMemfd(t, data)
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	cmd.Env = append(cmd.Env, "DD_SERVICE=my-java-svc")
+	cmd.Env = append(cmd.Env, "DD_ENV=staging")
+	cmd.Env = append(cmd.Env, "DD_VERSION=2.0.0")
+	err = cmd.Start()
+	require.NoError(t, err)
+	f.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+
+		assert.Equal(collect, "my-java-svc", svc.UST.Service)
+		assert.Equal(collect, "staging", svc.UST.Env)
+		assert.Equal(collect, "2.0.0", svc.UST.Version)
+
+		assert.Equal(collect, "sleep", svc.GeneratedName)
+		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, svc.TracerMetadata)
+	assert.Equal(t, string(language.Java), svc.Language)
+
+	// Verify logs_collected field (the key field this dump tests that the Go v2 dump does not have)
+	require.Len(t, svc.TracerMetadata, 1)
+	assert.Equal(t, true, svc.TracerMetadata[0].LogsCollected)
+	assert.Equal(t, uint8(2), svc.TracerMetadata[0].SchemaVersion)
+}
+
 // TestServicesTracerMetadataWithoutPorts checks that processes with tracer metadata
 // are discovered even when they have no open listening ports.
 func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {

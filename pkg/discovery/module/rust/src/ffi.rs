@@ -67,6 +67,9 @@ pub struct dd_tracer_metadata {
     pub service_name: dd_str,
     pub service_env: dd_str,
     pub service_version: dd_str,
+    pub process_tags: dd_str,
+    pub container_id: dd_str,
+    pub logs_collected: bool,
 }
 
 #[repr(C)]
@@ -201,6 +204,9 @@ impl From<TracerMetadata> for dd_tracer_metadata {
             service_name: dd_str::from(tm.service_name),
             service_env: dd_str::from(tm.service_env),
             service_version: dd_str::from(tm.service_version),
+            process_tags: dd_str::from(tm.process_tags),
+            container_id: dd_str::from(tm.container_id),
+            logs_collected: tm.logs_collected,
         }
     }
 }
@@ -514,6 +520,9 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
         service_name,
         service_env,
         service_version,
+        process_tags,
+        container_id,
+        logs_collected: _,
     } = metadata;
     // SAFETY: Caller guarantees valid heap pointers or NULL.
     unsafe {
@@ -524,6 +533,8 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
         free_dd_str(service_name);
         free_dd_str(service_env);
         free_dd_str(service_version);
+        free_dd_str(process_tags);
+        free_dd_str(container_id);
     }
 }
 
@@ -586,6 +597,9 @@ mod tests {
                     service_name: Some("my-service".to_string()),
                     service_env: Some("prod".to_string()),
                     service_version: Some("2.0.0".to_string()),
+                    process_tags: None,
+                    container_id: None,
+                    logs_collected: false,
                 }],
                 ust: UST {
                     service: Some("ust-service".to_string()),
