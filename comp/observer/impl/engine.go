@@ -255,11 +255,6 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	return result
 }
 
-// runDetectorsAndCorrelators runs all detectors and feeds results through correlators.
-func (e *engine) runDetectorsAndCorrelators(upTo int64) advanceResult {
-	return e.runDetectorsAndCorrelatorsSnapshot(upTo, e.detectors, e.correlators)
-}
-
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
 // Uses explicit slices so the caller can snapshot them under a lock.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
@@ -353,13 +348,12 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	}
 	if _, ok := e.rawAnomalyIndex[key]; ok {
 		return false // exact duplicate
-	} else {
-		if e.rawAnomalyIndex == nil {
-			e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
-		}
-		e.rawAnomalyIndex[key] = len(e.rawAnomalies)
-		e.rawAnomalies = append(e.rawAnomalies, anomaly)
 	}
+	if e.rawAnomalyIndex == nil {
+		e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
+	}
+	e.rawAnomalyIndex[key] = len(e.rawAnomalies)
+	e.rawAnomalies = append(e.rawAnomalies, anomaly)
 
 	// Evict old anomalies if window is set
 	needsReindex := false

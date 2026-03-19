@@ -186,9 +186,8 @@ export function MetricsView({
   useEffect(() => {
     if (!state.activeScenario || state.connectionState !== 'ready') return;
     if (autoSelectedScenario === state.activeScenario) return;
-
-    const telKeys = visibleGroups.filter((g) => g.namespace === 'telemetry').map((g) => g.key);
-    const virtKeys = visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')).map((g) => g.key);
+    const scenarioHasSeries = (state.status?.seriesCount ?? 0) > 0;
+    if (scenarioHasSeries && allSeries.length === 0) return;
 
     const mainGroups = [...visibleGroups]
       .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'));
@@ -207,9 +206,24 @@ export function MetricsView({
           .map((g) => g.key);
 
     setSelectedGroups(new Set(defaultKeys));
+    setGroupSeriesData(new Map());
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
-  }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
+  }, [
+    state.activeScenario,
+    state.connectionState,
+    state.status?.seriesCount,
+    visibleGroups,
+    anomalyCountByGroup,
+    autoSelectedScenario,
+    onTimeRangeChange,
+    allSeries.length,
+  ]);
+
+  useEffect(() => {
+    prevSelectedGroupsRef.current = new Set();
+    setGroupSeriesData(new Map());
+  }, [state.activeScenario]);
 
   const prevSelectedGroupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -223,6 +237,7 @@ export function MetricsView({
     if (!selectionChanged) return;
     prevSelectedGroupsRef.current = new Set(selectedGroups);
 
+    let cancelled = false;
     const fetchSeriesData = async () => {
       const next = new Map<string, SeriesData[]>();
       for (const groupKey of selectedGroups) {
@@ -239,10 +254,15 @@ export function MetricsView({
         }
         next.set(groupKey, seriesList);
       }
-      setGroupSeriesData(next);
+      if (!cancelled) {
+        setGroupSeriesData(next);
+      }
     };
 
     fetchSeriesData();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {

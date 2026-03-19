@@ -106,7 +106,7 @@ type anomalyDetector struct {
 }
 
 func (d *anomalyDetector) Name() string { return d.name }
-func (d *anomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: d.anomalies,
 	}
@@ -473,7 +473,7 @@ func TestFindingM4_UnboundedGrowthOfAccumulatedCorrelations(t *testing.T) {
 			"expected bounded growth but map grows without eviction", corrCount)
 }
 
-func TestFindingM9_SetDetectorsRace(t *testing.T) {
+func TestFindingM9_SetDetectorsRace(_ *testing.T) {
 	// SetDetectors replaces engine slices without a lock.
 	// Running concurrently with Advance should trigger the race detector.
 
@@ -509,7 +509,7 @@ func TestFindingM9_SetDetectorsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingM9_SetCorrelatorsRace(t *testing.T) {
+func TestFindingM9_SetCorrelatorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
@@ -540,7 +540,7 @@ func TestFindingM9_SetCorrelatorsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingM10_ResetRace(t *testing.T) {
+func TestFindingM10_ResetRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 

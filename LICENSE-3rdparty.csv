@@ -309,9 +309,54 @@ core,github.com/alecthomas/participle/lexer/ebnf/internal,MIT,Copyright (C) 2017
 core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
+core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
+core,github.com/andybalholm/brotli/matchfinder,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antlr4-go/antlr/v4,BSD-3-Clause,Copyright (c) 2012-2023 The ANTLR Project. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/array,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/arrio,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/bitutil,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/compute,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/compute/exec,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/compute/internal/kernels,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/decimal,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/decimal128,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/decimal256,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/encoded,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/endian,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/extensions,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/flight,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/flight/gen/flight,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/float16,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal/debug,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal/dictutils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal/flatbuf,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/ipc,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/memory,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/memory/internal/cgoalloc,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/memory/mallocator,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/scalar,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/bitutils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/hashing,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/json,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/utils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/compress,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/file,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/bmi,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/debug,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/encoding,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/encryption,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/gen-go/parquet,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/thrift,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/utils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/metadata,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/pqarrow,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/schema,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/variant,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/apache/thrift/lib/go/thrift,Apache-2.0,"Copyright (C) 2006 - 2019, The Apache Software Foundation | Copyright (c) 2006- Facebook | Copyright (c) 2006-2008 Alexander Chemeris | Copyright (c) 2007 Thomas Porschberg <thomas@randspringer.de> | Copyright (c) 2008- Patrick Collison <patrick@collison.ie> | Copyright 2007 by Nathan C. Myers <ncm@cantrip.org>; some rights reserved | Copyright 2012 Twitter, Inc"
 core,github.com/aquasecurity/go-gem-version,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
 core,github.com/aquasecurity/go-npm-version/pkg,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
@@ -1183,6 +1228,7 @@ core,github.com/google/cel-go/interpreter,Apache-2.0,Copyright (c) 2018 The Go A
 core,github.com/google/cel-go/interpreter/functions,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/parser,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/parser/gen,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/flatbuffers/go,Apache-2.0,Copyright (c) 2014 Google
 core,github.com/google/gnostic-models/compiler,Apache-2.0,"Copyright 2017-2022, Google LLC."
 core,github.com/google/gnostic-models/extensions,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/gnostic-models/jsonschema,Apache-2.0,"Copyright 2017-2022, Google LLC"
@@ -1406,6 +1452,8 @@ core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Co
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
 core,github.com/kevinburke/ssh_config,MIT,"Copyright (c) 2013 - 2017 Thomas Pelletier, Eric Anderton | Copyright (c) 2017 Kevin Burke"
 core,github.com/kjk/lzma,BSD-3-Clause,"Copyright (c) 2010, Andrei Vieru. All rights reserved"
+core,github.com/klauspost/asmfmt,MIT,Copyright (c) 2015 Klaus Post
+core,github.com/klauspost/asmfmt/cmd/asmfmt,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post
 core,github.com/klauspost/compress,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/flate,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/fse,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
@@ -1503,6 +1551,8 @@ core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
 core,github.com/mdlayher/vsock,MIT,Copyright (C) 2017-2022 Matt Layher
 core,github.com/miekg/dns,BSD-3-Clause,"Alex A. Skinner | Alex Sergeyev | Andrew Tunnell-Jones | Ask Bjørn Hansen | Copyright (c) 2009, The Go Authors. Extensions copyright (c) 2011, Miek Gieben | Copyright 2009 The Go Authors. All rights reserved. Use of this source code | Copyright 2011 Miek Gieben. All rights reserved. Use of this source code is | Copyright 2014 CloudFlare. All rights reserved. Use of this source code is | Dave Cheney | Dusty Wilson | James Hartig | Marek Majkowski | Miek Gieben <miek@miek.nl> | Omri Bahumi | Peter van Dijk | copyright (c) 2011 Miek Gieben"
+core,github.com/minio/asm2plan9s,Apache-2.0,Copyright (c) 2001-2011 Peter Johnson and other Yasm developers
+core,github.com/minio/c2goasm,Apache-2.0,"Copyright (C) 2017 Minio, Inc."
 core,github.com/minio/sha256-simd,Apache-2.0,"Copyright 2016 Minio, Inc. | Copyright 2018 Kristofer Peterson"
 core,github.com/mitchellh/copystructure,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/mitchellh/go-homedir,MIT,Copyright (c) 2013 Mitchell Hashimoto

@@ -197,6 +197,11 @@ function LogRateChart({
     const innerWidth = width - m.left - m.right;
     const innerHeight = LOG_CHART_HEIGHT - m.top - m.bottom;
 
+    if (width <= m.left + m.right || innerWidth <= 0 || innerHeight <= 0) {
+      d3.select(svgRef.current).selectAll('*').remove();
+      return;
+    }
+
     d3.select(svgRef.current).selectAll('*').remove();
 
     const svg = d3.select(svgRef.current).attr('width', width).attr('height', LOG_CHART_HEIGHT);
@@ -207,9 +212,13 @@ function LogRateChart({
 
     const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
 
+    const fallbackStart = buckets[0]?.startTs;
+    const fallbackEnd = buckets[buckets.length - 1]?.endTs;
     const xDomain: [number, number] = timeRange
       ? [timeRange.start * 1000, timeRange.end * 1000]
-      : [scenarioStart * 1000, scenarioEnd * 1000];
+      : scenarioStart != null && scenarioEnd != null && scenarioEnd > scenarioStart
+        ? [scenarioStart * 1000, scenarioEnd * 1000]
+        : [fallbackStart! * 1000, fallbackEnd! * 1000];
     const xScale = d3.scaleTime().domain(xDomain).range([0, innerWidth]);
     xScaleRef.current = xScale;
 

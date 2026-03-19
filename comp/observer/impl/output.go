@@ -23,21 +23,21 @@ type ObserverOutput struct {
 
 // ObserverMetadata describes the scenario and pipeline configuration.
 type ObserverMetadata struct {
-	Scenario           string   `json:"scenario"`
-	TimelineStart      int64    `json:"timeline_start"`
-	TimelineEnd        int64    `json:"timeline_end"`
-	DetectorsEnabled   []string `json:"detectors_enabled"`
-	CorrelatorsEnabled []string `json:"correlators_enabled"`
-	TotalAnomalyPeriods int     `json:"total_anomaly_periods"`
+	Scenario            string   `json:"scenario"`
+	TimelineStart       int64    `json:"timeline_start"`
+	TimelineEnd         int64    `json:"timeline_end"`
+	DetectorsEnabled    []string `json:"detectors_enabled"`
+	CorrelatorsEnabled  []string `json:"correlators_enabled"`
+	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
 }
 
 // ObserverCorrelation is one correlation cluster.
 // Always includes the time span (pattern, period_start, period_end).
 // Verbose mode adds title, member_series, and nested anomalies.
 type ObserverCorrelation struct {
-	Pattern          string            `json:"pattern"`
-	PeriodStart int64 `json:"period_start"`
-	PeriodEnd   int64 `json:"period_end"`
+	Pattern      string            `json:"pattern"`
+	PeriodStart  int64             `json:"period_start"`
+	PeriodEnd    int64             `json:"period_end"`
 	Title        string            `json:"title,omitempty"`
 	MemberSeries []string          `json:"member_series,omitempty"`
 	Anomalies    []ObserverAnomaly `json:"anomalies,omitempty"`
@@ -90,7 +90,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 	outCorrelations := make([]ObserverCorrelation, len(correlations))
 	for i, corr := range correlations {
 		oc := ObserverCorrelation{
-			Pattern:            corr.Pattern,
+			Pattern:     corr.Pattern,
 			PeriodStart: corr.FirstSeen,
 			PeriodEnd:   corr.LastUpdated,
 		}
@@ -117,11 +117,11 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
-			Scenario:           scenario,
-			TimelineStart:      timelineStart,
-			TimelineEnd:        timelineEnd,
-			DetectorsEnabled:   detectorNames,
-			CorrelatorsEnabled: correlatorNames,
+			Scenario:            scenario,
+			TimelineStart:       timelineStart,
+			TimelineEnd:         timelineEnd,
+			DetectorsEnabled:    detectorNames,
+			CorrelatorsEnabled:  correlatorNames,
 			TotalAnomalyPeriods: len(outCorrelations),
 		},
 		AnomalyPeriods: outCorrelations,

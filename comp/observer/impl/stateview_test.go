@@ -214,7 +214,7 @@ func (c *mockCorrelator) Advance(_ int64)                                     {}
 func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return nil }
 func (c *mockCorrelator) Reset()                                              {}
 
-func TestFindingM11_StateViewListDetectorsRace(t *testing.T) {
+func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
@@ -246,7 +246,7 @@ func TestFindingM11_StateViewListDetectorsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingM11_StateViewListCorrelatorsRace(t *testing.T) {
+func TestFindingM11_StateViewListCorrelatorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
@@ -278,7 +278,7 @@ func TestFindingM11_StateViewListCorrelatorsRace(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFindingM11_StateViewActiveCorrelationsRace(t *testing.T) {
+func TestFindingM11_StateViewActiveCorrelationsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 

@@ -235,6 +235,63 @@ func TestTimeClusterCorrelator_SingletonCluster(t *testing.T) {
 	assert.Len(t, correlations[0].Anomalies, 1)
 }
 
+func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		WindowSeconds:    60,
+		MinClusterSize:   3,
+	})
+
+	// Create a cluster of 2 and a cluster of 3
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Timestamp:      100,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:         "metric.b",
+		SourceSeriesID: "ns|metric.b|",
+		Timestamp:      105,
+	})
+
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:         "metric.c",
+		SourceSeriesID: "ns|metric.c|",
+		Timestamp:      200,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:         "metric.d",
+		SourceSeriesID: "ns|metric.d|",
+		Timestamp:      205,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:         "metric.e",
+		SourceSeriesID: "ns|metric.e|",
+		Timestamp:      208,
+	})
+
+	// Internally both clusters exist
+	assert.Len(t, c.clusters, 2)
+
+	// Only the cluster with 3 anomalies should appear in output
+	correlations := c.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	assert.Len(t, correlations[0].Anomalies, 3)
+
+	clusters := c.GetClusters()
+	require.Len(t, clusters, 1)
+	assert.Equal(t, 3, clusters[0].AnomalyCount)
+
+	// Once the small cluster grows to meet threshold, it should appear
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:         "metric.f",
+		SourceSeriesID: "ns|metric.f|",
+		Timestamp:      103,
+	})
+	correlations = c.ActiveCorrelations()
+	assert.Len(t, correlations, 2)
+}
+
 func TestTimeClusterCorrelator_DefaultConfig(t *testing.T) {
 	config := DefaultTimeClusterConfig()
 	assert.Equal(t, int64(10), config.ProximitySeconds)

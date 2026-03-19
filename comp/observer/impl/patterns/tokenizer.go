@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 )
 
 const (
@@ -138,7 +137,7 @@ func tryHexDump(s, fullMsg string, pos int) (Token, int) {
 	}
 
 	rest := s[trailingWS:]
-	hasAscii := false
+	hasASCII := false
 	asciiEnd := 0
 
 	if len(rest) > 0 && rest[0] != '\n' && rest[0] != '\r' {
@@ -158,7 +157,7 @@ func tryHexDump(s, fullMsg string, pos int) (Token, int) {
 				}
 			}
 			if allPrintable {
-				hasAscii = true
+				hasASCII = true
 				asciiEnd = len(candidate)
 			}
 		}
@@ -171,8 +170,8 @@ func tryHexDump(s, fullMsg string, pos int) (Token, int) {
 	if fullEnd < len(fullMsg) {
 		ch := fullMsg[fullEnd]
 		if ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r' {
-			if hasAscii {
-				hasAscii = false
+			if hasASCII {
+				hasASCII = false
 				endPos = trailingWS
 				text = strings.TrimRight(s[:endPos], " \t")
 				endPos = len(text)
@@ -180,7 +179,7 @@ func tryHexDump(s, fullMsg string, pos int) (Token, int) {
 		}
 	}
 
-	return HexDumpToken(text, dispLen, hasAscii), endPos
+	return HexDumpToken(text, dispLen, hasASCII), endPos
 }
 
 // ---- Date/Time patterns ----
@@ -525,7 +524,7 @@ func tryEmail(s string) (Token, int) {
 
 var reIPv4WithPort = regexp.MustCompile(`^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?::(\d+))?`)
 
-func tryIPv4Authority(s, fullMsg string, pos int) (Token, int) {
+func tryIPv4Authority(s, _ string, _ int) (Token, int) {
 	m := reIPv4WithPort.FindStringSubmatch(s)
 	if m == nil {
 		return Token{}, 0
@@ -729,7 +728,7 @@ func tryNumberOrStatusCode(s string) (Token, int) {
 		code, _ := strconv.Atoi(intPart)
 		if isValidHTTPStatus(code) {
 			if i >= len(s) || s[i] != '.' {
-				return HttpStatusCodeToken(intPart), len(intPart)
+				return HTTPStatusCodeToken(intPart), len(intPart)
 			}
 		}
 	}
@@ -787,7 +786,7 @@ func tryWordOrKeyword(s string) (Token, int) {
 	text := s[:i]
 
 	if httpMethods[text] {
-		return HttpMethodToken(text), i
+		return HTTPMethodToken(text), i
 	}
 	if severityKeywords[text] {
 		return SeverityToken(text), i
@@ -868,17 +867,12 @@ func cleanDateFormat(format string) string {
 
 // ---- Character classification ----
 
-func isDigit(b byte) bool         { return b >= '0' && b <= '9' }
-func isAlpha(b byte) bool         { return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') }
-func isAlphaNum(b byte) bool      { return isAlpha(b) || isDigit(b) || b == '_' }
-func isWhitespace(b byte) bool    { return b == ' ' || b == '\t' || b == '\n' || b == '\r' }
-func isAlphaNumOrDot(b byte) bool { return isAlphaNum(b) || b == '.' }
+func isDigit(b byte) bool      { return b >= '0' && b <= '9' }
+func isAlpha(b byte) bool      { return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') }
+func isAlphaNum(b byte) bool   { return isAlpha(b) || isDigit(b) || b == '_' }
+func isWhitespace(b byte) bool { return b == ' ' || b == '\t' || b == '\n' || b == '\r' }
 
 func isWordChar(b byte) bool {
-	return isAlpha(b) || isDigit(b) || b == '_' || b == '-'
-}
-
-func isWordCharNoDot(b byte) bool {
 	return isAlpha(b) || isDigit(b) || b == '_' || b == '-'
 }
 
@@ -926,29 +920,14 @@ func isFollowedByAlpha(s string, pos int) bool {
 	return isAlpha(s[pos])
 }
 
-func isFollowedByWordChar(s string, pos int) bool {
-	if pos >= len(s) {
-		return false
-	}
-	return isWordChar(s[pos])
-}
-
-func hasOnlyDigits(s string) bool {
-	for _, c := range s {
-		if !unicode.IsDigit(c) {
-			return false
-		}
-	}
-	return len(s) > 0
-}
-
 const (
-	SEVERITY_UNKNOWN = iota
-	// Logs that should have ~ no impact on anomaly detection
-	SEVERITY_DEBUG
-	SEVERITY_INFO
-	// Logs that should have the most impact on anomaly detection and RCA (warning+ logs)
-	SEVERITY_ERROR
+	SeverityUnknown = iota
+	// SeverityDebug represents logs that should have ~ no impact on anomaly detection
+	SeverityDebug
+	// SeverityInfo represents informational logs
+	SeverityInfo
+	// SeverityError represents logs that should have the most impact on anomaly detection and RCA (warning+ logs)
+	SeverityError
 )
 
 // GetSeverity returns the severity of a log
@@ -958,25 +937,25 @@ func GetSeverity(tokens []Token) int {
 		// We cannot use severity token type because it's not always parsed for that
 		switch strings.ToUpper(token.Value) {
 		case "DEBUG", "D":
-			return SEVERITY_DEBUG
+			return SeverityDebug
 		case "INFO", "I":
-			return SEVERITY_INFO
+			return SeverityInfo
 		case "ERROR", "ERR", "E", "WARNING", "WARN", "W":
-			return SEVERITY_ERROR
+			return SeverityError
 		}
 	}
-	return SEVERITY_UNKNOWN
+	return SeverityUnknown
 }
 
 func GetSeverityString(severity int) string {
 	switch severity {
-	case SEVERITY_DEBUG:
+	case SeverityDebug:
 		return "DEBUG"
-	case SEVERITY_INFO:
+	case SeverityInfo:
 		return "INFO"
-	case SEVERITY_ERROR:
+	case SeverityError:
 		return "ERROR"
-	case SEVERITY_UNKNOWN:
+	case SeverityUnknown:
 		return "UNKNOWN"
 	default:
 		fmt.Fprintf(os.Stderr, "warning: Invalid severity: %d\n", severity)
