@@ -101,10 +101,8 @@ func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, hand
 }
 
 // startPolling starts the background goroutines that read packets and log stats.
-// It is called by newSocketFilterSnooper for all platforms except Darwin, where
-// newDarwinDNSMonitorWithSource calls it explicitly after fully initialising the
-// dnsMonitor so that the packet handler can safely dereference the embedded
-// *socketFilterSnooper field without a data race.
+// It must be called by the caller of newSocketFilterSnooper once the snooper is
+// fully initialised.
 func (s *socketFilterSnooper) startPolling() {
 	s.wg.Add(1)
 	go func() {

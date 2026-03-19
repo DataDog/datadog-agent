@@ -39,13 +39,16 @@ type mockDNSPacket struct {
 type mockSubSource struct {
 	packets   []mockDNSPacket
 	exit      chan struct{}
+	drained   chan struct{} // closed once all packets have been visited
 	closeOnce sync.Once
+	drainOnce sync.Once
 }
 
 func newMockSubSource(packets []mockDNSPacket) *mockSubSource {
 	return &mockSubSource{
 		packets: packets,
 		exit:    make(chan struct{}),
+		drained: make(chan struct{}),
 	}
 }
 
@@ -61,6 +64,8 @@ func (m *mockSubSource) VisitPackets(visitor func(data []byte, info filter.Packe
 			return err
 		}
 	}
+	// Signal that all packets have been visited.
+	m.drainOnce.Do(func() { close(m.drained) })
 	// Block until Close is called.
 	<-m.exit
 	return nil
@@ -226,8 +231,12 @@ func TestDarwinDNSMonitor_LoopbackDNSResponse(t *testing.T) {
 	m := newTestMonitor(t, src)
 	defer m.Close()
 
-	// Give the monitor a moment to process (and skip) the packet.
-	time.Sleep(50 * time.Millisecond)
+	// Wait until all packets have been visited before asserting.
+	select {
+	case <-src.drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("mock source did not drain within timeout")
+	}
 
 	// The cache should remain empty because the loopback parser cannot parse
 	// an Ethernet-framed packet.
@@ -243,8 +252,12 @@ func TestDarwinDNSMonitor_NonDNSIgnored(t *testing.T) {
 	m := newTestMonitor(t, src)
 	defer m.Close()
 
-	// Allow time for the goroutine to process the packet.
-	time.Sleep(50 * time.Millisecond)
+	// Wait until all packets have been visited before asserting.
+	select {
+	case <-src.drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("mock source did not drain within timeout")
+	}
 
 	assert.Equal(t, 0, m.cache.Len(), "non-DNS packet should not populate the cache")
 }
