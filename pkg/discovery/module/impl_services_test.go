@@ -324,10 +324,16 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataJava() {
 	data, err := os.ReadFile(testDataPath)
 	require.NoError(t, err)
 
+	// The Go implementation preserves the raw tracer_language string ("java"),
+	// while the Rust implementation normalizes it to its canonical form ("jvm").
+	tracerLang := "java"
+	if s.expectedImplementation == "system-probe-lite" {
+		tracerLang = "jvm"
+	}
 	trMeta := tracermetadata.TracerMetadata{
 		SchemaVersion:  2,
 		RuntimeID:      "62af2d66-bb47-4801-b64d-6c12b0f8a11b",
-		TracerLanguage: "java",
+		TracerLanguage: tracerLang,
 		TracerVersion:  "1.59.0~7e1bb03bc3",
 		Hostname:       "raphael-debian12",
 		ServiceName:    "com.example.demo.DemoApplication",

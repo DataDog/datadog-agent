@@ -29,7 +29,7 @@ const BINARY_CACHE_SIZE: usize = 1000;
 pub enum Language {
     #[default]
     Unknown,
-    #[serde(rename = "jvm")]
+    #[serde(rename = "jvm", alias = "java")]
     Java,
     NodeJS,
     Python,
