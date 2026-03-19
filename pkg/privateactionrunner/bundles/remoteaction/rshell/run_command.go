@@ -20,6 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
+// allowedPaths is the hardcoded list of filesystem paths that the rshell
+// interpreter is permitted to access. Adjust this list to restrict or expand
+// the set of directories available to executed commands.
+var allowedPaths = []string{"/"}
+
 // RunCommandHandler implements the runCommand action.
 type RunCommandHandler struct{}
 
@@ -68,6 +73,7 @@ func (h *RunCommandHandler) Run(
 	}
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
+		interp.AllowedPaths(allowedPaths),
 		cmdOpt,
 	)
 	if err != nil {
