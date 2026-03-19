@@ -10,13 +10,11 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::language::Language;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TracerMetadata {
     pub schema_version: u8,
     pub runtime_id: Option<String>,
-    pub tracer_language: Language,
+    pub tracer_language: String,
     pub tracer_version: String,
     pub hostname: String,
     pub service_name: Option<String>,

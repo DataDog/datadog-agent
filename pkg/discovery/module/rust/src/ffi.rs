@@ -198,7 +198,7 @@ impl From<TracerMetadata> for dd_tracer_metadata {
         Self {
             schema_version: tm.schema_version,
             runtime_id: dd_str::from(tm.runtime_id),
-            tracer_language: dd_str::from_str(tm.tracer_language.as_str()),
+            tracer_language: dd_str::from(tm.tracer_language),
             tracer_version: dd_str::from(tm.tracer_version),
             hostname: dd_str::from(tm.hostname),
             service_name: dd_str::from(tm.service_name),
@@ -591,7 +591,7 @@ mod tests {
                 tracer_metadata: vec![TracerMetadata {
                     schema_version: 1,
                     runtime_id: Some("runtime123".to_string()),
-                    tracer_language: Language::Python,
+                    tracer_language: "python".to_string(),
                     tracer_version: "1.0.0".to_string(),
                     hostname: "localhost".to_string(),
                     service_name: Some("my-service".to_string()),

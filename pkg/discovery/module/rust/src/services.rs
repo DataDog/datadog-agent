@@ -131,7 +131,7 @@ fn get_service(
         Some(path) => tracer_metadata::get_tracer_metadata_from_path(path).ok(),
     };
     let language = match tracer_metadata {
-        Some(ref metadata) => metadata.tracer_language,
+        Some(ref metadata) => Language::from_tracer_str(&metadata.tracer_language),
         None => Language::detect(pid, &exe, &cmdline, open_files_info),
     };
 

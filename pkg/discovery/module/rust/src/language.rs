@@ -42,6 +42,21 @@ pub enum Language {
 }
 
 impl Language {
+    /// Convert a tracer_language string from tracer metadata to a Language.
+    pub fn from_tracer_str(s: &str) -> Self {
+        match s {
+            "jvm" | "java" => Self::Java,
+            "nodejs" => Self::NodeJS,
+            "python" => Self::Python,
+            "ruby" => Self::Ruby,
+            "dotnet" => Self::DotNet,
+            "go" => Self::Go,
+            "cpp" => Self::CPlusPlus,
+            "php" => Self::PHP,
+            _ => Self::Unknown,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unknown => "unknown",
