@@ -125,7 +125,7 @@ cc_shared_library(
     name = "rpmio",
     deps = [":librpmio"],
     dynamic_deps = [
-        "@popt//:popt",
+        "@popt//:popt_pkg",
         "@zlib//:z_pkg",
         "@xz//:lzma_pkg",
         "@bzip2//:bz2",
@@ -261,7 +261,7 @@ cc_shared_library(
     dynamic_deps = [
         ":rpmio",
         "@sqlite3//:sqlite3_pkg",
-        "@popt//:popt",
+        "@popt//:popt_pkg",
     ],
     visibility = ["//visibility:public"],
 )
