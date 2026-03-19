@@ -373,11 +373,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.components.cusum.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.bocpd.enabled", true)
 	config.BindEnvAndSetDefault("observer.components.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.scanmw.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.scanwelch.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.cross_signal.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("observer.components.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("observer.components.lead_lag.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.surprise.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.passthrough.enabled", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

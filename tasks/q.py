@@ -48,17 +48,34 @@ def eval_scenarios(
     scenario: str = "",
     scenarios_dir: str = "./comp/observer/scenarios",
     sigma: float = 30.0,
+    only: str = "",
 ):
     """
-    Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
+    Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
 
-    Output JSONs are saved to /tmp/observer-eval-<scenario>.json for inspection.
+    Uses testbench --only to control which components are active.
+    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    With --only: enables ONLY listed components + extractors, disables everything else.
+      time_cluster is auto-added if not specified.
+
+    Examples:
+        dda inv q.eval-scenarios                            # defaults
+        dda inv q.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
+        dda inv q.eval-scenarios --only bocpd,time_cluster  # explicit
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
+        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
     """
+    only_flag = ""
+    if only:
+        components = {name.strip() for name in only.split(",") if name.strip()}
+        components.add("time_cluster")
+        only_flag = ",".join(sorted(components))
+        print(color_message(f"Only: {only_flag}", Color.BLUE))
+
     print(color_message("Building observer-testbench...", Color.BLUE))
     ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
     print(color_message("Building observer-scorer...", Color.BLUE))
@@ -83,8 +100,9 @@ def eval_scenarios(
         print(color_message(f"  {name}", Color.BLUE))
         print(color_message(f"{'='*60}", Color.BLUE))
 
+        only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}"
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}"
         )
 
         if not os.path.isfile(output_path):
@@ -132,6 +150,124 @@ def eval_scenarios(
             )
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
+
+
+@task
+def eval_tp(
+    ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""
+):
+    """
+    Runs TP metric scoring: replays scenarios with passthrough correlator and scores
+    each detected anomaly against ground truth metric labels in ground_truth.json.
+
+    Uses testbench --only to control which components are active.
+    passthrough correlator is auto-added if not specified (required for TP scoring).
+
+    Examples:
+        dda inv q.eval-tp --only scanmw              # scanmw + passthrough (auto)
+        dda inv q.eval-tp --only bocpd,passthrough    # explicit
+
+    Args:
+        scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for scoring.
+        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds passthrough.
+    """
+    if not only:
+        print(color_message("--only is required (e.g. --only scanmw)", Color.RED))
+        return
+
+    components = {name.strip() for name in only.split(",") if name.strip()}
+    components.add("passthrough")
+    only_flag = ",".join(sorted(components))
+
+    print(color_message(f"Only: {only_flag}", Color.BLUE))
+
+    print(color_message("Building observer-testbench...", Color.BLUE))
+    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
+    print(color_message("Building observer-scorer...", Color.BLUE))
+    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+
+    scenarios_to_run = [scenario] if scenario else SCENARIOS
+
+    results = []
+    for name in scenarios_to_run:
+        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        scenario_root = os.path.join(scenarios_dir, name)
+        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
+            _ensure_parquets(ctx, name, parquet_dir)
+        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
+            if not glob.glob(os.path.join(scenario_root, "*.parquet")):
+                print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+                continue
+
+        output_path = f"/tmp/observer-eval-{name}-tp.json"
+        print(color_message(f"\n{'='*60}", Color.BLUE))
+        print(color_message(f"  {name}", Color.BLUE))
+        print(color_message(f"{'='*60}", Color.BLUE))
+
+        ctx.run(
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
+            f" --scenarios-dir {shlex.quote(scenarios_dir)}"
+            f" --only {shlex.quote(only_flag)}"
+            f" --verbose"
+        )
+
+        if not os.path.isfile(output_path):
+            print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+            continue
+
+        scorer_result = ctx.run(
+            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --score-tp --json",
+            hide=True,
+            warn=True,
+        )
+
+        if scorer_result.failed:
+            print(color_message(f"Scorer failed for {name}:\n{scorer_result.stderr}", Color.RED))
+            continue
+
+        try:
+            score = json.loads(scorer_result.stdout.strip())
+        except json.JSONDecodeError:
+            print(color_message(f"Scorer returned invalid JSON for {name}:\n{scorer_result.stdout}", Color.RED))
+            continue
+
+        results.append({"name": name, **score})
+
+    if results:
+        print(color_message(f"\n{'='*60}", Color.GREEN))
+        print(color_message("  Observer TP Eval Summary", Color.GREEN))
+        print(color_message(f"{'='*60}\n", Color.GREEN))
+
+        header = f"{'Scenario':<25}  {'M F1':>6}  {'M Prec':>7}  {'M Rec':>6}  {'TP':>4}  {'Unk':>5}  {'Found':>5}  {'Missed':>6}"
+        print(header)
+        print("-" * len(header))
+
+        for r in results:
+            print(
+                f"{r['name']:<25}"
+                f"  {r.get('metric_f1', 0):>6.4f}  {r.get('metric_precision', 0):>7.4f}  {r.get('metric_recall', 0):>6.4f}"
+                f"  {r.get('tp_count', 0):>4}  {r.get('unknown_count', 0):>5}"
+                f"  {len(r.get('tp_metrics_found') or []):>5}  {len(r.get('tp_metrics_missed') or []):>6}"
+            )
+
+        # Print per-scenario TP details
+        for r in results:
+            detections = r.get("detections", [])
+            if not detections:
+                continue
+            print(color_message(f"\n  {r['name']} detections:", Color.BLUE))
+            for d in detections:
+                if d.get("detected"):
+                    status = (
+                        f"HIT (count={d['count']}, first={d.get('delta_from_disruption_sec', 0):.0f}s after disruption)"
+                    )
+                else:
+                    status = "MISS"
+                print(f"    [{d['classification']}] {d['service']}/{d['metric']}: {status}")
+
+        print("\nOutput JSONs: /tmp/observer-eval-*-tp.json")
 
 
 def _resolve_zip_from_runs_jsonl(ctx, name):
@@ -296,7 +432,7 @@ def launch_testbench(
     else:
         print("Launching observer-testbench backend and UI, use ^C to exit")
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd  & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
         )
 
 

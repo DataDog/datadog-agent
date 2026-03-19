@@ -142,6 +142,20 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
 				defaultEnabled: true,
 			},
+			{
+				name:           "scanmw",
+				displayName:    "ScanMW",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewScanMWDetector() },
+				defaultEnabled: false,
+			},
+			{
+				name:           "scanwelch",
+				displayName:    "ScanWelch",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewScanWelchDetector() },
+				defaultEnabled: false,
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
@@ -174,6 +188,13 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentCorrelator,
 				defaultConfig:  DefaultSurpriseConfig(),
 				factory:        func(cfg any) any { return NewSurpriseCorrelator(cfg.(SurpriseConfig)) },
+				defaultEnabled: false,
+			},
+			{
+				name:           "passthrough",
+				displayName:    "Passthrough",
+				kind:           componentCorrelator,
+				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
 			},
 		},
@@ -232,6 +253,32 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 		}
 	}
 	return detectors, correlators, extractors, components
+}
+
+// CatalogEntry is a public view of a catalog component for CLI use.
+type CatalogEntry struct {
+	Name string
+	Kind string // "detector", "correlator", or "extractor"
+}
+
+// TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.
+// Used by the CLI to implement --only without hardcoding component lists.
+func TestbenchCatalogEntries() []CatalogEntry {
+	cat := defaultCatalog()
+	result := make([]CatalogEntry, len(cat.entries))
+	for i, e := range cat.entries {
+		kind := "unknown"
+		switch e.kind {
+		case componentDetector:
+			kind = "detector"
+		case componentCorrelator:
+			kind = "correlator"
+		case componentExtractor:
+			kind = "extractor"
+		}
+		result[i] = CatalogEntry{Name: e.name, Kind: kind}
+	}
+	return result
 }
 
 // Entries returns a copy of all catalog entries (for UI/API use).
