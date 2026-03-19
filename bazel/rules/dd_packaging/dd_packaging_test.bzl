@@ -273,7 +273,7 @@ def _test_packaged_forwards_unpatched_so(name):
 
 def _test_packaged_forwards_unpatched_so_impl(env, target):
     outputs = _outputs_of(env, target)
-    outputs.contains_predicate(matching.file_path_matches("*.so"))
+    outputs.contains_predicate(matching.file_extension_in(["so", "dll", "dylib"]))
     outputs.not_contains_predicate(matching.file_path_matches("*patched/*"))
 
 # Test 7: dd_cc_packaged wrapping a cc_binary → the rpath-patched binary
