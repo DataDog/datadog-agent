@@ -169,7 +169,7 @@ func defaultCatalog() *componentCatalog {
 				name:           "time_cluster",
 				displayName:    "TimeCluster",
 				kind:           componentCorrelator,
-				defaultConfig:  TimeClusterConfig{ProximitySeconds: 10, WindowSeconds: 120, MinClusterSize: 3},
+				defaultConfig:  DefaultTimeClusterConfig(),
 				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
 				defaultEnabled: true,
 				readConfig:     readTimeClusterConfig,
