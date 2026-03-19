@@ -258,10 +258,12 @@ func (r *Resolver) Start(ctx context.Context) error {
 					}
 				}
 			case <-enrichTicker.C:
-				seclog.Debugf("Enriching SBOM with runtime usage")
-				_, err := r.enrichSBOMsWithUsage()
-				if err != nil {
-					seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
+				if r.wmeta != nil {
+					seclog.Debugf("Enriching SBOM with runtime usage")
+					_, err := r.enrichSBOMsWithUsage()
+					if err != nil {
+						seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
+					}
 				}
 			}
 		}
