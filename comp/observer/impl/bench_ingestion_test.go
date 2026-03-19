@@ -61,20 +61,20 @@ func BenchmarkIngestion_Cardinality(b *testing.B) {
 }
 
 // BenchmarkIngestion_TimeWindow ramps the pre-existing history depth, measuring
-// how storage size affects write-path cost. Storage is pre-populated once outside
-// the loop — the benchmark measures the marginal write cost at each depth, not
-// the cost of rebuilding history.
+// how storage size affects write-path cost.
 func BenchmarkIngestion_TimeWindow(b *testing.B) {
 	for _, secs := range []int{100, 600, 1800, 3600} {
 		secs := secs
 		b.Run(fmt.Sprintf("secs=%d", secs), func(b *testing.B) {
 			const numSeries = 50
 			rng := rand.New(rand.NewSource(42))
-			storage := buildSyntheticStorage(numSeries, secs)
-			e := newEngine(engineConfig{storage: storage})
 
-			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				storage := buildSyntheticStorage(numSeries, secs)
+				e := newEngine(engineConfig{storage: storage})
+				b.StartTimer()
+
 				nextSec := int64(secs + i)
 				for s := 0; s < numSeries; s++ {
 					e.IngestMetric("ns", &metricObs{
