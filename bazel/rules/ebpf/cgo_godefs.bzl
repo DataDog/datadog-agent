@@ -70,6 +70,11 @@ def _cgo_godefs_impl(ctx):
 
     cmd = (
         "ROOT=$PWD && cd {src_dir} && " +
+        # TODO: CC=clang uses the system clang rather than a hermetic
+        # toolchain binary. The LLVM BPF toolchain's clang only supports BPF
+        # targets and lacks host-target backends (x86_64/aarch64) that cgo
+        # needs. To hermitize this, either ship a clang with host backends
+        # enabled or wire in a separate host-CC toolchain.
         "GOROOT=$ROOT/{goroot} CC=clang $ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(
