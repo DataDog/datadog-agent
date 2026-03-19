@@ -95,7 +95,7 @@ def update_go(
     res = ctx.run("go version")
     if res and res.stdout.startswith(f"go version go{version} "):
         print("Updating the code in pkg/template...")
-        bazel("run", "//pkg/template:generate")
+        bazel(ctx, "run", "//pkg/template:generate")
         print("Running the tidy task...")
         tidy(ctx)
     else:

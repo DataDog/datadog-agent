@@ -169,7 +169,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6
 	github.com/DataDog/datadog-traceroute v1.0.13
 	github.com/DataDog/ebpf-manager v0.7.16
-	github.com/DataDog/go-sqllexer v0.1.13
+	github.com/DataDog/go-sqllexer v0.2.1
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.1
@@ -298,7 +298,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
-	github.com/prometheus-community/pro-bing v0.4.1
+	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.5
@@ -974,6 +974,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
+	github.com/DataDog/rshell v0.0.6
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
 	github.com/aymerick/raymond v2.0.2+incompatible
@@ -999,6 +1000,7 @@ require (
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
 	gopkg.in/yaml.v3 v3.0.1
+	mvdan.cc/sh/v3 v3.13.0
 )
 
 require github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
