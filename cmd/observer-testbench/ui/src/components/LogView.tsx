@@ -96,9 +96,11 @@ function LogRateChart({
   scenarioStart,
   scenarioEnd,
   hoveredTimestamp,
-  hoveredAnomalyIndex,
+  activeAnomalyIndex,
   timeRange,
   onTimeRangeChange,
+  onAnomalyClick,
+  onAnomalyHover,
   phaseMarkers = [],
   logsSummary,
   totalLogCount,
@@ -108,9 +110,11 @@ function LogRateChart({
   scenarioStart: number | null;
   scenarioEnd: number | null;
   hoveredTimestamp?: number | null;
-  hoveredAnomalyIndex?: number | null;
+  activeAnomalyIndex?: number | null;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
+  onAnomalyClick?: (index: number) => void;
+  onAnomalyHover?: (index: number | null) => void;
   phaseMarkers?: PhaseMarker[];
   logsSummary?: LogsSummary | null;
   totalLogCount?: number;
@@ -125,6 +129,10 @@ function LogRateChart({
   const xScaleRef = useRef<d3.ScaleTime<number, number> | null>(null);
   const onTimeRangeChangeRef = useRef(onTimeRangeChange);
   onTimeRangeChangeRef.current = onTimeRangeChange;
+  const onAnomalyClickRef = useRef(onAnomalyClick);
+  onAnomalyClickRef.current = onAnomalyClick;
+  const onAnomalyHoverRef = useRef(onAnomalyHover);
+  onAnomalyHoverRef.current = onAnomalyHover;
 
   const buckets = useMemo(() => {
     // When summary histogram is available, use pre-computed server-side data
@@ -274,19 +282,37 @@ function LogRateChart({
       const x = xScale(a.timestamp * 1000);
       if (x < 0 || x > innerWidth) return;
       const color = detectorLineColor(a.detectorName);
-      const isHovered = hoveredAnomalyIndex === i;
-      const opacity = hoveredAnomalyIndex != null && !isHovered ? 0.35 : 1;
-      const ts = isHovered ? 5 : 3;
-      barsG.append('polygon')
+      const isActive = activeAnomalyIndex === i;
+      const opacity = activeAnomalyIndex != null && !isActive ? 0.35 : 1;
+      const ts = isActive ? 6 : 3;
+      const markerG = barsG.append('g')
+        .style('cursor', 'pointer')
+        .on('click', () => onAnomalyClickRef.current?.(i))
+        .on('mouseenter', () => onAnomalyHoverRef.current?.(i))
+        .on('mouseleave', () => onAnomalyHoverRef.current?.(null));
+      markerG.append('polygon')
         .attr('points', `${x - ts},0 ${x + ts},0 ${x},${(ts * 1.7).toFixed(1)}`)
         .attr('fill', color)
         .attr('opacity', opacity);
-      barsG.append('line')
+      if (isActive) {
+        markerG.append('polygon')
+          .attr('points', `${x - ts},0 ${x + ts},0 ${x},${(ts * 1.7).toFixed(1)}`)
+          .attr('fill', 'none')
+          .attr('stroke', 'white')
+          .attr('stroke-width', 1)
+          .attr('opacity', 0.6);
+      }
+      markerG.append('line')
         .attr('x1', x).attr('x2', x)
         .attr('y1', ts * 1.7).attr('y2', innerHeight)
         .attr('stroke', color)
-        .attr('stroke-width', isHovered ? 1.5 : 1)
+        .attr('stroke-width', isActive ? 1.5 : 1)
         .attr('opacity', opacity);
+      // Wider invisible hit area for easier clicking
+      markerG.append('rect')
+        .attr('x', x - 8).attr('width', 16)
+        .attr('y', 0).attr('height', innerHeight)
+        .attr('fill', 'transparent');
     });
 
     // Hover effects — drawn on top of bars
@@ -377,7 +403,7 @@ function LogRateChart({
       .attr('fill', 'rgba(45, 212, 191, 0.2)')
       .attr('stroke', '#2dd4bf')
       .attr('stroke-width', 1);
-  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex, phaseMarkers, usesSummaryHistogram]);
+  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, activeAnomalyIndex, phaseMarkers, usesSummaryHistogram]);
 
   // Panning (middle-click or cmd+left-drag)
   useEffect(() => {
@@ -656,13 +682,29 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const [expandedAnomalyIndex, setExpandedAnomalyIndex] = useState<number | null>(null);
   const [hoveredLogTimestamp, setHoveredLogTimestamp] = useState<number | null>(null);
   const [hoveredAnomalyIndex, setHoveredAnomalyIndex] = useState<number | null>(null);
+  const [userDisabledDetectors, setUserDisabledDetectors] = useState<Set<string>>(new Set());
   const [anomaliesExpanded, setAnomaliesExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
   const [logPage, setLogPage] = useState(1);
   const [telemetryLogsExpanded, setTelemetryLogsExpanded] = useState(true);
   const [telemetryLogPage, setTelemetryLogPage] = useState(1);
   const [expandedTelemetryLogIndex, setExpandedTelemetryLogIndex] = useState<number | null>(null);
+  const anomalyRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const initializedScenarioRef = useRef<string | null>(null);
+
+  // Derive unique log detector names from all anomalies
+  const logDetectors = useMemo(
+    () => Array.from(new Set(allLogAnomalies.map((a) => a.detectorName))).sort(),
+    [allLogAnomalies]
+  );
+
+  const enabledLogDetectors = useMemo(
+    () => new Set(logDetectors.filter((d) => !userDisabledDetectors.has(d))),
+    [logDetectors, userDisabledDetectors]
+  );
+
+  // Combined hover+expanded index drives chart highlighting
+  const activeAnomalyIndex = hoveredAnomalyIndex !== null ? hoveredAnomalyIndex : expandedAnomalyIndex;
 
   const [rawLogsPage, setRawLogsPage] = useState<LogEntry[]>([]);
   const [rawLogsTotal, setRawLogsTotal] = useState(0);
@@ -734,6 +776,8 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
       setTagFilterInput('');
       setExpandedLogIndex(null);
       setExpandedAnomalyIndex(null);
+      setHoveredAnomalyIndex(null);
+      setUserDisabledDetectors(new Set());
       setLogPage(1);
       setTelemetryLogPage(1);
       setExpandedTelemetryLogIndex(null);
@@ -742,6 +786,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
       setTelemetryLogsPage([]);
       setTelemetryLogsTotal(0);
       setLogsSummary(null);
+      anomalyRowRefs.current.clear();
     }
   }, [state.activeScenario]);
 
@@ -764,11 +809,14 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
 
   const sortedAnomalies = useMemo(() => {
     const filter = parseTagFilter(tagFilterInput);
-    const anomalies = (filter.include.size === 0 && filter.exclude.size === 0)
+    let anomalies = (filter.include.size === 0 && filter.exclude.size === 0)
       ? allLogAnomalies
       : allLogAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
+    if (enabledLogDetectors.size < logDetectors.length) {
+      anomalies = anomalies.filter((a) => enabledLogDetectors.has(a.detectorName));
+    }
     return [...anomalies].sort((a, b) => a.timestamp - b.timestamp);
-  }, [allLogAnomalies, tagFilterInput]);
+  }, [allLogAnomalies, tagFilterInput, enabledLogDetectors, logDetectors.length]);
 
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
@@ -790,6 +838,64 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
         />
+
+        {/* Log Detectors */}
+        {logDetectors.length > 0 && (
+          <div className="p-4 border-b border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Log Detectors
+              </h2>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setUserDisabledDetectors(new Set())}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setUserDisabledDetectors(new Set(logDetectors))}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  None
+                </button>
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              {logDetectors.map((name) => {
+                const count = allLogAnomalies.filter((a) => a.detectorName === name).length;
+                const isEnabled = !userDisabledDetectors.has(name);
+                return (
+                  <label
+                    key={name}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isEnabled}
+                      onChange={() =>
+                        setUserDisabledDetectors((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(name)) next.delete(name);
+                          else next.add(name);
+                          return next;
+                        })
+                      }
+                      className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500 flex-shrink-0"
+                    />
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-medium flex-1 truncate"
+                      style={{ backgroundColor: `${detectorLineColor(name)}22`, color: detectorLineColor(name) }}
+                    >
+                      {name}
+                    </span>
+                    <span className="text-xs text-slate-500 tabular-nums flex-shrink-0">{count}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Tag filter */}
         <div className="p-4 border-b border-slate-700">
@@ -851,7 +957,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               </div>
             )}
             <div className="text-sm text-slate-300">
-              {allLogAnomalies.length} anomal{allLogAnomalies.length !== 1 ? 'ies' : 'y'} detected
+              {sortedAnomalies.length}{sortedAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''} anomal{allLogAnomalies.length !== 1 ? 'ies' : 'y'} shown
             </div>
           </div>
         </div>
@@ -888,42 +994,123 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
             {/* Log rate + anomaly timeline */}
             <LogRateChart
               logs={[]}
-              anomalies={sortedAnomalies}
+              anomalies={visibleAnomalies}
               scenarioStart={scenarioStart ?? null}
               scenarioEnd={scenarioEnd ?? null}
               hoveredTimestamp={hoveredLogTimestamp}
-              hoveredAnomalyIndex={hoveredAnomalyIndex}
+              activeAnomalyIndex={activeAnomalyIndex}
               timeRange={timeRange}
               onTimeRangeChange={onTimeRangeChange}
+              onAnomalyClick={(idx) => {
+                setExpandedAnomalyIndex(idx);
+                setHoveredAnomalyIndex(idx);
+                setTimeout(() => {
+                  anomalyRowRefs.current.get(idx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }, 50);
+              }}
+              onAnomalyHover={(idx) => setHoveredAnomalyIndex(idx)}
               phaseMarkers={phaseMarkers}
               logsSummary={logsSummary}
               totalLogCount={logsSummary?.totalCount ?? rawLogsTotal + telemetryLogsTotal}
             />
 
-            {/* Detected Anomalies collapsible section */}
-            {allLogAnomalies.length > 0 && (
-              <div className="mb-6">
+            {/* Anomaly Details panel — compact rows styled like metrics view */}
+            {sortedAnomalies.length > 0 && (
+              <div className="mb-6 bg-slate-800 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setAnomaliesExpanded(!anomaliesExpanded)}
-                  className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
+                  className="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors border-b border-slate-700"
                 >
                   <span className="text-slate-500">{anomaliesExpanded ? '▼' : '▶'}</span>
-                  Detected Anomalies ({visibleAnomalies.length}{visibleAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''})
+                  Log Anomalies
+                  <span className="ml-1 text-xs text-slate-500 font-normal">
+                    ({visibleAnomalies.length}{visibleAnomalies.length !== sortedAnomalies.length ? ` of ${sortedAnomalies.length} in view` : ''})
+                  </span>
                 </button>
+
                 {anomaliesExpanded && (
-                  <div className="space-y-1.5">
-                    {visibleAnomalies.map((anomaly, idx) => (
-                      <LogAnomalyCard
-                        key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
-                        anomaly={anomaly}
-                        isExpanded={expandedAnomalyIndex === idx}
-                        onToggle={() =>
-                          setExpandedAnomalyIndex(expandedAnomalyIndex === idx ? null : idx)
-                        }
-                        onHoverEnter={() => setHoveredAnomalyIndex(idx)}
-                        onHoverLeave={() => setHoveredAnomalyIndex(null)}
-                      />
-                    ))}
+                  <div className="px-4 py-2 space-y-0">
+                    {visibleAnomalies.length === 0 ? (
+                      <div className="py-4 text-center text-xs text-slate-500">
+                        No anomalies in the current time range
+                      </div>
+                    ) : (
+                      visibleAnomalies.map((anomaly, idx) => {
+                        const isExpanded = expandedAnomalyIndex === idx;
+                        const isActive = activeAnomalyIndex === idx;
+                        const headerTags = (anomaly.tags ?? []).filter(
+                          (tag) => MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+                        );
+                        return (
+                          <div
+                            key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
+                            ref={(el) => {
+                              if (el) anomalyRowRefs.current.set(idx, el);
+                              else anomalyRowRefs.current.delete(idx);
+                            }}
+                            className={`text-xs rounded border-b border-slate-700/50 last:border-b-0 transition-colors ${
+                              isActive ? 'bg-slate-700/40 ring-1 ring-inset ring-slate-500/60' : ''
+                            }`}
+                            onMouseEnter={() => setHoveredAnomalyIndex(idx)}
+                            onMouseLeave={() => setHoveredAnomalyIndex(null)}
+                          >
+                            <button
+                              onClick={() => setExpandedAnomalyIndex(isExpanded ? null : idx)}
+                              className="w-full text-left flex items-center gap-2 py-1.5 px-1 hover:bg-slate-700/50 rounded"
+                            >
+                              <span className="flex-shrink-0 text-slate-500 font-mono w-16 text-right">
+                                {formatTimestamp(anomaly.timestamp)}
+                              </span>
+                              <span
+                                className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ backgroundColor: `${detectorLineColor(anomaly.detectorName)}22`, color: detectorLineColor(anomaly.detectorName) }}
+                              >
+                                {anomaly.detectorName}
+                              </span>
+                              {anomaly.score !== undefined && (
+                                <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-mono ${scoreColor(anomaly.score)}`}>
+                                  {anomaly.score.toFixed(2)}
+                                </span>
+                              )}
+                              <span className="text-slate-300 flex-1 truncate">{anomaly.title}</span>
+                              {headerTags.length > 0 && (
+                                <span className="flex gap-1 flex-shrink-0">
+                                  {headerTags.map((tag) => (
+                                    <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-700/80 text-slate-400 font-mono">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
+                              <span className="text-slate-500 flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
+                            </button>
+
+                            {isExpanded && (
+                              <div className="ml-1 mb-2 p-2 bg-slate-900/50 rounded border border-slate-700/50">
+                                <pre className="text-xs text-slate-300 whitespace-pre-wrap break-all font-mono leading-relaxed max-h-32 overflow-y-auto">
+                                  {anomaly.description}
+                                </pre>
+                                {anomaly.tags && anomaly.tags.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-slate-700/50">
+                                    <div className="text-[10px] text-slate-500 mb-1">Tags:</div>
+                                    <div className="flex gap-1 flex-wrap">
+                                      {anomaly.tags.map((tag) => (
+                                        <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700/80 text-slate-400 font-mono">
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="mt-1.5 text-[10px] text-slate-500">
+                                  Source: <span className="text-slate-400">{anomaly.source}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 )}
               </div>
