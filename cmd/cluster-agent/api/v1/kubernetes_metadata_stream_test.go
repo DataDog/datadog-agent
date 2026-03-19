@@ -92,6 +92,36 @@ func TestStart(t *testing.T) {
 	assert.Empty(t, srv.buildNamespacesSnapshot())
 }
 
+func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+
+	// First connection subscribes, then new connection subscribes
+	// (overwriting), then old connection's deferred unsubscribe runs.
+	oldCh := srv.subscribeToNamespaceEvents("node1")
+	newCh := srv.subscribeToNamespaceEvents("node1")
+	srv.unsubscribeFromNamespaceEvents("node1", oldCh)
+
+	// The new subscriber should still be registered and receive notifications.
+	srv.processNamespaceEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesMetadata{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:   "ns1",
+					Labels: map[string]string{"l1": "v1"},
+				},
+			},
+		},
+	})
+
+	select {
+	case <-newCh:
+		// expected
+	case <-time.After(1 * time.Second):
+		t.Fatal("new subscriber was not notified after old unsubscribe")
+	}
+}
+
 func TestBundleToPodServiceMappingsSnapshot(t *testing.T) {
 	bundle := apiserver.NewMetadataMapperBundle()
 	bundle.Services.Set("ns1", "pod1", "svc1", "svc2")

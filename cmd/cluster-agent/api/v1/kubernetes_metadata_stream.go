@@ -95,10 +95,10 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	nodeName := req.GetNodeName()
 
 	podServicesNotifyCh := srv.store.Subscribe(nodeName)
-	defer srv.store.Unsubscribe(nodeName)
+	defer srv.store.Unsubscribe(nodeName, podServicesNotifyCh)
 
 	namespacesNotifyCh := srv.subscribeToNamespaceEvents(nodeName)
-	defer srv.unsubscribeFromNamespaceEvents(nodeName)
+	defer srv.unsubscribeFromNamespaceEvents(nodeName, namespacesNotifyCh)
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
@@ -219,11 +219,13 @@ func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string)
 	return ch
 }
 
-func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName string) {
+func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName string, ch <-chan struct{}) {
 	srv.namespacesMutex.Lock()
 	defer srv.namespacesMutex.Unlock()
 
-	delete(srv.namespaceSubscribers, nodeName)
+	if srv.namespaceSubscribers[nodeName] == ch {
+		delete(srv.namespaceSubscribers, nodeName)
+	}
 }
 
 func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namespaceEntry {
