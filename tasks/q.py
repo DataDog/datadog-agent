@@ -12,17 +12,6 @@ from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
-# All component names from the catalog (component_catalog.go).
-# Used by eval_tp to compute the disable list from an enable list.
-ALL_COMPONENTS = [
-    # extractors
-    "log_metrics_extractor", "connection_error_extractor", "log_pattern_extractor",
-    # detectors
-    "cusum", "bocpd", "rrcf", "scanmw", "scanwelch",
-    # correlators
-    "cross_signal", "time_cluster", "lead_lag", "surprise", "passthrough",
-]
-
 # S3 zip key for each scenario. Update when re-recording.
 SCENARIO_ZIPS = {
     "213_pagerduty": "gensim-results-213_PagerDuty_June_2014_Outage-20260303-1309-78229d.zip",
@@ -53,17 +42,33 @@ def build_scorer(ctx):
 
 # --- Eval ---
 @task
-def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
+def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""):
     """
-    Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
+    Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
 
-    Output JSONs are saved to /tmp/observer-eval-<scenario>.json for inspection.
+    Uses testbench --only to control which components are active.
+    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    With --only: enables ONLY listed components + extractors, disables everything else.
+      time_cluster is auto-added if not specified.
+
+    Examples:
+        dda inv q.eval-scenarios                            # defaults
+        dda inv q.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
+        dda inv q.eval-scenarios --only bocpd,time_cluster  # explicit
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
+        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
     """
+    only_flag = ""
+    if only:
+        components = {name.strip() for name in only.split(",") if name.strip()}
+        components.add("time_cluster")
+        only_flag = ",".join(sorted(components))
+        print(color_message(f"Only: {only_flag}", Color.BLUE))
+
     print(color_message("Building observer-testbench...", Color.BLUE))
     ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
     print(color_message("Building observer-scorer...", Color.BLUE))
@@ -88,8 +93,9 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
         print(color_message(f"  {name}", Color.BLUE))
         print(color_message(f"{'='*60}", Color.BLUE))
 
+        only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}"
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}"
         )
 
         if not os.path.isfile(output_path):
@@ -140,33 +146,33 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
 
 
 @task
-def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, enable: str = ""):
+def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""):
     """
     Runs TP metric scoring: replays scenarios with passthrough correlator and scores
     each detected anomaly against ground truth metric labels in ground_truth.json.
 
-    The passthrough correlator is added automatically — only specify detectors in --enable.
+    Uses testbench --only to control which components are active.
+    passthrough correlator is auto-added if not specified (required for TP scoring).
+
+    Examples:
+        dda inv q.eval-tp --only scanmw              # scanmw + passthrough (auto)
+        dda inv q.eval-tp --only bocpd,passthrough    # explicit
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
-        enable: Comma-separated detectors to enable (e.g. "scanmw").
+        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds passthrough.
     """
-    if not enable:
-        print(color_message("--enable is required (e.g. --enable scanmw)", Color.RED))
+    if not only:
+        print(color_message("--only is required (e.g. --only scanmw)", Color.RED))
         return
 
-    enabled_detectors = {name.strip() for name in enable.split(",") if name.strip()}
-    extractors = {"log_metrics_extractor", "connection_error_extractor", "log_pattern_extractor"}
+    components = {name.strip() for name in only.split(",") if name.strip()}
+    components.add("passthrough")
+    only_flag = ",".join(sorted(components))
 
-    enable_set = enabled_detectors | {"passthrough"}
-    disable_set = {c for c in ALL_COMPONENTS if c not in enable_set and c not in extractors}
-    enable_flag = ",".join(sorted(enable_set))
-    disable_flag = ",".join(sorted(disable_set))
-
-    print(color_message(f"Detectors: {','.join(sorted(enabled_detectors))}", Color.BLUE))
-    print(color_message(f"Correlator: passthrough (auto)", Color.BLUE))
+    print(color_message(f"Only: {only_flag}", Color.BLUE))
 
     print(color_message("Building observer-testbench...", Color.BLUE))
     ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
@@ -194,7 +200,7 @@ def eval_tp(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scena
         ctx.run(
             f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
             f" --scenarios-dir {shlex.quote(scenarios_dir)}"
-            f" --enable {shlex.quote(enable_flag)} --disable {shlex.quote(disable_flag)}"
+            f" --only {shlex.quote(only_flag)}"
             f" --verbose"
         )
 

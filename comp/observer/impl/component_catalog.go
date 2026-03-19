@@ -261,6 +261,32 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	return detectors, correlators, extractors, components
 }
 
+// CatalogEntry is a public view of a catalog component for CLI use.
+type CatalogEntry struct {
+	Name string
+	Kind string // "detector", "correlator", or "extractor"
+}
+
+// TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.
+// Used by the CLI to implement --only without hardcoding component lists.
+func TestbenchCatalogEntries() []CatalogEntry {
+	cat := testbenchCatalog()
+	result := make([]CatalogEntry, len(cat.entries))
+	for i, e := range cat.entries {
+		kind := "unknown"
+		switch e.kind {
+		case componentDetector:
+			kind = "detector"
+		case componentCorrelator:
+			kind = "correlator"
+		case componentExtractor:
+			kind = "extractor"
+		}
+		result[i] = CatalogEntry{Name: e.name, Kind: kind}
+	}
+	return result
+}
+
 // Entries returns a copy of all catalog entries (for UI/API use).
 func (c *componentCatalog) Entries() []componentEntry {
 	result := make([]componentEntry, len(c.entries))
