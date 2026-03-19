@@ -12,6 +12,7 @@ load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
@@ -42,6 +43,10 @@ pkg_filegroup(
     prefix = "/opt/datadog-agent",
 )
 
+_agent_components = [
+    "@openscap//:oscap",
+]
+
 # This is the list of things we depend on transitively. It is temporary.
 # They are really deps of things that the agent binary or python3 depends
 # on. We should pick up the dependencies from the build graph.
@@ -61,6 +66,11 @@ pkg_filegroup(
     prefix = "/opt/datadog-agent",
 )
 
+dd_collect_dependencies(
+    name = "collected_deps",
+    srcs = _agent_components
+)
+
 # This is an intermediate node so that have a place to collect all
 # the dependencies so we can walk the aspect to gather the OSS
 # licenses.  This is close to "everything except for licenses"
@@ -71,6 +81,7 @@ pkg_filegroup(
     srcs = [
         ":agent_components",
         ":transitive_deps",
+        ":collected_deps",
     ],
 )
 
