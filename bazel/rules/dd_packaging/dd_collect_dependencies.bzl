@@ -1,7 +1,5 @@
 """dd_collect_dependencies — collect transitive DdPackagingInfo for installation."""
 
-load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 
