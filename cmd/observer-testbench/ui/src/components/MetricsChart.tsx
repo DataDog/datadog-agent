@@ -344,42 +344,6 @@ export function MetricsChart({
       });
     });
 
-    const markerSelection = g
-      .append('g')
-      .attr('class', 'anomaly-markers')
-      .selectAll('circle')
-      .data(markerData)
-      .enter()
-      .append('circle')
-      .attr('cx', (d) => d.x)
-      .attr('cy', (d) => d.y)
-      .attr('r', (d) => (d.selected ? 6 : 4))
-      .attr('fill', (d) => d.color.stroke)
-      .attr('stroke', (d) => (d.selected ? '#f8fafc' : '#1e293b'))
-      .attr('stroke-width', (d) => (d.selected ? 2.5 : 1.5))
-      .attr('opacity', (d) => {
-        let opacity = 1;
-        if (activeHighlightedSeriesId && d.sourceSeriesId && d.sourceSeriesId !== activeHighlightedSeriesId) {
-          opacity = 0.25;
-        }
-        if (highlightedMarkerId && !d.selected) {
-          opacity = Math.min(opacity, 0.45);
-        }
-        return opacity;
-      })
-      .style('cursor', 'pointer');
-
-    markerSelection
-      .on('mouseenter', (_event, d) => {
-        if (onMarkerHover) onMarkerHover(d.markerId);
-      })
-      .on('mouseleave', () => {
-        if (onMarkerHover) onMarkerHover(null);
-      })
-      .on('click', (_event, d) => {
-        if (onMarkerClick) onMarkerClick(d.markerId);
-      });
-
     // Line generator
     const line = d3
       .line<Point>()
@@ -538,6 +502,45 @@ export function MetricsChart({
           .attr('stroke-width', isHighlighted ? 1.9 : 1.2);
       });
     };
+
+    // Draw anomaly marker circles on top of the brush so they receive pointer events.
+    // The brush overlay rect (pointer-events: all) covers the full plot area; any element
+    // appended before the brush group is painted beneath it and its handlers never fire.
+    const markerSelection = g
+      .append('g')
+      .attr('class', 'anomaly-markers')
+      .selectAll('circle')
+      .data(markerData)
+      .enter()
+      .append('circle')
+      .attr('cx', (d) => d.x)
+      .attr('cy', (d) => d.y)
+      .attr('r', (d) => (d.selected ? 6 : 4))
+      .attr('fill', (d) => d.color.stroke)
+      .attr('stroke', (d) => (d.selected ? '#f8fafc' : '#1e293b'))
+      .attr('stroke-width', (d) => (d.selected ? 2.5 : 1.5))
+      .attr('opacity', (d) => {
+        let opacity = 1;
+        if (activeHighlightedSeriesId && d.sourceSeriesId && d.sourceSeriesId !== activeHighlightedSeriesId) {
+          opacity = 0.25;
+        }
+        if (highlightedMarkerId && !d.selected) {
+          opacity = Math.min(opacity, 0.45);
+        }
+        return opacity;
+      })
+      .style('cursor', 'pointer');
+
+    markerSelection
+      .on('mouseenter', (_event, d) => {
+        if (onMarkerHover) onMarkerHover(d.markerId);
+      })
+      .on('mouseleave', () => {
+        if (onMarkerHover) onMarkerHover(null);
+      })
+      .on('click', (_event, d) => {
+        if (onMarkerClick) onMarkerClick(d.markerId);
+      });
 
     // Add mouse handlers on the brush overlay rect so they fire regardless of brush state
     g.select<SVGRectElement>('.brush rect.overlay')
