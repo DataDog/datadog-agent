@@ -151,8 +151,6 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 			s.SetNoIndex(commonOptions.NoIndex)
 		}
 
-		c.source = source
-		c.provider = provider
 		return nil
 	}
 	if err := handleConf(initConfig, c); err != nil {
@@ -162,6 +160,8 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 		return err
 	}
 
+	c.source = source
+	c.provider = provider
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(instanceConfig)
 	return nil

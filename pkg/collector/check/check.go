@@ -73,6 +73,8 @@ type Info interface {
 	Version() string
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
+	// ConfigProvider returns the configuration provider of the check
+	ConfigProvider() string
 	// InitConfig returns the init_config configuration of the check
 	InitConfig() string
 	// InstanceConfig returns the instance configuration of the check
