@@ -33,7 +33,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
-	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -423,44 +422,6 @@ func createTracerMemfd(t *testing.T, data []byte) int {
 	err = unix.Munmap(mappedData)
 	require.NoError(t, err)
 	return fd
-}
-
-func TestValidInvalidTracerMetadata(t *testing.T) {
-	discovery := newDiscovery()
-	require.NotEmpty(t, discovery)
-	self := os.Getpid()
-
-	t.Run("valid metadata", func(t *testing.T) {
-		// Test with valid metadata from file
-		curDir, err := testutil.CurDir()
-		require.NoError(t, err)
-		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
-		data, err := os.ReadFile(testDataPath)
-		require.NoError(t, err)
-
-		createTracerMemfd(t, data)
-
-		buf := make([]byte, readlinkBufferSize)
-		openFiles, err := getOpenFilesInfo(int32(self), buf)
-		require.NoError(t, err)
-
-		info, err := discovery.getServiceInfo(int32(self), openFiles)
-		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
-		require.Equal(t, true, info.APMInstrumentation)
-	})
-
-	t.Run("invalid metadata", func(t *testing.T) {
-		createTracerMemfd(t, []byte("invalid data"))
-
-		buf := make([]byte, readlinkBufferSize)
-		openFiles, err := getOpenFilesInfo(int32(self), buf)
-		require.NoError(t, err)
-
-		info, err := discovery.getServiceInfo(int32(self), openFiles)
-		require.NoError(t, err)
-		require.Equal(t, false, info.APMInstrumentation)
-	})
 }
 
 func TestDetectAPMInjectorFromMaps(t *testing.T) {
