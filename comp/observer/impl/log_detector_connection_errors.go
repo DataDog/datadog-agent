@@ -21,6 +21,14 @@ var connectionErrorPatterns = []string{
 	"etimedout",
 }
 
+// ConnectionErrorExtractorConfig holds configuration for the ConnectionErrorExtractor.
+type ConnectionErrorExtractorConfig struct{}
+
+// DefaultConnectionErrorExtractorConfig returns a ConnectionErrorExtractorConfig with default values.
+func DefaultConnectionErrorExtractorConfig() ConnectionErrorExtractorConfig {
+	return ConnectionErrorExtractorConfig{}
+}
+
 // ConnectionErrorExtractor is a log detector that detects connection errors
 // and converts them into a connection.errors metric.
 type ConnectionErrorExtractor struct{}

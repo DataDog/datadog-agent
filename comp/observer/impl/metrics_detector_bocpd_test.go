@@ -17,13 +17,13 @@ import (
 // testBOCPDDetector returns a BOCPD detector with a short warmup suitable for
 // unit tests with small data sets.
 func testBOCPDDetector() *BOCPDDetector {
-	d := NewBOCPDDetector()
-	d.WarmupPoints = 20
-	return d
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	return NewBOCPDDetector(config)
 }
 
 func TestBOCPDDetector_Name(t *testing.T) {
-	d := NewBOCPDDetector()
+	d := NewBOCPDDetector(DefaultBOCPDConfig())
 	assert.Equal(t, "bocpd_detector", d.Name())
 }
 
@@ -85,10 +85,12 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 }
 
 func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
-	d := testBOCPDDetector()
-	d.CPThreshold = 0.99     // discourage pure r_t=0 triggers
-	d.CPMassThreshold = 0.55 // allow short-run posterior mass trigger
-	d.ShortRunLength = 6
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.CPThreshold = 0.99     // discourage pure r_t=0 triggers
+	config.CPMassThreshold = 0.55 // allow short-run posterior mass trigger
+	config.ShortRunLength = 6
+	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
 
@@ -156,8 +158,10 @@ func TestBOCPDDetector_IncrementalAdvance(t *testing.T) {
 }
 
 func TestBOCPDDetector_RecoveryAndReAlert(t *testing.T) {
-	d := testBOCPDDetector()
-	d.RecoveryPoints = 5
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.RecoveryPoints = 5
+	d := NewBOCPDDetector(config)
 	storage := newTimeSeriesStorage()
 	ts := int64(0)
 
@@ -235,32 +239,19 @@ func TestBOCPDDetector_DeterministicReplay(t *testing.T) {
 }
 
 func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
-	d := NewBOCPDDetector()
-	assert.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, d.Aggregations)
+	cfg := DefaultBOCPDConfig()
+	assert.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, cfg.Aggregations)
 }
 
 func TestBOCPDDetector_DefaultWarmup120(t *testing.T) {
-	d := NewBOCPDDetector()
-	assert.Equal(t, 120, d.WarmupPoints, "default warmup should be 120 points")
+	cfg := DefaultBOCPDConfig()
+	assert.Equal(t, 120, cfg.WarmupPoints, "default warmup should be 120 points")
 }
 
-func TestFindingH2_MinVarianceZeroNotGuarded(t *testing.T) {
-	// ensureDefaults has no guard against MinVariance <= 0.
-	// After ensureDefaults runs, MinVariance should be >= some positive floor.
-	// This test verifies the config guard is missing.
-	d := &BOCPDDetector{
-		MinVariance: 0,
-	}
-	d.ensureDefaults()
-	assert.Greater(t, d.MinVariance, 0.0,
-		"ensureDefaults should reject MinVariance=0 and set a positive floor, but it does not")
-
-	dNeg := &BOCPDDetector{
-		MinVariance: -1.0,
-	}
-	dNeg.ensureDefaults()
-	assert.Greater(t, dNeg.MinVariance, 0.0,
-		"ensureDefaults should reject MinVariance<0 and set a positive floor, but it does not")
+func TestBOCPDConfig_DefaultMinVarianceIsPositive(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	assert.Greater(t, cfg.MinVariance, 0.0,
+		"default MinVariance should be positive")
 }
 
 func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.T) {
@@ -272,19 +263,11 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	// normalization and compare against the implementation's actual output.
 
 	warmup := 120
-	d := &BOCPDDetector{
-		WarmupPoints:       warmup,
-		Hazard:             0.05,
-		CPThreshold:        0.6,
-		ShortRunLength:     5,
-		CPMassThreshold:    0.7,
-		MaxRunLength:       200,
-		PriorVarianceScale: 100.0,
-		MinVariance:        1.0,
-		RecoveryPoints:     10,
-		Aggregations:       []observer.Aggregate{observer.AggregateAverage},
-		series:             make(map[bocpdStateKey]*bocpdSeriesState),
-	}
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = warmup
+	config.PriorVarianceScale = 100.0
+	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
 	for i := 0; i < warmup; i++ {
@@ -304,7 +287,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	require.True(t, state.initialized)
 
 	x := 14.0
-	hazard := d.Hazard
+	hazard := d.config.Hazard
 
 	// Snapshot state before updatePosterior mutates it.
 	snapRunProbs := make([]float64, len(state.runProbs))
@@ -364,9 +347,10 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	// 2. Add second value at same timestamp T (storage merges), call Detect again
 	// 3. Assert the detector processed the updated merged value
 
-	d := NewBOCPDDetector()
-	d.WarmupPoints = 5
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 5
+	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
 
@@ -429,9 +413,10 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 }
 
 func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
-	d := NewBOCPDDetector()
-	d.WarmupPoints = 1
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 1
+	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
 

@@ -16,12 +16,12 @@ import (
 )
 
 func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
-	a := &LogMetricsExtractor{
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{
 		ExcludeFields: map[string]struct{}{
 			"pid":       {},
 			"timestamp": {},
 		},
-	}
+	})
 
 	log := &mockLogView{
 		content: []byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`),
@@ -58,7 +58,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 }
 
 func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
-	a := &LogMetricsExtractor{MaxEvalBytes: 0}
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 
 	log := &mockLogView{
 		content: []byte("Request completed in 45ms"),
@@ -78,11 +78,11 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
-	a := &LogMetricsExtractor{
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{
 		IncludeFields: map[string]struct{}{
 			"duration_ms": {},
 		},
-	}
+	})
 
 	log := &mockLogView{
 		content: []byte(`{"duration_ms":45,"status":200}`),
@@ -111,7 +111,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 }
 
 func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
-	a := &LogMetricsExtractor{MaxEvalBytes: 0}
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 
 	// Looks like JSON but is invalid -> treated as unstructured (pattern frequency).
 	input := []byte(`{"duration_ms":45,`)

@@ -175,27 +175,43 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
 
-// NewComponent creates an observer.Component.
-func NewComponent(deps Requires) Provides {
-	catalog := defaultCatalog()
-
-	// Build correlator overrides from config keys (observer.correlators.<name>.enabled).
-	cfg := deps.Config
-	var correlatorOverrides map[string]bool
+// settingsFromAgentConfig reads component configuration from the agent config
+// system (datadog.yaml). Keys follow the pattern:
+//
+//	observer.components.<name>.enabled        (bool)
+//	observer.components.<name>.<field>        (type-specific)
+//
+// Enabled keys must be registered in pkg/config/setup/config.go.
+// Component-specific keys are read via the AgentConfigurable interface —
+// config structs that implement it will have their fields populated
+// automatically.
+func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) ComponentSettings {
+	var settings ComponentSettings
+	if cfg == nil {
+		return settings
+	}
+	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
-		if entry.kind != componentCorrelator {
-			continue
+		prefix := "observer.components." + entry.name + "."
+		if cfg.IsKnown(prefix + "enabled") {
+			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
 		}
-		key := "observer.correlators." + entry.name + ".enabled"
-		if cfg.IsKnown(key) {
-			if correlatorOverrides == nil {
-				correlatorOverrides = make(map[string]bool)
+		if entry.readConfig != nil {
+			if settings.configs == nil {
+				settings.configs = make(map[string]any)
 			}
-			correlatorOverrides[entry.name] = cfg.GetBool(key)
+			settings.configs[entry.name] = entry.readConfig(cfg, prefix)
 		}
 	}
+	return settings
+}
 
-	detectors, correlators, extractors, _ := catalog.Instantiate(correlatorOverrides)
+// NewComponent creates an observer.Component.
+func NewComponent(deps Requires) Provides {
+	cfg := deps.Config
+	catalog := defaultCatalog()
+	settings := settingsFromAgentConfig(catalog, cfg)
+	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),

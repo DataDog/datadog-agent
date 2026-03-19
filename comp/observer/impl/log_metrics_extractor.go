@@ -16,12 +16,8 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// LogMetricsExtractor converts logs into timeseries metric outputs:
-// - JSON logs: numeric fields -> Avg aggregation
-// - Unstructured logs: pattern frequency -> Sum aggregation
-//
-// This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
-type LogMetricsExtractor struct {
+// LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.
+type LogMetricsExtractorConfig struct {
 	// MaxEvalBytes caps how many bytes we evaluate for unstructured signature generation (0 = no cap).
 	MaxEvalBytes int
 
@@ -31,6 +27,31 @@ type LogMetricsExtractor struct {
 	ExcludeFields map[string]struct{}
 }
 
+// DefaultLogMetricsExtractorConfig returns a LogMetricsExtractorConfig with default values.
+func DefaultLogMetricsExtractorConfig() LogMetricsExtractorConfig {
+	return LogMetricsExtractorConfig{
+		MaxEvalBytes: 4096,
+		ExcludeFields: map[string]struct{}{
+			"timestamp": {}, "ts": {}, "time": {},
+			"pid": {}, "ppid": {}, "uid": {}, "gid": {},
+		},
+	}
+}
+
+// LogMetricsExtractor converts logs into timeseries metric outputs:
+// - JSON logs: numeric fields -> Avg aggregation
+// - Unstructured logs: pattern frequency -> Sum aggregation
+//
+// This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
+type LogMetricsExtractor struct {
+	config LogMetricsExtractorConfig
+}
+
+// NewLogMetricsExtractor creates a LogMetricsExtractor with the given config.
+func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtractor {
+	return &LogMetricsExtractor{config: config}
+}
+
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
@@ -38,7 +59,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.Metric
 	tags := log.GetTags()
 
 	// Always emit pattern frequency metric for all logs
-	patternSig := logSignature(content, a.MaxEvalBytes)
+	patternSig := logSignature(content, a.config.MaxEvalBytes)
 	if patternSig == "" {
 		return nil
 	}
@@ -75,13 +96,13 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []str
 
 	var out []observer.MetricOutput
 	for k, v := range obj {
-		if a.ExcludeFields != nil {
-			if _, ok := a.ExcludeFields[k]; ok {
+		if a.config.ExcludeFields != nil {
+			if _, ok := a.config.ExcludeFields[k]; ok {
 				continue
 			}
 		}
-		if len(a.IncludeFields) > 0 {
-			if _, ok := a.IncludeFields[k]; !ok {
+		if len(a.config.IncludeFields) > 0 {
+			if _, ok := a.config.IncludeFields[k]; !ok {
 				continue
 			}
 		}
