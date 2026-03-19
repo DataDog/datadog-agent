@@ -153,7 +153,15 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
             return None
 
         with open(tmp_path) as f:
-            lines = [json.loads(line) for line in f if line.strip()]
+            lines = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    lines.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue  # skip malformed records
 
         # Find the latest entry matching this episode
         matches = [entry for entry in lines if entry.get("episode") == episode_name]
@@ -242,9 +250,19 @@ def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/obs
     scenarios_to_download = [scenario] if scenario else SCENARIOS
     for name in scenarios_to_download:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
-        if os.path.isdir(parquet_dir):
-            shutil.rmtree(parquet_dir)
-        _ensure_parquets(ctx, name, parquet_dir)
+        # Download to a temp dir first, then swap -- preserves existing data if download fails.
+        tmp_parquet_dir = parquet_dir + ".new"
+        if os.path.isdir(tmp_parquet_dir):
+            shutil.rmtree(tmp_parquet_dir)
+        _ensure_parquets(ctx, name, tmp_parquet_dir)
+        if os.path.isdir(tmp_parquet_dir) and os.listdir(tmp_parquet_dir):
+            if os.path.isdir(parquet_dir):
+                shutil.rmtree(parquet_dir)
+            os.rename(tmp_parquet_dir, parquet_dir)
+        else:
+            # Download failed -- clean up temp dir, keep existing data
+            shutil.rmtree(tmp_parquet_dir, ignore_errors=True)
+            print(color_message(f"Download failed for '{name}', keeping existing data", Color.ORANGE))
 
 
 @task
