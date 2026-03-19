@@ -200,3 +200,19 @@ rust_test(
         "@crates//:tempfile",
     ],
 )
+
+rust_test(
+    name = "config_integration_test",
+    srcs = ["tests/config_integration_test.rs"],
+    data = [":system-probe-lite"],
+    edition = "2024",
+    rustc_env = {
+        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
+    },
+    deps = [
+        "@crates//:nix",
+        "@crates//:serde_json",
+        "@crates//:tempfile",
+        "@crates//:yaml-rust2",
+    ],
+)

@@ -108,7 +108,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|result| Response::new(proto::CreateResponse { uuid: result.uuid }))
+            .map(|result| {
+                Response::new(proto::CreateResponse {
+                    uuid: result.uuid,
+                    warnings: result.warnings,
+                })
+            })
     }
 
     async fn start(
@@ -335,6 +340,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::process::tests::test_uuid;
 
     #[test]
     fn test_state_to_proto_mapping() {
@@ -375,7 +381,7 @@ mod tests {
             args: vec!["60".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new_config("test-proc".to_string(), cfg);
+        let proc = ManagedProcess::new_config("test-proc".to_string(), test_uuid(), cfg);
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "test-proc");
         assert_eq!(proto.command, "/usr/bin/sleep");
@@ -395,7 +401,7 @@ mod tests {
             before: vec!["dep-b".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new_config("detail-proc".to_string(), cfg);
+        let proc = ManagedProcess::new_config("detail-proc".to_string(), test_uuid(), cfg);
         let detail = process_detail(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
@@ -412,7 +418,7 @@ mod tests {
             args: vec!["60".to_string()],
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new_config("sleeper".to_string(), cfg);
+        let mut proc = ManagedProcess::new_config("sleeper".to_string(), test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let proto = process_to_proto(&proc);
@@ -436,7 +442,7 @@ mod tests {
             args: vec!["-c".to_string(), "exit 1".to_string()],
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new_config("fail-proc".to_string(), cfg);
+        let mut proc = ManagedProcess::new_config("fail-proc".to_string(), test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let mut child = proc.take_child().unwrap();
@@ -445,6 +451,6 @@ mod tests {
 
         let proto = process_to_proto(&proc);
         assert_eq!(proto.state, proto::ProcessState::Failed as i32);
-        assert!(proto.pid > 0, "failed process retains its last known pid");
+        assert_eq!(proto.pid, 0, "exited process should have pid cleared");
     }
 }

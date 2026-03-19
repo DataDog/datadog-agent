@@ -19,7 +19,7 @@ def _impl(rctx):
                 rctx,
                 op = "gopatch {}".format(p),
                 arguments = [go, "-C", rctx.path(rctx.attr._gopatch).dirname, "run", ".", "-p", p, rctx.path(".")],
-                environment = {"GOWORK": "off"},
+                environment = {"GOPATH": None, "GOROOT": None, "GOWORK": "off"},
             )
         else:
             rctx.patch(p, strip = 1)

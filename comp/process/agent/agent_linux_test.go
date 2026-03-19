@@ -21,17 +21,15 @@ import (
 
 func TestEnabledHelper(t *testing.T) {
 	tests := []struct {
-		name           string
-		agentFlavor    string
-		isCLCRunner    bool
-		runInCoreAgent bool
-		checks         []types.CheckComponent
-		expected       bool
+		name        string
+		agentFlavor string
+		isCLCRunner bool
+		checks      []types.CheckComponent
+		expected    bool
 	}{
 		{
-			name:           "process agent with connections check enabled and run_in_core_agent disabled",
-			agentFlavor:    flavor.ProcessAgent,
-			runInCoreAgent: false,
+			name:        "process agent with connections check enabled",
+			agentFlavor: flavor.ProcessAgent,
 			checks: []types.CheckComponent{
 				types.NewMockCheckComponent(t, checks.ConnectionsCheckName, true),
 				types.NewMockCheckComponent(t, checks.ProcessCheckName, true),
@@ -39,50 +37,22 @@ func TestEnabledHelper(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:           "process agent with connections check enabled and run_in_core_agent enabled",
-			agentFlavor:    flavor.ProcessAgent,
-			runInCoreAgent: true,
-			checks: []types.CheckComponent{
-				types.NewMockCheckComponent(t, checks.ConnectionsCheckName, true),
-				types.NewMockCheckComponent(t, checks.ProcessCheckName, true),
-			},
-			expected: true,
-		},
-		{
-			name:           "process agent with connections check disabled and run_in_core_agent disabled",
-			agentFlavor:    flavor.ProcessAgent,
-			runInCoreAgent: false,
-			checks: []types.CheckComponent{
-				types.NewMockCheckComponent(t, checks.ProcessCheckName, true),
-			},
-			expected: true,
-		},
-		{
-			name:           "process agent with connections check disabled and run_in_core_agent enabled",
-			agentFlavor:    flavor.ProcessAgent,
-			runInCoreAgent: true,
+			name:        "process agent with connections check disabled",
+			agentFlavor: flavor.ProcessAgent,
 			checks: []types.CheckComponent{
 				types.NewMockCheckComponent(t, checks.ProcessCheckName, true),
 			},
 			expected: false,
 		},
 		{
-			name:           "default agent with run_in_core_agent enabled",
-			agentFlavor:    flavor.DefaultAgent,
-			runInCoreAgent: true,
-			expected:       true,
+			name:        "default agent is always enabled",
+			agentFlavor: flavor.DefaultAgent,
+			expected:    true,
 		},
 		{
-			name:           "default agent with run_in_core_agent disabled",
-			agentFlavor:    flavor.DefaultAgent,
-			runInCoreAgent: false,
-			expected:       false,
-		},
-		{
-			name:           "CLC runner should always return false",
-			agentFlavor:    flavor.DefaultAgent,
-			isCLCRunner:    true,
-			runInCoreAgent: true,
+			name:        "CLC runner should always return false",
+			agentFlavor: flavor.DefaultAgent,
+			isCLCRunner: true,
 			checks: []types.CheckComponent{
 				types.NewMockCheckComponent(t, checks.ConnectionsCheckName, true),
 				types.NewMockCheckComponent(t, checks.ProcessCheckName, true),
@@ -102,7 +72,6 @@ func TestEnabledHelper(t *testing.T) {
 
 			// Create mock config
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("process_config.run_in_core_agent.enabled", tc.runInCoreAgent)
 			mockConfig.SetWithoutSource("clc_runner_enabled", tc.isCLCRunner)
 
 			if tc.isCLCRunner {

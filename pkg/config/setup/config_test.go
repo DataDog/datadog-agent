@@ -1136,9 +1136,6 @@ func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
-	// it for non-linux OSes. By adding it here the test passes on all OSes.
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
@@ -1169,8 +1166,6 @@ process_config:
     - fifth
     https://url2.eu:
     - modified
-  run_in_core_agent:
-    enabled: false
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1223,10 +1218,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 		config.Get("process_config.additional_endpoints"))
 }
 
-var testSimpleConf = []byte(`process_config:
-  run_in_core_agent:
-    enabled: false
-secret_backend_command: some command
+var testSimpleConf = []byte(`secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -1235,7 +1227,6 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1246,10 +1237,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `process_config:
-  run_in_core_agent:
-    enabled: false
-secret_backend_arguments:
+	expectedYaml := `secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1339,7 +1327,6 @@ additional_endpoints:
 `)
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1359,12 +1346,12 @@ additional_endpoints:
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, commonConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonWithServerless(conf)
+	initCommonConfigComponents(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1469,9 +1456,9 @@ yet_another_key: 'dddd'`
 
 	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
-	expected := `api_key: '***************************aaaaa'
+	expected := `api_key: '****************************aaaa'
 some_other_key: "********"
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
 }

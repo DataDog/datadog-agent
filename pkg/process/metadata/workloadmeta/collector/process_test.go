@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainersmock "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -172,14 +173,15 @@ func TestProcessCollector(t *testing.T) {
 	assert.Equal(t, testCid, evt.ContainerID)
 }
 
-// Assert that the collector is only enabled if the process check is disabled and
-// the remote process collector is enabled.
+// Assert that the collector is only enabled if the process check is disabled,
+// the remote process collector is enabled, and process checks are not running in the core agent.
+// On Linux, process checks always run in the core agent, so the collector is always disabled.
 func TestEnabled(t *testing.T) {
 	type testCase struct {
-		name                                                                           string
-		processCollectionEnabled, remoteProcessCollectorEnabled, runInCoreAgentEnabled bool
-		expectEnabled                                                                  bool
-		flavor                                                                         string
+		name                                                    string
+		processCollectionEnabled, remoteProcessCollectorEnabled bool
+		expectEnabled                                           bool
+		flavor                                                  string
 	}
 
 	testCases := []testCase{
@@ -187,7 +189,6 @@ func TestEnabled(t *testing.T) {
 			name:                          "process check enabled",
 			processCollectionEnabled:      true,
 			remoteProcessCollectorEnabled: false,
-			runInCoreAgentEnabled:         false,
 			flavor:                        flavor.ProcessAgent,
 			expectEnabled:                 false,
 		},
@@ -195,25 +196,17 @@ func TestEnabled(t *testing.T) {
 			name:                          "remote collector disabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: false,
-			runInCoreAgentEnabled:         false,
 			flavor:                        flavor.ProcessAgent,
 			expectEnabled:                 false,
 		},
 		{
-			name:                          "collector enabled",
+			name:                          "collector conditions met",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: true,
-			runInCoreAgentEnabled:         false,
 			flavor:                        flavor.ProcessAgent,
-			expectEnabled:                 true,
-		},
-		{
-			name:                          "collector enabled but in core agent",
-			processCollectionEnabled:      false,
-			remoteProcessCollectorEnabled: true,
-			runInCoreAgentEnabled:         true,
-			flavor:                        flavor.ProcessAgent,
-			expectEnabled:                 false,
+			// On Linux, always disabled because process checks run in core agent.
+			// On other platforms, enabled.
+			expectEnabled: !coreagent.ProcessChecksRunInCoreAgent(),
 		},
 	}
 
@@ -224,7 +217,6 @@ func TestEnabled(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.SetWithoutSource("language_detection.enabled", tc.remoteProcessCollectorEnabled)
-			cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", tc.runInCoreAgentEnabled)
 
 			assert.Equal(t, tc.expectEnabled, Enabled(cfg))
 		})

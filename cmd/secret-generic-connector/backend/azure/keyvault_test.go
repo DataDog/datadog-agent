@@ -42,14 +42,17 @@ func TestKeyvaultBackend(t *testing.T) {
 			"key2": "{\"foo\":\"bar\"}",
 		},
 	}
-	getKeyvaultClient = func(_, _ string) (keyvaultClient, error) {
+	getKeyvaultClient = func(_ KeyVaultBackendConfig) (keyvaultClient, error) {
 		return mockClient, nil
 	}
 
+	// v0-style: azure_* nested under azure_session (sibling to keyvaulturl)
 	keyvaultBackendParams := map[string]interface{}{
 		"backend_type": "azure.keyvault",
 		"keyvaulturl":  "https://my-vault.vault.azure.com/",
-		"clientid":     "123abc45-123a-abcd-123a-123abc456def",
+		"azure_session": map[string]interface{}{
+			"azure_client_id": "123abc45-123a-abcd-123a-123abc456def",
+		},
 	}
 	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
@@ -74,7 +77,7 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 			"key1": "{\\\"foo\\\":\\\"bar\\\"}",
 		},
 	}
-	getKeyvaultClient = func(_, _ string) (keyvaultClient, error) {
+	getKeyvaultClient = func(_ KeyVaultBackendConfig) (keyvaultClient, error) {
 		return mockClient, nil
 	}
 
@@ -93,4 +96,80 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 	// Index into secret json
 	secretOutput = keyvaultSecretsBackend.GetSecretOutput(ctx, "key1;foo")
 	assert.Equal(t, "bar", *secretOutput.Value)
+}
+
+// TestKeyVaultBackend_clientSecretCredential verifies that tenant_id + client_id + client_secret
+// are forwarded correctly to the keyvault client factory.
+func TestKeyVaultBackend_clientSecretCredential(t *testing.T) {
+	getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) {
+		s := cfg.AzureSession
+		assert.Equal(t, "my-tenant-id", s.AzureTenantID)
+		assert.Equal(t, "my-client-id", s.AzureClientID)
+		assert.Equal(t, "my-client-secret", s.AzureClientSecret)
+		return &keyvaultMockClient{secrets: map[string]interface{}{}}, nil
+	}
+	bc := map[string]interface{}{
+		"keyvaulturl": "https://my-vault.vault.azure.com/",
+		"azure_session": map[string]interface{}{
+			"azure_tenant_id":     "my-tenant-id",
+			"azure_client_id":     "my-client-id",
+			"azure_client_secret": "my-client-secret",
+		},
+	}
+	_, err := NewKeyVaultBackend(bc)
+	assert.NoError(t, err)
+}
+
+// TestKeyVaultBackend_clientCertificateCredential verifies that tenant_id + client_id + certificate_path
+// are forwarded correctly to the keyvault client factory.
+func TestKeyVaultBackend_clientCertificateCredential(t *testing.T) {
+	getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) {
+		s := cfg.AzureSession
+		assert.Equal(t, "my-tenant-id", s.AzureTenantID)
+		assert.Equal(t, "my-client-id", s.AzureClientID)
+		assert.Equal(t, "/path/to/cert.pem", s.AzureClientCertificatePath)
+		return &keyvaultMockClient{secrets: map[string]interface{}{}}, nil
+	}
+	bc := map[string]interface{}{
+		"keyvaulturl": "https://my-vault.vault.azure.com/",
+		"azure_session": map[string]interface{}{
+			"azure_tenant_id":               "my-tenant-id",
+			"azure_client_id":               "my-client-id",
+			"azure_client_certificate_path": "/path/to/cert.pem",
+		},
+	}
+	_, err := NewKeyVaultBackend(bc)
+	assert.NoError(t, err)
+}
+
+// TestKeyVaultBackend_defaultCredential verifies that omitting all auth fields
+// falls through to the default credential path.
+func TestKeyVaultBackend_defaultCredential(t *testing.T) {
+	getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) {
+		s := cfg.AzureSession
+		assert.Empty(t, s.AzureClientID)
+		assert.Empty(t, s.AzureTenantID)
+		assert.Empty(t, s.AzureClientSecret)
+		return &keyvaultMockClient{secrets: map[string]interface{}{}}, nil
+	}
+	bc := map[string]interface{}{
+		"keyvaulturl": "https://my-vault.vault.azure.com/",
+	}
+	_, err := NewKeyVaultBackend(bc)
+	assert.NoError(t, err)
+}
+
+// TestKeyVaultBackend_topLevelClientIDAlias verifies that top-level "clientid" is
+// mapped to azure_session.azure_client_id when azure_session is used.
+func TestKeyVaultBackend_topLevelClientIDAlias(t *testing.T) {
+	getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) {
+		assert.Equal(t, "123abc45-123a-abcd-123a-123abc456def", cfg.AzureSession.AzureClientID)
+		return &keyvaultMockClient{secrets: map[string]interface{}{}}, nil
+	}
+	bc := map[string]interface{}{
+		"keyvaulturl": "https://my-vault.vault.azure.com/",
+		"clientid":    "123abc45-123a-abcd-123a-123abc456def",
+	}
+	_, err := NewKeyVaultBackend(bc)
+	assert.NoError(t, err)
 }

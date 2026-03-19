@@ -29,8 +29,10 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 			configs: map[string]interface{}{
 				"process_config.process_discovery.enabled": true,
 			},
-			sysProbeConfigs: map[string]interface{}{},
-			enabled:         true,
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			enabled: true,
 		},
 		{
 			name: "disabled",

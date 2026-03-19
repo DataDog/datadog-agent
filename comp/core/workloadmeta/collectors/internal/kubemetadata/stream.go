@@ -36,14 +36,20 @@ const (
 	streamRecvTimeout     = 10 * time.Minute
 )
 
+type namespaceMetadata struct {
+	labels      map[string]string
+	annotations map[string]string
+}
+
 // streamClient manages a gRPC streaming connection to the DCA for
-// pod-to-service metadata and keeps a local cache with the mappings.
+// pod-to-service and namespace metadata. It keeps a local cache.
 type streamClient struct {
 	nodeName string
 	cfg      configmodel.Reader
 
 	mu          sync.RWMutex
-	podServices map[string][]string // "namespace/podName" -> services
+	podServices map[string][]string          // "namespace/podName" -> services
+	namespaces  map[string]namespaceMetadata // namespace name -> labels/annotations
 	active      bool
 }
 
@@ -52,6 +58,7 @@ func newStreamClient(nodeName string, cfg configmodel.Reader) *streamClient {
 		nodeName:    nodeName,
 		cfg:         cfg,
 		podServices: make(map[string][]string),
+		namespaces:  make(map[string]namespaceMetadata),
 	}
 }
 
@@ -107,6 +114,21 @@ func (sc *streamClient) getServices(namespace, podName string) ([]string, bool) 
 	return svcs, ok
 }
 
+func (sc *streamClient) getNamespaceMetadata(namespace string) (labels, annotations map[string]string, found bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	if !sc.active {
+		return nil, nil, false
+	}
+
+	ns, ok := sc.namespaces[namespace]
+	if !ok {
+		return nil, nil, false
+	}
+	return ns.labels, ns.annotations, true
+}
+
 func (sc *streamClient) isActive() bool {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
@@ -153,7 +175,7 @@ func (sc *streamClient) streamOnce(ctx context.Context) error {
 			return fmt.Errorf("stream recv error: %w", err)
 		}
 
-		sc.updateMappings(resp)
+		sc.applyResponse(resp)
 	}
 }
 
@@ -177,24 +199,34 @@ func dialDCA(ctx context.Context) (*grpc.ClientConn, error) {
 	)
 }
 
-// updateMappings updates pod => service mappings according to a streaming
-// response.
-func (sc *streamClient) updateMappings(resp *pb.KubeMetadataStreamResponse) {
+// applyResponse updates pod-service mappings and namespace metadata according
+// to a streaming response.
+func (sc *streamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
 	if resp.IsFullState {
-		newCache := make(map[string][]string, len(resp.Mappings))
+		newPodServices := make(map[string][]string, len(resp.Mappings))
 		for _, mapping := range resp.Mappings {
 			key := mapping.Namespace + "/" + mapping.PodName
-			newCache[key] = mapping.ServiceNames
+			newPodServices[key] = mapping.ServiceNames
 		}
-		sc.podServices = newCache
+		sc.podServices = newPodServices
+
+		newNamespaces := make(map[string]namespaceMetadata, len(resp.NamespaceMetadata))
+		for _, ns := range resp.NamespaceMetadata {
+			newNamespaces[ns.Namespace] = namespaceMetadata{
+				labels:      ns.Labels,
+				annotations: ns.Annotations,
+			}
+		}
+		sc.namespaces = newNamespaces
+
 		sc.active = true
 		return
 	}
 
-	if !sc.active && len(resp.Mappings) > 0 {
+	if !sc.active && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -206,6 +238,22 @@ func (sc *streamClient) updateMappings(resp *pb.KubeMetadataStreamResponse) {
 			sc.podServices[key] = mapping.ServiceNames
 		case pb.KubeMetadataEventType_UNSET:
 			delete(sc.podServices, key)
+		default:
+			log.Errorf("Unknown event type %d for pod-service mapping %s", mapping.Type, key)
+		}
+	}
+
+	for _, ns := range resp.NamespaceMetadata {
+		switch ns.Type {
+		case pb.KubeMetadataEventType_SET:
+			sc.namespaces[ns.Namespace] = namespaceMetadata{
+				labels:      ns.Labels,
+				annotations: ns.Annotations,
+			}
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.namespaces, ns.Namespace)
+		default:
+			log.Errorf("Unknown event type %d for namespace metadata %s", ns.Type, ns.Namespace)
 		}
 	}
 }

@@ -26,7 +26,7 @@ pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::process::tests::make_config;
+    use crate::process::tests::{make_config, test_uuid};
     use crate::state::ProcessState;
 
     #[tokio::test]
@@ -34,8 +34,8 @@ mod tests {
         let cfg1 = make_config("/bin/sleep", vec!["60"]);
         let cfg2 = make_config("/bin/sleep", vec!["60"]);
 
-        let mut p1 = ManagedProcess::new_config("p1".into(), cfg1);
-        let mut p2 = ManagedProcess::new_config("p2".into(), cfg2);
+        let mut p1 = ManagedProcess::new_config("p1".into(), test_uuid(), cfg1);
+        let mut p2 = ManagedProcess::new_config("p2".into(), test_uuid(), cfg2);
         p1.spawn().unwrap();
         p2.spawn().unwrap();
 
@@ -58,7 +58,7 @@ mod tests {
     async fn test_shutdown_all_sigkill_on_timeout() {
         let mut cfg = make_config("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"]);
         cfg.stop_timeout = Some(1);
-        let mut proc = ManagedProcess::new_config("stubborn".into(), cfg);
+        let mut proc = ManagedProcess::new_config("stubborn".into(), test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let mut procs = vec![proc];
@@ -69,8 +69,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_after_take_child() {
-        let mut proc =
-            ManagedProcess::new_config("t".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut proc = ManagedProcess::new_config(
+            "t".into(),
+            test_uuid(),
+            make_config("/bin/sleep", vec!["60"]),
+        );
         proc.spawn().unwrap();
         let _child = proc.take_child();
 
@@ -86,9 +89,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_ordered_reverse() {
-        let mut p1 = ManagedProcess::new_config("p1".into(), make_config("/bin/sleep", vec!["60"]));
-        let mut p2 = ManagedProcess::new_config("p2".into(), make_config("/bin/sleep", vec!["60"]));
-        let mut p3 = ManagedProcess::new_config("p3".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut p1 = ManagedProcess::new_config(
+            "p1".into(),
+            test_uuid(),
+            make_config("/bin/sleep", vec!["60"]),
+        );
+        let mut p2 = ManagedProcess::new_config(
+            "p2".into(),
+            test_uuid(),
+            make_config("/bin/sleep", vec!["60"]),
+        );
+        let mut p3 = ManagedProcess::new_config(
+            "p3".into(),
+            test_uuid(),
+            make_config("/bin/sleep", vec!["60"]),
+        );
         p1.spawn().unwrap();
         p2.spawn().unwrap();
         p3.spawn().unwrap();

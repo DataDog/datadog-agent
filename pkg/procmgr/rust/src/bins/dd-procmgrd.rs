@@ -6,6 +6,7 @@
 use anyhow::Result;
 use dd_procmgrd::config::YamlConfigLoader;
 use dd_procmgrd::manager::ProcessManager;
+use dd_procmgrd::uuid_gen::V4UuidGenerator;
 use log::info;
 use std::sync::Arc;
 
@@ -19,6 +20,6 @@ async fn main() -> Result<()> {
     info!("dd-procmgrd starting");
 
     let loader = Arc::new(YamlConfigLoader::from_env());
-    let mgr = ProcessManager::new(loader);
+    let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
     mgr.run().await
 }

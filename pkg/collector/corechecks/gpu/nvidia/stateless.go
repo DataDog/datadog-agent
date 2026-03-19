@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -450,6 +451,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "device_unhealthy_count",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
+					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
+				}
+
 				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
 				if err != nil {
 					return nil, 0, err

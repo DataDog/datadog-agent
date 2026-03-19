@@ -29,7 +29,7 @@ static int __attribute__((always_inline)) credentials_predicate(u64 type) {
 }
 
 static int __attribute__((always_inline)) mountpoint_predicate(u64 type) {
-    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT;
+    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT || type == EVENT_PIVOT_ROOT;
 }
 
 static int __attribute__((always_inline)) mount_or_open_tree(u64 type) {
@@ -37,7 +37,7 @@ static int __attribute__((always_inline)) mount_or_open_tree(u64 type) {
 }
 
 static int __attribute__((always_inline)) unshare_or_move_mount(u64 type) {
-    return type == EVENT_UNSHARE_MNTNS || type == EVENT_MOVE_MOUNT;
+    return type == EVENT_UNSHARE_MNTNS || type == EVENT_MOVE_MOUNT || type == EVENT_PIVOT_ROOT;
 }
 
 static int __attribute__((always_inline)) mount_or_move_mount(u64 type) {
@@ -45,7 +45,7 @@ static int __attribute__((always_inline)) mount_or_move_mount(u64 type) {
 }
 
 static int __attribute__((always_inline)) unshare_or_open_tree_or_move_mount(u64 type) {
-    return type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT;
+    return type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT || type == EVENT_PIVOT_ROOT;
 }
 
 #endif

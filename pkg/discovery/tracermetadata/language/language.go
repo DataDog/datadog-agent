@@ -31,7 +31,7 @@ func GetLanguage(meta tracermetadata.TracerMetadata) (languagemodels.Language, e
 		name = languagemodels.Node
 	case "ruby":
 		name = languagemodels.Ruby
-	case "jvm":
+	case "jvm", "java":
 		name = languagemodels.Java
 	default:
 		return languagemodels.Language{}, fmt.Errorf("unknown tracer language %s", meta.TracerLanguage)

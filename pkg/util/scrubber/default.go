@@ -47,17 +47,17 @@ func init() {
 func AddDefaultReplacers(scrubber *Scrubber) {
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
-		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
 		Hints: []string{"api_key", "apikey"},
-		Repl:  []byte(`$1***************************$2`),
+		Repl:  []byte(`$1****************************$2`),
 
 		LastUpdated: defaultVersion,
 	}
 	hintedAPPKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
-		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
 		Hints: []string{"app_key", "appkey", "application_key"},
-		Repl:  []byte(`$1***********************************$2`),
+		Repl:  []byte(`$1************************************$2`),
 
 		LastUpdated: defaultVersion,
 	}
@@ -83,28 +83,28 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 
 	apiKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`$1$2"***************************$3"`),
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{28}([a-fA-F0-9]{4})\b`),
+		Repl:  []byte(`$1$2"****************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
 		LastUpdated: parseVersion("7.39.0"),
 	}
 	apiKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`***************************$1`),
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{28}([a-fA-F0-9]{4})\b`),
+		Repl:  []byte(`****************************$1`),
 
 		LastUpdated: defaultVersion,
 	}
 	appKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`$1$2"***********************************$3"`),
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{36}([a-fA-F0-9]{4})\b`),
+		Repl:  []byte(`$1$2"************************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
 		LastUpdated: parseVersion("7.39.0"),
 	}
 	appKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`***********************************$1`),
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{36}([a-fA-F0-9]{4})\b`),
+		Repl:  []byte(`************************************$1`),
 
 		LastUpdated: defaultVersion,
 	}
@@ -202,7 +202,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 					return ""
 				}
 				if len(apiKey) == 32 {
-					return HideKeyExceptLastFiveChars(apiKey)
+					return HideKeyExceptLastFourChars(apiKey)
 				}
 			}
 			return defaultReplacement
@@ -219,7 +219,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 					return ""
 				}
 				if len(appKey) == 40 {
-					return HideKeyExceptLastFiveChars(appKey)
+					return HideKeyExceptLastFourChars(appKey)
 				}
 			}
 			return defaultReplacement
@@ -471,14 +471,14 @@ func ScrubDataObj(data *interface{}) {
 	DefaultScrubber.ScrubDataObj(data)
 }
 
-// HideKeyExceptLastFiveChars replaces all characters in the key with "*", except
-// for the last 5 characters. If the key is an unrecognized length, replace
+// HideKeyExceptLastFourChars replaces all characters in the key with "*", except
+// for the last 4 characters. If the key is an unrecognized length, replace
 // all of it with the default string of "*"s instead.
-func HideKeyExceptLastFiveChars(key string) string {
+func HideKeyExceptLastFourChars(key string) string {
 	if len(key) != 32 && len(key) != 40 {
 		return defaultReplacement
 	}
-	return strings.Repeat("*", len(key)-5) + key[len(key)-5:]
+	return strings.Repeat("*", len(key)-4) + key[len(key)-4:]
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

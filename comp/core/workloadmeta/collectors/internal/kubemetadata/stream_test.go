@@ -15,18 +15,21 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-func TestUpdateMappings(t *testing.T) {
+func TestApplyResponse(t *testing.T) {
 	tests := []struct {
-		name          string
-		initialState  map[string][]string
-		initialActive bool
-		response      *pb.KubeMetadataStreamResponse
-		expectedState map[string][]string
+		name                string
+		initialPodServices  map[string][]string
+		initialNamespaces   map[string]namespaceMetadata
+		initialActive       bool
+		response            *pb.KubeMetadataStreamResponse
+		expectedPodServices map[string][]string
+		expectedNamespaces  map[string]namespaceMetadata
 	}{
 		{
-			name:          "full state with empty initial state",
-			initialState:  nil,
-			initialActive: false,
+			name:               "full state with empty initial state",
+			initialPodServices: nil,
+			initialNamespaces:  nil,
+			initialActive:      false,
 			response: &pb.KubeMetadataStreamResponse{
 				IsFullState: true,
 				Mappings: []*pb.PodServiceMapping{
@@ -43,16 +46,33 @@ func TestUpdateMappings(t *testing.T) {
 						Type:         pb.KubeMetadataEventType_SET,
 					},
 				},
+				NamespaceMetadata: []*pb.NamespaceMetadata{
+					{
+						Namespace:   "test-namespace-1",
+						Labels:      map[string]string{"l1": "v1"},
+						Annotations: map[string]string{"a1": "v2"},
+						Type:        pb.KubeMetadataEventType_SET,
+					},
+				},
 			},
-			expectedState: map[string][]string{
+			expectedPodServices: map[string][]string{
 				"test-namespace-1/pod1": {"svc1", "svc2"},
 				"test-namespace-2/pod2": {"svc3"},
+			},
+			expectedNamespaces: map[string]namespaceMetadata{
+				"test-namespace-1": {
+					labels:      map[string]string{"l1": "v1"},
+					annotations: map[string]string{"a1": "v2"},
+				},
 			},
 		},
 		{
 			name: "full state response replaces existing data",
-			initialState: map[string][]string{
+			initialPodServices: map[string][]string{
 				"test-namespace/old-pod": {"old-svc"},
+			},
+			initialNamespaces: map[string]namespaceMetadata{
+				"old-ns": {labels: map[string]string{"l1": "v1"}},
 			},
 			initialActive: true,
 			response: &pb.KubeMetadataStreamResponse{
@@ -65,15 +85,30 @@ func TestUpdateMappings(t *testing.T) {
 						Type:         pb.KubeMetadataEventType_SET,
 					},
 				},
+				NamespaceMetadata: []*pb.NamespaceMetadata{
+					{
+						Namespace: "new-ns",
+						Labels:    map[string]string{"l1": "v1"},
+						Type:      pb.KubeMetadataEventType_SET,
+					},
+				},
 			},
-			expectedState: map[string][]string{
+			expectedPodServices: map[string][]string{
 				"test-namespace/new-pod": {"new-svc"},
+			},
+			expectedNamespaces: map[string]namespaceMetadata{
+				"new-ns": {
+					labels: map[string]string{"l1": "v1"},
+				},
 			},
 		},
 		{
 			name: "incremental set",
-			initialState: map[string][]string{
+			initialPodServices: map[string][]string{
 				"test-namespace/pod1": {"svc1"},
+			},
+			initialNamespaces: map[string]namespaceMetadata{
+				"ns1": {labels: map[string]string{"l1": "v1"}},
 			},
 			initialActive: true,
 			response: &pb.KubeMetadataStreamResponse{
@@ -92,17 +127,35 @@ func TestUpdateMappings(t *testing.T) {
 						Type:         pb.KubeMetadataEventType_SET,
 					},
 				},
+				NamespaceMetadata: []*pb.NamespaceMetadata{
+					{
+						Namespace: "ns2",
+						Labels:    map[string]string{"l1": "v2"},
+						Type:      pb.KubeMetadataEventType_SET,
+					},
+				},
 			},
-			expectedState: map[string][]string{
+			expectedPodServices: map[string][]string{
 				"test-namespace/pod1": {"svc1", "svc2"},
 				"test-namespace/pod2": {"svc3"},
+			},
+			expectedNamespaces: map[string]namespaceMetadata{
+				"ns1": {labels: map[string]string{"l1": "v1"}},
+				"ns2": {
+					labels:      map[string]string{"l1": "v2"},
+					annotations: nil,
+				},
 			},
 		},
 		{
 			name: "unset",
-			initialState: map[string][]string{
+			initialPodServices: map[string][]string{
 				"test-namespace/pod1": {"svc1"},
 				"test-namespace/pod2": {"svc2"},
+			},
+			initialNamespaces: map[string]namespaceMetadata{
+				"ns1": {labels: map[string]string{"l1": "v1"}},
+				"ns2": {labels: map[string]string{"l1": "v2"}},
 			},
 			initialActive: true,
 			response: &pb.KubeMetadataStreamResponse{
@@ -114,20 +167,35 @@ func TestUpdateMappings(t *testing.T) {
 						Type:      pb.KubeMetadataEventType_UNSET,
 					},
 				},
+				NamespaceMetadata: []*pb.NamespaceMetadata{
+					{
+						Namespace: "ns1",
+						Type:      pb.KubeMetadataEventType_UNSET,
+					},
+				},
 			},
-			expectedState: map[string][]string{
+			expectedPodServices: map[string][]string{
 				"test-namespace/pod2": {"svc2"},
+			},
+			expectedNamespaces: map[string]namespaceMetadata{
+				"ns2": {labels: map[string]string{"l1": "v2"}},
 			},
 		},
 		{
 			name: "empty keepalive",
-			initialState: map[string][]string{
+			initialPodServices: map[string][]string{
 				"test-namespace/pod1": {"svc1"},
+			},
+			initialNamespaces: map[string]namespaceMetadata{
+				"ns1": {labels: map[string]string{"l1": "v1"}},
 			},
 			initialActive: true,
 			response:      &pb.KubeMetadataStreamResponse{},
-			expectedState: map[string][]string{ // Shouldn't change anything
+			expectedPodServices: map[string][]string{
 				"test-namespace/pod1": {"svc1"},
+			},
+			expectedNamespaces: map[string]namespaceMetadata{
+				"ns1": {labels: map[string]string{"l1": "v1"}},
 			},
 		},
 	}
@@ -135,14 +203,16 @@ func TestUpdateMappings(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			sc := &streamClient{
-				podServices: test.initialState,
+				podServices: test.initialPodServices,
+				namespaces:  test.initialNamespaces,
 				active:      test.initialActive,
 			}
 
-			sc.updateMappings(test.response)
+			sc.applyResponse(test.response)
 
 			assert.True(t, sc.active)
-			assert.Equal(t, test.expectedState, sc.podServices)
+			assert.Equal(t, test.expectedPodServices, sc.podServices)
+			assert.Equal(t, test.expectedNamespaces, sc.namespaces)
 		})
 	}
 }
