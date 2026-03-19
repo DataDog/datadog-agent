@@ -1240,6 +1240,7 @@ func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
+				CombineConnectionStates:   true,
 				WhitelistConntrackMetrics: []string{"max", "count"},
 				UseSudoConntrack:          true,
 			},
@@ -1252,6 +1253,7 @@ func TestDefaultConfiguration(t *testing.T) {
 	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
+	assert.Equal(t, true, check.config.instance.CombineConnectionStates)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "", check.config.instance.ExcludedInterfaceRe)
 }
@@ -1270,8 +1272,22 @@ excluded_interface_re: "eth.*"
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
+	assert.Equal(t, true, check.config.instance.CombineConnectionStates)
 	assert.ElementsMatch(t, []string{"eth0", "lo0"}, check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
+}
+
+func TestConfigurationCombineConnectionStatesFalse(t *testing.T) {
+	check := createTestNetworkCheck(nil)
+	rawInstanceConfig := []byte(`
+collect_connection_state: true
+combine_connection_states: false
+`)
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+
+	assert.Nil(t, err)
+	assert.Equal(t, true, check.config.instance.CollectConnectionState)
+	assert.Equal(t, false, check.config.instance.CombineConnectionStates)
 }
 
 // TestGlobalProcfsPathUsedWhenInContainer validates that when procfs_path is set in the
@@ -2446,10 +2462,97 @@ UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseSocketStatsMetrics(tc.protocol, tc.input)
+			got, err := parseSocketStatsMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMapping["ss"])
 			assert.NoError(t, err)
 			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
 				t.Errorf("socket statistics result parsing diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestParseSocketStatMetricsUncombined(t *testing.T) {
+	testcases := []struct {
+		name     string
+		protocol string
+		input    string
+		want     map[string]*connectionStateEntry
+	}{
+		{
+			name:     "initializes tcp4 states",
+			protocol: "tcp4",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"estab":      emptyConnectionStateEntry(),
+				"syn_sent":   emptyConnectionStateEntry(),
+				"syn_recv":   emptyConnectionStateEntry(),
+				"fin_wait_1": emptyConnectionStateEntry(),
+				"fin_wait_2": emptyConnectionStateEntry(),
+				"time_wait":  emptyConnectionStateEntry(),
+				"close_wait": emptyConnectionStateEntry(),
+				"listen":     emptyConnectionStateEntry(),
+				"closing":    emptyConnectionStateEntry(),
+				"unconn":     emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "collects tcp4 states individually",
+			protocol: "tcp4",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
+LISTEN         0           4096               0.0.0.0:27500          0.0.0.0:*
+ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
+SYN-SENT       0           1               192.168.64.6:46118   169.254.169.254:80
+FIN-WAIT-1     0           0               192.168.64.6:45000    34.107.243.93:443
+CLOSE-WAIT     0           0               192.168.64.6:45001    34.107.243.93:443
+TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
+`,
+			want: map[string]*connectionStateEntry{
+				"estab": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"syn_sent": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{1},
+				},
+				"syn_recv":   emptyConnectionStateEntry(),
+				"fin_wait_1": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"fin_wait_2": emptyConnectionStateEntry(),
+				"time_wait":  {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"close_wait": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"listen": {
+					count: 2,
+					recvQ: []uint64{0, 0},
+					sendQ: []uint64{4096, 4096},
+				},
+				"closing": emptyConnectionStateEntry(),
+				"unconn":  emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp4 states",
+			protocol: "udp4",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseSocketStatsMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMappingUncombined["ss"])
+			assert.NoError(t, err)
+			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
+				t.Errorf("socket statistics uncombined result parsing diff (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -2618,13 +2721,214 @@ udp6       0      0 :::5353                 :::*
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseNetstatMetrics(tc.protocol, tc.input)
+			got, err := parseNetstatMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMapping["netstat"])
 			assert.NoError(t, err)
 			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
 				t.Errorf("netstat result parsing diff (-want +got):\n%s", diff)
 			}
 		})
 	}
+}
+
+func TestParseNetstatMetricsUncombined(t *testing.T) {
+	testcases := []struct {
+		name     string
+		protocol string
+		input    string
+		want     map[string]*connectionStateEntry
+	}{
+		{
+			name:     "initializes tcp4 states",
+			protocol: "tcp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"estab":      emptyConnectionStateEntry(),
+				"syn_sent":   emptyConnectionStateEntry(),
+				"syn_recv":   emptyConnectionStateEntry(),
+				"fin_wait_1": emptyConnectionStateEntry(),
+				"fin_wait_2": emptyConnectionStateEntry(),
+				"time_wait":  emptyConnectionStateEntry(),
+				"close":      emptyConnectionStateEntry(),
+				"close_wait": emptyConnectionStateEntry(),
+				"listen":     emptyConnectionStateEntry(),
+				"closing":    emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "collects tcp4 states individually",
+			protocol: "tcp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
+tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
+tcp        0      0 192.168.64.6:33853      34.107.243.93:443       CLOSE_WAIT
+tcp        0      0 192.168.64.6:33854      34.107.243.93:443       SYN_SENT
+tcp        0      0 192.168.64.6:33855      34.107.243.93:443       FIN_WAIT1
+tcp        0      0 192.168.64.6:33856      34.107.243.93:443       LAST_ACK
+tcp6       0      0 :::5355                 :::*                    LISTEN
+`,
+			want: map[string]*connectionStateEntry{
+				"estab":      {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"syn_sent":   {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"syn_recv":   emptyConnectionStateEntry(),
+				"fin_wait_1": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"fin_wait_2": emptyConnectionStateEntry(),
+				"time_wait":  {count: 2, recvQ: []uint64{0, 0}, sendQ: []uint64{0, 0}}, // TIME_WAIT + LAST_ACK both fold into time_wait
+				"close":      emptyConnectionStateEntry(),
+				"close_wait": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
+				"listen":     emptyConnectionStateEntry(), // tcp6 entry filtered out for tcp4 protocol
+				"closing":    emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp4 states",
+			protocol: "udp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseNetstatMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMappingUncombined["netstat"])
+			assert.NoError(t, err)
+			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
+				t.Errorf("netstat uncombined result parsing diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestNetworkCheckUncombinedConnectionStates(t *testing.T) {
+	net := &fakeNetworkStats{
+		counterStats:                 []net.IOCountersStat{},
+		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{},
+	}
+
+	ssAvailableFunction = func() bool { return false }
+	mockCommandRunner := new(MockCommandRunner)
+	runCommandFunction = mockCommandRunner.FakeRunCommand
+	// MockCommandRunner.FakeRunCommand returns full netstat data when "netstat" is in cmd
+
+	networkCheck := createTestNetworkCheck(net)
+	networkCheck.config.instance.CombineConnectionStates = false
+
+	rawInstanceConfig := []byte(`
+collect_connection_state: true
+combine_connection_states: false
+`)
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	var customTags []string
+
+	// MockCommandRunner returns 1 ESTABLISHED, 1 SYN_SENT, 1 SYN_RECV, 1 FIN_WAIT1, 1 FIN_WAIT2,
+	// 1 TIME_WAIT, 1 CLOSE, 1 CLOSE_WAIT, 1 LAST_ACK, 1 LISTEN, 1 CLOSING for tcp4.
+	// Expect granular metrics, NOT combined ones.
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.estab", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_sent", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_recv", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_1", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_2", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(2), "", customTags) // TIME_WAIT(1) + LAST_ACK(1)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(1), "", customTags)
+
+	// tcp6 has 2x each state in mock data
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.estab", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.syn_sent", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.syn_recv", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_1", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_2", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(4), "", customTags) // TIME_WAIT(2) + LAST_ACK(2)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close_wait", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listen", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(2), "", customTags)
+
+	// Combined metrics must NOT be emitted
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.established", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.opening", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.closing_combined", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.listening", mock.Anything, mock.Anything, mock.Anything)
+
+	// UDP should still emit "connections"
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", customTags)
+
+	mockSender.AssertCalled(t, "Commit")
+}
+
+func TestNetworkCheckUncombinedConnectionStatesSS(t *testing.T) {
+	net := &fakeNetworkStats{
+		counterStats:                 []net.IOCountersStat{},
+		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{},
+	}
+
+	ssAvailableFunction = func() bool { return true }
+	mockCommandRunner := new(MockCommandRunner)
+	runCommandFunction = mockCommandRunner.FakeRunCommand
+	// MockCommandRunner returns ss data with ESTAB and TIME-WAIT for ss commands
+
+	networkCheck := createTestNetworkCheck(net)
+
+	rawInstanceConfig := []byte(`
+collect_connection_state: true
+combine_connection_states: false
+`)
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	filesystem = afero.NewMemMapFs()
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	var customTags []string
+
+	// MockCommandRunner ss data has 1 ESTAB and 1 TIME-WAIT per protocol call.
+	// Uncombined: ESTAB → estab, TIME-WAIT → time_wait; all others are 0.
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.estab", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_sent", float64(0), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(0), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(0), "", customTags)
+
+	// Combined metrics must NOT be emitted
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.established", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.opening", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.listening", mock.Anything, mock.Anything, mock.Anything)
+
+	mockSender.AssertCalled(t, "Commit")
 }
 
 func connectionStateEntryComparer(a, b *connectionStateEntry) bool {

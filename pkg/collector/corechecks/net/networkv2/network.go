@@ -74,6 +74,7 @@ type networkInstanceConfig struct {
 	CollectCountMetrics       bool     `yaml:"collect_count_metrics"`
 	CollectConnectionState    bool     `yaml:"collect_connection_state"`
 	CollectConnectionQueues   bool     `yaml:"collect_connection_queues"`
+	CombineConnectionStates   bool     `yaml:"combine_connection_states"`
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern  *regexp.Regexp
@@ -184,7 +185,7 @@ func (c *NetworkCheck) Run() error {
 	if c.config.instance.CollectConnectionState {
 		netProcfsBasePath := c.net.GetNetProcBasePath()
 		for _, protocol := range []string{"udp4", "udp6", "tcp4", "tcp6"} {
-			submitConnectionStateMetrics(sender, protocol, c.config.instance.CollectConnectionQueues, netProcfsBasePath)
+			submitConnectionStateMetrics(sender, protocol, c.config.instance.CollectConnectionQueues, c.config.instance.CombineConnectionStates, netProcfsBasePath)
 		}
 	}
 
@@ -518,7 +519,7 @@ func checkSSExecutable() bool {
 	return true
 }
 
-func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*connectionStateEntry, error) {
+func getSocketStateMetrics(protocol string, procfsPath string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
 	env := []string{"PROC_ROOT=" + procfsPath}
 	// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
 	// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
@@ -532,22 +533,21 @@ func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*conn
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
-	return parseSocketStatsMetrics(protocol, output)
+	return parseSocketStatsMetrics(protocol, output, suffixMapping)
 }
 
-func getNetstatStateMetrics(protocol string, _ string) (map[string]*connectionStateEntry, error) {
+func getNetstatStateMetrics(protocol string, _ string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
 	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
 	}
-	return parseNetstatMetrics(protocol, output)
+	return parseNetstatMetrics(protocol, output, suffixMapping)
 }
 
 // why not sum here
-func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionStateEntry, error) {
+func parseSocketStatsMetrics(protocol, output string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
 	results := make(map[string]*connectionStateEntry)
 
-	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
 	if protocol[:3] == "udp" {
 		results["connections"] = &connectionStateEntry{
 			count: 0,
@@ -627,10 +627,9 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 	return results, nil
 }
 
-func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEntry, error) {
+func parseNetstatMetrics(protocol, output string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
 	protocol = strings.ReplaceAll(protocol, "4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
 	results := make(map[string]*connectionStateEntry)
-	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
 	if protocol[:3] == "udp" {
 		results["connections"] = &connectionStateEntry{
 			count: 0,
@@ -713,18 +712,29 @@ func submitConnectionStateMetrics(
 	sender sender.Sender,
 	protocolName string,
 	collectConnectionQueues bool,
+	combineConnectionStates bool,
 	procfsPath string,
 ) {
-	var getStateMetrics func(ipVersion string, procfsPath string) (map[string]*connectionStateEntry, error)
+	var getStateMetrics func(string, string, map[string]string) (map[string]*connectionStateEntry, error)
+	var tool string
 	if ssAvailableFunction() {
 		log.Debug("Using `ss` for connection state metrics")
 		getStateMetrics = getSocketStateMetrics
+		tool = "ss"
 	} else {
 		log.Debug("Using `netstat` for connection state metrics")
 		getStateMetrics = getNetstatStateMetrics
+		tool = "netstat"
 	}
 
-	results, err := getStateMetrics(protocolName, procfsPath)
+	var suffixMapping map[string]string
+	if combineConnectionStates {
+		suffixMapping = tcpStateMetricsSuffixMapping[tool]
+	} else {
+		suffixMapping = tcpStateMetricsSuffixMappingUncombined[tool]
+	}
+
+	results, err := getStateMetrics(protocolName, procfsPath, suffixMapping)
 	if err != nil {
 		log.Debug("Error getting connection state metrics:", err)
 		return
@@ -975,6 +985,7 @@ func newCheck(cfg config.Component) check.Check {
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
+				CombineConnectionStates:   true,
 				ConntrackPath:             "",
 				WhitelistConntrackMetrics: []string{"max", "count"},
 				UseSudoConntrack:          true,
