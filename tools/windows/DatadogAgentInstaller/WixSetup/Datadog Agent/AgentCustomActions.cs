@@ -541,8 +541,11 @@ namespace WixSetup.Datadog_Agent
                     // We will need to use the datadog-installer.exe to cleanup packages if purge fails.
                     // To skip purging entirely, set the KEEP_INSTALLED_PACKAGES property to 1.
                     Return.check,
+                    // purge should run before most of the Agent uninstall
+                    // e.g. packages/extensions may need to refer to Agent config files or services
+                    //      which Agent uninstall may remove
                     When.Before,
-                    new Step(CleanupOnUninstall.Id),
+                    new Step(UninstallUser.Id),
                     Conditions.Uninstalling
                 )
             {
