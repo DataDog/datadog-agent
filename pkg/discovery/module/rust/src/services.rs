@@ -130,10 +130,10 @@ fn get_service(
         None => None,
         Some(path) => tracer_metadata::get_tracer_metadata_from_path(path).ok(),
     };
-    let language = match tracer_metadata {
-        Some(ref metadata) => Language::from_tracer_str(&metadata.tracer_language),
-        None => Language::detect(pid, &exe, &cmdline, open_files_info),
-    };
+    let language = tracer_metadata
+        .as_ref()
+        .and_then(|m| Language::from_tracer_str(&m.tracer_language))
+        .unwrap_or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info));
 
     // Collect environment variables
     let envs = envs::get_target_envs(pid).ok()?;

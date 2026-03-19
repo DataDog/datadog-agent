@@ -360,11 +360,11 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 
 			if tc.expectedMeta != nil {
 				assert.Equal(t, tc.expectedMeta, svc.TracerMetadata)
-				assert.Equal(t, tc.expectedLanguage, svc.Language)
 			} else {
 				assert.Empty(t, svc.TracerMetadata)
 				assert.False(t, svc.APMInstrumentation)
 			}
+			assert.Equal(t, tc.expectedLanguage, svc.Language)
 		})
 	}
 }

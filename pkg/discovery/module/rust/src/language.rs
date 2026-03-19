@@ -28,6 +28,7 @@ const BINARY_CACHE_SIZE: usize = 1000;
 #[serde(rename_all = "lowercase")]
 pub enum Language {
     #[default]
+    #[serde(rename = "")]
     Unknown,
     #[serde(rename = "jvm", alias = "java")]
     Java,
@@ -43,23 +44,25 @@ pub enum Language {
 
 impl Language {
     /// Convert a tracer_language string from tracer metadata to a Language.
-    pub fn from_tracer_str(s: &str) -> Self {
+    /// Returns None for unrecognized strings so the caller can fall back to
+    /// other detection methods.
+    pub fn from_tracer_str(s: &str) -> Option<Self> {
         match s {
-            "jvm" | "java" => Self::Java,
-            "nodejs" => Self::NodeJS,
-            "python" => Self::Python,
-            "ruby" => Self::Ruby,
-            "dotnet" => Self::DotNet,
-            "go" => Self::Go,
-            "cpp" => Self::CPlusPlus,
-            "php" => Self::PHP,
-            _ => Self::Unknown,
+            "jvm" | "java" => Some(Self::Java),
+            "nodejs" => Some(Self::NodeJS),
+            "python" => Some(Self::Python),
+            "ruby" => Some(Self::Ruby),
+            "dotnet" => Some(Self::DotNet),
+            "go" => Some(Self::Go),
+            "cpp" => Some(Self::CPlusPlus),
+            "php" => Some(Self::PHP),
+            _ => None,
         }
     }
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unknown => "unknown",
+            Self::Unknown => "",
             Self::Java => "jvm",
             Self::NodeJS => "nodejs",
             Self::Python => "python",
