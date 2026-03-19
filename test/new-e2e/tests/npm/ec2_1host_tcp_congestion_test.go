@@ -190,11 +190,12 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_RTOCount() {
 	})
 }
 
-// TestTCPCongestion_RecoveryCount applies moderate correlated loss to trigger
-// SACK/NewReno fast recovery via triple duplicate ACKs.
+// TestTCPCongestion_RecoveryCount applies delay + moderate loss to trigger
+// SACK/NewReno fast recovery. Delay ensures enough in-flight packets for
+// SACK gap detection.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_RecoveryCount() {
 	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 5% 25%")
+	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem delay 50ms loss 10%")
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
