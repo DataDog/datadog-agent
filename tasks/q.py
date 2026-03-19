@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import re
 import shlex
 import shutil
 import tempfile
@@ -280,3 +281,84 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
     ctx.run(f"kubectl cp {datadog_agent_pod}:/tmp/observer-metrics {dest}")
 
     print(color_message(f"Fetched observer parquet files to {dest}", Color.GREEN))
+
+
+# --- Benchmarks ---
+@task
+def benchmark(ctx, bench=".", benchtime="3s", count=1):
+    """
+    Runs the observer benchmark suite and prints a grouped summary.
+
+    Args:
+        bench: Benchmark filter (default: all). E.g. "BenchmarkDetection" to run only detection benchmarks.
+        benchtime: Time per benchmark (default: 3s).
+        count: Number of runs per benchmark (default: 1).
+
+    Example:
+        dda inv q.benchmark
+        dda inv q.benchmark --bench BenchmarkDetection --benchtime 5s
+    """
+    cmd = f"go test -run=^$ -bench={bench} -benchmem -benchtime={benchtime} -count={count} ./comp/observer/impl/"
+    print(color_message(f"\nRunning: {cmd}\n", Color.BLUE))
+    result = ctx.run(cmd, warn=True)
+    if result and result.failed:
+        print(color_message("\nBenchmarks failed.", Color.RED))
+        return
+    _print_benchmark_summary(result.stdout if result else "")
+
+
+def _print_benchmark_summary(output):
+    """Parse go benchmark output and print a grouped readable summary."""
+    # Matches: BenchmarkFoo/param=val-NCPU  count  ns/op  [B/op  allocs/op]
+    line_re = re.compile(
+        r'^(Benchmark[A-Za-z_]+)(?:/([\w=.,/-]+?))?-\d+\s+\d+\s+([\d.]+)\s+ns/op'
+        r'(?:\s+([\d.]+)\s+B/op\s+([\d.]+)\s+allocs/op)?'
+    )
+
+    groups = {}  # family -> [(param, ns_op, b_op, allocs)]
+    for line in output.splitlines():
+        m = line_re.match(line)
+        if not m:
+            continue
+        family, param, ns_op, b_op, allocs = m.groups()
+        groups.setdefault(family, []).append(
+            (
+                param or "",
+                float(ns_op),
+                float(b_op or 0),
+                float(allocs or 0),
+            )
+        )
+
+    if not groups:
+        return
+
+    print(color_message(f"\n{'='*65}", Color.GREEN))
+    print(color_message("  Observer Benchmark Summary", Color.GREEN))
+    print(color_message(f"{'='*65}\n", Color.GREEN))
+
+    for family, rows in groups.items():
+        print(color_message(family, Color.BLUE))
+        has_params = any(r[0] for r in rows)
+        if has_params:
+            print(f"  {'param':<22}  {'time/op':>10}  {'B/op':>8}  {'allocs':>7}")
+            print("  " + "-" * 54)
+            for param, ns_op, b_op, allocs in rows:
+                print(f"  {param:<22}  {_fmt_ns(ns_op):>10}  {b_op:>8.0f}  {allocs:>7.0f}")
+        else:
+            print(f"  {'time/op':>10}  {'B/op':>8}  {'allocs':>7}")
+            print("  " + "-" * 30)
+            for _, ns_op, b_op, allocs in rows:
+                print(f"  {_fmt_ns(ns_op):>10}  {b_op:>8.0f}  {allocs:>7.0f}")
+        print()
+
+
+def _fmt_ns(ns):
+    """Format nanoseconds into a human-readable string."""
+    if ns >= 1_000_000_000:
+        return f"{ns / 1_000_000_000:.2f}s"
+    if ns >= 1_000_000:
+        return f"{ns / 1_000_000:.2f}ms"
+    if ns >= 1_000:
+        return f"{ns / 1_000:.2f}µs"
+    return f"{ns:.0f}ns"
