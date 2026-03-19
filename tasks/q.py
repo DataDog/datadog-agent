@@ -284,13 +284,19 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
 
 
 # --- Benchmarks ---
+_BENCH_FILTER = "BenchmarkDetection|BenchmarkIngestion|BenchmarkLogIngestion|BenchmarkRealScenario"
+
+
 @task
-def benchmark(ctx, bench=".", benchtime="3s", count=1):
+def benchmark(ctx, bench=_BENCH_FILTER, benchtime="3s", count=1):
     """
     Runs the observer benchmark suite and prints a grouped summary.
 
+    Runs ingestion, detection, and real-scenario benchmarks. Storage and
+    profiling benchmarks (profile_test.go) are excluded by default.
+
     Args:
-        bench: Benchmark filter (default: all). E.g. "BenchmarkDetection" to run only detection benchmarks.
+        bench: Benchmark filter regex (default: ingestion + detection + real-scenario families).
         benchtime: Time per benchmark (default: 3s).
         count: Number of runs per benchmark (default: 1).
 
