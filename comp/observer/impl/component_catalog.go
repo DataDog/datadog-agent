@@ -143,21 +143,17 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: true,
 			},
 			{
-				name:        "scanmw",
-				displayName: "ScanMW",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewScanMWDetector()
-				},
+				name:           "scanmw",
+				displayName:    "ScanMW",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewScanMWDetector() },
 				defaultEnabled: false,
 			},
 			{
-				name:        "scanwelch",
-				displayName: "ScanWelch",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewScanWelchDetector()
-				},
+				name:           "scanwelch",
+				displayName:    "ScanWelch",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
 			// ---- Correlators ----
@@ -173,7 +169,7 @@ func defaultCatalog() *componentCatalog {
 				name:           "time_cluster",
 				displayName:    "TimeCluster",
 				kind:           componentCorrelator,
-				defaultConfig:  DefaultTimeClusterConfig(),
+				defaultConfig:  TimeClusterConfig{ProximitySeconds: 10, WindowSeconds: 120, MinClusterSize: 3},
 				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
 				defaultEnabled: true,
 				readConfig:     readTimeClusterConfig,
@@ -195,12 +191,10 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:        "passthrough",
-				displayName: "Passthrough",
-				kind:        componentCorrelator,
-				factory: func() any {
-					return NewDetectorPassthroughCorrelator()
-				},
+				name:           "passthrough",
+				displayName:    "Passthrough",
+				kind:           componentCorrelator,
+				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
 			},
 		},
@@ -270,7 +264,7 @@ type CatalogEntry struct {
 // TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.
 // Used by the CLI to implement --only without hardcoding component lists.
 func TestbenchCatalogEntries() []CatalogEntry {
-	cat := testbenchCatalog()
+	cat := defaultCatalog()
 	result := make([]CatalogEntry, len(cat.entries))
 	for i, e := range cat.entries {
 		kind := "unknown"
