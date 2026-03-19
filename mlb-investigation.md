@@ -2,7 +2,7 @@
 
 ## Status
 
-**Fix verified on both 7.68.x and 7.76.x.** Disabling the `ssl_ctx_by_pid_tgid` fallback eliminates misattribution (0%) on both versions. Custom Docker image `datadog/agent-dev:disable-tls-fallback-7-76-full` is ready for customer deployment. Previous 7.76.x Docker test failures were caused by stale eBPF object caching on the Vagrant VM during testing, not by a code issue.
+**Fix did not resolve customer issue.** Custom image `datadog/agent-dev:disable-tls-fallback-7-76-full` (disabling `ssl_ctx_by_pid_tgid` fallback) was verified in local reproduction (0% misattribution) but **customer still sees misattribution after deploying on 2026-03-17**. The `ssl_ctx_by_pid_tgid` fallback is a real bug that causes misattribution in local testing, but it is **not the only cause** of the customer's issue — there is at least one additional mechanism.
 
 ## Customer Environment
 
@@ -390,19 +390,35 @@ All reproduction files are in `pkg/network/usm/testdata/haproxy_tls_leak/`:
 
 The `ssl_ctx_race_test/` directory (cherry-picked from `usm-gotls-misattribution-fix`) contains earlier investigation files for the `ssl_ctx_by_pid_tgid` write-path race.
 
+## Customer Deployment of Custom Image
+
+### Timeline
+
+- **2026-03-15**: Custom image `datadog/agent-dev:disable-tls-fallback-7-76-full` shared with support (Daniel Lavie → Traeger Meyer)
+- **2026-03-17**: Customer deployed the custom image
+- **2026-03-18**: Support reported the fix **did not resolve the issue** — customer still sees the erroneous endpoint `partlow` misattributed to the wrong service
+
+### Implication
+
+The `ssl_ctx_by_pid_tgid` fallback mechanism is a confirmed bug that causes misattribution in local reproduction (single-threaded proxy + system-probe restart), but the customer's misattribution has **at least one additional cause** beyond this fallback. This mirrors the earlier go-tls race fix attempt — each fix addresses a real bug but doesn't fully explain the customer's symptoms.
+
+Possible additional mechanisms to investigate:
+- Misattribution unrelated to TLS context (e.g., at the service name resolution layer, not the connection tracking layer)
+- Connection tuple collisions or reuse in long-lived proxy connections
+- Race conditions in the normal (non-fallback) `ssl_sock_by_ctx` path
+- Backend-side normalization or Service Naming Rules incorrectly grouping endpoints
+
 ## Next Steps
 
-1. **Ship custom image to customer**: Image `datadog/agent-dev:disable-tls-fallback-7-76-full` is verified working (0% misattribution). Share with customer via support ticket for deployment on GKE.
+1. **Investigate additional misattribution mechanisms**: The fallback fix is necessary but not sufficient. Need to identify what else causes the customer's symptoms. Key question: is the remaining misattribution in the eBPF/connection tracking layer or in the service name resolution pipeline?
 
-2. **Proper fix design**: The current fix disables the fallback entirely, which means pre-existing TLS connections (established before system-probe starts) won't be monitored. A proper fix should preserve the fallback for legitimate cases while preventing misattribution in proxies. Options include:
-   - Adding connection direction awareness to the fallback (only associate with connections in the same direction)
-   - Using a more selective heuristic that doesn't trigger for single-threaded proxies
-   - Adding a timeout or TTL to fallback entries
-   - Checking if the socket is already associated with a different TLS context before overwriting
+2. **Get more diagnostic data from customer**: Ask the customer to capture `/debug/http_monitoring` output after observing misattribution — this would show whether the misattributed entries have `StaticTags != 0` (TLS tagging issue) or `StaticTags == 0` (service name resolution issue).
 
-3. **Upstream the fix**: Once the proper fix is designed, submit it to main for inclusion in a future release.
+3. **Proper fix for the fallback bug**: The fallback disable fix is still a valid improvement that should be upstreamed, even though it doesn't fully resolve this customer's issue.
 
 ## Open Questions
 
-- What is the customer's agent restart/deployment cadence? This would help correlate with observed misattribution windows.
+- Is the customer's remaining misattribution caused by TLS context misassociation (StaticTags issue) or by service name resolution (process_context tags)?
+- What specific endpoint/service pair is `partlow` being misattributed to?
+- What is the customer's agent restart/deployment cadence?
 - Does the customer observe misattribution concentrated around specific time windows (which would correlate with agent restarts)?
