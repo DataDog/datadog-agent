@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.6.0
+install_script_version=1.7.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -63,6 +63,16 @@ fi
 agent_dist_channel=
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
+fi
+
+# Per-user install only: show the menu bar icon. Unset/false keeps headless GUI (postinst adds
+# --headless; this script removes it from the plist and reloads launchd when enabled).
+# Truthy: 1, true, yes, on (case-insensitive).
+gui_app_menu_enabled=false
+if [ -n "$DD_GUI_APP_MENU_ENABLED" ]; then
+    case "$(printf '%s' "$DD_GUI_APP_MENU_ENABLED" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) gui_app_menu_enabled=true ;;
+    esac
 fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
@@ -659,10 +669,17 @@ else
     printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
 fi
 
-# Starting the app
-if [ "$systemdaemon_install" = false ]; then
-    $cmd_real_user open -a 'Datadog Agent.app'
-else
+# Per-user GUI: postinst always installs --headless; optionally strip it and reload launchd here
+user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
+if [ "$systemdaemon_install" = false ] && [ "$gui_app_menu_enabled" = true ] && [ -f "$user_gui_plist" ]; then
+    printf "${BLUE}\n    - Enabling menu bar GUI (DD_GUI_APP_MENU_ENABLED)...\n${NC}"
+    $sudo_cmd sed -i '' '/<string>--headless<\/string>/d' "$user_gui_plist"
+    $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
+    $cmd_launchctl load -w "$user_gui_plist"
+fi
+
+# Per-user: GUI is started by postinst (headless) or by launchctl load above (menu bar); no open needed
+if [ "$systemdaemon_install" != false ]; then
     printf "${BLUE}\n* Installing $service_name as a system-wide LaunchDaemon ...\n\n${NC}"
     # Remove the Agent login item and unload the agent for current user
     # if it is running - it's not running if the script was launched when
