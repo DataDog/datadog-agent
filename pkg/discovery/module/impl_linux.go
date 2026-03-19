@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -112,7 +111,9 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, req *http.Request
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	state := make(map[string]interface{})
+	state := map[string]interface{}{
+		"implementation": "system-probe",
+	}
 
 	utils.WriteAsJSON(req, w, state, utils.CompactOutput)
 }
@@ -563,7 +564,6 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	service.TCPPorts = tcpPorts
 	service.UDPPorts = udpPorts
 	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
-	service.Type = string(servicetype.Detect(tcpPorts, udpPorts))
 
 	return service
 }

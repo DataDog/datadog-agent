@@ -32,44 +32,51 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	discovery := setupDiscoveryModule(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	for _, tt := range []struct {
+		name  string
+		setup func(t *testing.T) *testDiscoveryModule
+	}{
+		{"go", setupGoDiscoveryModule},
+		{"rust", setupRustDiscoveryModule},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			discovery := tt.setup(t)
 
-	badBin := filepath.Join(serverDir, "sshd")
-	badCmd := exec.CommandContext(ctx, badBin)
-	require.NoError(t, badCmd.Start())
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 
-	// Also run a non-ignored server so that we can use it in the eventually
-	// loop below so that we don't have to wait a long time to be sure that we
-	// really ignored badBin and just didn't miss it because of a race.
-	goodBin := filepath.Join(serverDir, "node")
-	goodCmd := exec.CommandContext(ctx, goodBin)
-	require.NoError(t, goodCmd.Start())
+			badBin := filepath.Join(serverDir, "sshd")
+			badCmd := exec.CommandContext(ctx, badBin)
+			require.NoError(t, badCmd.Start())
 
-	goodPid := goodCmd.Process.Pid
-	badPid := badCmd.Process.Pid
+			// Also run a non-ignored server so that we can use it in the eventually
+			// loop below so that we don't have to wait a long time to be sure that we
+			// really ignored badBin and just didn't miss it because of a race.
+			goodBin := filepath.Join(serverDir, "node")
+			goodCmd := exec.CommandContext(ctx, goodBin)
+			require.NoError(t, goodCmd.Start())
 
-	seen := make(map[int]model.Service)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
-		for _, s := range resp.Services {
-			seen[s.PID] = s
-		}
+			goodPid := goodCmd.Process.Pid
+			badPid := badCmd.Process.Pid
 
-		assert.Contains(collect, seen, goodPid)
-		assert.NotContains(collect, seen, badPid)
-	}, 30*time.Second, 100*time.Millisecond)
+			seen := make(map[int]model.Service)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				resp := getServices(collect, discovery)
+				for _, s := range resp.Services {
+					seen[s.PID] = s
+				}
+
+				assert.Contains(collect, seen, goodPid)
+				assert.NotContains(collect, seen, badPid)
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	discovery := newDiscovery()
-	require.NotEmpty(t, discovery)
-	require.Equal(t, len(discovery.config.IgnoreComms), 10)
-
-	for comm := range discovery.config.IgnoreComms {
+	for comm := range ignoreComms {
 		assert.LessOrEqual(t, len(comm), core.MaxCommLen, "Process name %q too big", comm)
 	}
 }
@@ -123,8 +130,6 @@ func TestShouldIgnoreComm(t *testing.T) {
 	serverDir := filepath.Dir(serverBin)
 	discovery := newDiscovery()
 	require.NotEmpty(t, discovery)
-	require.NotEmpty(t, discovery.config.IgnoreComms)
-	require.Equal(t, len(discovery.config.IgnoreComms), 10)
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
@@ -235,7 +240,7 @@ func BenchmarkProcCommReadFile(b *testing.B) {
 	}
 }
 
-// BenchmarkProcCommReadFile reads content of /proc/<pid>/comm using pre-allocated pool of buffers.
+// BenchmarkProcCommReadLen reads content of /proc/<pid>/comm using pre-allocated pool of buffers.
 func BenchmarkProcCommReadLen(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()

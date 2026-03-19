@@ -406,6 +406,7 @@ func (sc *SpanConcentrator) Flush(now int64, force bool) []*pb.ClientStatsPayloa
 			GitCommitSha:    k.GitCommitSha,
 			ImageTag:        k.ImageTag,
 			Lang:            k.Lang,
+			Service:         k.BaseService,
 			Stats:           s,
 			Tags:            containerTagsByID[k.ContainerID],
 			ProcessTags:     processTagsByHash[k.ProcessTagsHash],

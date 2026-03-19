@@ -201,7 +201,7 @@ cargo generate-lockfile
 
 > **Note:** You must run `cargo generate-lockfile` (or `cargo build`) whenever you change any `Cargo.toml`. If `Cargo.lock` is out of sync, Bazel will report an error:
 > ```
-> ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+> ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 > ```
 
 ### Step 5: Create BUILD.bazel
@@ -343,26 +343,19 @@ rust_library(
 
 ## Release Builds
 
-For optimized release builds with size optimization, use the `sd-agent-release` config:
+For optimized release builds with size optimization, use the `release` config:
 
 ```bash
-bazel build --config=sd-agent-release //pkg/your/component/rust:my_binary
+bazel build --config=release //pkg/your/component/rust:my_binary
 ```
 
 This enables:
 - Fat LTO (Link-Time Optimization)
 - Size optimization (`opt-level=z`)
+- Single codegen unit for maximum optimization
 - Symbol stripping
-- Panic abort (no stack unwinding)
 
-For custom release profiles, add to `bazel/configs/` and import in `.bazelrc`.
-
->**Note:** right now we only have a release configuration that is sd-agent specific.
-However, if we identify that future components want to utilize the same configuration
-it can be promoted to the global `datadog-agent-release` configuration. For now, please,
-introduce your own `my_component.bazelrc` in [bazel/configs/](/bazel/configs/) and
-add `import %workspace%/bazel/configs/my_component.bazelrc` to [.bazelrc](/.bazelrc) under
-`Project configs` section.
+The configuration lives in [bazel/configs/rust.bazelrc](/bazel/configs/rust.bazelrc) and is shared by all Rust components.
 
 ## CI Integration
 > **TODO:** Describe how to add rust build to CI.
@@ -416,7 +409,7 @@ cargo generate-lockfile
 
 Bazel will fail if `Cargo.toml` and `Cargo.lock` are out of sync:
 ```
-ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 ```
 
 ## Further Reading

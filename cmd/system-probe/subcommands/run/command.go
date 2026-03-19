@@ -39,8 +39,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -83,6 +84,13 @@ import (
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
+
+// spLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.
+type spLiteExecCmd struct {
+	Path string
+	Args []string
+	Env  []string
+}
 
 const configPrefix = systemprobeconfig.Namespace + "."
 
@@ -129,7 +137,7 @@ func getSharedFxOption() fx.Option {
 		sysprobeconfigimpl.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryimpl.Module(),
-		pidimpl.Module(),
+		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
 		statsd.Module(),
@@ -192,8 +200,17 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
+	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
+	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
+		deps.Log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		deps.Log.Flush()
+		if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			deps.Log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
+	}
+
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
