@@ -286,7 +286,8 @@ func TestCheck_Run_Success(t *testing.T) {
 	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
-	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
