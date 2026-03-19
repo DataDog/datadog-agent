@@ -209,6 +209,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
     setConnectionState('loading');
     setActiveScenario(name);
     setSeries([]);
+    setScoreResponse(null);
     setLoadProgress(null);
     setError(null);
 

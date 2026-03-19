@@ -113,7 +113,7 @@ function formatTime(isoString: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
+function EpisodeInfoPanel({ info, score }: { info: EpisodeInfo; score?: ScoreResult | null }) {
   const [expanded, setExpanded] = useState(false);
 
   const phases: { key: string; phase: typeof info.baseline }[] = [
@@ -124,8 +124,8 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
   ].filter(p => p.phase != null);
 
   return (
-    <div className="bg-slate-800/60 border-b border-slate-700 px-4 py-2">
-      <div className="flex items-start gap-4 flex-wrap">
+    <div className="bg-slate-800/60 border-b border-slate-700 px-4 py-2 flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-4 flex-wrap flex-1 min-w-0">
         {/* Episode identity */}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs font-mono text-slate-400">Episode</span>
@@ -159,6 +159,9 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
           </button>
         </div>
 
+        {/* Score — before phase badges */}
+        {score && <ScoreDisplay score={score} />}
+
         {/* Phase timeline */}
         {phases.length > 0 && (
           <div className="flex items-center gap-1 shrink-0">
@@ -177,6 +180,7 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
             })}
           </div>
         )}
+
       </div>
     </div>
   );
@@ -402,10 +406,6 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Score display — only when ground truth is available */}
-            {state.scoreResponse?.available && state.scoreResponse.score && (
-              <ScoreDisplay score={state.scoreResponse.score} />
-            )}
             {/* History navigation arrows — always visible when there's history */}
             {(canGoBack || canGoForward) && (
               <div className="flex items-center gap-1">
@@ -531,7 +531,7 @@ function App() {
       )}
 
       {/* Episode info panel (shown when episode.json is present) */}
-      {episodeInfo && <EpisodeInfoPanel info={episodeInfo} />}
+      {episodeInfo && <EpisodeInfoPanel info={episodeInfo} score={state.scoreResponse?.available ? state.scoreResponse.score : null} />}
 
       <div className="flex-1 flex relative min-h-0">
         {/* Resize handle */}

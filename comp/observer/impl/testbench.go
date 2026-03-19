@@ -1025,19 +1025,53 @@ func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	meta, err := scoringMetadataFromEpisode(tb.episodeInfo)
+	if tb.episodeInfo == nil {
+		return nil, errors.New("no episode info available")
+	}
+	if tb.episodeInfo.Disruption == nil || tb.episodeInfo.Disruption.Start == "" {
+		return nil, errors.New("episode info missing disruption.start")
+	}
+
+	dt, err := time.Parse(time.RFC3339, tb.episodeInfo.Disruption.Start)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing disruption.start: %w", err)
+	}
+	groundTruth := []int64{dt.Unix()}
+
+	var baselineStart int64
+	if tb.episodeInfo.Baseline != nil && tb.episodeInfo.Baseline.Start != "" {
+		if bt, err := time.Parse(time.RFC3339, tb.episodeInfo.Baseline.Start); err == nil {
+			baselineStart = bt.Unix()
+		}
 	}
 
 	correlations := tb.engine.StateView().CorrelationHistory()
-	predictions := make([]int64, len(correlations))
-	for i, c := range correlations {
-		predictions[i] = c.FirstSeen
+	var predictions []int64
+	var numFilteredWarmup int
+	for _, c := range correlations {
+		if baselineStart > 0 && c.FirstSeen < baselineStart {
+			numFilteredWarmup++
+			continue
+		}
+		predictions = append(predictions, c.FirstSeen)
 	}
 
-	result := scorePredictions(predictions, meta, sigma)
-	return result, nil
+	minGT := groundTruth[0]
+	var numBaselineFPs int
+	for _, p := range predictions {
+		if p < minGT {
+			numBaselineFPs++
+		}
+	}
+
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  predictions,
+		GroundTruthTimestamps: groundTruth,
+		Sigma:                 sigma,
+	})
+	result.NumFilteredWarmup = numFilteredWarmup
+	result.NumBaselineFPs = numBaselineFPs
+	return &result, nil
 }
 
 // RunHeadless runs a scenario synchronously without the HTTP server and writes output.
