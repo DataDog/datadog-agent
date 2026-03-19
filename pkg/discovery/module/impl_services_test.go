@@ -235,14 +235,27 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	t := s.T()
 	discovery := s.discovery
 
-	trMeta := tracermetadata.TracerMetadata{
-		SchemaVersion:  1,
-		RuntimeID:      "test-runtime-id",
-		TracerLanguage: "go",
-		ServiceName:    "test-service",
-	}
-	data, err := trMeta.MarshalMsg(nil)
+	// Use a real binary dump from the Go tracer (v2 schema) which includes
+	// process_tags and container_id fields, ensuring both Go and Rust
+	// implementations can parse them correctly.
+	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
+	testDataPath := filepath.Join(curDir, "testdata/tracer_go_v2.data")
+	data, err := os.ReadFile(testDataPath)
+	require.NoError(t, err)
+
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  2,
+		RuntimeID:      "bfed5675-a8f9-4d3d-a630-64713d543d1a",
+		TracerLanguage: "go",
+		TracerVersion:  "v2.3.0-dev.1",
+		Hostname:       "my-hostname",
+		ServiceName:    "test-go",
+		ServiceEnv:     "prod",
+		ServiceVersion: "abc123",
+		ProcessTags:    "entrypoint.basedir:exe,entrypoint.name:gotrace,entrypoint.type:executable,entrypoint.workdir:gotrace",
+		ContainerID:    "d7827075-010c-4e21-a663-daa3cd34e6f2",
+	}
 
 	createTracerMemfd(t, data)
 
@@ -289,6 +302,13 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	// Verify tracer metadata
 	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, svc.TracerMetadata)
 	assert.Equal(t, string(language.Go), svc.Language)
+
+	// Verify v2 schema fields are parsed correctly (these are the new fields
+	// that were missing in the previous test with v1 schema data)
+	require.Len(t, svc.TracerMetadata, 1)
+	assert.Equal(t, "entrypoint.basedir:exe,entrypoint.name:gotrace,entrypoint.type:executable,entrypoint.workdir:gotrace", svc.TracerMetadata[0].ProcessTags)
+	assert.Equal(t, "d7827075-010c-4e21-a663-daa3cd34e6f2", svc.TracerMetadata[0].ContainerID)
+	assert.Equal(t, uint8(2), svc.TracerMetadata[0].SchemaVersion)
 }
 
 // TestServicesTracerMetadataWithoutPorts checks that processes with tracer metadata
