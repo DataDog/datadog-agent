@@ -3,6 +3,9 @@
 /// For metrics files, resolves context_key to name+tags using context files
 /// from the same directory (or --context-dir).
 ///
+/// For logs files, resolves context_key to hostname+source+status+tags using
+/// log-contexts files from the same directory (or --context-dir).
+///
 /// Usage: reader <path-to-vortex-file> [--search <substring>] [--context-dir <dir>]
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -98,6 +101,94 @@ async fn load_contexts(
     Ok(context_map)
 }
 
+/// Load all `log-contexts-*.vortex` files from a directory into a HashMap.
+/// Returns (hostname, source, status, tags) tuples keyed by context_key.
+async fn load_log_contexts(
+    session: &VortexSession,
+    dir: &PathBuf,
+) -> Result<HashMap<u64, (String, String, String, String)>> {
+    let mut context_map: HashMap<u64, (String, String, String, String)> = HashMap::new();
+
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
+        .with_context(|| format!("reading directory {}", dir.display()))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension().and_then(|e| e.to_str()) == Some("vortex")
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("log-contexts-"))
+        })
+        .collect();
+    entries.sort();
+
+    for path in &entries {
+        let array = session
+            .open_options()
+            .open_path(path.clone())
+            .await
+            .with_context(|| format!("opening log context file {}", path.display()))?
+            .scan()?
+            .into_array_stream()?
+            .read_all()
+            .await
+            .context("reading log context array")?;
+
+        let canonical = array
+            .to_canonical()
+            .context("canonicalizing log context array")?;
+        let st = canonical.into_struct();
+        let n = st.len();
+
+        let ckey_arr = st
+            .unmasked_field_by_name("context_key")
+            .context("accessing 'context_key' column")?;
+        let ckey_canonical = ckey_arr
+            .to_canonical()
+            .context("canonicalizing 'context_key'")?;
+        let ckeys = match &ckey_canonical {
+            Canonical::Primitive(prim) => prim.as_slice::<u64>().to_vec(),
+            other => anyhow::bail!(
+                "expected Primitive u64 for context_key, got {:?}",
+                other.dtype()
+            ),
+        };
+
+        let hostnames = extract_column_strings(&st, "hostname", n)?;
+        let sources = extract_column_strings(&st, "source", n)?;
+        let statuses = extract_column_strings(&st, "status", n)?;
+        let tags = extract_column_strings(&st, "tags", n)?;
+
+        for i in 0..n {
+            context_map.insert(
+                ckeys[i],
+                (
+                    hostnames[i].clone(),
+                    sources[i].clone(),
+                    statuses[i].clone(),
+                    tags[i].clone(),
+                ),
+            );
+        }
+    }
+
+    Ok(context_map)
+}
+
+fn extract_column_strings(
+    st: &vortex::array::arrays::StructArray,
+    col_name: &str,
+    n: usize,
+) -> Result<Vec<String>> {
+    let arr = st
+        .unmasked_field_by_name(col_name)
+        .with_context(|| format!("accessing '{col_name}' column"))?;
+    let canonical = arr
+        .to_canonical()
+        .with_context(|| format!("canonicalizing '{col_name}'"))?;
+    extract_strings(&canonical, n)
+}
+
 fn extract_strings(canonical: &Canonical, n: usize) -> Result<Vec<String>> {
     match canonical {
         Canonical::VarBinView(vbv) => Ok((0..n)
@@ -113,21 +204,25 @@ async fn main() -> Result<()> {
 
     let session = VortexSession::default();
 
-    // Determine if this is a metrics file that needs context resolution.
-    let is_metrics = args
+    let file_name = args
         .path
         .file_name()
         .and_then(|n| n.to_str())
-        .is_some_and(|n| n.starts_with("metrics-"));
+        .unwrap_or("");
 
-    // Load context map for metrics files.
+    // Determine file type for context resolution.
+    let is_metrics = file_name.starts_with("metrics-");
+    let is_logs = file_name.starts_with("logs-");
+
+    let ctx_dir = args
+        .context_dir
+        .clone()
+        .or_else(|| args.path.parent().map(|p| p.to_path_buf()));
+
+    // Load metric context map for metrics files.
     let context_map = if is_metrics {
-        let ctx_dir = args
-            .context_dir
-            .clone()
-            .or_else(|| args.path.parent().map(|p| p.to_path_buf()));
-        if let Some(dir) = ctx_dir {
-            match load_contexts(&session, &dir).await {
+        if let Some(ref dir) = ctx_dir {
+            match load_contexts(&session, dir).await {
                 Ok(map) => {
                     if !map.is_empty() {
                         eprintln!("loaded {} context definitions", map.len());
@@ -136,6 +231,28 @@ async fn main() -> Result<()> {
                 }
                 Err(e) => {
                     eprintln!("warning: could not load contexts: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Load log context map for logs files.
+    let log_context_map = if is_logs {
+        if let Some(ref dir) = ctx_dir {
+            match load_log_contexts(&session, dir).await {
+                Ok(map) => {
+                    if !map.is_empty() {
+                        eprintln!("loaded {} log context definitions", map.len());
+                    }
+                    Some(map)
+                }
+                Err(e) => {
+                    eprintln!("warning: could not load log contexts: {e}");
                     None
                 }
             }
@@ -224,7 +341,7 @@ async fn main() -> Result<()> {
         cols.push(strings);
     }
 
-    // If we have a context map and a context_key column, build virtual name/tags columns.
+    // If we have a metric context map and a context_key column, build virtual name/tags columns.
     let context_key_col_idx = names.iter().position(|n| n == "context_key");
     let resolved_names: Option<Vec<String>>;
     let resolved_tags: Option<Vec<String>>;
@@ -248,6 +365,41 @@ async fn main() -> Result<()> {
         resolved_tags = None;
     }
 
+    // If we have a log context map and a context_key column, build virtual columns.
+    let resolved_hostnames: Option<Vec<String>>;
+    let resolved_sources: Option<Vec<String>>;
+    let resolved_statuses: Option<Vec<String>>;
+    let resolved_log_tags: Option<Vec<String>>;
+    if let (Some(ctx_map), Some(ckey_idx)) = (&log_context_map, context_key_col_idx) {
+        let mut r_hostnames = Vec::with_capacity(n);
+        let mut r_sources = Vec::with_capacity(n);
+        let mut r_statuses = Vec::with_capacity(n);
+        let mut r_tags = Vec::with_capacity(n);
+        for row in 0..n {
+            let ckey: u64 = cols[ckey_idx][row].parse().unwrap_or(0);
+            if let Some((hostname, source, status, tags)) = ctx_map.get(&ckey) {
+                r_hostnames.push(hostname.clone());
+                r_sources.push(source.clone());
+                r_statuses.push(status.clone());
+                r_tags.push(tags.clone());
+            } else {
+                r_hostnames.push(format!("<unresolved:{ckey}>"));
+                r_sources.push(String::new());
+                r_statuses.push(String::new());
+                r_tags.push(String::new());
+            }
+        }
+        resolved_hostnames = Some(r_hostnames);
+        resolved_sources = Some(r_sources);
+        resolved_statuses = Some(r_statuses);
+        resolved_log_tags = Some(r_tags);
+    } else {
+        resolved_hostnames = None;
+        resolved_sources = None;
+        resolved_statuses = None;
+        resolved_log_tags = None;
+    }
+
     let mut printed = 0usize;
     for row in 0..n {
         let mut parts: Vec<String> = names
@@ -256,9 +408,22 @@ async fn main() -> Result<()> {
             .map(|(name, col)| format!("{name}={}", col[row]))
             .collect();
 
-        // Append resolved name/tags as virtual columns.
+        // Append resolved metric name/tags as virtual columns.
         if let (Some(ref rn), Some(ref rt)) = (&resolved_names, &resolved_tags) {
             parts.push(format!("name={}", rn[row]));
+            parts.push(format!("tags={}", rt[row]));
+        }
+
+        // Append resolved log context as virtual columns.
+        if let (Some(ref rh), Some(ref rs), Some(ref rst), Some(ref rt)) = (
+            &resolved_hostnames,
+            &resolved_sources,
+            &resolved_statuses,
+            &resolved_log_tags,
+        ) {
+            parts.push(format!("hostname={}", rh[row]));
+            parts.push(format!("source={}", rs[row]));
+            parts.push(format!("status={}", rst[row]));
             parts.push(format!("tags={}", rt[row]));
         }
 
