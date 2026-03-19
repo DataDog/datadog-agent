@@ -181,8 +181,8 @@ github.com/CycloneDX/cyclonedx-go v0.9.3 h1:Pyk/lwavPz7AaZNvugKFkdWOm93MzaIyWmBw
 github.com/CycloneDX/cyclonedx-go v0.9.3/go.mod h1:vcK6pKgO1WanCdd61qx4bFnSsDJQ6SbM2ZuMIgq86Jg=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.182 h1:FooubUrLkVwCduW33MJv2dlnyDZQNhUtFw7AhlKoNHk=
-github.com/DataDog/agent-payload/v5 v5.0.182/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
+github.com/DataDog/agent-payload/v5 v5.0.184 h1:4ZEWKWTQHoC+WCjlE1l695ymi/PjA9BPGMMVAbaM0uo=
+github.com/DataDog/agent-payload/v5 v5.0.184/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/appsec-internal-go v1.14.0 h1:MIEZ015kdpeSZSFYBQteSmg8f7zkQTWbMDHbSL9zBx8=
 github.com/DataDog/appsec-internal-go v1.14.0/go.mod h1:9YppRCpElfGX+emXOKruShFYsdPq7WEPq/Fen4tYYpk=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=
@@ -1695,8 +1695,6 @@ github.com/linode/go-metadata v0.2.4 h1:iif+14PN5T0u/wRnu6i/UlLQrlaFlWvDJzm0Wl9R
 github.com/linode/go-metadata v0.2.4/go.mod h1:h6yHiRupdKvyPkydU9g8kUA3QKdAgj3WX2wrF+mUv1c=
 github.com/linode/linodego v1.63.0 h1:MdjizfXNJDVJU6ggoJmMO5O9h4KGPGivNX0fzrAnstk=
 github.com/linode/linodego v1.63.0/go.mod h1:GoiwLVuLdBQcAebxAVKVL3mMYUgJZR/puOUSla04xBE=
-github.com/liustanley/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca h1:cvhpIVbFRXK1c7lEG/rKlbFpi0MAzAJwrylyNC9j7Ek=
-github.com/liustanley/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca/go.mod h1:X2RsZAzB4956LB2UFWcz6GG9MF3X/paAZtIEnzmkL4c=
 github.com/lorenzosaino/go-sysctl v0.3.1 h1:3phX80tdITw2fJjZlwbXQnDWs4S30beNcMbw0cn0HtY=
 github.com/lorenzosaino/go-sysctl v0.3.1/go.mod h1:5grcsBRpspKknNS1qzt1eIeRDLrhpKZAtz8Fcuvs1Rc=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
@@ -1949,6 +1947,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusrem
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.147.0/go.mod h1:D3DB/PjNFYlR55EedzK2GIOUzpiBjPuvp4B4ykABPIA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0 h1:sd8NTDoFHhjyo8MApx5f7KPNMyQZIZ7uyWwymPoKIKA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0/go.mod h1:aVmsD2wCy0mf5ip57XJDLxg/V0JuSU/ON/SBgp7pz5U=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0 h1:ko9NECw/NvfijhXuF4Jlg/E4vrhIilQW5Qq7qRUmGc0=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0/go.mod h1:oEtnx72ZTngBi9ZRg/peukG8v6PZ95qunECMuzOesYA=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0 h1:pfSn3AhNXu+YWDPidCVWRAZcjAk0rPImioBF9P/Uv7M=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0/go.mod h1:m6GGqZbwf2okyQtylKTU/0cT56E6xdftYAkg3TE9jWE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.147.0 h1:6tIXAmOQQvTa/e323EPhetYIWWbNZ3ABKrVzqseqVnA=
@@ -2570,6 +2570,8 @@ github.com/vultr/govultr/v2 v2.17.2 h1:gej/rwr91Puc/tgh+j33p/BLR16UrIPnSr+AIwYWZ
 github.com/vultr/govultr/v2 v2.17.2/go.mod h1:ZFOKGWmgjytfyjeyAdhQlSWwTjh2ig+X49cAp50dzXI=
 github.com/wI2L/jsondiff v0.7.0 h1:1lH1G37GhBPqCfp/lrs91rf/2j3DktX6qYAKZkLuCQQ=
 github.com/wI2L/jsondiff v0.7.0/go.mod h1:KAEIojdQq66oJiHhDyQez2x+sRit0vIzC9KeK0yizxM=
+github.com/weppos/publicsuffix-go v0.50.3 h1:eT5dcjHQcVDNc0igpFEsGHKIip30feuB2zuuI9eJxiE=
+github.com/weppos/publicsuffix-go v0.50.3/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
 github.com/wk8/go-ordered-map/v2 v2.1.8 h1:5h/BUHu93oj4gIdvHHHGsScSTMijfx5PeYkE/fJgbpc=
 github.com/wk8/go-ordered-map/v2 v2.1.8/go.mod h1:5nJHM5DyteebpVlHnWMV0rPz6Zp7+xBAnxjb1X5vnTw=
 github.com/wsxiaoys/terminal v0.0.0-20160513160801-0940f3fc43a0 h1:3UeQBvD0TFrlVjOeLOBz+CPAI8dnbqNSVwUwRrkp7vQ=

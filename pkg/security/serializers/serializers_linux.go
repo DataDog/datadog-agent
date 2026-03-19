@@ -268,6 +268,8 @@ type ProcessSerializer struct {
 	PPid *uint32 `json:"ppid,omitempty"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
+	// ForkFlags
+	ForkFlags int `json:"fork_flags"`
 	// User ID
 	UID int `json:"uid"`
 	// Group ID
@@ -960,6 +962,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
 			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),
@@ -1750,7 +1753,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Utimes.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Utimes = args
 		})
-	case model.FileMountEventType:
+	case model.FileMountEventType, model.PivotRootEventType:
 		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mount.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {

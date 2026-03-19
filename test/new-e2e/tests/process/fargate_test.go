@@ -11,7 +11,6 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
@@ -32,7 +30,7 @@ type ECSFargateSuite struct {
 	e2e.BaseSuite[environments.ECS]
 }
 
-func getFargateProvisioner(configMap runner.ConfigMap) provisioners.TypedProvisioner[environments.ECS] {
+func getFargateProvisioner() provisioners.TypedProvisioner[environments.ECS] {
 	return ecs.Provisioner(
 		ecs.WithRunOptions(
 			scenecs.WithECSOptions(scenecs.WithFargateCapacityProvider()),
@@ -40,7 +38,6 @@ func getFargateProvisioner(configMap runner.ConfigMap) provisioners.TypedProvisi
 				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
 			}),
 		),
-		ecs.WithExtraConfigParams(configMap),
 	)
 }
 
@@ -48,12 +45,8 @@ func TestECSFargateTestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSFargateSuite{}
 
-	extraConfig := runner.ConfigMap{
-		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=false"},
-	}
-
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		getFargateProvisioner(extraConfig),
+		getFargateProvisioner(),
 	),
 	}
 
@@ -68,42 +61,7 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		assertProcessCollectedNew(c, payloads, false, "process-agent")
-		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
-		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
-			"stress-ng": agentmodel.ContainerState_running,
-		})
-		assertFargateHostname(t, payloads)
-	}, 5*time.Minute, 10*time.Second)
-}
-
-type ECSFargateCoreAgentSuite struct {
-	e2e.BaseSuite[environments.ECS]
-}
-
-func TestECSFargateCoreAgentTestSuite(t *testing.T) {
-	t.Parallel()
-	s := ECSFargateCoreAgentSuite{}
-
-	extraConfig := runner.ConfigMap{
-		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=true"},
-	}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		getFargateProvisioner(extraConfig),
-	),
-	}
-
-	e2e.Run(t, &s, e2eParams...)
-}
-
-func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
-	t := s.T()
-
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-
-		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		// Process checks run in the core agent, so process-agent should not be collected
 		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
