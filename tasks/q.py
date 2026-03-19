@@ -12,11 +12,12 @@ from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
-# S3 zip key for each scenario. Update when re-recording.
-SCENARIO_ZIPS = {
-    "213_pagerduty": "gensim-results-213_PagerDuty_June_2014_Outage-20260303-1309-78229d.zip",
-    "353_postmark": "gensim-results-353_postmark_upstream_cloud_provider_outage-20260303-1333-ad0bba.zip",
-    "food_delivery_redis": "gensim-results-food-delivery-redis-cpu-saturation-20260303-1314-5f7194.zip",
+
+# Maps short scenario names to episode names used in runs.jsonl
+SCENARIO_EPISODE_NAMES = {
+    "213_pagerduty": "213_PagerDuty_June_2014_Outage",
+    "353_postmark": "353_postmark_upstream_cloud_provider_outage",
+    "food_delivery_redis": "food-delivery-redis-cpu-saturation",
 }
 
 S3_BUCKET = "qbranch-gensim-recordings"
@@ -42,7 +43,12 @@ def build_scorer(ctx):
 
 # --- Eval ---
 @task
-def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
+def eval_scenarios(
+    ctx,
+    scenario: str = "",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+):
     """
     Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
 
@@ -128,13 +134,65 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
 
+def _resolve_zip_from_runs_jsonl(ctx, name):
+    """Resolve the latest zip key for a scenario from runs.jsonl in S3."""
+    episode_name = SCENARIO_EPISODE_NAMES.get(name)
+    if not episode_name:
+        return None
+
+    with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False, mode="w") as tmp:
+        tmp_path = tmp.name
+
+    try:
+        result = ctx.run(
+            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
+            warn=True,
+            hide=True,
+        )
+        if result is None or result.failed:
+            return None
+
+        with open(tmp_path) as f:
+            lines = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    lines.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue  # skip malformed records
+
+        # Find the latest entry matching this episode
+        matches = [entry for entry in lines if entry.get("episode") == episode_name]
+        if not matches:
+            return None
+
+        latest = matches[-1]
+        zip_key = latest.get("zip")
+        if zip_key:
+            print(
+                color_message(
+                    f"Resolved '{name}' from runs.jsonl: {zip_key} "
+                    f"(image: {latest.get('image', '?')}, {latest.get('timestamp', '?')})",
+                    Color.BLUE,
+                )
+            )
+        return zip_key
+    except (OSError, json.JSONDecodeError):
+        return None
+    finally:
+        os.unlink(tmp_path)
+
+
 def _ensure_parquets(ctx, name, parquet_dir):
-    """Download and extract parquet files from S3 if not present locally."""
-    zip_key = SCENARIO_ZIPS.get(name)
+    """Download and extract parquet files from S3 via runs.jsonl."""
+    zip_key = _resolve_zip_from_runs_jsonl(ctx, name)
     if not zip_key:
         print(
             color_message(
-                f"No S3 zip configured for '{name}' — add it to SCENARIO_ZIPS to enable auto-download", Color.ORANGE
+                f"No recording found for '{name}' in runs.jsonl. " f"Run a gensim-eks episode to produce one.",
+                Color.RED,
             )
         )
         return
@@ -172,6 +230,39 @@ def _ensure_parquets(ctx, name, parquet_dir):
         print(color_message(f"Extracted parquet files to {parquet_dir}", Color.GREEN))
     finally:
         os.unlink(tmp_path)
+
+
+@task
+def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios"):
+    """
+    Download scenario parquet data from S3.
+
+    Resolves the latest recording for each scenario from runs.jsonl in the S3 bucket.
+
+    Args:
+        scenario: Download a single scenario (e.g. "food_delivery_redis"). Default: all.
+        scenarios_dir: Directory containing scenario subdirectories.
+
+    Examples:
+        inv q.download-scenarios
+        inv q.download-scenarios --scenario=food_delivery_redis
+    """
+    scenarios_to_download = [scenario] if scenario else SCENARIOS
+    for name in scenarios_to_download:
+        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        # Download to a temp dir first, then swap -- preserves existing data if download fails.
+        tmp_parquet_dir = parquet_dir + ".new"
+        if os.path.isdir(tmp_parquet_dir):
+            shutil.rmtree(tmp_parquet_dir)
+        _ensure_parquets(ctx, name, tmp_parquet_dir)
+        if os.path.isdir(tmp_parquet_dir) and os.listdir(tmp_parquet_dir):
+            if os.path.isdir(parquet_dir):
+                shutil.rmtree(parquet_dir)
+            os.rename(tmp_parquet_dir, parquet_dir)
+        else:
+            # Download failed -- clean up temp dir, keep existing data
+            shutil.rmtree(tmp_parquet_dir, ignore_errors=True)
+            print(color_message(f"Download failed for '{name}', keeping existing data", Color.ORANGE))
 
 
 @task
