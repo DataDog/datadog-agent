@@ -26,6 +26,10 @@ pub struct Config {
     pub flush_interval_secs: u64,
 
     /// Hours to retain old Vortex files before deletion.
-    #[arg(long, env = "RECORDER_RETENTION_HOURS", default_value_t = 24)]
+    #[arg(long, env = "RECORDER_RETENTION_HOURS", default_value_t = 3)]
     pub retention_hours: u64,
+
+    /// Maximum disk usage for Vortex files in MB. 0 = unlimited (time-based only).
+    #[arg(long, env = "RECORDER_MAX_DISK_MB", default_value_t = 5120)]
+    pub max_disk_mb: u64,
 }
