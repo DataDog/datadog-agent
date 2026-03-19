@@ -467,16 +467,25 @@ func tcpSockFieldOffset(spec *btf.Spec, fieldName string) uint64 {
 // anonymous struct/union members. This handles kernels (6.8+) where tcp_sock
 // fields may be reorganized into __cacheline_group anonymous structs.
 func findFieldOffset(s *btf.Struct, fieldName string) uint64 {
-	for _, m := range s.Members {
+	return findFieldOffsetInMembers(s.Members, fieldName)
+}
+
+func findFieldOffsetInMembers(members []btf.Member, fieldName string) uint64 {
+	for _, m := range members {
 		if m.Name == fieldName {
 			return uint64(m.Offset.Bytes())
 		}
 		// Recurse into anonymous structs/unions (Name == "")
 		if m.Name == "" {
-			if inner, ok := m.Type.(*btf.Struct); ok {
-				if off := findFieldOffset(inner, fieldName); off > 0 {
-					return uint64(m.Offset.Bytes()) + off
-				}
+			var innerMembers []btf.Member
+			switch inner := m.Type.(type) {
+			case *btf.Struct:
+				innerMembers = inner.Members
+			case *btf.Union:
+				innerMembers = inner.Members
+			}
+			if off := findFieldOffsetInMembers(innerMembers, fieldName); off > 0 {
+				return uint64(m.Offset.Bytes()) + off
 			}
 		}
 	}

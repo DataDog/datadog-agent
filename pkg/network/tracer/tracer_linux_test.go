@@ -1861,15 +1861,34 @@ func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
 	if err := spec.TypeByName("tcp_sock", &tcpSock); err != nil {
 		t.Skipf("tcp_sock not found in BTF: %v", err)
 	}
-	members := make(map[string]bool, len(tcpSock.Members))
-	for _, m := range tcpSock.Members {
-		members[m.Name] = true
-	}
 	for _, f := range fields {
-		if !members[f] {
+		if !btfStructHasField(tcpSock.Members, f) {
 			t.Skipf("tcp_sock.%s not found in kernel BTF — CO-RE offset unavailable", f)
 		}
 	}
+}
+
+// btfStructHasField searches for a field by name in BTF members, recursing
+// into anonymous structs/unions (matches production findFieldOffset logic).
+func btfStructHasField(members []btf.Member, name string) bool {
+	for _, m := range members {
+		if m.Name == name {
+			return true
+		}
+		if m.Name == "" {
+			var inner []btf.Member
+			switch t := m.Type.(type) {
+			case *btf.Struct:
+				inner = t.Members
+			case *btf.Union:
+				inner = t.Members
+			}
+			if btfStructHasField(inner, name) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *TracerSuite) TestSendfileError() {
