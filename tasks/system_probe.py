@@ -22,6 +22,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -37,7 +38,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
-from tasks.libs.types.arch import ALL_ARCHS, ARCH_ARM64, Arch
+from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -119,13 +120,6 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter):
     )
 
 
-def ninja_define_binary_compiler(nw: NinjaWriter):
-    nw.rule(
-        name="cbin",
-        command="$cc $cflags -o $out $in $ldflags",
-    )
-
-
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
     strip_object_files=False,
@@ -164,29 +158,6 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
-
-
-def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
-    arch = Arch.from_str(arch)
-
-    # do not build for arm64
-    if arch == ARCH_ARM64:
-        return
-
-    ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
-    embedded_bins = ["detect-seccomp-bug"]
-
-    for binary in embedded_bins:
-        infile = os.path.join(ebpf_c_dir, f"{binary}.c")
-        outfile = os.path.join(ebpf_c_dir, binary)
-        cc = "gcc"
-
-        nw.build(
-            inputs=[infile],
-            outputs=[outfile],
-            rule="cbin",
-            variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"},
-        )
 
 
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
@@ -420,9 +391,7 @@ def ninja_generate(
         else:
             gobin = get_gobin(ctx)
 
-            # Native C binaries and runtime bundles (eBPF .o compilation is handled by Bazel)
-            ninja_define_binary_compiler(nw)
-            ninja_kernel_bug_binaries(nw, arch)
+            # Runtime bundles (eBPF .o and native binaries are handled by Bazel)
             ninja_runtime_compilation_files(nw, gobin)
 
         ninja_cgo_type_files(nw)
@@ -442,7 +411,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
 
-    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
+    bazel(ctx, "run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
     ctx.run(f"strip -g {target_file}")
     return
 
@@ -1281,6 +1250,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
 
@@ -1292,14 +1262,16 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     """
     import shutil
 
-    all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(_BAZEL_EBPF_INPLACE_TARGETS.keys())
-    targets_str = " ".join(all_targets)
+    # detect-seccomp-bug is x86-only (has target_compatible_with in Bazel)
+    if arch == Arch.from_str("arm64"):
+        inplace_targets = {t: d for t, d in _BAZEL_EBPF_INPLACE_TARGETS.items() if "detect-seccomp-bug" not in t}
+    else:
+        inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
+    all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(inplace_targets.keys())
     print(f"Building {len(all_targets)} eBPF targets via Bazel...")
-    ctx.run(f"bazelisk build {targets_str}")
-
-    result = ctx.run("bazelisk info bazel-bin", hide=True)
-    bazel_bin = result.stdout.strip()
+    bazel(ctx, "build", *all_targets)
+    bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
@@ -1309,15 +1281,23 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
 
     def _copy_output(target: str, dest_dir: str):
         label_path, name = target.lstrip("/").rsplit(":", 1)
-        src = os.path.join(bazel_bin, label_path, f"{name}.o")
-        dst = os.path.join(dest_dir, f"{name}.o")
 
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
+        # eBPF targets produce .o files, native cc_binary targets produce bare binaries
+        src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
+        src_bin = os.path.join(bazel_bin, label_path, name)
+
+        if os.path.exists(src_o):
+            dst = os.path.join(dest_dir, f"{name}.o")
+            shutil.copy2(src_o, dst)
             os.chmod(dst, 0o644)
             copied_files.append(dst)
+        elif os.path.exists(src_bin):
+            dst = os.path.join(dest_dir, name)
+            shutil.copy2(src_bin, dst)
+            os.chmod(dst, 0o755)
+            copied_files.append(dst)
         else:
-            print(f"Warning: expected output {src} not found")
+            print(f"Warning: expected output {src_o} or {src_bin} not found")
 
     for target in _BAZEL_EBPF_PREBUILT_TARGETS:
         _copy_output(target, build_dir)
@@ -1325,18 +1305,21 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     for target in _BAZEL_EBPF_CORE_TARGETS:
         _copy_output(target, co_re_dir)
 
-    for target, dest in _BAZEL_EBPF_INPLACE_TARGETS.items():
+    for target, dest in inplace_targets.items():
         os.makedirs(dest, exist_ok=True)
         _copy_output(target, dest)
 
     if strip:
         llvm_strip = "/opt/datadog-agent/embedded/bin/llvm-strip"
         for f in copied_files:
+            if not f.endswith(".o"):
+                continue
             ctx.run(f"{llvm_strip} -g {f}")
             ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
 
     for f in copied_files:
-        os.chmod(f, 0o444)
+        if f.endswith(".o"):
+            os.chmod(f, 0o644)
 
     print(f"Copied eBPF objects to {build_dir}")
 
@@ -1363,7 +1346,7 @@ def build_object_files(
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        ctx.run(f"{sudo} bazelisk run -- @llvm_bpf//:install --destdir=/opt/datadog-agent")
+        bazel(ctx, "run", "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
 
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir)
@@ -1417,16 +1400,16 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         "arm64": "//bazel/platforms:linux_arm64",
     }
 
-    platform_flag = ""
+    platform_flags = []
     if arch.kmt_arch in platform_map:
-        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
+        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1453,10 +1436,8 @@ def build_cws_object_files(
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
-        ctx.run(f"bazelisk build {' '.join(targets)}")
-
-        result = ctx.run("bazelisk info bazel-bin", hide=True)
-        bazel_bin = result.stdout.strip()
+        bazel(ctx, "build", *targets)
+        bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
         for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
             label_path, name = target.lstrip("/").rsplit(":", 1)
@@ -1468,6 +1449,17 @@ def build_cws_object_files(
 
 def clean_object_files(ctx):
     run_ninja(ctx, task="clean")
+
+    # Remove Bazel-copied eBPF .o files that ninja no longer tracks.
+    build_root = Path("pkg/ebpf/bytecode/build")
+    if build_root.exists():
+        shutil.rmtree(build_root)
+
+    for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+        name = target.rsplit(":", 1)[1]
+        for candidate in [Path(dest_dir) / f"{name}.o", Path(dest_dir) / name]:
+            if candidate.exists():
+                candidate.unlink()
 
 
 @task
@@ -1846,17 +1838,21 @@ def save_build_outputs(ctx, destfile):
                 outfiles.append(relpath)
                 count += 1
 
-        # Include inplace targets (e.g. uprobe-trigger.o) that live in
-        # their source directories rather than the central build dir.
-        for _, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
-            for obj in glob.glob(os.path.join(dest_dir, "*.o")):
-                relpath = os.path.relpath(obj)
-                filedir, _ = os.path.split(relpath)
-                outdir = os.path.join(stagedir, filedir)
-                os.makedirs(outdir, exist_ok=True)
-                shutil.copy2(obj, outdir)
-                outfiles.append(relpath)
-                count += 1
+        # Include inplace targets (e.g. uprobe-trigger.o, detect-seccomp-bug)
+        # that live in their source directories rather than the central build dir.
+        for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+            name = target.rsplit(":", 1)[1]
+            # eBPF targets produce .o files, native cc_binary targets produce bare binaries
+            for candidate in [os.path.join(dest_dir, f"{name}.o"), os.path.join(dest_dir, name)]:
+                if os.path.exists(candidate):
+                    relpath = os.path.relpath(candidate)
+                    filedir, _ = os.path.split(relpath)
+                    outdir = os.path.join(stagedir, filedir)
+                    os.makedirs(outdir, exist_ok=True)
+                    shutil.copy2(candidate, outdir)
+                    outfiles.append(relpath)
+                    count += 1
+                    break
 
         if count == 0:
             raise Exit(message="no build outputs captured")

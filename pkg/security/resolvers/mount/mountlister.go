@@ -12,16 +12,15 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/sys/unix"
 )
 
 // Flags needed by statmount
@@ -132,10 +131,7 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
-		MountID: sm.MntIDOld,
-		RootPathKey: model.PathKey{
-			MountID: sm.MntIDOld,
-		},
+		MountID:       sm.MntIDOld,
 		MountIDUnique: sm.MntID,
 		Device:        utils.Mkdev(sm.SbDevMajor, sm.SbDevMinor),
 		ParentPathKey: model.PathKey{
@@ -275,7 +271,10 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 				Param: mask,
 			}
 			// Ignore ENOENT, sometimes the mount might have been unmounted between listmount and this call
-			if err := statmount(&req2, buf); err != nil && err != unix.ENOENT {
+			if err := statmount(&req2, buf); err != nil {
+				if err == unix.ENOENT {
+					continue
+				}
 				return fmt.Errorf("failed to statmount: %v", err)
 			}
 			sm := parseStatmount(buf)

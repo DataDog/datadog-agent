@@ -108,6 +108,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
+	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -216,12 +218,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runE := func(*cobra.Command, []string) error {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+		configOpts := []func(*config.Params){
+			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+		}
+		if globalParams.CommonRoot != "" {
+			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
+		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
@@ -258,6 +267,7 @@ func run(log log.Component,
 	telemetry telemetry.Component,
 	sysprobeConf sysprobeconfig.Component,
 	server dogstatsdServer.Component,
+	_ dogstatsdhttp.Component,
 	_ replay.Component,
 	_ defaultforwarder.Component,
 	wmeta workloadmeta.Component,
@@ -452,6 +462,7 @@ func getSharedFxOption() fx.Option {
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
+		dogstatsdhttpfx.Module(),
 		fx.Provide(func(logsagent option.Option[logsAgent.Component]) option.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
 				return option.New[logsagentpipeline.Component](la)

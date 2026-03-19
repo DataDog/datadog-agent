@@ -54,6 +54,7 @@
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
+/rust-toolchain.toml			@DataDog/agent-build
 /Cargo.toml                             @DataDog/agent-build
 /Cargo.lock                             @DataDog/agent-build
 
@@ -65,14 +66,14 @@
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
-/.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
-/.github/workflows/gohai.yml                         @DataDog/agent-configuration
-/.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
-/.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
-/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations
-/.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
-/.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
-/.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
+/.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security @DataDog/agent-devx
+/.github/workflows/gohai.yml                         @DataDog/agent-configuration @DataDog/agent-devx
+/.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes @DataDog/agent-devx
+/.github/workflows/update-dependencies.yml           @DataDog/agent-runtimes @DataDog/agent-devx
+/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations @DataDog/agent-devx
+/.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes @DataDog/agent-devx
+/.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent @DataDog/agent-devx
+/.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations @DataDog/agent-devx
 
 
 /.run                                                @DataDog/agent-devx
@@ -530,7 +531,7 @@
 /pkg/config/setup/system_probe_usm*.go          @DataDog/universal-service-monitoring @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/sdlc-security
+/pkg/config/remote/meta/                @DataDog/remote-config
 /pkg/containerlifecycle/                @DataDog/container-integrations
 /pkg/diagnose/                          @DataDog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
@@ -556,6 +557,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/ddagent/networkpath  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
+/pkg/proto/datadog/dogstatsdhttp        @DataDog/agent-metric-pipelines
 /pkg/proto/datadog/kubemetadata         @DataDog/container-platform
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
@@ -614,6 +616,7 @@
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
+/pkg/logonduration                      @DataDog/windows-products
 /pkg/logs/                              @DataDog/agent-log-pipelines
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
@@ -812,7 +815,7 @@
 /test/new-e2e/tests/agent-subcommands/secret      @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/status      @DataDog/agent-configuration
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
-/test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration 
+/test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
@@ -847,6 +850,7 @@
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows         @DataDog/windows-products @DataDog/fleet
 /test/new-e2e/tests/gpu                       @DataDog/ebpf-platform
+/test/new-e2e/tests/usm                       @DataDog/universal-service-monitoring
 /test/new-e2e/examples/ecs_test.go           @DataDog/ecs-experiences
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
@@ -891,4 +895,4 @@
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
-/q_branch/                               @scottopell @val06
+/q_branch/                               @scottopell @lukesteensen
