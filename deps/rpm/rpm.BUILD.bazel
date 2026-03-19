@@ -126,7 +126,7 @@ cc_shared_library(
     deps = [":librpmio"],
     dynamic_deps = [
         "@popt//:popt",
-        "@zlib//:z",
+        "@zlib//:z_pkg",
         "@xz//:lzma",
         "@bzip2//:bz2",
         "@openssl//:openssl_shared",
