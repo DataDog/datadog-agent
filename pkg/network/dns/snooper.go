@@ -97,18 +97,26 @@ func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, hand
 		snooper.packetHandler = snooper.processPacket
 	}
 
-	snooper.wg.Add(1)
+	return snooper, nil
+}
+
+// startPolling starts the background goroutines that read packets and log stats.
+// It is called by newSocketFilterSnooper for all platforms except Darwin, where
+// newDarwinDNSMonitorWithSource calls it explicitly after fully initialising the
+// dnsMonitor so that the packet handler can safely dereference the embedded
+// *socketFilterSnooper field without a data race.
+func (s *socketFilterSnooper) startPolling() {
+	s.wg.Add(1)
 	go func() {
-		snooper.pollPackets()
-		snooper.wg.Done()
+		s.pollPackets()
+		s.wg.Done()
 	}()
 
-	snooper.wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		snooper.logDNSStats()
-		snooper.wg.Done()
+		s.logDNSStats()
+		s.wg.Done()
 	}()
-	return snooper, nil
 }
 
 // Resolve IPs to DNS addresses

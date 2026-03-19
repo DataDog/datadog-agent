@@ -58,11 +58,15 @@ func newDarwinDNSMonitorWithSource(cfg *config.Config, src filter.PacketSource) 
 		ethernetParser: newDNSParser(layers.LayerTypeEthernet, cfg),
 		loopbackParser: newDNSParser(layers.LayerTypeLoopback, cfg),
 	}
+	// Construct without starting goroutines. m.socketFilterSnooper must be
+	// assigned before polling begins so that m.processPacket can safely
+	// dereference the embedded field without a data race.
 	snoop, err := newSocketFilterSnooper(cfg, src, m.processPacket)
 	if err != nil {
 		return nil, err
 	}
 	m.socketFilterSnooper = snoop
+	snoop.startPolling()
 	return m, nil
 }
 

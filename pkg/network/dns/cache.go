@@ -154,6 +154,8 @@ func (c *reverseDNSCache) Get(ips map[util.Address]struct{}) map[util.Address][]
 }
 
 func (c *reverseDNSCache) Len() int {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	return len(c.data)
 }
 

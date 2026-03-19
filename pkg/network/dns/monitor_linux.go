@@ -91,6 +91,7 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 	if err != nil {
 		return nil, err
 	}
+	snoop.startPolling()
 
 	return &dnsMonitor{
 		snoop,
