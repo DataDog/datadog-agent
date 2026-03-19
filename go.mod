@@ -1219,6 +1219,10 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
+// Reduce go-ora binary size by ~10MiB: replace 11MiB of hardcoded charset
+// source-code literals with a 771KB zstd-compressed binary blob
+replace github.com/sijms/go-ora/v2 v2.8.24 => github.com/gh123man/go-ora/v2 v2.8.24-dd.1
+
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
 replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 

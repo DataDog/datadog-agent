@@ -15,7 +15,6 @@ import (
 
 	//"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 
-	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +40,7 @@ func TestTablespacesOffline(t *testing.T) {
 	c, s := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	connection := getConnectData(t, useSysUser)
-	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
+	databaseUrl := buildGoOraStyleURL(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
 	conn, err2 := sql.Open("oracle", databaseUrl)
 	require.NoError(t, err2)
 

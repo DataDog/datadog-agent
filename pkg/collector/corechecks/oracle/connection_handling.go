@@ -9,14 +9,18 @@ package oracle
 
 import (
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
-	go_ora "github.com/sijms/go-ora/v2"
 )
 
-func buildGoOraURL(c *Check) string {
+// buildOracleURL constructs a go-ora connection URL from the check config.
+func buildOracleURL(c *Check) string {
 	connectionOptions := map[string]string{"TIMEOUT": c.config.QueryTimeoutString()}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
@@ -24,7 +28,30 @@ func buildGoOraURL(c *Check) string {
 			connectionOptions["WALLET"] = c.config.Wallet
 		}
 	}
-	return go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, connectionOptions)
+	return buildGoOraStyleURL(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, connectionOptions)
+}
+
+// buildGoOraStyleURL constructs a go-ora compatible connection URL.
+// This reimplements the go_ora.BuildUrl logic using standard library functions.
+func buildGoOraStyleURL(server string, port int, service, user, password string, options map[string]string) string {
+	ret := fmt.Sprintf("oracle://%s:%s@%s/%s", url.PathEscape(user), url.PathEscape(password),
+		net.JoinHostPort(server, strconv.Itoa(port)), url.PathEscape(service))
+	if options != nil {
+		ret += "?"
+		for key, val := range options {
+			val = strings.TrimSpace(val)
+			for _, temp := range strings.Split(val, ",") {
+				temp = strings.TrimSpace(temp)
+				if strings.ToUpper(key) == "SERVER" {
+					ret += fmt.Sprintf("%s=%s&", key, temp)
+				} else {
+					ret += fmt.Sprintf("%s=%s&", key, url.QueryEscape(temp))
+				}
+			}
+		}
+		ret = strings.TrimRight(ret, "&")
+	}
+	return ret
 }
 
 // Connect establishes a connection to an Oracle instance and returns an open connection to the database.
@@ -49,7 +76,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`, c.config.Username, c.config.Password, protocolString, c.config.Server, c.config.Port, c.config.ServiceName, walletString)
 		} else {
 			oracleDriver = "oracle"
-			connStr = buildGoOraURL(c)
+			connStr = buildOracleURL(c)
 
 			// Workaround for named binds, see https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
 			sqlx.BindDriver("oracle", sqlx.NAMED)
@@ -108,28 +135,5 @@ func closeDatabase(c *Check, db *sqlx.DB) {
 		if err := db.Close(); err != nil {
 			log.Warnf("%s failed to close oracle connection: %s", c.logPrompt, err.Error())
 		}
-	}
-}
-
-// Building a dedicated go-ora connection for dealing with LOBs, see https://github.com/sijms/go-ora/issues/439
-func connectGoOra(c *Check) (*go_ora.Connection, error) {
-	conn, err := go_ora.NewConnection(buildGoOraURL(c), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect with the oracle driver %w", err)
-	}
-	err = conn.Open()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open connection with the oracle driver %w", err)
-	}
-	return conn, nil
-}
-
-func closeGoOraConnection(c *Check) {
-	if c.connection == nil {
-		return
-	}
-	err := c.connection.Close()
-	if err != nil {
-		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
 	}
 }
