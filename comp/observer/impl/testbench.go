@@ -424,6 +424,12 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	for _, m := range metrics {
 		// Strip aggregation suffix from metric name (e.g., ":avg", ":count")
 		metricName := m.Name
+
+		// filter internal Datadog Agent telemetry
+		if strings.HasPrefix(metricName, "datadog.") {
+			continue
+		}
+
 		if idx := strings.LastIndex(metricName, ":"); idx != -1 {
 			suffix := metricName[idx+1:]
 			if suffix == "avg" || suffix == "count" || suffix == "sum" || suffix == "min" || suffix == "max" {
