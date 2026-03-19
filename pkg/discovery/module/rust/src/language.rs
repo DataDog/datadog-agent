@@ -24,12 +24,10 @@ use crate::procfs::{Cmdline, Exe, fd::OpenFilesInfo};
 
 const BINARY_CACHE_SIZE: usize = 1000;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
-    #[default]
-    Unknown,
-    #[serde(rename = "jvm")]
+    #[serde(rename = "jvm", alias = "java")]
     Java,
     NodeJS,
     Python,
@@ -42,9 +40,25 @@ pub enum Language {
 }
 
 impl Language {
+    /// Convert a tracer_language string from tracer metadata to a Language.
+    /// Returns None for unrecognized strings so the caller can fall back to
+    /// other detection methods.
+    pub fn from_tracer_str(s: &str) -> Option<Self> {
+        match s {
+            "jvm" | "java" => Some(Self::Java),
+            "nodejs" => Some(Self::NodeJS),
+            "python" => Some(Self::Python),
+            "ruby" => Some(Self::Ruby),
+            "dotnet" => Some(Self::DotNet),
+            "go" => Some(Self::Go),
+            "cpp" => Some(Self::CPlusPlus),
+            "php" => Some(Self::PHP),
+            _ => None,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unknown => "unknown",
             Self::Java => "jvm",
             Self::NodeJS => "nodejs",
             Self::Python => "python",
@@ -56,24 +70,29 @@ impl Language {
         }
     }
 
-    pub fn detect(pid: i32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
+    pub fn detect(
+        pid: i32,
+        exe: &Exe,
+        cmdline: &Cmdline,
+        open_files_info: &OpenFilesInfo,
+    ) -> Option<Self> {
         if let Some(lang) = Self::from_basename(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_cmdline(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_exe(exe) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_binary(pid, open_files_info) {
-            return lang;
+            return Some(lang);
         }
 
-        Self::Unknown
+        None
     }
 
     fn from_basename(cmdline: &Cmdline) -> Option<Self> {
