@@ -17,6 +17,7 @@
 use std::ffi::c_char;
 use std::ptr;
 
+use crate::language::Language;
 use crate::params::Params;
 use crate::services::{self, Service, ServicesResponse};
 use crate::tracer_metadata::TracerMetadata;
@@ -148,6 +149,15 @@ impl From<Option<String>> for dd_str {
     }
 }
 
+impl From<Option<Language>> for dd_str {
+    fn from(opt: Option<Language>) -> Self {
+        match opt {
+            Some(lang) => dd_str::from_str(lang.as_str()),
+            None => dd_str::NULL,
+        }
+    }
+}
+
 impl From<Vec<String>> for dd_strs {
     fn from(v: Vec<String>) -> Self {
         if v.is_empty() {
@@ -240,13 +250,7 @@ impl From<Service> for dd_service {
             udp_ports: vec_u16_to_slice(svc.udp_ports),
             log_files: dd_strs::from(svc.log_files),
             apm_instrumentation: svc.apm_instrumentation,
-            language: match svc.language {
-                Some(lang) => dd_str::from_str(lang.as_str()),
-                None => dd_str {
-                    data: ptr::null(),
-                    len: 0,
-                },
-            },
+            language: dd_str::from(svc.language),
         }
     }
 }
