@@ -2,10 +2,10 @@
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
-load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -16,7 +16,7 @@ load(
     "LIB_CURLTOOL_SRCS_LINUX",
     "LIB_CURLU_SRCS_DARWIN",
     "LIB_CURLU_SRCS_LINUX",
-    "LIB_CURL_SRCS_LINUX",
+    "LIB_CURL_SRCS_ALL",
 )
 
 package(
@@ -93,13 +93,11 @@ cc_binary(
         "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN,
     }),
     defines = LOCAL_DEFINES,
-    includes = [
-        ".",
-        "include",
-        "lib",
-    ],
     copts = [
         "-I.",
+    ],
+    deps = [
+        ":config_h",
     ],
     dynamic_deps = [
         ":curl",
@@ -107,8 +105,11 @@ cc_binary(
         "@openssl//:openssl_shared",
         "@zlib//:z",
     ],
-    deps = [
-        ":config_h",
+    includes = [
+        ".",
+        "include",
+        "lib",
+        "src",
     ],
     linkstatic = False,
     linkopts = select({
@@ -123,10 +124,7 @@ cc_binary(
 
 cc_library(
     name = "curl_static",
-    srcs = ["lib/curl_config.h"] + HDRS + select({
-        "@platforms//os:linux": LIB_CURL_SRCS_LINUX,
-        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
-    }),
+    srcs = ["lib/curl_config.h"] + HDRS + LIB_CURL_SRCS_ALL,
     hdrs = PUBLIC_HEADERS,
     # Using includes because -I just does not work with bzlmod.
     # But yuch. What we need is to  port local_incudes concept from Google out
