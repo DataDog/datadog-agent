@@ -4,8 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package main provides a standalone scorer for observer eval output.
-// It reads a headless output JSON, resolves ground truth from the scenario's
-// metadata.json, and computes a Gaussian F1 score.
+// It has two mutually exclusive scoring modes:
+//
+//   - Default (F1 scoring): Reads a headless output JSON produced with time_cluster,
+//     resolves ground truth timestamps from the scenario's metadata.json, and computes
+//     a Gaussian F1 score measuring whether the disruption was detected at the right time.
+//
+//   - --score-tp (TP metric scoring): Reads a headless output JSON produced with the
+//     passthrough correlator, loads metric ground truth from ground_truth.json, and
+//     classifies each detected anomaly by metric name match. Measures whether the
+//     right metrics were flagged. Requires passthrough output because it extracts
+//     metric names from each anomaly's Source field.
 package main
 
 import (
@@ -17,19 +26,13 @@ import (
 	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
 )
 
-// combinedResult wraps both timestamp-level and metric-level scoring output.
-type combinedResult struct {
-	TimestampScore *observerimpl.ScoreResult       `json:"timestamp_score"`
-	MetricScore    *observerimpl.MetricScoreResult  `json:"metric_score,omitempty"`
-}
-
 func main() {
 	outputPath := flag.String("input", "", "Path to headless output JSON to score (required)")
 	scenariosDir := flag.String("scenarios-dir", "./comp/observer/scenarios", "Directory containing scenario subdirectories (for metadata.json lookup)")
 	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides metadata.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
-	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from metadata.json")
+	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from ground_truth.json. Requires passthrough correlator output.")
 	flag.Parse()
 
 	if *outputPath == "" {
@@ -42,28 +45,34 @@ func main() {
 		gtTimestamps = []int64{*groundTruthTS}
 	}
 
+	// When --score-tp is used, only run metric TP scoring (skip Gaussian F1).
+	if *scoreTP {
+		metricResult, err := scoreMetricTP(*outputPath, *scenariosDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Metric TP scoring failed: %v\n", err)
+			os.Exit(1)
+		}
+		if *jsonOutput {
+			data, err := json.Marshal(metricResult)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "JSON marshal failed: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println(string(data))
+			return
+		}
+		printMetricTPScore(metricResult)
+		return
+	}
+
 	result, err := observerimpl.ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scoring failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Optionally score true positive metric detection.
-	var metricResult *observerimpl.MetricScoreResult
-	if *scoreTP {
-		metricResult, err = scoreMetricTP(*outputPath, *scenariosDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Metric TP scoring failed: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
 	if *jsonOutput {
-		out := combinedResult{
-			TimestampScore: result,
-			MetricScore:    metricResult,
-		}
-		data, err := json.Marshal(out)
+		data, err := json.Marshal(result)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "JSON marshal failed: %v\n", err)
 			os.Exit(1)
@@ -83,34 +92,35 @@ func main() {
 	fmt.Printf("  Precision: %.4f\n", result.Precision)
 	fmt.Printf("  Recall:    %.4f\n", result.Recall)
 	fmt.Printf("  TP: %.4f  FP: %.4f  FN: %.4f\n", result.TP, result.FP, result.FN)
+}
 
-	// Text output: metric TP score
-	if metricResult != nil {
+func printMetricTPScore(metricResult *observerimpl.MetricScoreResult) {
+	if metricResult == nil {
+		return
+	}
+	fmt.Printf("Metric TP Score\n")
+	fmt.Printf("  Total anomaly periods: %d\n", metricResult.TotalCount)
+	fmt.Printf("  TP: %d  Unknown: %d\n", metricResult.TPCount, metricResult.UnknownCount)
+	fmt.Println()
+	fmt.Printf("  Metric F1:        %.4f\n", metricResult.MetricF1)
+	fmt.Printf("  Metric Precision: %.4f\n", metricResult.MetricPrecision)
+	fmt.Printf("  Metric Recall:    %.4f\n", metricResult.MetricRecall)
+	fmt.Println()
+	if len(metricResult.TPMetricsFound) > 0 {
+		fmt.Printf("  TP metrics found:  %v\n", metricResult.TPMetricsFound)
+	}
+	if len(metricResult.TPMetricsMissed) > 0 {
+		fmt.Printf("  TP metrics missed: %v\n", metricResult.TPMetricsMissed)
+	}
+	if len(metricResult.Detections) > 0 {
 		fmt.Println()
-		fmt.Printf("Metric TP Score\n")
-		fmt.Printf("  Total anomaly periods: %d\n", metricResult.TotalCount)
-		fmt.Printf("  TP: %d  Unknown: %d\n", metricResult.TPCount, metricResult.UnknownCount)
-		fmt.Println()
-		fmt.Printf("  Metric F1:        %.4f\n", metricResult.MetricF1)
-		fmt.Printf("  Metric Precision: %.4f\n", metricResult.MetricPrecision)
-		fmt.Printf("  Metric Recall:    %.4f\n", metricResult.MetricRecall)
-		fmt.Println()
-		if len(metricResult.TPMetricsFound) > 0 {
-			fmt.Printf("  TP metrics found:  %v\n", metricResult.TPMetricsFound)
-		}
-		if len(metricResult.TPMetricsMissed) > 0 {
-			fmt.Printf("  TP metrics missed: %v\n", metricResult.TPMetricsMissed)
-		}
-		if len(metricResult.Detections) > 0 {
-			fmt.Println()
-			fmt.Printf("  Detections:\n")
-			for _, d := range metricResult.Detections {
-				status := "MISS"
-				if d.Detected {
-					status = fmt.Sprintf("HIT (count=%d, first=%.0fs after disruption)", d.Count, d.DeltaFromDisruption)
-				}
-				fmt.Printf("    [%s] %s/%s: %s\n", d.Classification, d.Service, d.Metric, status)
+		fmt.Printf("  Detections:\n")
+		for _, d := range metricResult.Detections {
+			status := "MISS"
+			if d.Detected {
+				status = fmt.Sprintf("HIT (count=%d, first=%.0fs after disruption)", d.Count, d.DeltaFromDisruption)
 			}
+			fmt.Printf("    [%s] %s/%s: %s\n", d.Classification, d.Service, d.Metric, status)
 		}
 	}
 }
