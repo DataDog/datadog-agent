@@ -397,9 +397,6 @@ func sizePrefixed(buf []byte) []byte {
 	return out
 }
 
-// lengthPrefix returns a 4-byte little-endian length prefix for scatter-gather writes.
-var lengthPrefixBuf [4]byte
-
 // SendScatterGather writes a length-prefixed frame using writev (net.Buffers)
 // to avoid copying the payload just to prepend 4 bytes.
 func SendScatterGather(conn net.Conn, payload []byte) error {

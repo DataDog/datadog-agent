@@ -34,18 +34,18 @@ type batcher struct {
 	mu sync.Mutex
 
 	// Metrics: compact data-point ring (48 bytes/item, Source is a static string constant).
-	ptCap       int
-	ptsActive   []metricPoint
-	ptsDrain    []metricPoint
-	ptsActiveN  int
-	ptsActiveH  int
+	ptCap      int
+	ptsActive  []metricPoint
+	ptsDrain   []metricPoint
+	ptsActiveN int
+	ptsActiveH int
 
 	// Metrics: context-definition ring (first-occurrence only).
-	defCap       int
-	defsActive   []contextDef
-	defsDrain    []contextDef
-	defsActiveN  int
-	defsActiveH  int
+	defCap      int
+	defsActive  []contextDef
+	defsDrain   []contextDef
+	defsActiveN int
+	defsActiveH int
 
 	// Logs double-buffer (unchanged).
 	logCap      int
@@ -91,7 +91,7 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		logsActive: make([]capturedLog, logCapacity),
 		logsDrain:  make([]capturedLog, logCapacity),
 
-		builderPool:   newBuilderPool(),
+		builderPool:  newBuilderPool(),
 		seenContexts: newContextSet(contextCap),
 		ptWatermark:  ptCapacity * 4 / 5,
 		defWatermark: defCapacity * 4 / 5,

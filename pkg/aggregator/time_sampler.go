@@ -261,10 +261,10 @@ type seriePointView struct {
 	ts    float64
 }
 
-func (v seriePointView) GetName() string       { return v.name }
-func (v seriePointView) GetValue() float64     { return v.value }
-func (v seriePointView) GetRawTags() []string  { return v.tags }
-func (v seriePointView) GetTimestamp() float64 { return v.ts }
+func (v seriePointView) GetName() string        { return v.name }
+func (v seriePointView) GetValue() float64      { return v.value }
+func (v seriePointView) GetRawTags() []string   { return v.tags }
+func (v seriePointView) GetTimestamp() float64  { return v.ts }
 func (v seriePointView) GetSampleRate() float64 { return 1.0 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool) {
