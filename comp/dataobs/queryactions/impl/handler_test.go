@@ -6,15 +6,47 @@
 package queryactionsimpl
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
+
+// mockAutodiscovery wraps a noop autodiscovery Component and overrides GetUnresolvedConfigs
+// to return a fixed set of configs. This follows the same pattern as kafka_actions_test.go.
+type mockAutodiscovery struct {
+	autodiscovery.Component
+	configs []integration.Config
+}
+
+func (m *mockAutodiscovery) GetUnresolvedConfigs() []integration.Config {
+	return m.configs
+}
+
+func newMockAutodiscovery(t *testing.T, configs []integration.Config) autodiscovery.Component {
+	t.Helper()
+	return &mockAutodiscovery{
+		Component: fxutil.Test[autodiscovery.Component](t, noopautoconfig.Module()),
+		configs:   configs,
+	}
+}
+
+func newTestComponentWithAC(t *testing.T, configs []integration.Config) *component {
+	t.Helper()
+	return &component{
+		log:           logmock.New(t),
+		ac:            newMockAutodiscovery(t, configs),
+		activeConfigs: make(map[string]integration.Config),
+	}
+}
 
 func TestIsPostgresIntegration(t *testing.T) {
 	assert.True(t, isPostgresIntegration("postgres"))
@@ -449,4 +481,116 @@ func TestCollectUnschedule_Found(t *testing.T) {
 	assert.Empty(t, c.activeConfigs)
 	require.Len(t, changes.Unschedule, 1)
 	assert.Equal(t, "do_query_actions", changes.Unschedule[0].Name)
+}
+
+// --- Happy-path integration tests (require mocked autodiscovery) ---
+
+// TestOnRCUpdate_ValidConfig_SchedulesCheck verifies the primary use-case: a valid RC config
+// whose db_identifier matches a configured postgres instance results in a scheduled check.
+func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 5432\nusername: datadog\npassword: secret\ndbname: mydb\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-happy",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       42,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "mydb", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	updates := map[string]state.RawConfig{
+		"path/cfg-happy": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-id-happy"}},
+	}
+	statuses, changes := collectStatuses(c, updates)
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-happy"].State)
+	require.Len(t, changes.Schedule, 1, "expected one scheduled check")
+	assert.Empty(t, changes.Unschedule)
+	assert.Equal(t, "do_query_actions", changes.Schedule[0].Name)
+	assert.Equal(t, "file", changes.Schedule[0].Provider)
+	assert.Equal(t, "node1", changes.Schedule[0].NodeName)
+
+	require.Len(t, changes.Schedule[0].Instances, 1)
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	assert.Equal(t, "rc-id-happy", instance["remote_config_id"])
+	assert.Equal(t, "postgres", instance["db_type"])
+	assert.Equal(t, "localhost", instance["host"])
+	assert.Equal(t, "datadog", instance["username"])
+
+	queries, ok := instance["queries"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]interface{})
+	assert.Equal(t, "SELECT count(*) FROM orders", q["query"])
+
+	require.Contains(t, c.activeConfigs, "cfg-happy")
+}
+
+// TestOnRCUpdate_NoMatchingPostgres_ReportsError verifies that when no postgres instance
+// matches the RC identifier, the apply status is Error and no check is scheduled.
+func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
+	c := newTestComponentWithAC(t, []integration.Config{}) // no postgres configs
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-nomatch",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "notfound.example.com", DBName: "mydb"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	updates := map[string]state.RawConfig{
+		"path/cfg-nomatch": {Config: payloadJSON},
+	}
+	statuses, changes := collectStatuses(c, updates)
+
+	assert.Equal(t, state.ApplyStateError, statuses["path/cfg-nomatch"].State)
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, c.activeConfigs)
+}
+
+// TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
+// instance's YAML is malformed, the error message from findPostgresConfig mentions the
+// parse failure, not just "identifier not found".
+func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("not: [valid: yaml")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-badyaml",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	updates := map[string]state.RawConfig{
+		"path/cfg-badyaml": {Config: payloadJSON},
+	}
+	statuses, _ := collectStatuses(c, updates)
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-badyaml"].State)
+	assert.Contains(t, statuses["path/cfg-badyaml"].Error, "YAML parse error",
+		"error message should surface the YAML parse failure, not just 'identifier not found'")
 }

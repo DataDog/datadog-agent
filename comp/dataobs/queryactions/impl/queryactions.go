@@ -94,37 +94,52 @@ func (c *component) GetConfigErrors() map[string]types.ErrorMsgSet {
 // before proceeding to the next provider.
 //
 // RC configs are declarative snapshots so only the latest matters. The RC callback writes to
-// outCh with replace semantics (non-blocking): if autodiscovery hasn't consumed the previous
-// update yet, the old entry is replaced with the latest one. Unschedule entries from the dropped
-// update are preserved and merged into the new changes to prevent check leaks.
+// outCh with replace semantics: if autodiscovery hasn't consumed the previous update yet, the
+// old entry is replaced with the latest one. Unschedule entries from the dropped update are
+// preserved to prevent check leaks. outCh is closed when ctx is cancelled so the config poller
+// goroutine can observe teardown.
 func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	outCh := make(chan integration.ConfigChanges, 1)
 	// Unblock autodiscovery's LoadAndRun — it blocks on <-ch until the first message arrives.
 	outCh <- integration.ConfigChanges{}
 
+	var (
+		mu     sync.Mutex
+		closed bool
+	)
+
+	// sendChanges delivers changes to outCh under mu. The channel is capacity-1; when full,
+	// the old entry is drained and its Unschedule events are merged into changes to prevent
+	// check leaks. mu also guards against writing to a closed channel after shutdown.
+	sendChanges := func(changes integration.ConfigChanges) {
+		mu.Lock()
+		defer mu.Unlock()
+		if closed {
+			return
+		}
+		select {
+		case outCh <- changes:
+		default:
+			// Channel full: drain old entry, preserving its Unschedule events so that
+			// checks already in autodiscovery are not orphaned.
+			// The drain is non-blocking because config_poller may have already read the
+			// buffer between the default branch firing and this point.
+			var dropped integration.ConfigChanges
+			select {
+			case dropped = <-outCh:
+			default:
+			}
+			changes.Unschedule = append(dropped.Unschedule, changes.Unschedule...)
+			outCh <- changes // safe: mu held, closed=false, channel was just drained
+		}
+	}
+
 	// subscribeAndWait subscribes to the RC product and blocks until ctx is cancelled.
 	subscribeAndWait := func() {
 		c.rcclient.Subscribe(data.ProductDOQueryActions, func(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
 			changes := c.onRCUpdate(updates, applyStatus)
-			if changes.IsEmpty() {
-				return
-			}
-			// Non-blocking replace: if the buffer is full (autodiscovery hasn't read yet),
-			// drain it and write the latest. Unschedule entries from the dropped update are
-			// merged in to prevent check leaks — lost Unschedule events leave checks in
-			// autodiscovery indefinitely.
-			// The drain is non-blocking because config_poller may have already read the buffer
-			// between the default branch firing and the drain.
-			select {
-			case outCh <- changes:
-			default:
-				var dropped integration.ConfigChanges
-				select {
-				case dropped = <-outCh:
-				default:
-				}
-				changes.Unschedule = append(dropped.Unschedule, changes.Unschedule...)
-				outCh <- changes
+			if !changes.IsEmpty() {
+				sendChanges(changes)
 			}
 		})
 		c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for Data Observability query actions")
@@ -132,6 +147,15 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 	}
 
 	go func() {
+		defer func() {
+			// Close outCh so the config poller goroutine can observe shutdown.
+			// mu prevents a concurrent RC callback from writing to the closed channel.
+			mu.Lock()
+			defer mu.Unlock()
+			closed = true
+			close(outCh)
+		}()
+
 		// Check immediately: the file config provider runs before this one in LoadAndRun,
 		// so postgres is typically already available when Stream() is called.
 		if c.hasPostgresIntegration() {

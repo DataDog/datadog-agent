@@ -17,9 +17,14 @@ type DOQueryPayload struct {
 // Type describes the hosting kind (e.g. "self-hosted", "rds"). It is stored
 // for informational purposes; instance matching is by host and dbname only.
 type DBIdentifier struct {
-	Type          string `json:"type"`
-	Host          string `json:"host"`
-	DBName        string `json:"dbname"`
+	Type   string `json:"type"`
+	Host   string `json:"host"`
+	DBName string `json:"dbname"`
+	// AgentHostname is deserialized from RC but is not currently used for filtering.
+	// The RC backend is expected to route each config only to the agent whose hostname matches.
+	// TODO: If RC delivery becomes broadcast (all agents receive all configs), filter here by
+	// comparing AgentHostname against the current agent's hostname to prevent duplicate checks
+	// in multi-agent deployments where multiple agents monitor the same postgres host.
 	AgentHostname string `json:"agent_hostname"`
 }
 

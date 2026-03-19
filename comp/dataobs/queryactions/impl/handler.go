@@ -138,6 +138,7 @@ func (c *component) collectUnschedule(configID string, changes *integration.Conf
 func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, integration.Data, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
+	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
 		if !isPostgresIntegration(cfg.Name) {
@@ -148,6 +149,7 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
 				c.log.Warnf("Failed to unmarshal postgres instance data for config %s, skipping: %v", cfg.Name, err)
+				lastParseErr = err
 				continue
 			}
 
@@ -157,6 +159,11 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 		}
 	}
 
+	if lastParseErr != nil {
+		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
+		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s, dbname=%s; at least one postgres instance had a YAML parse error: %w",
+			dbID.Type, dbID.Host, dbID.DBName, lastParseErr)
+	}
 	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s, dbname=%s",
 		dbID.Type, dbID.Host, dbID.DBName)
 }
