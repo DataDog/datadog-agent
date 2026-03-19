@@ -604,7 +604,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	obs := observation{
 		source: h.source,
 		metric: &metricObs{
-			name:      sample.GetName(),
+			name:      name,
 			value:     sample.GetValue(),
 			tags:      copyTags(sample.GetRawTags()),
 			timestamp: timestamp,
