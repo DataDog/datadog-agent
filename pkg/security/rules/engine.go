@@ -256,7 +256,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 
 	// Connect the SBOM resolver to the bundled policy provider
 	// This allows SBOM-generated policies to be automatically loaded
-	e.ConnectSBOMResolver()
+	// TODO(safchain) disable it for now as it generates a CPU pressure
+	if e.config.SBOMResolverGeneratePolicies {
+		e.ConnectSBOMResolver()
+	}
 
 	return nil
 }
