@@ -356,7 +356,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 
 func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	// When two values arrive at the same timestamp, storage merges them into
-	// one bucket. But PointCountUpTo doesn't change (still 1 bucket), so
+	// one bucket. BucketCountUpTo doesn't change (still 1 bucket), so
 	// BOCPD's cache check skips the series on the second Detect call.
 	//
 	// Steps:
@@ -391,8 +391,8 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 		"storage should have merged the two values at timestamp 5")
 
 	// Now Detect again. The detector should process the updated merged value.
-	// But the bug is: PointCountUpTo still returns 5 (same as before), so the
-	// detector's lastProcessedCount check causes it to skip this series.
+	// BucketCountUpTo still returns 5 (same as before — no new bucket was created),
+	// so BOCPD relies on WriteGeneration to detect the same-bucket merge.
 
 	// To detect whether the detector re-processed, we check its internal state.
 	// After processing x=100 at t=5, the posterior was updated with x=100.
@@ -417,12 +417,12 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	}
 	genAfter := stateAfter.lastWriteGen
 
-	pointCount := storage.PointCountUpTo(observer.SeriesHandle(0), 5)
-	t.Logf("genBefore=%d, genAfter=%d, PointCountUpTo=%d, writeGen=%d",
-		genBefore, genAfter, pointCount, storage.WriteGeneration(observer.SeriesHandle(0)))
+	bucketCount := storage.BucketCountUpTo(observer.SeriesHandle(0), 5)
+	t.Logf("genBefore=%d, genAfter=%d, BucketCountUpTo=%d, writeGen=%d",
+		genBefore, genAfter, bucketCount, storage.WriteGeneration(observer.SeriesHandle(0)))
 
 	// The detector should notice the merge via writeGeneration even though
-	// PointCountUpTo didn't change. If it re-processed, genAfter > genBefore.
+	// BucketCountUpTo didn't change. If it re-processed, genAfter > genBefore.
 	assert.Greater(t, genAfter, genBefore,
 		"detector should re-process when a same-bucket merge changes the value; "+
 			"lastWriteGen should advance but didn't (%d == %d)", genBefore, genAfter)

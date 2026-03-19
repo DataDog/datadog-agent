@@ -134,14 +134,14 @@ func BenchmarkForEachPoint_Small(b *testing.B) {
 	}
 }
 
-// BenchmarkPointCountUpTo isolates the cheap "has new data" check.
-func BenchmarkPointCountUpTo(b *testing.B) {
+// BenchmarkBucketCountUpTo isolates the cheap "has new data" check used by detectors.
+func BenchmarkBucketCountUpTo(b *testing.B) {
 	storage := newTimeSeriesStorage()
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.PointCountUpTo(observerdef.SeriesHandle(0), 300)
+		storage.BucketCountUpTo(observerdef.SeriesHandle(0), 300)
 	}
 }

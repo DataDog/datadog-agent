@@ -466,7 +466,7 @@ const (
 //     the detector needs random access to the full window (e.g. baseline
 //     estimation, cross-series alignment).
 //
-// Use PointCountUpTo and WriteGeneration to cheaply detect new data before
+// Use BucketCountUpTo and WriteGeneration to cheaply detect new data before
 // reading points.
 type StorageReader interface {
 	// ListSeries returns metadata for all series matching the filter.
@@ -486,6 +486,16 @@ type StorageReader interface {
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.
 	PointCount(handle SeriesHandle) int
+
+	// BucketCountUpTo returns the number of distinct time buckets with timestamp <= endTime.
+	// Each bucket represents one unique timestamp; multiple raw events at the same timestamp
+	// are merged into a single bucket. O(log n). Returns 0 if the series is not found.
+	// Use this (with WriteGeneration) to cheaply detect whether new buckets have arrived.
+	BucketCountUpTo(handle SeriesHandle, endTime int64) int
+
+	// BucketCountSince returns the number of distinct time buckets with timestamp >= startTime.
+	// Each bucket represents one unique timestamp. O(log n). Returns 0 if the series is not found.
+	BucketCountSince(handle SeriesHandle, startTime int64) int
 
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.

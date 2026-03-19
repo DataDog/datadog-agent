@@ -749,6 +749,35 @@ func (s *timeSeriesStorage) PointCount(handle observer.SeriesHandle) int {
 	return 0
 }
 
+// BucketCountUpTo returns the number of time buckets with timestamp <= endTime.
+// Each bucket represents one distinct timestamp regardless of how many raw events
+// were merged into it. Uses binary search — O(log n).
+func (s *timeSeriesStorage) BucketCountUpTo(handle observer.SeriesHandle, endTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(handle)
+	if stats == nil {
+		return 0
+	}
+	return searchAfter(stats.timestamps, endTime)
+}
+
+// BucketCountSince returns the number of time buckets with timestamp >= startTime.
+// Each bucket represents one distinct timestamp regardless of how many raw events
+// were merged into it. Uses binary search — O(log n).
+func (s *timeSeriesStorage) BucketCountSince(handle observer.SeriesHandle, startTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(handle)
+	if stats == nil {
+		return 0
+	}
+	firstIdx := searchAtOrAfter(stats.timestamps, startTime)
+	return len(stats.timestamps) - firstIdx
+}
+
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 // Uses binary search since timestamps are sorted.
 func (s *timeSeriesStorage) PointCountUpTo(handle observer.SeriesHandle, endTime int64) int {
@@ -760,7 +789,7 @@ func (s *timeSeriesStorage) PointCountUpTo(handle observer.SeriesHandle, endTime
 		return 0
 	}
 
-	// TODO: Optimize this (and PointCountSince) with cumulative sum / segment tree
+	// TODO: Optimize this (and PointCountSince, PointCountBetween) with cumulative sum / segment tree
 	// Sum event counts for all buckets at or before endTime.
 	endIdx := searchAfter(stats.timestamps, endTime)
 	total := 0

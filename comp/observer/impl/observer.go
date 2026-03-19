@@ -460,7 +460,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	for _, meta := range allSeries {
 		keyStr := seriesKey(meta.Namespace, meta.Name, meta.Tags)
-		visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
+		visibleCount := storage.BucketCountUpTo(meta.Handle, dataTime)
 		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
 			continue
 		}

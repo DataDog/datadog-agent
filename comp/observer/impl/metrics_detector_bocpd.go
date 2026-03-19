@@ -162,7 +162,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				b.series[sk] = state
 			}
 
-			visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
+			visibleCount := storage.BucketCountUpTo(meta.Handle, dataTime)
 			currentGen := storage.WriteGeneration(meta.Handle)
 			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
 			if visibleCount <= state.lastProcessedCount && !mergeOccurred {

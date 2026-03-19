@@ -370,6 +370,70 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	}
 }
 
+func TestBucketCountUpTo_BinarySearch(t *testing.T) {
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
+
+	assert.Equal(t, 5, s.BucketCountUpTo(rangeID, 50))
+	assert.Equal(t, 3, s.BucketCountUpTo(rangeID, 30))
+	assert.Equal(t, 2, s.BucketCountUpTo(rangeID, 25))
+	assert.Equal(t, 0, s.BucketCountUpTo(rangeID, 9))
+	assert.Equal(t, 1, s.BucketCountUpTo(rangeID, 10))
+	assert.Equal(t, 0, s.BucketCountUpTo(observer.SeriesHandle(999), 100)) // non-existent ID
+}
+
+func TestBucketCountUpTo_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	handle := observer.SeriesHandle(0)
+
+	assert.Equal(t, 3, s.BucketCountUpTo(handle, 100)) // 3 distinct timestamps
+	assert.Equal(t, 2, s.BucketCountUpTo(handle, 20))  // ts=10, ts=20
+	assert.Equal(t, 1, s.BucketCountUpTo(handle, 10))  // ts=10 only
+	assert.Equal(t, 0, s.BucketCountUpTo(handle, 9))   // none
+}
+
+func TestBucketCountSince_BinarySearch(t *testing.T) {
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
+
+	assert.Equal(t, 5, s.BucketCountSince(rangeID, 0))
+	assert.Equal(t, 5, s.BucketCountSince(rangeID, 10))
+	assert.Equal(t, 4, s.BucketCountSince(rangeID, 20))
+	assert.Equal(t, 3, s.BucketCountSince(rangeID, 30))
+	assert.Equal(t, 2, s.BucketCountSince(rangeID, 40))
+	assert.Equal(t, 1, s.BucketCountSince(rangeID, 50))
+	assert.Equal(t, 0, s.BucketCountSince(rangeID, 51))
+}
+
+func TestBucketCountSince_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	handle := observer.SeriesHandle(0)
+
+	assert.Equal(t, 3, s.BucketCountSince(handle, 0))  // all 3 distinct timestamps
+	assert.Equal(t, 3, s.BucketCountSince(handle, 10)) // ts=10, ts=20, ts=30
+	assert.Equal(t, 2, s.BucketCountSince(handle, 20)) // ts=20, ts=30
+	assert.Equal(t, 1, s.BucketCountSince(handle, 30)) // ts=30 only
+	assert.Equal(t, 0, s.BucketCountSince(handle, 31)) // none
+}
+
 func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
