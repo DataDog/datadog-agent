@@ -212,7 +212,7 @@ def _test_arch_values(name):
                 "//conditions:default": "amd64",
             }),
             "expect_arch_rpm": select({
-                "@platforms//cpu:arm64": "arm64",
+                "@platforms//cpu:arm64": "aarch64",
                 "@platforms//cpu:x86_64": "x86_64",
                 "//conditions:default": "x86_64",
             }),

@@ -33,8 +33,8 @@ _arch_names = {
     },
     # rpms use x86_64.  E.g. datadog-agent-dbg-7.78.0~devel.git.684.d9f682a.pipeline.103327127-1.x86_64.rpm
     "rpm": {
-        "aarch64": "arm64",
-        "arm64": "arm64",
+        "aarch64": "aarch64",
+        "arm64": "aarch64",
         "amd64": "x86_64",
         "k8": "x86_64",
         "x86": "x86_64",
