@@ -240,7 +240,13 @@ impl From<Service> for dd_service {
             udp_ports: vec_u16_to_slice(svc.udp_ports),
             log_files: dd_strs::from(svc.log_files),
             apm_instrumentation: svc.apm_instrumentation,
-            language: dd_str::from_str(svc.language.as_str()),
+            language: match svc.language {
+                Some(lang) => dd_str::from_str(lang.as_str()),
+                None => dd_str {
+                    data: ptr::null(),
+                    len: 0,
+                },
+            },
         }
     }
 }
@@ -610,7 +616,7 @@ mod tests {
                 udp_ports: Some(vec![9000]),
                 log_files: vec!["/var/log/app.log".to_string()],
                 apm_instrumentation: true,
-                language: Language::Python,
+                language: Some(Language::Python),
             }],
             injected_pids: vec![5678, 9012],
             gpu_pids: vec![1111, 2222],
@@ -723,7 +729,7 @@ mod tests {
                 udp_ports: Some(vec![]),
                 log_files: vec![],
                 apm_instrumentation: false,
-                language: Language::Unknown,
+                language: None,
             }],
             injected_pids: vec![],
             gpu_pids: vec![],
