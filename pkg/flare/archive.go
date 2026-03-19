@@ -30,6 +30,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -77,6 +78,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
+		flaretypes.NewFiller(provideRuntimeDebugInfo),
 	}
 
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
@@ -175,7 +177,7 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	} else {
 		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
-		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}

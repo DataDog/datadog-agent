@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
-	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
-	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
+	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
+	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
 
 	"go.uber.org/fx"
 
@@ -35,11 +35,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
 	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
+	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 
 	// core components
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -246,14 +247,14 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectfx.Module(),
 		etwtracerimpl.Module,
-		windowseventlogimpl.Module(),
-		winregistryimpl.Module(),
+		windowseventlogfx.Module(),
+		winregistryfx.Module(),
 		etwimpl.Module,
-		comptraceconfig.Module(),
+		traceconfigfx.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
 		notableeventsfx.Module(),
-		fx.Replace(comptraceconfig.Params{
+		fx.Replace(traceconfigdef.Params{
 			FailIfAPIKeyMissing: false,
 		}),
 		// Force the instantiation of the components

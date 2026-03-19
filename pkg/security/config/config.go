@@ -283,6 +283,16 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
 
+	// Per-type event sampling config
+	EventSamplingOpenEnabled    bool
+	EventSamplingOpenRate       int
+	EventSamplingConnectEnabled bool
+	EventSamplingConnectRate    int
+	EventSamplingBindEnabled    bool
+	EventSamplingBindRate       int
+	EventSamplingDNSEnabled     bool
+	EventSamplingDNSRate        int
+
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
 	// SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
@@ -593,6 +603,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
+		// event sampling (per-type)
+		EventSamplingOpenEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingConnectEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingBindEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingDNSEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
+		EventSamplingDNSRate:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
@@ -666,6 +686,13 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
+
+	if rsConfig.SecurityProfileV2Enabled {
+		rsConfig.EventSamplingOpenEnabled = true
+		rsConfig.EventSamplingConnectEnabled = true
+		rsConfig.EventSamplingBindEnabled = true
+		rsConfig.EventSamplingDNSEnabled = true
+	}
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
