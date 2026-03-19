@@ -20,6 +20,11 @@ env_vars(
     ],
 )
 
+# Expose release.json for information about the current release.
+release_json = use_repo_rule("//bazel/repo:release_json.bzl", "release_json")
+
+release_json(name = "dd_release_json")
+
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
 bazel_dep(name = "package_metadata", version = "0.0.7")
