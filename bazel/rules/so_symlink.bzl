@@ -6,7 +6,7 @@ _SPECS = [
     struct(os = "windows", prefix = "bin/", format = "{}.dll"),
 ]
 
-def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
+def _gen_targets(base_name, src, libname, version, prefix, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
     dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
@@ -18,10 +18,9 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
             srcs = [src],
             prefix = dest_prefix,
             target_compatible_with = [platform],
-            attributes = attributes,
             package_metadata = [],
         )
-        return platform, ":{}".format(name)
+        return platform, [":{}".format(name)]
 
     # Unix: create symlink chain with versioning
     target = spec.format.format(libname, ".{}".format(version))
@@ -32,7 +31,6 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
         prefix = dest_prefix,
         renames = {src: target},
         target_compatible_with = [platform],
-        attributes = attributes,
         package_metadata = [],
     )
 
@@ -47,16 +45,24 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
             link_name = "{}{}".format(dest_prefix, link),
             target = target,
             target_compatible_with = [platform],
-            attributes = attributes,
             package_metadata = [],
         )
         target = link
 
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform], package_metadata = [])
-    return platform, ":{}".format(name)
+    return platform, [":{}".format(name)]
 
-def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None, visibility = None):
-    """Creates shared library symlink chain following Unix conventions.
+def _so_symlink_impl(name, src, libname, version, prefix, visibility):
+    src_str = ":{}".format(src.name)
+    pkg_filegroup(
+        name = name,
+        srcs = select(dict([_gen_targets(name, src_str, libname, version, prefix, spec) for spec in _SPECS])),
+        package_metadata = [],
+        visibility = visibility,
+    )
+
+so_symlink = macro(
+    doc = """Creates shared library symlink chain following Unix conventions.
 
     Unix (Linux/macOS): Generates the common multilevel symlink hierarchy for shared libraries:
     - `real name`: actual file with full version (e.g., libreadline.so.3.0 / libreadline.3.0.dylib)
@@ -66,18 +72,28 @@ def so_symlink(name, src, libname = None, version = None, prefix = "", attribute
     Windows: Simply copies the DLL to bin/ without renaming or creating symlinks.
 
     See: `Program Library HOWTO` by David Wheeler, https://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html
-
-    Args:
-        name: Name of the generated pkg_filegroup
-        src: Label of the cc_shared_library to package
-        libname: Library name without extension (e.g., "libreadline")
-        prefix: Installation directory prefix (default: "")
-        version: Full version string (e.g., "3.0", ignored on Windows)
-        attributes: pkg_attributes
-        visibility: Bazel visibility for the generated alias target
-    """
-    native.alias(
-        name = name,
-        actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec, attributes) for spec in _SPECS])),
-        visibility = visibility,
-    )
+    """,
+    attrs = {
+        "src": attr.label(
+            doc = "Label of the cc_shared_library to package",
+            mandatory = True,
+            configurable = False,
+        ),
+        "libname": attr.string(
+            doc = "Library name without extension (e.g., \"libreadline\")",
+            mandatory = True,
+            configurable = False,
+        ),
+        "version": attr.string(
+            doc = "Full version string (e.g., \"3.0\", ignored on Windows)",
+            mandatory = True,
+            configurable = False,
+        ),
+        "prefix": attr.string(
+            doc = "Installation directory prefix (default: \"\")",
+            default = "",
+            configurable = False,
+        ),
+    },
+    implementation = _so_symlink_impl,
+)
