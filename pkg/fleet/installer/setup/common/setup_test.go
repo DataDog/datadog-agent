@@ -14,29 +14,38 @@ import (
 
 func TestParActionsAllowlist_ExplicitEnv(t *testing.T) {
 	explicit := "com.datadoghq.http.request,com.datadoghq.http.response"
-	got := parActionsAllowlist(explicit, "linux")
+	got := parActionsAllowlist(explicit, "linux", true)
 	assert.Equal(t, []string{"com.datadoghq.http.request", "com.datadoghq.http.response"}, got)
 }
 
-func TestParActionsAllowlist_ExplicitEnvWindows(t *testing.T) {
-	explicit := "com.datadoghq.http.request"
-	got := parActionsAllowlist(explicit, "windows")
+func TestParActionsAllowlist_ExplicitEnvOnReinstall(t *testing.T) {
+	// Explicit env var always wins, even on reinstall.
+	got := parActionsAllowlist("com.datadoghq.http.request", "windows", false)
 	assert.Equal(t, []string{"com.datadoghq.http.request"}, got)
 }
 
-func TestParActionsAllowlist_DefaultNix(t *testing.T) {
-	got := parActionsAllowlist("", "linux")
+func TestParActionsAllowlist_DefaultNixFreshInstall(t *testing.T) {
+	got := parActionsAllowlist("", "linux", true)
 	assert.Equal(t, []string{parDefaultAllowlistNix}, got)
 }
 
-func TestParActionsAllowlist_DefaultWindows(t *testing.T) {
-	got := parActionsAllowlist("", "windows")
+func TestParActionsAllowlist_DefaultWindowsFreshInstall(t *testing.T) {
+	got := parActionsAllowlist("", "windows", true)
 	assert.Equal(t, []string{parDefaultAllowlistWindows}, got)
 }
 
-func TestParActionsAllowlist_DefaultCurrentOS(t *testing.T) {
-	// Verify that the current OS gets a sensible default (not an empty list).
-	got := parActionsAllowlist("", runtime.GOOS)
+func TestParActionsAllowlist_NoOverwriteOnReinstall(t *testing.T) {
+	// No env var + reinstall → nil so WriteConfigs does not clobber existing allowlist.
+	got := parActionsAllowlist("", "linux", false)
+	assert.Nil(t, got)
+
+	got = parActionsAllowlist("", "windows", false)
+	assert.Nil(t, got)
+}
+
+func TestParActionsAllowlist_DefaultCurrentOSFreshInstall(t *testing.T) {
+	// Current OS gets one of the two known defaults on fresh install.
+	got := parActionsAllowlist("", runtime.GOOS, true)
 	assert.Len(t, got, 1)
 	assert.Contains(t,
 		[]string{parDefaultAllowlistNix, parDefaultAllowlistWindows},

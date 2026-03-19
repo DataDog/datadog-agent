@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -53,11 +54,16 @@ type Setup struct {
 }
 
 // parActionsAllowlist returns the PAR actions allowlist to use.
-// If envValue is non-empty it is split on commas and used as-is.
-// Otherwise an OS-appropriate default is returned.
-func parActionsAllowlist(envValue, goos string) []string {
+//   - If envValue is non-empty it is split on commas and used as-is.
+//   - If envValue is empty and freshInstall is true, an OS-appropriate default is returned.
+//   - If envValue is empty and freshInstall is false (upgrade/reinstall), nil is returned so
+//     WriteConfigs does not overwrite a user-customised allowlist already on disk.
+func parActionsAllowlist(envValue, goos string, freshInstall bool) []string {
 	if envValue != "" {
 		return strings.Split(envValue, ",")
+	}
+	if !freshInstall {
+		return nil
 	}
 	if goos == "windows" {
 		return []string{parDefaultAllowlistWindows}
@@ -124,9 +130,12 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		s.Config.DatadogYAML.AppKey = os.Getenv("DD_APP_KEY")
 		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
 		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
+		_, statErr := os.Stat(filepath.Join(paths.DatadogDataDir, "datadog.yaml"))
+		freshInstall := os.IsNotExist(statErr)
 		s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = parActionsAllowlist(
 			os.Getenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"),
 			runtime.GOOS,
+			freshInstall,
 		)
 	}
 
