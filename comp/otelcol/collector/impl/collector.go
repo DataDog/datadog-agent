@@ -201,6 +201,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
+	factories.Extensions[ddopamp.Type] = ddopamp.NewFactory()
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(
 		reqs.Config,
@@ -283,6 +284,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	}
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.None[ipc.Component](), false)
+	factories.Extensions[ddopamp.Type] = ddopamp.NewFactory()
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")

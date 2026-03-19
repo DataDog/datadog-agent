@@ -62,14 +62,21 @@ func otelAgentBin(t *testing.T) string {
 
 // startAgent writes config to a temp file and starts the otel-agent subprocess.
 // It returns the running command; callers must call cmd.Process.Kill() to stop it.
-func startAgent(t *testing.T, configYAML string) (*exec.Cmd, string) {
+// If runDir is empty a fresh temp directory is created; pass a pre-existing directory
+// to share state (e.g. the instance-UID file) between multiple runs.
+func startAgent(t *testing.T, configYAML string, runDir ...string) (*exec.Cmd, string) {
 	t.Helper()
 	bin := otelAgentBin(t)
 	if _, err := os.Stat(bin); err != nil {
 		t.Skipf("otel-agent binary not found at %s (set OTEL_AGENT env var)", bin)
 	}
 
-	dir := t.TempDir()
+	var dir string
+	if len(runDir) > 0 && runDir[0] != "" {
+		dir = runDir[0]
+	} else {
+		dir = t.TempDir()
+	}
 	cfgFile := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(cfgFile, []byte(configYAML), 0o644))
 
@@ -277,4 +284,80 @@ service:
       receivers: [otlp]
       exporters: [debug]
 ` + extraYAML
+}
+
+// configWithOpampHTTP returns the same minimal config but using the HTTP transport.
+func configWithOpampHTTP(extraYAML string) string {
+	return `
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+exporters:
+  debug:
+    verbosity: detailed
+extensions:
+  opamp:
+    server:
+      http:
+        endpoint: http://localhost:4320/v1/opamp
+service:
+  extensions: [opamp]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
+` + extraYAML
+}
+
+// restartServer stops the current test server and starts a fresh one on the
+// same endpoint, replacing ts.srv. All accumulated messages and connections
+// are cleared so callers can wait for fresh activity from the reconnecting agent.
+func (ts *testServer) restartServer(t *testing.T) {
+	t.Helper()
+	ts.srv.Stop(context.Background()) //nolint:errcheck
+
+	ts.mu.Lock()
+	ts.messages = nil
+	ts.conns = nil
+	ts.mu.Unlock()
+
+	newSrv := server.New(nil)
+	settings := server.StartSettings{
+		Settings: server.Settings{
+			Callbacks: types.Callbacks{
+				OnConnecting: func(_ *http.Request) types.ConnectionResponse {
+					return types.ConnectionResponse{
+						Accept: true,
+						ConnectionCallbacks: types.ConnectionCallbacks{
+							OnConnected: func(_ context.Context, conn types.Connection) {
+								ts.mu.Lock()
+								ts.conns = append(ts.conns, conn)
+								ts.mu.Unlock()
+							},
+							OnMessage: func(_ context.Context, conn types.Connection, msg *protobufs.AgentToServer) *protobufs.ServerToAgent {
+								ts.mu.Lock()
+								ts.messages = append(ts.messages, msg)
+								var resp *protobufs.ServerToAgent
+								if ts.onMessage != nil {
+									resp = ts.onMessage(conn, msg)
+								}
+								ts.mu.Unlock()
+								if resp == nil {
+									resp = &protobufs.ServerToAgent{InstanceUid: msg.InstanceUid}
+								}
+								return resp
+							},
+							OnConnectionClose: func(_ types.Connection) {},
+						},
+					}
+				},
+			},
+		},
+		ListenEndpoint: "0.0.0.0:4320",
+		ListenPath:     "/v1/opamp",
+	}
+	require.NoError(t, newSrv.Start(settings))
+	ts.srv = newSrv
 }
