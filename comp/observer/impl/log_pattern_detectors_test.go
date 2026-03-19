@@ -23,11 +23,6 @@ func TestLogPatternExtractor_Name(t *testing.T) {
 	assert.Equal(t, "log_pattern_extractor", e.Name())
 }
 
-func TestLogPatternExtractor_Setup(t *testing.T) {
-	e := NewLogPatternExtractor()
-	assert.NoError(t, e.Setup(nil))
-}
-
 func TestLogPatternExtractor_EmitsCountMetric(t *testing.T) {
 	e := NewLogPatternExtractor()
 	log := &mockLogView{
@@ -38,8 +33,7 @@ func TestLogPatternExtractor_EmitsCountMetric(t *testing.T) {
 	result := e.ProcessLog(log)
 
 	require.Len(t, result, 1)
-	assert.True(t, strings.HasPrefix(result[0].Name, "log.log_pattern_extractor."), "metric name should have correct prefix")
-	assert.True(t, strings.HasSuffix(result[0].Name, ".count"), "metric name should end with .count")
+	assert.True(t, strings.HasPrefix(result[0].Name, "pattern_count"), "metric name should start with pattern_count")
 	assert.Equal(t, float64(1), result[0].Value)
 	assert.Equal(t, []string{"env:prod"}, result[0].Tags)
 }
@@ -103,41 +97,6 @@ func TestLogPatternExtractor_PatternKeysPopulated(t *testing.T) {
 func TestLogPatternDetector_Name(t *testing.T) {
 	d := NewLogPatternDetector()
 	assert.Equal(t, "log_pattern_detector", d.Name())
-}
-
-func TestLogPatternDetector_SetupResolvesExtractor(t *testing.T) {
-	extractor := NewLogPatternExtractor()
-	d := NewLogPatternDetector()
-
-	err := d.Setup(func(name string) (any, error) {
-		if name == "log_pattern_extractor" {
-			return extractor, nil
-		}
-		return nil, fmt.Errorf("unknown component: %s", name)
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, extractor, d.extractor)
-}
-
-func TestLogPatternDetector_SetupErrorOnMissingExtractor(t *testing.T) {
-	d := NewLogPatternDetector()
-
-	err := d.Setup(func(_ string) (any, error) {
-		return nil, fmt.Errorf("component not found")
-	})
-
-	assert.Error(t, err)
-}
-
-func TestLogPatternDetector_SetupErrorOnWrongType(t *testing.T) {
-	d := NewLogPatternDetector()
-
-	err := d.Setup(func(_ string) (any, error) {
-		return "not an extractor", nil
-	})
-
-	assert.Error(t, err)
 }
 
 func TestLogPatternDetector_NoAnomaliesWithInsufficientHistory(t *testing.T) {
@@ -341,13 +300,6 @@ func newPatternPipeline(t *testing.T) (*LogPatternExtractor, *LogPatternDetector
 	extractor := NewLogPatternExtractor()
 	detector := NewLogPatternDetector()
 	detector.WindowDurationSec = 1
-	err := detector.Setup(func(name string) (any, error) {
-		if name == "log_pattern_extractor" {
-			return extractor, nil
-		}
-		return nil, fmt.Errorf("unknown component: %s", name)
-	})
-	require.NoError(t, err)
 	return extractor, detector, newTimeSeriesStorage()
 }
 
