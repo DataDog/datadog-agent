@@ -1243,7 +1243,7 @@ func TestCheck_Run(t *testing.T) {
 			reachableGetNextError: errors.New("no value for GextNext"),
 			valuesPacket:          valuesPacketErrMock,
 			valuesError:           errors.New("no value"),
-			expectedErr:           "check device reachable: failed: no value for GextNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
+			expectedErr:           "check device reachable: failed: no value for GextNext, see troubleshooting documentation: " + devicecheck.SNMPTroubleshootingDocURL + "; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
@@ -1735,7 +1735,7 @@ tags:
 	}).Return(nilPacket, errors.New("device failure"))
 	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, errors.New("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext, see troubleshooting documentation: " + devicecheck.SNMPTroubleshootingDocURL + "; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)

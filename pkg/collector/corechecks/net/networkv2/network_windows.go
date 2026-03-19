@@ -80,7 +80,6 @@ type networkConfig struct {
 
 type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
-	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
 	TCPStats(kind string) (*mibTCPStats, error)
 }
@@ -89,10 +88,6 @@ type defaultNetworkStats struct{}
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
-}
-
-func (n defaultNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
-	return net.ProtoCounters(protocols)
 }
 
 func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {

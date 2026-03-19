@@ -46,6 +46,7 @@ copy_file(
         "@platforms//os:linux": "linux/include/config.h",
     }),
     out = "include/config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(

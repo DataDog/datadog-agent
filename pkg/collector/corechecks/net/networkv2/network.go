@@ -95,8 +95,6 @@ type networkConfig struct {
 
 type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
-	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
-	Connections(kind string) ([]net.ConnectionStat, error)
 	NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error)
 	GetProcPath() string
 	GetNetProcBasePath() string
@@ -114,14 +112,6 @@ type connectionStateEntry struct {
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
-}
-
-func (n defaultNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
-	return net.ProtoCounters(protocols)
-}
-
-func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
-	return net.Connections(kind)
 }
 
 func (n defaultNetworkStats) NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error) {
@@ -975,8 +965,8 @@ func Factory(cfg config.Component) option.Option[func() check.Check] {
 
 func newCheck(cfg config.Component) check.Check {
 	procfsPath := "/proc"
-	if cfg.IsConfigured("procfs_path") {
-		procfsPath = strings.TrimRight(cfg.GetString("procfs_path"), "/")
+	if v := cfg.GetString("procfs_path"); v != "" {
+		procfsPath = strings.TrimRight(v, "/")
 	}
 
 	return &NetworkCheck{
