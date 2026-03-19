@@ -20,13 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
+	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConnectionGoOra(t *testing.T) {
 	connection := getConnectData(t, useDefaultUser)
-	databaseUrl := buildGoOraStyleURL(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
+	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
 	conn, err := sql.Open("oracle", databaseUrl)
 	assert.NoError(t, err)
 
@@ -242,7 +243,7 @@ func TestChkRun(t *testing.T) {
 func TestLicense(t *testing.T) {
 	oracleDriver := "oracle"
 	connection := getConnectData(t, useDefaultUser)
-	connStr := buildGoOraStyleURL(
+	connStr := go_ora.BuildUrl(
 		connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, map[string]string{})
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
@@ -417,7 +418,7 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 				connectionOptions["WALLET"] = connectionConfig.Wallet
 			}
 		}
-		connStr = buildGoOraStyleURL(
+		connStr = go_ora.BuildUrl(
 			connectionConfig.Server, connectionConfig.Port, connectionConfig.ServiceName, connectionConfig.Username, connectionConfig.Password, connectionOptions)
 	}
 	return connStr
