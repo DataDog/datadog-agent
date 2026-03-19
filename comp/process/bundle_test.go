@@ -123,6 +123,7 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		sysprobeconfigimpl.MockModule(),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: map[string]interface{}{"discovery.enabled": false}}),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
