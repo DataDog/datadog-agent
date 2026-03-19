@@ -23,7 +23,7 @@ import (
 // per second of data?" As algorithms are added or removed from the defaults,
 // this benchmark automatically reflects the new cost.
 func BenchmarkDetection_Cardinality(b *testing.B) {
-	for _, numSeries := range []int{5, 10, 20, 50, 200, 500} {
+	for _, numSeries := range []int{5, 10, 20, 50, 200} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
 			storage := buildSyntheticStorage(numSeries, 600)
