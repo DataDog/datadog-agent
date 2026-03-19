@@ -16,7 +16,7 @@
 #
 
 name "curl"
-default_version "8.18.0"
+default_version "8.19.0"
 
 build do
   license "Curl"
