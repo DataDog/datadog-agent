@@ -166,7 +166,7 @@ cc_shared_library(
     name = "acl",
     deps = [":libacl"],
     dynamic_deps = [
-        "@attr//:attr",
+        "@attr//:attr_pkg",
     ],
     additional_linker_inputs = [
         "exports",
