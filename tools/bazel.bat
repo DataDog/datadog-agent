@@ -54,10 +54,27 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-set "bazel_args=%*"
-if defined bazel_args if defined CI if not defined GITHUB_ACTIONS (
-  :: In CI except GitHub: "$@" -> "$1" --config=ci "${@:2}"
-  call set "bazel_args=%1 --config=ci%%bazel_args:*%1=%%"
-)
-"%BAZEL_REAL%" !bazel_home_startup_option! !bazel_args!
+set "args=%*"
+if defined args if defined CI if not defined GITHUB_ACTIONS call :inject_ci_args
+"%BAZEL_REAL%" !bazel_home_startup_option! !args!
 exit /b !errorlevel!
+
+:: "--startup cmd ..." -> "--startup cmd --config=ci ..."
+:inject_ci_args
+set "startup_args="
+set "next_args=!args!"
+:parse_next_arg
+set "cmd="
+for /f "tokens=1* delims= " %%i in ("!next_args!") do (
+  set "arg=%%~i"
+  if "!arg:~0,1!" equ "-" (
+    set "startup_args=!startup_args! %%i"
+    set "next_args=%%j"
+  ) else (
+    if defined startup_args set "startup_args=!startup_args:~1! "
+    set "cmd=%%i"
+    set "args=!startup_args!!cmd! --config=ci %%j"
+  )
+)
+if not defined cmd if defined next_args goto :parse_next_arg
+exit /b
