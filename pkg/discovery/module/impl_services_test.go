@@ -231,6 +231,66 @@ func (s *discoveryTestSuite) TestServicesPortsLimits() {
 	}
 }
 
+func (s *discoveryTestSuite) TestServicesServiceName() {
+	t := s.T()
+	discovery := s.discovery
+
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "test-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "test-service",
+	}
+	data, err := trMeta.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data)
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+
+	// Disable close-on-exec so that the sleep gets it
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
+	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
+	cmd.Env = append(cmd.Env, "DD_ENV=my😀dd-env")
+	cmd.Env = append(cmd.Env, "DD_VERSION=my😀dd-version")
+	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
+	err = cmd.Start()
+	require.NoError(t, err)
+	f.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+	// Eventually to give the processes time to start
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+
+		assert.Equal(collect, "foo😀bar", svc.UST.Service)
+		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
+		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
+
+		assert.Equal(collect, "sleep", svc.GeneratedName)
+		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, svc.TracerMetadata)
+	assert.Equal(t, string(language.Go), svc.Language)
+}
+
 // TestServicesTracerMetadata tests that both Go and Rust implementations correctly
 // parse tracer metadata from real binary dumps across different tracer versions
 // and schema versions.
@@ -243,9 +303,6 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 		dataFile         string
 		expectedMeta     []tracermetadata.TracerMetadata
 		expectedLanguage string
-		ddService        string
-		ddEnv            string
-		ddVersion        string
 	}{
 		{
 			name:     "go_v2",
@@ -263,9 +320,6 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				ContainerID:    "d7827075-010c-4e21-a663-daa3cd34e6f2",
 			}},
 			expectedLanguage: string(language.Go),
-			ddService:        "foo😀bar",
-			ddEnv:            "my😀dd-env",
-			ddVersion:        "my😀dd-version",
 		},
 		{
 			name:     "java",
@@ -281,9 +335,6 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				LogsCollected:  true,
 			}},
 			expectedLanguage: string(language.Java),
-			ddService:        "my-java-svc",
-			ddEnv:            "staging",
-			ddVersion:        "2.0.0",
 		},
 		{
 			name:     "cpp_v1",
@@ -299,17 +350,10 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				ServiceVersion: "my-version",
 			}},
 			expectedLanguage: string(language.CPlusPlus),
-			ddService:        "my-cpp-svc",
-			ddEnv:            "dev",
-			ddVersion:        "0.1.0",
 		},
 		{
-			name:         "invalid",
-			dataFile:     "testdata/tracer_invalid.data",
-			expectedMeta: nil,
-			ddService:    "my-invalid-svc",
-			ddEnv:        "test",
-			ddVersion:    "0.0.1",
+			name:     "invalid",
+			dataFile: "testdata/tracer_invalid.data",
 		},
 	}
 
@@ -336,9 +380,6 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 
 			cmd := exec.CommandContext(ctx, "sleep", "1000")
 			cmd.Dir = "/tmp/"
-			cmd.Env = append(cmd.Env, "DD_SERVICE="+tc.ddService)
-			cmd.Env = append(cmd.Env, "DD_ENV="+tc.ddEnv)
-			cmd.Env = append(cmd.Env, "DD_VERSION="+tc.ddVersion)
 			err = cmd.Start()
 			require.NoError(t, err)
 			f.Close()
@@ -349,13 +390,6 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 				resp := getServices(collect, discovery)
 				svc = findService(pid, resp.Services)
 				require.NotNilf(collect, svc, "could not find service for pid %v", pid)
-
-				assert.Equal(collect, tc.ddService, svc.UST.Service)
-				assert.Equal(collect, tc.ddEnv, svc.UST.Env)
-				assert.Equal(collect, tc.ddVersion, svc.UST.Version)
-
-				assert.Equal(collect, "sleep", svc.GeneratedName)
-				assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 			}, 30*time.Second, 100*time.Millisecond)
 
 			if tc.expectedMeta != nil {
