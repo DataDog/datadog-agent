@@ -40,6 +40,14 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        ev.original_event_type = EVENT_CONNECT;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+    }
+
     if (syscall->state == DISCARDED) {
         return 0;
     }
@@ -53,6 +61,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .port = syscall->connect.port,
         .protocol = syscall->connect.protocol,
         .event.flags = (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
+        .sample_cookie = syscall->sample_cookie,
     };
 
     struct proc_cache_t *entry;

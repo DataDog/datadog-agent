@@ -64,8 +64,16 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     }
 
     if (!(event.event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
-        if (approve_bind_sample(event.process.pid, event.family, event.port, event.protocol, event.addr) == SAMPLED) {
+        u32 bind_cookie = 0;
+        u32 bind_refresh_needed = 0;
+        if (approve_bind_sample(event.process.pid, event.family, event.port, event.protocol, event.addr, &bind_cookie, &bind_refresh_needed) == SAMPLED) {
             event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
+            event.sample_cookie = bind_cookie;
+        } else if (bind_refresh_needed) {
+            struct sample_refresh_event_t ev = {};
+            ev.cookie = bind_cookie;
+            ev.original_event_type = EVENT_BIND;
+            send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
         }
     }
 

@@ -37,6 +37,8 @@ struct bind_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
+    u32 sample_cookie;
+    u32 sample_padding;
 };
 
 struct connect_event_t {
@@ -51,6 +53,8 @@ struct connect_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
+    u32 sample_cookie;
+    u32 sample_padding;
 };
 
 struct bpf_event_t {
@@ -357,6 +361,8 @@ struct open_event_t {
     struct file_t file;
     u32 flags;
     u32 mode;
+    u32 sample_cookie;
+    u32 sample_padding;
 };
 
 struct ptrace_event_t {
@@ -586,6 +592,12 @@ struct tracer_memfd_seal_event_t {
     struct syscall_t syscall;
 
     u32 fd;
+};
+
+struct sample_refresh_event_t {
+    struct kevent_t event;
+    u32 cookie;
+    u32 original_event_type;
 };
 
 struct nop_event_t {

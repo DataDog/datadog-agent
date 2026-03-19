@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	simplelru "github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -45,6 +46,13 @@ type pendingProfile struct {
 	firstSeen time.Time
 	events    *list.List
 }
+
+type sampleCookieEntry struct {
+	processNode *activity_tree.ProcessNode
+	imageTag    string
+}
+
+const sampleCookieMapSize = 4096
 
 type ManagerV2 struct {
 	config        *config.Config
@@ -82,6 +90,9 @@ type ManagerV2 struct {
 	// Pending profile removals (selector -> time when removal was queued)
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
+
+	// Sample refresh: maps kernel dedup cookie → (process node, imageTag)
+	sampleCookieMap *simplelru.LRU[uint32, sampleCookieEntry]
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
@@ -113,6 +124,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
+	cookieMap, _ := simplelru.NewLRU[uint32, sampleCookieEntry](sampleCookieMapSize, nil)
+
 	m := &ManagerV2{
 		config:                    cfg,
 		statsdClient:              statsdClient,
@@ -132,6 +145,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
 	}
 
 	m.initMetricsMap()
@@ -634,10 +648,29 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Insert the event into the profile's activity tree
 	imageTag := secprof.GetTagValue("image_tag")
-	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		seclog.Errorf("couldn't insert event into profile: %v", err)
 		return nil, false
+	}
+
+	// Register the sample cookie → process node mapping for sample refresh events
+	if processNode != nil {
+		var sampleCookie uint32
+		switch event.GetEventType() {
+		case model.FileOpenEventType:
+			sampleCookie = event.Open.SampleCookie
+		case model.BindEventType:
+			sampleCookie = event.Bind.SampleCookie
+		case model.ConnectEventType:
+			sampleCookie = event.Connect.SampleCookie
+		}
+		if sampleCookie != 0 {
+			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+				processNode: processNode,
+				imageTag:    imageTag,
+			})
+		}
 	}
 
 	return secprof, inserted
@@ -1135,6 +1168,16 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 // ============================================================================
 
 // LookupEventInProfiles lookups event in profiles.
+// HandleSampleRefresh handles a sample refresh event from the kernel.
+// It updates the LastSeen timestamp of the process node associated with the given cookie.
+func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
+	entry, ok := m.sampleCookieMap.Get(cookie)
+	if !ok {
+		return
+	}
+	entry.processNode.AppendImageTag(entry.imageTag, time.Now())
+}
+
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
 // profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
 // applicable to the V2 lifecycle.

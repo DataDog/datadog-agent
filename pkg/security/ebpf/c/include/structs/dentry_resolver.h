@@ -36,6 +36,11 @@ struct bind_connect_sample_key_t {
     u64 addr[2];
 };
 
+struct sample_entry_t {
+    u32 cookie;
+    u64 last_refresh_ns;
+};
+
 struct dr_erpc_state_t {
     char *userspace_buffer;
     struct path_key_t key;

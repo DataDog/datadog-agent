@@ -689,6 +689,9 @@ func (m *Manager) evictUnusedNodes() {
 	}
 }
 
+// HandleSampleRefresh is a no-op in V1
+func (m *Manager) HandleSampleRefresh(_ uint32) {}
+
 // GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
 func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {
 

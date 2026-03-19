@@ -145,6 +145,8 @@ const (
 	TracerMemfdSealEventType
 	// PivotRootEventType is sent when pivot_root completes successfully
 	PivotRootEventType
+	// SampleRefreshEventType is sent when a dedup map detects a duplicate and refreshes a cookie timestamp
+	SampleRefreshEventType
 	// NopEventType nop event
 	NopEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
@@ -342,6 +344,8 @@ func (t EventType) String() string {
 		return "tracer_memfd_seal"
 	case PivotRootEventType:
 		return "pivot_root"
+	case SampleRefreshEventType:
+		return "sample_refresh"
 	case NopEventType:
 		return "nop"
 	default:
