@@ -90,7 +90,8 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
   -L/opt/datadog-agent/rtloader/build/three \
   -L$EMBEDDED_DESTDIR/lib \
   -lpython3.13 \
-  -Wl,-bE:$PYTHON_EXP"
+  -Wl,-bE:$PYTHON_EXP \
+  -Wl,-blibpath:/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
 #
