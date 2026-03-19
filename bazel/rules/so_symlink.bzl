@@ -19,6 +19,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
             prefix = dest_prefix,
             target_compatible_with = [platform],
             attributes = attributes,
+            package_metadata = [],
         )
         return platform, ":{}".format(name)
 
@@ -32,6 +33,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
         renames = {src: target},
         target_compatible_with = [platform],
         attributes = attributes,
+        package_metadata = [],
     )
 
     major = version.partition(".")[0]
@@ -46,10 +48,11 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
             target = target,
             target_compatible_with = [platform],
             attributes = attributes,
+            package_metadata = [],
         )
         target = link
 
-    pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
+    pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform], package_metadata = [])
     return platform, ":{}".format(name)
 
 def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None, visibility = None):
