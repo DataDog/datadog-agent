@@ -11,6 +11,8 @@ package networkv2
 import (
 	"bufio"
 	"bytes"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -1999,6 +2001,71 @@ func TestFetchEthtoolStatsENODEVOnStats(t *testing.T) {
 
 	expectedTags := []string{"device:enodev_stats_iface", "driver_name:ena", "driver_version:mock_version", "queue:0"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", mock.Anything, "", expectedTags)
+}
+
+// minimalProcNetDev is a tiny /proc/net/dev-shaped file for gopsutil IOCountersByFile (see IOCountersByFileWithContext in gopsutil).
+const minimalProcNetDev = `Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+fixture0: 100 2 0 0 0 0 0 0 200 3 0 0 0
+`
+
+// writeMinimalProcNetDev creates netDir/dev with minimalProcNetDev so gopsutil IOCountersByFile can parse it.
+func writeMinimalProcNetDev(t *testing.T, netDir string) {
+	t.Helper()
+	assert.NoError(t, os.MkdirAll(netDir, 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(netDir, "dev"), []byte(minimalProcNetDev), 0o644))
+}
+
+// iocountersIfaceNamesSorted returns interface names from stats, sorted, for order-independent comparison.
+func iocountersIfaceNamesSorted(stats []net.IOCountersStat) []string {
+	names := make([]string, len(stats))
+	for i, s := range stats {
+		names[i] = s.Name
+	}
+	slices.Sort(names)
+	return names
+}
+
+// TestDefaultNetworkStatsIOCounters exercises defaultNetworkStats.IOCounters: the happy path uses net.IOCountersByFile
+// on an explicit net/dev path; if that file is missing, the implementation falls back to net.IOCounters (AGENT-15840).
+func TestDefaultNetworkStatsIOCounters(t *testing.T) {
+	// Non-container layout: GetNetProcBasePath() equals procPath, so we read <procPath>/net/dev via IOCountersByFile.
+	t.Run("IOCountersByFile_plain_procfs", func(t *testing.T) {
+		tmp := t.TempDir()
+		writeMinimalProcNetDev(t, filepath.Join(tmp, "net"))
+		stats, err := defaultNetworkStats{procPath: tmp}.IOCounters(true)
+		assert.NoError(t, err)
+		idx := slices.IndexFunc(stats, func(s net.IOCountersStat) bool { return s.Name == "fixture0" })
+		assert.NotEqual(t, -1, idx)
+		assert.Equal(t, uint64(100), stats[idx].BytesRecv)
+		assert.Equal(t, uint64(200), stats[idx].BytesSent)
+		assert.Equal(t, uint64(2), stats[idx].PacketsRecv)
+		assert.Equal(t, uint64(3), stats[idx].PacketsSent)
+	})
+	// Docker + mounted host proc: GetNetProcBasePath() is procPath + "/1", so we read <procRoot>/1/net/dev (host PID 1 netns),
+	// not <procRoot>/net/dev (symlink into the container netns).
+	t.Run("IOCountersByFile_docker_pid1_net", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "true")
+		tmp := t.TempDir()
+		procRoot := filepath.Join(tmp, "hostproc")
+		writeMinimalProcNetDev(t, filepath.Join(procRoot, "1", "net"))
+		stats, err := defaultNetworkStats{procPath: procRoot}.IOCounters(true)
+		assert.NoError(t, err)
+		idx := slices.IndexFunc(stats, func(s net.IOCountersStat) bool { return s.Name == "fixture0" })
+		assert.NotEqual(t, -1, idx)
+		assert.Equal(t, uint64(100), stats[idx].BytesRecv)
+	})
+	// When <base>/net/dev does not exist, IOCountersByFile errors and we fall back to net.IOCounters(pernic);
+	// interface list should match a direct net.IOCounters call (counters may differ between two calls, names should not).
+	t.Run("fallback_net_IOCounters", func(t *testing.T) {
+		n := defaultNetworkStats{procPath: filepath.Join(t.TempDir(), "no-net-dev")}
+		baseline, err := net.IOCounters(true)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, baseline)
+		got, err := n.IOCounters(true)
+		assert.NoError(t, err)
+		assert.Equal(t, iocountersIfaceNamesSorted(baseline), iocountersIfaceNamesSorted(got))
+	})
 }
 
 func TestNetstatAndSnmpCountersUsingCorrectMockedProcfsPath(t *testing.T) {

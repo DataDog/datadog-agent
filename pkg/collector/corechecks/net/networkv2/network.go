@@ -120,6 +120,7 @@ func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, erro
 	stats, err := net.IOCountersByFile(pernic, netDevPath)
 	if err != nil {
 		// Fallback to default when path is missing (e.g. tests with mocked proc, or non-standard setup)
+		log.Debugf("network check: IOCountersByFile(%s) failed, falling back to net.IOCounters: %v", netDevPath, err)
 		return net.IOCounters(pernic)
 	}
 	return stats, nil
