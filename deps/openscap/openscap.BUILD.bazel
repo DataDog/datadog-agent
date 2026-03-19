@@ -1,7 +1,8 @@
 """BUILD for openscap."""
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -536,13 +537,15 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
+        # Use :openscap directly, not :openscap_pkg: these binaries are
+        # installed_files of openscap_pkg, so using it here would create a cycle.
         ":openscap",
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
         "@curl//:curl_pkg",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt_pkg",
-        "@gpg-error//:gpg-error",
+        "@gpg-error//:gpg-error_pkg",
         "@libselinux//:selinux_pkg",
         "@libsepol//:sepol_pkg",
         "@libxslt//:xslt_pkg",
@@ -582,6 +585,8 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
+        # Use :openscap directly, not :openscap_pkg: these binaries are
+        # installed_files of openscap_pkg, so using it here would create a cycle.
         ":openscap",
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
@@ -612,34 +617,15 @@ cc_binary(
     local_defines = COMMON_DEFINES,
 )
 
-so_symlink(
-    name = "libopenscap_symlink",
-    src = ":openscap",
-    libname = "libopenscap",
-    version = "33.1.2",
-)
-
-so_symlink(
-    name = "libopenscap_sce_symlink",
-    src = ":openscap_sce",
-    libname = "libopenscap_sce",
-    version = "33.1.2",
-)
-
-pkg_filegroup(
-    name = "lib_files",
-    srcs = [
-        ":libopenscap_symlink",
-        ":libopenscap_sce_symlink",
-    ],
+rewrite_rpath(
+    name = "bin_files_patched",
+    inputs = [":oscap", ":oscap-io"],
+    package_metadata = [],
 )
 
 pkg_files(
     name = "bin_files",
-    srcs = [
-        ":oscap",
-        ":oscap-io",
-    ],
+    srcs = [":bin_files_patched"],
     prefix = "bin/",
     attributes = pkg_attributes("0755"),
 )
@@ -658,11 +644,29 @@ pkg_files(
     attributes = pkg_attributes("0644"),
 )
 
+dd_cc_packaged(
+    name = "openscap_pkg",
+    input = ":openscap",
+    version = "33.1.2",
+    installed_files = [
+        ":bin_files",
+        ":xccdf-resources",
+        ":cpe_files",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "openscap_sce_pkg",
+    input = ":openscap_sce",
+    version = "33.1.2",
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":bin_files",
-        ":lib_files",
         ":xccdf-resources",
         ":cpe_files",
     ],
