@@ -663,6 +663,17 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{t}, detName, dataTime)
 	}
 
+	// Populate tb.logAnomalies from AnomalyTypeLog anomalies produced by detectors.
+	// These are distinct from metric anomalies and are served via /api/log-anomalies.
+	tb.logAnomalies = []observerdef.Anomaly{}
+	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
+	for _, a := range result.anomalies {
+		if a.Type == observerdef.AnomalyTypeLog {
+			tb.logAnomalies = append(tb.logAnomalies, a)
+			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
+		}
+	}
+
 	// Invalidate compressed correlations cache
 	tb.corrGeneration++
 
@@ -756,12 +767,24 @@ func (tb *TestBench) getStorage() *timeSeriesStorage {
 	return tb.engine.Storage()
 }
 
+// filterMetricAnomalies returns only AnomalyTypeMetric anomalies from a slice,
+// excluding log anomalies that may have been captured in the engine's raw store.
+func filterMetricAnomalies(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
+	result := anomalies[:0:0]
+	for _, a := range anomalies {
+		if a.Type != observerdef.AnomalyTypeLog {
+			result = append(result, a)
+		}
+	}
+	return result
+}
+
 // GetMetricsAnomalies returns all metric anomalies detected by TS detectors.
 func (tb *TestBench) GetMetricsAnomalies() []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return tb.resolveAnomalySeriesIDs(tb.engine.StateView().Anomalies())
+	return tb.resolveAnomalySeriesIDs(filterMetricAnomalies(tb.engine.StateView().Anomalies()))
 }
 
 // GetMetricsAnomaliesByDetector returns metric anomalies grouped by detector name.
@@ -771,7 +794,12 @@ func (tb *TestBench) GetMetricsAnomaliesByDetector() map[string][]observerdef.An
 
 	byDetector := tb.engine.StateView().AnomaliesByDetector()
 	for k, v := range byDetector {
-		byDetector[k] = tb.resolveAnomalySeriesIDs(v)
+		filtered := filterMetricAnomalies(v)
+		if len(filtered) == 0 {
+			delete(byDetector, k)
+			continue
+		}
+		byDetector[k] = tb.resolveAnomalySeriesIDs(filtered)
 	}
 	return byDetector
 }
@@ -784,7 +812,7 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 	// Resolve SourceSeriesIDs first, then filter by the requested series ID.
 	// We resolve all anomalies because the engine may store them with empty
 	// SourceSeriesID (e.g. RRCF anomalies) that resolve to the requested ID.
-	resolved := tb.resolveAnomalySeriesIDs(tb.engine.StateView().Anomalies())
+	resolved := tb.resolveAnomalySeriesIDs(filterMetricAnomalies(tb.engine.StateView().Anomalies()))
 	var result []observerdef.Anomaly
 	for _, a := range resolved {
 		if a.SourceSeriesID == seriesID {
