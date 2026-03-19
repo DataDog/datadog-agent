@@ -456,6 +456,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
+	var allMetrics []observerdef.MetricOutput
 
 	for _, meta := range allSeries {
 		keyStr := seriesKey(meta.Namespace, meta.Name, meta.Tags)
@@ -487,10 +488,11 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			}
 			allAnomalies = append(allAnomalies, result.Anomalies...)
 			allTelemetry = append(allTelemetry, result.Telemetry...)
+			allMetrics = append(allMetrics, result.Metrics...)
 		}
 	}
 
-	return observerdef.DetectionResult{Anomalies: allAnomalies, Telemetry: allTelemetry}
+	return observerdef.DetectionResult{Anomalies: allAnomalies, Telemetry: allTelemetry, Metrics: allMetrics}
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.

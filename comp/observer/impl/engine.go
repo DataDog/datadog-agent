@@ -260,6 +260,11 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
+	type metricWithDetector struct {
+		Metric       observerdef.MetricOutput
+		DetectorName string
+	}
+	var allMetrics []metricWithDetector
 
 	for _, detector := range detectors {
 		result := detector.Detect(e.storage, upTo)
@@ -279,10 +284,19 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			})
 		}
 		allTelemetry = append(allTelemetry, result.Telemetry...)
-		name := detector.Name()
 		for _, m := range result.Metrics {
-			e.storage.Add("detector", virtualMetricName(name, m.Name), m.Value, upTo, m.Tags)
+			allMetrics = append(allMetrics, metricWithDetector{
+				Metric:       m,
+				DetectorName: detector.Name(),
+			})
 		}
+	}
+
+	// *Note about metrics*
+	// When we emit these metrics, they are processed by detectors during the next advance cycle.
+	// This avoids a circular dependency where detectors need to know about each other's metrics.
+	for _, metricWithDetector := range allMetrics {
+		e.storage.Add("detector", virtualMetricName(metricWithDetector.DetectorName, metricWithDetector.Metric.Name), metricWithDetector.Metric.Value, upTo, metricWithDetector.Metric.Tags)
 	}
 
 	// Advance correlators so they can update their internal state.
