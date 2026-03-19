@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -59,7 +58,7 @@ func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ b
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
-	if coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
+	if d.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 

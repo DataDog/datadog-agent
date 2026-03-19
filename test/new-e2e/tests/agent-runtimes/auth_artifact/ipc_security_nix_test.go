@@ -38,7 +38,7 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 				removeFilesCmdTmpl: "sudo rm -f %s/* %s %s",
 				readLogCmdTmpl:     "tail -f -n +1 %v",
 				pathJoinFunction:   path.Join,
-				agentProcesses:     []string{"agent", "trace-agent", "process-agent", "security-agent"}, // process-agent runs via NPM; TODO IPC: add system-probe when it will load auth artifacts
+				agentProcesses:     []string{"agent", "trace-agent", "process-agent", "security-agent"}, // TODO IPC: add system-probe when it will load auth artifacts
 			},
 		},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
@@ -46,7 +46,6 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 				ec2.WithAgentOptions(
 					agentparams.WithAgentConfig(agentConfig),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
-					agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
 				),
 				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
 			)),

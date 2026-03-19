@@ -27,6 +27,9 @@ var processCheckConfigStr string
 //go:embed config/process_discovery_check.yaml
 var processDiscoveryCheckConfigStr string
 
+//go:embed config/process_check_in_core_agent.yaml
+var processCheckInCoreAgentConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
@@ -35,6 +38,9 @@ var systemProbeNPMConfigStr string
 
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
+
+//go:embed config/process_agent_refresh_nix.yaml
+var processAgentRefreshStr string
 
 //go:embed config/core_agent_refresh_nix.yaml
 var coreAgentRefreshStr string
@@ -76,24 +82,15 @@ func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
 	return statusMap
 }
 
-// assertRunningChecks asserts that the given checks are running across the process-agent
-// and the core agent's process component. On Linux, process/container/discovery checks run
-// in the core agent while connections runs in the standalone process-agent.
+// assertRunningChecks asserts that the given process agent checks are running on the given VM
 func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
 	statusMap := getAgentStatus(t, client)
 
-	// Combine enabled checks from both the standalone process-agent and the core agent's process component
-	var allEnabledChecks []string
-	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks...)
-	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessComponentStatus.Expvars.Map.EnabledChecks...)
-
-	assert.ElementsMatch(t, checks, allEnabledChecks)
+	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
 	if withSystemProbe {
-		// SysProbeProcessModuleEnabled can be reported by either the process-agent or the core agent component
-		sysProbeEnabled := statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled ||
-			statusMap.ProcessComponentStatus.Expvars.Map.SysProbeProcessModuleEnabled
-		assert.True(t, sysProbeEnabled, "system probe process module not enabled")
+		assert.True(t, statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled,
+			"system probe process module not enabled")
 	}
 }
 
@@ -336,6 +333,20 @@ func assertContainersCollected(t *testing.T, payloads []*aggregator.ProcessPaylo
 }
 
 // assertContainersNotCollected asserts that the given containers are not collected
+func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, containers []string) {
+	for _, container := range containers {
+		var found bool
+		for _, payload := range payloads {
+			if findContainer(container, payload.Containers) {
+				found = true
+				t.Logf("Payload:\n%+v\n", payload)
+				break
+			}
+		}
+		assert.False(t, found, "%s container found", container)
+	}
+}
+
 // findContainer returns whether the container with the given name exists in the given list of
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {

@@ -7,4 +7,4 @@ process_config:
     enabled: false
 
   run_in_core_agent:
-    enabled: false
+    enabled: true

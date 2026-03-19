@@ -40,12 +40,12 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 		enabled bool
 	}{
 		{
-			name:    "Process check should not run in the process agent",
+			name:    "Process check should not run in the process agent when run_in_core_agent is enabled",
 			flavor:  flavor.ProcessAgent,
 			enabled: false,
 		},
 		{
-			name:    "Process check runs in the core agent",
+			name:    "Process check runs in the core agent when run_in_core_agent is enabled",
 			flavor:  flavor.DefaultAgent,
 			enabled: true,
 		},
@@ -55,6 +55,7 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			configs := map[string]interface{}{
 				"process_config.process_collection.enabled": true,
+				"process_config.run_in_core_agent.enabled":  true,
 			}
 
 			flavor.SetFlavor(tc.flavor)

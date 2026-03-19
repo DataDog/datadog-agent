@@ -7,6 +7,7 @@ package setup
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -56,6 +57,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.container_collection.enabled",
 			defaultValue: true,
+		},
+		{
+			key:          "process_config.run_in_core_agent.enabled",
+			defaultValue: runtime.GOOS == "linux",
 		},
 		{
 			key:          "process_config.queue_size",
@@ -157,6 +162,11 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
+	processRunInAgent := true
+	if runtime.GOOS != "linux" {
+		processRunInAgent = false
+	}
+
 	for _, tc := range []struct {
 		key, env, value string
 		expType         string
@@ -227,6 +237,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
 			value:    "true",
 			expected: true,
+		},
+		{
+			key:      "process_config.run_in_core_agent.enabled",
+			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
+			value:    "true",
+			expected: processRunInAgent,
 		},
 		{
 			key:      "process_config.enabled",

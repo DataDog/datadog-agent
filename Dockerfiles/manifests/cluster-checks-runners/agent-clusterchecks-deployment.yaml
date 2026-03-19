@@ -110,6 +110,8 @@ spec:
             # Remove unused features
             - name: DD_PROCESS_AGENT_ENABLED
               value: "false"
+            - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
+              value: "false"
             - name: DD_LOGS_ENABLED
               value: "false"
             - name: DD_APM_ENABLED

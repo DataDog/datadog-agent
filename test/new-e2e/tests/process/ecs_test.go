@@ -6,6 +6,7 @@
 package process
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ type ecsCPUStressEnv struct {
 	environments.ECS
 }
 
-func ecsEC2CPUStressProvisioner() provisioners.PulumiEnvRunFunc[ecsCPUStressEnv] {
+func ecsEC2CPUStressProvisioner(runInCoreAgent bool) provisioners.PulumiEnvRunFunc[ecsCPUStressEnv] {
 	return func(ctx *pulumi.Context, env *ecsCPUStressEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -44,6 +45,7 @@ func ecsEC2CPUStressProvisioner() provisioners.PulumiEnvRunFunc[ecsCPUStressEnv]
 			scenecs.WithECSOptions(scenecs.WithLinuxNodeGroup()),
 			scenecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
+				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", strconv.FormatBool(runInCoreAgent)),
 			),
 			scenecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				return cpustress.EcsAppDefinition(e, clusterArn)
@@ -62,7 +64,7 @@ func TestECSEC2TestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSEC2Suite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		provisioners.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(), nil))}
+		provisioners.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(false), nil))}
 
 	e2e.Run(t, &s, e2eParams...)
 }
@@ -73,14 +75,43 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+	}, 5*time.Minute, 10*time.Second)
+}
+
+// ECSEC2CoreAgentSuite runs the same test as ECSEC2Suite but with the process check running in the core agent
+// This is duplicated as the tests have been flaky. This may be due to how pulumi is handling the provisioning of
+// ecs tasks.
+type ECSEC2CoreAgentSuite struct {
+	e2e.BaseSuite[ecsCPUStressEnv]
+}
+
+func TestECSEC2CoreAgentSuite(t *testing.T) {
+	t.Parallel()
+	s := ECSEC2CoreAgentSuite{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		provisioners.NewTypedPulumiProvisioner("ecsEC2CoreAgentCPUStress", ecsEC2CPUStressProvisioner(true), nil))}
+
+	e2e.Run(t, &s, e2eParams...)
+}
+
+func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
+	t := s.T()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 		require.NotEmpty(c, payloads, "no process payloads returned")
 
-		// Process checks run in the core agent, so process-agent should not be collected
+		// Check just the last payload as the process-agent should terminate by itself after a while as we are
+		// expecting the process checks to run in the core agent.
 		payloads = payloads[len(payloads)-1:]
 		requireProcessNotCollected(c, payloads, "process-agent")
 	}, 5*time.Minute, 10*time.Second)
 
-	// Flush the server to ensure payloads are received from the process checks running in the core agent
+	// Flush the server to ensure payloads are received from the process checks that are running on the core agent
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

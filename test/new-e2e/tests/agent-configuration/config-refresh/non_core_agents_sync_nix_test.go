@@ -66,7 +66,6 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		)),
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
@@ -135,7 +134,6 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		)),
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(

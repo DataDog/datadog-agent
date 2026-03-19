@@ -18,7 +18,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -89,23 +88,23 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			enabled:          false,
 		},
 		{
-			name: "check in the process-agent depends on platform",
+			name: "check is disabled in the process-agent as run in core agent is enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
+				"process_config.run_in_core_agent.enabled":    true,
 			},
 
 			containerizedEnv: true,
 			flavor:           flavor.ProcessAgent,
-			// On Linux, process checks run in core agent so this is disabled in process-agent.
-			// On other platforms, the check runs in the process-agent.
-			enabled: !coreagent.ProcessChecksRunInCoreAgent(),
+			enabled:          false,
 		},
 		{
-			name: "check is enabled in the core agent on linux",
+			name: "check is enabled in the core agent as run in core agent is enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
+				"process_config.run_in_core_agent.enabled":    true,
 			},
 
 			containerizedEnv: true,
