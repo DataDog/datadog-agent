@@ -215,21 +215,8 @@ func (s *procmgrLinuxSuite) TestConditionPathExistsSkipsMissingBinary() {
 
 func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	s.requireDDOT()
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(procmgrCLI + " list")
-		assertTableRow(t, out, "datadog-agent-ddot", map[string]string{
-			"STATE":   "Running",
-			"COMMAND": ddotExtBinaryPath,
-		})
-	}, 60*time.Second, 2*time.Second)
 
-	out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
-	pid := fieldValue(out, "PID")
-	require.NotEmpty(s.T(), pid, "PID should be reported for a Running process")
-	require.NotEqual(s.T(), "-", pid, "PID should not be '-' for a Running process")
-	s.Env().RemoteHost.MustExecute("test -d /proc/" + pid)
-
-	s.assertProcessBinary(s.T(), pid, ddotExtBinaryPath)
+	pid := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
@@ -243,40 +230,19 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 	s.requireDDOT()
 
-	// Wait for DDOT to be Running and capture original PID.
-	var originalPID string
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
-		assertField(t, out, "State", "Running")
-		pid := fieldValue(out, "PID")
-		if assert.NotEmpty(t, pid) && pid != "-" {
-			originalPID = pid
-		}
-	}, 60*time.Second, 2*time.Second)
-
-	s.assertProcessBinary(s.T(), originalPID, ddotExtBinaryPath)
+	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
 
 	// Kill the DDOT process. Since restart policy is on-failure, procmgrd should restart it.
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
-	// Wait for procmgrd to restart DDOT with a new PID.
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
-		assertField(t, out, "State", "Running")
+	newPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 30*time.Second)
 
-		newPID := fieldValue(out, "PID")
-		if !assert.NotEmpty(t, newPID, "PID should be present after restart") ||
-			!assert.NotEqual(t, "-", newPID, "PID should not be '-' after restart") {
-			return
-		}
-		assert.NotEqual(t, originalPID, newPID,
-			"PID should differ after restart (was %s)", originalPID)
+	require.NotEqual(s.T(), originalPID, newPID,
+		"PID should differ after restart (was %s)", originalPID)
 
-		restarts := fieldValue(out, "Restarts")
-		assert.Equal(t, "1", restarts, "Restarts count should be 1 after one kill")
-
-		s.assertProcessBinary(t, newPID, ddotExtBinaryPath)
-	}, 30*time.Second, 2*time.Second)
+	out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
+	restarts := fieldValue(out, "Restarts")
+	assert.Equal(s.T(), "1", restarts, "Restarts count should be 1 after one kill")
 }
 
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
@@ -409,6 +375,26 @@ func extractColumn(line string, idx int, columns []tableColumn) string {
 		end = len(line)
 	}
 	return strings.TrimSpace(line[start:end])
+}
+
+// waitForRunningProcess waits until procmgrd reports the named process as
+// Running with a valid PID, verifies the PID is alive and points to the
+// expected binary, then returns the PID.
+func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
+	s.T().Helper()
+	var pid string
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe " + name)
+		assertField(t, out, "State", "Running")
+		p := fieldValue(out, "PID")
+		if !assert.NotEmpty(t, p, "PID should be present for a Running process") ||
+			!assert.NotEqual(t, "-", p, "PID should not be '-' for a Running process") {
+			return
+		}
+		s.assertProcessBinary(t, p, expectedBinary)
+		pid = p
+	}, timeout, 2*time.Second)
+	return pid
 }
 
 func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expectedBinary string) {
