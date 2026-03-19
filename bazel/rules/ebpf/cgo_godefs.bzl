@@ -70,7 +70,7 @@ def _cgo_godefs_impl(ctx):
 
     cmd = (
         "ROOT=$PWD && cd {src_dir} && " +
-        # TODO: CC=clang uses the system clang rather than a hermetic
+        # TODO(ABLD-410): CC=clang uses the system clang rather than a hermetic
         # toolchain binary. The LLVM BPF toolchain's clang only supports BPF
         # targets and lacks host-target backends (x86_64/aarch64) that cgo
         # needs. To hermitize this, either ship a clang with host backends
