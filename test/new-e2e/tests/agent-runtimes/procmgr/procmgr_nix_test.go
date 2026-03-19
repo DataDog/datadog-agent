@@ -8,8 +8,7 @@ package procmgr
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -46,25 +46,7 @@ auto_start: true
 restart: never
 description: should not start
 `
-
-	ddotConfigRepoPath = "pkg/fleet/installer/packages/embedded/tmpl/gen/debrpm/datadog-agent-ddot.yaml"
 )
-
-func repoRoot() string {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("cannot determine test file path")
-	}
-	// thisFile is test/new-e2e/tests/agent-runtimes/procmgr/procmgr_nix_test.go
-	return filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..")
-}
-
-func readDDOTProcessConfig(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(repoRoot(), ddotConfigRepoPath))
-	require.NoError(t, err, "failed to read DDOT process config from %s", ddotConfigRepoPath)
-	return string(data)
-}
 
 type procmgrLinuxSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -74,13 +56,12 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
-	ddotProcessConfig := readDDOTProcessConfig(t)
 	e2e.Run(t, &procmgrLinuxSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithFile("/etc/datadog-agent/processes.d/test-sleep.yaml", testProcessConfig, true),
-					agentparams.WithFile("/etc/datadog-agent/processes.d/datadog-agent-ddot.yaml", ddotProcessConfig, true),
+					agentparams.WithFile("/etc/datadog-agent/processes.d/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
 					agentparams.WithFile("/etc/datadog-agent/processes.d/missing-binary.yaml", missingBinaryConfig, true),
 				),
 			),
@@ -232,6 +213,8 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 
 	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
 
+	baselineRestarts := s.getRestartCount("datadog-agent-ddot")
+
 	// Kill the DDOT process. Since restart policy is on-failure, procmgrd should restart it.
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
@@ -239,10 +222,8 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 
 	require.NotEqual(s.T(), originalPID, newPID,
 		"PID should differ after restart (was %s)", originalPID)
-
-	out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe datadog-agent-ddot")
-	restarts := fieldValue(out, "Restarts")
-	assert.Equal(s.T(), "1", restarts, "Restarts count should be 1 after one kill")
+	assert.Equal(s.T(), baselineRestarts+1, s.getRestartCount("datadog-agent-ddot"),
+		"Restarts should have increased by 1 (baseline %d)", baselineRestarts)
 }
 
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
@@ -395,6 +376,14 @@ func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, t
 		pid = p
 	}, timeout, 2*time.Second)
 	return pid
+}
+
+func (s *procmgrLinuxSuite) getRestartCount(name string) int {
+	s.T().Helper()
+	out := s.Env().RemoteHost.MustExecute(procmgrCLI + " describe " + name)
+	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
+	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
+	return count
 }
 
 func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expectedBinary string) {
