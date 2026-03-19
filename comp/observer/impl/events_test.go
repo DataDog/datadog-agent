@@ -112,6 +112,15 @@ func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64) observerd
 	}
 }
 
+type stubContextProvider struct {
+	context observerdef.MetricContext
+	ok      bool
+}
+
+func (p *stubContextProvider) GetContext(_ string) (observerdef.MetricContext, bool) {
+	return p.context, p.ok
+}
+
 type resettableDetector struct {
 	name       string
 	resetCount int
@@ -177,6 +186,51 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	assert.Len(t, anomalyEvents, 2)
 	assert.Equal(t, "cpu:avg", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
 	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
+}
+
+func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {
+	anomalies := []observerdef.Anomaly{{
+		Source: observerdef.AnomalySource{
+			Namespace: "log_metrics_extractor",
+			Name:      "log.pattern.abc.count",
+			Aggregate: observerdef.AggregateCount,
+		},
+		DetectorName:   "test",
+		Description:    "detector-authored description",
+		Timestamp:      99,
+		SourceSeriesID: "ns|log.pattern.abc.count|",
+	}}
+
+	e := newEngine(engineConfig{
+		storage: newTimeSeriesStorage(),
+		detectors: []observerdef.Detector{
+			&anomalyDetector{name: "test", anomalies: anomalies},
+		},
+		contextProviders: map[string]observerdef.ContextProvider{
+			"log_metrics_extractor": &stubContextProvider{
+				context: observerdef.MetricContext{
+					Pattern: "error <*> timeout",
+					Example: "very long example line that should still be attached as context without replacing the detector description",
+					Source:  "log_metrics_extractor",
+				},
+				ok: true,
+			},
+		},
+	})
+
+	sink := &collectingSink{}
+	e.Subscribe(sink)
+
+	e.Advance(100)
+
+	anomalyEvents := sink.eventsOfKind(eventAnomalyCreated)
+	require.Len(t, anomalyEvents, 1)
+	got := anomalyEvents[0].anomalyCreated.anomaly
+	assert.Equal(t, "detector-authored description", got.Description)
+	require.NotNil(t, got.Context)
+	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
+	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
+	assert.Contains(t, got.Context.Example, "very long example line")
 }
 
 func TestAdvanceEmitsCorrelationUpdatedEvents(t *testing.T) {

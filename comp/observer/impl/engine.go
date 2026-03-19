@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -61,10 +60,10 @@ type engine struct {
 	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
 	rawAnomalyMu         sync.RWMutex
-	rawAnomalyWindow     int64                           // seconds to keep (0 = unlimited)
-	maxRawAnomalies      int                             // max count to keep (0 = unlimited)
-	currentDataTime      int64                           // latest anomaly timestamp seen
-	totalAnomalyCount    int                                  // total count ever (no cap)
+	rawAnomalyWindow     int64                              // seconds to keep (0 = unlimited)
+	maxRawAnomalies      int                                // max count to keep (0 = unlimited)
+	currentDataTime      int64                              // latest anomaly timestamp seen
+	totalAnomalyCount    int                                // total count ever (no cap)
 	uniqueAnomalySources map[observerdef.AnomalySource]bool // unique sources that had anomalies
 
 	// Accumulated correlations from all advance cycles.
@@ -327,10 +326,9 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	if !ok {
 		return
 	}
-	if a.Description == "" {
-		a.Description = fmt.Sprintf("Pattern %q from %s (e.g. %q)",
-			ctx.Pattern, ctx.Source, truncate(ctx.Example, 120))
-	}
+	ctxCopy := ctx
+	ctxCopy.Example = truncate(ctxCopy.Example, 120)
+	a.Context = &ctxCopy
 }
 
 // processAnomaly sends an anomaly to all registered correlators.

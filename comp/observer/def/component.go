@@ -309,9 +309,12 @@ type Anomaly struct {
 	DetectorName string
 	Title        string
 	Description  string
-	Tags         []string
-	Timestamp    int64    // when the anomaly was detected (unix seconds)
-	Score        *float64 // confidence/severity score (nil if not available)
+	// Context carries optional enrichment about the originating signal, such as
+	// a synthesized pattern and example source data.
+	Context   *MetricContext
+	Tags      []string
+	Timestamp int64    // when the anomaly was detected (unix seconds)
+	Score     *float64 // confidence/severity score (nil if not available)
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
