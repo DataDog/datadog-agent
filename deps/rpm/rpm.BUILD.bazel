@@ -128,7 +128,7 @@ cc_shared_library(
         "@popt//:popt_pkg",
         "@zlib//:z_pkg",
         "@xz//:lzma_pkg",
-        "@bzip2//:bz2",
+        "@bzip2//:bz2_pkg",
         "@openssl//:openssl_shared",
     ],
     user_link_flags = select({

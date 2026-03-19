@@ -51,7 +51,7 @@ filegroup(
         "@lua//:liblua",
         "@acl",
         "@attr",
-        "@bzip2//:bz2",
+        "@bzip2//:bz2_pkg",
         "@gcrypt",
         "@gpg-error",
         "@libpcap//:pcap",
@@ -492,7 +492,7 @@ cc_shared_library(
     ],
     dynamic_deps = [
         "@attr//:attr_pkg",
-        "@bzip2//:bz2",
+        "@bzip2//:bz2_pkg",
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt",
@@ -538,7 +538,7 @@ cc_binary(
     dynamic_deps = [
         ":openscap",
         "@attr//:attr_pkg",
-        "@bzip2//:bz2",
+        "@bzip2//:bz2_pkg",
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt",
@@ -584,7 +584,7 @@ cc_binary(
     dynamic_deps = [
         ":openscap",
         "@attr//:attr_pkg",
-        "@bzip2//:bz2",
+        "@bzip2//:bz2_pkg",
         "@curl//:curl",
         "@gcrypt//:gcrypt",
         "@gpg-error//:gpg-error_pkg",
