@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -103,14 +104,27 @@ func (t *Tracer) Stop() {
 
 // GetActiveConnections returns the network connections for the given client
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
-	// Get connections from the tracer
+	latestTime, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error retrieving latest timestamp: %w", err)
+	}
+
+	// Get connections from the tracer, collecting expired entries along the way
 	buffer := network.ClientPool.Get(clientID)
-	err := t.connTracer.GetConnections(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
+	var expired []network.ConnectionStats
+	err = t.connTracer.GetConnections(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
+		if c.IsExpired(uint64(latestTime), t.timeoutForConn(c)) {
+			expired = append(expired, *c)
+			return false
+		}
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting connections: %w", err)
 	}
+
+	// Remove expired entries from the tracer and state
+	t.removeEntries(expired)
 
 	// Convert buffer to connections slice
 	activeConns := buffer.Connections()
@@ -124,7 +138,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	// Get connection delta for this client from state
 	delta := t.state.GetDelta(
 		clientID,
-		uint64(time.Now().UnixNano()),
+		uint64(latestTime),
 		activeConns,
 		dnsStats,
 		nil, // USM stats (not implemented on Darwin yet)
@@ -137,7 +151,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 		ips[conn.Dest] = struct{}{}
 	}
 
-	// Clear closed connections after delta computation
+	// Clear expired clients from state
 	t.state.RemoveExpiredClients(time.Now())
 
 	// Assign delta connections to buffer and create Connections object
@@ -227,6 +241,32 @@ func (t *Tracer) DebugHostConntrack(_ any) (*DebugConntrackTable, error) {
 func (t *Tracer) DumpProcessCache(w io.Writer) error {
 	_, err := w.Write([]byte("process cache not implemented on Darwin\n"))
 	return err
+}
+
+func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
+	if c.Type == network.TCP {
+		return uint64(t.config.TCPConnTimeout.Nanoseconds())
+	}
+	return defaultUDPConnTimeoutNanoSeconds
+}
+
+const defaultUDPConnTimeoutNanoSeconds = uint64(120 * time.Second)
+
+func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
+	now := time.Now()
+	toRemove := make([]*network.ConnectionStats, 0, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		if err := t.connTracer.Remove(entry); err != nil {
+			log.Warnf("failed to remove entry from connections: %s", err)
+			continue
+		}
+		toRemove = append(toRemove, entry)
+	}
+	t.state.RemoveConnections(toRemove)
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
+	}
 }
 
 // storeClosedConnection handles closed connections from the tracer callback
