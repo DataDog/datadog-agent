@@ -499,6 +499,17 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
+
+	// BulkSeriesStatus returns the point count (up to endTime) and write
+	// generation for each handle in a single lock acquisition. This avoids
+	// per-series lock overhead in hot detector loops during replay.
+	BulkSeriesStatus(handles []SeriesHandle, endTime int64) []SeriesStatus
+}
+
+// SeriesStatus holds point count and write generation for a single series.
+type SeriesStatus struct {
+	PointCount      int
+	WriteGeneration int64
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.

@@ -63,20 +63,27 @@ type MetricScoreResult struct {
 	UnknownDetectionCount int               `json:"unknown_detection_count"`
 }
 
-// LoadMetricGroundTruth reads TP/FP metric lists from a scenario's metadata.json.
+// LoadMetricGroundTruth reads TP metric lists from ground_truth.json in the
+// scenarios directory. This file is committed and keyed by scenario name,
+// separate from metadata.json which is downloaded from S3.
 func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTruth, error) {
-	path := filepath.Join(scenariosDir, scenarioName, "metadata.json")
+	path := filepath.Join(scenariosDir, "ground_truth.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading metadata %s: %w", path, err)
+		return nil, fmt.Errorf("reading ground truth %s: %w", path, err)
 	}
 
-	var gt MetricGroundTruth
-	if err := json.Unmarshal(data, &gt); err != nil {
-		return nil, fmt.Errorf("parsing metadata JSON: %w", err)
+	var allGT map[string]*MetricGroundTruth
+	if err := json.Unmarshal(data, &allGT); err != nil {
+		return nil, fmt.Errorf("parsing ground truth JSON: %w", err)
 	}
 
-	return &gt, nil
+	gt, ok := allGT[scenarioName]
+	if !ok {
+		return nil, fmt.Errorf("scenario %q not found in ground_truth.json", scenarioName)
+	}
+
+	return gt, nil
 }
 
 // LoadDisruptionStartUnix returns the disruption start timestamp in unix seconds

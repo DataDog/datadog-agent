@@ -31,6 +31,10 @@ type scanmwSeriesState struct {
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
 	segmentStartTime int64
+
+	// Reusable point buffer — grows once per series, reused across scans
+	// to avoid per-call allocation from GetSeriesRange.
+	buf []observer.Point
 }
 
 // ScanMWDetector detects changepoints by scanning all possible split points
@@ -118,9 +122,18 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 		d.cachedGen = gen
 	}
 
+	// Bulk-fetch point counts and write generations in a single lock acquisition.
+	handles := make([]observer.SeriesHandle, len(d.cachedSeries))
+	for i, meta := range d.cachedSeries {
+		handles[i] = meta.Handle
+	}
+	bulkStatus := storage.BulkSeriesStatus(handles, dataTime)
+
 	var allAnomalies []observer.Anomaly
 
-	for _, meta := range d.cachedSeries {
+	for i, meta := range d.cachedSeries {
+		status := bulkStatus[i]
+
 		for _, agg := range d.Aggregations {
 			sk := scanmwStateKey{handle: meta.Handle, agg: agg}
 
@@ -136,29 +149,35 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
 			// During live ingestion, writeGen changes on every write so this
 			// condition falls through to the gen check and behaves as before.
-			visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
-			currentGen := storage.WriteGeneration(meta.Handle)
-			if visibleCount < state.lastProcessedCount+d.MinSegment && currentGen == state.lastWriteGen {
+			if status.PointCount < state.lastProcessedCount+d.MinSegment && status.WriteGeneration == state.lastWriteGen {
 				continue
 			}
 
-			// Read the active segment.
-			series := storage.GetSeriesRange(meta.Handle, state.segmentStartTime, dataTime, agg)
-			if series == nil || len(series.Points) < d.MinPoints {
-				state.lastProcessedCount = visibleCount
-				state.lastWriteGen = currentGen
+			// Collect points into reusable buffer to avoid per-call allocation.
+			state.buf = state.buf[:0]
+			var seriesMeta *observer.Series
+			storage.ForEachPoint(meta.Handle, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+				if seriesMeta == nil {
+					sCopy := *s
+					seriesMeta = &sCopy
+				}
+				state.buf = append(state.buf, p)
+			})
+
+			if seriesMeta == nil || len(state.buf) < d.MinPoints {
+				state.lastProcessedCount = status.PointCount
+				state.lastWriteGen = status.WriteGeneration
 				continue
 			}
 
-			anomaly, changeIdx, found := d.scanMW(series.Points, series, agg)
+			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
 			if found {
 				allAnomalies = append(allAnomalies, anomaly)
-				// Advance segment start to the changepoint timestamp.
-				state.segmentStartTime = series.Points[changeIdx].Timestamp
+				state.segmentStartTime = state.buf[changeIdx].Timestamp
 			}
 
-			state.lastProcessedCount = visibleCount
-			state.lastWriteGen = currentGen
+			state.lastProcessedCount = status.PointCount
+			state.lastWriteGen = status.WriteGeneration
 		}
 	}
 
