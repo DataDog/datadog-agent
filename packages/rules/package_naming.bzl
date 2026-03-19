@@ -104,7 +104,7 @@ def _package_name_variables_impl(ctx):
     values["compilation_mode"] = ctx.var.get("COMPILATION_MODE")
 
     # For initial testing: buildifier: disable=print
-    print(json.encode_indent(values))
+    # print(json.encode_indent(values))
     return PackageVariablesInfo(values = values)
 
 package_name_variables = rule(
