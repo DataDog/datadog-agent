@@ -222,7 +222,7 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
       "id_tags": null,
       "tags": ["device_namespace:test-namespace", "device_ip:10.0.0.1"],
       "ip_address": "10.0.0.1",
-      "status": 0
+      "status": 1
     }
   ],
   "collect_timestamp": 1754043600

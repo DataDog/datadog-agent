@@ -107,6 +107,7 @@ func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string, tags []
 				ID:        deviceID,
 				IPAddress: deviceIP,
 				Tags:      tags,
+				Status:    devicemetadata.DeviceStatusReachable,
 			},
 		},
 		CollectTimestamp: s.clock.Now().Unix(),
