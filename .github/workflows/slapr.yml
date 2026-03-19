@@ -8,6 +8,7 @@ on:
 
 jobs:
   run_slapr:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -20,12 +21,11 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         token: ${{ steps.octo-sts.outputs.token }}
-    - uses: DataDog/slapr@099b695b7d2a10263c6918c58b022c3ccbdef4d5
+    - uses: DataDog/slapr@b67da6553b2d723f7a01ce07e7b3764e12112b6c
       with:
         review-map: tasks/libs/pipeline/github_slack_map.yaml
-      env:
-        GITHUB_TOKEN: "${{ steps.octo-sts.outputs.token }}"
-        SLACK_CHANNEL_ID: "${{ vars.SLACK_CHANNEL_ID }}"
-        SLACK_API_TOKEN: "${{ secrets.SLAPR_SLACK_API_TOKEN }}"
-        SLAPR_BOT_USER_ID: "${{ vars.SLAPR_BOT_USER_ID }}"
-        SLAPR_EMOJI_APPROVED: done
+        github-token: ${{ steps.octo-sts.outputs.token }}
+        slack-api-token: ${{ secrets.SLAPR_SLACK_API_TOKEN }}
+        slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
+        bot-user-id: ${{ vars.SLAPR_BOT_USER_ID }}
+        emoji-approved: done
