@@ -121,7 +121,7 @@ _cgo_godefs = rule(
         "src": attr.label(
             mandatory = True,
             allow_single_file = [".go"],
-            doc = "The Go source file containing C type references (import \"C\").",
+            doc = """The Go source file containing C type references (import "C").""",
         ),
         "_std_deps": attr.label_list(
             default = [
