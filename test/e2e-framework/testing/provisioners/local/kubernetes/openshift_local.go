@@ -74,6 +74,12 @@ func openShiftLocalRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, pa
 	}
 
 	if params.agentOptions != nil {
+		for _, hook := range params.preAgentHooks {
+			if err := hook(&localEnv, kubeProvider); err != nil {
+				return err
+			}
+		}
+
 		params.agentOptions = append(
 			[]kubernetesagentparams.Option{
 				func(p *kubernetesagentparams.Params) error {

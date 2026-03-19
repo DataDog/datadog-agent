@@ -8,6 +8,7 @@ package ssi
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	scenarioeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
@@ -21,10 +22,14 @@ import (
 	provlocal "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 // ProvisionerType represents the type of Kubernetes provisioner to use.
 type ProvisionerType string
+
+// PreAgentHook lets tests inject setup after the provider is ready and before agent installation.
+type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
 
 const (
 	// ProvisionerKindAWS uses Kind running on an AWS VM (default).
@@ -41,17 +46,10 @@ const (
 	ProvisionerOpenShiftLocal ProvisionerType = "openshift-local"
 )
 
-const openShiftSSIHelmOverrides = `
-datadog:
-  csi:
-    enabled: false
-datadog-csi-driver:
-  enabled: false
-`
-
 // ProvisionerOptions contains the common options for Kubernetes provisioners.
 type ProvisionerOptions struct {
 	AgentOptions                  []kubernetesagentparams.Option
+	PreAgentHook                  PreAgentHook
 	WorkloadAppFunc               kubeComp.WorkloadAppFunc
 	AgentDependentWorkloadAppFunc kubeComp.AgentDependentWorkloadAppFunc
 }
@@ -179,11 +177,10 @@ func openShiftProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 	var openShiftOpts []provopenshift.ProvisionerOption
 
 	agentOpts := append([]kubernetesagentparams.Option{}, opts.AgentOptions...)
-	agentOpts = append(agentOpts, kubernetesagentparams.WithHelmValues(openShiftSSIHelmOverrides))
-	if len(opts.AgentOptions) > 0 {
-		openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(agentOpts...))
-	} else {
-		openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(kubernetesagentparams.WithHelmValues(openShiftSSIHelmOverrides)))
+	agentOpts = append(agentOpts, kubernetesagentparams.WithTimeout(1800))
+	openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(agentOpts...))
+	if opts.PreAgentHook != nil {
+		openShiftOpts = append(openShiftOpts, provopenshift.WithPreAgentHook(provopenshift.PreAgentHook(opts.PreAgentHook)))
 	}
 	if opts.WorkloadAppFunc != nil {
 		openShiftOpts = append(openShiftOpts, provopenshift.WithWorkloadApp(provopenshift.WorkloadAppFunc(opts.WorkloadAppFunc)))
@@ -199,11 +196,10 @@ func openShiftLocalProvisioner(opts ProvisionerOptions) provisioners.TypedProvis
 	var openShiftOpts []provlocal.ProvisionerOption
 
 	agentOpts := append([]kubernetesagentparams.Option{}, opts.AgentOptions...)
-	agentOpts = append(agentOpts, kubernetesagentparams.WithHelmValues(openShiftSSIHelmOverrides))
-	if len(opts.AgentOptions) > 0 {
-		openShiftOpts = append(openShiftOpts, provlocal.WithAgentOptions(agentOpts...))
-	} else {
-		openShiftOpts = append(openShiftOpts, provlocal.WithAgentOptions(kubernetesagentparams.WithHelmValues(openShiftSSIHelmOverrides)))
+	agentOpts = append(agentOpts, kubernetesagentparams.WithTimeout(1800))
+	openShiftOpts = append(openShiftOpts, provlocal.WithAgentOptions(agentOpts...))
+	if opts.PreAgentHook != nil {
+		openShiftOpts = append(openShiftOpts, provlocal.WithPreAgentHook(provlocal.PreAgentHook(opts.PreAgentHook)))
 	}
 	if opts.WorkloadAppFunc != nil {
 		openShiftOpts = append(openShiftOpts, provlocal.WithWorkloadApp(opts.WorkloadAppFunc))

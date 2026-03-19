@@ -10,6 +10,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -129,6 +131,12 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	var agent *agentComp.KubernetesAgent
 	var dependsOnDDAgent pulumi.ResourceOption
 	if params.agentOptions != nil {
+		for _, hook := range params.preAgentHooks {
+			if err := hook(&gcpEnv, openshiftKubeProvider); err != nil {
+				return err
+			}
+		}
+
 		params.agentOptions = append(params.agentOptions,
 			func(p *kubernetesagentparams.Params) error {
 				p.HelmValues = append(p.HelmValues, agentComp.BuildOpenShiftHelmValues().ToYAMLPulumiAssetOutput())
@@ -221,12 +229,20 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			}
 
 			// Dogstatsd clients that report to the standalone dogstatsd deployment
-			if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			dogstatsdStandaloneApp, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */)
+			if err != nil {
+				return err
+			}
+			if err := labelOpenShiftPrivilegedNamespace(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd-standalone", utils.PulumiDependsOn(dogstatsdStandaloneApp)); err != nil {
 				return err
 			}
 
 			// Dogstatsd clients that report to the Agent
-			if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			dogstatsdApp, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */)
+			if err != nil {
+				return err
+			}
+			if err := labelOpenShiftPrivilegedNamespace(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd", utils.PulumiDependsOn(dogstatsdApp)); err != nil {
 				return err
 			}
 		}
@@ -255,4 +271,26 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	}
 
 	return nil
+}
+
+// OpenShift rejects CSI inline volumes unless the namespace enforces the privileged
+// pod security level, so patch the dogstatsd workload namespaces accordingly.
+func labelOpenShiftPrivilegedNamespace(e *gcp.Environment, kubeProvider *kubernetesNewProvider.Provider, namespace string, opts ...pulumi.ResourceOption) error {
+	resourceOpts := append([]pulumi.ResourceOption{pulumi.Provider(kubeProvider)}, opts...)
+	ns, err := corev1.GetNamespace(e.Ctx(), namespace, pulumi.ID(namespace), nil, resourceOpts...)
+	if err != nil {
+		return err
+	}
+
+	_, err = corev1.NewNamespacePatch(e.Ctx(), namespace+"-privileged-pss", &corev1.NamespacePatchArgs{
+		Metadata: metav1.ObjectMetaPatchArgs{
+			Name: ns.Metadata.Name(),
+			Labels: pulumi.StringMap{
+				"pod-security.kubernetes.io/enforce": pulumi.String("privileged"),
+				"pod-security.kubernetes.io/warn":    pulumi.String("privileged"),
+				"pod-security.kubernetes.io/audit":   pulumi.String("privileged"),
+			},
+		},
+	}, append(resourceOpts, utils.PulumiDependsOn(ns))...)
+	return err
 }

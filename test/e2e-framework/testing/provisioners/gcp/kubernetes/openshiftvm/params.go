@@ -26,6 +26,7 @@ type ProvisionerParams struct {
 	name                           string
 	fakeintakeOptions              []fakeintake.Option
 	agentOptions                   []kubernetesagentparams.Option
+	preAgentHooks                  []PreAgentHook
 	openshiftOptions               []pulumi.ResourceOption
 	workloadAppFuncs               []WorkloadAppFunc
 	agentDependentWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
@@ -38,6 +39,7 @@ func newProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		name:                           "openshiftvm",
 		fakeintakeOptions:              []fakeintake.Option{},
 		agentOptions:                   []kubernetesagentparams.Option{},
+		preAgentHooks:                  []PreAgentHook{},
 		workloadAppFuncs:               []WorkloadAppFunc{},
 		agentDependentWorkloadAppFuncs: []kubeComp.AgentDependentWorkloadAppFunc{},
 	}
@@ -86,10 +88,21 @@ func WithOpenShiftOptions(opts ...pulumi.ResourceOption) ProvisionerOption {
 // WorkloadAppFunc is a function that deploys a workload app to a kube provider.
 type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
+// PreAgentHook is a function executed after the Kubernetes provider is ready but before the agent is installed.
+type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
+
 // WithWorkloadApp adds a workload app to the environment.
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithPreAgentHook adds a hook that runs before the agent installation.
+func WithPreAgentHook(hook PreAgentHook) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.preAgentHooks = append(params.preAgentHooks, hook)
 		return nil
 	}
 }
