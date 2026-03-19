@@ -84,23 +84,10 @@ func DefaultRRCFConfig() RRCFConfig {
 	}
 }
 
-// DefaultRRCFMetrics returns the default metric set for RRCF in the live observer.
-// These are standard Datadog system metrics from DogStatsD.
+// DefaultRRCFMetrics returns the default metric set for RRCF.
+// These match cgroup v2 metrics from FGM parquet exports, which is the
+// format used by the testbench scenarios where RRCF has been validated.
 func DefaultRRCFMetrics() []RRCFMetricDef {
-	return []RRCFMetricDef{
-		{Namespace: "system", Name: "cpu.user", Agg: observer.AggregateAverage},
-		{Namespace: "system", Name: "cpu.system", Agg: observer.AggregateAverage},
-		{Namespace: "system", Name: "cpu.iowait", Agg: observer.AggregateAverage},
-		{Namespace: "system", Name: "memory.used", Agg: observer.AggregateAverage},
-		{Namespace: "system", Name: "memory.rss", Agg: observer.AggregateAverage},
-		{Namespace: "system", Name: "disk.read_bytes", Agg: observer.AggregateSum},
-		{Namespace: "system", Name: "disk.write_bytes", Agg: observer.AggregateSum},
-	}
-}
-
-// TestBenchRRCFMetrics returns a metric set for RRCF matching cgroup.v2 data
-// from FGM parquet exports (namespace "parquet").
-func TestBenchRRCFMetrics() []RRCFMetricDef {
 	return []RRCFMetricDef{
 		// CPU
 		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec", Agg: observer.AggregateAverage},

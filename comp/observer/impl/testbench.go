@@ -87,11 +87,9 @@ type TestBenchConfig struct {
 	Cfg          config.Component
 	Logger       log.Component
 
-	// EnableOverrides controls which components are enabled at startup.
-	// Keys are component names (e.g. "cusum", "lead_lag").
-	// If a name is present, its value overrides the registry DefaultEnabled.
-	// Components not listed use their registry default.
-	EnableOverrides map[string]bool
+	// ComponentSettings provides per-component configuration and enabled
+	// state. Components not mentioned use their catalog defaults.
+	ComponentSettings ComponentSettings
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -174,12 +172,8 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		}
 	}
 
-	if config.EnableOverrides == nil {
-		config.EnableOverrides = make(map[string]bool)
-	}
-
-	catalog := testbenchCatalog()
-	detectors, correlators, extractors, components := catalog.Instantiate(config.EnableOverrides)
+	catalog := defaultCatalog()
+	detectors, correlators, extractors, components := catalog.Instantiate(config.ComponentSettings)
 
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),

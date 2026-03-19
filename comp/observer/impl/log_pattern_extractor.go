@@ -27,6 +27,14 @@ func NewPatternKeyInfo(clusterID int64) PatternKeyInfo {
 	}
 }
 
+// LogPatternExtractorConfig holds configuration for the LogPatternExtractor.
+type LogPatternExtractorConfig struct{}
+
+// DefaultLogPatternExtractorConfig returns a LogPatternExtractorConfig with default values.
+func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
+	return LogPatternExtractorConfig{}
+}
+
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {

@@ -16,13 +16,26 @@ const (
 	componentExtractor
 )
 
-// componentEntry describes a registered pipeline component (detector or correlator).
+// componentEntry describes a registered pipeline component.
+//
+// Each entry pairs a default config with a factory function. The factory
+// accepts the config and returns the constructed component. This separation
+// lets consumers provide config from any source (agent config, testbench UI)
+// without replacing the factory itself.
 type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	factory        func() any
+	defaultConfig  any           // typed config value (e.g. CUSUMConfig, RRCFConfig)
+	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
+
+	// readConfig optionally reads component config from the agent config
+	// system. When set, settingsFromAgentConfig calls it with a ConfigReader
+	// and the key prefix "observer.components.<name>.". It returns the
+	// populated config struct. Only components that need agent-config
+	// tuning set this; others leave it nil.
+	readConfig func(ConfigReader, string) any
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
@@ -32,183 +45,145 @@ type componentInstance struct {
 	enabled  bool
 }
 
+// ConfigReader provides read access to a key-value configuration source.
+// This is a minimal interface satisfied by the agent's config.Component,
+// allowing component configs to read values without depending on the full
+// agent config package.
+type ConfigReader interface {
+	GetBool(key string) bool
+	GetInt(key string) int
+	GetFloat64(key string) float64
+	GetString(key string) string
+	IsKnown(key string) bool
+}
+
+// ComponentSettings holds per-component configuration provided by the consumer.
+// Both the live observer and the testbench build this from their respective
+// config sources, giving a single path through instantiation.
+type ComponentSettings struct {
+	// Enabled maps component name to whether it should be active.
+	// Components not listed use their catalog default.
+	Enabled map[string]bool
+
+	// configs is populated internally by readConfig functions on catalog
+	// entries (e.g. from agent config). It is not exported because the
+	// values must match the typed config expected by each component's
+	// factory — a wrong type would panic at instantiation time.
+	configs map[string]any
+}
+
 // componentCatalog is the shared registry of all available pipeline components.
 // Both the live observer and the testbench use this to discover and instantiate
-// detectors and correlators, eliminating duplicated component assembly logic.
+// detectors, correlators, and extractors.
+//
+// Usage:
+//
+//	catalog := defaultCatalog()
+//	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
+//	detectors, correlators, extractors, components := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
 
-// defaultCatalog returns the standard component catalog used by both live and testbench.
-// All known detectors and correlators are registered here. Consumers use enable
-// overrides to select which subset is active.
+// defaultCatalog returns the component catalog with all known components and
+// their default configs. This is the single starting point for both the live
+// observer and the testbench — they diverge only in what ComponentSettings
+// they pass to Instantiate.
 func defaultCatalog() *componentCatalog {
 	return &componentCatalog{
 		entries: []componentEntry{
 			// ---- Extractors ----
 			{
-				name:        "log_metrics_extractor",
-				displayName: "Log Metrics Extractor",
-				kind:        componentExtractor,
-				factory: func() any {
-					return &LogMetricsExtractor{
-						MaxEvalBytes: 4096,
-						ExcludeFields: map[string]struct{}{
-							"timestamp": {}, "ts": {}, "time": {},
-							"pid": {}, "ppid": {}, "uid": {}, "gid": {},
-						},
-					}
-				},
+				name:           "log_metrics_extractor",
+				displayName:    "Log Metrics Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogMetricsExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogMetricsExtractor(cfg.(LogMetricsExtractorConfig)) },
 				defaultEnabled: true,
 			},
 			{
-				name:        "connection_error_extractor",
-				displayName: "Connection Error Extractor",
-				kind:        componentExtractor,
-				factory: func() any {
-					return &ConnectionErrorExtractor{}
-				},
+				name:           "connection_error_extractor",
+				displayName:    "Connection Error Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultConnectionErrorExtractorConfig(),
+				factory:        func(any) any { return &ConnectionErrorExtractor{} },
 				defaultEnabled: true,
 			},
 			{
-				name:        "log_pattern_extractor",
-				displayName: "Log Pattern Extractor",
-				kind:        componentExtractor,
-				factory: func() any {
-					return NewLogPatternExtractor()
-				},
+				name:           "log_pattern_extractor",
+				displayName:    "Log Pattern Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogPatternExtractorConfig(),
+				factory:        func(any) any { return NewLogPatternExtractor() },
 				defaultEnabled: true,
 			},
 			// ---- Detectors ----
 			{
-				name:        "cusum",
-				displayName: "CUSUM",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewCUSUMDetector()
-				},
+				name:           "cusum",
+				displayName:    "CUSUM",
+				kind:           componentDetector,
+				defaultConfig:  DefaultCUSUMConfig(),
+				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
 				defaultEnabled: false,
 			},
 			{
-				name:        "bocpd",
-				displayName: "BOCPD",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewBOCPDDetector()
-				},
+				name:           "bocpd",
+				displayName:    "BOCPD",
+				kind:           componentDetector,
+				defaultConfig:  DefaultBOCPDConfig(),
+				factory:        func(cfg any) any { return NewBOCPDDetector(cfg.(BOCPDConfig)) },
 				defaultEnabled: true,
 			},
 			{
-				name:        "rrcf",
-				displayName: "RRCF",
-				kind:        componentDetector,
-				factory: func() any {
-					return NewRRCFDetector(DefaultRRCFConfig())
-				},
+				name:           "rrcf",
+				displayName:    "RRCF",
+				kind:           componentDetector,
+				defaultConfig:  DefaultRRCFConfig(),
+				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
 				defaultEnabled: true,
 			},
 			// ---- Correlators ----
 			{
-				name:        "cross_signal",
-				displayName: "CrossSignal",
-				kind:        componentCorrelator,
-				factory: func() any {
-					return NewCorrelator(CorrelatorConfig{})
-				},
-				defaultEnabled: true,
+				name:           "cross_signal",
+				displayName:    "CrossSignal",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultCorrelatorConfig(),
+				factory:        func(cfg any) any { return NewCorrelator(cfg.(CorrelatorConfig)) },
+				defaultEnabled: false,
 			},
 			{
-				name:        "time_cluster",
-				displayName: "TimeCluster",
-				kind:        componentCorrelator,
-				factory: func() any {
-					return NewTimeClusterCorrelator(TimeClusterConfig{
-						ProximitySeconds: 10,
-						WindowSeconds:    120,
-					})
-				},
+				name:           "time_cluster",
+				displayName:    "TimeCluster",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultTimeClusterConfig(),
+				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
 				defaultEnabled: true,
+				readConfig:     readTimeClusterConfig,
 			},
 			{
-				name:        "lead_lag",
-				displayName: "Lead-Lag",
-				kind:        componentCorrelator,
-				factory: func() any {
-					return NewLeadLagCorrelator(LeadLagConfig{
-						MaxLagSeconds:       30,
-						MinObservations:     3,
-						ConfidenceThreshold: 0.6,
-						WindowSeconds:       120,
-					})
-				},
-				defaultEnabled: true,
+				name:           "lead_lag",
+				displayName:    "Lead-Lag",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultLeadLagConfig(),
+				factory:        func(cfg any) any { return NewLeadLagCorrelator(cfg.(LeadLagConfig)) },
+				defaultEnabled: false,
 			},
 			{
-				name:        "surprise",
-				displayName: "Surprise",
-				kind:        componentCorrelator,
-				factory: func() any {
-					return NewSurpriseCorrelator(SurpriseConfig{
-						WindowSizeSeconds: 10,
-						MinLift:           2.0,
-						MinSupport:        2,
-					})
-				},
-				defaultEnabled: true,
+				name:           "surprise",
+				displayName:    "Surprise",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultSurpriseConfig(),
+				factory:        func(cfg any) any { return NewSurpriseCorrelator(cfg.(SurpriseConfig)) },
+				defaultEnabled: false,
 			},
 		},
 	}
 }
 
-// testbenchCatalog returns a catalog customized for the testbench.
-// It differs from the default in these ways:
-//   - RRCF uses testbench-specific metrics (parquet names instead of DogStatsD names).
-//   - cross_signal is disabled (testbench uses time_cluster instead).
-//   - time_cluster is enabled by default.
-func testbenchCatalog() *componentCatalog {
-	cat := defaultCatalog()
-	cat = cat.WithOverride("rrcf", func() any {
-		config := DefaultRRCFConfig()
-		config.Metrics = TestBenchRRCFMetrics()
-		return NewRRCFDetector(config)
-	})
-	cat = cat.WithDefaultEnabled("cross_signal", false)
-	cat = cat.WithDefaultEnabled("time_cluster", true)
-	return cat
-}
-
-// WithOverride returns a copy of the catalog with the named component's factory replaced.
-func (c *componentCatalog) WithOverride(name string, factory func() any) *componentCatalog {
-	newEntries := make([]componentEntry, len(c.entries))
-	copy(newEntries, c.entries)
-	for i, e := range newEntries {
-		if e.name == name {
-			newEntries[i].factory = factory
-			break
-		}
-	}
-	return &componentCatalog{entries: newEntries}
-}
-
-// WithDefaultEnabled returns a copy of the catalog with the named component's defaultEnabled changed.
-func (c *componentCatalog) WithDefaultEnabled(name string, enabled bool) *componentCatalog {
-	newEntries := make([]componentEntry, len(c.entries))
-	copy(newEntries, c.entries)
-	for i, e := range newEntries {
-		if e.name == name {
-			newEntries[i].defaultEnabled = enabled
-			break
-		}
-	}
-	return &componentCatalog{entries: newEntries}
-}
-
-// Instantiate creates component instances. The overrides map controls which
-// components are enabled; keys not present in overrides use the catalog default.
-// Returns the lists of enabled detectors, correlators, and extractors ready for
-// engine use, plus a map of all component instances (enabled or not) for state
-// management.
-func (c *componentCatalog) Instantiate(overrides map[string]bool) (
+// Instantiate creates component instances. Settings provides per-component
+// config and enabled values; anything not specified falls back to catalog
+// defaults.
+func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	detectors []observerdef.Detector,
 	correlators []observerdef.Correlator,
 	extractors []observerdef.LogMetricsExtractor,
@@ -217,14 +192,17 @@ func (c *componentCatalog) Instantiate(overrides map[string]bool) (
 	components = make(map[string]*componentInstance, len(c.entries))
 
 	for _, entry := range c.entries {
-		enabled := entry.defaultEnabled
-		if overrides != nil {
-			if override, ok := overrides[entry.name]; ok {
-				enabled = override
-			}
+		cfg := entry.defaultConfig
+		if override, ok := settings.configs[entry.name]; ok {
+			cfg = override
 		}
 
-		instance := entry.factory()
+		enabled := entry.defaultEnabled
+		if override, ok := settings.Enabled[entry.name]; ok {
+			enabled = override
+		}
+
+		instance := entry.factory(cfg)
 		ci := &componentInstance{
 			entry:    entry,
 			instance: instance,
@@ -263,7 +241,7 @@ func (c *componentCatalog) Entries() []componentEntry {
 	return result
 }
 
-// enabledDetectors returns the enabled Detector instances from a components map.
+// catalogEnabledDetectors returns the enabled Detector instances from a components map.
 // SeriesDetector implementations are wrapped with seriesDetectorAdapter.
 func catalogEnabledDetectors(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.Detector {
 	var result []observerdef.Detector
@@ -297,7 +275,7 @@ func catalogEnabledExtractors(components map[string]*componentInstance, catalog 
 	return result
 }
 
-// enabledCorrelators returns the enabled Correlator instances from a components map.
+// catalogEnabledCorrelators returns the enabled Correlator instances from a components map.
 func catalogEnabledCorrelators(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.Correlator {
 	var result []observerdef.Correlator
 	for _, entry := range catalog.entries {

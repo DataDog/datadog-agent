@@ -365,11 +365,19 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
-	// Observer correlator toggles (override catalog defaults)
-	config.BindEnvAndSetDefault("observer.correlators.cross_signal.enabled", true)
-	config.BindEnvAndSetDefault("observer.correlators.time_cluster.enabled", true)
-	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", true)
-	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", true)
+	// Observer component toggles — values must match catalog defaults in
+	// comp/observer/impl/component_catalog.go defaultCatalog().
+	config.BindEnvAndSetDefault("observer.components.log_metrics_extractor.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.connection_error_extractor.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.log_pattern_extractor.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.cusum.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.bocpd.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.cross_signal.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.time_cluster.enabled", true)
+	config.BindEnvAndSetDefault("observer.components.time_cluster.min_cluster_size", 0)
+	config.BindEnvAndSetDefault("observer.components.lead_lag.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.surprise.enabled", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

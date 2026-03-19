@@ -295,7 +295,7 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 func TestTimeClusterCorrelator_DefaultConfig(t *testing.T) {
 	config := DefaultTimeClusterConfig()
 	assert.Equal(t, int64(10), config.ProximitySeconds)
-	assert.Equal(t, int64(60), config.WindowSeconds)
+	assert.Equal(t, int64(120), config.WindowSeconds)
 }
 
 func TestTimeClusterCorrelator_Name(t *testing.T) {
