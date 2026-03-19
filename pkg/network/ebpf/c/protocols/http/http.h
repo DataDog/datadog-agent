@@ -179,8 +179,12 @@ static __always_inline http_transaction_t *http_fetch_state(conn_tuple_t *tuple,
     // Since http_in_flight is shared between programs running in different contexts, it gets effected by the
     // above scenario.
     // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
-    bpf_map_update_with_telemetry(http_in_flight, tuple, http, BPF_NOEXIST, -EEXIST, -EBUSY);
+    http_transaction_t *state = bpf_map_lookup_elem(&http_in_flight, tuple);
+    if (state) {
+        return state;
+    }
 
+    bpf_map_update_with_telemetry(http_in_flight, tuple, http, BPF_NOEXIST, -EEXIST, -EBUSY);
     return bpf_map_lookup_elem(&http_in_flight, tuple);
 }
 

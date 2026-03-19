@@ -29,15 +29,18 @@ BPF_HASH_MAP(oom_stats, u64, struct oom_stats, 10240)
 
 SEC("kprobe/oom_kill_process")
 int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
-    struct oom_stats zero = {};
     struct oom_stats new = {};
     u64 ts = bpf_ktime_get_ns();
     u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-    bpf_map_update_elem(&oom_stats, &ts, &zero, BPF_NOEXIST);
     struct oom_stats *s = bpf_map_lookup_elem(&oom_stats, &ts);
     if (!s) {
-        return 0;
+        struct oom_stats zero = {};
+        bpf_map_update_elem(&oom_stats, &ts, &zero, BPF_NOEXIST);
+        s = bpf_map_lookup_elem(&oom_stats, &ts);
+        if (!s) {
+            return 0;
+        }
     }
 
     // for kernel before 4.11 the prototype for bpf_probe_read helpers

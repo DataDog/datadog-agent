@@ -58,11 +58,14 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
 
 // get_dynamic_counter returns the current dynamic counter by the conn tuple.
 static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    dynamic_counter_t empty = {0};
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &empty, BPF_NOEXIST);
     dynamic_counter_t *ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
-    if (ptr == NULL) {
-        return NULL;
+    if (!ptr) {
+        dynamic_counter_t empty = {0};
+        bpf_map_update_elem(&http2_dynamic_counter_table, tup, &empty, BPF_NOEXIST);
+        ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+        if (!ptr) {
+            return NULL;
+        }
     }
     return &ptr->value;
 }

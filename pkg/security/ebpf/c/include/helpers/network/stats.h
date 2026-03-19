@@ -127,21 +127,22 @@ __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct pack
         flip(&ns_flow.flow);
     }
 
-    u8 should_register_flow = 0;
-    struct network_stats_t *stats = NULL;
-    struct network_stats_t stats_zero = {};
     u64 now = bpf_ktime_get_ns();
-    int ret = bpf_map_update_elem(&ns_flow_to_network_stats, &ns_flow, &stats_zero, BPF_NOEXIST);
-    if (ret == 0) {
-        // register flow in active_flows
-        should_register_flow = 1;
-    }
-
-    // lookup the existing (or new) entry (now that it has been created)
-    stats = bpf_map_lookup_elem(&ns_flow_to_network_stats, &ns_flow);
+    u8 should_register_flow = 0;
+    struct network_stats_t *stats = bpf_map_lookup_elem(&ns_flow_to_network_stats, &ns_flow);
     if (stats == NULL) {
-        // should never happen, ignore
-        return;
+        struct network_stats_t stats_zero = {};
+        int ret = bpf_map_update_elem(&ns_flow_to_network_stats, &ns_flow, &stats_zero, BPF_NOEXIST);
+        if (ret == 0) {
+            // register flow in active_flows
+            should_register_flow = 1;
+        }
+        // lookup the existing (or new) entry (now that it has been created)
+        stats = bpf_map_lookup_elem(&ns_flow_to_network_stats, &ns_flow);
+        if (stats == NULL) {
+            // should never happen, ignore
+            return;
+        }
     }
 
 #if defined(DEBUG_NETWORK_FLOW)
@@ -165,17 +166,19 @@ __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct pack
     }
 
     if (should_register_flow) {
-        // make sure we hold the spin lock for the active flows entry
-        struct active_flows_spin_lock_t init_value = {};
-        struct active_flows_spin_lock_t *active_flows_lock;
-        bpf_map_update_elem(&active_flows_spin_locks, &pkt->pid, &init_value, BPF_NOEXIST);
-        active_flows_lock = bpf_map_lookup_elem(&active_flows_spin_locks, &pkt->pid);
+        struct active_flows_spin_lock_t *active_flows_lock = bpf_map_lookup_elem(&active_flows_spin_locks, &pkt->pid);
         if (active_flows_lock == NULL) {
-            // shouldn't happen, ignore
-            return;
+            // make sure we hold the spin lock for the active flows entry
+            struct active_flows_spin_lock_t init_value = {};
+            bpf_map_update_elem(&active_flows_spin_locks, &pkt->pid, &init_value, BPF_NOEXIST);
+            active_flows_lock = bpf_map_lookup_elem(&active_flows_spin_locks, &pkt->pid);
+            if (active_flows_lock == NULL) {
+                // shouldn't happen, ignore
+                return;
+            }
         }
 
-        struct active_flows_t *entry;
+
         struct active_flows_t *zero = get_empty_active_flows();
         if (zero == NULL) {
             // should never happen, ignore
@@ -185,18 +188,20 @@ __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct pack
         zero->ifindex = skb->ifindex;
         zero->last_sent = now;
 
-        // make sure the active_flows entry for the current pid exists
-        ret = bpf_map_update_elem(&active_flows, &pkt->pid, zero, BPF_NOEXIST);
-        if (ret < 0 && ret != -EEXIST) {
-            // no more space in the map, ignore for now
-            return;
-        }
-
         // lookup active_flows for current pid
-        entry = bpf_map_lookup_elem(&active_flows, &pkt->pid);
+        struct active_flows_t *entry = bpf_map_lookup_elem(&active_flows, &pkt->pid);
         if (entry == NULL) {
-            // should not happen, ignore
-            return;
+            // make sure the active_flows entry for the current pid exists
+            int ret = bpf_map_update_elem(&active_flows, &pkt->pid, zero, BPF_NOEXIST);
+            if (ret < 0 && ret != -EEXIST) {
+                // no more space in the map, ignore for now
+                return;
+            }
+            entry = bpf_map_lookup_elem(&active_flows, &pkt->pid);
+            if (entry == NULL) {
+                // should not happen, ignore
+                return;
+            }
         }
 
         // is the entry full ?
