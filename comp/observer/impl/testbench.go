@@ -1019,6 +1019,27 @@ func (tb *TestBench) IsCorrelatorsProcessing() bool {
 	return false
 }
 
+// ScoreCurrentAnalysis scores the loaded scenario's correlations against episode.json ground truth.
+// Returns an error if ground truth is unavailable (missing episode.json or disruption.start).
+func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	meta, err := scoringMetadataFromEpisode(tb.episodeInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	correlations := tb.engine.StateView().CorrelationHistory()
+	predictions := make([]int64, len(correlations))
+	for i, c := range correlations {
+		predictions[i] = c.FirstSeen
+	}
+
+	result := scorePredictions(predictions, meta, sigma)
+	return result, nil
+}
+
 // RunHeadless runs a scenario synchronously without the HTTP server and writes output.
 // If verbose is true, the output file includes full correlation detail (title, members, anomalies).
 // If verbose is false, correlations include only the anomalous time span.

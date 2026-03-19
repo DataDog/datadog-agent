@@ -3,7 +3,7 @@ import { useObserver } from './hooks/useObserver';
 import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
-import type { EpisodeInfo } from './api/client';
+import type { EpisodeInfo, ScoreResult } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs';
@@ -177,6 +177,31 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function f1Color(f1: number): string {
+  if (f1 >= 0.7) return 'text-green-400';
+  if (f1 >= 0.4) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
+function ScoreDisplay({ score }: { score: ScoreResult }) {
+  return (
+    <div className="flex items-center gap-3 bg-slate-700/50 rounded px-3 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">F1</span>
+        <span className={`text-sm font-bold font-mono ${f1Color(score.f1)}`}>{score.f1.toFixed(3)}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">P</span>
+        <span className="text-sm font-mono text-slate-200">{score.precision.toFixed(3)}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">R</span>
+        <span className="text-sm font-mono text-slate-200">{score.recall.toFixed(3)}</span>
       </div>
     </div>
   );
@@ -377,6 +402,10 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            {/* Score display — only when ground truth is available */}
+            {state.scoreResponse?.available && state.scoreResponse.score && (
+              <ScoreDisplay score={state.scoreResponse.score} />
+            )}
             {/* History navigation arrows — always visible when there's history */}
             {(canGoBack || canGoForward) && (
               <div className="flex items-center gap-1">
