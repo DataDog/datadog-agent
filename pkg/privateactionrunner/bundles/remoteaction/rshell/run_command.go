@@ -30,7 +30,8 @@ func NewRunCommandHandler() *RunCommandHandler {
 
 // RunCommandInputs defines the inputs for the runCommand action.
 type RunCommandInputs struct {
-	Command string `json:"command"`
+	Command         string   `json:"command"`
+	AllowedCommands []string `json:"allowedCommands"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -61,9 +62,13 @@ func (h *RunCommandHandler) Run(
 	}
 
 	var stdout, stderr bytes.Buffer
+	cmdOpt := interp.AllowAllCommands()
+	if len(inputs.AllowedCommands) > 0 {
+		cmdOpt = interp.AllowedCommands(inputs.AllowedCommands)
+	}
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
-		interp.AllowAllCommands(),
+		cmdOpt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
