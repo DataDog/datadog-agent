@@ -35,6 +35,7 @@ cleanup() {
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
         # Remove only the files written by this stage; leave earlier stage outputs intact.
         rm -f "$STAGING/etc/datadog-agent/datadog.yaml.example"
+        rm -rf "$STAGING/etc/datadog-agent/conf.d"
         rm -rf "$EMBEDDED_DESTDIR/share/installp"
     fi
 }
@@ -65,8 +66,30 @@ cp /opt/datadog-agent/cmd/agent/dist/datadog.yaml \
     "$STAGING/etc/datadog-agent/datadog.yaml.example"
 log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 
+# ─── Step 2b: Install default check configs ───────────────────────────────────
+#
+# Copy conf.yaml.default files for the system checks that work on AIX.
+# These enable the checks automatically on first install without any operator
+# action — the same behaviour as Linux packages.
+# network is a Python check; its conf.yaml.default is included since it works
+# correctly when the agent is installed with the proper LIBPATH environment.
 
-# ─── Step 2b: Install sitecustomize.py ────────────────────────────────────────
+log "Installing default check configs"
+DIST_CONFD=/opt/datadog-agent/cmd/agent/dist/conf.d
+STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
+for check in cpu disk io load memory network ntp uptime; do
+    src="$DIST_CONFD/${check}.d/conf.yaml.default"
+    if [ -f "$src" ]; then
+        mkdir -p "$STAGING_CONFD/${check}.d"
+        cp "$src" "$STAGING_CONFD/${check}.d/conf.yaml.default"
+        log "  $check.d/conf.yaml.default"
+    else
+        log "  WARNING: $src not found — skipping $check"
+    fi
+done
+log "Default check configs installed"
+
+# ─── Step 2c: Install sitecustomize.py ────────────────────────────────────────
 #
 # On AIX, pydantic_core's bundled libunwind.a(libunwind.so.1) has an undefined
 # reference to __xlcxx_personality_v0 (from the XLC++ ABI library libc++abi.a).
