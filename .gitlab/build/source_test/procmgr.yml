@@ -1,0 +1,20 @@
+---
+procmgr_rust_tests:
+  stage: source_test
+  extends:
+    - .rust_internal_registry
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.on_main_or_release_branch]
+    - changes:
+        paths:
+          - pkg/procmgr/rust/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - cd pkg/procmgr/rust
+    - cargo fmt --check
+    - cargo clippy --all-targets -- -D warnings
+    - cargo test --all-targets

@@ -21,7 +21,7 @@ func TestSubscribe(t *testing.T) {
 	store := newTestStore()
 
 	ch := store.Subscribe("node1")
-	defer store.Unsubscribe("node1")
+	defer store.Unsubscribe("node1", ch)
 
 	bundle := apiserver.NewMetadataMapperBundle()
 	bundle.Services.Set("default", "pod1", "svc1")
@@ -49,7 +49,7 @@ func TestSubscribe_WithDelete(t *testing.T) {
 	store.set("node1", bundle)
 
 	ch := store.Subscribe("node1")
-	defer store.Unsubscribe("node1")
+	defer store.Unsubscribe("node1", ch)
 
 	store.delete("node1")
 
@@ -68,9 +68,9 @@ func TestSubscribe_OtherNodes(t *testing.T) {
 	store := newTestStore()
 
 	ch := store.Subscribe("node1")
-	defer store.Unsubscribe("node1")
-	store.Subscribe("node2")
-	defer store.Unsubscribe("node2")
+	defer store.Unsubscribe("node1", ch)
+	ch2 := store.Subscribe("node2")
+	defer store.Unsubscribe("node2", ch2)
 
 	bundle := apiserver.NewMetadataMapperBundle()
 	store.set("node2", bundle)
@@ -86,8 +86,8 @@ func TestSubscribe_OtherNodes(t *testing.T) {
 func TestUnsubscribe(_ *testing.T) {
 	store := newTestStore()
 
-	store.Subscribe("node1")
-	store.Unsubscribe("node1")
+	ch := store.Subscribe("node1")
+	store.Unsubscribe("node1", ch)
 
 	bundle := apiserver.NewMetadataMapperBundle()
 	bundle.Services.Set("default", "pod1", "svc1")
@@ -95,6 +95,28 @@ func TestUnsubscribe(_ *testing.T) {
 
 	// No subscriber for node1, so this shouldn't do anything. Just testing that
 	// this doesn't panic or block.
+}
+
+func TestUnsubscribe_DoesNotRemoveNewerSubscriber(t *testing.T) {
+	store := newTestStore()
+
+	// First connection subscribes, then new connection subscribes
+	// (overwriting), then old connection's deferred unsubscribe runs.
+	oldCh := store.Subscribe("node1")
+	newCh := store.Subscribe("node1")
+	store.Unsubscribe("node1", oldCh)
+
+	// The new subscriber should still be registered and receive notifications.
+	bundle := apiserver.NewMetadataMapperBundle()
+	bundle.Services.Set("default", "pod1", "svc1")
+	store.set("node1", bundle)
+
+	select {
+	case <-newCh:
+		// expected
+	case <-time.After(1 * time.Second):
+		t.Fatal("new subscriber was not notified after old unsubscribe")
+	}
 }
 
 func newTestStore() *MetaBundleStore {

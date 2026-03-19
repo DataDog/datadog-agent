@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	nethttp "net/http"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -186,59 +184,6 @@ func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *htt
 		t.Logf("Successfully captured IIS HTTP traffic: %d requests with IIS tags verified", stat.Count)
 		return true
 	}
-}
-
-// TestHTTPStats tests basic HTTP monitoring functionality on Windows.
-func TestHTTPStats(t *testing.T) {
-	serverPort := tracetestutil.FreeTCPPort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
-	t.Logf("Using server address: %s (port: %d)", serverAddr, serverPort)
-
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableKeepAlive: true,
-	})
-	t.Cleanup(srvDoneFn)
-
-	monitor := setupWindowsMonitor(t, getHTTPCfg())
-
-	// Define test endpoints with status codes in path
-	testEndpointPath := "/" + strconv.Itoa(nethttp.StatusNoContent) + "/test"
-	healthEndpointPath := "/" + strconv.Itoa(nethttp.StatusOK) + "/api/health"
-
-	// Make first request: GET /204/test with 204 status
-	resp1, err := nethttp.Get("http://" + serverAddr + testEndpointPath)
-	require.NoError(t, err)
-	defer resp1.Body.Close()
-
-	// Make second request: GET /200/api/health with 200 status
-	resp2, err := nethttp.Get("http://" + serverAddr + healthEndpointPath)
-	require.NoError(t, err)
-	defer resp2.Body.Close()
-
-	srvDoneFn()
-
-	// Define expected endpoints
-	expectedEndpoints := map[http.Key]statusCodeCount{
-		{
-			Path:   http.Path{Content: http.Interner.GetString(testEndpointPath)},
-			Method: http.MethodGet,
-		}: {
-			statusCode: 204,
-			count:      1,
-		},
-		{
-			Path:   http.Path{Content: http.Interner.GetString(healthEndpointPath)},
-			Method: http.MethodGet,
-		}: {
-			statusCode: 200,
-			count:      1,
-		},
-	}
-
-	// Verify both endpoints were captured by the monitor
-	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, nil)
-	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
 }
 
 // TestHTTPStatsWithIIS tests HTTP monitoring with a real IIS server.

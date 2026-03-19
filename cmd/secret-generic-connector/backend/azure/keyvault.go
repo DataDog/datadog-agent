@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -31,33 +32,71 @@ type keyvaultClient interface {
 
 // getKeyvaultClient is a variable that holds the function to create a new keyvaultClient
 // it will be overwritten in tests
-var getKeyvaultClient = func(keyVaultURL, clientID string) (keyvaultClient, error) {
+var getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) {
+	s := cfg.AzureSession
 	var err error
 	var cred azcore.TokenCredential
-	if clientID == "" {
-		cred, err = azidentity.NewDefaultAzureCredential(nil)
+
+	switch {
+	case s.AzureTenantID != "" && s.AzureClientID != "" && s.AzureClientSecret != "":
+		cred, err = azidentity.NewClientSecretCredential(s.AzureTenantID, s.AzureClientID, s.AzureClientSecret, nil)
 		if err != nil {
-			return nil, fmt.Errorf("clientID not provided, could not get credentials: %s", err)
+			return nil, fmt.Errorf("getting client secret credentials: %s", err)
 		}
-	} else {
-		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
+	case s.AzureTenantID != "" && s.AzureClientID != "" && s.AzureClientCertificatePath != "":
+		certData, err := os.ReadFile(s.AzureClientCertificatePath)
+		if err != nil {
+			return nil, fmt.Errorf("reading certificate file: %s", err)
+		}
+		var password []byte
+		if s.AzureClientCertificatePassword != "" {
+			password = []byte(s.AzureClientCertificatePassword)
+		}
+		certs, key, err := azidentity.ParseCertificates(certData, password)
+		if err != nil {
+			return nil, fmt.Errorf("parsing certificate: %s", err)
+		}
+		opts := &azidentity.ClientCertificateCredentialOptions{
+			SendCertificateChain: s.AzureClientSendCertificateChain,
+		}
+		cred, err = azidentity.NewClientCertificateCredential(s.AzureTenantID, s.AzureClientID, certs, key, opts)
+		if err != nil {
+			return nil, fmt.Errorf("getting client certificate credentials: %s", err)
+		}
+	case s.AzureClientID != "":
+		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(s.AzureClientID)}
 		cred, err = azidentity.NewManagedIdentityCredential(&opts)
 		if err != nil {
 			return nil, fmt.Errorf("getting identity credentials: %s", err)
 		}
+	default:
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("could not get default credentials: %s", err)
+		}
 	}
 
-	client, err := azsecrets.NewClient(keyVaultURL, cred, nil)
+	client, err := azsecrets.NewClient(cfg.KeyVaultURL, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
 	return client, nil
 }
 
+// AzureSessionBackendConfig is the session configuration for Azure (nested under azure_session).
+type AzureSessionBackendConfig struct {
+	AzureClientID                   string `mapstructure:"azure_client_id"`
+	AzureTenantID                   string `mapstructure:"azure_tenant_id"`
+	AzureClientSecret               string `mapstructure:"azure_client_secret"`
+	AzureClientCertificatePath      string `mapstructure:"azure_client_certificate_path"`
+	AzureClientCertificatePassword  string `mapstructure:"azure_client_certificate_password"`
+	AzureClientSendCertificateChain bool   `mapstructure:"azure_client_send_certificate_chain"`
+}
+
 // KeyVaultBackendConfig contains the configuration to connect for Azure backend
 type KeyVaultBackendConfig struct {
-	KeyVaultURL string `mapstructure:"keyvaulturl"`
-	ClientID    string `mapstructure:"clientid"`
+	KeyVaultURL  string                    `mapstructure:"keyvaulturl"`
+	AzureSession AzureSessionBackendConfig `mapstructure:"azure_session"`
 }
 
 // KeyVaultBackend is a backend to fetch secrets from Azure
@@ -66,15 +105,48 @@ type KeyVaultBackend struct {
 	Client keyvaultClient
 }
 
+// normalizeAzureSession returns the azure_session map, normalizing map[interface{}]interface{}
+// (produced by yaml.v2) to map[string]interface{}, and creating it if absent.
+func normalizeAzureSession(bc map[string]interface{}) map[string]interface{} {
+	if bc["azure_session"] == nil {
+		m := make(map[string]interface{})
+		bc["azure_session"] = m
+		return m
+	}
+	if m, ok := bc["azure_session"].(map[string]interface{}); ok {
+		return m
+	}
+	if m, ok := bc["azure_session"].(map[interface{}]interface{}); ok {
+		out := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			if s, ok := k.(string); ok {
+				out[s] = v
+			}
+		}
+		bc["azure_session"] = out
+		return out
+	}
+	return nil
+}
+
 // NewKeyVaultBackend returns a new backend for Azure
 func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
+	azureSession := normalizeAzureSession(bc)
+
+	// Accept top-level "clientid" as alias for azure_session.azure_client_id
+	if v, ok := bc["clientid"]; ok && azureSession != nil {
+		if _, set := azureSession["azure_client_id"]; !set {
+			azureSession["azure_client_id"] = v
+		}
+	}
+
 	backendConfig := KeyVaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, backendConfig.ClientID)
+	client, err := getKeyvaultClient(backendConfig)
 	if err != nil {
 		return nil, err
 	}

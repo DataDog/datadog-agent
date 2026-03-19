@@ -8,11 +8,15 @@ package extensions
 import (
 	"context"
 	"errors"
+	"net/http"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 )
 
 // mockHooks implements ExtensionHooks interface for testing
@@ -129,6 +133,78 @@ func TestSetPackageVersionWipesExtensionsOnVersionChange(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "7.51.0", got.Version)
 	assert.Empty(t, got.Extensions, "extensions should be wiped on version change")
+}
+
+// TestInstallGroupsByRegistry verifies that Install correctly groups extensions
+// by registry, downloading from overridden registries where configured.
+func TestInstallGroupsByRegistry(t *testing.T) {
+	tmpDir := t.TempDir()
+	ExtensionsDBDir = tmpDir
+
+	ctx := context.Background()
+	hooks := &mockHooks{}
+
+	// Seed the DB with the package
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+	pkg := dbPackage{
+		Name:       "datadog-agent",
+		Version:    "7.50.0-1",
+		Extensions: map[string]struct{}{},
+	}
+	err = db.SetPackage(pkg, false)
+	require.NoError(t, err)
+	db.Close()
+
+	downloader := oci.NewDownloader(&env.Env{}, http.DefaultClient)
+	overrides := map[string]ExtensionRegistry{
+		"ddot": {
+			URL:      "custom.registry.com",
+			Auth:     "password",
+			Username: "user",
+			Password: "pass",
+		},
+	}
+
+	// Install will fail due to no real registry, but we can verify the function
+	// accepts overrides without panic and attempts to download.
+	err = Install(ctx, downloader, "oci://install.datadoghq.com/agent-package:7.50.0-1",
+		[]string{"ddot", "other-ext"}, false, hooks, overrides)
+
+	// We expect download errors (no real registry), not a panic or grouping error.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not download package")
+}
+
+// TestInstallNilOverridesBackwardsCompat verifies that nil overrides work (backwards compat).
+func TestInstallNilOverridesBackwardsCompat(t *testing.T) {
+	tmpDir := t.TempDir()
+	ExtensionsDBDir = tmpDir
+
+	ctx := context.Background()
+	hooks := &mockHooks{}
+
+	// Seed the DB with the package
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+	pkg := dbPackage{
+		Name:       "datadog-agent",
+		Version:    "7.50.0-1",
+		Extensions: map[string]struct{}{},
+	}
+	err = db.SetPackage(pkg, false)
+	require.NoError(t, err)
+	db.Close()
+
+	downloader := oci.NewDownloader(&env.Env{}, http.DefaultClient)
+
+	// nil overrides should work exactly as before
+	err = Install(ctx, downloader, "oci://install.datadoghq.com/agent-package:7.50.0-1",
+		[]string{"ddot"}, false, hooks, nil)
+
+	// Expect download failure (no real registry), not a grouping error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not download package")
 }
 
 // TestHookErrorPropagation verifies that hook failures are properly propagated

@@ -36,21 +36,17 @@ const (
 	streamRecvTimeout     = 10 * time.Minute
 )
 
-type namespaceMetadata struct {
-	labels      map[string]string
-	annotations map[string]string
-}
-
 // streamClient manages a gRPC streaming connection to the DCA for
 // pod-to-service and namespace metadata. It keeps a local cache.
 type streamClient struct {
 	nodeName string
 	cfg      configmodel.Reader
 
-	mu          sync.RWMutex
-	podServices map[string][]string          // "namespace/podName" -> services
-	namespaces  map[string]namespaceMetadata // namespace name -> labels/annotations
-	active      bool
+	mu            sync.RWMutex
+	podServices   map[string][]string          // "namespace/podName" -> services
+	namespaces    map[string]namespaceMetadata // namespace name -> labels/annotations
+	active        bool
+	unimplemented bool
 }
 
 func newStreamClient(nodeName string, cfg configmodel.Reader) *streamClient {
@@ -75,7 +71,7 @@ func (sc *streamClient) run(ctx context.Context) {
 		if statusWithErr, ok := status.FromError(err); ok && statusWithErr.Code() == codes.Unimplemented {
 			log.Infof("DCA does not support kube metadata streaming")
 			sc.mu.Lock()
-			sc.active = false
+			sc.unimplemented = true
 			sc.mu.Unlock()
 			return
 		}
@@ -105,10 +101,6 @@ func (sc *streamClient) getServices(namespace, podName string) ([]string, bool) 
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	if !sc.active {
-		return nil, false
-	}
-
 	key := namespace + "/" + podName
 	svcs, ok := sc.podServices[key]
 	return svcs, ok
@@ -118,10 +110,6 @@ func (sc *streamClient) getNamespaceMetadata(namespace string) (labels, annotati
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	if !sc.active {
-		return nil, nil, false
-	}
-
 	ns, ok := sc.namespaces[namespace]
 	if !ok {
 		return nil, nil, false
@@ -129,10 +117,10 @@ func (sc *streamClient) getNamespaceMetadata(namespace string) (labels, annotati
 	return ns.labels, ns.annotations, true
 }
 
-func (sc *streamClient) isActive() bool {
+func (sc *streamClient) isUnimplemented() bool {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
-	return sc.active
+	return sc.unimplemented
 }
 
 // streamOnce establishes a single gRPC streaming connection and processes

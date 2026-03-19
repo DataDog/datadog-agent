@@ -98,6 +98,7 @@ message CreateRequest {
 
 message CreateResponse {
   string uuid = 1;
+  repeated string warnings = 2;
 }
 
 message StartRequest {

@@ -1,0 +1,267 @@
+using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Rollback;
+using Microsoft.Win32;
+using WixToolset.Dtf.WindowsInstaller;
+using System;
+using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
+
+namespace Datadog.CustomActions
+{
+    public class AutoLoggerCustomAction
+    {
+        private const string AutoLoggerBasePath = @"SYSTEM\CurrentControlSet\Control\WMI\Autologger";
+        private const string SessionName = "Datadog Logon Duration";
+        private const string LogonDurationSubDir = "logonduration";
+        private const string EtlFileName = "logon_duration.etl";
+
+        private static readonly string SessionKeyPath = $@"{AutoLoggerBasePath}\{SessionName}";
+        private const string RollbackDataName = "ConfigureAutoLogger";
+
+        private static readonly string[] ProviderGuids =
+        {
+            "{22FB2CD6-0E7B-422B-A0C7-2FAD1FD0E716}", // Microsoft-Windows-Kernel-Process
+            "{A68CA8B7-004F-D7B6-A698-07E2DE0F1F5D}", // Microsoft-Windows-Kernel-General
+            "{DBE9B383-7CF3-4331-91CC-A3CB16A3B538}", // Microsoft-Windows-Winlogon
+            "{89B1E9F0-5AFF-44A6-9B44-0A07A7CE5845}", // Microsoft-Windows-User Profiles Service
+            "{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}", // Microsoft-Windows-GroupPolicy
+            "{30336ED4-E327-447C-9DE0-51B652C86108}"   // Microsoft-Windows-Shell-Core
+        };
+
+        /// <summary>
+        /// Resolves the agent user SID. On first install DDAGENTUSER_SID may be empty because
+        /// the user is created by the deferred ConfigureUser action after CustomActionData was
+        /// captured. In that case, fall back to looking up the SID by DDAGENTUSER_PROCESSED_FQ_NAME.
+        /// </summary>
+        private static string ResolveAgentUserSid(ISession session)
+        {
+            var sid = session.Property("DDAGENTUSER_SID");
+            if (!string.IsNullOrEmpty(sid))
+            {
+                return sid;
+            }
+
+            var fqName = session.Property("DDAGENTUSER_PROCESSED_FQ_NAME");
+            if (string.IsNullOrEmpty(fqName))
+            {
+                session.Log("Neither DDAGENTUSER_SID nor DDAGENTUSER_PROCESSED_FQ_NAME is set");
+                return null;
+            }
+
+            try
+            {
+                session.Log($"DDAGENTUSER_SID not set, resolving SID from account name: {fqName}");
+                var account = new NTAccount(fqName);
+                var securityIdentifier = (SecurityIdentifier)account.Translate(typeof(SecurityIdentifier));
+                session.Log($"Resolved SID: {securityIdentifier.Value}");
+                return securityIdentifier.Value;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Failed to resolve SID for {fqName}: {e}");
+                return null;
+            }
+        }
+
+        private static ActionResult ConfigureAutoLogger(ISession session)
+        {
+            var autologgerEnabled = session.Property("DD_LOGON_DURATION_AUTOLOGGER");
+            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                session.Log("DD_LOGON_DURATION_AUTOLOGGER is not set to true, skipping AutoLogger configuration");
+                return ActionResult.Success;
+            }
+
+            var rollbackDataStore = new RollbackDataStore(session, RollbackDataName);
+            try
+            {
+                var appDataDir = session.Property("APPLICATIONDATADIRECTORY");
+                var ddAgentUserSidString = ResolveAgentUserSid(session);
+
+                if (string.IsNullOrEmpty(appDataDir))
+                {
+                    session.Log("APPLICATIONDATADIRECTORY is not set");
+                    return ActionResult.Failure;
+                }
+
+                // Snapshot the current registry state before making any changes
+                rollbackDataStore.Add(new RegistryKeyRollbackData(SessionKeyPath));
+
+                var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
+                var etlFilePath = Path.Combine(logonDurationDir, EtlFileName);
+
+                CreateAutoLoggerRegistryKeys(session, etlFilePath);
+
+                if (!string.IsNullOrEmpty(ddAgentUserSidString))
+                {
+                    SetAutoLoggerRegistryPermissions(session, ddAgentUserSidString);
+                }
+                else
+                {
+                    session.Log("Could not determine agent user SID, skipping registry permission configuration");
+                }
+
+                session.Log("AutoLogger configuration complete");
+                return ActionResult.Success;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Failed to configure AutoLogger: {e}");
+                return ActionResult.Failure;
+            }
+            finally
+            {
+                rollbackDataStore.Store();
+            }
+        }
+
+        private static void CreateAutoLoggerRegistryKeys(ISession session, string etlFilePath)
+        {
+            session.Log($"Creating AutoLogger session key: {SessionKeyPath}");
+
+            using (var sessionKey = Registry.LocalMachine.CreateSubKey(SessionKeyPath))
+            {
+                if (sessionKey == null)
+                {
+                    throw new Exception($"Failed to create registry key: {SessionKeyPath}");
+                }
+
+                sessionKey.SetValue("Start", 0, RegistryValueKind.DWord);
+                sessionKey.SetValue("Guid", Guid.NewGuid().ToString("B").ToUpperInvariant(), RegistryValueKind.String);
+                sessionKey.SetValue("BufferSize", 128, RegistryValueKind.DWord);
+                sessionKey.SetValue("MaximumBuffers", 32, RegistryValueKind.DWord);
+                sessionKey.SetValue("MaxFileSize", 256, RegistryValueKind.DWord);
+                sessionKey.SetValue("FileName", etlFilePath, RegistryValueKind.String);
+                sessionKey.SetValue("LogFileMode", 1, RegistryValueKind.DWord);
+
+                session.Log("AutoLogger session values configured");
+            }
+
+            foreach (var providerGuid in ProviderGuids)
+            {
+                var providerKeyPath = $@"{SessionKeyPath}\{providerGuid}";
+                session.Log($"Creating provider sub-key: {providerKeyPath}");
+
+                using (var providerKey = Registry.LocalMachine.CreateSubKey(providerKeyPath))
+                {
+                    if (providerKey == null)
+                    {
+                        throw new Exception($"Failed to create registry key: {providerKeyPath}");
+                    }
+
+                    providerKey.SetValue("Enabled", 1, RegistryValueKind.DWord);
+                    providerKey.SetValue("EnableLevel", 5, RegistryValueKind.DWord);
+                }
+            }
+
+            session.Log("AutoLogger provider sub-keys configured");
+        }
+
+        private static void SetAutoLoggerRegistryPermissions(ISession session, string ddAgentUserSidString)
+        {
+            session.Log($"Setting AutoLogger registry permissions for SID: {ddAgentUserSidString}");
+
+            using (var sessionKey = Registry.LocalMachine.OpenSubKey(
+                SessionKeyPath,
+                RegistryKeyPermissionCheck.ReadWriteSubTree,
+                RegistryRights.ChangePermissions | RegistryRights.ReadKey))
+            {
+                if (sessionKey == null)
+                {
+                    throw new Exception($"Failed to open registry key for permissions: {SessionKeyPath}");
+                }
+
+                var ddAgentUserSid = new SecurityIdentifier(ddAgentUserSidString);
+                var registrySecurity = sessionKey.GetAccessControl();
+
+                registrySecurity.AddAccessRule(new RegistryAccessRule(
+                    ddAgentUserSid,
+                    RegistryRights.SetValue | RegistryRights.QueryValues,
+                    AccessControlType.Allow));
+
+                sessionKey.SetAccessControl(registrySecurity);
+            }
+
+            session.Log("AutoLogger registry permissions set");
+        }
+
+        private static ActionResult RemoveAutoLogger(ISession session)
+        {
+            var appDataDir = session.Property("APPLICATIONDATADIRECTORY");
+
+            try
+            {
+                session.Log($"Deleting AutoLogger registry key tree: {SessionKeyPath}");
+                Registry.LocalMachine.DeleteSubKeyTree(SessionKeyPath, false);
+                session.Log("AutoLogger registry keys removed");
+            }
+            catch (Exception e)
+            {
+                session.Log($"Warning: could not remove AutoLogger registry keys: {e}");
+            }
+
+            if (!string.IsNullOrEmpty(appDataDir))
+            {
+                var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
+                try
+                {
+                    if (Directory.Exists(logonDurationDir))
+                    {
+                        session.Log($"Cleaning logon duration directory: {logonDurationDir}");
+                        foreach (var file in Directory.GetFiles(logonDurationDir))
+                        {
+                            File.Delete(file);
+                        }
+                        session.Log("Logon duration directory cleaned");
+                    }
+                    else
+                    {
+                        session.Log($"Logon duration directory not found, skipping: {logonDurationDir}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    session.Log($"Warning: could not clean logon duration directory: {e}");
+                }
+            }
+
+            return ActionResult.Success;
+        }
+
+        public static ActionResult ConfigureAutoLogger(Session session)
+        {
+            return ConfigureAutoLogger(new SessionWrapper(session));
+        }
+
+        public static ActionResult ConfigureAutoLoggerRollback(Session session)
+        {
+            var wrappedSession = new SessionWrapper(session);
+            var autologgerEnabled = wrappedSession.Property("DD_LOGON_DURATION_AUTOLOGGER");
+            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                wrappedSession.Log("DD_LOGON_DURATION_AUTOLOGGER was not set to true; " +
+                                   "skipping rollback to preserve pre-existing autologger state");
+                return ActionResult.Success;
+            }
+
+            try
+            {
+                var rollbackDataStore = new RollbackDataStore(wrappedSession, RollbackDataName);
+                rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                wrappedSession.Log($"Failed to rollback AutoLogger configuration: {e}");
+            }
+
+            return ActionResult.Success;
+        }
+
+        public static ActionResult RemoveAutoLogger(Session session)
+        {
+            return RemoveAutoLogger(new SessionWrapper(session));
+        }
+    }
+}

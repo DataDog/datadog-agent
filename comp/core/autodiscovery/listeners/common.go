@@ -21,30 +21,11 @@ import (
 
 const (
 	tolerateUnreadyAnnotation = "ad.datadoghq.com/tolerate-unready"
-
-	// Keys of standard tags
-	tagKeyEnv     = "env"
-	tagKeyVersion = "version"
-	tagKeyService = "service"
 )
 
 // getStandardTags extract standard tags from labels of kubernetes services
 func getStandardTags(labels map[string]string) []string {
-	if labels == nil {
-		return []string{}
-	}
-	labelToTagKeys := map[string]string{
-		kubernetes.EnvTagLabelKey:     tagKeyEnv,
-		kubernetes.VersionTagLabelKey: tagKeyVersion,
-		kubernetes.ServiceTagLabelKey: tagKeyService,
-	}
-	tags := make([]string, 0, len(labelToTagKeys))
-	for labelKey, tagKey := range labelToTagKeys {
-		if tagValue, found := labels[labelKey]; found {
-			tags = append(tags, tagKey+":"+tagValue)
-		}
-	}
-	return tags
+	return kubernetes.GetStandardTags(labels)
 }
 
 // standardTagsDigest computes the hash of standard tags in a map

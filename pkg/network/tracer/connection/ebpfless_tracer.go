@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	syncutil "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -66,6 +67,11 @@ type ebpfLessTracer struct {
 	conns        map[ebpfless.PCAPTuple]*network.ConnectionStats
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
+	// dnsServerPorts is the set of ports to treat as DNS server ports
+	// (from network_config.dns_monitoring_ports)
+	dnsServerPorts map[uint16]struct{}
+
+	connPool *syncutil.TypedPool[network.ConnectionStats]
 
 	ns netns.NsHandle
 }
@@ -79,16 +85,23 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
 	}
 
+	dnsServerPorts := make(map[uint16]struct{}, len(cfg.DNSMonitoringPortList))
+	for _, port := range cfg.DNSMonitoringPortList {
+		dnsServerPorts[uint16(port)] = struct{}{}
+	}
+
 	tr := &ebpfLessTracer{
-		config:        cfg,
-		packetSrc:     packetSrc,
-		packetSrcBusy: sync.WaitGroup{},
-		exit:          make(chan struct{}),
-		udp:           &udpProcessor{},
-		tcp:           ebpfless.NewTCPProcessor(cfg),
-		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		boundPorts:    ebpfless.NewBoundPorts(cfg),
-		cookieHasher:  newCookieHasher(),
+		config:         cfg,
+		packetSrc:      packetSrc,
+		packetSrcBusy:  sync.WaitGroup{},
+		exit:           make(chan struct{}),
+		udp:            &udpProcessor{},
+		tcp:            ebpfless.NewTCPProcessor(cfg),
+		conns:          make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		boundPorts:     ebpfless.NewBoundPorts(cfg),
+		cookieHasher:   newCookieHasher(),
+		dnsServerPorts: dnsServerPorts,
+		connPool:       syncutil.NewDefaultTypedPool[network.ConnectionStats](),
 	}
 
 	tr.ns, err = netns.Get()
@@ -194,11 +207,17 @@ func (t *ebpfLessTracer) processConnection(
 	conn, ok := t.conns[tuple]
 	isNewConn := !ok
 	if isNewConn {
-		conn = &network.ConnectionStats{
-			// NOTE: this tuple does not have the connection direction set yet.
-			// That will be set from determineConnectionDirection later
-			ConnectionTuple: ebpfless.MakeConnStatsTuple(tuple),
+		conn = t.connPool.Get()
+		conn.ConnectionTuple = ebpfless.MakeConnStatsTuple(tuple)
+
+		// guess direction before calling the processors; for TCP, the processor
+		// may also set direction from the SYN packet
+		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts, t.dnsServerPorts)
+		if err != nil {
+			t.putConn(conn)
+			return err
 		}
+		conn.Direction = direction
 	}
 
 	var ts int64
@@ -229,21 +248,12 @@ func (t *ebpfLessTracer) processConnection(
 
 	if isNewConn && result.ShouldPersist() {
 		conn.Duration = time.Duration(time.Now().UnixNano())
-		direction, err := t.guessConnectionDirection(conn, pktType)
-		if err != nil {
-			return err
-		}
-		if direction == network.UNKNOWN {
-			return errors.New("could not determine connection direction")
-		}
-		conn.Direction = direction
-
-		// now that the direction is set, hash the connection
 		t.cookieHasher.Hash(conn)
 	}
 
 	switch result {
 	case ebpfless.ProcessResultNone:
+		t.putConn(conn)
 	case ebpfless.ProcessResultStoreConn:
 		// if we fail to store this connection at any point, remove its TCP state tracking
 		storeConnOk := false
@@ -254,6 +264,7 @@ func (t *ebpfLessTracer) processConnection(
 			if conn.Type == network.TCP {
 				t.tcp.RemoveConn(tuple)
 			}
+			t.putConn(conn)
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}()
 
@@ -261,13 +272,20 @@ func (t *ebpfLessTracer) processConnection(
 		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
 		delete(t.conns, tuple)
+		// do not call putConn after this, since the close handler owns it now
 		closeCallback(conn)
 	case ebpfless.ProcessResultMapFull:
 		delete(t.conns, tuple)
+		t.putConn(conn)
 		ebpfLessTracerTelemetry.droppedConnections.Inc()
 	}
 
 	return nil
+}
+
+func (t *ebpfLessTracer) putConn(conn *network.ConnectionStats) {
+	*conn = network.ConnectionStats{}
+	t.connPool.Put(conn)
 }
 
 type packetFlags struct {
@@ -310,24 +328,55 @@ func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.U
 	return tuple, flags
 }
 
+// boundPortLookup is an interface for finding bound ports
+type boundPortLookup interface {
+	Find(proto network.ConnectionType, port uint16) bool
+}
+
 // guessConnectionDirection attempts to guess the connection direction based off bound ports
-func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
+func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, ports boundPortLookup, dnsServerPorts map[uint16]struct{}) (network.ConnectionDirection, error) {
 	// if we already have a direction, return that
 	if conn.Direction != network.UNKNOWN {
 		return conn.Direction, nil
 	}
 
-	ok := t.boundPorts.Find(conn.Type, conn.SPort)
+	ok := ports.Find(conn.Type, conn.SPort)
 	if ok {
 		// incoming connection
 		return network.INCOMING, nil
 	}
 	// for local connections - the destination could be a bound port
 	if conn.Dest.Addr.IsLoopback() {
-		ok := t.boundPorts.Find(conn.Type, conn.DPort)
+		ok := ports.Find(conn.Type, conn.DPort)
 		if ok {
 			return network.OUTGOING, nil
 		}
+	}
+
+	// for UDP, check if either port is a known DNS server port
+	if conn.Type == network.UDP {
+		_, srcIsDNS := dnsServerPorts[conn.SPort]
+		_, dstIsDNS := dnsServerPorts[conn.DPort]
+		if srcIsDNS && !dstIsDNS {
+			return network.INCOMING, nil
+		}
+		if dstIsDNS && !srcIsDNS {
+			return network.OUTGOING, nil
+		}
+	}
+
+	// system ports are always servers
+	if conn.SPort < 1024 {
+		return network.INCOMING, nil
+	}
+	if conn.DPort < 1024 {
+		return network.OUTGOING, nil
+	}
+
+	// for TCP, don't guess direction from packet type; if we missed the SYN
+	// then we can't reliably determine direction
+	if conn.Type == network.TCP {
+		return network.UNKNOWN, nil
 	}
 
 	switch pktType {
