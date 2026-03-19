@@ -40,6 +40,10 @@ type HorizontalScalingValues struct {
 
 	// Replicas is the desired number of replicas for the target
 	Replicas int32 `json:"replicas"`
+
+	// UtilizationPct holds the average resource utilization ratio computed by the local recommender.
+	// Only set when Source is DatadogPodAutoscalerLocalValueSource; nil otherwise.
+	UtilizationPct *float64 `json:"utilization_pct,omitempty"`
 }
 
 // VerticalScalingValues holds the vertical scaling values for a target
