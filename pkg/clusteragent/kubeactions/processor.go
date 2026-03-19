@@ -81,6 +81,11 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 
 	log.Infof("[KubeActions] Successfully unmarshaled config. Actions count: %d", len(actionsList.Actions))
 
+	// Enforce exactly one action per config
+	if len(actionsList.Actions) != 1 {
+		return fmt.Errorf("expected exactly 1 action per config, got %d", len(actionsList.Actions))
+	}
+
 	// Create action key for tracking
 	actionKey := ActionKey{
 		ID:      rawConfig.Metadata.ID,

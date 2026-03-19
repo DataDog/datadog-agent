@@ -23,47 +23,20 @@ import (
 
 // --- Event payload types ---
 
-// ActionResultEvent is the top-level EVP event for a kubeactions execution result.
-// Common fields live at the top level. Action-specific result details go under
-// a key matching the action type (e.g. "delete_pod", "restart_deployment"),
-// mirroring the oneof pattern in the RC schema.
+// ActionResultEvent is the EVP event payload sent to the backend when an action is executed.
+// Fields match the backend's UpdateActionRequest / KubeActionEvent schema.
 type ActionResultEvent struct {
-	// Common fields
-	ActionID   string          `json:"action_id"`
-	ActionType string          `json:"action_type"`
-	Status     string          `json:"status"`
-	Message    string          `json:"message,omitempty"`
-	ExecutedAt string          `json:"executed_at"`
-	Resource   *EventResource  `json:"resource"`
-	Cluster    *EventCluster   `json:"cluster"`
-
-	// Action-specific result details (exactly one should be set, matching action_type)
-	DeletePod            *DeletePodResult            `json:"delete_pod,omitempty"`
-	RestartDeployment    *RestartDeploymentResult    `json:"restart_deployment,omitempty"`
+	ActionID    string                 `json:"action_id"`
+	OrgID       int64                  `json:"org_id"`
+	EventType   string                 `json:"event_type"`
+	Status      string                 `json:"status"`
+	ActionType  string                 `json:"action_type"`
+	ClusterID   string                 `json:"cluster_id"`
+	ResourceID  string                 `json:"resource_id"`
+	RequestedBy string                 `json:"requested_by"`
+	Timestamp   string                 `json:"timestamp"`
+	Data        map[string]interface{} `json:"data,omitempty"`
 }
-
-// EventResource identifies the Kubernetes resource acted on
-type EventResource struct {
-	APIVersion string `json:"api_version,omitempty"`
-	Kind       string `json:"kind"`
-	Namespace  string `json:"namespace,omitempty"`
-	Name       string `json:"name"`
-	ResourceID string `json:"resource_id"`
-}
-
-// EventCluster identifies the cluster where the action was executed
-type EventCluster struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
-}
-
-// DeletePodResult holds action-specific result details for delete_pod
-type DeletePodResult struct {
-	GracePeriodSeconds *int64 `json:"grace_period_seconds,omitempty"`
-}
-
-// RestartDeploymentResult holds action-specific result details for restart_deployment
-type RestartDeploymentResult struct{}
 
 // --- Reporter ---
 
@@ -103,40 +76,41 @@ func (r *ResultReporter) ReportResult(actionKey ActionKey, action *kubeactions.K
 		actionID = actionKey.ID
 	}
 
-	// Build the common event
-	event := ActionResultEvent{
-		ActionID:   actionID,
-		ActionType: actionType,
-		Status:     result.Status,
-		Message:    result.Message,
-		ExecutedAt: executedAt.Format(time.RFC3339),
-		Cluster: &EventCluster{
-			Name: r.clusterName,
-			ID:   r.clusterID,
-		},
-	}
-
-	// Build resource from action
+	// Build resource_id from the action's resource
+	var resourceID string
 	if res := action.GetResource(); res != nil {
-		event.Resource = &EventResource{
-			APIVersion: res.GetApiVersion(),
-			Kind:       res.GetKind(),
-			Namespace:  res.GetNamespace(),
-			Name:       res.GetName(),
-			ResourceID: res.GetResourceId(),
-		}
+		resourceID = res.GetResourceId()
 	}
 
-	// Build action-specific result details
+	// Build the data map with action-specific details and execution context
+	data := map[string]interface{}{
+		"message":      result.Message,
+		"cluster_name": r.clusterName,
+	}
+	if res := action.GetResource(); res != nil {
+		data["resource_kind"] = res.GetKind()
+		data["resource_name"] = res.GetName()
+		data["resource_namespace"] = res.GetNamespace()
+		data["resource_api_version"] = res.GetApiVersion()
+	}
 	switch actionType {
 	case ActionTypeDeletePod:
-		dpResult := &DeletePodResult{}
 		if params := action.GetDeletePod(); params != nil && params.GracePeriodSeconds != nil {
-			dpResult.GracePeriodSeconds = params.GracePeriodSeconds
+			data["grace_period_seconds"] = *params.GracePeriodSeconds
 		}
-		event.DeletePod = dpResult
-	case ActionTypeRestartDeployment:
-		event.RestartDeployment = &RestartDeploymentResult{}
+	}
+
+	event := ActionResultEvent{
+		ActionID:    actionID,
+		OrgID:       r.orgID,
+		EventType:   "action_executed",
+		Status:      result.Status,
+		ActionType:  actionType,
+		ClusterID:   r.clusterID,
+		ResourceID:  resourceID,
+		RequestedBy: action.GetRequestedBy(),
+		Timestamp:   executedAt.Format(time.RFC3339),
+		Data:        data,
 	}
 
 	log.Infof("[KubeActions] Reporting result: action_id=%s, type=%s, status=%s", event.ActionID, event.ActionType, event.Status)
