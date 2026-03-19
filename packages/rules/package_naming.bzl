@@ -43,7 +43,7 @@ The three things you are likely to use:
 - version: A suitable version that includes the pipeline id.
 - arch: A deb/rpm conformant architecture string based on the target platform.
 - product_name"] = ctx.attr.product_name
- 
+
 And other thing which might be useful:
 - base_branch: Agent base branch from release.json.
 - compilation_mode: bazel compilation mode (e.g. fastbuild, release).
@@ -91,7 +91,6 @@ def _package_name_variables_impl(ctx):
     flavor = ctx.attr._flavor[BuildSettingInfo].value
     values["product_name"] = _inject_flavor(ctx.attr.product_name, flavor)
     values["version"] = _make_version()
-
     values["base_branch"] = release_json.get("base_branch")
     values["milestone"] = release_json.get("current_milestone")
 
@@ -104,6 +103,7 @@ def _package_name_variables_impl(ctx):
     values["libc"] = cc_toolchain.libc
     values["compilation_mode"] = ctx.var.get("COMPILATION_MODE")
 
+    # For initial testing: buildifier: disable=print
     print(json.encode_indent(values))
     return PackageVariablesInfo(values = values)
 
