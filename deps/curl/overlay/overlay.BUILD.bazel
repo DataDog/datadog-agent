@@ -159,7 +159,7 @@ cc_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "@nghttp2",
+        "@nghttp2//:libnghttp2",
         "@openssl",
         "@zlib",
     ],
@@ -212,7 +212,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":curl_static",
-        "@nghttp2",
+        "@nghttp2//:libnghttp2",
         "@openssl",
         "@zlib",
     ],
@@ -221,7 +221,7 @@ cc_library(
 cc_shared_library(
     name = "curl",
     dynamic_deps = [
-        "@nghttp2//:nghttp2_shared",
+        "@nghttp2//:nghttp2_pkg",
         "@openssl//:openssl_shared",
         "@zlib//:z_pkg",
     ],
