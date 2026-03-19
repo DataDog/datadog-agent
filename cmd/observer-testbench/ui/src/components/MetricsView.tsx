@@ -49,6 +49,7 @@ interface MetricsViewProps {
   onTimeRangeChange: (range: TimeRange | null) => void;
   smoothLines: boolean;
   phaseMarkers?: PhaseMarker[];
+  focusedGroupKey?: string | null;
 }
 
 export function MetricsView({
@@ -59,6 +60,7 @@ export function MetricsView({
   onTimeRangeChange,
   smoothLines,
   phaseMarkers,
+  focusedGroupKey,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
@@ -66,6 +68,14 @@ export function MetricsView({
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
   const [tagFilterInput, setTagFilterInput] = useState('');
+
+  // When LogView requests a jump to a specific series group, select it.
+  // Virtual series (pattern counts) use the :count aggregation, so switch to it.
+  useEffect(() => {
+    if (!focusedGroupKey) return;
+    setAggregationType('count');
+    setSelectedGroups((prev) => new Set([...prev, focusedGroupKey]));
+  }, [focusedGroupKey]);
 
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];

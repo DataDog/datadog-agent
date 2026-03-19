@@ -375,6 +375,37 @@ func appendUnique(slice []string, s string) []string {
 	return append(slice, s)
 }
 
+// Classify returns the cluster matching the given message without modifying any state.
+// It returns the matching cluster, or nil if no existing cluster matches.
+func (pc *PatternClusterer) Classify(message string) *Cluster {
+	if pc.IgnoreEmpty && strings.TrimSpace(message) == "" {
+		return nil
+	}
+	tokens := pc.tokenizer.Tokenize(message)
+	sig := TokenListSignature(tokens)
+
+	if clusters, ok := pc.clustersBySignature[sig]; ok {
+		for _, c := range clusters {
+			if canMergeTokenLists(c.Pattern, tokens) {
+				return c
+			}
+		}
+	}
+
+	for otherSig, clusters := range pc.clustersBySignature {
+		if otherSig == sig {
+			continue
+		}
+		for _, c := range clusters {
+			if canMergeTokenLists(c.Pattern, tokens) {
+				return c
+			}
+		}
+	}
+
+	return nil
+}
+
 // FormatCluster returns a formatted string describing a cluster.
 func FormatCluster(c *Cluster) string {
 	return fmt.Sprintf("sig=%s pattern=%s count=%d", c.Signature, c.PatternString(), c.Count)

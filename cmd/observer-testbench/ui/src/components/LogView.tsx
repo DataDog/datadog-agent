@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import * as d3 from 'd3';
 import { api } from '../api/client';
-import type { ScenarioInfo, LogAnomaly, LogEntry, LogsSummary } from '../api/client';
+import type { ScenarioInfo, LogAnomaly, LogEntry, LogsSummary, LogPattern, SeriesData } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
@@ -20,6 +20,7 @@ interface LogViewProps {
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   phaseMarkers?: PhaseMarker[];
+  onJumpToSeries?: (groupKey: string) => void;
 }
 
 const LOG_CHART_HEIGHT = 80;
@@ -485,6 +486,126 @@ function LogRateChart({
   );
 }
 
+const PATTERN_CHART_HEIGHT = 60;
+const PATTERN_CHART_MARGIN = { top: 4, right: 8, bottom: 18, left: 8 };
+
+function PatternCountChart({
+  seriesIDs,
+  timeRange,
+  scenarioStart,
+  scenarioEnd,
+  phaseMarkers = [],
+}: {
+  seriesIDs: string[];
+  timeRange?: TimeRange | null;
+  scenarioStart: number | null;
+  scenarioEnd: number | null;
+  phaseMarkers?: PhaseMarker[];
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [allSeries, setAllSeries] = useState<SeriesData[]>([]);
+
+  useEffect(() => {
+    const ids = seriesIDs ?? [];
+    if (ids.length === 0) return;
+    let cancelled = false;
+    Promise.all(ids.map((id) => api.getSeriesDataByID(id))).then((results) => {
+      if (!cancelled) setAllSeries(results);
+    }).catch(console.error);
+    return () => { cancelled = true; };
+  }, [seriesIDs]);
+
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current || allSeries.length === 0) return;
+
+    const m = PATTERN_CHART_MARGIN;
+    const container = containerRef.current;
+    const width = container.clientWidth;
+    const innerWidth = width - m.left - m.right;
+    const innerHeight = PATTERN_CHART_HEIGHT - m.top - m.bottom;
+    if (innerWidth <= 0 || innerHeight <= 0) return;
+
+    const displayStart = timeRange?.start ?? scenarioStart;
+    const displayEnd = timeRange?.end ?? scenarioEnd;
+    if (!displayStart || !displayEnd || displayEnd <= displayStart) return;
+
+    const bucketCount = 60;
+    const bucketSize = (displayEnd - displayStart) / bucketCount;
+    const counts = new Array(bucketCount).fill(0);
+
+    for (const series of allSeries) {
+      for (const pt of series.points) {
+        const t = pt.timestamp;
+        if (t < displayStart || t > displayEnd) continue;
+        const idx = Math.min(Math.floor((t - displayStart) / bucketSize), bucketCount - 1);
+        counts[idx] += pt.value;
+      }
+    }
+
+    const maxCount = Math.max(1, ...counts);
+
+    d3.select(svgRef.current).selectAll('*').remove();
+    const svg = d3.select(svgRef.current).attr('width', width).attr('height', PATTERN_CHART_HEIGHT);
+    svg.append('defs').append('clipPath').attr('id', 'ptn-clip')
+      .append('rect').attr('width', innerWidth).attr('height', innerHeight);
+    const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+    const xScale = d3.scaleLinear().domain([displayStart, displayEnd]).range([0, innerWidth]);
+    const barsG = g.append('g').attr('clip-path', 'url(#ptn-clip)');
+
+    counts.forEach((count, i) => {
+      const startT = displayStart + i * bucketSize;
+      const endT = startT + bucketSize;
+      const x = xScale(startT);
+      const bw = Math.max(0, xScale(endT) - x - 1);
+      if (bw <= 0) return;
+      if (count === 0) {
+        barsG.append('rect').attr('x', x).attr('width', bw)
+          .attr('y', innerHeight - 2).attr('height', 2)
+          .attr('fill', 'rgba(51, 65, 85, 0.25)');
+        return;
+      }
+      const h = Math.max(3, (count / maxCount) * innerHeight);
+      barsG.append('rect').attr('x', x).attr('width', bw)
+        .attr('y', innerHeight - h).attr('height', h)
+        .attr('fill', 'rgba(45, 212, 191, 0.7)');
+    });
+
+    phaseMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp);
+      if (x < -20 || x > innerWidth + 20) return;
+      barsG.append('line')
+        .attr('x1', x).attr('x2', x).attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', marker.color).attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3').attr('opacity', 0.8);
+    });
+
+    g.append('g').attr('transform', `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(xScale).ticks(5)
+        .tickFormat((d) => {
+          const date = new Date((d as number) * 1000);
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        }))
+      .attr('color', '#334155')
+      .selectAll('text').attr('fill', '#64748b').attr('font-size', '9px');
+    g.select('.domain').attr('stroke', '#334155');
+  }, [allSeries, timeRange, scenarioStart, scenarioEnd, phaseMarkers]);
+
+  if ((seriesIDs ?? []).length === 0) {
+    return (
+      <div className="text-xs text-slate-500 italic py-2">
+        No count series found for this pattern.
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="w-full mt-2">
+      <svg ref={svgRef} style={{ display: 'block' }} />
+    </div>
+  );
+}
+
 interface LogEntryRowProps {
   entry: LogEntry;
   isExpanded: boolean;
@@ -647,7 +768,7 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle, onHoverEnter, onHoverLe
 
 const LOG_PAGE_SIZE = 50;
 
-export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
@@ -664,18 +785,36 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const [expandedTelemetryLogIndex, setExpandedTelemetryLogIndex] = useState<number | null>(null);
   const initializedScenarioRef = useRef<string | null>(null);
 
+  // Log patterns state
+  const [logPatterns, setLogPatterns] = useState<LogPattern[]>([]);
+  const [patternsExpanded, setPatternsExpanded] = useState(true);
+  const [patternSearch, setPatternSearch] = useState('');
+  const [patternSortBy, setPatternSortBy] = useState<'count' | 'pattern'>('count');
+  const [selectedPatternHash, setSelectedPatternHash] = useState<string | null>(null);
+  const [activePatternFilter, setActivePatternFilter] = useState<string | null>(null);
+
   const [rawLogsPage, setRawLogsPage] = useState<LogEntry[]>([]);
   const [rawLogsTotal, setRawLogsTotal] = useState(0);
   const [telemetryLogsPage, setTelemetryLogsPage] = useState<LogEntry[]>([]);
   const [telemetryLogsTotal, setTelemetryLogsTotal] = useState(0);
   const [logsSummary, setLogsSummary] = useState<LogsSummary | null>(state.logsSummary);
 
+  // Fetch log patterns when scenario is ready
+  useEffect(() => {
+    if (state.connectionState !== 'ready') return;
+    let cancelled = false;
+    api.getLogPatterns().then((patterns) => {
+      if (!cancelled) setLogPatterns(patterns);
+    }).catch(console.error);
+    return () => { cancelled = true; };
+  }, [state.connectionState, state.activeScenario, state.scenarioDataVersion]);
+
   // Fetch raw and telemetry pages independently so pagination matches the UI panes.
   useEffect(() => {
     if (state.connectionState !== 'ready') return;
 
     let cancelled = false;
-    const baseParams: { start?: number; end?: number; tags?: string } = {};
+    const baseParams: { start?: number; end?: number; tags?: string; pattern?: string } = {};
     if (timeRange) {
       baseParams.start = Math.floor(timeRange.start * 1000);
       baseParams.end = Math.floor(timeRange.end * 1000);
@@ -683,6 +822,9 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
     const trimmedTagFilter = tagFilterInput.trim();
     if (trimmedTagFilter) {
       baseParams.tags = trimmedTagFilter;
+    }
+    if (activePatternFilter) {
+      baseParams.pattern = activePatternFilter;
     }
 
     api.getLogs({
@@ -725,7 +867,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
     });
 
     return () => { cancelled = true; };
-  }, [logPage, telemetryLogPage, timeRange, tagFilterInput, state.connectionState, state.activeScenario, state.scenarioDataVersion]);
+  }, [logPage, telemetryLogPage, timeRange, tagFilterInput, activePatternFilter, state.connectionState, state.activeScenario, state.scenarioDataVersion]);
 
   // Reset state when scenario changes
   useEffect(() => {
@@ -742,6 +884,10 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
       setTelemetryLogsPage([]);
       setTelemetryLogsTotal(0);
       setLogsSummary(null);
+      setLogPatterns([]);
+      setSelectedPatternHash(null);
+      setActivePatternFilter(null);
+      setPatternSearch('');
     }
   }, [state.activeScenario]);
 
@@ -772,6 +918,17 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
 
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
+
+  const filteredPatterns = useMemo(() => {
+    const search = patternSearch.trim().toLowerCase();
+    let patterns = search
+      ? logPatterns.filter((p) => p.patternString.toLowerCase().includes(search))
+      : logPatterns;
+    if (patternSortBy === 'pattern') {
+      patterns = [...patterns].sort((a, b) => a.patternString.localeCompare(b.patternString));
+    }
+    return patterns;
+  }, [logPatterns, patternSearch, patternSortBy]);
 
   const visibleAnomalies = useMemo(() => {
     if (!timeRange) return sortedAnomalies;
@@ -853,6 +1010,21 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
             <div className="text-sm text-slate-300">
               {allLogAnomalies.length} anomal{allLogAnomalies.length !== 1 ? 'ies' : 'y'} detected
             </div>
+            {logPatterns.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 pt-1 border-t border-slate-700/50 mt-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500/70 flex-shrink-0" />
+                {logPatterns.length} pattern{logPatterns.length !== 1 ? 's' : ''}
+                {activePatternFilter && (
+                  <button
+                    onClick={() => setActivePatternFilter(null)}
+                    className="ml-auto text-teal-400 hover:text-teal-300 text-[10px]"
+                    title="Clear pattern filter"
+                  >
+                    ✕ clear filter
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -987,7 +1159,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               )}
             </div>
 
-            {/* Telemetry log entries */}
+            {/* Telemetry log entries — shown before patterns */}
             {(telemetryLogsTotal > 0 || telemetryLogs.length > 0) && (
               <div>
                 <div className="flex items-center gap-3 mb-3">
@@ -1047,6 +1219,189 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                 )}
               </div>
             )}
+            {/* Log Patterns section — below raw and telemetry logs */}
+            <div className="mt-6">
+              <button
+                onClick={() => setPatternsExpanded(!patternsExpanded)}
+                className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
+              >
+                <span className="text-slate-500">{patternsExpanded ? '▼' : '▶'}</span>
+                Log Patterns
+                {logPatterns.length > 0 && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-teal-900/40 text-teal-400 font-mono">
+                    {logPatterns.length}
+                  </span>
+                )}
+              </button>
+
+              {patternsExpanded && (
+                logPatterns.length === 0 ? (
+                  <div className="text-center py-6 text-slate-500 text-sm">
+                    No patterns detected. Load a scenario with logs.
+                  </div>
+                ) : (
+                  <>
+                    {/* Search + sort bar */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={patternSearch}
+                          onChange={(e) => setPatternSearch(e.target.value)}
+                          placeholder="Search patterns… (e.g. GET /api *)"
+                          className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded px-3 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                        />
+                        {patternSearch && (
+                          <button
+                            onClick={() => setPatternSearch('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-sm leading-none"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        value={patternSortBy}
+                        onChange={(e) => setPatternSortBy(e.target.value as 'count' | 'pattern')}
+                        className="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      >
+                        <option value="count">Sort: count ↓</option>
+                        <option value="pattern">Sort: pattern A–Z</option>
+                      </select>
+                    </div>
+
+                    {/* Scrollable pattern table with sticky header */}
+                    <div className="rounded border border-slate-700/60 overflow-hidden">
+                      <div className="overflow-y-auto max-h-[400px]">
+                        <table className="w-full text-xs border-collapse">
+                          <thead className="sticky top-0 z-10">
+                            <tr className="border-b border-slate-700 bg-slate-800">
+                              <th className="text-left py-2 px-3 text-slate-400 font-medium">Pattern</th>
+                              <th className="text-right py-2 px-3 text-slate-400 font-medium w-20">Count</th>
+                              <th className="text-left py-2 px-3 text-slate-400 font-medium hidden md:table-cell">Example</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredPatterns.length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="py-4 text-center text-slate-500">
+                                  No patterns match "{patternSearch}"
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredPatterns.map((p) => {
+                                const isSelected = selectedPatternHash === p.hash;
+                                const isFiltered = activePatternFilter === p.hash;
+                                return (
+                                  <Fragment key={p.hash}>
+                                    {/* Pattern row */}
+                                    <tr
+                                      onClick={() => setSelectedPatternHash(isSelected ? null : p.hash)}
+                                      className={`border-b border-slate-800/60 cursor-pointer hover:bg-slate-700/30 transition-colors ${
+                                        isSelected
+                                          ? 'bg-teal-900/20 border-teal-700/30'
+                                          : isFiltered
+                                            ? 'bg-teal-900/10'
+                                            : ''
+                                      }`}
+                                    >
+                                      <td className="py-2 px-3 font-mono text-teal-300">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-slate-600 text-[10px]">{isSelected ? '▼' : '▶'}</span>
+                                          <span title={p.patternString} className="truncate max-w-xs">{p.patternString}</span>
+                                          {isFiltered && (
+                                            <span className="flex-shrink-0 text-[9px] px-1 py-0.5 rounded bg-teal-600/30 text-teal-400">filtered</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="py-2 px-3 text-right text-slate-300 tabular-nums">
+                                        {p.count.toLocaleString()}
+                                      </td>
+                                      <td className="py-2 px-3 text-slate-500 hidden md:table-cell">
+                                        <span title={p.exampleLog} className="block truncate max-w-xs">{p.exampleLog}</span>
+                                      </td>
+                                    </tr>
+
+                                    {/* Inline detail row — shown when selected */}
+                                    {isSelected && (
+                                      <tr className="border-b border-teal-700/20">
+                                        <td colSpan={3} className="px-4 py-3 bg-slate-800/70">
+                                          <div className="mb-2">
+                                            <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Pattern</div>
+                                            <pre className="text-xs text-slate-200 font-mono bg-slate-900/60 rounded px-2 py-1 whitespace-pre-wrap break-all">
+                                              {p.patternString}
+                                            </pre>
+                                          </div>
+                                          <div className="flex items-start justify-between gap-3 mb-2">
+                                            {p.exampleLog && (
+                                              <div className="flex-1 min-w-0">
+                                                <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Example</div>
+                                                <pre className="text-xs text-slate-400 font-mono bg-slate-900/60 rounded px-2 py-1 whitespace-pre-wrap break-all max-h-12 overflow-y-auto">
+                                                  {p.exampleLog}
+                                                </pre>
+                                              </div>
+                                            )}
+                                            <div className="flex flex-col gap-1.5 flex-shrink-0">
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (isFiltered) {
+                                                    setActivePatternFilter(null);
+                                                  } else {
+                                                    setActivePatternFilter(p.hash);
+                                                    setLogPage(1);
+                                                  }
+                                                }}
+                                                className={`text-xs px-2.5 py-1.5 rounded transition-colors ${
+                                                  isFiltered
+                                                    ? 'bg-teal-600 text-white hover:bg-teal-700'
+                                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                                }`}
+                                              >
+                                                {isFiltered ? '✕ Clear filter' : '↓ Filter logs'}
+                                              </button>
+                                              {onJumpToSeries && (p.seriesIDs ?? []).length > 0 && (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onJumpToSeries(`parquet/_virtual.log.log_pattern_extractor.${p.hash}.count`);
+                                                  }}
+                                                  className="text-xs px-2.5 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                                  title="Open this series in the Time Series tab"
+                                                >
+                                                  ↗ View in metrics
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">
+                                            Count over time
+                                            {(p.seriesIDs ?? []).length > 1 && (
+                                              <span className="ml-1 normal-case text-slate-600">({p.seriesIDs.length} tag combinations)</span>
+                                            )}
+                                          </div>
+                                          <PatternCountChart
+                                            seriesIDs={p.seriesIDs ?? []}
+                                            timeRange={timeRange}
+                                            scenarioStart={scenarioStart}
+                                            scenarioEnd={scenarioEnd}
+                                            phaseMarkers={phaseMarkers}
+                                          />
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </Fragment>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )
+              )}
+            </div>
           </div>
         )}
       </main>

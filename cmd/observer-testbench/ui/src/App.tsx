@@ -186,6 +186,7 @@ function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
   const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [focusedGroupKey, setFocusedGroupKey] = useState<string | null>(null);
   const [smoothLines, setSmoothLines] = useState(true);
   const isResizingRef = useRef(false);
 
@@ -522,6 +523,7 @@ function App() {
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
             phaseMarkers={phaseMarkers}
+            focusedGroupKey={focusedGroupKey}
           />
         </div>
         <div className={`flex-1 flex ${activeTab !== 'correlators' ? 'hidden' : ''}`}>
@@ -541,6 +543,10 @@ function App() {
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
             phaseMarkers={phaseMarkers}
+            onJumpToSeries={(groupKey) => {
+              setFocusedGroupKey(groupKey);
+              setActiveTab('timeseries');
+            }}
           />
         </div>
       </div>

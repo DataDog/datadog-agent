@@ -147,6 +147,15 @@ export interface LogsSummary {
   tagGroups: Record<string, string[]>;
 }
 
+// LogPattern describes a detected log pattern cluster with its count metric series.
+export interface LogPattern {
+  hash: string;
+  patternString: string;  // human-readable, e.g. "GET /api/* 200"
+  exampleLog: string;
+  count: number;
+  seriesIDs: string[];    // compact series IDs for the count timeseries
+}
+
 // LogAnomaly is an anomaly emitted directly by a log detector (not via metrics detection).
 export interface LogAnomaly {
   source: string;
@@ -290,7 +299,11 @@ class ApiClient {
     return this.fetch(`/anomalies${params}`);
   }
 
-  async getLogs(params?: { kind?: LogKind; level?: string; start?: number; end?: number; limit?: number; offset?: number; tags?: string }): Promise<LogsResponse> {
+  async getLogPatterns(): Promise<LogPattern[]> {
+    return this.fetch('/log-patterns');
+  }
+
+  async getLogs(params?: { kind?: LogKind; level?: string; start?: number; end?: number; limit?: number; offset?: number; tags?: string; pattern?: string }): Promise<LogsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.kind) searchParams.set('kind', params.kind);
     if (params?.level) searchParams.set('level', params.level);
@@ -299,6 +312,7 @@ class ApiClient {
     if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
     if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
     if (params?.tags) searchParams.set('tags', params.tags);
+    if (params?.pattern) searchParams.set('pattern', params.pattern);
     const qs = searchParams.toString();
     return this.fetch(`/logs${qs ? '?' + qs : ''}`);
   }

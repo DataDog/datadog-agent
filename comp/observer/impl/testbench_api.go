@@ -50,6 +50,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/logs/summary", api.cors(api.handleLogsSummary))
 	mux.HandleFunc("/api/logs", api.cors(api.handleLogs))
 	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
+	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
@@ -103,21 +104,23 @@ type parsedLogTagFilter struct {
 }
 
 type logsQuery struct {
-	level     string
-	kind      string
-	startMs   int64
-	endMs     int64
-	limit     int
-	offset    int
-	tagFilter parsedLogTagFilter
+	level       string
+	kind        string
+	startMs     int64
+	endMs       int64
+	limit       int
+	offset      int
+	tagFilter   parsedLogTagFilter
+	patternHash string // hex hash of the log pattern cluster to filter by
 }
 
 func parseLogsQuery(query url.Values) logsQuery {
 	result := logsQuery{
-		level:     query.Get("level"),
-		kind:      query.Get("kind"),
-		limit:     1000,
-		tagFilter: parseLogTagFilter(query.Get("tags")),
+		level:       query.Get("level"),
+		kind:        query.Get("kind"),
+		limit:       1000,
+		tagFilter:   parseLogTagFilter(query.Get("tags")),
+		patternHash: query.Get("pattern"),
 	}
 	if result.kind == "" {
 		result.kind = "all"
@@ -837,24 +840,49 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs := api.tb.GetRawLogs()
 
+	// Resolve pattern cluster for filtering (if requested).
+	// Both the extractor reference and the cluster are fetched once before the loop.
+	type patternFilter struct {
+		extractor *LogPatternExtractor
+		clusterID int64
+	}
+	var pf *patternFilter
+	if query.patternHash != "" {
+		if ext := api.tb.getLogPatternExtractor(); ext != nil {
+			for _, c := range ext.PatternClusterer.GetClusters() {
+				if fmt.Sprintf("%x", c.ID+1) == query.patternHash {
+					pf = &patternFilter{extractor: ext, clusterID: c.ID}
+					break
+				}
+			}
+		}
+	}
+
 	// First pass: count total matches and collect the paginated window.
 	total := 0
 	result := make([]logEntryResponse, 0, query.limit)
 	for _, l := range logs {
-		if matchesLogsQuery(l, query) {
-			if total >= query.offset && len(result) < query.limit {
-				tags := effectiveLogTags(l)
-				ts := l.GetTimestampUnixMilli()
-				result = append(result, logEntryResponse{
-					TimestampMs: ts,
-					Status:      l.GetStatus(),
-					Content:     string(l.GetContent()),
-					Hostname:    l.GetHostname(),
-					Tags:        tags,
-				})
-			}
-			total++
+		if !matchesLogsQuery(l, query) {
+			continue
 		}
+		if pf != nil {
+			matched := pf.extractor.PatternClusterer.Classify(string(l.GetContent()))
+			if matched == nil || matched.ID != pf.clusterID {
+				continue
+			}
+		}
+		if total >= query.offset && len(result) < query.limit {
+			tags := effectiveLogTags(l)
+			ts := l.GetTimestampUnixMilli()
+			result = append(result, logEntryResponse{
+				TimestampMs: ts,
+				Status:      l.GetStatus(),
+				Content:     string(l.GetContent()),
+				Hostname:    l.GetHostname(),
+				Tags:        tags,
+			})
+		}
+		total++
 	}
 
 	api.writeJSON(w, map[string]interface{}{
@@ -863,6 +891,12 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 		"limit":  query.limit,
 		"offset": query.offset,
 	})
+}
+
+// handleLogPatterns returns the list of log patterns detected by the LogPatternExtractor.
+func (api *TestBenchAPI) handleLogPatterns(w http.ResponseWriter, _ *http.Request) {
+	patterns := api.tb.GetLogPatterns()
+	api.writeJSON(w, patterns)
 }
 
 // handleLogsSummary returns lightweight summary data about logs without bodies.

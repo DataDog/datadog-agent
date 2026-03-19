@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1212,6 +1213,85 @@ func (tb *TestBench) loadDemoScenario() error {
 	tb.mu.Unlock()
 	tb.broadcastStatus()
 	return nil
+}
+
+// LogPatternInfo describes a detected log pattern cluster with its associated metric series.
+type LogPatternInfo struct {
+	Hash          string   `json:"hash"`
+	PatternString string   `json:"patternString"`
+	ExampleLog    string   `json:"exampleLog"`
+	Count         int      `json:"count"`
+	SeriesIDs     []string `json:"seriesIDs"`
+}
+
+// GetLogPatterns returns the log patterns detected by the LogPatternExtractor,
+// sorted by count descending. Each pattern carries the series IDs for its
+// count metric, ready for the UI to fetch and chart.
+func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	ci, ok := tb.components["log_pattern_extractor"]
+	if !ok {
+		return []LogPatternInfo{}
+	}
+	extractor, ok := ci.instance.(*LogPatternExtractor)
+	if !ok {
+		return []LogPatternInfo{}
+	}
+
+	clusters := extractor.PatternClusterer.GetClusters()
+	if len(clusters) == 0 {
+		return []LogPatternInfo{}
+	}
+
+	storage := tb.engine.Storage()
+	result := make([]LogPatternInfo, 0, len(clusters))
+	for _, cluster := range clusters {
+		hash := fmt.Sprintf("%x", cluster.ID+1)
+		// Engine stores extractor metrics with the "_virtual." prefix (see engine.IngestLog).
+		metricName := fmt.Sprintf("_virtual.log.%s.%s.count", extractor.Name(), hash)
+
+		seriesIDs := []string{}
+		if storage != nil {
+			for _, m := range storage.ListSeriesMetadata("parquet") {
+				if m.Name == metricName {
+					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Handle))+":count")
+				}
+			}
+		}
+
+		exampleLog := ""
+		if len(cluster.Samples) > 0 {
+			exampleLog = cluster.Samples[0]
+		}
+
+		result = append(result, LogPatternInfo{
+			Hash:          hash,
+			PatternString: cluster.PatternString(),
+			ExampleLog:    exampleLog,
+			Count:         cluster.Count,
+			SeriesIDs:     seriesIDs,
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Count > result[j].Count
+	})
+	return result
+}
+
+// getLogPatternExtractor returns the LogPatternExtractor instance, or nil if unavailable.
+// Caller must not hold tb.mu.
+func (tb *TestBench) getLogPatternExtractor() *LogPatternExtractor {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	ci, ok := tb.components["log_pattern_extractor"]
+	if !ok {
+		return nil
+	}
+	ext, _ := ci.instance.(*LogPatternExtractor)
+	return ext
 }
 
 // GetRawLogs returns all stored raw log entries.
