@@ -193,8 +193,8 @@ impl Language {
         const BUILD_INFO_SIZE: usize = 32;
         const BUILD_INFO_ALIGN: usize = 16;
 
-        let exe = Exe::get(pid).ok()?;
-        let mut elf_file = File::open(&exe.0).ok()?;
+        let exe_path = crate::procfs::root_path().join(pid.to_string()).join("exe");
+        let mut elf_file = File::open(&exe_path).ok()?;
         let mut elf = elf::ElfStream::<AnyEndian, _>::open_stream(&mut elf_file).ok()?;
 
         // First, try to find .go.buildinfo section.
@@ -214,7 +214,7 @@ impl Language {
         let read_size = std::cmp::min(data_phdr.p_filesz as usize, ELF_READ_LIMIT);
 
         // Reopen file for manual read (elf consumes the original file)
-        let mut file = File::open(&exe.0).ok()?;
+        let mut file = File::open(&exe_path).ok()?;
         file.seek(SeekFrom::Start(data_phdr.p_offset)).ok()?;
         file.read_exact(segment_buffer.get_mut(..read_size)?).ok()?;
 
