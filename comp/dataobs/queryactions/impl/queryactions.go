@@ -92,18 +92,53 @@ func (c *component) GetConfigErrors() map[string]types.ErrorMsgSet {
 // An empty ConfigChanges is sent immediately because autodiscovery's LoadAndRun iterates
 // providers sequentially and blocks on each streaming provider until its first message arrives,
 // before proceeding to the next provider.
-// Assumption: the file config provider runs before this one in LoadAndRun, so the postgres check
-// config is already in activeConfigs when our ticker first fires.
 //
 // RC configs are declarative snapshots so only the latest matters. The RC callback writes to
 // outCh with replace semantics (non-blocking): if autodiscovery hasn't consumed the previous
-// update yet, it is replaced with the latest one rather than blocking the rcclient goroutine.
+// update yet, the old entry is replaced with the latest one. Unschedule entries from the dropped
+// update are preserved and merged into the new changes to prevent check leaks.
 func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	outCh := make(chan integration.ConfigChanges, 1)
 	// Unblock autodiscovery's LoadAndRun — it blocks on <-ch until the first message arrives.
 	outCh <- integration.ConfigChanges{}
 
+	// subscribeAndWait subscribes to the RC product and blocks until ctx is cancelled.
+	subscribeAndWait := func() {
+		c.rcclient.Subscribe(data.ProductDOQueryActions, func(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+			changes := c.onRCUpdate(updates, applyStatus)
+			if changes.IsEmpty() {
+				return
+			}
+			// Non-blocking replace: if the buffer is full (autodiscovery hasn't read yet),
+			// drain it and write the latest. Unschedule entries from the dropped update are
+			// merged in to prevent check leaks — lost Unschedule events leave checks in
+			// autodiscovery indefinitely.
+			// The drain is non-blocking because config_poller may have already read the buffer
+			// between the default branch firing and the drain.
+			select {
+			case outCh <- changes:
+			default:
+				var dropped integration.ConfigChanges
+				select {
+				case dropped = <-outCh:
+				default:
+				}
+				changes.Unschedule = append(dropped.Unschedule, changes.Unschedule...)
+				outCh <- changes
+			}
+		})
+		c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for Data Observability query actions")
+		<-ctx.Done()
+	}
+
 	go func() {
+		// Check immediately: the file config provider runs before this one in LoadAndRun,
+		// so postgres is typically already available when Stream() is called.
+		if c.hasPostgresIntegration() {
+			subscribeAndWait()
+			return
+		}
+
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -112,27 +147,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 				return
 			case <-ticker.C:
 				if c.hasPostgresIntegration() {
-					c.rcclient.Subscribe(data.ProductDOQueryActions, func(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
-						changes := c.onRCUpdate(updates, applyStatus)
-						if changes.IsEmpty() {
-							return
-						}
-						// Non-blocking replace: if the buffer is full (autodiscovery hasn't read yet),
-						// drain it and write the latest. The drain is non-blocking because config_poller
-						// may have already read the buffer between the default branch firing and the drain.
-						// After the drain (or if already empty), the buffer is guaranteed free for our send.
-						select {
-						case outCh <- changes:
-						default:
-							select {
-							case <-outCh:
-							default:
-							}
-							outCh <- changes
-						}
-					})
-					c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for Data Observability query actions")
-					<-ctx.Done()
+					subscribeAndWait()
 					return
 				}
 			}

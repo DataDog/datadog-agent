@@ -14,7 +14,8 @@ type DOQueryPayload struct {
 }
 
 // DBIdentifier identifies a database instance to target.
-// Type is always "self-hosted".
+// Type describes the hosting kind (e.g. "self-hosted", "rds"). It is stored
+// for informational purposes; instance matching is by host and dbname only.
 type DBIdentifier struct {
 	Type          string `json:"type"`
 	Host          string `json:"host"`

@@ -24,10 +24,16 @@ func TestIsPostgresIntegration(t *testing.T) {
 }
 
 func TestMatchesDBName(t *testing.T) {
-	t.Run("empty RC dbname matches any instance", func(t *testing.T) {
-		instance := map[string]any{"dbname": "mydb"}
+	t.Run("empty RC dbname matches empty instance dbname", func(t *testing.T) {
+		instance := map[string]any{}
 		dbID := &DBIdentifier{DBName: ""}
 		assert.True(t, matchesDBName(instance, dbID))
+	})
+
+	t.Run("empty RC dbname does not match instance with dbname", func(t *testing.T) {
+		instance := map[string]any{"dbname": "mydb"}
+		dbID := &DBIdentifier{DBName: ""}
+		assert.False(t, matchesDBName(instance, dbID))
 	})
 
 	t.Run("empty instance dbname does not match specific RC dbname", func(t *testing.T) {
@@ -74,9 +80,9 @@ func TestMatchesIdentifier_SelfHosted_WithDBName(t *testing.T) {
 		assert.False(t, matchesIdentifier(instance, dbID))
 	})
 
-	t.Run("no dbname in RC matches any", func(t *testing.T) {
+	t.Run("empty RC dbname does not match instance with dbname", func(t *testing.T) {
 		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
-		assert.True(t, matchesIdentifier(instance, dbID))
+		assert.False(t, matchesIdentifier(instance, dbID))
 	})
 }
 

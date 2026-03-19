@@ -161,13 +161,9 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 		dbID.Type, dbID.Host, dbID.DBName)
 }
 
-// matchesDBName checks if an instance's dbname matches the RC identifier's dbname.
-// If the RC specifies no dbname, any instance on the host matches.
-// Otherwise the instance's dbname must match exactly.
+// matchesDBName checks if an instance's dbname matches the RC identifier's dbname exactly.
+// Both must be equal; an empty RC dbname only matches instances that also have no dbname configured.
 func matchesDBName(instance map[string]any, dbID *DBIdentifier) bool {
-	if dbID.DBName == "" {
-		return true
-	}
 	instanceDBName, _ := instance["dbname"].(string)
 	return instanceDBName == dbID.DBName
 }
