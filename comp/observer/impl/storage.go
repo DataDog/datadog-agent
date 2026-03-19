@@ -160,6 +160,13 @@ func searchAfter(timestamps []int64, value int64) int {
 	})
 }
 
+// searchAtOrAfter returns the index of the first timestamp >= value using binary search.
+func searchAtOrAfter(timestamps []int64, value int64) int {
+	return sort.Search(len(timestamps), func(i int) bool {
+		return timestamps[i] >= value
+	})
+}
+
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
@@ -752,7 +759,54 @@ func (s *timeSeriesStorage) PointCountUpTo(handle observer.SeriesHandle, endTime
 	if stats == nil || stats.pointCount() == 0 {
 		return 0
 	}
-	return searchAfter(stats.timestamps, endTime)
+
+	// TODO: Optimize this (and PointCountSince) with cumulative sum / segment tree
+	// Sum event counts for all buckets at or before endTime.
+	endIdx := searchAfter(stats.timestamps, endTime)
+	total := 0
+	for i := 0; i < endIdx; i++ {
+		total += int(stats.counts[i])
+	}
+	return total
+}
+
+// PointCountSince returns the number of raw data points with timestamp >= startTime.
+// Uses binary search since timestamps are sorted.
+func (s *timeSeriesStorage) PointCountSince(handle observer.SeriesHandle, startTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(handle)
+	if stats == nil {
+		return 0
+	}
+
+	// Sum event counts for all buckets at or after startTime.
+	firstIdx := searchAtOrAfter(stats.timestamps, startTime)
+	total := 0
+	for i := firstIdx; i < len(stats.counts); i++ {
+		total += int(stats.counts[i])
+	}
+	return total
+}
+
+// Both are inclusive.
+func (s *timeSeriesStorage) PointCountBetween(handle observer.SeriesHandle, startTime, endTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(handle)
+	if stats == nil {
+		return 0
+	}
+
+	startIdx := searchAtOrAfter(stats.timestamps, startTime)
+	endIdx := searchAfter(stats.timestamps, endTime)
+	total := 0
+	for i := startIdx; i < endIdx; i++ {
+		total += int(stats.counts[i])
+	}
+	return total
 }
 
 // RecordObservationTime records that an observation occurred at the given timestamp.

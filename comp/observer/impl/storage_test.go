@@ -10,9 +10,10 @@ import (
 	"sync"
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
@@ -370,7 +371,7 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 }
 
 func TestPointCountUpTo_BinarySearch(t *testing.T) {
-	s := makeRangeStorage()
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
 
 	// All points <= 50
 	assert.Equal(t, 5, s.PointCountUpTo(rangeID, 50))
@@ -384,6 +385,92 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	assert.Equal(t, 1, s.PointCountUpTo(rangeID, 10))
 	// Non-existent series
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesHandle(999), 100)) // non-existent ID
+}
+
+func TestPointCountUpTo_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	handle := observer.SeriesHandle(0)
+
+	assert.Equal(t, 10, s.PointCountUpTo(handle, 100)) // all 10 events
+	assert.Equal(t, 8, s.PointCountUpTo(handle, 20))   // 3+5
+	assert.Equal(t, 3, s.PointCountUpTo(handle, 10))   // 3
+	assert.Equal(t, 0, s.PointCountUpTo(handle, 9))    // none
+}
+
+func TestPointCountSince_BinarySearch(t *testing.T) {
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
+
+	assert.Equal(t, 5, s.PointCountSince(rangeID, 0))
+	assert.Equal(t, 5, s.PointCountSince(rangeID, 10))
+	assert.Equal(t, 4, s.PointCountSince(rangeID, 20))
+	assert.Equal(t, 3, s.PointCountSince(rangeID, 30))
+	assert.Equal(t, 2, s.PointCountSince(rangeID, 40))
+	assert.Equal(t, 1, s.PointCountSince(rangeID, 50))
+	assert.Equal(t, 0, s.PointCountSince(rangeID, 51))
+}
+
+func TestPointCountSince_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	handle := observer.SeriesHandle(0)
+
+	assert.Equal(t, 10, s.PointCountSince(handle, 0))  // all 10 events
+	assert.Equal(t, 10, s.PointCountSince(handle, 10)) // all 10 (inclusive)
+	assert.Equal(t, 7, s.PointCountSince(handle, 20))  // 5+2
+	assert.Equal(t, 2, s.PointCountSince(handle, 30))  // 2
+	assert.Equal(t, 0, s.PointCountSince(handle, 31))  // none
+}
+
+func TestPointCountBetween_BinarySearch(t *testing.T) {
+	s := makeRangeStorage() // 1 event per bucket at ts 10,20,30,40,50
+
+	assert.Equal(t, 1, s.PointCountBetween(rangeID, 10, 10))
+	assert.Equal(t, 1, s.PointCountBetween(rangeID, 50, 50))
+	assert.Equal(t, 5, s.PointCountBetween(rangeID, 0, 50))
+	assert.Equal(t, 3, s.PointCountBetween(rangeID, 0, 30))
+	assert.Equal(t, 2, s.PointCountBetween(rangeID, 0, 25))
+	assert.Equal(t, 0, s.PointCountBetween(rangeID, 0, 9))
+	assert.Equal(t, 1, s.PointCountBetween(rangeID, 0, 10))
+	assert.Equal(t, 0, s.PointCountBetween(observer.SeriesHandle(999), 0, 100))
+}
+
+func TestPointCountBetween_MultipleEventsPerBucket(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// 3 events at ts=10, 5 events at ts=20, 2 events at ts=30
+	for i := 0; i < 3; i++ {
+		s.Add("ns", "m", 1.0, 10, nil)
+	}
+	for i := 0; i < 5; i++ {
+		s.Add("ns", "m", 1.0, 20, nil)
+	}
+	for i := 0; i < 2; i++ {
+		s.Add("ns", "m", 1.0, 30, nil)
+	}
+	handle := observer.SeriesHandle(0)
+
+	assert.Equal(t, 10, s.PointCountBetween(handle, 0, 100)) // all 10 events
+	assert.Equal(t, 8, s.PointCountBetween(handle, 0, 20))   // 3+5
+	assert.Equal(t, 3, s.PointCountBetween(handle, 0, 10))   // 3
+	assert.Equal(t, 0, s.PointCountBetween(handle, 0, 9))    // none
 }
 
 func TestPointCount_ColumnarLayout(t *testing.T) {

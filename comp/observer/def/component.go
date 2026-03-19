@@ -491,6 +491,13 @@ type StorageReader interface {
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesHandle, endTime int64) int
 
+	// PointCountSince returns the number of raw data points with timestamp >= startTime.
+	// Uses binary search for efficiency. Returns 0 if the series is not found.
+	PointCountSince(handle SeriesHandle, startTime int64) int
+
+	// PointCountBetween returns the number of raw data points with timestamp >= startTime and <= endTime.
+	PointCountBetween(handle SeriesHandle, startTime, endTime int64) int
+
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.
@@ -511,5 +518,5 @@ type Detector interface {
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
-	Detect(storage StorageReader, dataTime int64) DetectionResult
+	Detect(storage StorageReader, dataTimeSec int64) DetectionResult
 }
