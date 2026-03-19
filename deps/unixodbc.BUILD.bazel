@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -127,7 +127,7 @@ cc_library(
 
 # ODBC installer library (public version with exports)
 cc_library(
-    name = "odbcinst",
+    name = "libodbcinst",
     srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
     hdrs = [
         "include/odbcinst.h",
@@ -146,7 +146,7 @@ cc_library(
 
 # Main ODBC Driver Manager library
 cc_library(
-    name = "odbc",
+    name = "libodbc",
     srcs = glob(["DriverManager/**/*.c", "DriverManager/**/*.h", "include/*.h"]) + [":config_h"],
     hdrs = [
         "include/sql.h",
@@ -170,7 +170,7 @@ cc_library(
 
 # Cursor library
 cc_library(
-    name = "odbccr",
+    name = "libodbccr",
     # :config_h cannot be inside of the glob() because
     # actions are executed during execution phase, not during analysis phase
     # and glob is evaluated during analysis phase.
@@ -178,7 +178,7 @@ cc_library(
     visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES + ["DriverManager", "cur"],
-    deps = [":odbc"],
+    deps = [":libodbc"],
 )
 
 # ============================================================================
@@ -187,71 +187,27 @@ cc_library(
 
 # libodbcinst.so - ODBC Installer/Configuration library
 cc_shared_library(
-    name = "libodbcinst_so",
-    shared_lib_name = "libodbcinst.so.%s" % SOVERSION,
-    deps = [":odbcinst"],
+    name = "odbcinst",
+    deps = [":libodbcinst"],
     visibility = ["//visibility:public"],
 )
 
 # libodbc.so - Main ODBC Driver Manager library
 cc_shared_library(
-    name = "libodbc_so",
-    shared_lib_name = "libodbc.so.%s" % SOVERSION,
-    deps = [":odbc"],
+    name = "odbc",
+    deps = [":libodbc"],
     visibility = ["//visibility:public"],
 )
 
 # libodbccr.so - Cursor library
 cc_shared_library(
-    name = "libodbccr_so",
-    shared_lib_name = "libodbccr.so.%s" % SOVERSION,
-    deps = [":odbccr"],
+    name = "odbccr",
+    deps = [":libodbccr"],
     visibility = ["//visibility:public"],
 )
 
 # ============================================================================
-# Packaging - Library files
-# ============================================================================
-
-# Symlinks for libodbcinst
-so_symlink(
-    name = "libodbcinst_so_link",
-    src = ":libodbcinst_so",
-    libname = "libodbcinst",
-    # Symlinks version is the major version of the library.
-    version = SOVERSION.split(".")[0],
-)
-
-# Symlinks for libodbc
-so_symlink(
-    name = "libodbc_so_link",
-    src = ":libodbc_so",
-    libname = "libodbc",
-    # Symlinks version is the major version of the library.
-    version = SOVERSION.split(".")[0],
-)
-
-# Symlinks for libodbccr
-so_symlink(
-    name = "libodbccr_so_link",
-    src = ":libodbccr_so",
-    libname = "libodbccr",
-    # Symlinks version is the major version of the library.
-    version = SOVERSION.split(".")[0],
-)
-
-pkg_files(
-    name = "lib_files",
-    srcs = [
-        ":libodbcinst_so",
-        ":libodbc_so",
-        ":libodbccr_so",
-    ],
-    prefix = "lib",
-)
-
-# ============================================================================
-# Packaging - Header files
+# Packaging
 # ============================================================================
 
 pkg_files(
@@ -269,17 +225,34 @@ pkg_files(
     prefix = "include",
 )
 
-# ============================================================================
-# Installation target
-# ============================================================================
+dd_cc_packaged(
+    name = "odbcinst_pkg",
+    input = ":odbcinst",
+    version = SOVERSION.split(".")[0],
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "odbc_pkg",
+    input = ":odbc",
+    version = SOVERSION.split(".")[0],
+    installed_files = [
+        ":unixodbc_hdr_files",
+        ":libltdl_hdr_files",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "odbccr_pkg",
+    input = ":odbccr",
+    version = SOVERSION.split(".")[0],
+    visibility = ["//visibility:public"],
+)
 
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":lib_files",
-        ":libodbcinst_so_link",
-        ":libodbc_so_link",
-        ":libodbccr_so_link",
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
     ],

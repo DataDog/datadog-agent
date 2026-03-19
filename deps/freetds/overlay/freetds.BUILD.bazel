@@ -189,7 +189,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "@unixodbc//:odbc",
+        "@unixodbc//:libodbc",
         "@openssl",
     ],
 )
@@ -199,7 +199,7 @@ cc_shared_library(
     deps = [":libtdsodbc"],
     shared_lib_name = "libtdsodbc.so",
     dynamic_deps = [
-        "@unixodbc//:libodbc_so",
+        "@unixodbc//:odbc_pkg",
         "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
