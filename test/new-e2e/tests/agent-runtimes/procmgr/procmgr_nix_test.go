@@ -110,7 +110,16 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	}
 }
 
+func ddotPackageName() string {
+	if os.Getenv("E2E_FIPS") != "" {
+		return "datadog-fips-agent-ddot"
+	}
+	return "datadog-agent-ddot"
+}
+
 func (s *procmgrLinuxSuite) installRealDDOT() bool {
+	pkg := ddotPackageName()
+
 	// Refresh repos first — this must succeed; a transient failure here
 	// should not silently skip DDOT tests.
 	s.Env().RemoteHost.MustExecute(
@@ -118,17 +127,17 @@ func (s *procmgrLinuxSuite) installRealDDOT() bool {
 
 	// Check whether the package exists in repos. Only skip when genuinely absent.
 	_, err := s.Env().RemoteHost.Execute(
-		"(apt-cache show datadog-agent-ddot >/dev/null 2>&1) || " +
-			"(yum info datadog-agent-ddot >/dev/null 2>&1)")
+		"(apt-cache show " + pkg + " >/dev/null 2>&1) || " +
+			"(yum info " + pkg + " >/dev/null 2>&1)")
 	if err != nil {
-		s.T().Logf("datadog-agent-ddot package not found in repos; DDOT tests will be skipped")
+		s.T().Logf("%s package not found in repos; DDOT tests will be skipped", pkg)
 		return false
 	}
 
 	// Package is available — install must succeed or the suite fails.
 	s.Env().RemoteHost.MustExecute(
-		"(sudo apt-get install -y datadog-agent-ddot) || " +
-			"(sudo yum install -y datadog-agent-ddot)")
+		"(sudo apt-get install -y " + pkg + ") || " +
+			"(sudo yum install -y " + pkg + ")")
 
 	s.Env().RemoteHost.Execute("sudo systemctl stop datadog-agent-ddot.service || true")
 	s.Env().RemoteHost.Execute("sudo systemctl reset-failed datadog-agent-ddot.service || true")
@@ -414,7 +423,7 @@ func (s *procmgrLinuxSuite) requireCLI() {
 func (s *procmgrLinuxSuite) requireDDOT() {
 	s.T().Helper()
 	if !s.hasDDOT {
-		s.T().Skip("datadog-agent-ddot package not available")
+		s.T().Skipf("%s package not available", ddotPackageName())
 	}
 	s.requireCLI()
 }
