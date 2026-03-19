@@ -127,7 +127,7 @@ cc_shared_library(
     dynamic_deps = [
         "@popt//:popt",
         "@zlib//:z_pkg",
-        "@xz//:lzma",
+        "@xz//:lzma_pkg",
         "@bzip2//:bz2",
         "@openssl//:openssl_shared",
     ],
