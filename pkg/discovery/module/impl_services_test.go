@@ -383,6 +383,80 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataJava() {
 	assert.Equal(t, uint8(2), svc.TracerMetadata[0].SchemaVersion)
 }
 
+// TestServicesTracerMetadataCpp uses a real C++ tracer binary dump (v1 schema)
+// which does not include process_tags, container_id, or logs_collected fields,
+// verifying that both Go and Rust handle missing v2 fields correctly.
+func (s *discoveryTestSuite) TestServicesTracerMetadataCpp() {
+	t := s.T()
+	discovery := s.discovery
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
+	data, err := os.ReadFile(testDataPath)
+	require.NoError(t, err)
+
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "f685d66a-7c12-4c47-84d0-c8ba75856374",
+		TracerLanguage: "cpp",
+		TracerVersion:  "v1.0.0",
+		Hostname:       "my-hostname",
+		ServiceName:    "my-service",
+		ServiceEnv:     "my-env",
+		ServiceVersion: "my-version",
+	}
+
+	createTracerMemfd(t, data)
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	cmd.Env = append(cmd.Env, "DD_SERVICE=my-cpp-svc")
+	cmd.Env = append(cmd.Env, "DD_ENV=dev")
+	cmd.Env = append(cmd.Env, "DD_VERSION=0.1.0")
+	err = cmd.Start()
+	require.NoError(t, err)
+	f.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+
+		assert.Equal(collect, "my-cpp-svc", svc.UST.Service)
+		assert.Equal(collect, "dev", svc.UST.Env)
+		assert.Equal(collect, "0.1.0", svc.UST.Version)
+
+		assert.Equal(collect, "sleep", svc.GeneratedName)
+		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, svc.TracerMetadata)
+	assert.Equal(t, string(language.CPlusPlus), svc.Language)
+
+	// Verify v2 fields are absent/zero in v1 schema data
+	require.Len(t, svc.TracerMetadata, 1)
+	assert.Empty(t, svc.TracerMetadata[0].ProcessTags)
+	assert.Empty(t, svc.TracerMetadata[0].ContainerID)
+	assert.Equal(t, false, svc.TracerMetadata[0].LogsCollected)
+	assert.Equal(t, uint8(1), svc.TracerMetadata[0].SchemaVersion)
+}
+
 // TestServicesTracerMetadataWithoutPorts checks that processes with tracer metadata
 // are discovered even when they have no open listening ports.
 func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
