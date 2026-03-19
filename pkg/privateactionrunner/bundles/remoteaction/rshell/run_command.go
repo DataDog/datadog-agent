@@ -30,8 +30,7 @@ func NewRunCommandHandler() *RunCommandHandler {
 
 // RunCommandInputs defines the inputs for the runCommand action.
 type RunCommandInputs struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
+	Command string `json:"command"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -56,16 +55,7 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
-	// Build a minimal shell script by single-quoting the command and each argument
-	// to prevent any shell injection from untrusted input.
-	parts := make([]string, 0, 1+len(inputs.Args))
-	parts = append(parts, singleQuote(inputs.Command))
-	for _, arg := range inputs.Args {
-		parts = append(parts, singleQuote(arg))
-	}
-	script := strings.Join(parts, " ")
-
-	prog, err := syntax.NewParser().Parse(strings.NewReader(script), "")
+	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
@@ -96,9 +86,4 @@ func (h *RunCommandHandler) Run(
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 	}, nil
-}
-
-// singleQuote wraps s in POSIX single quotes, escaping any embedded single quotes.
-func singleQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
