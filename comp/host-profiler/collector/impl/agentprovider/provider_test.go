@@ -40,6 +40,10 @@ import (
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
 
+type testCollectorParams struct{}
+
+func (testCollectorParams) GetGoRuntimeMetrics() bool { return false }
+
 const testVersion = "7.0.0-test"
 
 func init() {
@@ -207,7 +211,7 @@ func TestProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := loadConfig(t, filepath.Join("td", tt.agentConfig))
-			provider := newProvider(cfg)(confmap.ProviderSettings{})
+			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 
@@ -251,7 +255,7 @@ func TestProvider(t *testing.T) {
 // instead of golden file comparison due to non-deterministic map iteration order
 func TestProviderMultipleEndpoints(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("td", "provider/multiple-endpoints/agent.yaml"))
-	provider := newProvider(cfg)(confmap.ProviderSettings{})
+	provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 	retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 	require.NoError(t, err)
@@ -278,7 +282,7 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 }
 
 func TestProviderMethods(t *testing.T) {
-	provider := newProvider(config.NewMock(t))(confmap.ProviderSettings{})
+	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 
 	require.Equal(t, "dd", provider.Scheme())
 
