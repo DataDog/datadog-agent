@@ -105,11 +105,11 @@ func main() {
 func run(recorder recorderdef.Component, cfg config.Component, logger log.Component, params CLIParams) error {
 	// Create the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
-		ScenariosDir:    params.ScenariosDir,
-		HTTPAddr:        params.HTTPAddr,
-		Recorder:        recorder,
-		Cfg:             cfg,
-		Logger:          logger,
+		ScenariosDir: params.ScenariosDir,
+		HTTPAddr:     params.HTTPAddr,
+		Recorder:     recorder,
+		Cfg:          cfg,
+		Logger:       logger,
 		ComponentSettings: observerimpl.ComponentSettings{
 			Enabled: params.Enabled,
 		},
