@@ -103,7 +103,7 @@ cc_shared_library(
         ":libxmlsec1",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
+        "@libxslt//:xslt_pkg",
         "@libxml2//:xml2_pkg",
     ],
     visibility = ["//visibility:public"],
@@ -169,7 +169,7 @@ cc_shared_library(
         ":libxmlsec1-openssl",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
+        "@libxslt//:xslt_pkg",
         "@libxml2//:xml2_pkg",
         "@openssl//:openssl_shared",
         ":xmlsec1",
