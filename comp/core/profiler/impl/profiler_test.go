@@ -157,9 +157,11 @@ func TestTimeout(t *testing.T) {
 		expTimeout      time.Duration
 	}{
 		{
-			name:            "Base Enabled Case",
-			extraCfgs:       map[string]interface{}{},
-			extraSysCfgs:    map[string]interface{}{},
+			name:      "Base Enabled Case",
+			extraCfgs: map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second),
 		},
@@ -175,7 +177,9 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{
 				"apm_config.enabled": true,
 			},
-			extraSysCfgs:    map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(4*time.Second), // APM default runtime has a ceiling of 4
 		},
@@ -185,7 +189,9 @@ func TestTimeout(t *testing.T) {
 				"apm_config.enabled":          true,
 				"apm_config.receiver_timeout": 20,
 			},
-			extraSysCfgs:    map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 6*(10*time.Second), // APM timeout is floored to the profile duration
 		},
@@ -195,7 +201,9 @@ func TestTimeout(t *testing.T) {
 				"apm_config.enabled":          true,
 				"apm_config.receiver_timeout": 5,
 			},
-			extraSysCfgs:    map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
 		},
@@ -204,7 +212,9 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{
 				"process_config.enabled": true,
 			},
-			extraSysCfgs:    map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 6*(10*time.Second),
 		},
@@ -213,7 +223,9 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
 			},
-			extraSysCfgs:    map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 6*(10*time.Second),
 		},
@@ -222,7 +234,9 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{
 				"process_config.run_in_core_agent.enabled": true,
 			},
-			extraSysCfgs:    map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second),
 		},
