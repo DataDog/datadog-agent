@@ -22,6 +22,7 @@ import (
 )
 
 func TestCommand(t *testing.T) {
+	t.Setenv("DD_DISCOVERY_ENABLED", "false")
 	testDir := t.TempDir()
 
 	configPath := path.Join(testDir, "datadog.yaml")
