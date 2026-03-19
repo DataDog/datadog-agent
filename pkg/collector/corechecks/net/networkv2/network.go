@@ -95,7 +95,6 @@ type networkConfig struct {
 
 type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
-	Connections(kind string) ([]net.ConnectionStat, error)
 	NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error)
 	GetProcPath() string
 	GetNetProcBasePath() string
@@ -113,10 +112,6 @@ type connectionStateEntry struct {
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
-}
-
-func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
-	return net.Connections(kind)
 }
 
 func (n defaultNetworkStats) NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error) {
