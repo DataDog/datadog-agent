@@ -46,13 +46,9 @@ cc_library(
         "-Wall",
         "-Umips",
         "-O2",
-        "-fPIC",
-        "-DPIC",
-        "-fvisibility=hidden",
         "-ffunction-sections",
         "-fdata-sections",
     ],
-    linkopts = ["-Wl,--gc-sections"],
     includes = [
         "include",
         "src",
