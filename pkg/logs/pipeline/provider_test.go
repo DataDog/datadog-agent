@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -235,6 +236,7 @@ func TestProviderConfigurations(t *testing.T) {
 				compression,
 				tc.legacyMode,
 				tc.serverless,
+				&secretnooptypes.SecretNoop{},
 			)
 			require.NotNil(t, providerImpl)
 
@@ -303,6 +305,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				compression,
 				false, // legacy mode
 				false, // serverless
+				&secretnooptypes.SecretNoop{},
 			)
 
 			require.NotNil(t, providerImpl)

@@ -49,7 +49,7 @@ func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsc
 func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component, secretsComp secrets.Component) (seccommon.RawReporter, error) {
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()
-	pipelineProvider := pipeline.NewProviderWithSecrets(
+	pipelineProvider := pipeline.NewProvider(
 		4,
 		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},

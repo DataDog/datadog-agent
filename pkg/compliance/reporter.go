@@ -40,7 +40,7 @@ type LogReporter struct {
 func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component, secretsComp secrets.Component) *LogReporter {
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()
-	pipelineProvider := pipeline.NewProviderWithSecrets(
+	pipelineProvider := pipeline.NewProvider(
 		4,
 		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},

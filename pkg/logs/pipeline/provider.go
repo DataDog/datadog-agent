@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -79,32 +78,9 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider.
-// This preserves the existing API for callers that do not need API key refresh on 403.
-func NewProvider(
-	numberOfPipelines int,
-	sink sender.Sink,
-	diagnosticMessageReceiver diagnostic.MessageReceiver,
-	processingRules []*config.ProcessingRule,
-	endpoints *config.Endpoints,
-	destinationsContext *client.DestinationsContext,
-	status statusinterface.Status,
-	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader,
-	compression logscompression.Component,
-	legacyMode bool,
-	serverless bool,
-) Provider {
-	return NewProviderWithSecrets(
-		numberOfPipelines, sink, diagnosticMessageReceiver, processingRules,
-		endpoints, destinationsContext, status, hostname, cfg, compression,
-		legacyMode, serverless, &secretnooptypes.SecretNoop{},
-	)
-}
-
-// NewProviderWithSecrets returns a new Provider with secrets support.
 // When secretsComp is backed by a real secrets backend, HTTP destinations will trigger an async API key refresh
-// on 403 responses and retry the payload instead of dropping it.
-func NewProviderWithSecrets(
+// on 403 responses and retry the payload instead of dropping it. Pass a SecretNoop when no secrets backend is available.
+func NewProvider(
 	numberOfPipelines int,
 	sink sender.Sink,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
