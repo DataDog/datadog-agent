@@ -30,10 +30,10 @@ func TestMatchesDBName(t *testing.T) {
 		assert.True(t, matchesDBName(instance, dbID))
 	})
 
-	t.Run("empty instance dbname matches any RC", func(t *testing.T) {
+	t.Run("empty instance dbname does not match specific RC dbname", func(t *testing.T) {
 		instance := map[string]any{}
 		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.True(t, matchesDBName(instance, dbID))
+		assert.False(t, matchesDBName(instance, dbID))
 	})
 
 	t.Run("matching dbnames", func(t *testing.T) {
@@ -143,6 +143,7 @@ host: localhost
 port: 5432
 remote_config_id: should-not-appear
 db_type: should-not-appear
+db_identifier: should-not-appear
 queries:
   - should-not-appear
 `
@@ -153,6 +154,8 @@ queries:
 	assert.False(t, hasRemoteConfigID, "remote_config_id must not be in the allowlist")
 	_, hasDBType := auth["db_type"]
 	assert.False(t, hasDBType, "db_type must not be in the allowlist")
+	_, hasDBIdentifier := auth["db_identifier"]
+	assert.False(t, hasDBIdentifier, "db_identifier must not be in the allowlist")
 	_, hasQueries := auth["queries"]
 	assert.False(t, hasQueries, "queries must not be in the allowlist")
 }
@@ -163,7 +166,8 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	}
 
 	payload := &DOQueryPayload{
-		ConfigID: "test-config-1",
+		ConfigID:     "test-config-1",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "testdb"},
 		Queries: []QuerySpec{
 			{
 				MonitorID:       100,
@@ -223,6 +227,12 @@ password: secret
 
 	assert.Equal(t, "rc-id-1", instance["remote_config_id"])
 	assert.Equal(t, "postgres", instance["db_type"])
+
+	dbID, ok := instance["db_identifier"].(map[string]interface{})
+	require.True(t, ok, "db_identifier should be a map")
+	assert.Equal(t, "localhost", dbID["host"])
+	assert.Equal(t, "testdb", dbID["dbname"])
+
 	assert.Equal(t, "localhost", instance["host"])
 	assert.Equal(t, 5432, instance["port"])
 	assert.Equal(t, "datadog", instance["username"])
@@ -349,17 +359,17 @@ func newTestComponent(t *testing.T) *component {
 	t.Helper()
 	return &component{
 		log:           logmock.New(t),
-		configChanges: make(chan integration.ConfigChanges, 10),
 		activeConfigs: make(map[string]integration.Config),
 	}
 }
 
-func collectStatuses(c *component, updates map[string]state.RawConfig) map[string]state.ApplyStatus {
+// collectStatuses calls onRCUpdate and returns the apply statuses and the resulting ConfigChanges.
+func collectStatuses(c *component, updates map[string]state.RawConfig) (map[string]state.ApplyStatus, integration.ConfigChanges) {
 	statuses := map[string]state.ApplyStatus{}
-	c.onRCUpdate(updates, func(path string, s state.ApplyStatus) {
+	changes := c.onRCUpdate(updates, func(path string, s state.ApplyStatus) {
 		statuses[path] = s
 	})
-	return statuses
+	return statuses, changes
 }
 
 func TestOnDebugConfig_InvalidJSON(t *testing.T) {
@@ -367,7 +377,7 @@ func TestOnDebugConfig_InvalidJSON(t *testing.T) {
 	updates := map[string]state.RawConfig{
 		"path/bad": {Config: []byte(`{not valid json`)},
 	}
-	statuses := collectStatuses(c, updates)
+	statuses, _ := collectStatuses(c, updates)
 	assert.Equal(t, state.ApplyStateError, statuses["path/bad"].State)
 	assert.Empty(t, c.activeConfigs)
 }
@@ -377,7 +387,7 @@ func TestOnDebugConfig_EmptyConfigID(t *testing.T) {
 	updates := map[string]state.RawConfig{
 		"path/config": {Config: []byte(`{"config_id": ""}`)},
 	}
-	statuses := collectStatuses(c, updates)
+	statuses, _ := collectStatuses(c, updates)
 	assert.Equal(t, state.ApplyStateError, statuses["path/config"].State)
 	assert.Empty(t, c.activeConfigs)
 }
@@ -390,14 +400,12 @@ func TestOnDebugConfig_EmptyQueriesUnschedules(t *testing.T) {
 	updates := map[string]state.RawConfig{
 		"path/config": {Config: []byte(`{"config_id": "cfg-1", "queries": []}`)},
 	}
-	statuses := collectStatuses(c, updates)
+	statuses, changes := collectStatuses(c, updates)
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, c.configChanges, 1)
-	change := <-c.configChanges
-	require.Len(t, change.Unschedule, 1)
-	assert.Equal(t, "do_query_actions", change.Unschedule[0].Name)
+	require.Len(t, changes.Unschedule, 1)
+	assert.Equal(t, "do_query_actions", changes.Unschedule[0].Name)
 }
 
 func TestOnDebugConfig_ReconcileRemovesStaleConfigs(t *testing.T) {
@@ -409,44 +417,30 @@ func TestOnDebugConfig_ReconcileRemovesStaleConfigs(t *testing.T) {
 	updates := map[string]state.RawConfig{
 		"path/other": {Config: []byte(`{"some_field": true}`)},
 	}
-	collectStatuses(c, updates)
+	_, changes := collectStatuses(c, updates)
 
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, c.configChanges, 1)
-	change := <-c.configChanges
-	require.Len(t, change.Unschedule, 1)
+	require.Len(t, changes.Unschedule, 1)
 }
 
-// --- unscheduleConfig tests ---
+// --- collectUnschedule tests ---
 
-func TestUnscheduleConfig_NotFound(t *testing.T) {
+func TestCollectUnschedule_NotFound(t *testing.T) {
 	c := newTestComponent(t)
-	c.unscheduleConfig("nonexistent")
-	assert.Empty(t, c.configChanges)
+	changes := integration.ConfigChanges{}
+	c.collectUnschedule("nonexistent", &changes)
+	assert.Empty(t, changes.Unschedule)
 	assert.Empty(t, c.activeConfigs)
 }
 
-func TestUnscheduleConfig_Found(t *testing.T) {
-	c := newTestComponent(t)
-	c.activeConfigs["my-config"] = integration.Config{Name: "do_query_actions"}
-
-	c.unscheduleConfig("my-config")
-
-	assert.Empty(t, c.activeConfigs)
-	require.Len(t, c.configChanges, 1)
-	change := <-c.configChanges
-	require.Len(t, change.Unschedule, 1)
-	assert.Equal(t, "do_query_actions", change.Unschedule[0].Name)
-}
-
-func TestUnscheduleConfig_ComponentClosed(t *testing.T) {
+func TestCollectUnschedule_Found(t *testing.T) {
 	c := newTestComponent(t)
 	c.activeConfigs["my-config"] = integration.Config{Name: "do_query_actions"}
-	c.closed = true
-	// Drain the channel since close() isn't called here, just set the flag
-	close(c.configChanges)
+	changes := integration.ConfigChanges{}
 
-	// Should not send to closed channel (closed guard prevents it), should not panic
-	c.unscheduleConfig("my-config")
+	c.collectUnschedule("my-config", &changes)
+
 	assert.Empty(t, c.activeConfigs)
+	require.Len(t, changes.Unschedule, 1)
+	assert.Equal(t, "do_query_actions", changes.Unschedule[0].Name)
 }

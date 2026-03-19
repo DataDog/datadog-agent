@@ -16,8 +16,8 @@ import (
 )
 
 // dbCredentialAllowList defines the connection and authentication fields to copy
-// from an existing postgres instance config into a DO query actions check.
-// This list must never include "remote_config_id", "db_type", or "queries" —
+// from an existing postgres instance config into a Data Observability query actions check.
+// This list must never include "remote_config_id", "db_type", "db_identifier", or "queries" —
 // those keys are set programmatically and auth fields copied via maps.Copy
 // would silently overwrite them.
 var dbCredentialAllowList = []string{
@@ -35,7 +35,10 @@ func isPostgresIntegration(name string) bool {
 // onRCUpdate handles DO_QUERY_ACTIONS RC product updates with a declarative config model.
 // The full updates map is treated as a snapshot: configs absent from the current update are
 // unscheduled. An empty queries list signals removal of all queries for that config.
-func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+// All schedule/unschedule changes are collected into a single returned ConfigChanges.
+// The caller is responsible for delivering changes to autodiscovery.
+func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) integration.ConfigChanges {
+	changes := integration.ConfigChanges{}
 	seenConfigIDs := make(map[string]bool, len(updates))
 
 	for path, rawConfig := range updates {
@@ -58,7 +61,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 		// Empty queries list signals all queries for this config should be removed
 		if len(payload.Queries) == 0 {
-			c.unscheduleConfig(configID)
+			c.collectUnschedule(configID, &changes)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 			continue
 		}
@@ -67,7 +70,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			c.unscheduleConfig(configID)
+			c.collectUnschedule(configID, &changes)
 			continue
 		}
 
@@ -80,34 +83,19 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Errorf("Failed to build check config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			c.unscheduleConfig(configID)
+			c.collectUnschedule(configID, &changes)
 			continue
 		}
 
 		// Unschedule previous version before scheduling updated config
-		c.unscheduleConfig(configID)
+		c.collectUnschedule(configID, &changes)
 
-		scheduled := false
-		c.closeMu.RLock()
-		if !c.closed {
-			select {
-			case c.configChanges <- integration.ConfigChanges{Schedule: []integration.Config{checkConfig}}:
-				c.activeConfigsMu.Lock()
-				c.activeConfigs[configID] = checkConfig
-				c.activeConfigsMu.Unlock()
-				c.log.Infof("Scheduled DO query action check: %s (%d queries)", configID, len(payload.Queries))
-				scheduled = true
-			default:
-				c.log.Warnf("Config changes channel full, dropping schedule for %s", configID)
-			}
-		}
-		c.closeMu.RUnlock()
-
-		if scheduled {
-			applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: "component stopped or channel full"})
-		}
+		c.activeConfigsMu.Lock()
+		c.activeConfigs[configID] = checkConfig
+		c.activeConfigsMu.Unlock()
+		changes.Schedule = append(changes.Schedule, checkConfig)
+		c.log.Infof("Scheduled Data Observability query action check: %s (%d queries)", configID, len(payload.Queries))
+		applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
 	// Reconcile: unschedule previously active configs absent from this snapshot
@@ -122,12 +110,15 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 	for _, configID := range toUnschedule {
 		c.log.Infof("Config %s absent from RC snapshot, unscheduling", configID)
-		c.unscheduleConfig(configID)
+		c.collectUnschedule(configID, &changes)
 	}
+
+	return changes
 }
 
-// unscheduleConfig removes a previously scheduled check config by config ID.
-func (c *component) unscheduleConfig(configID string) {
+// collectUnschedule removes a config from activeConfigs and appends it to changes.Unschedule.
+// It is a no-op if configID is not currently active.
+func (c *component) collectUnschedule(configID string, changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	prev, existed := c.activeConfigs[configID]
 	if existed {
@@ -139,16 +130,8 @@ func (c *component) unscheduleConfig(configID string) {
 		return
 	}
 
-	c.closeMu.RLock()
-	if !c.closed {
-		select {
-		case c.configChanges <- integration.ConfigChanges{Unschedule: []integration.Config{prev}}:
-			c.log.Infof("Unscheduled DO query action check: %s", configID)
-		default:
-			c.log.Warnf("Config changes channel full, dropping unschedule for %s", configID)
-		}
-	}
-	c.closeMu.RUnlock()
+	changes.Unschedule = append(changes.Unschedule, prev)
+	c.log.Infof("Unscheduled Data Observability query action check: %s", configID)
 }
 
 // findPostgresConfig finds a postgres config that matches the given identifier.
@@ -179,16 +162,13 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 }
 
 // matchesDBName checks if an instance's dbname matches the RC identifier's dbname.
-// If the RC specifies no dbname, any instance matches. If the instance has no dbname set, it also matches.
-// Otherwise both must match exactly.
+// If the RC specifies no dbname, any instance on the host matches.
+// Otherwise the instance's dbname must match exactly.
 func matchesDBName(instance map[string]any, dbID *DBIdentifier) bool {
 	if dbID.DBName == "" {
 		return true
 	}
 	instanceDBName, _ := instance["dbname"].(string)
-	if instanceDBName == "" {
-		return true
-	}
 	return instanceDBName == dbID.DBName
 }
 
@@ -252,7 +232,11 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	instanceFields := map[string]any{
 		"remote_config_id": remoteConfigID,
 		"db_type":          baseCfg.Name,
-		"queries":          queries,
+		"db_identifier": map[string]any{
+			"host":   payload.DBIdentifier.Host,
+			"dbname": payload.DBIdentifier.DBName,
+		},
+		"queries": queries,
 	}
 
 	// Copy auth fields into instance config. Auth fields from dbCredentialAllowList

@@ -21,6 +21,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 // Requires defines the dependencies for the Data Observability query actions component
@@ -43,12 +44,8 @@ type component struct {
 	ac              autodiscovery.Component
 	rcclient        rcclient.Component
 	enabled         bool
-	configChanges   chan integration.ConfigChanges
-	closeMu         sync.RWMutex
-	closed          bool
 	activeConfigs   map[string]integration.Config
 	activeConfigsMu sync.Mutex
-	stopCancel      context.CancelFunc
 }
 
 // NewComponent creates a new Data Observability query actions component
@@ -60,18 +57,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ac:            reqs.Ac,
 		rcclient:      reqs.RcClient,
 		enabled:       enabled,
-		configChanges: make(chan integration.ConfigChanges, 100),
 		activeConfigs: make(map[string]integration.Config),
 	}
 
-	// Send an empty ConfigChanges immediately so autodiscovery's Stream() reader unblocks
-	// and begins listening, avoiding a deadlock where autodiscovery waits for initial output
-	// before the component starts subscribing to RC.
-	c.configChanges <- integration.ConfigChanges{}
-
 	reqs.Lc.Append(compdef.Hook{
 		OnStart: c.start,
-		OnStop:  c.stop,
 	})
 
 	return Provides{Comp: c}, nil
@@ -83,55 +73,8 @@ func (c *component) start(_ context.Context) error {
 		return nil
 	}
 	c.ac.AddConfigProvider(c, false, 0)
-	ctx, cancel := context.WithCancel(context.Background())
-	c.stopCancel = cancel
-	go c.manageSubscriptionToRC(ctx)
 	c.log.Info("Data Observability query actions component started")
 	return nil
-}
-
-func (c *component) stop(_ context.Context) error {
-	if c.stopCancel != nil {
-		c.stopCancel()
-	}
-	c.closeMu.Lock()
-	defer c.closeMu.Unlock()
-	if !c.closed {
-		c.closed = true
-		close(c.configChanges)
-	}
-	c.log.Info("Data Observability query actions component stopped")
-	return nil
-}
-
-// manageSubscriptionToRC polls autodiscovery every 10 seconds until a postgres integration
-// is detected, then subscribes to the RC DO_QUERY_ACTIONS product exactly once and exits.
-// The goroutine exits immediately when ctx is cancelled (via stop()).
-func (c *component) manageSubscriptionToRC(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if c.hasPostgresIntegration() {
-				c.rcclient.Subscribe(data.ProductDOQueryActions, c.onRCUpdate)
-				c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for Data Observability query actions")
-				return
-			}
-		}
-	}
-}
-
-// hasPostgresIntegration checks if any postgres integration is configured in autodiscovery
-func (c *component) hasPostgresIntegration() bool {
-	for _, cfg := range c.ac.GetUnresolvedConfigs() {
-		if isPostgresIntegration(cfg.Name) {
-			return true
-		}
-	}
-	return false
 }
 
 // String returns the name of the provider
@@ -145,18 +88,66 @@ func (c *component) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return map[string]types.ErrorMsgSet{}
 }
 
-// Stream returns the shared configChanges channel and arranges for it to be closed when ctx
-// is done. The channel is also closed by stop(); the closed flag and closeMu guard against
-// double-close. Callers must not close the returned channel themselves.
+// Stream creates a fresh channel per call (same pattern as container/process_log providers).
+// An empty ConfigChanges is sent immediately because autodiscovery's LoadAndRun iterates
+// providers sequentially and blocks on each streaming provider until its first message arrives,
+// before proceeding to the next provider.
+// Assumption: the file config provider runs before this one in LoadAndRun, so the postgres check
+// config is already in activeConfigs when our ticker first fires.
+//
+// RC configs are declarative snapshots so only the latest matters. The RC callback writes to
+// outCh with replace semantics (non-blocking): if autodiscovery hasn't consumed the previous
+// update yet, it is replaced with the latest one rather than blocking the rcclient goroutine.
 func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges {
+	outCh := make(chan integration.ConfigChanges, 1)
+	// Unblock autodiscovery's LoadAndRun — it blocks on <-ch until the first message arrives.
+	outCh <- integration.ConfigChanges{}
+
 	go func() {
-		<-ctx.Done()
-		c.closeMu.Lock()
-		defer c.closeMu.Unlock()
-		if !c.closed {
-			c.closed = true
-			close(c.configChanges)
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if c.hasPostgresIntegration() {
+					c.rcclient.Subscribe(data.ProductDOQueryActions, func(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+						changes := c.onRCUpdate(updates, applyStatus)
+						if changes.IsEmpty() {
+							return
+						}
+						// Non-blocking replace: if the buffer is full (autodiscovery hasn't read yet),
+						// drain it and write the latest. The drain is non-blocking because config_poller
+						// may have already read the buffer between the default branch firing and the drain.
+						// After the drain (or if already empty), the buffer is guaranteed free for our send.
+						select {
+						case outCh <- changes:
+						default:
+							select {
+							case <-outCh:
+							default:
+							}
+							outCh <- changes
+						}
+					})
+					c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for Data Observability query actions")
+					<-ctx.Done()
+					return
+				}
+			}
 		}
 	}()
-	return c.configChanges
+
+	return outCh
+}
+
+// hasPostgresIntegration checks if any postgres integration is configured in autodiscovery
+func (c *component) hasPostgresIntegration() bool {
+	for _, cfg := range c.ac.GetUnresolvedConfigs() {
+		if isPostgresIntegration(cfg.Name) {
+			return true
+		}
+	}
+	return false
 }
