@@ -51,6 +51,13 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	if err = writeOTelConfigWindows(ctx); err != nil {
 		return fmt.Errorf("could not write otel-config.yaml: %w", err)
 	}
+	// Grant ddagentuser write access to otel-config.yaml so the service can
+	// update the agent extension config with DD_API_KEY, installation_method, etc.
+	// On Linux the dd-agent user already has 640 mode access; on Windows an
+	// explicit ACE is required.
+	if err = grantDDAgentUserFileAccess(filepath.Join(paths.DatadogDataDir, "otel-config.yaml")); err != nil {
+		return fmt.Errorf("failed to grant access to otel-config.yaml: %w", err)
+	}
 	// 2) Enable otelcollector in datadog.yaml
 	if err = enableOtelCollectorConfigWindows(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector: %w", err)
@@ -129,6 +136,12 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
 		if err := disableOtelCollectorConfigWindows(); err != nil {
 			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+		}
+		otelConfigPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
+		if _, err := os.Stat(otelConfigPath); err == nil {
+			if err := removeDDAgentUserFileAccess(otelConfigPath); err != nil {
+				log.Warnf("failed to remove access from otel-config.yaml: %v", err)
+			}
 		}
 		// Restart core agent to pick up reverted config
 		if err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context); err != nil {
@@ -406,6 +419,13 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	if err := writeOTelConfigWindowsExtension(ctx, extensionPath); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
+	// Grant ddagentuser write access to otel-config.yaml so the service can
+	// update the agent extension config with DD_API_KEY, installation_method, etc.
+	// On Linux the dd-agent user already has 640 mode access; on Windows an
+	// explicit ACE is required.
+	if err := grantDDAgentUserFileAccess(filepath.Join(paths.DatadogDataDir, "otel-config.yaml")); err != nil {
+		return fmt.Errorf("failed to grant access to otel-config.yaml: %w", err)
+	}
 
 	if err := enableOtelCollectorConfigWindows(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector: %w", err)
@@ -432,6 +452,12 @@ func preRemoveDDOTExtension(_ HookContext) error {
 	}
 	if err := disableOtelCollectorConfigWindows(); err != nil {
 		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+	}
+	otelConfigPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
+	if _, err := os.Stat(otelConfigPath); err == nil {
+		if err := removeDDAgentUserFileAccess(otelConfigPath); err != nil {
+			log.Warnf("failed to remove ddagentuser access from otel-config.yaml: %v", err)
+		}
 	}
 	return nil
 }

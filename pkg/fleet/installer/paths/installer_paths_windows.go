@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"syscall"
 	"unsafe"
@@ -29,6 +30,7 @@ import (
 var (
 	advapi32                        = syscall.NewLazyDLL("advapi32.dll")
 	procTreeResetNamedSecurityInfoW = advapi32.NewProc("TreeResetNamedSecurityInfoW")
+	procSetEntriesInACLW            = advapi32.NewProc("SetEntriesInAclW")
 )
 
 var (
@@ -609,6 +611,129 @@ func SetRepositoryPermissions(path string) error {
 	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200A9;;;WD)"
 
 	return treeResetNamedSecurityInfoWithSDDL(path, sddl)
+}
+
+// Windows ACCESS_MODE constants for SetEntriesInAcl.
+// https://learn.microsoft.com/en-us/windows/win32/api/accctrl/ne-accctrl-access_mode
+const (
+	accessModeGrant  = 1 // GRANT_ACCESS: merge an Allow ACE for the trustee
+	accessModeRevoke = 4 // REVOKE_ACCESS: remove all ACEs for the trustee
+	trusteeIsSID     = 0 // TRUSTEE_IS_SID: ptstrName points to a SID
+)
+
+// trusteeW mirrors the Windows TRUSTEE_W structure.
+// https://learn.microsoft.com/en-us/windows/win32/api/accctrl/ns-accctrl-trustee_w
+type trusteeW struct {
+	pMultipleTrustee         *trusteeW
+	multipleTrusteeOperation uint32
+	trusteeForm              uint32
+	trusteeType              uint32
+	ptstrName                uintptr
+}
+
+// explicitAccessW mirrors the Windows EXPLICIT_ACCESS_W structure.
+// https://learn.microsoft.com/en-us/windows/win32/api/accctrl/ns-accctrl-explicit_access_w
+type explicitAccessW struct {
+	grfAccessPermissions uint32
+	grfAccessMode        uint32
+	grfInheritance       uint32
+	trustee              trusteeW
+}
+
+// AddExplicitAccessToFile adds an explicit Allow ACE for the given SID on a file.
+// Existing ACEs (both explicit and inherited) are preserved.
+//
+// https://learn.microsoft.com/en-us/windows/win32/secauthz/modifying-the-acls-of-an-object-in-c--
+func AddExplicitAccessToFile(filePath string, sid *windows.SID, accessPermissions uint32) error {
+	sd, err := windows.GetNamedSecurityInfo(filePath, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("GetNamedSecurityInfo(%s): %w", filePath, err)
+	}
+	oldDACL, _, err := sd.DACL()
+	if err != nil {
+		return fmt.Errorf("failed to get existing DACL for %s: %w", filePath, err)
+	}
+
+	var pinner runtime.Pinner
+	pinner.Pin(sid)
+	defer pinner.Unpin()
+
+	ea := explicitAccessW{
+		grfAccessPermissions: accessPermissions,
+		grfAccessMode:        accessModeGrant,
+		trustee: trusteeW{
+			trusteeForm: trusteeIsSID,
+			ptstrName:   uintptr(unsafe.Pointer(sid)),
+		},
+	}
+	var newDACL *windows.ACL
+	ret, _, _ := procSetEntriesInACLW.Call(
+		1,
+		uintptr(unsafe.Pointer(&ea)),
+		uintptr(unsafe.Pointer(oldDACL)),
+		uintptr(unsafe.Pointer(&newDACL)),
+	)
+	if ret != 0 {
+		return fmt.Errorf("SetEntriesInAcl: %w", syscall.Errno(ret))
+	}
+	defer windows.LocalFree(windows.Handle(unsafe.Pointer(newDACL)))
+
+	return windows.SetNamedSecurityInfo(
+		filePath,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, nil,
+		newDACL,
+		nil,
+	)
+}
+
+// RevokeExplicitAccessFromFile removes all explicit ACEs for the given SID
+// from a file. Other ACEs (both explicit for other SIDs and inherited) are
+// preserved.
+//
+// https://learn.microsoft.com/en-us/windows/win32/secauthz/modifying-the-acls-of-an-object-in-c--
+func RevokeExplicitAccessFromFile(filePath string, sid *windows.SID) error {
+	sd, err := windows.GetNamedSecurityInfo(filePath, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("GetNamedSecurityInfo(%s): %w", filePath, err)
+	}
+	oldDACL, _, err := sd.DACL()
+	if err != nil {
+		return fmt.Errorf("failed to get existing DACL for %s: %w", filePath, err)
+	}
+
+	var pinner runtime.Pinner
+	pinner.Pin(sid)
+	defer pinner.Unpin()
+
+	ea := explicitAccessW{
+		grfAccessMode: accessModeRevoke,
+		trustee: trusteeW{
+			trusteeForm: trusteeIsSID,
+			ptstrName:   uintptr(unsafe.Pointer(sid)),
+		},
+	}
+	var newDACL *windows.ACL
+	ret, _, _ := procSetEntriesInACLW.Call(
+		1,
+		uintptr(unsafe.Pointer(&ea)),
+		uintptr(unsafe.Pointer(oldDACL)),
+		uintptr(unsafe.Pointer(&newDACL)),
+	)
+	if ret != 0 {
+		return fmt.Errorf("SetEntriesInAcl: %w", syscall.Errno(ret))
+	}
+	defer windows.LocalFree(windows.Handle(unsafe.Pointer(newDACL)))
+
+	return windows.SetNamedSecurityInfo(
+		filePath,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, nil,
+		newDACL,
+		nil,
+	)
 }
 
 // GetAdminInstallerBinaryPath returns the path to the datadog-installer executable

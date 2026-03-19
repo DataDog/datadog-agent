@@ -18,6 +18,7 @@ import (
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testDDOTExtensionMSI struct {
@@ -57,6 +58,10 @@ func (s *testDDOTExtensionMSI) TestInstallAndUninstallDDOTExtension() {
 	)
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
+	// Assert: ddagentuser has explicit FullControl on otel-config.yaml
+	otelConfigPath := filepath.Join(windowsagent.DefaultConfigRoot, "otel-config.yaml")
+	requireDDAgentUserExplicitFullControl(s.T(), s.Env().RemoteHost, otelConfigPath)
+
 	// Act: uninstall the Agent MSI (purges OCI packages including extensions)
 	s.Require().NoError(s.Installer().Uninstall(
 		installerwindows.WithMSILogFile("uninstall-ddot-extension.log"),
@@ -65,6 +70,9 @@ func (s *testDDOTExtensionMSI) TestInstallAndUninstallDDOTExtension() {
 	// Assert: extension directory and service are gone
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(ddotExtDir, "ddot extension should be removed on uninstall")
 	s.Require().Host(s.Env().RemoteHost).HasNoService("datadog-otel-agent")
+
+	// Assert: explicit ddagentuser ACE removed from otel-config.yaml
+	requireNoDDAgentUserExplicitAccess(s.T(), s.Env().RemoteHost, otelConfigPath)
 }
 
 func (s *testDDOTExtensionMSI) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {

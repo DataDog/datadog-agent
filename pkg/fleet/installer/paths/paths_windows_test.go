@@ -110,6 +110,109 @@ func assertDACLAutoInherit(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
 	assert.NotZero(t, control&windows.SE_DACL_AUTO_INHERITED)
 }
 
+func getDACLSDDL(t *testing.T, path string) string {
+	t.Helper()
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	require.NoError(t, err)
+	return sd.String()
+}
+
+func assertDACLNotProtected(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
+	t.Helper()
+	control, _, err := sd.Control()
+	require.NoError(t, err)
+	assert.Zero(t, control&windows.SE_DACL_PROTECTED, "DACL should not be protected")
+}
+
+const fileAllAccess = 0x1F01FF
+
+func TestAddExplicitAccessToFile(t *testing.T) {
+	t.Run("adds ACE and preserves inheritance", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "test.txt")
+		require.NoError(t, os.WriteFile(filePath, []byte("test"), 0))
+
+		sid, err := windows.CreateWellKnownSid(windows.WinBuiltinGuestsSid)
+		require.NoError(t, err)
+
+		require.NotContains(t, getDACLSDDL(t, filePath), "BG", "precondition: Guests should not have access")
+
+		err = AddExplicitAccessToFile(filePath, sid, fileAllAccess)
+		require.NoError(t, err)
+
+		assert.Contains(t, getDACLSDDL(t, filePath), "BG")
+		sd, err := getSecurityDescriptor(filePath)
+		require.NoError(t, err)
+		assertDACLNotProtected(t, sd)
+	})
+
+	t.Run("file does not exist", func(t *testing.T) {
+		sid, err := windows.CreateWellKnownSid(windows.WinBuiltinGuestsSid)
+		require.NoError(t, err)
+		err = AddExplicitAccessToFile(filepath.Join(t.TempDir(), "nonexistent.txt"), sid, fileAllAccess)
+		require.Error(t, err)
+	})
+}
+
+func TestRevokeExplicitAccessFromFile(t *testing.T) {
+	t.Run("removes ACE and preserves inheritance", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "test.txt")
+		require.NoError(t, os.WriteFile(filePath, []byte("test"), 0))
+
+		sid, err := windows.CreateWellKnownSid(windows.WinBuiltinGuestsSid)
+		require.NoError(t, err)
+
+		require.NoError(t, AddExplicitAccessToFile(filePath, sid, fileAllAccess))
+		require.Contains(t, getDACLSDDL(t, filePath), "BG")
+
+		err = RevokeExplicitAccessFromFile(filePath, sid)
+		require.NoError(t, err)
+
+		assert.NotContains(t, getDACLSDDL(t, filePath), "BG")
+		sd, err := getSecurityDescriptor(filePath)
+		require.NoError(t, err)
+		assertDACLNotProtected(t, sd)
+	})
+
+	t.Run("preserves other explicit ACEs", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "test.txt")
+		require.NoError(t, os.WriteFile(filePath, []byte("test"), 0))
+
+		guestsSID, err := windows.CreateWellKnownSid(windows.WinBuiltinGuestsSid)
+		require.NoError(t, err)
+		boSID, err := windows.CreateWellKnownSid(windows.WinBuiltinBackupOperatorsSid)
+		require.NoError(t, err)
+
+		require.NoError(t, AddExplicitAccessToFile(filePath, guestsSID, fileAllAccess))
+		require.NoError(t, AddExplicitAccessToFile(filePath, boSID, fileAllAccess))
+
+		err = RevokeExplicitAccessFromFile(filePath, guestsSID)
+		require.NoError(t, err)
+
+		sddl := getDACLSDDL(t, filePath)
+		assert.NotContains(t, sddl, "BG")
+		assert.Contains(t, sddl, "BO")
+	})
+
+	t.Run("noop when SID has no ACE", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "test.txt")
+		require.NoError(t, os.WriteFile(filePath, []byte("test"), 0))
+
+		sid, err := windows.CreateWellKnownSid(windows.WinBuiltinGuestsSid)
+		require.NoError(t, err)
+
+		err = RevokeExplicitAccessFromFile(filePath, sid)
+		require.NoError(t, err)
+		assert.NotContains(t, getDACLSDDL(t, filePath), "BG")
+	})
+
+	t.Run("file does not exist", func(t *testing.T) {
+		sid, err := windows.CreateWellKnownSid(windows.WinBuiltinGuestsSid)
+		require.NoError(t, err)
+		err = RevokeExplicitAccessFromFile(filepath.Join(t.TempDir(), "nonexistent.txt"), sid)
+		require.Error(t, err)
+	})
+}
+
 func TestCreateDirIfNotExists(t *testing.T) {
 	t.Run("directory does not exist", func(t *testing.T) {
 		root := t.TempDir()

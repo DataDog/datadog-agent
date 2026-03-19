@@ -9,15 +9,20 @@ package ddottests
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testDDOTExtensionInstallScript struct {
@@ -63,6 +68,10 @@ func (s *testDDOTExtensionInstallScript) TestInstallAndPurgeDDOTExtension() {
 	)
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
+	// Assert: ddagentuser has explicit FullControl on otel-config.yaml
+	otelConfigPath := filepath.Join(windowsagent.DefaultConfigRoot, "otel-config.yaml")
+	requireDDAgentUserExplicitFullControl(s.T(), s.Env().RemoteHost, otelConfigPath)
+
 	// Act: purge all packages
 	_, err = s.Installer().Purge()
 	s.Require().NoError(err)
@@ -70,4 +79,45 @@ func (s *testDDOTExtensionInstallScript) TestInstallAndPurgeDDOTExtension() {
 	// Assert: extension directory and service are gone
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(ddotExtDir, "ddot extension should be removed after purge")
 	s.Require().Host(s.Env().RemoteHost).HasNoService("datadog-otel-agent")
+
+	// Assert: explicit ddagentuser ACE removed from otel-config.yaml
+	requireNoDDAgentUserExplicitAccess(s.T(), s.Env().RemoteHost, otelConfigPath)
+}
+
+// requireDDAgentUserExplicitFullControl asserts that ddagentuser has an explicit
+// (non-inherited) Allow FullControl ACE on the given path.
+func requireDDAgentUserExplicitFullControl(t *testing.T, host *components.RemoteHost, path string) {
+	t.Helper()
+	ddAgentUser, err := windowscommon.GetIdentityForUser(host, windowsagent.DefaultAgentUserName)
+	require.NoError(t, err, "should get ddagentuser identity")
+
+	security, err := windowscommon.GetSecurityInfoForPath(host, path)
+	require.NoError(t, err, "should get security info for %s", path)
+
+	expected := windowscommon.NewExplicitAccessRule(ddAgentUser, windowscommon.FileFullControl, windowscommon.AccessControlTypeAllow)
+	require.True(t,
+		slices.ContainsFunc(security.Access, func(r windowscommon.AccessRule) bool { return r.Equal(expected) }),
+		"ddagentuser should have explicit FullControl on %s", path)
+	require.False(t, security.AreAccessRulesProtected,
+		"DACL on %s should not be protected (should inherit from parent)", path)
+}
+
+// requireNoDDAgentUserExplicitAccess asserts that ddagentuser has no explicit
+// (non-inherited) FullControl ACE on the given path. If the file no longer
+// exists the assertion passes.
+func requireNoDDAgentUserExplicitAccess(t *testing.T, host *components.RemoteHost, path string) {
+	t.Helper()
+
+	ddAgentUser, err := windowscommon.GetIdentityForUser(host, windowsagent.DefaultAgentUserName)
+	require.NoError(t, err, "should get ddagentuser identity")
+
+	security, err := windowscommon.GetSecurityInfoForPath(host, path)
+	require.NoError(t, err, "should get security info for %s", path)
+
+	expected := windowscommon.NewExplicitAccessRule(ddAgentUser, windowscommon.FileFullControl, windowscommon.AccessControlTypeAllow)
+	require.False(t,
+		slices.ContainsFunc(security.Access, func(r windowscommon.AccessRule) bool { return r.Equal(expected) }),
+		"ddagentuser should not have explicit FullControl ACE on %s after removal", path)
+	require.False(t, security.AreAccessRulesProtected,
+		"DACL on %s should not be protected (should inherit from parent)", path)
 }
