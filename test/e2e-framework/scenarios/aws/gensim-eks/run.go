@@ -717,14 +717,45 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       fi
     fi
 
-    # 5. Upload to S3
+    # 5. Zip and upload to S3
     if [ -n "$S3_BUCKET" ]; then
-      EP_SCENARIO="${EPISODE}--${SCENARIO}"
-      S3_PATH="${IMAGE_TAG}/${EP_SCENARIO}/gensim-$(date -u +%Y%m%d)-${GENSIM_SHA}"
-      DEST="s3://${S3_BUCKET}/${S3_PATH}"
-      echo "Uploading results to $DEST/..."
-      aws s3 cp /workspace/results/ "$DEST/" --recursive || echo "ERROR: S3 upload failed" >&2
-      echo "Uploaded to $DEST/"
+      apk add --no-cache zip 2>/dev/null || true
+
+      ZIP_DATE=$(date -u +%Y%m%d)
+      ZIP_NAME="gensim-results-${EPISODE}-${ZIP_DATE}-${GENSIM_SHA}.zip"
+      ZIP_PATH="/workspace/${ZIP_NAME}"
+
+      echo "Creating ${ZIP_NAME}..."
+      # Structure the zip to match q.py _ensure_parquets expectations:
+      #   tmp/gensim-archive/parquet/*.parquet
+      #   tmp/gensim-archive/results/<scenario>.json  (produced by play-episode.sh)
+      mkdir -p /workspace/zip-staging/tmp/gensim-archive/parquet
+      mkdir -p /workspace/zip-staging/tmp/gensim-archive/results
+      cp /workspace/results/parquet/*.parquet /workspace/zip-staging/tmp/gensim-archive/parquet/ 2>/dev/null || true
+      # play-episode.sh writes results to /workspace/results/<scenario>-<cycle>.json
+      cp /workspace/results/*.json /workspace/zip-staging/tmp/gensim-archive/results/ 2>/dev/null || true
+
+      cd /workspace/zip-staging
+      zip -r "${ZIP_PATH}" tmp/gensim-archive/ -q
+      cd /
+
+      DEST="s3://${S3_BUCKET}/${ZIP_NAME}"
+      echo "Uploading ${ZIP_NAME} to ${DEST}..."
+      aws s3 cp "${ZIP_PATH}" "${DEST}" || echo "ERROR: S3 upload failed" >&2
+      echo "Uploaded to ${DEST}"
+
+      rm -rf /workspace/zip-staging "${ZIP_PATH}"
+
+      # Append to runs.jsonl audit trail (download-append-upload)
+      EP_END_TS=$(date +%s)
+      EP_DUR=$((EP_END_TS - EP_START))
+      RUNS_FILE="/workspace/runs.jsonl"
+      aws s3 cp "s3://${S3_BUCKET}/runs.jsonl" "${RUNS_FILE}" 2>/dev/null || true
+      printf '{"timestamp":"%s","episode":"%s","scenario":"%s","image":"%s","gensim_sha":"%s","zip":"%s","mode":"%s","parquet_count":%d,"duration_seconds":%d}\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$EPISODE" "$SCENARIO" "$AGENT_IMAGE" "$GENSIM_SHA" "$ZIP_NAME" "$GENSIM_MODE" "$PARQUET_COUNT" "$EP_DUR" \
+        >> "${RUNS_FILE}"
+      aws s3 cp "${RUNS_FILE}" "s3://${S3_BUCKET}/runs.jsonl" || echo "WARN: failed to update runs.jsonl" >&2
+      rm -f "${RUNS_FILE}"
     fi
   else
     echo "Mode: $GENSIM_MODE -- skipping parquet collection and S3 upload"
