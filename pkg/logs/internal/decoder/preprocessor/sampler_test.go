@@ -30,6 +30,11 @@ func testMsg() *message.Message {
 	return message.NewMessage([]byte("test"), nil, message.StatusInfo, 0)
 }
 
+func requireSampledCountTag(t *testing.T, msg *message.Message, want int64) {
+	t.Helper()
+	assert.Contains(t, msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(want))
+}
+
 func tokenize(s string) []Token {
 	tok := NewTokenizer(0)
 	tokens, _ := tok.Tokenize([]byte(s))
@@ -65,6 +70,8 @@ func TestAdaptiveSampler_NewPatternIsAllowed(t *testing.T) {
 	require.NotNil(t, out)
 	require.Len(t, s.entries, 1)
 	assert.Equal(t, int64(1), s.entries[0].matchCount)
+	assert.Equal(t, int64(1), s.entries[0].sampled)
+	requireSampledCountTag(t, out, 1)
 }
 
 // A new pattern entry starts with BurstSize-1 credits so that the burst
@@ -84,13 +91,19 @@ func TestAdaptiveSampler_RateLimitsAfterBurst(t *testing.T) {
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
-	msg := testMsg()
 	// First message creates the pattern entry and is allowed.
-	require.NotNil(t, s.Process(msg, patternA), "msg 1 (new pattern) should be allowed")
+	out1 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out1, "msg 1 (new pattern) should be allowed")
+	requireSampledCountTag(t, out1, 1)
 	// Subsequent messages consume credits until the burst is exhausted.
-	require.NotNil(t, s.Process(msg, patternA), "msg 2 should be allowed")
-	require.NotNil(t, s.Process(msg, patternA), "msg 3 should be allowed")
-	assert.Nil(t, s.Process(msg, patternA), "msg 4 should be dropped — burst exhausted")
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2, "msg 2 should be allowed")
+	requireSampledCountTag(t, out2, 2)
+	out3 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out3, "msg 3 should be allowed")
+	requireSampledCountTag(t, out3, 3)
+	assert.Nil(t, s.Process(testMsg(), patternA), "msg 4 should be dropped — burst exhausted")
+	assert.Equal(t, int64(3), s.entries[0].sampled, "dropped messages should not increment sampled count")
 }
 
 // After being rate-limited, credits refill at RateLimit per second.
