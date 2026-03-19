@@ -40,11 +40,11 @@ gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments --paginate \
   --jq '.[] | {id, path, line, body, user: .user.login, created_at, in_reply_to_id, diff_hunk}'
 
 # Top-level reviews (approval/request-changes status + body)
-gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/reviews \
+gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/reviews --paginate \
   --jq '.[] | {id, user: .user.login, state, body}'
 
 # Issue-level comments (general PR discussion, CI bot reports)
-gh api repos/{owner}/{repo}/issues/{PR_NUMBER}/comments \
+gh api repos/{owner}/{repo}/issues/{PR_NUMBER}/comments --paginate \
   --jq '.[] | {id, user: .user.login, body, created_at}'
 ```
 
