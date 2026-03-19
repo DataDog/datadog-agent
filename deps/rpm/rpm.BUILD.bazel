@@ -260,7 +260,7 @@ cc_shared_library(
     deps = [":librpm"],
     dynamic_deps = [
         ":rpmio",
-        "@sqlite3//:sqlite3",
+        "@sqlite3//:sqlite3_pkg",
         "@popt//:popt",
     ],
     visibility = ["//visibility:public"],
