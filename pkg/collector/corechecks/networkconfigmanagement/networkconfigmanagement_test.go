@@ -229,7 +229,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Twice()
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
@@ -285,7 +285,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	}
 	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
-	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
 	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
