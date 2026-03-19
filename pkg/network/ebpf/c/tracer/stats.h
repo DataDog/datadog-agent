@@ -321,30 +321,25 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     // Instead, Go looks up the field offsets via BTF at startup and passes them
     // as constants. A zero offset means the field doesn't exist on this kernel.
 #if defined(COMPILE_CORE)
-    // Use bpf_probe_read, not bpf_probe_read_kernel. CO-RE targets kernels
-    // 4.18+ (BTF required), but bpf_probe_read_kernel was added in 5.5.
-    // Direct calls to it would fail to load on 4.18–5.4. BPF_CORE_READ_INTO
-    // handles this internally via loader rewrites, but our manual offset-based
-    // reads don't get that treatment.
     __u64 reord_seen_offset = 0;
     LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
     if (reord_seen_offset > 0) {
         __u32 tmp = 0;
-        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
+        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
         val->reord_seen = tmp;
     }
     __u64 rcv_ooopack_offset = 0;
     LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
     if (rcv_ooopack_offset > 0) {
         __u32 tmp = 0;
-        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + rcv_ooopack_offset);
+        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + rcv_ooopack_offset);
         val->rcv_ooopack = tmp;
     }
     __u64 delivered_ce_offset = 0;
     LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
     if (delivered_ce_offset > 0) {
         __u32 tmp = 0;
-        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + delivered_ce_offset);
+        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + delivered_ce_offset);
         val->delivered_ce = tmp;
     }
     // ECN negotiation: ecn_flags is a u8 in vmlinux headers (was a bitfield
@@ -354,7 +349,7 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     LOAD_CONSTANT("ecn_flags_offset", ecn_flags_offset);
     if (ecn_flags_offset > 0) {
         __u8 ecn = 0;
-        bpf_probe_read(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
+        bpf_probe_read_kernel(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
         val->ecn_negotiated = (ecn & 1) ? 1 : 0;
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
@@ -384,7 +379,7 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
     LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
     if (reord_seen_offset > 0) {
         val = 0;
-        bpf_probe_read(&val, sizeof(val), (char *)sk + reord_seen_offset);
+        bpf_probe_read_kernel(&val, sizeof(val), (char *)sk + reord_seen_offset);
         if (val > ts->reord_seen)
             ts->reord_seen = val;
     }
@@ -392,7 +387,7 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
     LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
     if (rcv_ooopack_offset > 0) {
         val = 0;
-        bpf_probe_read(&val, sizeof(val), (char *)sk + rcv_ooopack_offset);
+        bpf_probe_read_kernel(&val, sizeof(val), (char *)sk + rcv_ooopack_offset);
         if (val > ts->rcv_ooopack)
             ts->rcv_ooopack = val;
     }
@@ -400,7 +395,7 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
     LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
     if (delivered_ce_offset > 0) {
         val = 0;
-        bpf_probe_read(&val, sizeof(val), (char *)sk + delivered_ce_offset);
+        bpf_probe_read_kernel(&val, sizeof(val), (char *)sk + delivered_ce_offset);
         if (val > ts->delivered_ce)
             ts->delivered_ce = val;
     }
@@ -409,7 +404,7 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
     LOAD_CONSTANT("ecn_flags_offset", ecn_flags_offset);
     if (ecn_flags_offset > 0) {
         __u8 ecn = 0;
-        bpf_probe_read(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
+        bpf_probe_read_kernel(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
         ts->ecn_negotiated = (ecn & 1) ? 1 : 0;
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
