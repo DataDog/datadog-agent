@@ -46,11 +46,17 @@ from textual.widgets import Footer, Header, Static
 # Config
 # ---------------------------------------------------------------------------
 
-KUBECONFIG = "/Users/scott.opell/dev/alt-datadog-agent/scott-opell-gensim-eks-kubeconfig.yaml"
-PULUMI_STATE = os.path.expanduser("~/.pulumi/stacks/scott-opell-gensim-eks.json")
-AWS_VAULT_PREFIX = ["aws-vault", "exec", "sso-agent-sandbox-account-admin", "--"]
-EKS_CLUSTER_NAME = "scott-opell-gensim-eks"
-EKS_REGION = "us-east-1"
+# Auto-detect stack name from the user prefix (matches e2e framework convention).
+_USER = os.environ.get("USER", "unknown").replace(".", "-")
+_STACK_NAME = os.environ.get("GENSIM_STACK_NAME", f"{_USER}-gensim-eks")
+
+# All paths derived from stack name -- override via env vars if needed.
+KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
+PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
+AWS_VAULT_PREFIX = os.environ.get("AWS_VAULT_PROFILE", "sso-agent-sandbox-account-admin").split()
+AWS_VAULT_PREFIX = ["aws-vault", "exec", *AWS_VAULT_PREFIX, "--"]
+EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
+EKS_REGION = os.environ.get("EKS_REGION", "us-east-1")
 
 KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG}
 
@@ -205,26 +211,40 @@ async def fetch_node_pod_counts() -> tuple[str, str]:
 
 
 async def fetch_pod_list() -> list[dict[str, str]]:
-    """Fetch pod names and statuses in default namespace."""
+    """Fetch pod names and statuses in default namespace using lightweight output."""
     raw = await run_cmd(
-        ["kubectl", "get", "pods", "-n", "default", "-o", "json"],
+        [
+            "kubectl",
+            "get",
+            "pods",
+            "-n",
+            "default",
+            "--no-headers",
+            "-o",
+            "custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount",
+        ],
         env=KUBECTL_ENV,
     )
     if not raw:
         return []
-    try:
-        items = json.loads(raw).get("items", [])
-    except json.JSONDecodeError:
-        return []
     pods = []
-    for p in items:
-        name = p.get("metadata", {}).get("name", "?")
-        phase = p.get("status", {}).get("phase", "?")
-        containers = p.get("status", {}).get("containerStatuses", [])
-        ready = sum(1 for c in containers if c.get("ready"))
-        total = len(containers)
-        restarts = sum(c.get("restartCount", 0) for c in containers)
-        pods.append({"name": name, "phase": phase, "ready": f"{ready}/{total}", "restarts": restarts})
+    for line in raw.splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        name = parts[0]
+        phase = parts[1]
+        # Parse ready: "true,true,true" -> 3/3
+        ready_str = parts[2] if len(parts) > 2 else "<none>"
+        if ready_str == "<none>":
+            ready = "0/0"
+        else:
+            vals = ready_str.split(",")
+            ready = f"{sum(1 for v in vals if v == 'true')}/{len(vals)}"
+        # Parse restarts: "0,0,0" -> 0
+        restart_str = parts[3] if len(parts) > 3 else "0"
+        restarts = sum(int(r) for r in restart_str.split(",") if r.isdigit())
+        pods.append({"name": name, "phase": phase, "ready": ready, "restarts": restarts})
     return pods
 
 
@@ -564,30 +584,56 @@ class PodLogsWidget(Static):
         layout=True,
     )
     _stream_task: asyncio.Task | None = None
+    _render_task: asyncio.Task | None = None
     _log_lines: list[str] = []
     _max_lines: int = 30
+    _dirty: bool = False
+    _target: str = ""
 
     def watch_content_text(self, value: str) -> None:
         self.update(value)
 
     def start_streaming(self) -> None:
-        """Start the kubectl log streaming subprocess."""
+        """Start the kubectl log streaming subprocess and render timer."""
         if self._stream_task is not None:
             return
         self._log_lines = []
         self._stream_task = asyncio.ensure_future(self._stream_logs())
+        self._render_task = asyncio.ensure_future(self._render_loop())
 
     def stop_streaming(self) -> None:
-        """Stop the streaming subprocess."""
+        """Stop the streaming subprocess and render timer."""
         if self._stream_task is not None:
             self._stream_task.cancel()
             self._stream_task = None
+        if self._render_task is not None:
+            self._render_task.cancel()
+            self._render_task = None
+
+    async def _render_loop(self) -> None:
+        """Flush buffered log lines to the UI at a fixed rate (2Hz)."""
+        try:
+            while True:
+                await asyncio.sleep(0.5)
+                if not self._dirty:
+                    continue
+                self._dirty = False
+                safe_lines = [ln.replace("[", "\\[") for ln in self._log_lines[-12:]]
+                self.content_text = f"[bold]Pod Logs[/bold] [dim](streaming {self._target})[/dim]\n" + "\n".join(
+                    f"[dim]> {ln}[/dim]" for ln in safe_lines
+                )
+        except asyncio.CancelledError:
+            return
 
     async def _stream_logs(self) -> None:
         """Stream kubectl logs from episode pods, auto-retry on failure."""
         while True:
-            # Find episode pods (exclude agent, cluster-agent, operator, orchestrator)
-            exclude = {"datadog-agent", "datadog-agent-cluster-agent", "datadog-agent-operator", "gensim-orchestrator"}
+            exclude = {
+                "datadog-agent",
+                "datadog-agent-cluster-agent",
+                "datadog-agent-operator",
+                "gensim-orchestrator",
+            }
             pods_raw = await run_cmd(
                 ["kubectl", "get", "pods", "-n", "default", "-o", "jsonpath={.items[*].metadata.name}"],
                 env=KUBECTL_ENV,
@@ -599,9 +645,8 @@ class PodLogsWidget(Static):
                 await asyncio.sleep(10)
                 continue
 
-            # Stream from the first available episode pod
-            target = pod_names[0]
-            self.content_text = f"[bold]Pod Logs[/bold] [dim](streaming {target})[/dim]"
+            self._target = pod_names[0]
+            self.content_text = f"[bold]Pod Logs[/bold] [dim](connecting to {self._target})[/dim]"
             cmd = [
                 "kubectl",
                 "logs",
@@ -610,7 +655,7 @@ class PodLogsWidget(Static):
                 "--tail=10",
                 "-n",
                 "default",
-                target,
+                self._target,
             ]
             try:
                 proc = await asyncio.create_subprocess_exec(
@@ -629,16 +674,12 @@ class PodLogsWidget(Static):
                     self._log_lines.append(decoded)
                     if len(self._log_lines) > self._max_lines:
                         self._log_lines = self._log_lines[-self._max_lines :]
-                    safe_lines = [ln.replace("[", "\\[") for ln in self._log_lines]
-                    self.content_text = f"[bold]Pod Logs[/bold] [dim](streaming {target})[/dim]\n" + "\n".join(
-                        f"[dim]> {ln}[/dim]" for ln in safe_lines[-12:]
-                    )
+                    self._dirty = True
             except asyncio.CancelledError:
                 return
             except (TimeoutError, Exception):
                 pass
 
-            # Stream ended (pod terminated or error) -- retry after a pause
             self.content_text = "[bold]Pod Logs[/bold]\n[dim]Stream ended, retrying...[/dim]"
             await asyncio.sleep(5)
 
@@ -694,7 +735,7 @@ class GensimStatus(App):
         self.set_interval(10, self._poll_configmap)
         self.set_interval(5, self._poll_logs)
         self.set_interval(30, self._poll_infra_kube)
-        self.set_interval(10, self._poll_pods)
+        self.set_interval(30, self._poll_pods)
         self.set_interval(60, self._poll_eks)
         self._update_pod_logs_visibility()
 

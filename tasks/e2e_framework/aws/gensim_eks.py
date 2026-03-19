@@ -215,6 +215,10 @@ def submit_gensim_eks(
         "ddagent:appKey": _get_app_key(local_config),
     }
 
+    # Gensim-specific Pulumi flags:
+    # --refresh: reconcile state with cluster reality (resources may be deleted by infra cleaner or stop-all)
+    # --non-interactive: capture error output instead of swallowing it in the TUI
+    # PULUMI_K8S_DELETE_UNREACHABLE: purge stale k8s resources when cluster is gone
     full_stack_name = deploy(
         ctx,
         scenario_name,
@@ -224,6 +228,11 @@ def submit_gensim_eks(
         install_agent=False,
         install_workload=False,
         extra_flags=extra_flags,
+        pulumi_extra_args="--refresh --non-interactive",
+        pulumi_env={
+            "PULUMI_SKIP_UPDATE_CHECK": "1",
+            "PULUMI_K8S_DELETE_UNREACHABLE": "true",
+        },
     )
 
     # ── 9. Show connection message ────────────────────────────────────────
