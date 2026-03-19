@@ -229,8 +229,127 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 8. Autoscaler conditions (from upstream CR)
+	// 8. Horizontal scaling constraints
+	if spec := internal.Spec(); spec != nil && spec.Constraints != nil {
+		if spec.Constraints.MaxReplicas != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".horizontal_scaling.constraints.max_replicas",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: float64(*spec.Constraints.MaxReplicas),
+				Tags:  baseTags,
+			})
+		}
+		if spec.Constraints.MinReplicas != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".horizontal_scaling.constraints.min_replicas",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: float64(*spec.Constraints.MinReplicas),
+				Tags:  baseTags,
+			})
+		}
+
+		// 9. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
+		// Mirror the resolveMinMaxBounds fallback from controller_vertical_helpers.go:
+		// prefer top-level MinAllowed/MaxAllowed; fall back to deprecated Requests field.
+		for _, container := range spec.Constraints.Containers {
+			containerTags := append(baseTags, "kube_container_name:"+container.Name)
+
+			effectiveMin := container.MinAllowed
+			if len(effectiveMin) == 0 && container.Requests != nil {
+				effectiveMin = container.Requests.MinAllowed
+			}
+			effectiveMax := container.MaxAllowed
+			if len(effectiveMax) == 0 && container.Requests != nil {
+				effectiveMax = container.Requests.MaxAllowed
+			}
+
+			if cpuMin, ok := effectiveMin[corev1.ResourceCPU]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.cpu.request_min",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(cpuMin.MilliValue()),
+					Tags:  containerTags,
+				})
+			}
+			if memMin, ok := effectiveMin[corev1.ResourceMemory]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.memory.request_min",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(memMin.Value()),
+					Tags:  containerTags,
+				})
+			}
+			if cpuMax, ok := effectiveMax[corev1.ResourceCPU]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.cpu.request_max",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(cpuMax.MilliValue()),
+					Tags:  containerTags,
+				})
+			}
+			if memMax, ok := effectiveMax[corev1.ResourceMemory]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.memory.request_max",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(memMax.Value()),
+					Tags:  containerTags,
+				})
+			}
+		}
+	}
+
+	// 10. Status metrics and autoscaler conditions (from upstream CR)
 	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
+		// 10a. Horizontal desired replicas from status
+		if horizontal := podAutoscaler.Status.Horizontal; horizontal != nil && horizontal.Target != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".status.desired.replicas",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: float64(horizontal.Target.Replicas),
+				Tags:  baseTags,
+			})
+		}
+
+		// 10b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
+		if vertical := podAutoscaler.Status.Vertical; vertical != nil && vertical.Target != nil {
+			for _, container := range vertical.Target.DesiredResources {
+				containerTags := append(baseTags, "kube_container_name:"+container.Name)
+				if cpuReq, ok := container.Requests[corev1.ResourceCPU]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.cpu.request",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(cpuReq.MilliValue()),
+						Tags:  containerTags,
+					})
+				}
+				if memReq, ok := container.Requests[corev1.ResourceMemory]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.memory.request",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(memReq.Value()),
+						Tags:  containerTags,
+					})
+				}
+				if cpuLim, ok := container.Limits[corev1.ResourceCPU]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.cpu.limit",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(cpuLim.MilliValue()),
+						Tags:  containerTags,
+					})
+				}
+				if memLim, ok := container.Limits[corev1.ResourceMemory]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.memory.limit",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(memLim.Value()),
+						Tags:  containerTags,
+					})
+				}
+			}
+		}
+
+		// 10c. Autoscaler conditions
 		for _, condition := range podAutoscaler.Status.Conditions {
 			value := 0.0
 			if condition.Status == corev1.ConditionTrue {
