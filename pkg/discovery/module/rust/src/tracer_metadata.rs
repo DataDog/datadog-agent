@@ -20,11 +20,11 @@ pub struct TracerMetadata {
     pub service_name: Option<String>,
     pub service_env: Option<String>,
     pub service_version: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub process_tags: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub container_id: Option<String>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub logs_collected: bool,
 }
 
