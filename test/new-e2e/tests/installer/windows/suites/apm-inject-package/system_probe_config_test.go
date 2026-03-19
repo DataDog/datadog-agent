@@ -36,6 +36,9 @@ func TestSystemProbeConfig(t *testing.T) {
 
 func (s *testSystemProbeConfig) AfterTest(suiteName, testName string) {
 	s.Installer().Purge()
+	// Purge does not remove config files; wipe the config directory so that
+	// leftover system-probe.yaml does not leak between tests.
+	_, _ = s.Env().RemoteHost.Execute(`Remove-Item -Path 'C:\ProgramData\Datadog\*' -Recurse -Force`)
 	s.baseSuite.AfterTest(suiteName, testName)
 }
 
