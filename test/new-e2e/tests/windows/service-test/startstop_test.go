@@ -337,6 +337,11 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	// TODO: This service is not supported in FIPS mode yet
+	if s.Env().Agent.FIPSEnabled && !slices.Contains(s.disabledServices, "Datadog Installer") {
+		s.disabledServices = append(s.disabledServices, "Datadog Installer")
+	}
+
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
 		runningServices := []string{}
@@ -557,10 +562,24 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		services := s.getInstalledUserServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		services := s.getInstalledServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 
 	// By default driver verifier is disabled.
