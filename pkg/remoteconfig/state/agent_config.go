@@ -142,15 +142,21 @@ func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), up
 	// Go through all the layers that were sent, and apply them one by one to the merged structure
 	mergedConfig := ConfigContent{}
 	for i := len(orderFile.Config.Order) - 1; i >= 0; i-- {
-		if layer, found := parsedLayers[orderFile.Config.Order[i]]; found {
-			mergedConfig.LogLevel = layer.Config.Config.LogLevel
+		id := orderFile.Config.Order[i]
+		layer, found := parsedLayers[id]
+		if !found {
+			return ConfigContent{}, fmt.Errorf("config '%s' referenced in order is not yet available", id)
 		}
+		mergedConfig.LogLevel = layer.Config.Config.LogLevel
 	}
 	// Same for internal config
 	for i := len(orderFile.Config.InternalOrder) - 1; i >= 0; i-- {
-		if layer, found := parsedLayers[orderFile.Config.InternalOrder[i]]; found {
-			mergedConfig.LogLevel = layer.Config.Config.LogLevel
+		id := orderFile.Config.InternalOrder[i]
+		layer, found := parsedLayers[id]
+		if !found {
+			return ConfigContent{}, fmt.Errorf("config '%s' referenced in internal_order is not yet available", id)
 		}
+		mergedConfig.LogLevel = layer.Config.Config.LogLevel
 	}
 
 	return mergedConfig, nil
