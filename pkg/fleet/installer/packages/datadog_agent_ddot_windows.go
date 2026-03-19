@@ -346,16 +346,16 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 
 // setDDOTServiceEnvVars writes the DDOT service environment variables to the registry.
 func setDDOTServiceEnvVars() error {
-	key, _, err := registry.CreateKey(
+	key, err := registry.OpenKey(
 		registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Services\`+otelServiceName+`\Environment`,
+		`SYSTEM\CurrentControlSet\Services\`+otelServiceName,
 		registry.SET_VALUE,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to open service environment registry key: %w", err)
+		return fmt.Errorf("failed to open service registry key: %w", err)
 	}
 	defer key.Close()
-	return key.SetStringsValue("", []string{"DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal"})
+	return key.SetStringsValue("Environment", []string{"DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal"})
 }
 
 // stopServiceIfExists stops the service if it exists
