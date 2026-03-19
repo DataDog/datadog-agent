@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -147,7 +148,7 @@ func TestScrapeSandbox_ConnectionFailure(t *testing.T) {
 	// Non-existent socket path → connection failure
 	c.scrapeSandbox(ms, "deadbeef", "/nonexistent/shim-monitor.sock", []string{"sandbox_id:deadbeef"})
 
-	ms.AssertServiceCheck(t, "kata.openmetrics.health", servicecheck.ServiceCheckCritical, "", []string{"sandbox_id:deadbeef"}, "")
+	ms.Mock.AssertCalled(t, "ServiceCheck", "kata.openmetrics.health", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains([]string{"sandbox_id:deadbeef"}), mock.AnythingOfType("string"))
 }
 
 func TestRunningShimCount(t *testing.T) {
