@@ -19,6 +19,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -139,7 +140,7 @@ func scoreMetricTP(outputPath, scenariosDir string) (*observerimpl.MetricScoreRe
 
 	scenarioName := output.Metadata.Scenario
 	if scenarioName == "" {
-		return nil, fmt.Errorf("output file missing metadata.scenario")
+		return nil, errors.New("output file missing metadata.scenario")
 	}
 
 	gt, err := observerimpl.LoadMetricGroundTruth(scenariosDir, scenarioName)
