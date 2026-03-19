@@ -491,7 +491,7 @@ cc_shared_library(
         ":libopenscap",
     ],
     dynamic_deps = [
-        "@attr//:attr",
+        "@attr//:attr_pkg",
         "@bzip2//:bz2",
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
@@ -537,7 +537,7 @@ cc_binary(
     ],
     dynamic_deps = [
         ":openscap",
-        "@attr//:attr",
+        "@attr//:attr_pkg",
         "@bzip2//:bz2",
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
@@ -583,7 +583,7 @@ cc_binary(
     ],
     dynamic_deps = [
         ":openscap",
-        "@attr//:attr",
+        "@attr//:attr_pkg",
         "@bzip2//:bz2",
         "@curl//:curl",
         "@gcrypt//:gcrypt",
