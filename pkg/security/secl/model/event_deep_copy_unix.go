@@ -239,6 +239,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
+	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
 	copied.IsExec = fieldToCopy.IsExec
 	copied.IsExecExec = fieldToCopy.IsExecExec
@@ -465,6 +466,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
+	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
 	copied.IsExec = fieldToCopy.IsExec
 	copied.IsExecExec = fieldToCopy.IsExecExec

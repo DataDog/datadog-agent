@@ -13,6 +13,8 @@ extensions:
     api:
       key: "ggggg77777"
       site: "datadoghq.com"
+    deployment_type: daemonset
+    hostname: test-host
   ddflare/dd-autoconfigured:
 
 service:

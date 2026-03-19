@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -186,6 +187,7 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 
 	detail, err := device.GetRunningProcessDetailList()
 	var usage []processMemoryUsageData
+	var nvmlErr *ddnvml.NvmlAPIError
 	if err == nil {
 		// procs.ProcArray is a pointer to an array of ProcessDetail_v1, in C-style pointer+length mode,
 		// so convert it to a slice:
@@ -196,6 +198,13 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 				usedGpuMemory: proc.UsedGpuMemory,
 			})
 		}
+	} else if errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_INSUFFICIENT_SIZE {
+		// Depending on the NVML implementation, there might be an issue with the size of the array being passed.
+		// This PR seems related https://github.com/NVIDIA/go-nvml/pull/165 but for now we will suppress the error
+		// and continue with the collection.
+		// In this case, if we get no metrics, processMemoryUsage will emit a memory.limit metric with low priority
+		// so that it can be overridden by alternative APIs if available.
+		err = nil
 	}
 
 	return processMemoryUsage(device, usage, High), 0, err
@@ -442,6 +451,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "device_unhealthy_count",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
+					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
+				}
+
 				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
 				if err != nil {
 					return nil, 0, err

@@ -175,7 +175,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	a.setVersionDataFromContainerTags(p)
 	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
 	// compute the PayloadAggregationKey, common for all buckets within the payload
-	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.Lang, p.ProcessTagsHash)
+	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.Lang, p.ProcessTagsHash, p.Service)
 
 	// acquire lock over shared data
 	a.mu.Lock()
@@ -348,6 +348,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 			Lang:            payloadKey.Lang,
 			GitCommitSha:    payloadKey.GitCommitSha,
 			ContainerID:     payloadKey.ContainerID,
+			Service:         payloadKey.BaseService,
 			Stats:           clientBuckets,
 			ProcessTagsHash: payloadKey.ProcessTagsHash,
 			ProcessTags:     b.processTags[payloadKey.ProcessTagsHash],
@@ -401,7 +402,7 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 	}, nil
 }
 
-func newPayloadAggregationKey(env, hostname, version, cid, gitCommitSha, imageTag, lang string, processTagsHash uint64) PayloadAggregationKey {
+func newPayloadAggregationKey(env, hostname, version, cid, gitCommitSha, imageTag, lang string, processTagsHash uint64, baseService string) PayloadAggregationKey {
 	return PayloadAggregationKey{
 		Env:             env,
 		Hostname:        hostname,
@@ -411,6 +412,7 @@ func newPayloadAggregationKey(env, hostname, version, cid, gitCommitSha, imageTa
 		ImageTag:        imageTag,
 		Lang:            lang,
 		ProcessTagsHash: processTagsHash,
+		BaseService:     baseService,
 	}
 }
 

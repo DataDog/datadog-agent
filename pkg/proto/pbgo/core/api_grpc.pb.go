@@ -146,6 +146,7 @@ const (
 	AgentSecure_GetHostTags_FullMethodName                             = "/datadog.api.v1.AgentSecure/GetHostTags"
 	AgentSecure_StreamConfigEvents_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamConfigEvents"
 	AgentSecure_WorkloadFilterEvaluate_FullMethodName                  = "/datadog.api.v1.AgentSecure/WorkloadFilterEvaluate"
+	AgentSecure_StreamKubeMetadata_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamKubeMetadata"
 )
 
 // AgentSecureClient is the client API for AgentSecure service.
@@ -184,6 +185,8 @@ type AgentSecureClient interface {
 	StreamConfigEvents(ctx context.Context, in *ConfigStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ConfigEvent], error)
 	// Evaluates a workloadfilter rule on behalf of remote agents.
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
+	// Streams pod-to-service metadata for a specific node.
+	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
 }
 
 type agentSecureClient struct {
@@ -413,6 +416,25 @@ func (c *agentSecureClient) WorkloadFilterEvaluate(ctx context.Context, in *Work
 	return out, nil
 }
 
+func (c *agentSecureClient) StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[5], AgentSecure_StreamKubeMetadata_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[KubeMetadataStreamRequest, KubeMetadataStreamResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_StreamKubeMetadataClient = grpc.ServerStreamingClient[KubeMetadataStreamResponse]
+
 // AgentSecureServer is the server API for AgentSecure service.
 // All implementations must embed UnimplementedAgentSecureServer
 // for forward compatibility.
@@ -449,6 +471,8 @@ type AgentSecureServer interface {
 	StreamConfigEvents(*ConfigStreamRequest, grpc.ServerStreamingServer[ConfigEvent]) error
 	// Evaluates a workloadfilter rule on behalf of remote agents.
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
+	// Streams pod-to-service metadata for a specific node.
+	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
 	mustEmbedUnimplementedAgentSecureServer()
 }
 
@@ -512,6 +536,9 @@ func (UnimplementedAgentSecureServer) StreamConfigEvents(*ConfigStreamRequest, g
 }
 func (UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WorkloadFilterEvaluate not implemented")
+}
+func (UnimplementedAgentSecureServer) StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamKubeMetadata not implemented")
 }
 func (UnimplementedAgentSecureServer) mustEmbedUnimplementedAgentSecureServer() {}
 func (UnimplementedAgentSecureServer) testEmbeddedByValue()                     {}
@@ -819,6 +846,17 @@ func _AgentSecure_WorkloadFilterEvaluate_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentSecure_StreamKubeMetadata_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(KubeMetadataStreamRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentSecureServer).StreamKubeMetadata(m, &grpc.GenericServerStream[KubeMetadataStreamRequest, KubeMetadataStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_StreamKubeMetadataServer = grpc.ServerStreamingServer[KubeMetadataStreamResponse]
+
 // AgentSecure_ServiceDesc is the grpc.ServiceDesc for AgentSecure service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -904,6 +942,11 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamConfigEvents",
 			Handler:       _AgentSecure_StreamConfigEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamKubeMetadata",
+			Handler:       _AgentSecure_StreamKubeMetadata_Handler,
 			ServerStreams: true,
 		},
 	},

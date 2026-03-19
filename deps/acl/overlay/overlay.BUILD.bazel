@@ -182,14 +182,12 @@ so_symlink(
     src = ":acl",
     libname = "libacl",
     version = "1.1.2301",
-    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = [":fixed_headers"],
     strip_prefix = strip_prefix.from_pkg("fixed"),
-    prefix = "embedded",
 )
 
 pkg_filegroup(
@@ -198,6 +196,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
