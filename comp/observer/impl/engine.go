@@ -264,17 +264,8 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	// Wrap storage with context providers so detectors can call GetContext.
-	var storage observerdef.StorageReader = e.storage
-	if len(e.contextProviders) > 0 {
-		storage = &contextAwareStorage{
-			StorageReader: e.storage,
-			providers:     e.contextProviders,
-		}
-	}
-
 	for _, detector := range detectors {
-		result := detector.Detect(storage, upTo)
+		result := detector.Detect(e.storage, upTo)
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
 			if !e.captureRawAnomaly(anomaly) {

@@ -478,7 +478,7 @@ func AggregateString(agg Aggregate) string {
 	case AggregateMax:
 		return "max"
 	default:
-		return "avg"
+		return "unknown"
 	}
 }
 
@@ -556,12 +556,6 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
-
-	// GetContext returns contextual information about a metric's origin.
-	// The namespace identifies the component that produced the metric;
-	// name is the bare metric name within that namespace.
-	// Returns false if no context is available.
-	GetContext(namespace, name string) (MetricContext, bool)
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.

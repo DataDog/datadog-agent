@@ -9,25 +9,6 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// contextAwareStorage wraps a StorageReader with namespace-keyed ContextProviders,
-// adding GetContext resolution to the storage interface. Detectors receive
-// this instead of bare storage so they can query context by namespace + name.
-type contextAwareStorage struct {
-	observer.StorageReader
-	providers map[string]observer.ContextProvider // namespace → provider
-}
-
-// GetContext looks up the provider for the given namespace, then queries it
-// with the bare metric name. Returns false if no provider exists for the
-// namespace or if the provider has no context for the name.
-func (s *contextAwareStorage) GetContext(namespace, name string) (observer.MetricContext, bool) {
-	cp, ok := s.providers[namespace]
-	if !ok {
-		return observer.MetricContext{}, false
-	}
-	return cp.GetContext(name)
-}
-
 // collectContextProviders discovers ContextProvider implementations among
 // instantiated extractors via type assertion. Returns a map keyed by the
 // extractor's component name (which is used as the storage namespace for

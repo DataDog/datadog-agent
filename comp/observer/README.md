@@ -58,7 +58,7 @@ Aggregation is chosen at **read time**, not write time. Storage always keeps the
 
 The observer is currently **metric-type agnostic** — it does not distinguish between Count, Gauge, Rate, etc. All metrics are treated uniformly as samples to be summarized. This is a bet on a simpler unified model; we'll see over time whether there's a good reason to introduce type-specific logic.
 
-Metrics from logs are stored with a `_virtual.` prefix (e.g. `_virtual.log.field.duration`) to distinguish them from directly observed metrics.
+Metrics from logs are stored under the extractor's component name as the namespace (e.g. `log_metrics_extractor`), distinguishing them from directly observed metrics.
 
 ### 3. Detect
 
@@ -116,7 +116,7 @@ When a log is observed, two things happen:
    ```
    ProcessLog(log LogView) → []MetricOutput
    ```
-   Each returned metric is stored as `_virtual.{name}` and flows through normal detection. Implementations should be stateless and fast.
+   Each returned metric is stored under the extractor's component name as the namespace and flows through normal detection. Implementations should be stateless and fast.
 
 2. **Detectors implementing LogObserver** receive the raw log directly, allowing log-based anomaly detection without the metrics extraction step.
 
@@ -228,7 +228,7 @@ func (m *MyExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
     content := string(log.GetContent())
     // Extract what you need synchronously — don't store the view
     return []observer.MetricOutput{{
-        Name:  "my.metric",    // stored as _virtual.my.metric
+        Name:  "my.metric",    // stored under the extractor's name as namespace
         Value: 1,
         Tags:  log.GetTags(),
     }}

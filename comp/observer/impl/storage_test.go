@@ -212,8 +212,8 @@ func TestAggSuffix(t *testing.T) {
 	assert.Equal(t, "min", aggSuffix(AggregateMin))
 	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
-	// Unknown aggregation type defaults to "avg"
-	assert.Equal(t, "avg", aggSuffix(Aggregate(999)))
+	// Unknown aggregation type
+	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 
 func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
