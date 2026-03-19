@@ -84,7 +84,7 @@ func TestCUSUMDetector_DetectsShift(t *testing.T) {
 	require.Len(t, result.Anomalies, 1, "should detect the shift")
 
 	anomaly := result.Anomalies[0]
-	assert.Equal(t, "shifted_metric:avg", anomaly.Source.String())
+	assert.Equal(t, "shifted_metric", anomaly.Source.String())
 	assert.Contains(t, anomaly.Title, "CUSUM")
 	assert.Contains(t, anomaly.Description, "shifted")
 

@@ -185,8 +185,8 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 
 	anomalyEvents := sink.eventsOfKind(eventAnomalyCreated)
 	assert.Len(t, anomalyEvents, 2)
-	assert.Equal(t, "cpu:avg", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
-	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "cpu", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "mem", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
 func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {

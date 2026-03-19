@@ -435,7 +435,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 	assert.Equal(t, "test_pattern", correlations[0].Pattern)
 	assert.Equal(t, "Test Correlation", correlations[0].Title)
 	require.Len(t, correlations[0].Anomalies, 1)
-	assert.Equal(t, "signal1:avg", correlations[0].Anomalies[0].Source)
+	assert.Equal(t, "signal1", correlations[0].Anomalies[0].Source)
 }
 
 func TestHTMLReporter_APICorrelations_NoState(t *testing.T) {

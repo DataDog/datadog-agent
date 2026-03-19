@@ -277,6 +277,9 @@ func (s AnomalySource) String() string {
 	if s.Name == "" {
 		return ""
 	}
+	if s.Aggregate == AggregateNone {
+		return s.Name
+	}
 	return s.Name + ":" + AggregateString(s.Aggregate)
 }
 
@@ -460,7 +463,8 @@ type SeriesMeta struct {
 type Aggregate int
 
 const (
-	AggregateAverage Aggregate = iota
+	AggregateNone Aggregate = iota
+	AggregateAverage
 	AggregateSum
 	AggregateCount
 	AggregateMin
@@ -470,6 +474,8 @@ const (
 // AggregateString returns a short string label for the aggregation type.
 func AggregateString(agg Aggregate) string {
 	switch agg {
+	case AggregateNone:
+		return "none"
 	case AggregateAverage:
 		return "avg"
 	case AggregateSum:
