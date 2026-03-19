@@ -90,7 +90,7 @@ dd_collect_dependencies = rule(
         "srcs": attr.label_list(
             doc = "Top-level CC targets which dependency graph should be searched for DdPackagingInfo.",
             aspects = [_collect_dd_packaging_aspect],
-            providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
     },
+    provides = [PackageFilegroupInfo],
 )
