@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -89,7 +90,7 @@ func Factory(store workloadmeta.Component, tagger tagger.Component) option.Optio
 
 // Parse parses the KataConfig and sets defaults
 func (c *KataConfig) Parse(data []byte) error {
-	c.SandboxStoragePaths = defaultSandboxStoragePaths
+	c.SandboxStoragePaths = slices.Clone(defaultSandboxStoragePaths)
 	c.RenameLabels = maps.Clone(defaultRenameLabels)
 
 	if err := yaml.Unmarshal(data, c); err != nil {
@@ -97,7 +98,7 @@ func (c *KataConfig) Parse(data []byte) error {
 	}
 
 	if len(c.SandboxStoragePaths) == 0 {
-		c.SandboxStoragePaths = defaultSandboxStoragePaths
+		c.SandboxStoragePaths = slices.Clone(defaultSandboxStoragePaths)
 	}
 	if c.RenameLabels == nil {
 		c.RenameLabels = maps.Clone(defaultRenameLabels)
