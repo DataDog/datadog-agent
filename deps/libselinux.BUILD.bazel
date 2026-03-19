@@ -1,3 +1,4 @@
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -80,22 +81,22 @@ cc_shared_library(
 )
 
 pkg_files(
-    name = "lib_files",
-    srcs = [":selinux"],
-    prefix = "lib",
-)
-
-pkg_files(
     name = "hdr_files",
     srcs = glob(["include/selinux/*.h"]),
     prefix = "include/selinux",
+)
+
+dd_cc_packaged(
+    name = "selinux_pkg",
+    input = ":selinux",
+    installed_files = [":hdr_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":hdr_files",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
