@@ -112,7 +112,7 @@ cc_shared_library(
     name = "xslt",
     deps = [":libxslt"],
     # Ensure we don't statically link with libxml2
-    dynamic_deps = ["@libxml2//:xml2"],
+    dynamic_deps = ["@libxml2//:xml2_pkg"],
     additional_linker_inputs = ["libxslt/libxslt.syms"],
     user_link_flags = [
         "-Wl,--version-script=$(location libxslt/libxslt.syms)",
@@ -187,7 +187,7 @@ cc_library(
 cc_shared_library(
     name = "exslt",
     deps = [":libexslt"],
-    dynamic_deps = ["@libxml2//:xml2", ":xslt"],
+    dynamic_deps = ["@libxml2//:xml2_pkg", ":xslt"],
     visibility = ["//visibility:public"],
 )
 
