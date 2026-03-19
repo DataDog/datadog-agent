@@ -330,7 +330,7 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
     if (reord_seen_offset > 0) {
         __u32 tmp = 0;
-        bpf_probe_read(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
+        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
         val->reord_seen = tmp;
     }
     __u64 rcv_ooopack_offset = 0;
