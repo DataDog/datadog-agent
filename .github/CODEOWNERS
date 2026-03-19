@@ -894,4 +894,4 @@
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
-/q_branch/                               @scottopell @val06
+/q_branch/                               @scottopell @lukesteensen
