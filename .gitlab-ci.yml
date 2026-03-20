@@ -131,7 +131,7 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
   CI_IMAGE_BTF_GEN: v96864623-38cade90
-  CI_IMAGE_BTF_GEN_SUFFIX: ""
+  CI_IMAGE_BTF_GEN_SUFFIX: "_test_only"
   CI_IMAGE_DOCKER_X64: v96864623-38cade90
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
   CI_IMAGE_DOCKER_ARM64: v96864623-38cade90
