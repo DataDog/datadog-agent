@@ -668,9 +668,10 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	// Build a QueryHandle for anomaly lookup using the storage's series ref.
-	// If we can't resolve the ref, we skip anomaly matching for this path.
+	// Use the returned series identity (not the request params) so that
+	// nil-tag requests that match a tagged series still find the ref.
 	var markers []anomalyMarker
-	key := seriesKey(namespace, name, tags)
+	key := seriesKey(series.Namespace, name, series.Tags)
 	if ref, ok := storage.LookupRef(key); ok {
 		qh := observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.Aggregate(agg)}
 		anomalies := api.tb.GetMetricsAnomaliesForView(qh)
@@ -1047,12 +1048,12 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				Tags:        tags,
 			}
 		}
-		// Build member series strings from Members
+		// Build member series IDs with tags for unique identification across tag variants.
 		memberIDs := make([]string, len(c.Members))
 		for k, m := range c.Members {
-			memberIDs[k] = m.String()
+			memberIDs[k] = m.DisplayName()
 		}
-		// Build metric names from Members for backward compatibility
+		// Build metric names (name:agg only, no tags) for display.
 		metricNames := make([]string, len(c.Members))
 		for k, m := range c.Members {
 			metricNames[k] = m.String()

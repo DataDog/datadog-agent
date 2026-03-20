@@ -842,15 +842,33 @@ func (tb *TestBench) GetMetricsAnomaliesByDetector() map[string][]observerdef.An
 }
 
 // GetMetricsAnomaliesForView returns metric anomalies associated with a specific QueryHandle.
+// Matches on exact SourceView equality first. For anomalies that don't populate
+// SourceView (e.g. RRCF), falls back to matching via the telemetry series naming
+// convention so that /api/series/... and /api/anomalies still show markers.
 func (tb *TestBench) GetMetricsAnomaliesForView(qh observerdef.QueryHandle) []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
+	storage := tb.engine.Storage()
 	all := filterMetricAnomalies(tb.engine.StateView().Anomalies())
 	var result []observerdef.Anomaly
 	for _, a := range all {
 		if a.SourceView == qh {
 			result = append(result, a)
+			continue
+		}
+		// Fallback: detectors like RRCF emit anomalies without SourceView.
+		// Resolve the telemetry series key and check if it matches the
+		// requested QueryHandle.
+		if !a.SourceView.IsValid() && a.Source.Name != "" {
+			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+			key := seriesKey("telemetry", telemetryName, nil)
+			if ref, ok := storage.LookupRef(key); ok && ref == qh.Ref {
+				// Aggregate defaults to avg for telemetry series.
+				if qh.Aggregate == observerdef.AggregateAverage {
+					result = append(result, a)
+				}
+			}
 		}
 	}
 	return result
