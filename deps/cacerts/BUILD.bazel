@@ -51,6 +51,9 @@ pkg_files(
         mode = "0644",
     ),
     prefix = "embedded3/ssl",
+    renames = {
+        "@cacert_pem//file": "cert.pem",
+    },
 )
 
 # TODO: add this to //packages/install_dir/embedded:everything
