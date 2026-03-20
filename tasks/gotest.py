@@ -217,7 +217,7 @@ def _generate_unified_output(ctx, test_result: TestResult, flavor: AgentFlavor, 
         utof_path = test_result.result_json_path.replace('.json', '_unified.json')
         utof.write_json(utof_path)
         print(f"Unified test output written to {utof_path}")
-        with gitlab_section("Unified test report", collapsed=True):
+        with gitlab_section("Unified test report", collapsed=False):
             print(format_report(utof))
     except Exception:
         import traceback
