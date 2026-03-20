@@ -8,9 +8,6 @@
 #include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
-    if (is_auid_discarder()) {
-        return 0;
-    }
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
@@ -103,6 +100,10 @@ int hook_vfs_rename(ctx_t *ctx) {
     // always return after any invalidate_inode call
     if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
+    }
+    if (is_auid_discarder()) {
+        syscall->state = DISCARDED;
         return 0;
     }
 
