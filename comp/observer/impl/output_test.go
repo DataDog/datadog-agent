@@ -55,14 +55,14 @@ func testCorrelation() observerdef.ActiveCorrelation {
 			{
 				Timestamp:    1000,
 				Source:       observerdef.SeriesDescriptor{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
-				SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
+	
 				DetectorName: "cusum",
 				Description:  "CUSUM detected shift in cpu.user:avg",
 			},
 			{
 				Timestamp:    1200,
 				Source:       observerdef.SeriesDescriptor{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
-				SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(1), Aggregate: observerdef.AggregateAverage},
+	
 				DetectorName: "cusum",
 				Description:  "CUSUM detected shift in mem.used:avg",
 			},
@@ -179,7 +179,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	require.Len(t, corr.Anomalies, 2)
 	assert.Equal(t, int64(1000), corr.Anomalies[0].Timestamp)
 	assert.Equal(t, "cpu.user:avg", corr.Anomalies[0].Source)
-	assert.Equal(t, "0:avg", corr.Anomalies[0].SourceSeriesID)
+	assert.Equal(t, "cpu.user:avg", corr.Anomalies[0].SourceSeriesID)
 	assert.Equal(t, "cusum", corr.Anomalies[0].Detector)
 
 	assert.Equal(t, int64(1200), corr.Anomalies[1].Timestamp)
@@ -219,7 +219,7 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 				{
 					Timestamp:    100,
 					Source:       observerdef.SeriesDescriptor{Name: "metric"},
-					SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
+		
 					DetectorName: "cusum",
 				},
 			},

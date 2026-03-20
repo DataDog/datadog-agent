@@ -18,7 +18,7 @@ import (
 
 // anomalyDedupKey is a map key for O(1) anomaly deduplication.
 type anomalyDedupKey struct {
-	sourceView   observerdef.QueryHandle
+	sourceKey    string // SeriesDescriptor.Key()
 	detectorName string
 	timestamp    int64
 	title        string
@@ -351,18 +351,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // enrichAnomaly decorates an anomaly with context from the originating
 // extractor, if available. This runs automatically on every anomaly so
 // detectors don't need to be aware of context providers.
-// Lookup resolves the anomaly's SourceView (QueryHandle) to an internal
-// storage key, then maps that to a provider namespace and context key.
+// Lookup builds the storage key from Source fields (namespace, name, tags)
+// and maps that to a provider namespace and context key.
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if !a.SourceView.IsValid() {
+	if a.Source.Name == "" {
 		return
 	}
-	fullKey, ok := e.storage.FullKeyForNumericID(a.SourceView.Ref)
-	if !ok {
-		return
-	}
-	// Resolve aggregate from SourceView into Source.
-	a.Source.Aggregate = a.SourceView.Aggregate
+	fullKey := seriesKey(a.Source.Namespace, a.Source.Name, a.Source.Tags)
 
 	ref, ok := e.contextRefs[fullKey]
 	if !ok {
@@ -391,7 +386,7 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 }
 
 // captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
-// Deduplicates by SourceView+DetectorName+Timestamp+Title.
+// Deduplicates by Source+DetectorName+Timestamp+Title.
 // Returns true if the anomaly was new, false if it was a duplicate.
 func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	e.rawAnomalyMu.Lock()
@@ -411,9 +406,9 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 		e.currentDataTime = anomaly.Timestamp
 	}
 
-	// Deduplicate by SourceView+DetectorName+Timestamp+Title
+	// Deduplicate by Source+DetectorName+Timestamp+Title
 	key := anomalyDedupKey{
-		sourceView:   anomaly.SourceView,
+		sourceKey:    anomaly.Source.Key(),
 		detectorName: anomaly.DetectorName,
 		timestamp:    anomaly.Timestamp,
 		title:        anomaly.Title,
@@ -454,7 +449,7 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 		e.rawAnomalyIndex = make(map[anomalyDedupKey]int, len(e.rawAnomalies))
 		for i, a := range e.rawAnomalies {
 			e.rawAnomalyIndex[anomalyDedupKey{
-				sourceView:   a.SourceView,
+				sourceKey:    a.Source.Key(),
 				detectorName: a.DetectorName,
 				timestamp:    a.Timestamp,
 				title:        a.Title,

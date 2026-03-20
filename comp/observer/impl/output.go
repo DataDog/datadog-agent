@@ -110,7 +110,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 				oc.Anomalies[j] = ObserverAnomaly{
 					Timestamp:      a.Timestamp,
 					Source:         a.Source.String(),
-					SourceSeriesID: a.SourceView.String(),
+					SourceSeriesID: a.Source.DisplayName(),
 					Detector:       a.DetectorName,
 				}
 			}

@@ -191,8 +191,8 @@ func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 
 func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
-		{Source: observerdef.SeriesDescriptor{Name: "cpu"}, DetectorName: "test", Timestamp: 99, SourceView: observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage}},
-		{Source: observerdef.SeriesDescriptor{Name: "mem"}, DetectorName: "test", Timestamp: 99, SourceView: observerdef.QueryHandle{Ref: observerdef.SeriesRef(1), Aggregate: observerdef.AggregateAverage}},
+		{Source: observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
+		{Source: observerdef.SeriesDescriptor{Name: "mem", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
 	}
 
 	e := newEngine(engineConfig{
@@ -209,8 +209,8 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 
 	anomalyEvents := sink.eventsOfKind(eventAnomalyCreated)
 	assert.Len(t, anomalyEvents, 2)
-	assert.Equal(t, "cpu", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
-	assert.Equal(t, "mem", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "cpu:avg", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
 func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {
@@ -232,12 +232,11 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 		DetectorName: "test",
 		Description:  "detector-authored description",
 		Timestamp:    99,
-		SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateCount},
 	}}
 
 	storage := newTimeSeriesStorage()
-	// Add a series so that SeriesRef(0) maps to the correct storage key.
-	storage.Add("ns", "log.pattern.abc.count", 1.0, 1, nil)
+	// Add a series so that the storage key matches Source fields.
+	storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
 	e := newEngine(engineConfig{
 		storage: storage,
 		detectors: []observerdef.Detector{
@@ -247,7 +246,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 			"log_metrics_extractor": provider,
 		},
 	})
-	e.contextRefs["ns|log.pattern.abc.count|"] = seriesContextRef{
+	e.contextRefs["log_metrics_extractor|log.pattern.abc.count|observer_source:source-a,service:api"] = seriesContextRef{
 		namespace:  "log_metrics_extractor",
 		contextKey: "ctx-1",
 	}
@@ -274,21 +273,20 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 		"ctx-2": {Pattern: "p2", Example: "e2", Source: "second"},
 	}}
 	storage := newTimeSeriesStorage()
-	// Add a series so that SeriesRef(0) maps to the correct storage key.
-	storage.Add("ns", "metric", 1.0, 1, []string{"service:api"})
+	// Add a series so that the storage key matches Source fields.
+	storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
 	e := newEngine(engineConfig{
 		storage:          storage,
 		extractors:       []observerdef.LogMetricsExtractor{first},
 		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{first}),
 		detectors: []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{{
-			Source:     observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
-			Timestamp:  1,
-			SourceView: observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
+			Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
+			Timestamp: 1,
 		}}}},
 	})
 
 	e.SetExtractors([]observerdef.LogMetricsExtractor{second})
-	e.contextRefs["ns|metric|service:api"] = seriesContextRef{
+	e.contextRefs["second|metric|service:api"] = seriesContextRef{
 		namespace:  "second",
 		contextKey: "ctx-2",
 	}
@@ -326,7 +324,6 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 					Name:      meta.Name,
 					Tags:      meta.Tags,
 				},
-				SourceView: observerdef.QueryHandle{Ref: meta.Ref, Aggregate: observerdef.AggregateCount},
 			}
 			break
 		}
@@ -503,19 +500,16 @@ func (r *countingReporter) Name() string                      { return "counting
 func (r *countingReporter) Report(_ observerdef.ReportOutput) { *r.count++ }
 
 func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
-	cpuView := observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage}
 	anomalies := []observerdef.Anomaly{
 		{
-			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
-			SourceView:   cpuView,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
 			DetectorName: "test_detector",
 			Title:        "Spike detected",
 			Description:  "CPU spike",
 			Timestamp:    100,
 		},
 		{
-			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
-			SourceView:   cpuView,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
 			DetectorName: "test_detector",
 			Title:        "Trend change detected",
 			Description:  "CPU trend shift",
@@ -535,15 +529,14 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	sv := e.StateView()
 	raw := sv.Anomalies()
 	assert.Len(t, raw, 2,
-		"two anomalies with same SourceView+detector+timestamp but different titles should both survive dedup")
+		"two anomalies with same Source+detector+timestamp but different titles should both survive dedup")
 }
 
-func TestFindingM2_EmptySourceViewCollision(t *testing.T) {
+func TestFindingM2_EmptySourceCollision(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Type:         observerdef.AnomalyTypeLog,
 			Source:       observerdef.SeriesDescriptor{Name: "logs"},
-			SourceView:   observerdef.NoQueryHandle, // invalid for log anomalies
 			DetectorName: "log_detector",
 			Title:        "Error pattern A detected",
 			Description:  "Pattern A",
@@ -552,7 +545,6 @@ func TestFindingM2_EmptySourceViewCollision(t *testing.T) {
 		{
 			Type:         observerdef.AnomalyTypeLog,
 			Source:       observerdef.SeriesDescriptor{Name: "logs"},
-			SourceView:   observerdef.NoQueryHandle, // invalid for log anomalies
 			DetectorName: "log_detector",
 			Title:        "Error pattern B detected",
 			Description:  "Pattern B",
@@ -572,23 +564,20 @@ func TestFindingM2_EmptySourceViewCollision(t *testing.T) {
 	sv := e.StateView()
 	raw := sv.Anomalies()
 	assert.Len(t, raw, 2,
-		"two log anomalies with invalid SourceView but different content should both survive dedup")
+		"two log anomalies with same Source but different titles should both survive dedup")
 }
 
 func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	// Two identical anomalies (same dedup key) -- one will be deduped from rawAnomalies.
-	cpuView := observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage}
 	anomalies := []observerdef.Anomaly{
 		{
-			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
-			SourceView:   cpuView,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
 			DetectorName: "test_detector",
 			Title:        "Spike",
 			Timestamp:    100,
 		},
 		{
-			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
-			SourceView:   cpuView,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
 			DetectorName: "test_detector",
 			Title:        "Spike",
 			Timestamp:    100,

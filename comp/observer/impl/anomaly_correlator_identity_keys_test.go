@@ -25,8 +25,8 @@ func TestLeadLagCorrelator_PreservesDescriptorKeys(t *testing.T) {
 	srcA := observer.SeriesDescriptor{Name: "cpu.user", Aggregate: observer.AggregateAverage}
 	srcB := observer.SeriesDescriptor{Name: "mem.used", Aggregate: observer.AggregateAverage}
 
-	c.ProcessAnomaly(observer.Anomaly{Source: srcA, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{Source: srcB, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage}, Timestamp: 108})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcA, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcB, Timestamp: 108})
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)
@@ -48,8 +48,8 @@ func TestSurpriseCorrelator_PreservesDescriptorKeys(t *testing.T) {
 	srcA := observer.SeriesDescriptor{Name: "cpu.user", Aggregate: observer.AggregateAverage}
 	srcB := observer.SeriesDescriptor{Name: "mem.used", Aggregate: observer.AggregateAverage}
 
-	c.ProcessAnomaly(observer.Anomaly{Source: srcA, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{Source: srcB, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage}, Timestamp: 101})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcA, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcB, Timestamp: 101})
 	c.Advance(200) // finalize window
 
 	edges := c.GetEdges()

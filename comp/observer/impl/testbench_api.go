@@ -541,9 +541,14 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 
 	nameWithAgg := series.Name + ":" + aggStr
 
-	// Build a QueryHandle for anomaly lookup
-	qh := observerdef.QueryHandle{Ref: numericID, Aggregate: observerdef.Aggregate(agg)}
-	anomalies := api.tb.GetMetricsAnomaliesForView(qh)
+	// Build a SeriesDescriptor for anomaly lookup
+	sd := observerdef.SeriesDescriptor{
+		Namespace: series.Namespace,
+		Name:      series.Name,
+		Tags:      series.Tags,
+		Aggregate: observerdef.Aggregate(agg),
+	}
+	anomalies := api.tb.GetMetricsAnomaliesForSource(sd)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -667,29 +672,31 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		Title             string `json:"title"`
 	}
 
-	// Build a QueryHandle for anomaly lookup using the storage's series ref.
+	// Build a SeriesDescriptor for anomaly lookup.
 	// Use the returned series identity (not the request params) so that
 	// nil-tag requests that match a tagged series still find the ref.
 	var markers []anomalyMarker
-	key := seriesKey(series.Namespace, name, series.Tags)
-	if ref, ok := storage.LookupRef(key); ok {
-		qh := observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.Aggregate(agg)}
-		anomalies := api.tb.GetMetricsAnomaliesForView(qh)
-		detectorComponentMap := api.tb.GetDetectorComponentMap()
-		for _, a := range anomalies {
-			if a.DetectorName == "" || a.Timestamp == 0 {
-				log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
-					seriesID, a.DetectorName, a.Timestamp)
-				continue
-			}
-			markers = append(markers, anomalyMarker{
-				Timestamp:         a.Timestamp,
-				DetectorName:      a.DetectorName,
-				DetectorComponent: detectorComponentMap[a.DetectorName],
-				SourceSeriesID:    seriesID,
-				Title:             a.Title,
-			})
+	sd := observerdef.SeriesDescriptor{
+		Namespace: series.Namespace,
+		Name:      name,
+		Tags:      series.Tags,
+		Aggregate: observerdef.Aggregate(agg),
+	}
+	anomalies := api.tb.GetMetricsAnomaliesForSource(sd)
+	detectorComponentMap := api.tb.GetDetectorComponentMap()
+	for _, a := range anomalies {
+		if a.DetectorName == "" || a.Timestamp == 0 {
+			log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
+				seriesID, a.DetectorName, a.Timestamp)
+			continue
 		}
+		markers = append(markers, anomalyMarker{
+			Timestamp:         a.Timestamp,
+			DetectorName:      a.DetectorName,
+			DetectorComponent: detectorComponentMap[a.DetectorName],
+			SourceSeriesID:    seriesID,
+			Title:             a.Title,
+		})
 	}
 
 	type pointOutput struct {
@@ -763,10 +770,9 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
-		sourceSeriesID := a.SourceView.String()
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    sourceSeriesID,
+			SourceSeriesID:    a.Source.DisplayName(),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,

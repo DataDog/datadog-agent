@@ -163,7 +163,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				continue
 			}
 
-			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg, sk.ref)
+			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
 			if found {
 				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
@@ -179,7 +179,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 // scanWelch runs the hybrid Welch/MW scan on points within the current segment.
 // Returns (anomaly, changeIndex, found).
-func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate, ref observer.SeriesRef) (observer.Anomaly, int, bool) {
+func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
 
 	values := make([]float64, n)
@@ -303,7 +303,6 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	anomaly := observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
 		Source:         observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
-		SourceView: observer.QueryHandle{Ref: ref, Aggregate: agg},
 		DetectorName:   d.Name(),
 		Title:          "ScanWelch changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",

@@ -841,33 +841,36 @@ func (tb *TestBench) GetMetricsAnomaliesByDetector() map[string][]observerdef.An
 	return byDetector
 }
 
-// GetMetricsAnomaliesForView returns metric anomalies associated with a specific QueryHandle.
-// Matches on exact SourceView equality first. For anomalies that don't populate
-// SourceView (e.g. RRCF), falls back to matching via the telemetry series naming
-// convention so that /api/series/... and /api/anomalies still show markers.
-func (tb *TestBench) GetMetricsAnomaliesForView(qh observerdef.QueryHandle) []observerdef.Anomaly {
+// GetMetricsAnomaliesForSource returns metric anomalies associated with a specific SeriesDescriptor.
+// Matches on Source.Key() equality. For anomalies from detectors that use a different
+// namespace (e.g. RRCF uses "rrcf" while the telemetry series uses "telemetry"),
+// falls back to matching via the telemetry series naming convention so that
+// /api/series/... and /api/anomalies still show markers.
+func (tb *TestBench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	storage := tb.engine.Storage()
+	targetKey := sd.Key()
 	all := filterMetricAnomalies(tb.engine.StateView().Anomalies())
 	var result []observerdef.Anomaly
 	for _, a := range all {
-		if a.SourceView == qh {
+		if a.Source.Key() == targetKey {
 			result = append(result, a)
 			continue
 		}
-		// Fallback: detectors like RRCF emit anomalies without SourceView.
-		// Resolve the telemetry series key and check if it matches the
-		// requested QueryHandle.
-		if !a.SourceView.IsValid() && a.Source.Name != "" {
+		// Fallback: detectors like RRCF emit anomalies with a different namespace
+		// (e.g. Source.Namespace="rrcf") while the telemetry series is stored as
+		// "telemetry.rrcf.score:avg" in namespace "telemetry". Map through the
+		// telemetry naming convention.
+		if a.Source.Namespace != sd.Namespace && a.Source.Name != "" {
 			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName, nil)
-			if ref, ok := storage.LookupRef(key); ok && ref == qh.Ref {
-				// Aggregate defaults to avg for telemetry series.
-				if qh.Aggregate == observerdef.AggregateAverage {
-					result = append(result, a)
-				}
+			telemetrySD := observerdef.SeriesDescriptor{
+				Namespace: "telemetry",
+				Name:      telemetryName,
+				Aggregate: observerdef.AggregateAverage,
+			}
+			if telemetrySD.Key() == targetKey {
+				result = append(result, a)
 			}
 		}
 	}
@@ -973,17 +976,16 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 
 	var groups []CompressedGroup
 	for i, corr := range correlations {
-		// Resolve member series from anomaly SourceView handles
+		// Resolve member series from anomaly Source descriptors
 		memberSet := make(map[string]bool)
 		var members []seriesCompact
 		for _, a := range corr.Anomalies {
-			viewStr := a.SourceView.String()
-			if viewStr == "" || memberSet[viewStr] {
+			srcKey := a.Source.Key()
+			if srcKey == "" || memberSet[srcKey] {
 				continue
 			}
-			memberSet[viewStr] = true
-			// Build member info from Source fields and SourceView aggregate
-			aggStr := observerdef.AggregateString(a.SourceView.Aggregate)
+			memberSet[srcKey] = true
+			aggStr := observerdef.AggregateString(a.Source.Aggregate)
 			members = append(members, seriesCompact{
 				Namespace: a.Source.Namespace,
 				Name:      a.Source.Name + ":" + aggStr,

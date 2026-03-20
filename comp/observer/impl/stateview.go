@@ -102,13 +102,14 @@ func (sv *stateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
 	return result
 }
 
-// AnomaliesForView returns anomalies matching a specific QueryHandle (series ref + aggregate).
+// AnomaliesForSource returns anomalies matching a specific SeriesDescriptor.
 // Computes on read from the raw anomaly set.
-func (sv *stateView) AnomaliesForView(qh observerdef.QueryHandle) []observerdef.Anomaly {
+func (sv *stateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
+	targetKey := sd.Key()
 	all := sv.engine.RawAnomalies()
 	var result []observerdef.Anomaly
 	for _, a := range all {
-		if a.SourceView == qh {
+		if a.Source.Key() == targetKey {
 			result = append(result, a)
 		}
 	}

@@ -521,7 +521,6 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 					Tags:      series.Tags,
 					Aggregate: agg,
 				}
-				result.Anomalies[j].SourceView = observerdef.QueryHandle{Ref: meta.Ref, Aggregate: agg}
 			}
 			allAnomalies = append(allAnomalies, result.Anomalies...)
 			allTelemetry = append(allTelemetry, result.Telemetry...)

@@ -380,9 +380,6 @@ type Anomaly struct {
 	Type AnomalyType
 	// Source is the fully resolved series identity (namespace, name, tags, aggregate).
 	Source SeriesDescriptor
-	// SourceView identifies the concrete storage series + aggregate that produced
-	// this anomaly. Invalid (NoQueryHandle) for log anomalies.
-	SourceView QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
 	Title        string
