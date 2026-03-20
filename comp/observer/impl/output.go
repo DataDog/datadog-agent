@@ -19,6 +19,7 @@ import (
 type ObserverOutput struct {
 	Metadata       ObserverMetadata      `json:"metadata"`
 	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
+	Reports        []ReportedEvent       `json:"reports"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -115,6 +116,8 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
+	reports := tb.GetReportedEvents()
+
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
 			Scenario:            scenario,
@@ -125,6 +128,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			TotalAnomalyPeriods: len(outCorrelations),
 		},
 		AnomalyPeriods: outCorrelations,
+		Reports:        reports,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")

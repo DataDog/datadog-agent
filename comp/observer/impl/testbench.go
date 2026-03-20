@@ -118,6 +118,10 @@ type TestBench struct {
 	compCorrGeneration uint64
 	corrGeneration     uint64 // bumped after each rerunDetectorsLocked
 
+	// Events that would have been sent to the Datadog backend.
+	// Rebuilt on every rerunDetectorsLocked; never sent over the network in testbench mode.
+	reportedEvents []ReportedEvent
+
 	// SSE broadcast hub for pushing events to connected browsers.
 	sse     *sseHub
 	sseStop chan struct{}
@@ -671,6 +675,9 @@ func (tb *TestBench) rerunDetectorsLocked() {
 
 	// Invalidate compressed correlations cache
 	tb.corrGeneration++
+
+	// Rebuild events that would have been sent to the Datadog backend.
+	tb.reportedEvents = buildReportedEvents(tb.engine.StateView().CorrelationHistory())
 
 	// Mark scenario ready now that all analysis is complete
 	tb.ready = true
@@ -1328,6 +1335,18 @@ func (tb *TestBench) GetRawLogs() []observerdef.LogView {
 	defer tb.mu.RUnlock()
 
 	return tb.rawLogs
+}
+
+// GetReportedEvents returns the events that would have been sent to the Datadog
+// backend. In testbench mode sending is disabled; the events are stored locally
+// so they can be inspected via the UI and headless output.
+func (tb *TestBench) GetReportedEvents() []ReportedEvent {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	out := make([]ReportedEvent, len(tb.reportedEvents))
+	copy(out, tb.reportedEvents)
+	return out
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.

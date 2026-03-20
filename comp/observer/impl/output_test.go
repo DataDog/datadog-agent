@@ -85,6 +85,7 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 	assert.Equal(t, int64(0), output.Metadata.TimelineEnd)
 	assert.Equal(t, 0, output.Metadata.TotalAnomalyPeriods)
 	assert.Empty(t, output.AnomalyPeriods)
+	assert.Empty(t, output.Reports)
 	assert.Empty(t, output.Metadata.DetectorsEnabled)
 	assert.Empty(t, output.Metadata.CorrelatorsEnabled)
 }
@@ -234,5 +235,6 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 		require.NoError(t, json.Unmarshal(data, &raw))
 		assert.Contains(t, raw, "metadata")
 		assert.Contains(t, raw, "anomaly_periods")
+		assert.Contains(t, raw, "reports")
 	}
 }
