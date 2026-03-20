@@ -557,6 +557,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/ddagent/networkpath  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
+/pkg/proto/datadog/dogstatsdhttp        @DataDog/agent-metric-pipelines
 /pkg/proto/datadog/kubemetadata         @DataDog/container-platform
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
@@ -894,4 +895,4 @@
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
-/q_branch/                               @scottopell @val06
+/q_branch/                               @scottopell @lukesteensen
