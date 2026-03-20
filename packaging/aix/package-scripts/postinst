@@ -8,7 +8,7 @@ lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
 # which /usr/bin/false is not on a standard AIX system.  login=false/rlogin=false
 # achieves the same "no login" result without that constraint.
 if ! id dd-agent > /dev/null 2>&1; then
-    mkuser pgrp=dd-agent login=false rlogin=false home=/dev/null id=9001 dd-agent
+    mkuser pgrp=dd-agent login=false rlogin=false home=/dev/null dd-agent
 fi
 
 # Add dd-agent to adm group (required for sar — used by the CPU check)
