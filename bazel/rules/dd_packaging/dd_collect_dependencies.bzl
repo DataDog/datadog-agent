@@ -58,6 +58,11 @@ def _dd_collect_dependencies_impl(ctx):
                 pkg_dirs.extend(fg.pkg_dirs)
                 pkg_symlinks.extend(fg.pkg_symlinks)
 
+    # The same content can be packaged by multiple dependencies so we deduplicate
+    pkg_files = depset(pkg_files).to_list()
+    pkg_dirs = depset(pkg_dirs).to_list()
+    pkg_symlinks = depset(pkg_symlinks).to_list()
+
     all_files = depset([
         f
         for pkg_files_info, _ in pkg_files
