@@ -68,16 +68,17 @@ def _cgo_godefs_impl(ctx):
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
+    # On Linux, CC=clang is needed because the default gcc may not be available.
+    # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
+    # On Windows, the default MSVC compiler is used (no CC override needed).
+    cc_prefix = "CC=clang " if platform == "linux" else ""
+
     cmd = (
         "ROOT=$PWD && cd {src_dir} && " +
-        # TODO(ABLD-410): CC=clang uses the system clang rather than a hermetic
-        # toolchain binary. The LLVM BPF toolchain's clang only supports BPF
-        # targets and lacks host-target backends (x86_64/aarch64) that cgo
-        # needs. To hermitize this, either ship a clang with host backends
-        # enabled or wire in a separate host-CC toolchain.
-        "GOROOT=$ROOT/{goroot} CC=clang $ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
+        "GOROOT=$ROOT/{goroot} {cc_prefix}$ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(
+        cc_prefix = cc_prefix,
         goroot = go.sdk.root_file.dirname,
         src_dir = src.dirname,
         go = go.go.path,
@@ -124,10 +125,13 @@ _cgo_godefs = rule(
             doc = """The Go source file containing C type references (import "C").""",
         ),
         "_std_deps": attr.label_list(
-            default = [
-                "//pkg/network/ebpf/c:ebpf_c_network",
-                "//pkg/ebpf/c:ebpf_c_headers",
-            ],
+            default = select({
+                "@platforms//os:linux": [
+                    "//pkg/network/ebpf/c:ebpf_c_network",
+                    "//pkg/ebpf/c:ebpf_c_headers",
+                ],
+                "//conditions:default": [],
+            }),
             providers = [CcInfo],
         ),
         "deps": attr.label_list(

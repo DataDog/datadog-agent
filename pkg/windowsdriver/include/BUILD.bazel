@@ -1,0 +1,5 @@
+cc_library(
+    name = "procmonapi",
+    hdrs = ["procmonapi.h"],
+    visibility = ["//pkg/windowsdriver/procmon:__pkg__"],
+)

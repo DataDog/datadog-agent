@@ -1,0 +1,18 @@
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "types.go",
+    "types_windows.go",
+])
+
+cc_library(
+    name = "ddnpmapi",
+    hdrs = ["ddnpmapi.h"],
+)
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    platform = "windows",
+    deps = [":ddnpmapi"],
+)
