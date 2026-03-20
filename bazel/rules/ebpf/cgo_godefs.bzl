@@ -70,7 +70,8 @@ def _cgo_godefs_impl(ctx):
 
     # On Linux, CC=clang is needed because the default gcc may not be available.
     # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
-    # On Windows, the default MSVC compiler is used (no CC override needed).
+    # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
+    # the old ninja behavior.
     cc_prefix = "CC=clang " if platform == "linux" else ""
 
     cmd = (
