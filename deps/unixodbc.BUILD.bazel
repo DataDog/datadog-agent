@@ -228,14 +228,14 @@ pkg_files(
 dd_cc_packaged(
     name = "odbcinst_pkg",
     input = ":odbcinst",
-    version = SOVERSION.split(".")[0],
+    version = SOVERSION,
     visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
     name = "odbc_pkg",
     input = ":odbc",
-    version = SOVERSION.split(".")[0],
+    version = SOVERSION,
     installed_files = [
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
@@ -246,7 +246,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "odbccr_pkg",
     input = ":odbccr",
-    version = SOVERSION.split(".")[0],
+    version = SOVERSION,
     visibility = ["//visibility:public"],
 )
 
