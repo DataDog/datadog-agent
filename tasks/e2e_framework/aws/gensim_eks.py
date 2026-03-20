@@ -50,6 +50,7 @@ _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
         "mode": f"Observer mode: {' or '.join(_VALID_MODES)} (default: record-parquet)",
         "config_path": doc.config_path,
         "debug": "Enable Pulumi debug logging",
+        "skip_build": "Skip episode image building (use cached ECR images from a previous run)",
     }
 )
 def submit_gensim_eks(
@@ -63,6 +64,7 @@ def submit_gensim_eks(
     mode: str = "record-parquet",
     debug: bool = False,
     config_path: str | None = None,
+    skip_build: bool = False,
 ) -> None:
     """
     Submit a gensim evaluation run to an EKS cluster.
@@ -189,12 +191,15 @@ def submit_gensim_eks(
 
     # ── 7. Compute ECR registry URL if any episode has docker-compose.yaml
     ecr_registry = ""
-    for ep_name, _ in episode_pairs:
-        ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
-        if (ep_dir / "docker-compose.yaml").exists():
-            ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
-            tool.info(f"ECR registry: {ecr_registry}")
-            break
+    if skip_build:
+        tool.info("Skipping episode image build (--skip-build). Using cached ECR images.")
+    else:
+        for ep_name, _ in episode_pairs:
+            ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
+            if (ep_dir / "docker-compose.yaml").exists():
+                ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
+                tool.info(f"ECR registry: {ecr_registry}")
+                break
 
     # ── 8. Deploy via Pulumi ──────────────────────────────────────────────
     extra_flags = {
