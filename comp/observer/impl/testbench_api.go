@@ -436,9 +436,12 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		Name       string   `json:"name"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
+		Virtual    bool     `json:"virtual"`
 	}
 
 	var allSeries []seriesInfo
+
+	extractorNs := api.tb.extractorNamespaces()
 
 	// Get series metadata from all namespaces — no point data materialized.
 	// Use compact numeric IDs: "{numericID}:{aggSuffix}" (e.g. "42:avg").
@@ -448,12 +451,14 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
 				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
+				_, virtual := extractorNs[m.Namespace]
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
 					Tags:       m.Tags,
 					PointCount: m.PointCount,
+					Virtual:    virtual,
 				})
 			}
 		}
@@ -761,7 +766,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			sourceSeriesID = storage.CompactSeriesID(sourceSeriesID)
 		}
 		resp := anomalyResponse{
-			Source:            string(a.Source),
+			Source:            a.Source.String(),
 			SourceSeriesID:    sourceSeriesID,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
@@ -797,7 +802,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			for _, a := range anomalies {
 				if a.DetectorName == "" || a.Timestamp == 0 {
 					log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-						a.DetectorName, a.Source, a.Timestamp)
+						a.DetectorName, a.Source.String(), a.Timestamp)
 					continue
 				}
 				response = append(response, toResponse(a))
@@ -809,7 +814,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		for _, a := range anomalies {
 			if a.DetectorName == "" || a.Timestamp == 0 {
 				log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-					a.DetectorName, a.Source, a.Timestamp)
+					a.DetectorName, a.Source.String(), a.Timestamp)
 				continue
 			}
 			response = append(response, toResponse(a))
@@ -844,7 +849,7 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 	response := make([]logAnomalyResponse, 0, len(anomalies))
 	for _, a := range anomalies {
 		response = append(response, logAnomalyResponse{
-			Source:       string(a.Source),
+			Source:       a.Source.String(),
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
@@ -1037,7 +1042,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				tags = []string{}
 			}
 			anomalies[j] = anomalyOutput{
-				Source:      string(a.Source),
+				Source:      a.Source.String(),
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
