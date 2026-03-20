@@ -160,14 +160,14 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = c.currentDataTime
 				existing.Anomalies = matchingAnomalies
-				existing.MemberSeriesIDs = sortedUniqueSeriesIDs(matchingAnomalies)
+				existing.MemberRefs = sortedUniqueRefs(matchingAnomalies)
 				existing.MetricNames = c.getSortedMetricNames(sourceSet)
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
 					Pattern:         pattern.name,
 					Title:           pattern.reportTitle,
-					MemberSeriesIDs: sortedUniqueSeriesIDs(matchingAnomalies),
+					MemberRefs: sortedUniqueRefs(matchingAnomalies),
 					MetricNames:     c.getSortedMetricNames(sourceSet),
 					Anomalies:       matchingAnomalies,
 					FirstSeen:       c.currentDataTime,
@@ -251,13 +251,13 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	for _, ac := range c.activeCorrelations {
 		// Return a copy to prevent external modification
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:         ac.Pattern,
-			Title:           ac.Title,
-			MemberSeriesIDs: append([]observer.SeriesID(nil), ac.MemberSeriesIDs...),
-			MetricNames:     append([]observer.MetricName(nil), ac.MetricNames...),
-			Anomalies:       ac.Anomalies,
-			FirstSeen:       ac.FirstSeen,
-			LastUpdated:     ac.LastUpdated,
+			Pattern:     ac.Pattern,
+			Title:       ac.Title,
+			MemberRefs:  append([]observer.SeriesRef(nil), ac.MemberRefs...),
+			MetricNames: append([]observer.MetricName(nil), ac.MetricNames...),
+			Anomalies:   ac.Anomalies,
+			FirstSeen:   ac.FirstSeen,
+			LastUpdated: ac.LastUpdated,
 		})
 	}
 	return result

@@ -29,8 +29,8 @@ func (sv *stateView) ListSeries(filter observerdef.SeriesFilter) []observerdef.S
 }
 
 // GetSeriesRange returns points within a time range for a series.
-func (sv *stateView) GetSeriesRange(handle observerdef.SeriesHandle, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
-	return sv.engine.storage.GetSeriesRange(handle, start, end, agg)
+func (sv *stateView) GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
+	return sv.engine.storage.GetSeriesRange(ref, start, end, agg)
 }
 
 // ScenarioBounds returns the time bounds of stored data.
@@ -102,13 +102,13 @@ func (sv *stateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
 	return result
 }
 
-// AnomaliesForSeries returns anomalies associated with a specific series ID.
+// AnomaliesForView returns anomalies matching a specific QueryHandle (series ref + aggregate).
 // Computes on read from the raw anomaly set.
-func (sv *stateView) AnomaliesForSeries(id observerdef.SeriesID) []observerdef.Anomaly {
+func (sv *stateView) AnomaliesForView(qh observerdef.QueryHandle) []observerdef.Anomaly {
 	all := sv.engine.RawAnomalies()
 	var result []observerdef.Anomaly
 	for _, a := range all {
-		if a.SourceSeriesID == id {
+		if a.SourceView == qh {
 			result = append(result, a)
 		}
 	}

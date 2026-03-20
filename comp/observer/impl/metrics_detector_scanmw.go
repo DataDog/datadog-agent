@@ -13,10 +13,10 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// scanmwStateKey identifies per-series state by handle and aggregation.
+// scanmwStateKey identifies per-series state by ref and aggregation.
 type scanmwStateKey struct {
-	handle observer.SeriesHandle
-	agg    observer.Aggregate
+	ref observer.SeriesRef
+	agg observer.Aggregate
 }
 
 // scanmwSeriesState holds per-series streaming state for the ScanMW detector.
@@ -71,7 +71,7 @@ type ScanMWDetector struct {
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
-	// per-series state keyed by handle+agg
+	// per-series state keyed by ref+agg
 	series map[scanmwStateKey]*scanmwSeriesState
 
 	// Cache the discovered series list across Detect calls.
@@ -123,11 +123,11 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	}
 
 	// Bulk-fetch point counts and write generations in a single lock acquisition.
-	handles := make([]observer.SeriesHandle, len(d.cachedSeries))
+	refs := make([]observer.SeriesRef, len(d.cachedSeries))
 	for i, meta := range d.cachedSeries {
-		handles[i] = meta.Handle
+		refs[i] = meta.Ref
 	}
-	bulkStatus := bulkSeriesStatus(storage, handles, dataTime)
+	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
@@ -135,7 +135,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			sk := scanmwStateKey{handle: meta.Handle, agg: agg}
+			sk := scanmwStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := d.series[sk]
 			if !exists {
@@ -156,7 +156,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			// Collect points into reusable buffer to avoid per-call allocation.
 			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(meta.Handle, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+			storage.ForEachPoint(meta.Ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 				if seriesMeta == nil {
 					sCopy := *s
 					seriesMeta = &sCopy
@@ -170,7 +170,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				continue
 			}
 
-			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
+			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg, sk.ref)
 			if found {
 				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
@@ -186,7 +186,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 
 // scanMW runs the scan algorithm on points within the current segment.
 // Returns (anomaly, changeIndex, found). Pure function over the input data.
-func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
+func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate, ref observer.SeriesRef) (observer.Anomaly, int, bool) {
 	n := len(points)
 
 	values := make([]float64, n)
@@ -294,7 +294,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	anomaly := observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
 		Source:         observer.AnomalySource{Namespace: series.Namespace, Name: series.Name, Aggregate: agg},
-		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
+		SourceView: observer.QueryHandle{Ref: ref, Aggregate: agg},
 		DetectorName:   d.Name(),
 		Title:          "ScanMW changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",

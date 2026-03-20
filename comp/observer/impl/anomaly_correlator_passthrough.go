@@ -88,13 +88,13 @@ func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCo
 		for i, a := range sorted {
 			metricName := observer.MetricName(a.Source.String())
 			result = append(result, observer.ActiveCorrelation{
-				Pattern:         fmt.Sprintf("passthrough_%s_%d", detName, i),
-				Title:           fmt.Sprintf("Passthrough[%s]: %s", detName, a.Source),
-				MemberSeriesIDs: []observer.SeriesID{a.SourceSeriesID},
-				MetricNames:     []observer.MetricName{metricName},
-				Anomalies:       []observer.Anomaly{a},
-				FirstSeen:       a.Timestamp,
-				LastUpdated:     a.Timestamp,
+				Pattern:     fmt.Sprintf("passthrough_%s_%d", detName, i),
+				Title:       fmt.Sprintf("Passthrough[%s]: %s", detName, a.Source),
+				MemberRefs:  []observer.SeriesRef{a.SourceView.Ref},
+				MetricNames: []observer.MetricName{metricName},
+				Anomalies:   []observer.Anomaly{a},
+				FirstSeen:   a.Timestamp,
+				LastUpdated: a.Timestamp,
 			})
 		}
 	}

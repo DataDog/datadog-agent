@@ -20,9 +20,9 @@ func passthroughSource(name string) observer.AnomalySource {
 func TestDetectorPassthroughCorrelator_OnePerAnomaly(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), SourceSeriesID: "s1", Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Source: passthroughSource("redis.cpu.sys"), SourceSeriesID: "s1", Timestamp: 105})
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.info.latency_ms"), SourceSeriesID: "s2", Timestamp: 110})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Source: passthroughSource("redis.cpu.sys"), SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 105})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.info.latency_ms"), SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage}, Timestamp: 110})
 
 	corrs := c.ActiveCorrelations()
 	// 3 anomalies = 3 correlations (one per anomaly)
@@ -59,11 +59,11 @@ func TestDetectorPassthroughCorrelator_TimestampOrdering(t *testing.T) {
 func TestDetectorPassthroughCorrelator_SeriesIDAndSource(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), SourceSeriesID: "s1", Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 100})
 
 	corrs := c.ActiveCorrelations()
 	require.Len(t, corrs, 1)
-	assert.Equal(t, []observer.SeriesID{"s1"}, corrs[0].MemberSeriesIDs)
+	assert.Equal(t, []observer.SeriesRef{observer.SeriesRef(0)}, corrs[0].MemberRefs)
 	assert.Equal(t, []observer.MetricName{"redis.cpu.sys"}, corrs[0].MetricNames)
 }
 

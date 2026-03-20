@@ -821,7 +821,7 @@ func (tb *TestBench) GetMetricsAnomalies() []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return tb.resolveAnomalySeriesIDs(filterMetricAnomalies(tb.engine.StateView().Anomalies()))
+	return filterMetricAnomalies(tb.engine.StateView().Anomalies())
 }
 
 // GetMetricsAnomaliesByDetector returns metric anomalies grouped by detector name.
@@ -836,42 +836,24 @@ func (tb *TestBench) GetMetricsAnomaliesByDetector() map[string][]observerdef.An
 			delete(byDetector, k)
 			continue
 		}
-		byDetector[k] = tb.resolveAnomalySeriesIDs(filtered)
+		byDetector[k] = filtered
 	}
 	return byDetector
 }
 
-// GetMetricsAnomaliesForSeries returns metric anomalies associated with a specific series id.
-func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID) []observerdef.Anomaly {
+// GetMetricsAnomaliesForView returns metric anomalies associated with a specific QueryHandle.
+func (tb *TestBench) GetMetricsAnomaliesForView(qh observerdef.QueryHandle) []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	// Resolve SourceSeriesIDs first, then filter by the requested series ID.
-	// We resolve all anomalies because the engine may store them with empty
-	// SourceSeriesID (e.g. RRCF anomalies) that resolve to the requested ID.
-	resolved := tb.resolveAnomalySeriesIDs(filterMetricAnomalies(tb.engine.StateView().Anomalies()))
+	all := filterMetricAnomalies(tb.engine.StateView().Anomalies())
 	var result []observerdef.Anomaly
-	for _, a := range resolved {
-		if a.SourceSeriesID == seriesID {
+	for _, a := range all {
+		if a.SourceView == qh {
 			result = append(result, a)
 		}
 	}
 	return result
-}
-
-// resolveAnomalySeriesIDs applies testbench-specific SourceSeriesID resolution
-// to anomalies that have an empty SourceSeriesID. Detectors like RRCF that
-// operate on the full storage don't set SourceSeriesID; this maps them to the
-// corresponding telemetry series using the naming convention from handleTelemetry.
-func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
-	for i := range anomalies {
-		a := &anomalies[i]
-		// This comes from the telemetry
-		if a.SourceSeriesID == "" && a.Source.Name != "" {
-			a.SourceSeriesID = observerdef.SeriesID(seriesKey(observerdef.TelemetryNamespace, a.Source.String()+":avg", nil))
-		}
-	}
-	return anomalies
 }
 
 // GetLogAnomalies returns all anomalies emitted directly by log detectors.
@@ -973,27 +955,21 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 
 	var groups []CompressedGroup
 	for i, corr := range correlations {
-		// Resolve member series from anomaly SourceSeriesIDs
-		memberSet := make(map[string]struct{})
+		// Resolve member series from anomaly SourceView handles
+		memberSet := make(map[string]bool)
 		var members []seriesCompact
 		for _, a := range corr.Anomalies {
-			if a.SourceSeriesID == "" {
+			viewStr := a.SourceView.String()
+			if viewStr == "" || memberSet[viewStr] {
 				continue
 			}
-			sid := string(a.SourceSeriesID)
-			if _, seen := memberSet[sid]; seen {
-				continue
-			}
-			memberSet[sid] = struct{}{}
-
-			ns, name, tags, ok := parseSeriesKey(sid)
-			if !ok {
-				continue
-			}
+			memberSet[viewStr] = true
+			// Build member info from Source fields and SourceView aggregate
+			aggStr := observerdef.AggregateString(a.SourceView.Aggregate)
 			members = append(members, seriesCompact{
-				Namespace: ns,
-				Name:      name,
-				Tags:      tags,
+				Namespace: a.Source.Namespace,
+				Name:      a.Source.Name + ":" + aggStr,
+				Tags:      a.Tags,
 			})
 		}
 
@@ -1381,7 +1357,7 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 		if storage != nil {
 			for _, m := range storage.ListSeriesMetadata(extractor.Name()) {
 				if m.Name == metricName {
-					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Handle))+":count")
+					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Ref))+":count")
 				}
 			}
 		}

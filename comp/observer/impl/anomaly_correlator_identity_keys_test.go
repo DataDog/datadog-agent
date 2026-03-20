@@ -22,16 +22,16 @@ func TestLeadLagCorrelator_PreservesFullSeriesIDs(t *testing.T) {
 		WindowSeconds:       120,
 	})
 
-	seriesA := observer.SeriesID("parquet|cpu.user:avg|host:A,service:web")
-	seriesB := observer.SeriesID("parquet|cpu.user:avg|host:B,service:web")
+	seriesA := observer.SeriesRef(0)
+	seriesB := observer.SeriesRef(1)
 
-	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesA, Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesB, Timestamp: 108})
+	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesA, Aggregate: observer.AggregateAverage}, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesB, Aggregate: observer.AggregateAverage}, Timestamp: 108})
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)
-	assert.Contains(t, []string{string(seriesA), string(seriesB)}, edges[0].Leader)
-	assert.Contains(t, []string{string(seriesA), string(seriesB)}, edges[0].Follower)
+	assert.Contains(t, []string{"0", "1"}, edges[0].Leader)
+	assert.Contains(t, []string{"0", "1"}, edges[0].Follower)
 }
 
 func TestSurpriseCorrelator_PreservesFullSeriesIDs(t *testing.T) {
@@ -45,15 +45,15 @@ func TestSurpriseCorrelator_PreservesFullSeriesIDs(t *testing.T) {
 		EvictionWindowSeconds: 300,
 	})
 
-	seriesA := observer.SeriesID("parquet|net.retransmits:avg|host:A,az:1a")
-	seriesB := observer.SeriesID("parquet|net.retransmits:avg|host:B,az:1a")
+	seriesA := observer.SeriesRef(0)
+	seriesB := observer.SeriesRef(1)
 
-	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesA, Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesB, Timestamp: 101})
+	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesA, Aggregate: observer.AggregateAverage}, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesB, Aggregate: observer.AggregateAverage}, Timestamp: 101})
 	c.Advance(200) // finalize window
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)
-	assert.Contains(t, []string{string(seriesA), string(seriesB)}, edges[0].Source1)
-	assert.Contains(t, []string{string(seriesA), string(seriesB)}, edges[0].Source2)
+	assert.Contains(t, []string{"0", "1"}, edges[0].Source1)
+	assert.Contains(t, []string{"0", "1"}, edges[0].Source2)
 }

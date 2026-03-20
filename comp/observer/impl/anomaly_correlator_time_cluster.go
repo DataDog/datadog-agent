@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -231,13 +232,13 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		seen := make(map[observer.SeriesID]bool)
+		seen := make(map[observer.SeriesRef]bool)
 		for _, a := range cluster.anomalies {
-			seen[a.SourceSeriesID] = true
+			seen[a.SourceView.Ref] = true
 		}
 		sources := make([]string, 0, len(seen))
-		for sid := range seen {
-			sources = append(sources, string(sid))
+		for ref := range seen {
+			sources = append(sources, strconv.Itoa(int(ref)))
 		}
 		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
@@ -298,26 +299,26 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		// Collect unique series IDs
-		seen := make(map[observer.SeriesID]bool)
+		// Collect unique series refs
+		seen := make(map[observer.SeriesRef]bool)
 		for _, a := range cluster.anomalies {
-			seen[a.SourceSeriesID] = true
+			seen[a.SourceView.Ref] = true
 		}
-		memberSeriesIDs := make([]observer.SeriesID, 0, len(seen))
-		for sid := range seen {
-			memberSeriesIDs = append(memberSeriesIDs, sid)
+		memberRefs := make([]observer.SeriesRef, 0, len(seen))
+		for ref := range seen {
+			memberRefs = append(memberRefs, ref)
 		}
-		sort.Slice(memberSeriesIDs, func(i, j int) bool { return memberSeriesIDs[i] < memberSeriesIDs[j] })
+		sort.Slice(memberRefs, func(i, j int) bool { return memberRefs[i] < memberRefs[j] })
 		metricNames := sortedUniqueMetricNames(cluster.anomalies)
 
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:         fmt.Sprintf("time_cluster_%d", cluster.id),
-			Title:           fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
-			MemberSeriesIDs: memberSeriesIDs,
-			MetricNames:     metricNames,
-			Anomalies:       cluster.anomalies,
-			FirstSeen:       cluster.minTimestamp,
-			LastUpdated:     cluster.maxTimestamp,
+			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
+			Title:       fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
+			MemberRefs:  memberRefs,
+			MetricNames: metricNames,
+			Anomalies:   cluster.anomalies,
+			FirstSeen:   cluster.minTimestamp,
+			LastUpdated: cluster.maxTimestamp,
 		})
 	}
 

@@ -28,18 +28,35 @@ func sortedUniqueMetricNames(anomalies []observer.Anomaly) []observer.MetricName
 	return names
 }
 
-func sortedUniqueSeriesIDs(anomalies []observer.Anomaly) []observer.SeriesID {
-	seen := make(map[observer.SeriesID]struct{})
+func sortedUniqueRefs(anomalies []observer.Anomaly) []observer.SeriesRef {
+	seen := make(map[observer.SeriesRef]struct{})
 	for _, a := range anomalies {
-		if a.SourceSeriesID == "" {
+		if a.SourceView.Ref == observer.NoSeriesRef {
 			continue
 		}
-		seen[a.SourceSeriesID] = struct{}{}
+		seen[a.SourceView.Ref] = struct{}{}
 	}
-	ids := make([]observer.SeriesID, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
+	refs := make([]observer.SeriesRef, 0, len(seen))
+	for ref := range seen {
+		refs = append(refs, ref)
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	sort.Slice(refs, func(i, j int) bool { return refs[i] < refs[j] })
+	return refs
+}
+
+func uniqueViewStrings(anomalies []observer.Anomaly) []string {
+	seen := make(map[string]struct{})
+	for _, a := range anomalies {
+		s := a.SourceView.String()
+		if s == "" {
+			continue
+		}
+		seen[s] = struct{}{}
+	}
+	views := make([]string, 0, len(seen))
+	for v := range seen {
+		views = append(views, v)
+	}
+	sort.Strings(views)
+	return views
 }

@@ -18,7 +18,7 @@ import (
 
 // anomalyDedupKey is a map key for O(1) anomaly deduplication.
 type anomalyDedupKey struct {
-	seriesID     observerdef.SeriesID
+	sourceView   observerdef.QueryHandle
 	detectorName string
 	timestamp    int64
 	title        string
@@ -47,7 +47,7 @@ type engine struct {
 	detectors        []observerdef.Detector
 	correlators      []observerdef.Correlator
 	contextProviders map[string]observerdef.ContextProvider // namespace → provider
-	contextRefs      map[observerdef.SeriesID]seriesContextRef
+	contextRefs      map[string]seriesContextRef
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -125,7 +125,7 @@ func newEngine(cfg engineConfig) *engine {
 		detectors:        cfg.detectors,
 		correlators:      cfg.correlators,
 		contextProviders: cfg.contextProviders,
-		contextRefs:      make(map[observerdef.SeriesID]seriesContextRef),
+		contextRefs:      make(map[string]seriesContextRef),
 		scheduler:        sched,
 
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
@@ -200,8 +200,8 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 			}
 			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
 			if m.ContextKey != "" {
-				seriesID := observerdef.SeriesID(seriesKey(extractor.Name(), m.Name, tags))
-				e.contextRefs[seriesID] = seriesContextRef{
+				sk := seriesKey(extractor.Name(), m.Name, tags)
+				e.contextRefs[sk] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
 				}
@@ -351,13 +351,20 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // enrichAnomaly decorates an anomaly with context from the originating
 // extractor, if available. This runs automatically on every anomaly so
 // detectors don't need to be aware of context providers.
-// Lookup is keyed by the anomaly's concrete SourceSeriesID, which the engine
-// maps to a provider namespace and opaque extractor-owned context key.
+// Lookup resolves the anomaly's SourceView (QueryHandle) to an internal
+// storage key, then maps that to a provider namespace and context key.
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.SourceSeriesID == "" {
+	if !a.SourceView.IsValid() {
 		return
 	}
-	ref, ok := e.contextRefs[a.SourceSeriesID]
+	fullKey, ok := e.storage.FullKeyForNumericID(a.SourceView.Ref)
+	if !ok {
+		return
+	}
+	// Resolve aggregate from SourceView into Source.
+	a.Source.Aggregate = a.SourceView.Aggregate
+
+	ref, ok := e.contextRefs[fullKey]
 	if !ok {
 		return
 	}
@@ -384,7 +391,7 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 }
 
 // captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
-// Deduplicates by SourceSeriesID+DetectorName+Timestamp+Title.
+// Deduplicates by SourceView+DetectorName+Timestamp+Title.
 // Returns true if the anomaly was new, false if it was a duplicate.
 func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	e.rawAnomalyMu.Lock()
@@ -404,9 +411,9 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 		e.currentDataTime = anomaly.Timestamp
 	}
 
-	// Deduplicate by SourceSeriesID+DetectorName+Timestamp
+	// Deduplicate by SourceView+DetectorName+Timestamp+Title
 	key := anomalyDedupKey{
-		seriesID:     anomaly.SourceSeriesID,
+		sourceView:   anomaly.SourceView,
 		detectorName: anomaly.DetectorName,
 		timestamp:    anomaly.Timestamp,
 		title:        anomaly.Title,
@@ -447,7 +454,7 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 		e.rawAnomalyIndex = make(map[anomalyDedupKey]int, len(e.rawAnomalies))
 		for i, a := range e.rawAnomalies {
 			e.rawAnomalyIndex[anomalyDedupKey{
-				seriesID:     a.SourceSeriesID,
+				sourceView:   a.SourceView,
 				detectorName: a.DetectorName,
 				timestamp:    a.Timestamp,
 				title:        a.Title,
@@ -563,7 +570,7 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
 	e.contextProviders = collectContextProviders(extractors)
-	e.contextRefs = make(map[observerdef.SeriesID]seriesContextRef)
+	e.contextRefs = make(map[string]seriesContextRef)
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
@@ -591,7 +598,7 @@ func (e *engine) Reset() {
 		}
 	}
 
-	e.contextRefs = make(map[observerdef.SeriesID]seriesContextRef)
+	e.contextRefs = make(map[string]seriesContextRef)
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.

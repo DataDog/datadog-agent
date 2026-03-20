@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1135,10 +1136,23 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Requ
 					Score:       a.Score,
 				}
 			}
+			// Collect unique source view strings from anomalies.
+			sourceSet := make(map[string]struct{})
+			for _, a := range ac.Anomalies {
+				if s := a.SourceView.String(); s != "" {
+					sourceSet[s] = struct{}{}
+				}
+			}
+			sources := make([]string, 0, len(sourceSet))
+			for s := range sourceSet {
+				sources = append(sources, s)
+			}
+			sort.Strings(sources)
+
 			correlations[i] = correlationOutput{
 				Pattern:     ac.Pattern,
 				Title:       ac.Title,
-				Sources:     seriesIDsToStringSlice(ac.MemberSeriesIDs),
+				Sources:     sources,
 				Anomalies:   anomalies,
 				FirstSeen:   ac.FirstSeen,
 				LastUpdated: ac.LastUpdated,
@@ -1155,13 +1169,6 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Requ
 	}
 }
 
-func seriesIDsToStringSlice(ids []observer.SeriesID) []string {
-	out := make([]string, len(ids))
-	for i, id := range ids {
-		out[i] = string(id)
-	}
-	return out
-}
 
 // handleAPIRawAnomalies returns all raw anomalies from detector implementations.
 func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, _ *http.Request) {

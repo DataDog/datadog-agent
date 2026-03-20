@@ -13,8 +13,8 @@ import (
 )
 
 func TestSeriesPairKeyCanonicalization(t *testing.T) {
-	a := observer.SeriesID("parquet|cpu.user:avg|host:A")
-	b := observer.SeriesID("parquet|cpu.user:avg|host:B")
+	a := observer.SeriesRef(0)
+	b := observer.SeriesRef(1)
 
 	k1 := newSeriesPairKey(a, b)
 	k2 := newSeriesPairKey(b, a)
@@ -25,9 +25,9 @@ func TestSeriesPairKeyCanonicalization(t *testing.T) {
 }
 
 func TestSeriesPairKeyHashKeyAvoidsDelimiterAmbiguity(t *testing.T) {
-	// These pairs can collide under naive delimiter concatenation.
-	k1 := newSeriesPairKey(observer.SeriesID("a|b"), observer.SeriesID("c"))
-	k2 := newSeriesPairKey(observer.SeriesID("a"), observer.SeriesID("b|c"))
+	// These pairs should have different hash keys since they are different refs
+	k1 := newSeriesPairKey(observer.SeriesRef(0), observer.SeriesRef(1))
+	k2 := newSeriesPairKey(observer.SeriesRef(2), observer.SeriesRef(3))
 
 	assert.NotEqual(t, k1.hashKey(), k2.hashKey())
 }

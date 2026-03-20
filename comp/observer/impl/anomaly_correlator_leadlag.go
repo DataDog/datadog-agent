@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -207,7 +208,7 @@ type LeadLagCorrelator struct {
 	config LeadLagConfig
 
 	// Recent anomaly timestamps per source
-	sourceTimestamps map[observer.SeriesID]*RingBuffer
+	sourceTimestamps map[observer.SeriesRef]*RingBuffer
 
 	// Lag histograms for series pairs: pair -> histogram of (B_time - A_time)
 	lagHistograms map[seriesPairKey]*LagHistogram
@@ -240,7 +241,7 @@ func NewLeadLagCorrelator(config LeadLagConfig) *LeadLagCorrelator {
 	}
 	return &LeadLagCorrelator{
 		config:           config,
-		sourceTimestamps: make(map[observer.SeriesID]*RingBuffer),
+		sourceTimestamps: make(map[observer.SeriesRef]*RingBuffer),
 		lagHistograms:    make(map[seriesPairKey]*LagHistogram),
 	}
 }
@@ -255,7 +256,7 @@ func (c *LeadLagCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	source := anomaly.SourceSeriesID
+	source := anomaly.SourceView.Ref
 	ts := anomaly.Timestamp
 
 	// Update current data time
@@ -335,7 +336,7 @@ func (c *LeadLagCorrelator) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.sourceTimestamps = make(map[observer.SeriesID]*RingBuffer)
+	c.sourceTimestamps = make(map[observer.SeriesRef]*RingBuffer)
 	c.lagHistograms = make(map[seriesPairKey]*LagHistogram)
 	c.recentAnomalies = c.recentAnomalies[:0]
 	c.currentDataTime = 0
@@ -360,7 +361,7 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 			continue
 		}
 
-		var leaderSource, followerSource observer.SeriesID
+		var leaderSource, followerSource observer.SeriesRef
 		if leader == "A" {
 			leaderSource = sourceA
 			followerSource = sourceB
@@ -372,8 +373,8 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 		}
 
 		edges = append(edges, LeadLagEdge{
-			Leader:       string(leaderSource),
-			Follower:     string(followerSource),
+			Leader:       strconv.Itoa(int(leaderSource)),
+			Follower:     strconv.Itoa(int(followerSource)),
 			TypicalLag:   int64(math.Abs(float64(typicalLag))),
 			Confidence:   confidence,
 			Observations: histogram.totalObservations,
@@ -400,20 +401,22 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 
 	var result []observer.ActiveCorrelation
 
-	// Group anomalies by source for quick lookup
-	anomaliesBySource := make(map[observer.SeriesID][]observer.Anomaly)
+	// Group anomalies by source ref for quick lookup
+	anomaliesBySource := make(map[observer.SeriesRef][]observer.Anomaly)
 	for _, a := range c.recentAnomalies {
-		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
+		anomaliesBySource[a.SourceView.Ref] = append(anomaliesBySource[a.SourceView.Ref], a)
 	}
 
 	// Create a correlation for each significant lead-lag chain
 	for _, edge := range edges {
-		memberSeriesIDs := []observer.SeriesID{observer.SeriesID(edge.Leader), observer.SeriesID(edge.Follower)}
-
-		// Collect anomalies from both sources
+		// Collect anomalies from both sources by matching ref strings
 		var anomalies []observer.Anomaly
-		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Leader)]...)
-		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Follower)]...)
+		for ref, aa := range anomaliesBySource {
+			refStr := strconv.Itoa(int(ref))
+			if refStr == edge.Leader || refStr == edge.Follower {
+				anomalies = append(anomalies, aa...)
+			}
+		}
 
 		// Find time range
 		var firstSeen, lastUpdated int64
@@ -431,11 +434,11 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 			Pattern: fmt.Sprintf("lead_lag_%s_to_%s", edge.Leader, edge.Follower),
 			Title: fmt.Sprintf("LeadLag: %s → %s (+%ds)",
 				edge.Leader, edge.Follower, edge.TypicalLag),
-			MemberSeriesIDs: memberSeriesIDs,
-			MetricNames:     metricNames,
-			Anomalies:       anomalies,
-			FirstSeen:       firstSeen,
-			LastUpdated:     lastUpdated,
+			MemberRefs:  sortedUniqueRefs(anomalies),
+			MetricNames: metricNames,
+			Anomalies:   anomalies,
+			FirstSeen:   firstSeen,
+			LastUpdated: lastUpdated,
 		})
 	}
 

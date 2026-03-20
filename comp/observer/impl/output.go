@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 )
 
 // ObserverOutput is the top-level JSON structure produced by headless mode.
@@ -101,16 +102,16 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			oc.Title = corr.Title
 			oc.Message = correlationMessage(corr)
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
-			oc.MemberSeries = make([]string, len(corr.MemberSeriesIDs))
-			for j, sid := range corr.MemberSeriesIDs {
-				oc.MemberSeries[j] = string(sid)
+			oc.MemberSeries = make([]string, len(corr.MemberRefs))
+			for j, ref := range corr.MemberRefs {
+				oc.MemberSeries[j] = strconv.Itoa(int(ref))
 			}
 			oc.Anomalies = make([]ObserverAnomaly, len(corr.Anomalies))
 			for j, a := range corr.Anomalies {
 				oc.Anomalies[j] = ObserverAnomaly{
 					Timestamp:      a.Timestamp,
 					Source:         a.Source.String(),
-					SourceSeriesID: string(a.SourceSeriesID),
+					SourceSeriesID: a.SourceView.String(),
 					Detector:       a.DetectorName,
 				}
 			}

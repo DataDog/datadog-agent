@@ -458,7 +458,7 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		for _, m := range metas {
 			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
-				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
+				compactID := strconv.Itoa(int(m.Ref)) + ":" + aggSuffix(agg)
 				_, virtual := extractorNs[m.Namespace]
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
@@ -494,7 +494,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		prefix := seriesID[:colonIdx]
 		if numericID, parseErr := strconv.Atoi(prefix); parseErr == nil {
 			aggStr := seriesID[colonIdx+1:]
-			api.handleNumericSeriesData(w, observerdef.SeriesHandle(numericID), aggStr, seriesID)
+			api.handleNumericSeriesData(w, observerdef.SeriesRef(numericID), aggStr, seriesID)
 			return
 		}
 	}
@@ -505,11 +505,11 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, observerdef.SeriesID(seriesID))
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
-func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesHandle, aggStr string, originalID string) {
+func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesRef, aggStr string, originalID string) {
 	var agg Aggregate
 	switch aggStr {
 	case "avg":
@@ -540,20 +540,10 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 	}
 
 	nameWithAgg := series.Name + ":" + aggStr
-	seriesID := observerdef.SeriesID(originalID)
 
-	// Look up anomalies using the full key format that detectors produce
-	// (e.g. "parquet|metric:avg|tags"), not the compact numeric ID.
-	fullKey, _ := storage.FullKeyForNumericID(numericID)
-	var fullKeyWithAgg string
-	if ns, name, tags, ok := parseSeriesKey(fullKey); ok {
-		fullKeyWithAgg = seriesKey(ns, name+":"+aggStr, tags)
-	}
-	anomalyLookupID := seriesID
-	if fullKeyWithAgg != "" {
-		anomalyLookupID = observerdef.SeriesID(fullKeyWithAgg)
-	}
-	anomalies := api.tb.GetMetricsAnomaliesForSeries(anomalyLookupID)
+	// Build a QueryHandle for anomaly lookup
+	qh := observerdef.QueryHandle{Ref: numericID, Aggregate: observerdef.Aggregate(agg)}
+	anomalies := api.tb.GetMetricsAnomaliesForView(qh)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -573,7 +563,7 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
-			SourceSeriesID:    string(seriesID),
+			SourceSeriesID:    originalID,
 			Title:             a.Title,
 		})
 	}
@@ -593,7 +583,7 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 	}
 
 	resp := seriesResponse{
-		ID:        string(seriesID),
+		ID:        originalID,
 		Namespace: series.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
@@ -631,7 +621,7 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
 }
 
-func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID observerdef.SeriesID) {
+func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
 	seriesID := requestedID
 
 	// Parse aggregation suffix (e.g., "metric:avg" or "metric:count")
@@ -666,11 +656,8 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		return
 	}
 	if seriesID == "" {
-		seriesID = observerdef.SeriesID(seriesKey(series.Namespace, nameWithAgg, series.Tags))
+		seriesID = seriesKey(series.Namespace, nameWithAgg, series.Tags)
 	}
-
-	// Get anomalies for this series to include in response
-	anomalies := api.tb.GetMetricsAnomaliesForSeries(seriesID)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -680,21 +667,28 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		Title             string `json:"title"`
 	}
 
+	// Build a QueryHandle for anomaly lookup using the storage's series ref.
+	// If we can't resolve the ref, we skip anomaly matching for this path.
 	var markers []anomalyMarker
-	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	for _, a := range anomalies {
-		if a.DetectorName == "" || a.Timestamp == 0 {
-			log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
-				string(seriesID), a.DetectorName, a.Timestamp)
-			continue
+	key := seriesKey(namespace, name, tags)
+	if ref, ok := storage.LookupRef(key); ok {
+		qh := observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.Aggregate(agg)}
+		anomalies := api.tb.GetMetricsAnomaliesForView(qh)
+		detectorComponentMap := api.tb.GetDetectorComponentMap()
+		for _, a := range anomalies {
+			if a.DetectorName == "" || a.Timestamp == 0 {
+				log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
+					seriesID, a.DetectorName, a.Timestamp)
+				continue
+			}
+			markers = append(markers, anomalyMarker{
+				Timestamp:         a.Timestamp,
+				DetectorName:      a.DetectorName,
+				DetectorComponent: detectorComponentMap[a.DetectorName],
+				SourceSeriesID:    seriesID,
+				Title:             a.Title,
+			})
 		}
-		markers = append(markers, anomalyMarker{
-			Timestamp:         a.Timestamp,
-			DetectorName:      a.DetectorName,
-			DetectorComponent: detectorComponentMap[a.DetectorName],
-			SourceSeriesID:    string(seriesID),
-			Title:             a.Title,
-		})
 	}
 
 	type pointOutput struct {
@@ -712,7 +706,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	resp := seriesResponse{
-		ID:        string(seriesID),
+		ID:        seriesID,
 		Namespace: series.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
@@ -766,13 +760,9 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	storage := api.tb.getStorage()
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
-		sourceSeriesID := string(a.SourceSeriesID)
-		if storage != nil {
-			sourceSeriesID = storage.CompactSeriesID(sourceSeriesID)
-		}
+		sourceSeriesID := a.SourceView.String()
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
 			SourceSeriesID:    sourceSeriesID,
@@ -1020,7 +1010,6 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 // handleCorrelations returns detected correlations.
 func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) {
 	correlations := api.tb.GetCorrelations()
-	storage := api.tb.getStorage()
 
 	type anomalyOutput struct {
 		Source      string   `json:"source"`
@@ -1058,11 +1047,10 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				Tags:        tags,
 			}
 		}
-		memberIDs := seriesIDsToStrings(c.MemberSeriesIDs)
-		if storage != nil {
-			for k, id := range memberIDs {
-				memberIDs[k] = storage.CompactSeriesID(id)
-			}
+		// Build member series ID strings from MemberRefs
+		memberIDs := make([]string, len(c.MemberRefs))
+		for k, ref := range c.MemberRefs {
+			memberIDs[k] = strconv.Itoa(int(ref))
 		}
 		response[i] = correlationResponse{
 			Pattern:         c.Pattern,
@@ -1082,14 +1070,6 @@ func metricNamesToStrings(names []observerdef.MetricName) []string {
 	out := make([]string, len(names))
 	for i, n := range names {
 		out[i] = string(n)
-	}
-	return out
-}
-
-func seriesIDsToStrings(ids []observerdef.SeriesID) []string {
-	out := make([]string, len(ids))
-	for i, id := range ids {
-		out[i] = string(id)
 	}
 	return out
 }

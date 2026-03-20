@@ -29,10 +29,10 @@ func TestStateView_StorageAccess(t *testing.T) {
 	}
 
 	// GetSeriesRange — find the "cpu" series ID from ListSeries
-	cpuHandle := observerdef.SeriesHandle(-1)
+	cpuHandle := observerdef.SeriesRef(-1)
 	for _, m := range keys {
 		if m.Name == "cpu" {
-			cpuHandle = m.Handle
+			cpuHandle = m.Ref
 		}
 	}
 	series := sv.GetSeriesRange(cpuHandle, 0, 200, observerdef.AggregateAverage)
@@ -110,24 +110,25 @@ func TestStateView_Anomalies(t *testing.T) {
 		t.Fatalf("expected 1 bocpd anomaly, got %d", len(byDetector["bocpd"]))
 	}
 
-	// AnomaliesForSeries filters by SourceSeriesID
+	// AnomaliesForView filters by SourceView (QueryHandle)
+	diskView := observerdef.QueryHandle{Ref: observerdef.SeriesRef(42), Aggregate: observerdef.AggregateAverage}
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:         observerdef.AnomalySource{Name: "disk"},
-		DetectorName:   "cusum",
-		Timestamp:      102,
-		SourceSeriesID: "ns|disk:avg|",
+		Source:       observerdef.AnomalySource{Name: "disk"},
+		DetectorName: "cusum",
+		Timestamp:    102,
+		SourceView:   diskView,
 	})
-	diskAnomalies := sv.AnomaliesForSeries("ns|disk:avg|")
+	diskAnomalies := sv.AnomaliesForView(diskView)
 	if len(diskAnomalies) != 1 {
 		t.Fatalf("expected 1 disk anomaly, got %d", len(diskAnomalies))
 	}
 	if diskAnomalies[0].Source.Name != "disk" {
 		t.Fatalf("expected disk source, got %s", diskAnomalies[0].Source.Name)
 	}
-	// Empty SourceSeriesID should not match
-	emptyAnomalies := sv.AnomaliesForSeries("")
+	// Zero-value QueryHandle should match anomalies with no SourceView set
+	emptyAnomalies := sv.AnomaliesForView(observerdef.QueryHandle{})
 	if len(emptyAnomalies) != 2 {
-		t.Fatalf("expected 2 anomalies with empty SourceSeriesID, got %d", len(emptyAnomalies))
+		t.Fatalf("expected 2 anomalies with no SourceView, got %d", len(emptyAnomalies))
 	}
 }
 

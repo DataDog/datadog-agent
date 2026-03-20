@@ -14,8 +14,8 @@ import (
 
 // bocpdStateKey uniquely identifies a (series, aggregation) pair for BOCPD state.
 type bocpdStateKey struct {
-	seriesHandle observer.SeriesHandle
-	agg          observer.Aggregate
+	ref observer.SeriesRef
+	agg observer.Aggregate
 }
 
 // bocpdSeriesState holds per-series streaming BOCPD state.
@@ -197,7 +197,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 	for _, meta := range b.cachedSeries {
 		for _, agg := range b.config.Aggregations {
-			sk := bocpdStateKey{seriesHandle: meta.Handle, agg: agg}
+			sk := bocpdStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := b.series[sk]
 			if !exists {
@@ -205,8 +205,8 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				b.series[sk] = state
 			}
 
-			visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
-			currentGen := storage.WriteGeneration(meta.Handle)
+			visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
+			currentGen := storage.WriteGeneration(meta.Ref)
 			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
 			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
 				continue
@@ -221,9 +221,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			}
 
 			pointsSeen := false
-			storage.ForEachPoint(meta.Handle, startTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
+			storage.ForEachPoint(meta.Ref, startTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
 				pointsSeen = true
-				anomaly := b.processPoint(state, p, series, agg)
+				anomaly := b.processPoint(state, p, series, agg, sk.ref)
 				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
@@ -253,7 +253,7 @@ func (b *BOCPDDetector) Reset() {
 
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
-func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
+func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, ref observer.SeriesRef) *observer.Anomaly {
 	x := p.Value
 
 	if !state.initialized {
@@ -267,7 +267,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 		if !state.inAlert {
 			state.inAlert = true
 			state.alertStart = p.Timestamp
-			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
+			return b.makeAnomaly(state, p, series, agg, ref, cpProb, shortRunMass)
 		}
 		return nil
 	}
@@ -393,7 +393,7 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 }
 
 // makeAnomaly constructs an Anomaly for a new alert onset.
-func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass float64) *observer.Anomaly {
+func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, ref observer.SeriesRef, cpProb, shortRunMass float64) *observer.Anomaly {
 	source := observer.AnomalySource{
 		Namespace: series.Namespace,
 		Name:      series.Name,
@@ -414,7 +414,7 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	return &observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
 		Source:         source,
-		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, series.Name+":"+aggSuffix(agg), series.Tags)),
+		SourceView: observer.QueryHandle{Ref: ref, Aggregate: agg},
 		DetectorName:   b.Name(),
 		Title:          "BOCPD changepoint detected: " + displayName,
 		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",

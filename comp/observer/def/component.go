@@ -10,6 +10,8 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
+import "strconv"
+
 // team: agent-metric-pipelines
 
 // Component is the central observer that receives data via handles.
@@ -291,8 +293,39 @@ func (s AnomalySource) String() string {
 	return s.Name + ":" + AggregateString(s.Aggregate)
 }
 
-// SeriesID uniquely identifies a time series (namespace + name + tags).
-type SeriesID string
+// SeriesRef is a compact numeric handle for a stored time series.
+// Storage assigns a SeriesRef when a series key is first created;
+// the ref remains stable for the lifetime of the storage instance.
+// Use NoSeriesRef as a sentinel for "no series".
+type SeriesRef int
+
+// NoSeriesRef is the sentinel value meaning "no series".
+const NoSeriesRef SeriesRef = -1
+
+// QueryHandle pairs a SeriesRef with an Aggregate, uniquely identifying
+// a view over a stored series (e.g. series 42 read as avg).
+// This type lives at the detector→engine boundary; it does NOT cross
+// into correlators, API serialization, or ActiveCorrelation.
+type QueryHandle struct {
+	Ref       SeriesRef
+	Aggregate Aggregate
+}
+
+// NoQueryHandle is the zero-value sentinel for "no query handle".
+var NoQueryHandle = QueryHandle{Ref: NoSeriesRef}
+
+// IsValid returns true if the QueryHandle refers to a real series.
+func (qh QueryHandle) IsValid() bool {
+	return qh.Ref != NoSeriesRef
+}
+
+// String returns "ref:agg" (e.g. "42:avg"). Returns "" for invalid handles.
+func (qh QueryHandle) String() string {
+	if qh.Ref == NoSeriesRef {
+		return ""
+	}
+	return strconv.Itoa(int(qh.Ref)) + ":" + AggregateString(qh.Aggregate)
+}
 
 // AnomalyType distinguishes the source type of an anomaly.
 type AnomalyType string
@@ -313,9 +346,9 @@ type Anomaly struct {
 	Type AnomalyType
 	// Source identifies which metric/signal the anomaly is about.
 	Source AnomalySource
-	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
-	// Empty for log anomalies.
-	SourceSeriesID SeriesID
+	// SourceView identifies the concrete storage series + aggregate that produced
+	// this anomaly. Invalid (NoQueryHandle) for log anomalies.
+	SourceView QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
 	Title        string
@@ -433,8 +466,8 @@ type Reporter interface {
 type ActiveCorrelation struct {
 	Pattern string // pattern name, e.g. "kernel_bottleneck"
 	Title   string // display title, e.g. "Correlated: Kernel network bottleneck"
-	// MemberSeriesIDs are the concrete series identities participating in this correlation.
-	MemberSeriesIDs []SeriesID
+	// MemberRefs are the storage series refs participating in this correlation.
+	MemberRefs []SeriesRef
 	// MetricNames are display-oriented metric names participating in this correlation.
 	MetricNames []MetricName
 	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
@@ -470,12 +503,10 @@ func WorkloadSeriesFilter() SeriesFilter {
 	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace}}
 }
 
-type SeriesHandle int
-
 // SeriesMeta describes a series discovered via ListSeries.
-// The Handle field is a stable numeric identifier for use in hot-path methods.
+// The Ref field is a stable numeric identifier for use in hot-path methods.
 type SeriesMeta struct {
-	Handle    SeriesHandle
+	Ref       SeriesRef
 	Namespace string
 	Name      string
 	Tags      []string
@@ -538,7 +569,7 @@ type MetricContext struct {
 // Detectors use this to pull whatever data they need.
 //
 // Use ListSeries to discover series and obtain their numeric handles.
-// All hot-path methods take a SeriesHandle for O(1) lookups.
+// All hot-path methods take a SeriesRef for O(1) lookups.
 //
 // Reading points: ForEachPoint and GetSeriesRange both read the same data;
 // they differ in allocation cost and ownership model.
@@ -562,27 +593,27 @@ type StorageReader interface {
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 	// Allocates a new []Point slice — see interface doc for when to prefer ForEachPoint.
-	GetSeriesRange(handle SeriesHandle, start, end int64, agg Aggregate) *Series
+	GetSeriesRange(handle SeriesRef, start, end int64, agg Aggregate) *Series
 
 	// ForEachPoint calls fn for every point in the time range (start, end].
 	// The Series pointer and its contents are valid only for the duration of
 	// the callback. Uses a pooled buffer internally so steady-state calls
 	// do not allocate. Returns false if the series was not found.
-	ForEachPoint(handle SeriesHandle, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
+	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.
-	PointCount(handle SeriesHandle) int
+	PointCount(handle SeriesRef) int
 
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
-	PointCountUpTo(handle SeriesHandle, endTime int64) int
+	PointCountUpTo(handle SeriesRef, endTime int64) int
 
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.
 	// Returns 0 if the series is not found.
-	WriteGeneration(handle SeriesHandle) int64
+	WriteGeneration(handle SeriesRef) int64
 
 	// SeriesGeneration returns a global counter that increments only when the
 	// set of known series changes. Use this to cache ListSeries results and

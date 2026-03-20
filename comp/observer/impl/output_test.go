@@ -43,25 +43,25 @@ func newTestBenchForOutput() *TestBench {
 // testCorrelation returns a test correlation with known values.
 func testCorrelation() observerdef.ActiveCorrelation {
 	return observerdef.ActiveCorrelation{
-		Pattern:         "cluster_1000",
-		Title:           "Correlated anomalies at 1000",
-		MemberSeriesIDs: []observerdef.SeriesID{"parquet|cpu.user:avg|host:a", "parquet|mem.used:avg|host:a"},
-		FirstSeen:       1000,
-		LastUpdated:     1500,
+		Pattern:     "cluster_1000",
+		Title:       "Correlated anomalies at 1000",
+		MemberRefs:  []observerdef.SeriesRef{observerdef.SeriesRef(0), observerdef.SeriesRef(1)},
+		FirstSeen:   1000,
+		LastUpdated: 1500,
 		Anomalies: []observerdef.Anomaly{
 			{
-				Timestamp:      1000,
-				Source:         observerdef.AnomalySource{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
-				SourceSeriesID: "parquet|cpu.user:avg|host:a",
-				DetectorName:   "cusum",
-				Description:    "CUSUM detected shift in cpu.user:avg",
+				Timestamp:    1000,
+				Source:       observerdef.AnomalySource{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
+				SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
+				DetectorName: "cusum",
+				Description:  "CUSUM detected shift in cpu.user:avg",
 			},
 			{
-				Timestamp:      1200,
-				Source:         observerdef.AnomalySource{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
-				SourceSeriesID: "parquet|mem.used:avg|host:a",
-				DetectorName:   "cusum",
-				Description:    "CUSUM detected shift in mem.used:avg",
+				Timestamp:    1200,
+				Source:       observerdef.AnomalySource{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
+				SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(1), Aggregate: observerdef.AggregateAverage},
+				DetectorName: "cusum",
+				Description:  "CUSUM detected shift in mem.used:avg",
 			},
 		},
 	}
@@ -170,13 +170,13 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	assert.Equal(t, []string{"source:agent-q-branch-observer", "pattern:cluster_1000"}, corr.Tags)
 	assert.Equal(t, int64(1000), corr.PeriodStart)
 	assert.Equal(t, int64(1500), corr.PeriodEnd)
-	assert.Equal(t, []string{"parquet|cpu.user:avg|host:a", "parquet|mem.used:avg|host:a"}, corr.MemberSeries)
+	assert.Equal(t, []string{"0", "1"}, corr.MemberSeries)
 
 	// Nested anomalies
 	require.Len(t, corr.Anomalies, 2)
 	assert.Equal(t, int64(1000), corr.Anomalies[0].Timestamp)
 	assert.Equal(t, "cpu.user:avg", corr.Anomalies[0].Source)
-	assert.Equal(t, "parquet|cpu.user:avg|host:a", corr.Anomalies[0].SourceSeriesID)
+	assert.Equal(t, "0:avg", corr.Anomalies[0].SourceSeriesID)
 	assert.Equal(t, "cusum", corr.Anomalies[0].Detector)
 
 	assert.Equal(t, int64(1200), corr.Anomalies[1].Timestamp)
@@ -207,17 +207,17 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 	tb.loadedScenario = "json_validity_check"
 	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{
 		{
-			Pattern:         "p1",
-			Title:           "Title with \"quotes\" and\nnewlines",
-			MemberSeriesIDs: []observerdef.SeriesID{"s1"},
-			FirstSeen:       100,
-			LastUpdated:     200,
+			Pattern:     "p1",
+			Title:       "Title with \"quotes\" and\nnewlines",
+			MemberRefs:  []observerdef.SeriesRef{observerdef.SeriesRef(0)},
+			FirstSeen:   100,
+			LastUpdated: 200,
 			Anomalies: []observerdef.Anomaly{
 				{
-					Timestamp:      100,
-					Source:         observerdef.AnomalySource{Name: "metric"},
-					SourceSeriesID: "s1",
-					DetectorName:   "cusum",
+					Timestamp:    100,
+					Source:       observerdef.AnomalySource{Name: "metric"},
+					SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
+					DetectorName: "cusum",
 				},
 			},
 		},
