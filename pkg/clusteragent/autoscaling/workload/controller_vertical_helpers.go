@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -503,14 +504,20 @@ func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.D
 }
 
 // isRolloutRequired checks if a rollout is required for the podAutoscaler.
-// The default mode is in-place (Auto); only an explicit TriggerRollout mode forces a rollout.
+// In-place scaling requires both the global config flag
+// (autoscaling.workload.in_place_vertical_scaling.enabled) AND an explicit
+// ApplyPolicy.Update.Mode of "Auto" on the DPA. All other cases use rollout.
 func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
-	spec := autoscalerInternal.Spec()
-	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
-		return false
+	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
+		return true
 	}
 
-	return spec.ApplyPolicy.Update.Mode == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutMode
+	spec := autoscalerInternal.Spec()
+	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
+		return true
+	}
+
+	return spec.ApplyPolicy.Update.Mode != datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime

@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -691,20 +692,33 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 	assert.Equal(t, 2, patchCallCount, "expected resize patch + annotation patch for pod needing update")
 }
 
-// runSyncInPlaceMode runs syncInternal against a deployment target using the in-place path
+// runSyncInPlaceMode runs syncInternal against a deployment target using the in-place path.
+// It enables the in_place_vertical_scaling config and sets Mode: Auto on the DPA.
 func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datadoghq.DatadogPodAutoscaler, sv *model.VerticalScalingValues, recommendationID string, pods []*workloadmeta.KubernetesPod) (autoscaling.ProcessResult, error) {
 	t.Helper()
+	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	})
+
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
 	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "target"}
 
 	if sv == nil {
 		sv = scalingValWithRequests(recommendationID, "500m")
 	}
-	// No ApplyPolicy -> isRolloutRequired returns false -> in-place path.
+	// Config enabled + Mode: Auto -> in-place path.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace:     "default",
 		Name:          "ai",
 		ScalingValues: model.ScalingValues{Vertical: sv},
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					Mode: datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode,
+				},
+			},
+		},
 	}).Build()
 
 	if dpa == nil {
@@ -1019,9 +1033,57 @@ func TestSyncInternal_TriggerRolloutMode_UsesRolloutPath(t *testing.T) {
 	assert.True(t, workloadPatched, "TriggerRollout mode must patch the workload, not pods")
 }
 
-// TestSyncInternal_DefaultMode_UsesInPlacePath verifies that a DPA with no ApplyPolicy
-// (the default) uses the in-place path and does NOT trigger a workload rollout.
-func TestSyncInternal_DefaultMode_UsesInPlacePath(t *testing.T) {
+// TestSyncInternal_DefaultConfig_UsesRolloutPath verifies that a DPA with no ApplyPolicy
+// uses the rollout path when in_place_vertical_scaling is disabled (default).
+func TestSyncInternal_DefaultConfig_UsesRolloutPath(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	// DPA sets Mode: Auto, but the config flag is off -> rollout path.
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		TargetGVK: gvk,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					Mode: datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode,
+				},
+			},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
+
+	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
+
+	_, err := f.controller.syncInternal(
+		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.True(t, workloadPatched, "Mode: Auto with config disabled must still use rollout path")
+}
+
+// TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath verifies that in-place scaling
+// is used only when the config flag is enabled AND the DPA explicitly sets Mode: Auto.
+func TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath(t *testing.T) {
+	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+
 	f := newVerticalControllerFixture(t, time.Now())
 
 	workloadPatched := false
@@ -1033,13 +1095,18 @@ func TestSyncInternal_DefaultMode_UsesInPlacePath(t *testing.T) {
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
 	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
 
-	// No ApplyPolicy at all -> isRolloutRequired returns false -> in-place path.
+	// Config enabled + Mode: Auto -> in-place path.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "ai",
 		TargetGVK: gvk,
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
 			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					Mode: datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode,
+				},
+			},
 		},
 		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
 	}).Build()
@@ -1054,5 +1121,48 @@ func TestSyncInternal_DefaultMode_UsesInPlacePath(t *testing.T) {
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
-	assert.False(t, workloadPatched, "nil ApplyPolicy (default) must use in-place path, not rollout")
+	assert.False(t, workloadPatched, "Config enabled + Mode: Auto must use in-place path, not rollout")
+}
+
+// TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath verifies that even with
+// the config flag enabled, a DPA without an explicit Mode: Auto still uses rollout.
+func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath(t *testing.T) {
+	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+
+	f := newVerticalControllerFixture(t, time.Now())
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	// Config enabled but no ApplyPolicy -> rollout path.
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		TargetGVK: gvk,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
+
+	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
+
+	_, err := f.controller.syncInternal(
+		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.True(t, workloadPatched, "Config enabled but no ApplyPolicy must use rollout path")
 }

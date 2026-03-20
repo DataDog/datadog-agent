@@ -161,8 +161,9 @@ func (u *verticalController) syncInternal(
 	podsByResizeStatus map[PodResizeStatus][]classifiedPod,
 ) (autoscaling.ProcessResult, error) {
 
-	// Fall back to rollout if TriggerRollout mode is set or if the API server
-	// does not support in-place resize (pods/resize subresource unavailable).
+	// Fall back to rollout if in-place scaling is not enabled via config, if
+	// TriggerRollout mode is explicitly set, or if the API server does not
+	// support in-place resize (pods/resize subresource unavailable).
 	if isRolloutRequired(autoscalerInternal) || !u.isInPlaceResizeSupported() {
 		switch targetGVK.Kind {
 		case k8sutil.DeploymentKind:
