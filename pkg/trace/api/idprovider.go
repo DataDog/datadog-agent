@@ -13,7 +13,7 @@ import (
 )
 
 // IDProvider implementations can look up a container ID given a context and http header.
-// When IsContainerized is false, use NoopContainerIDProvider() to avoid reading headers or calling the tagger.
+// When HasContainerFeatures is false, use NoopContainerIDProvider() to avoid reading headers or calling the tagger.
 type IDProvider interface {
 	GetContainerID(context.Context, http.Header) string
 }
@@ -27,16 +27,16 @@ func (*noopContainerIDProvider) GetContainerID(_ context.Context, _ http.Header)
 }
 
 // NoopContainerIDProvider returns an IDProvider that always returns "".
-// Use it when IsContainerized is false to avoid unnecessary header parsing and cgroup/tagger work.
+// Use it when HasContainerFeatures is false to avoid unnecessary header parsing and cgroup/tagger work.
 func NoopContainerIDProvider() IDProvider {
 	return &noopContainerIDProvider{}
 }
 
 // NewContainerIDProviderFromConfig returns an IDProvider based on the trace config.
-// When IsContainerized is false, it returns a noop provider that does not read headers or call the tagger.
+// When HasContainerFeatures is false, it returns a noop provider that does not read headers or call the tagger.
 // Otherwise it returns the standard provider that uses ContainerProcRoot and ContainerIDFromOriginInfo.
 func NewContainerIDProviderFromConfig(conf *config.AgentConfig) IDProvider {
-	if !conf.IsContainerized {
+	if !conf.HasContainerFeatures {
 		return NoopContainerIDProvider()
 	}
 	return NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
