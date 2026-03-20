@@ -24,6 +24,5 @@ fi
 
 # Remove user, home directory, group, and runtime directories.
 rmuser dd-agent 2>/dev/null || true
-rm -rf /var/lib/datadog-agent 2>/dev/null || true
 rmgroup dd-agent 2>/dev/null || true
 rm -rf /var/log/datadog /var/run/datadog 2>/dev/null || true

@@ -8,8 +8,7 @@ lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
 # which /usr/bin/false is not on a standard AIX system.  login=false/rlogin=false
 # achieves the same "no login" result without that constraint.
 if ! id dd-agent > /dev/null 2>&1; then
-    mkdir -p /var/lib/datadog-agent
-    mkuser pgrp=dd-agent login=false rlogin=false home=/var/lib/datadog-agent id=9001 dd-agent
+    mkuser pgrp=dd-agent login=false rlogin=false home=/dev/null id=9001 dd-agent
 fi
 
 # Add dd-agent to adm group (required for sar — used by the CPU check)
@@ -18,7 +17,6 @@ chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
 # Set ownership of runtime directories so the agent can write to them.
 # The BFF installs these directories as root:root (build-time default); fix
 # them here after the dd-agent user is guaranteed to exist.
-chown dd-agent:dd-agent /var/lib/datadog-agent 2>/dev/null || true
 chown dd-agent:dd-agent /var/log/datadog       2>/dev/null || true
 chown dd-agent:dd-agent /var/run/datadog       2>/dev/null || true
 chown dd-agent:dd-agent /opt/datadog-agent/run 2>/dev/null || true
