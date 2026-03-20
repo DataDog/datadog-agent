@@ -126,9 +126,9 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		return err
 	}
 
-	//if err := c.ensureHealthCheckExtension(confStringMap); err != nil {
-	//	return err
-	//}
+	if err := c.ensureHealthCheckExtension(confStringMap); err != nil {
+		return err
+	}
 
 	// infraattributes processor can also be used in metrics pipeline
 	if err := c.ensureMetricsPipeline(confStringMap); err != nil {
@@ -509,6 +509,7 @@ func ensureContainerIDPodAssociation(k8sConfig confMap) error {
 			},
 		},
 	})
+	slog.Warn("Added container.id pod_association source to k8sattributes processor")
 	return nil
 }
 
