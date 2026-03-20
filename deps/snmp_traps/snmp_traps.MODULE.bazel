@@ -1,16 +1,18 @@
 # snmp-traps
 
-http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
-# TODO: Where does this come from? If we pull it in, we should know the license.
-http_file(
+http_archive(
     name = "snmp_traps",
-    sha256 = "04fb9d43754c2656edf35f08fbad11ba8dc20d52654962933f3dd8f4d463b42c",
+    sha256 = "",  # TODO: fill in sha256 of the v0.5.0 archive
     urls = [
-        "https://s3.amazonaws.com/dd-agent-omnibus/snmp_traps_db/dd_traps_db-{version}.json.gz".format(
+        "https://github.com/DataDog/snmp-traps/archive/refs/tags/v{version}.tar.gz".format(
             version = VERSION,
         ),
     ],
+    strip_prefix = "snmp-traps-{version}".format(version = VERSION),
+    build_file_content = """exports_files(["generated/dd_traps_db.json"])
+""",
 )

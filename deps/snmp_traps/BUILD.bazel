@@ -1,13 +1,18 @@
-# dd-compile-policy - make the prebuilt compiler part of the distribution.
-
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
+genrule(
+    name = "snmp_traps_gz",
+    srcs = ["@snmp_traps//:generated/dd_traps_db.json"],
+    outs = ["dd_traps_db.json.gz"],
+    cmd = "gzip -9 -c $< > $@",
+)
+
 pkg_files(
     name = "all_files",
-    srcs = ["@snmp_traps//file"],
+    srcs = [":snmp_traps_gz"],
     attributes = pkg_attributes(
         group = "root",
         mode = "0644",
@@ -18,12 +23,6 @@ pkg_files(
         "//:macos_x86_64": "etc/conf.d/snmp.d/traps_db",
         "//conditions:default": "etc/datadog-agent/conf.d/snmp.d/traps_db",
     }),
-    # This is subtle.  http_file does not preserve the original name.
-    # It always uses the target `@repo//file`, and the name of the file
-    # you get is "downloaded".
-    renames = {
-        "@snmp_traps//file": "dd_traps_db.json.gz",
-    },
 )
 
 pkg_install(
