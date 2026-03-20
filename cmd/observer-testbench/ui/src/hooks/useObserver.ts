@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, LogEntry, LogsSummary, Correlation,
-  CompressedGroup, ComponentDataResponse, CorrelatorStats, ReplayProgress
+  CompressedGroup, ComponentDataResponse, CorrelatorStats, ReplayProgress, ScoreResponse
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -21,6 +21,7 @@ export interface ObserverState {
   componentData: Map<string, ComponentDataResponse>;
   compressedGroups: CompressedGroup[];
   correlatorStats: CorrelatorStats | null;
+  scoreResponse: ScoreResponse | null;
   scenarioDataVersion: number;
   activeScenario: string | null;
   error: string | null;
@@ -47,6 +48,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [componentData, setComponentData] = useState<Map<string, ComponentDataResponse>>(new Map());
   const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
+  const [scoreResponse, setScoreResponse] = useState<ScoreResponse | null>(null);
   const [scenarioDataVersion, setScenarioDataVersion] = useState(0);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
     try {
       const [
         componentsData, anomaliesData, logsSummaryData, logAnomaliesData,
-        correlationsData, compressedGroupsData, statsData, seriesData
+        correlationsData, compressedGroupsData, statsData, seriesData, scoreData
       ] = await Promise.all([
         api.getComponents(),
         api.getAnomalies(),
@@ -86,6 +88,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
         api.getCompressedCorrelations(),
         api.getStats(),
         api.getSeries(),
+        api.getScore(),
       ]);
 
       const componentNames = componentsData.map((c: ComponentInfo) => c.name);
@@ -110,6 +113,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setCompressedGroups(compressedGroupsData);
       setComponentData(new Map(componentDataResults));
       setCorrelatorStats(statsData);
+      setScoreResponse(scoreData);
       setScenarioDataVersion((v) => v + 1);
       clearRetryTimer();
       setError(null);
@@ -205,6 +209,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
     setConnectionState('loading');
     setActiveScenario(name);
     setSeries([]);
+    setScoreResponse(null);
     setLoadProgress(null);
     setError(null);
 
@@ -250,6 +255,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       componentData,
       compressedGroups,
       correlatorStats,
+      scoreResponse,
       scenarioDataVersion,
       activeScenario,
       error,
