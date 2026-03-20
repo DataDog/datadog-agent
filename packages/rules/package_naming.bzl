@@ -82,8 +82,6 @@ def _extract_arch(ctx, cpu, style):
     # It returns "local", probably because we are building without --platforms.
     target_cpu = ctx.var.get("TARGET_CPU")
 
-    # For initial testing: buildifier: disable=print
-    print("extract:", cpu, target_cpu)
     if cpu == "local" and target_cpu:
         cpu = target_cpu
 
