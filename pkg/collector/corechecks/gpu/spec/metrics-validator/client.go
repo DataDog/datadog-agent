@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -148,7 +149,7 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS 
 	return len(columns), nil
 }
 
-func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64) ([]gpuspec.MetricObservation, error) {
+func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]gpuspec.TagSpec, queryFilter string, fromTS, toTS int64) ([]gpuspec.MetricObservation, error) {
 	query := fmt.Sprintf("avg:%s{%s}", metricName, queryFilter)
 	expectedTagNames := make([]string, 0, len(expectedTags))
 	for tag := range expectedTags {
@@ -216,6 +217,43 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 	}
 
 	return metrics, nil
+}
+
+func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTags map[string]*regexp.Regexp, windowSeconds int64, metricScopeFilter string) (map[string][]string, error) {
+	allTags := make(map[string][]string, len(wantedTags))
+
+	for tagName := range wantedTags {
+		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
+			WithFilterMatch(tagName).
+			WithFilterIncludeTagValues(true).
+			WithPageLimit(1000).
+			WithWindowSeconds(windowSeconds).
+			WithFilterAllowPartial(true)
+		if metricScopeFilter != "" {
+			options.WithFilterTags(metricScopeFilter)
+		}
+
+		response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
+		if httpResp != nil && httpResp.Body != nil {
+			_ = httpResp.Body.Close()
+		}
+		if err != nil {
+			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagName, metricName, err)
+		}
+		if response.Data == nil || response.Data.Attributes == nil {
+			continue
+		}
+
+		for _, rawTag := range response.Data.Attributes.GetTags() {
+			key, value, ok := strings.Cut(rawTag, ":")
+			if !ok || key == "" || value == "" || key != tagName {
+				continue
+			}
+			allTags[key] = append(allTags[key], value)
+		}
+	}
+
+	return allTags, nil
 }
 
 func isNullishGroupValue(value string) bool {

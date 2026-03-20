@@ -9,6 +9,7 @@ package spec
 import (
 	"embed"
 	"fmt"
+	"regexp"
 
 	"go.yaml.in/yaml/v2"
 )
@@ -16,9 +17,10 @@ import (
 const (
 	metricsSpecFile       = "gpu_metrics.yaml"
 	architecturesSpecFile = "architectures.yaml"
+	tagsSpecFile          = "tags.yaml"
 )
 
-//go:embed gpu_metrics.yaml architectures.yaml
+//go:embed gpu_metrics.yaml architectures.yaml tags.yaml
 var embeddedSpecs embed.FS
 
 // DeviceMode identifies the GPU device operating mode in the spec.
@@ -40,8 +42,42 @@ var AllDeviceModes = []DeviceMode{
 // MetricsSpec is the YAML metric specification.
 type MetricsSpec struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
-	Tagsets      map[string]TagsetSpec `yaml:"tagsets"`
 	Metrics      map[string]MetricSpec `yaml:"metrics"`
+}
+
+// TagsSpec is the YAML tags specification.
+type TagsSpec struct {
+	Tags    map[string]TagSpec    `yaml:"tags"`
+	Tagsets map[string]TagsetSpec `yaml:"tagsets"`
+}
+
+// TagSpec defines validation metadata for a reusable tag.
+type TagSpec struct {
+	Regex *regexp.Regexp `yaml:"-"`
+}
+
+// UnmarshalYAML compiles the optional regex when the tag spec is decoded.
+func (s *TagSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw struct {
+		Regex string `yaml:"regex,omitempty"`
+	}
+
+	if err := unmarshal(&raw); err != nil {
+		return fmt.Errorf("unmarshal tag spec: %w", err)
+	}
+
+	if raw.Regex == "" {
+		s.Regex = nil
+		return nil
+	}
+
+	compiled, err := regexp.Compile(raw.Regex)
+	if err != nil {
+		return fmt.Errorf("compile tag regex %q: %w", raw.Regex, err)
+	}
+
+	s.Regex = compiled
+	return nil
 }
 
 // TagsetSpec defines a reusable tagset.
@@ -130,6 +166,21 @@ func LoadMetricsSpec() (*MetricsSpec, error) {
 	var parsed MetricsSpec
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		return nil, fmt.Errorf("unmarshal metrics spec %q: %w", metricsSpecFile, err)
+	}
+
+	return &parsed, nil
+}
+
+// LoadTagsSpec loads the canonical GPU tags specification file.
+func LoadTagsSpec() (*TagsSpec, error) {
+	data, err := embeddedSpecs.ReadFile(tagsSpecFile)
+	if err != nil {
+		return nil, fmt.Errorf("read tags spec %q: %w", tagsSpecFile, err)
+	}
+
+	var parsed TagsSpec
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("unmarshal tags spec %q: %w", tagsSpecFile, err)
 	}
 
 	return &parsed, nil

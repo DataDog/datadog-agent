@@ -11,7 +11,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 )
@@ -19,58 +18,73 @@ import (
 func main() {
 	var site string
 	var lookbackSeconds int64
-	var outputFile string
+	var mode string
+	var windowSeconds int64
+	var metricNameFilter string
+	var tagNameFilter string
+	var filterTags string
 
+	flag.StringVar(&mode, "mode", "metrics", "Validation mode: metrics or tags")
 	flag.StringVar(&site, "site", "", "Datadog site")
 	flag.Int64Var(&lookbackSeconds, "lookback-seconds", 3600, "Metrics lookback window in seconds")
-	flag.StringVar(&outputFile, "output-file", "", "Write JSON results to the given file instead of stdout")
+	flag.Int64Var(&windowSeconds, "window-seconds", 14400, "Tag lookup window in seconds")
+	flag.StringVar(&metricNameFilter, "metric-name-filter", "", "Only validate metrics whose full name contains this substring")
+	flag.StringVar(&tagNameFilter, "tag-name-filter", "", "Only validate tag names containing this substring")
+	flag.StringVar(&filterTags, "filter-tags", "", "Optional filter[tags] expression for tag lookups")
 	flag.Parse()
 
-	if err := validateFlags(site, lookbackSeconds, outputFile); err != nil {
+	if err := validateFlags(mode, site, lookbackSeconds, windowSeconds); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
 		os.Exit(1)
 	}
 
 	apiKey, appKey, err := authKeysFromEnv()
 	if err != nil {
-		log.Fatalf("gpu metrics validation failed: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
+		os.Exit(1)
 	}
 
-	results, err := computeValidation(apiKey, appKey, site, lookbackSeconds)
-	if err != nil {
-		log.Fatalf("gpu metrics validation failed: %v", err)
+	var result any
+	switch mode {
+	case "metrics":
+		results, err := computeValidation(apiKey, appKey, site, lookbackSeconds)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
+			os.Exit(1)
+		}
+		result = results
+	case "tags":
+		results, err := computeTagValidation(apiKey, appKey, site, metricNameFilter, tagNameFilter, windowSeconds, filterTags)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
+			os.Exit(1)
+		}
+		result = results
+	default:
+		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: --mode must be one of metrics or tags\n")
+		os.Exit(1)
 	}
 
-	if err := writeResults(results, outputFile); err != nil {
-		log.Fatalf("gpu metrics validation failed: %v", err)
-	}
-}
-
-func writeResults(results orgValidationResults, outputFile string) error {
-	outputPath := strings.TrimSpace(outputFile)
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("create output file %q: %w", outputPath, err)
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
+	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(results); err != nil {
-		return fmt.Errorf("encode validation results: %w", err)
+	if err := encoder.Encode(result); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
+		os.Exit(1)
 	}
-	return nil
 }
 
-func validateFlags(site string, lookbackSeconds int64, outputFile string) error {
+func validateFlags(mode, site string, lookbackSeconds, windowSeconds int64) error {
+	if strings.TrimSpace(mode) == "" {
+		return fmt.Errorf("--mode is required")
+	}
 	if strings.TrimSpace(site) == "" {
 		return errors.New("--site is required")
 	}
-	if lookbackSeconds <= 0 {
+	if mode == "metrics" && lookbackSeconds <= 0 {
 		return errors.New("--lookback-seconds must be greater than 0")
 	}
-	if strings.TrimSpace(outputFile) == "" {
-		return errors.New("--output-file is required")
+	if mode == "tags" && windowSeconds <= 0 {
+		return errors.New("--window-seconds must be greater than 0")
 	}
 	return nil
 }

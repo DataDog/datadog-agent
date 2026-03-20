@@ -1,34 +1,13 @@
 # GPU metric specification for the GPU corecheck.
 # Schema:
 # - metric_prefix: string prepended to all emitted metric names
-# - tagsets.<tagset_name>: represents a set of tags that are common to a group of metrics.
-#   - tags: list of tag keys attached to that tagset
 # - metrics.<metric_name>:
-#   - tagsets: list of tagset names declared under root tagsets
-#   - custom_tags (optional): additional dynamic tag keys (e.g., memory_location for errors.ecc.corrected.total)
+#   - tagsets: list of tagset names declared in tags.yaml
+#   - custom_tags (optional): additional dynamic tag names declared in tags.yaml (e.g., memory_location)
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
 metric_prefix: gpu
-tagsets:
-  container:
-    tags:
-      - kube_container_name
-  device:
-    tags:
-      - gpu_uuid
-      - gpu_device
-      - gpu_vendor
-      - gpu_driver_version
-      - gpu_virtualization_mode
-      - gpu_architecture
-      - gpu_slicing_mode
-      - gpu_parent_uuid
-      - gpu_type
-  process:
-    tags:
-      - pid
-      - nspid
 metrics:
   clock.speed.graphics:
     tagsets:

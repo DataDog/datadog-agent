@@ -22,12 +22,21 @@ import (
 func TestLoadSpecNotEmpty(t *testing.T) {
 	metricsSpec, err := LoadMetricsSpec()
 	require.NoError(t, err)
+	tagsSpec, err := LoadTagsSpec()
+	require.NoError(t, err)
 
 	require.NotEmpty(t, metricsSpec.MetricPrefix, "metric_prefix should not be empty")
-	require.NotEmpty(t, metricsSpec.Tagsets, "tagsets should not be empty")
 	require.NotEmpty(t, metricsSpec.Metrics, "metrics should not be empty")
+	require.NotEmpty(t, tagsSpec.Tags, "tags should not be empty")
+	require.NotEmpty(t, tagsSpec.Tagsets, "tagsets should not be empty")
 	for name := range metricsSpec.Metrics {
 		require.NotEmpty(t, name, "metric name should not be empty")
+	}
+	for tagsetName, tagsetSpec := range tagsSpec.Tagsets {
+		for _, tagName := range tagsetSpec.Tags {
+			_, ok := tagsSpec.Tags[tagName]
+			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
+		}
 	}
 
 	for metricName, metricSpec := range metricsSpec.Metrics {

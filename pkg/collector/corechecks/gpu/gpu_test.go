@@ -838,6 +838,8 @@ func TestMetricsFollowSpec(t *testing.T) {
 
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
+	tagsSpec, err := gpuspec.LoadTagsSpec()
+	require.NoError(t, err)
 	archFile, err := gpuspec.LoadArchitecturesSpec()
 	require.NoError(t, err)
 
@@ -848,7 +850,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			archSpec := archFile.Architectures[config.Architecture]
 			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
-			ValidateEmittedMetricsAgainstSpec(t, metricsSpec, config, emittedMetrics, knownTagValues)
+			ValidateEmittedMetricsAgainstSpec(t, metricsSpec, tagsSpec, config, emittedMetrics, knownTagValues)
 		})
 	}
 }
