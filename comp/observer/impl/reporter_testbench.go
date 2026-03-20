@@ -25,25 +25,52 @@ type ReportedEvent struct {
 	FormattedTime string `json:"formattedTime"`
 }
 
-// buildReportedEvents converts a slice of ActiveCorrelations into ReportedEvents
-// using the same message formatting as the live EventReporter / eventSender.
-// Each correlation produces exactly one event (no deduplication needed here since
-// the testbench rebuilds from scratch on every rerun).
-func buildReportedEvents(correlations []observerdef.ActiveCorrelation) []ReportedEvent {
-	events := make([]ReportedEvent, 0, len(correlations))
-	for _, c := range correlations {
-		msg := correlationMessage(c)
-		tags := []string{"source:agent-q-branch-observer", "pattern:" + c.Pattern}
+// replayReporter mirrors EventReporter.Report() during testbench replay.
+// It tracks which patterns are currently active and appends a new ReportedEvent
+// each time a pattern first appears or reappears after going inactive — exactly
+// matching the live EventReporter semantics, including repeated incidents for
+// stable pattern names (cross-signal, lead-lag, surprise).
+type replayReporter struct {
+	seenPatterns map[string]bool
+	events       []ReportedEvent
+}
 
-		events = append(events, ReportedEvent{
-			Pattern:       c.Pattern,
-			Title:         c.Title,
-			Message:       msg,
-			Tags:          tags,
-			FirstSeen:     c.FirstSeen,
-			LastUpdated:   c.LastUpdated,
-			FormattedTime: time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339),
-		})
+// Name satisfies observerdef.Reporter.
+func (r *replayReporter) Name() string { return "replay_reporter" }
+
+// Report fires a new ReportedEvent for each pattern that is newly active (first
+// appearance or reappearance after being absent in the previous call).
+func (r *replayReporter) Report(output observerdef.ReportOutput) {
+	if r.seenPatterns == nil {
+		r.seenPatterns = make(map[string]bool)
 	}
-	return events
+
+	currentlyActive := make(map[string]bool, len(output.ActiveCorrelations))
+	for _, ac := range output.ActiveCorrelations {
+		currentlyActive[ac.Pattern] = true
+	}
+
+	for _, ac := range output.ActiveCorrelations {
+		if !r.seenPatterns[ac.Pattern] {
+			msg := correlationMessage(ac)
+			tags := []string{"source:agent-q-branch-observer", "pattern:" + ac.Pattern}
+			r.events = append(r.events, ReportedEvent{
+				Pattern:       ac.Pattern,
+				Title:         ac.Title,
+				Message:       msg,
+				Tags:          tags,
+				FirstSeen:     ac.FirstSeen,
+				LastUpdated:   ac.LastUpdated,
+				FormattedTime: time.Unix(ac.FirstSeen, 0).UTC().Format(time.RFC3339),
+			})
+			r.seenPatterns[ac.Pattern] = true
+		}
+	}
+
+	// Drop inactive patterns so they can fire again if they reappear.
+	for pattern := range r.seenPatterns {
+		if !currentlyActive[pattern] {
+			delete(r.seenPatterns, pattern)
+		}
+	}
 }
