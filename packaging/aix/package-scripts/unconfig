@@ -20,7 +20,8 @@ rm -rf /var/run/datadog 2>/dev/null || true
 # Remove files written at runtime or by preinst that are not in the package
 # file list and would otherwise prevent installp from removing the directories.
 rm -f /opt/datadog-agent/bin/agent-svc \
-      /opt/datadog-agent/bin/trace-agent-svc 2>/dev/null || true
+      /opt/datadog-agent/bin/trace-agent-svc \
+      /opt/datadog-agent/.profile 2>/dev/null || true
 # Python stdlib __pycache__ .pyc files created at runtime (not in package).
 find /opt/datadog-agent -name "*.pyc" -type f -exec rm -f {} \; 2>/dev/null || true
 rm -rf /opt/datadog-agent/run 2>/dev/null || true
