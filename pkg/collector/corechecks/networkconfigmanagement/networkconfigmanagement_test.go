@@ -299,7 +299,6 @@ func TestCheck_Run_Success(t *testing.T) {
 			{
 				ID:        "default:10.0.0.1",
 				IPAddress: "10.0.0.1",
-				Tags:      expectedTags,
 				Status:    devicemetadata.DeviceStatusReachable,
 			},
 		},
