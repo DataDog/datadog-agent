@@ -677,8 +677,8 @@ func TestGetDogtelExtensionConfig_InvalidExtensions(t *testing.T) {
 func TestGetDogtelExtensionConfig_MultipleDogtelEntries(t *testing.T) {
 	cfg := confmap.NewFromStringMap(map[string]any{
 		"extensions": map[string]any{
-			"dogtel":         nil,
-			"dogtel/second":  nil,
+			"dogtel":        nil,
+			"dogtel/second": nil,
 		},
 	})
 	_, err := getDogtelExtensionConfig(cfg)
