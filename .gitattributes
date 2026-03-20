@@ -1,7 +1,6 @@
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
 *.cmd text eol=crlf
-
 # Set go source line endings to LF on all platforms so gofmt can be used
 *.go text=auto eol=lf
 go.sum -diff -merge linguist-generated=true
@@ -15,7 +14,6 @@ pkg/security/probe/constantfetch/btfhub/constants.json -diff -merge linguist-gen
 pkg/security/seclwin/** -diff -merge linguist-generated=true
 # Fixtures should have LF line endings because they are checked against OCI packages built on Linux
 pkg/fleet/installer/fixtures/** text=auto eol=lf
-
 # Fix `git diff` when running on the below file formats.
 # Our windows build image uses MinGit which tries to use the astextplain diff algorithm (https://git-scm.com/docs/gitattributes#_setting_the_internal_diff_algorithm).
 # The astextplain binary is not embedded in the docker image making the git diff command fail when one of the below file formats is in the diff.
@@ -30,7 +28,6 @@ pkg/fleet/installer/fixtures/** text=auto eol=lf
 # [diff "astextplain"]
 #	textconv = astextplain
 # ```
-
 *.doc diff
 *.DOC diff
 *.docx diff
@@ -53,3 +50,4 @@ pkg/fleet/installer/fixtures/** text=auto eol=lf
 *.ODF diff
 *.odt diff
 *.ODT diff
+*.bff filter=lfs diff=lfs merge=lfs -text
