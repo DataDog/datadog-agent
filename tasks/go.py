@@ -379,15 +379,15 @@ def _go_only_tidy(ctx, verbose: bool):
 
 def _bazel_tidy(ctx, verbose: bool):
     # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
-    bazel("mod", "tidy")
+    bazel(ctx, "mod", "tidy")
     # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
-    bazel("run", "//:go", "work", "sync")
+    bazel(ctx, "run", "//:go", "work", "sync")
     # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
-    bazel("run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ()))
+    bazel(ctx, "run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ()))
     # 4. go.work + **/go.mod -> deps/go.MODULE.bazel (update use_repo declarations)
-    bazel("mod", "tidy")
+    bazel(ctx, "mod", "tidy")
     # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
-    bazel("run", "//:gazelle")
+    bazel(ctx, "run", "//:gazelle")
 
 
 @task(autoprint=True)

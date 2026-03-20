@@ -177,7 +177,7 @@ found:
 		if !file.IsDir() {
 			continue
 		}
-		cfg, err := parseConfig(file.Name())
+		cfg, err := ParseConfig(file.Name())
 		if err != nil {
 			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
 		}
@@ -338,7 +338,8 @@ func (m *Config) Validate() error {
 	return nil
 }
 
-func parseConfig(s string) (Config, error) {
+// ParseConfig parses a Config string of the form "arch=ARCH,toolchain=VERSION".
+func ParseConfig(s string) (Config, error) {
 	parts := strings.Split(s, ",")
 	var cfg Config
 	for _, part := range parts {

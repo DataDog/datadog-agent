@@ -42,6 +42,12 @@ static __always_inline bool is_batching_enabled() {
     return batching_enabled != 0;
 }
 
+static __always_inline __u16 get_batch_flush_size() {
+    __u64 size = CONN_CLOSED_BATCH_SIZE;
+    LOAD_CONSTANT("conn_closed_batch_size", size);
+    return (__u16)size;
+}
+
 __maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
     if (is_batching_enabled()) {
         return 0;
@@ -70,7 +76,9 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
 static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
-    conn_t conn = { .tup = *tup };
+    conn_t conn = {};
+    bpf_memset(&conn, 0, sizeof(conn_t));
+    conn.tup = *tup;
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
     u32 *retrans = NULL;
@@ -101,6 +109,13 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
                     increment_telemetry_count_times(tcp_syn_retransmit, *count);
                     bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
                 }
+#if !defined(COMPILE_PREBUILT)
+                // Clean up RTO/recovery stats (zero-PID keyed) before early return.
+                __u32 saved_pid = conn.tup.pid;
+                conn.tup.pid = 0;
+                bpf_map_delete_elem(&tcp_event_stats, &(conn.tup));
+                conn.tup.pid = saved_pid;
+#endif
                 return -1;
             }
         }
@@ -111,6 +126,15 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
+#if !defined(COMPILE_PREBUILT)
+        // Finalize RTO/recovery stats: copy from map into embedded struct.
+        // These are BPF-only event counters (no tcp_sock field to read).
+        tcp_event_stats_t *tes = bpf_map_lookup_elem(&tcp_event_stats, &(conn.tup));
+        if (tes) {
+            conn.tcp_stats.tcp_event_stats = *tes;
+            bpf_map_delete_elem(&tcp_event_stats, &(conn.tup));
+        }
+#endif
         conn.tup.pid = tup->pid;
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
 
@@ -130,6 +154,9 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             if (total_retrans > conn.tcp_stats.retransmits) {
                 conn.tcp_stats.retransmits = total_retrans;
             }
+#if !defined(COMPILE_PREBUILT)
+            finalize_congestion_stats(sk, &conn.tcp_stats);
+#endif
         }
     }
 
@@ -149,7 +176,7 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             return -1;
         }
 
-        // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+        __u16 flush_size = get_batch_flush_size();
         switch (batch_ptr->len) {
         case 0:
             batch_ptr->c0 = conn;
@@ -162,12 +189,22 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
         case 2:
             batch_ptr->c2 = conn;
             batch_ptr->len++;
+            // flush_size is 3 on the perf buffer path (older kernels)
+            if (flush_size == 3) {
+                return 0; // defer flush to kretprobe
+            }
             return 0;
         case 3:
+            if (flush_size == 3) {
+                // Perf path: batch is full (3 conns) but kretprobe hasn't
+                // flushed yet due to interleaved tcp_close calls (tcp_close
+                // can sleep on lock_sock). Don't write c3 — the perf copy
+                // only sends 3 conns. Fall through to unbatched path.
+                break;
+            }
             batch_ptr->c3 = conn;
             batch_ptr->len++;
-            // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-            // in order to cope with the eBPF stack limitation of 512 bytes.
+            // flush_size is 4 on the ringbuf path (modern kernels)
             return 0;
         }
     }
@@ -191,19 +228,32 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
 static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
+    __u16 flush_size = get_batch_flush_size();
+    if (!batch_ptr || batch_ptr->len < flush_size) {
         return;
     }
 
-    // Here we copy the batch data to a variable allocated in the eBPF stack
-    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-    // since you can't directly write a map entry to the perf buffer.
-    batch_t batch_copy = {};
-    bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+
+    if (ringbuffers_enabled > 0) {
+        // Ring buffer: pass map pointer directly — no stack copy needed.
+        // bpf_ringbuf_output copies the data internally.
+        bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(batch_t),
+                           get_ringbuf_flags(sizeof(batch_t)));
+    } else {
+        // Perf buffer: stack copy required for older kernels that can't write
+        // a map entry directly to the perf buffer. We copy only the metadata
+        // prefix + 3 connections (PERF_BATCH_COPY_SIZE ≈ 460 bytes) to stay
+        // within the 512-byte BPF stack limit.
+        char batch_copy[PERF_BATCH_COPY_SIZE] = {};
+        bpf_memcpy(batch_copy, batch_ptr, PERF_BATCH_COPY_SIZE);
+        bpf_perf_event_output(ctx, &conn_close_event, cpu,
+                              batch_copy, PERF_BATCH_COPY_SIZE);
+    }
+
     batch_ptr->len = 0;
     batch_ptr->id++;
-
-    submit_closed_conn_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
 
 #endif // __TRACER_EVENTS_H

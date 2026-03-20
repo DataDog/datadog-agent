@@ -15,6 +15,7 @@ extensions:
       site: "datadoghq.com"
     deployment_type: daemonset
     hostname: test-host
+    installation_method: ""
 
 service:
   extensions:

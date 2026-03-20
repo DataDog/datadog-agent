@@ -919,6 +919,26 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
     return handle_retransmit(sk, retrans_out - retrans_out_pre);
 }
 
+// These kprobes fire from kernel timer/softirq context. The shared helpers
+// in stats.h handle the map lookup and atomic increment.
+SEC("kprobe/tcp_enter_loss")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_loss, struct sock *sk) {
+    handle_tcp_enter_loss(sk);
+    return 0;
+}
+
+SEC("kprobe/tcp_enter_recovery")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_recovery, struct sock *sk) {
+    handle_tcp_enter_recovery(sk);
+    return 0;
+}
+
+SEC("kprobe/tcp_send_probe0")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_send_probe0, struct sock *sk) {
+    handle_tcp_send_probe0(sk);
+    return 0;
+}
+
 #endif // COMPILE_CORE || COMPILE_RUNTIME
 
 SEC("kprobe/tcp_connect")

@@ -1,0 +1,25 @@
+# gazelle:ignore
+# gazelle:exclude _obj
+# gazelle:exclude bytecode
+# gazelle:exclude compiler
+# gazelle:exclude ebpftest
+# gazelle:exclude features
+# gazelle:exclude kernelbugs
+# gazelle:exclude maps
+# gazelle:exclude names
+# gazelle:exclude perf
+# gazelle:exclude prebuilt
+# gazelle:exclude uprobes
+# gazelle:exclude verifier
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+)

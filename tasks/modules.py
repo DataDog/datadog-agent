@@ -85,7 +85,7 @@ def go_work(ctx: Context):
     """
     Update the go work to use all the modules defined in modules.yml
     """
-    bazel("run", "//:write_go_work")
+    bazel(ctx, "run", "//:write_go_work")
 
 
 @task

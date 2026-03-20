@@ -66,6 +66,16 @@ type readContainerItemResult struct {
 	noDataReason string
 }
 
+func (r readContainerItemResult) String() string {
+	if r.noDataReason != "" {
+		return fmt.Sprintf("noData(%s)", r.noDataReason)
+	}
+	if r.item.resolvConf == nil {
+		return "empty"
+	}
+	return fmt.Sprintf("resolvConf(%d bytes)", len(r.item.resolvConf.Get()))
+}
+
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
 	resolvConf, resolvConfErr := cr.readResolvConf(entry)
 	// we must check this last, to guarantee the result of readResolvConf is valid

@@ -1,4 +1,4 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 ebpf_prog(
     name = "btf_test",

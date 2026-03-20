@@ -77,6 +77,11 @@ func NewController(
 	return c, nil
 }
 
+// HasSynced returns true when the underlying informer cache has been synced.
+func (c *Controller) HasSynced() bool {
+	return c.synced()
+}
+
 // Run starts the controller to handle objects
 func (c *Controller) Run(ctx context.Context) {
 	if ctx == nil {

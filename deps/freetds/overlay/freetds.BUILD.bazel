@@ -57,22 +57,6 @@ cc_library(
 )
 
 dd_agent_expand_template(
-    name = "gen_version_h",
-    out = "include/freedts/version.h",
-    substitutions = {
-        "@PACKAGE@": "freetds",
-        "@VERSION@": VERSION,
-        "@MAJOR@": VERSION.split(".")[0],
-        "@MINOR@": VERSION.split(".")[1],
-        "@SUBVERSION@": VERSION.split(".")[2],
-        # This was based on date of build. That breaks caching.
-        # Let's use date of update of this file.
-        "@BUILD_NUMBER@": "20260121",
-    },
-    template = "include/freetds/version.h.in",
-)
-
-dd_agent_expand_template(
     name = "gen_sysdep_h",
     out = "include/tds_sysdep_public.h",
     substitutions = {
@@ -96,7 +80,6 @@ cc_library(
     name = "libtdsodbc",
     srcs = [
         ":gen_sysdep_h",
-        ":gen_version_h",
         "include/freetds/alloca.h",
         "include/freetds/bool.h",
         "include/freetds/bytes.h",

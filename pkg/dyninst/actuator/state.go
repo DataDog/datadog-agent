@@ -382,6 +382,10 @@ func handleEvent(
 		ev.metricsChan <- sm.Metrics()
 		return nil
 
+	case eventGetDebugInfo:
+		ev.debugInfoChan <- sm.debugInfo()
+		return nil
+
 	case eventHeartbeatCheck:
 		handleHeartbeatCheck(sm, effects)
 

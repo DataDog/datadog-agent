@@ -1,4 +1,4 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 _COMMON_DEPS = ["//pkg/ebpf/c:ebpf_c_headers"]
 
