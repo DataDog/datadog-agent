@@ -317,13 +317,14 @@ class ApiClient {
     return this.fetch(`/logs${qs ? '?' + qs : ''}`);
   }
 
-  async getLogsSummary(params?: { kind?: LogKind; level?: string; start?: number; end?: number; tags?: string }): Promise<LogsSummary> {
+  async getLogsSummary(params?: { kind?: LogKind; level?: string; start?: number; end?: number; tags?: string; pattern?: string }): Promise<LogsSummary> {
     const searchParams = new URLSearchParams();
     if (params?.kind) searchParams.set('kind', params.kind);
     if (params?.level) searchParams.set('level', params.level);
     if (params?.start !== undefined) searchParams.set('start', String(params.start));
     if (params?.end !== undefined) searchParams.set('end', String(params.end));
     if (params?.tags) searchParams.set('tags', params.tags);
+    if (params?.pattern) searchParams.set('pattern', params.pattern);
     const qs = searchParams.toString();
     return this.fetch(`/logs/summary${qs ? '?' + qs : ''}`);
   }

@@ -153,6 +153,36 @@ func parseLogsQuery(query url.Values) logsQuery {
 	return result
 }
 
+// patternClusterFilter matches log lines against a single pattern cluster (hex hash from /api/log-patterns).
+type patternClusterFilter struct {
+	extractor *LogPatternExtractor
+	clusterID int64
+}
+
+func (api *TestBenchAPI) resolvePatternClusterFilter(patternHash string) *patternClusterFilter {
+	if patternHash == "" {
+		return nil
+	}
+	ext := api.tb.getLogPatternExtractor()
+	if ext == nil {
+		return nil
+	}
+	for _, c := range ext.PatternClusterer.GetClusters() {
+		if fmt.Sprintf("%x", c.ID+1) == patternHash {
+			return &patternClusterFilter{extractor: ext, clusterID: c.ID}
+		}
+	}
+	return nil
+}
+
+func (pf *patternClusterFilter) matchesLogContent(logView observerdef.LogView) bool {
+	if pf == nil {
+		return true
+	}
+	matched := pf.extractor.PatternClusterer.Classify(string(logView.GetContent()))
+	return matched != nil && matched.ID == pf.clusterID
+}
+
 func parseLogTagFilter(input string) parsedLogTagFilter {
 	filter := parsedLogTagFilter{
 		include: make(map[string]map[string]struct{}),
@@ -840,23 +870,7 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs := api.tb.GetRawLogs()
 
-	// Resolve pattern cluster for filtering (if requested).
-	// Both the extractor reference and the cluster are fetched once before the loop.
-	type patternFilter struct {
-		extractor *LogPatternExtractor
-		clusterID int64
-	}
-	var pf *patternFilter
-	if query.patternHash != "" {
-		if ext := api.tb.getLogPatternExtractor(); ext != nil {
-			for _, c := range ext.PatternClusterer.GetClusters() {
-				if fmt.Sprintf("%x", c.ID+1) == query.patternHash {
-					pf = &patternFilter{extractor: ext, clusterID: c.ID}
-					break
-				}
-			}
-		}
-	}
+	pf := api.resolvePatternClusterFilter(query.patternHash)
 
 	// First pass: count total matches and collect the paginated window.
 	total := 0
@@ -865,11 +879,8 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 		if !matchesLogsQuery(l, query) {
 			continue
 		}
-		if pf != nil {
-			matched := pf.extractor.PatternClusterer.Classify(string(l.GetContent()))
-			if matched == nil || matched.ID != pf.clusterID {
-				continue
-			}
+		if !pf.matchesLogContent(l) {
+			continue
 		}
 		if total >= query.offset && len(result) < query.limit {
 			tags := effectiveLogTags(l)
@@ -903,6 +914,7 @@ func (api *TestBenchAPI) handleLogPatterns(w http.ResponseWriter, _ *http.Reques
 func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Request) {
 	query := parseLogsQuery(r.URL.Query())
 	logs := api.tb.GetRawLogs()
+	pf := api.resolvePatternClusterFilter(query.patternHash)
 
 	totalCount := 0
 	countByLevel := make(map[string]int)
@@ -911,6 +923,9 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 
 	for _, l := range logs {
 		if !matchesLogsQuery(l, query) {
+			continue
+		}
+		if !pf.matchesLogContent(l) {
 			continue
 		}
 		totalCount++
@@ -949,6 +964,9 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 		}
 		for _, l := range logs {
 			if !matchesLogsQuery(l, query) {
+				continue
+			}
+			if !pf.matchesLogContent(l) {
 				continue
 			}
 			ts := l.GetTimestampUnixMilli()
