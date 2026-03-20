@@ -92,7 +92,17 @@ type Event struct {
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
-	c := collector{
+	var discoveredServicesGauge telemetry.Gauge
+	if systemProbeConfig.GetBool("discovery.enabled") {
+		discoveredServicesGauge = telemetry.NewGaugeWithOpts(
+			collectorID,
+			"discovered_services",
+			[]string{},
+			"Number of discovered alive services.",
+			telemetry.DefaultOptions,
+		)
+	}
+	return collector{
 		id:                     id,
 		catalog:                catalog,
 		clock:                  clock,
@@ -108,17 +118,8 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		ignoredPids:              make(core.PidSet),
 		pidHeartbeats:            make(map[int32]time.Time),
 		knownInjectionStatusPids: make(core.PidSet),
+		metricDiscoveredServices: discoveredServicesGauge,
 	}
-	if c.isServiceDiscoveryEnabled() {
-		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
-			collectorID,
-			"discovered_services",
-			[]string{},
-			"Number of discovered alive services.",
-			telemetry.DefaultOptions,
-		)
-	}
-	return c
 }
 
 type dependencies struct {
