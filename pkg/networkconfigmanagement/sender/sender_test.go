@@ -219,6 +219,7 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
     {
       "id": "test-namespace:10.0.0.1",
       "id_tags": null,
+      "tags": null,
       "ip_address": "10.0.0.1",
       "status": 1
     }
