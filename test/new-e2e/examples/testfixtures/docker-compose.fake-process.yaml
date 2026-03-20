@@ -3,10 +3,11 @@ services:
     container_name: fake-process
     build:
       context: .
-      # You can use public ECR or DockerHub for base images, but if your test is going to be running in CI, it is better to pull from our pull-through cache.
+      args:
+        DD_REGISTRY: ${DD_REGISTRY:-docker.io}
       dockerfile_inline: |
-        # Official Docker images require /library/ in the ECR pull-through cache path (AWS docs).
-        FROM 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/alpine:3.20.3
+        ARG DD_REGISTRY=docker.io
+        FROM ${DD_REGISTRY}/library/alpine:3.20.3
 
         # generates a synthetic process that consumes CPU and memory
         ENTRYPOINT ["dd", "if=/dev/zero", "of=/tmp/test-process.txt"]

@@ -9,10 +9,13 @@ import (
 	_ "embed"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	resourceslocal "github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
+	runnerPkg "github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -60,11 +63,17 @@ func NewInstance(e resourceslocal.Environment, args VMArgs, opts ...pulumi.Resou
 
 	podmanCommand := "podman --config " + dataPath
 
+	baseImageRegistry := "docker.io"
+	reg, _ := runnerPkg.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg != "" {
+		baseImageRegistry = strings.SplitN(reg, ",", 2)[0] + "/dockerhub/library"
+	}
+
 	opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerFile, dockerConfig))
 	buildPodman, err := runner.Command("podman-build"+args.Name, &command.LocalArgs{
 		Args: command.Args{
 			Environment: pulumi.StringMap{"DOCKER_HOST_SSH_PUBLIC_KEY": pulumi.String(string(publicKey))},
-			Create:      pulumi.Sprintf("%s build --format=docker --build-arg DOCKER_HOST_SSH_PUBLIC_KEY=\"$DOCKER_HOST_SSH_PUBLIC_KEY\" --build-arg BASE_IMAGE_REGISTRY=669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/ -t %s .", podmanCommand, args.Name),
+			Create:      pulumi.Sprintf("%s build --format=docker --build-arg DOCKER_HOST_SSH_PUBLIC_KEY=\"$DOCKER_HOST_SSH_PUBLIC_KEY\" --build-arg BASE_IMAGE_REGISTRY=%s -t %s .", podmanCommand, baseImageRegistry, args.Name),
 			Delete:      pulumi.Sprintf("%s rmi %s", podmanCommand, args.Name),
 			Triggers:    pulumi.Array{},
 		},

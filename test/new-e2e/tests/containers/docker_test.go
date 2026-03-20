@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
@@ -16,7 +17,17 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
+
+var busyboxImage = func() string {
+	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg != "" {
+		return strings.SplitN(reg, ",", 2)[0] + "/dockerhub/library/busybox:1.37.0"
+	}
+	return "busybox:1.37.0"
+}()
 
 type DockerSuite struct {
 	baseSuite[environments.DockerHost]
@@ -157,7 +168,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 	}
 	ctrName := "exit_42_" + string(ctrNameData)
 
-	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0 sh -c \"exit 42\"", ctrName))
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" %s sh -c \"exit 42\"", ctrName, busyboxImage))
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -166,8 +177,8 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^docker_image:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0$`,
-				`^image_name:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox$`,
+				`^docker_image:` + regexp.QuoteMeta(busyboxImage) + `$`,
+				`^image_name:` + regexp.QuoteMeta(strings.TrimSuffix(busyboxImage, ":1.37.0")) + `$`,
 				`^image_tag:1.37.0$`,
 				`^short_image:busybox$`,
 			},
@@ -202,7 +213,7 @@ func (suite *DockerSuite) TestDockerEvents() {
 	}
 	ctrName := "exit_42_" + string(ctrNameData)
 
-	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0 sh -c \"exit 42\"", ctrName))
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" %s sh -c \"exit 42\"", ctrName, busyboxImage))
 
 	suite.testEvent(&testEventArgs{
 		Filter: testEventFilterArgs{
@@ -215,9 +226,9 @@ func (suite *DockerSuite) TestDockerEvents() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
-				`^docker_image:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0$`,
+				`^docker_image:` + regexp.QuoteMeta(busyboxImage) + `$`,
 				`^image_id:sha256:`,
-				`^image_name:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox$`,
+				`^image_name:` + regexp.QuoteMeta(strings.TrimSuffix(busyboxImage, ":1.37.0")) + `$`,
 				`^image_tag:1.37.0$`,
 				`^short_image:busybox$`,
 			},

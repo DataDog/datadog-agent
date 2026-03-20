@@ -117,6 +117,9 @@ func vmPlusDockerEnvProvisioner() provisioners.PulumiEnvRunFunc[vmPlusDockerEnv]
 			"DD_LIGHTTPD_CONFIG":    pulumi.String(lighttpdConfigFile),
 			"DD_LIGHTTPD_LOGS_PATH": pulumi.String(lighttpdDir),
 		}
+		if awsEnv.ImagePullRegistry() != "" {
+			envVars["DD_REGISTRY"] = pulumi.String(strings.SplitN(awsEnv.ImagePullRegistry(), ",", 2)[0] + "/dockerhub")
+		}
 		// compose lighttpd
 		composeLighttpdCmd, err := dockerManager.ComposeStrUp("lighttpd", []docker.ComposeInlineManifest{
 			{

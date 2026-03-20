@@ -12,10 +12,11 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
@@ -258,7 +259,11 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	host := is.Env().RemoteHost
 	client := common.NewDockerTestClient(host, containerName)
 
-	err := client.RunContainer("669783387624.dkr.ecr.us-east-1.amazonaws.com/public-ecr/ubuntu/ubuntu:22.04_stable")
+	ubuntuImage := "public.ecr.aws/ubuntu/ubuntu:22.04_stable"
+	if reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, ""); reg != "" {
+		ubuntuImage = strings.SplitN(reg, ",", 2)[0] + "/public-ecr/ubuntu/ubuntu:22.04_stable"
+	}
+	err := client.RunContainer(ubuntuImage)
 	require.NoError(is.T(), err)
 	defer client.Cleanup()
 
