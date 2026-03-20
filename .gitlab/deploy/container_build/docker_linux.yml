@@ -164,6 +164,10 @@ docker_build_agent7:
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
+    - job: build_flightrecorder_binary_x64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
@@ -203,6 +207,10 @@ docker_build_agent7_arm64:
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
+    - job: build_flightrecorder_binary_arm64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
@@ -213,6 +221,10 @@ docker_build_fips_agent7:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64-fips
+    - job: build_flightrecorder_binary_x64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
@@ -221,6 +233,10 @@ docker_build_fips_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64-fips
+    - job: build_flightrecorder_binary_arm64
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - cp bin/flightrecorder/flightrecorder ${ARTIFACTS_BUILD_CONTEXT}/flightrecorder
   variables:
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
