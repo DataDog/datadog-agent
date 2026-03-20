@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
@@ -132,4 +133,36 @@ func TestNewNodePoolInternal_MissingManifest(t *testing.T) {
 			assert.Empty(t, npi.Name())
 		})
 	}
+}
+
+func TestNewNodePoolInternal_RecommendedInstanceTypes(t *testing.T) {
+	values := ClusterAutoscalingValues{
+		TargetName: "target",
+		TargetHash: "hash",
+		Type:       TypeKarpenterV1,
+		Manifest: Manifest{
+			KarpenterV1: &KarpenterV1NodePool{
+				Metadata: Metadata{Name: "test-pool"},
+				Spec: &karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"t3.medium", "t3.large"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	npi := NewNodePoolInternal(values)
+	require.NotNil(t, npi.KarpenterNodePool())
+	assert.Equal(t, []string{"t3.medium", "t3.large"}, npi.RecommendedInstanceTypes())
 }

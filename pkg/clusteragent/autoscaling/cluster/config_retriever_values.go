@@ -53,6 +53,11 @@ func (avp *autoscalingValuesProcessor) process(configKey string, rawConfig state
 func (avp *autoscalingValuesProcessor) processValues(values model.ClusterAutoscalingValues, _ uint64) {
 	npi := model.NewNodePoolInternal(values)
 
+	if npi.KarpenterNodePool() == nil {
+		log.Debugf("Skipping NodePool due to invalid manifest")
+		return
+	}
+
 	id := npi.Name()
 	avp.processed[id] = struct{}{}
 	avp.store.Set(id, npi, configRetrieverStoreID)

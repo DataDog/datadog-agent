@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +37,8 @@ type store = autoscaling.Store[model.NodePoolInternal]
 
 var (
 	nodePoolGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"}
+	// Only support EC2 for now
+	nodeClassGVR = schema.GroupVersionResource{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"}
 
 	controllerID autoscaling.SenderID = "dca-c"
 )
@@ -193,10 +196,27 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
 	knp := npi.KarpenterNodePool()
+
+	// Validate NodeClassRef is valid
+	knp, err := c.updateNodePoolWithNodeClass(ctx, knp)
+	if err != nil {
+		return err
+	}
+
+	if knp.Labels == nil {
+		knp.Labels = make(map[string]string)
+	}
+	knp.Labels[model.DatadogCreatedLabelKey] = "true"
+	if knp.Annotations == nil {
+		knp.Annotations = make(map[string]string)
+	}
+	knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
+
 	npUnstr, err := convertNodePoolToUnstructured(knp)
 	if err != nil {
 		return err
 	}
+
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
@@ -207,6 +227,10 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 
 func (c *Controller) patchNodePool(ctx context.Context, current *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	desired := npi.KarpenterNodePool()
+	if desired.Labels == nil {
+		desired.Labels = make(map[string]string)
+	}
+	desired.Labels[model.DatadogModifiedLabelKey] = "true"
 
 	currentSpecJSON, err := json.Marshal(current.Spec)
 	if err != nil {
@@ -216,13 +240,37 @@ func (c *Controller) patchNodePool(ctx context.Context, current *karpenterv1.Nod
 	if err != nil {
 		return fmt.Errorf("unable to marshal desired NodePool spec: %w", err)
 	}
-	if bytes.Equal(currentSpecJSON, desiredSpecJSON) {
+
+	currentMetaJSON, err := json.Marshal(map[string]any{"labels": current.Labels, "annotations": current.Annotations})
+	if err != nil {
+		return fmt.Errorf("unable to marshal current NodePool metadata: %w", err)
+	}
+	desiredMetaJSON, err := json.Marshal(map[string]any{"labels": desired.Labels, "annotations": desired.Annotations})
+	if err != nil {
+		return fmt.Errorf("unable to marshal desired NodePool metadata: %w", err)
+	}
+
+	if bytes.Equal(currentSpecJSON, desiredSpecJSON) && bytes.Equal(currentMetaJSON, desiredMetaJSON) {
 		log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
 		return nil
 	}
 
 	log.Infof("Patching NodePool: %s", npi.Name())
-	patchData := map[string]any{"spec": desired.Spec}
+	patchLabels := desired.Labels
+	if patchLabels == nil {
+		patchLabels = map[string]string{}
+	}
+	patchAnnotations := desired.Annotations
+	if patchAnnotations == nil {
+		patchAnnotations = map[string]string{}
+	}
+	patchData := map[string]any{
+		"metadata": map[string]any{
+			"labels":      patchLabels,
+			"annotations": patchAnnotations,
+		},
+		"spec": desired.Spec,
+	}
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
 		c.eventRecorder.Eventf(current, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
@@ -248,6 +296,41 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 
 	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool: %s", name)
 	return nil
+}
+
+func (c *Controller) updateNodePoolWithNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodePool, error) {
+	// Check that if NodeClassRef is set, that it's valid
+	nc := knp.Spec.Template.Spec.NodeClassRef
+	if nc != nil {
+		_, err := c.Client.Resource(nodeClassGVR).Get(ctx, nc.Name, metav1.GetOptions{})
+		if err == nil {
+			return knp, nil
+		}
+		log.Debugf("NodeClass %s not found, falling back to an existing NodeClass", nc.Name)
+	}
+
+	// Get NodeClass. If there's none or more than one, then we should not create the NodePool
+	ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("unable to list NodeClasses: %w", err)
+	}
+
+	if len(ncList.Items) == 0 {
+		return nil, errors.New("no NodeClasses found, NodePool cannot be created")
+	}
+
+	if len(ncList.Items) > 1 {
+		return nil, fmt.Errorf("too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
+	}
+
+	u := ncList.Items[0]
+	knp.Spec.Template.Spec.NodeClassRef = &karpenterv1.NodeClassReference{
+		// Only support EC2NodeClass for now
+		Kind:  "EC2NodeClass",
+		Name:  u.GetName(),
+		Group: "karpenter.k8s.aws",
+	}
+	return knp, nil
 }
 
 func isCreatedByDatadog(labels map[string]string) bool {

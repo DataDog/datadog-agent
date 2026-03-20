@@ -11,6 +11,7 @@ import (
 	// AWS Karpenter provider registers some variables in shared packages
 	_ "github.com/aws/karpenter-provider-aws/pkg/apis/v1"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
@@ -18,6 +19,12 @@ import (
 const (
 	// DatadogCreatedLabelKey is used on NodePools to indicate they were created by Datadog
 	DatadogCreatedLabelKey = "autoscaling.datadoghq.com/created"
+
+	// DatadogModifiedLabelKey is used on NodePools to indicate they were modified by Datadog
+	DatadogModifiedLabelKey = "autoscaling.datadoghq.com/modified"
+
+	// DatadogReplicaAnnotationKey stores the name of the user NodePool this Datadog-managed NodePool was derived from
+	DatadogReplicaAnnotationKey = "autoscaling.datadoghq.com/target-nodepool"
 
 	// KarpenterNodePoolHashAnnotationKey is the annotation key that tracks the Karpenter NodePool template hash
 	KarpenterNodePoolHashAnnotationKey = "karpenter.sh/nodepool-hash"
@@ -46,12 +53,17 @@ func NewNodePoolInternal(v ClusterAutoscalingValues) NodePoolInternal {
 	if v.Type == TypeKarpenterV1 && v.Manifest.KarpenterV1 != nil {
 		knp := buildKarpenterNodePoolFromManifest(v.Manifest.KarpenterV1)
 		npi.karpenterNodePool = knp
-		npi.name = knp.Name
+		if knp != nil {
+			npi.name = knp.Name
+		}
 	}
 	return npi
 }
 
 func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.NodePool {
+	if kv1.Spec == nil {
+		return nil
+	}
 	labels := make(map[string]string, len(kv1.Metadata.Labels))
 	for _, kv := range kv1.Metadata.Labels {
 		labels[kv.Key] = kv.Value
@@ -60,10 +72,19 @@ func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.N
 	for _, kv := range kv1.Metadata.Annotations {
 		annotations[kv.Key] = kv.Value
 	}
+
+	templateLabels := make(map[string]string, len(labels))
+	for k, v := range labels {
+		templateLabels[k] = v
+	}
+	templateAnnotations := make(map[string]string, len(annotations))
+	for k, v := range annotations {
+		templateAnnotations[k] = v
+	}
 	spec := *kv1.Spec
 	spec.Template.ObjectMeta = karpenterv1.ObjectMeta{
-		Labels:      labels,
-		Annotations: annotations,
+		Labels:      templateLabels,
+		Annotations: templateAnnotations,
 	}
 	return &karpenterv1.NodePool{
 		TypeMeta: metav1.TypeMeta{Kind: "NodePool", APIVersion: "karpenter.sh/v1"},
@@ -87,3 +108,15 @@ func (n *NodePoolInternal) TargetHash() string { return n.targetHash }
 
 // KarpenterNodePool returns the karpenterNodePool of the NodePoolInternal
 func (n *NodePoolInternal) KarpenterNodePool() *karpenterv1.NodePool { return n.karpenterNodePool }
+
+func (n *NodePoolInternal) RecommendedInstanceTypes() []string {
+	if n.karpenterNodePool == nil {
+		return []string{}
+	}
+	for _, req := range n.karpenterNodePool.Spec.Template.Spec.Requirements {
+		if req.Key == corev1.LabelInstanceTypeStable {
+			return req.Values
+		}
+	}
+	return []string{}
+}
