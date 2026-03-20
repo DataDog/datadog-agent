@@ -109,8 +109,11 @@ func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time
 // runWorker is the main loop for a single worker.
 func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
-		// Non-blocking priority check: drain on-demand tests first
+		// Non-blocking priority check: drain on-demand tests first, but respect cancellation
 		select {
+		case <-ctx.Done():
+			s.log.Debugf("worker %d stopping", workerID)
+			return
 		case testCtx := <-s.onDemandPoller.TestsChan:
 			s.executeTest(ctx, workerID, testCtx)
 			continue
