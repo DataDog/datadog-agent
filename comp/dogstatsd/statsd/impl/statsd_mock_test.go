@@ -5,7 +5,7 @@
 
 //go:build test
 
-package statsd
+package statsdimpl
 
 import (
 	"bytes"
@@ -14,12 +14,12 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestMockGet(t *testing.T) {

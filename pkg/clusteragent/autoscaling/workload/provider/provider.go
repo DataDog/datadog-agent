@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -89,11 +91,40 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
 
+	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+	profileController, err := profile.NewController(
+		clock,
+		apiCl.DynamicInformerCl,
+		apiCl.DynamicInformerFactory,
+		isLeaderFunc,
+		profileStore,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
+	}
+
+	workloadWatcher := profile.NewWorkloadWatcher(
+		profileStore,
+		isLeaderFunc,
+		apiCl.DynamicInformerCl,
+		[]profile.GroupVersionKindResource{
+			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
+			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
+		},
+	)
+
+	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.HasSynced, workloadWatcher.HasSynced)
+	builtinManager := profile.NewBuiltinProfileManager(apiCl.DynamicInformerCl, isLeaderFunc)
+
 	// Start informers & controllers (informers can be started multiple times)
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	apiCl.InformerFactory.Start(ctx.Done())
 
 	// TODO: Wait POD Watcher sync before running the controller
+	go builtinManager.Run(ctx)
+	go profileController.Run(ctx)
+	go workloadWatcher.Run(ctx)
+	go autoscalerSyncer.Run(ctx)
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx)
 

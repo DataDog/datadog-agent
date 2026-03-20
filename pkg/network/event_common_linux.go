@@ -29,6 +29,12 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	if s.Retransmits < other.Retransmits && s.Retransmits > 0 ||
 		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
 		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) ||
+		(s.TCPRTOCount < other.TCPRTOCount && s.TCPRTOCount > 0) ||
+		(s.TCPRecoveryCount < other.TCPRecoveryCount && s.TCPRecoveryCount > 0) ||
+		(s.TCPReordSeen < other.TCPReordSeen && s.TCPReordSeen > 0) ||
+		(s.TCPRcvOOOPack < other.TCPRcvOOOPack && s.TCPRcvOOOPack > 0) ||
+		(s.TCPDeliveredCE < other.TCPDeliveredCE && s.TCPDeliveredCE > 0) ||
+		(s.TCPProbe0Count < other.TCPProbe0Count && s.TCPProbe0Count > 0) ||
 		isUnderflow(other.RecvBytes, s.RecvBytes, maxByteCountChange) ||
 		isUnderflow(other.SentBytes, s.SentBytes, maxByteCountChange) {
 		return sc, true
@@ -57,6 +63,24 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	}
 	if s.TCPClosed > 0 {
 		sc.TCPClosed = s.TCPClosed - other.TCPClosed
+	}
+	if s.TCPRTOCount > 0 {
+		sc.TCPRTOCount = s.TCPRTOCount - other.TCPRTOCount
+	}
+	if s.TCPRecoveryCount > 0 {
+		sc.TCPRecoveryCount = s.TCPRecoveryCount - other.TCPRecoveryCount
+	}
+	if s.TCPReordSeen > 0 {
+		sc.TCPReordSeen = s.TCPReordSeen - other.TCPReordSeen
+	}
+	if s.TCPRcvOOOPack > 0 {
+		sc.TCPRcvOOOPack = s.TCPRcvOOOPack - other.TCPRcvOOOPack
+	}
+	if s.TCPDeliveredCE > 0 {
+		sc.TCPDeliveredCE = s.TCPDeliveredCE - other.TCPDeliveredCE
+	}
+	if s.TCPProbe0Count > 0 {
+		sc.TCPProbe0Count = s.TCPProbe0Count - other.TCPProbe0Count
 	}
 
 	return sc, false
@@ -88,6 +112,7 @@ func convertMsToNs(t netebpf.NetTimeMs) uint64 {
 func (c *ConnectionStats) FromConn(ct *netebpf.Conn) {
 	c.FromTupleAndStats(&ct.Tup, &ct.Conn_stats)
 	c.FromTCPStats(&ct.Tcp_stats)
+	c.FromTCPEventStats(&ct.Tcp_stats.Tcp_event_stats)
 }
 
 // FromTupleAndStats populates relevant fields on ConnectionStats from the arguments
@@ -155,6 +180,16 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 	}
 }
 
+func (c *ConnectionStats) FromTCPEventStats(tes *netebpf.TCPEventStats) {
+	if c.Type != TCP || tes == nil {
+		return
+	}
+
+	c.Monotonic.TCPRTOCount = tes.Rto_count
+	c.Monotonic.TCPRecoveryCount = tes.Recovery_count
+	c.Monotonic.TCPProbe0Count = tes.Probe0_count
+}
+
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments
 func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 	if c.Type != TCP || tcpStats == nil {
@@ -171,4 +206,9 @@ func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 			tcpStats.Failure_reason: 1,
 		}
 	}
+
+	c.Monotonic.TCPReordSeen = tcpStats.Reord_seen
+	c.Monotonic.TCPRcvOOOPack = tcpStats.Rcv_ooopack
+	c.Monotonic.TCPDeliveredCE = tcpStats.Delivered_ce
+	c.TCPECNNegotiated = tcpStats.Ecn_negotiated != 0
 }

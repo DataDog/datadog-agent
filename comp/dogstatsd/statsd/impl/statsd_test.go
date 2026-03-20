@@ -2,7 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
-package statsd
+
+package statsdimpl
 
 import (
 	"testing"
@@ -11,11 +12,12 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCreate(t *testing.T) {
-	s := fxutil.Test[Component](t, Module())
+	s := fxutil.Test[statsd.Component](t, fxutil.ProvideComponentConstructor(NewComponent))
 	c, err := s.CreateForHostPort("127.0.0.1", 8125, ddgostatsd.WithoutTelemetry())
 	assert.NoError(t, err)
 	assert.NotNilf(t, c, "statsd client should not be nil")
@@ -24,7 +26,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	s := fxutil.Test[Component](t, Module())
+	s := fxutil.Test[statsd.Component](t, fxutil.ProvideComponentConstructor(NewComponent))
 	c, err := s.Get()
 	assert.NoError(t, err)
 	assert.NotNilf(t, c, "statsd client should not be nil")

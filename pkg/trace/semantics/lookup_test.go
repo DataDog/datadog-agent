@@ -6,6 +6,7 @@
 package semantics
 
 import (
+	"math"
 	"strconv"
 	"testing"
 
@@ -132,6 +133,63 @@ func TestStringMapAccessor(t *testing.T) {
 
 		s := LookupString(r, accessor, ConceptHTTPStatusCode)
 		assert.Equal(t, "404", s)
+	})
+}
+
+func TestMetricsMapAccessor(t *testing.T) {
+	t.Run("GetString always returns empty", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"key": 200})
+		assert.Equal(t, "", a.GetString("key"))
+	})
+
+	t.Run("GetFloat64 returns value directly", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": 1.5})
+		v, ok := a.GetFloat64("x")
+		assert.True(t, ok)
+		assert.Equal(t, 1.5, v)
+	})
+
+	t.Run("GetFloat64 returns false for missing key", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{})
+		_, ok := a.GetFloat64("missing")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetFloat64 returns false for nil map", func(t *testing.T) {
+		a := NewMetricsMapAccessor(nil)
+		_, ok := a.GetFloat64("key")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns exact integer", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"status": 404})
+		v, ok := a.GetInt64("status")
+		assert.True(t, ok)
+		assert.Equal(t, int64(404), v)
+	})
+
+	t.Run("GetInt64 rejects fractional float", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": 1.5})
+		_, ok := a.GetInt64("x")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 rejects NaN", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": math.NaN()})
+		_, ok := a.GetInt64("x")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 rejects Inf", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": math.Inf(1)})
+		_, ok := a.GetInt64("x")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns false for missing key", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{})
+		_, ok := a.GetInt64("missing")
+		assert.False(t, ok)
 	})
 }
 

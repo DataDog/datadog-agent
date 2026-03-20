@@ -12,7 +12,7 @@ import (
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,5 +27,5 @@ func MockBundle() fxutil.BundleOptions {
 
 // MockClientBundle defines the mock fx options for this bundle.
 var MockClientBundle = fxutil.Bundle(
-	statsd.MockModule(),
+	statsdimpl.MockModule(),
 )

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && test
+//go:build kubeapiserver
 
 package model
 
@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -494,4 +496,127 @@ func TestUpdateFromStatus(t *testing.T) {
 	}
 
 	AssertPodAutoscalersEqual(t, expected, actual)
+}
+
+func TestProfileManagedPodAutoscaler(t *testing.T) {
+	maxReplicas := int32(10)
+	template := &datadoghq.DatadogPodAutoscalerTemplate{
+		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+			{Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType},
+		},
+		Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+			MaxReplicas: &maxReplicas,
+		},
+	}
+	targetRef := autoscalingv2.CrossVersionObjectReference{
+		Kind:       "Deployment",
+		Name:       "web-app",
+		APIVersion: "apps/v1",
+	}
+
+	t.Run("NewPodAutoscalerFromProfile", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1")
+
+		assert.Equal(t, "prod", pai.Namespace())
+		assert.Equal(t, "web-app-a1b2c3d4", pai.Name())
+		assert.Equal(t, "high-cpu", pai.ProfileName())
+		assert.True(t, pai.IsProfileManaged())
+
+		spec := pai.Spec()
+		require.NotNil(t, spec)
+		assert.Equal(t, targetRef, spec.TargetRef)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalOwner, spec.Owner)
+		assert.Equal(t, template.Objectives, spec.Objectives)
+		assert.Equal(t, template.Constraints, spec.Constraints)
+	})
+
+	t.Run("UpdateFromProfile same profile", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1")
+
+		// Simulate some scaling state
+		pai.SetCurrentReplicas(5)
+
+		newMaxReplicas := int32(20)
+		newTemplate := &datadoghq.DatadogPodAutoscalerTemplate{
+			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+				{Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType},
+			},
+			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+				MaxReplicas: &newMaxReplicas,
+			},
+		}
+		pai.UpdateFromProfile("high-cpu", newTemplate, targetRef, "hash2")
+
+		assert.Equal(t, "high-cpu", pai.ProfileName())
+		assert.True(t, pai.IsProfileManaged())
+		assert.Equal(t, newTemplate.Objectives, pai.Spec().Objectives)
+		assert.Equal(t, newTemplate.Constraints, pai.Spec().Constraints)
+		// Scaling state preserved
+		assert.Equal(t, int32(5), *pai.CurrentReplicas())
+	})
+
+	t.Run("UpdateFromProfile different profile", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1")
+
+		newTemplate := &datadoghq.DatadogPodAutoscalerTemplate{
+			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+				{Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType},
+			},
+		}
+		pai.UpdateFromProfile("high-mem", newTemplate, targetRef, "hash3")
+
+		assert.Equal(t, "high-mem", pai.ProfileName())
+		assert.True(t, pai.IsProfileManaged())
+		assert.Equal(t, newTemplate.Objectives, pai.Spec().Objectives)
+	})
+
+	t.Run("IsProfileManaged true/false", func(t *testing.T) {
+		// Profile-managed
+		pai := NewPodAutoscalerFromProfile("ns", "name", "prof", template, targetRef, "")
+		assert.True(t, pai.IsProfileManaged())
+		assert.Equal(t, "prof", pai.ProfileName())
+
+		// Not profile-managed (regular autoscaler)
+		regularPAI := FakePodAutoscalerInternal{
+			Namespace: "ns",
+			Name:      "regular",
+		}.Build()
+		assert.False(t, regularPAI.IsProfileManaged())
+		assert.Empty(t, regularPAI.ProfileName())
+	})
+
+	t.Run("SetProfileName", func(t *testing.T) {
+		pai := FakePodAutoscalerInternal{
+			Namespace: "ns",
+			Name:      "name",
+		}.Build()
+		assert.False(t, pai.IsProfileManaged())
+
+		pai.SetProfileName("my-profile")
+		assert.True(t, pai.IsProfileManaged())
+		assert.Equal(t, "my-profile", pai.ProfileName())
+	})
+
+	t.Run("BuildDPASpecFromProfile", func(t *testing.T) {
+		spec := BuildDPASpecFromProfile(template, targetRef)
+
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalOwner, spec.Owner)
+		assert.Equal(t, targetRef, spec.TargetRef)
+		assert.Equal(t, template.ApplyPolicy, spec.ApplyPolicy)
+		assert.Equal(t, template.Objectives, spec.Objectives)
+		assert.Equal(t, template.Fallback, spec.Fallback)
+		assert.Equal(t, template.Constraints, spec.Constraints)
+		assert.Equal(t, template.Options, spec.Options)
+	})
+
+	t.Run("FakePodAutoscalerInternal ProfileName", func(t *testing.T) {
+		fake := FakePodAutoscalerInternal{
+			Namespace:   "ns",
+			Name:        "name",
+			ProfileName: "my-profile",
+		}
+		pai := fake.Build()
+		assert.Equal(t, "my-profile", pai.ProfileName())
+		assert.True(t, pai.IsProfileManaged())
+	})
 }

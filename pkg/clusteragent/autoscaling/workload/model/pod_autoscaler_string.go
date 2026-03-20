@@ -36,6 +36,9 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", p.CreationTimestamp())
 	_, _ = fmt.Fprintln(&sb, "Generation:", p.Generation())
 	_, _ = fmt.Fprintln(&sb, "Settings Timestamp:", p.SettingsTimestamp())
+	if p.IsProfileManaged() {
+		_, _ = fmt.Fprintln(&sb, "Profile:", p.ProfileName())
+	}
 	_, _ = fmt.Fprintln(&sb)
 
 	if p.Spec() != nil {
@@ -305,6 +308,7 @@ func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"namespace":                                p.namespace,
 		"name":                                     p.name,
+		"profile_name":                             p.profileName,
 		"creation_timestamp":                       p.creationTimestamp,
 		"generation":                               p.generation,
 		"spec":                                     p.Spec(),
@@ -344,6 +348,7 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	var temp struct {
 		Namespace                            string                                                         `json:"namespace"`
 		Name                                 string                                                         `json:"name"`
+		ProfileName                          string                                                         `json:"profile_name"`
 		CreationTimestamp                    time.Time                                                      `json:"creation_timestamp"`
 		Generation                           int64                                                          `json:"generation"`
 		Spec                                 *v1alpha2.DatadogPodAutoscalerSpec                             `json:"spec"`
@@ -387,6 +392,7 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	// Copy the values to our PodAutoscalerInternal
 	p.namespace = temp.Namespace
 	p.name = temp.Name
+	p.profileName = temp.ProfileName
 	p.generation = temp.Generation
 	p.creationTimestamp = temp.CreationTimestamp
 	p.settingsTimestamp = temp.SettingsTimestamp

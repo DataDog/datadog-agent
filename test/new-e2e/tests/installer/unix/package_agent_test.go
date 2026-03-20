@@ -503,7 +503,8 @@ func (s *packageAgentSuite) TestInstallFips() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit, probeUnit)
 
-	// Important: the installer daemon shouldn't start if FIPS is enabled. Remote Config will be disabled and the unit will exit with code 255.
+	// Remote Config is disabled by default for FIPS/FED agents, so the RC client fails to init and the unit exits with code 255.
+	// If remote_configuration.enabled is explicitly set to true, the daemon would start normally.
 	s.host.WaitForUnitExited(s.T(), 255, installerUnit)
 
 	state := s.host.State()

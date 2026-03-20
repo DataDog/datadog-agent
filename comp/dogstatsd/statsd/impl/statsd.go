@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package statsd
+// Package statsdimpl implements the statsd component.
+package statsdimpl
 
 import (
 	"net"
@@ -12,17 +13,21 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatsdService))
+// Provides defines the output of the statsd component.
+type Provides struct {
+	Comp statsd.Component
+}
+
+// NewComponent creates a new statsd component.
+func NewComponent() (Provides, error) {
+	return Provides{
+		Comp: &service{},
+	}, nil
 }
 
 type service struct {
@@ -61,7 +66,7 @@ func (hs *service) CreateForHostPort(host string, port int, options ...ddgostats
 	return createClient(net.JoinHostPort(host, strconv.Itoa(port)), options...)
 }
 
-var _ Component = (*service)(nil)
+var _ statsd.Component = (*service)(nil)
 
 // createClient returns a pre-configured statsd client that defaults to `addr` if no env var is set
 // It is exported for callers that might not support components.
@@ -93,8 +98,4 @@ func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientI
 		options...,
 	)
 	return ddgostatsd.New(addr, options...)
-}
-
-func newStatsdService() Component {
-	return &service{}
 }

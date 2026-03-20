@@ -50,7 +50,7 @@ def ask_reviews(_, pr_id, action, team_slugs):
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
 
     # Compute per-team file counts and PR size
-    file_counts = _get_team_file_counts(pr, requested)
+    file_counts = _get_team_file_counts(pr)
     size = get_pr_size(pr)
     max_files = max(file_counts.values()) if file_counts else 0
 
@@ -112,17 +112,15 @@ def _is_revert(pr) -> bool:
     return False
 
 
-def _get_team_file_counts(pr, team_slugs, owners_file='.github/CODEOWNERS'):
+def _get_team_file_counts(pr, owners_file='.github/CODEOWNERS'):
     """Return a dict mapping each team slug to the number of PR files it owns."""
     owners = read_owners(owners_file)
-    counts = {slug: 0 for slug in team_slugs}
+    counts = defaultdict(int)
     for f in pr.get_files():
         file_owners = owners.of(f.filename)
-        for _kind, owner_handle in file_owners:
+        for _, owner_handle in file_owners:
             normalized = owner_handle.casefold().removeprefix("@datadog/")
-            for slug in team_slugs:
-                if slug.casefold() == normalized:
-                    counts[slug] += 1
+            counts[normalized] += 1
     return counts
 
 

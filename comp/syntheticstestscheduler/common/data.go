@@ -78,6 +78,7 @@ type SyntheticsTestConfig struct {
 	OrgID    int    `json:"org_id"`
 	MainDC   string `json:"main_dc"`
 	PublicID string `json:"public_id"`
+	ResultID string `json:"result_id"`
 	RunType  string `json:"run_type"`
 }
 
@@ -148,6 +149,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 		OrgID    int    `json:"org_id"`
 		MainDC   string `json:"main_dc"`
 		PublicID string `json:"public_id"`
+		ResultID string `json:"result_id"`
 		RunType  string `json:"run_type"`
 		Interval int    `json:"tick_every"`
 	}
@@ -162,6 +164,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.OrgID = tmp.OrgID
 	c.MainDC = tmp.MainDC
 	c.PublicID = tmp.PublicID
+	c.ResultID = tmp.ResultID
 	c.RunType = tmp.RunType
 	c.Interval = tmp.Interval
 	c.Config.Assertions = tmp.Config.Assertions

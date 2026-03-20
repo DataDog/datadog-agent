@@ -1,4 +1,4 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
 ebpf_program_suite(
     name = "tracer-fentry",

@@ -1,0 +1,3 @@
+load("//bazel/rules/ebpf:cgo_godefs_test.bzl", "cgo_godefs_test_suite")
+
+cgo_godefs_test_suite(name = "cgo_godefs_tests")
