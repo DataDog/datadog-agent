@@ -28,7 +28,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 package(
-    default_applicable_licenses = [":license"],
+    default_package_metadata = [":license"],
     default_visibility = ["//packages:__subpackages__"],
 )
 
@@ -103,11 +103,9 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0644",
     ),
-    prefix = "embedded/ssl",
+    prefix = "embedded3/ssl",
 )
 
-# TODO: add this to //packages/install_dir/embedded:everything
-# TODO: delete omnibus/config/software/cacerts.rb
 pkg_filegroup(
     name = "all_files",
     srcs = [

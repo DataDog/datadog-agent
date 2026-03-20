@@ -61,6 +61,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 		LastUpdated: defaultVersion,
 	}
+	prefixedAPPKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9]{28}_[a-zA-Z0-9]([a-zA-Z0-9]{4})`),
+		Hints: []string{"ddapp_"},
+		Repl:  []byte(`************************************$1`),
+
+		LastUpdated: parseVersion("7.78.0"),
+	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
@@ -288,6 +295,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
