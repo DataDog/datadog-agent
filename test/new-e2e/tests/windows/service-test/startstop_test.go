@@ -46,6 +46,9 @@ var agentConfigTADisabled string
 //go:embed fixtures/datadog-di-disabled.yaml
 var agentConfigDIDisabled string
 
+//go:embed fixtures/datadog-rc-enabled.yaml
+var agentConfigRCEnabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -77,6 +80,31 @@ const defaultTimeoutScale = 1
 const driverVerifierTimeoutScale = 10
 
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
+
+// TestServiceBehaviorInstallerWithRemoteConfig tests that the installer runs
+// when remote_configuration is explicitly enabled, which is required in FIPS mode.
+// TODO: remove this test when installer runs fully in FIPS mode.
+func TestServiceBehaviorInstallerWithRemoteConfig(t *testing.T) {
+	s := &installerWithRemoteConfigSuite{}
+	run(t, s, systemProbeConfig, agentConfigRCEnabled, securityAgentConfig)
+}
+
+type installerWithRemoteConfigSuite struct {
+	powerShellServiceCommandSuite
+}
+
+func (s *installerWithRemoteConfigSuite) SetupSuite() {
+	s.powerShellServiceCommandSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// With remote_configuration enabled, the installer should run even in FIPS mode
+	s.runningUserServices = func() []string {
+		return s.getInstalledUserServices()
+	}
+	s.runningServices = func() []string {
+		return s.getInstalledServices()
+	}
+}
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -390,6 +418,15 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
+			// In FIPS builds the installer does not start correctly
+			// when remote configuration is disabled and Start-Service fails.
+			// TODO: remove this when installer runs fully in FIPS mode.
+			if s.Env().Agent.FIPSEnabled && service == "Datadog Installer" {
+				err := windowsCommon.StartService(s.Env().RemoteHost, service)
+				s.Require().Error(err, "should fail to start "+service+" in FIPS mode")
+				continue
+			}
+
 			// try and start it and verify that it does correctly outputs to event log
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
 			s.Require().NoError(err, "should start "+service)
