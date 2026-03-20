@@ -755,6 +755,20 @@ func (tb *TestBench) GetComponents() []ComponentInfo {
 	return components
 }
 
+// extractorNamespaces returns storage namespace names used by pipeline extractors
+// (log-derived virtual metrics). Used by the testbench API to tag series.
+func (tb *TestBench) extractorNamespaces() map[string]struct{} {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	out := make(map[string]struct{})
+	for _, entry := range tb.catalog.Entries() {
+		if entry.kind == componentExtractor {
+			out[entry.name] = struct{}{}
+		}
+	}
+	return out
+}
+
 // getStorage returns the storage (for API handlers).
 func (tb *TestBench) getStorage() *timeSeriesStorage {
 	tb.mu.RLock()
