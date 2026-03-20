@@ -3,19 +3,17 @@
 import json
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from tasks.libs.testing.result_json import ResultJson
 from tasks.libs.testing.utof import UTOFMetadata, format_report
-from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.go_parser.failure_parser import (
     _extract_message_from_raw_output,
     _extract_stacktrace_from_raw_output,
     _parse_assertion_blocks,
 )
 from tasks.libs.testing.utof.go_unit import convert_unit_test_results
-from tasks.libs.testing.utof import UTOFMetadata, format_report
 from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import (
     UTOFAttempt,
@@ -51,8 +49,9 @@ def _make_pass_doc() -> UTOFDocument:
         tests=[
             UTOFTestResult(id="a1", name="TestFoo", full_name="TestFoo", package="pkg/foo", type="unit", status="pass"),
             UTOFTestResult(id="b2", name="TestBar", full_name="TestBar", package="pkg/foo", type="unit", status="pass"),
-        ]
+        ],
     )
+
 
 def _make_fail_doc() -> UTOFDocument:
     """Build a minimal failing UTOFDocument without a converter."""
@@ -363,6 +362,8 @@ class TestConvertToJson(unittest.TestCase):
             for attempt in test["attempts"]:
                 self.assertIn("attempt", attempt)
                 self.assertIn("status", attempt)
+
+
 # ---------------------------------------------------------------------------
 # Model serialization tests
 # ---------------------------------------------------------------------------
@@ -451,6 +452,7 @@ class TestConvertTestId(unittest.TestCase):
         doc = convert_unit_test_results(_mock_ctx(), result)
         ids = [t.id for t in doc.tests]
         self.assertEqual(len(ids), len(set(ids)), "Test IDs should be unique")
+
     def test_write_json(self):
         doc = _make_pass_doc()
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
@@ -512,6 +514,7 @@ class TestConvertTestId(unittest.TestCase):
 # Metadata tests
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateMetadata(unittest.TestCase):
     """Test metadata generation from environment context."""
 
@@ -550,6 +553,7 @@ class TestGenerateMetadata(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Report formatter tests
 # ---------------------------------------------------------------------------
+
 
 class TestFormatReport(unittest.TestCase):
     """Test the human-readable report formatter."""

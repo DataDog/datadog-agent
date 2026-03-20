@@ -22,8 +22,9 @@ from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata, UTOFTestResult
 
 if TYPE_CHECKING:
-    from tasks.testwasher import TestWasher
     from invoke import Context
+
+    from tasks.testwasher import TestWasher
 
 _TEST_TYPE = "unit"
 
