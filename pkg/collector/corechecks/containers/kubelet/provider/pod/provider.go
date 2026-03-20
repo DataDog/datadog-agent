@@ -71,15 +71,18 @@ func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Compon
 }
 
 // Provide provides the metrics related to Kubelet pods using workloadmeta
-func (p *Provider) Provide(_ kubelet.KubeUtilInterface, sender sender.Sender) error {
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	if kubeletMetrics, err := p.store.GetKubeletMetrics(); err == nil && kubeletMetrics != nil {
 		sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(kubeletMetrics.ExpiredPodCount), "", p.config.Tags)
 	}
 
+	// Scrape readiness probe failure counts for time_to_ready heuristics.
+	readinessFailures := scrapeReadinessFailures(kc, time.Duration(p.config.Timeout)*time.Second)
+
 	runningAggregator := newRunningAggregator()
 
 	for _, pod := range p.store.ListKubernetesPods() {
-		p.processWorkloadmetaPod(pod, sender, runningAggregator)
+		p.processWorkloadmetaPod(pod, sender, runningAggregator, readinessFailures)
 	}
 
 	runningAggregator.generateRunningAggregatorMetrics(sender)
@@ -87,7 +90,7 @@ func (p *Provider) Provide(_ kubelet.KubeUtilInterface, sender sender.Sender) er
 	return nil
 }
 
-func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sender sender.Sender, runningAggregator *runningAggregator) {
+func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sender sender.Sender, runningAggregator *runningAggregator, readinessFailures readinessProbeTooManyFailuresMap) {
 	p.podUtils.PopulateForPod(pod)
 
 	allContainerStatuses := make([]workloadmeta.KubernetesContainerStatus, 0,
@@ -141,6 +144,7 @@ func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sende
 
 	p.generatePodTerminationMetric(sender, pod)
 	p.generatePodResizeMetric(sender, pod)
+	p.generatePodStartupMetrics(sender, pod, readinessFailures)
 
 	runningAggregator.recordPod(p, pod)
 }
