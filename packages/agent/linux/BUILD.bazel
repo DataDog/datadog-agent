@@ -44,7 +44,7 @@ pkg_filegroup(
 )
 
 _agent_components = [
-    "@openscap//:oscap",
+    "@openscap//:openscap_pkg",
     "@unixodbc//:odbc_pkg",
     "@unixodbc//:odbccr_pkg",
     "@unixodbc//:odbcinst_pkg",
