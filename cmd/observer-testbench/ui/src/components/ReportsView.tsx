@@ -26,6 +26,11 @@ function reportColor(pattern: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
+/** Stable id for a report row — survives reordering when filters or /api/reports data changes. */
+function reportStableKey(r: ReportEvent): string {
+  return `${r.pattern}\u0001${r.firstSeen}`;
+}
+
 /** Interactive timeline: spans + markers per report, brush zoom + pan (same gestures as log view). */
 function ReportsTimelineChart({
   reports,
@@ -492,11 +497,11 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
 
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [hoveredReportIndex, setHoveredReportIndex] = useState<number | null>(null);
-  /** Row selected from timeline click (highlight + scroll); separate from accordion expand. */
-  const [timelineFocusedIndex, setTimelineFocusedIndex] = useState<number | null>(null);
+  /** Row selected from timeline click (highlight + scroll); keyed by reportStableKey, not list index. */
+  const [timelineFocusedKey, setTimelineFocusedKey] = useState<string | null>(null);
   /** Which list rows show full message body (collapsed by default). */
-  const [expandedRowIndices, setExpandedRowIndices] = useState<Set<number>>(() => new Set());
-  const reportRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Set<string>>(() => new Set());
+  const reportRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const initializedScenarioRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -504,14 +509,25 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
       initializedScenarioRef.current = state.activeScenario;
       setTagFilterInput('');
       setHoveredReportIndex(null);
-      setTimelineFocusedIndex(null);
-      setExpandedRowIndices(new Set());
+      setTimelineFocusedKey(null);
+      setExpandedRowKeys(new Set());
     }
   }, [state.activeScenario]);
 
+  // Drop focus/expansion for reports that no longer exist (e.g. correlator rerun), not when only order/filter changes.
   useEffect(() => {
-    setExpandedRowIndices(new Set());
-  }, [tagFilterInput]);
+    const validKeys = new Set(allReports.map(reportStableKey));
+    setExpandedRowKeys((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const k of prev) {
+        if (validKeys.has(k)) next.add(k);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    setTimelineFocusedKey((prev) => (prev && validKeys.has(prev) ? prev : null));
+  }, [allReports]);
 
   const tagGroups = useMemo(() => {
     const all = extractTagGroups(allReports.map((r) => r.tags ?? []));
@@ -529,6 +545,13 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
     [filteredReports]
   );
 
+  /** Index into sortedReports for chart/list highlight; null if focus key is not in the current filtered list. */
+  const timelineFocusedIndex = useMemo(() => {
+    if (timelineFocusedKey == null) return null;
+    const i = sortedReports.findIndex((r) => reportStableKey(r) === timelineFocusedKey);
+    return i >= 0 ? i : null;
+  }, [sortedReports, timelineFocusedKey]);
+
   const visibleReports = useMemo(() => {
     if (!timeRange) return sortedReports;
     return sortedReports.filter(
@@ -541,11 +564,11 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
 
   const activeReportIndex = hoveredReportIndex !== null ? hoveredReportIndex : timelineFocusedIndex;
 
-  const toggleRowExpanded = (idx: number) => {
-    setExpandedRowIndices((prev) => {
+  const toggleRowExpanded = (key: string) => {
+    setExpandedRowKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -648,9 +671,10 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                 activeReportIndex={activeReportIndex}
                 onReportHover={setHoveredReportIndex}
                 onReportClick={(idx) => {
-                  setTimelineFocusedIndex(idx);
+                  const key = reportStableKey(sortedReports[idx]);
+                  setTimelineFocusedKey(key);
                   setTimeout(() => {
-                    reportRowRefs.current.get(idx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    reportRowRefs.current.get(key)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                   }, 50);
                 }}
               />
@@ -671,15 +695,16 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-700/80">
                   {sortedReports.map((rep, idx) => {
+                    const rowKey = reportStableKey(rep);
                     const inView = !timeRange || (rep.lastUpdated >= timeRange.start && rep.firstSeen <= timeRange.end);
                     const isHi = activeReportIndex === idx;
-                    const isExpanded = expandedRowIndices.has(idx);
+                    const isExpanded = expandedRowKeys.has(rowKey);
                     return (
                       <div
-                        key={`${rep.pattern}-${rep.firstSeen}-${idx}`}
+                        key={rowKey}
                         ref={(el) => {
-                          if (el) reportRowRefs.current.set(idx, el);
-                          else reportRowRefs.current.delete(idx);
+                          if (el) reportRowRefs.current.set(rowKey, el);
+                          else reportRowRefs.current.delete(rowKey);
                         }}
                         className={`transition-colors ${
                           isHi ? 'bg-purple-900/35 ring-1 ring-inset ring-purple-500/40' : 'hover:bg-slate-700/40'
@@ -689,7 +714,7 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                       >
                         <button
                           type="button"
-                          onClick={() => toggleRowExpanded(idx)}
+                          onClick={() => toggleRowExpanded(rowKey)}
                           className="w-full text-left px-4 py-2.5 flex items-start gap-2"
                           aria-expanded={isExpanded}
                         >
