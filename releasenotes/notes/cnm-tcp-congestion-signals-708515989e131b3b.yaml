@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    CNM - Add 7 per-connection TCP congestion signals: rto_count (RTO
+    loss events), recovery_count (fast recovery events), reord_seen
+    (send-side reordering), rcv_ooopack (receive-side out-of-order
+    packets), delivered_ce (ECN CE-marked segments), ecn_negotiated
+    (ECN negotiation status), and probe0_count (zero-window probes).
+    Collected via eBPF on CO-RE and runtime-compiled tracers, Linux only.

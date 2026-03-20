@@ -85,6 +85,17 @@ typedef enum {
     CONN_ASSURED = 1 << 2 // "3-way handshake" complete, i.e. response to initial reply sent
 } conn_flags_t;
 
+// Per-connection TCP event counters. Keyed by zero-PID conn_tuple_t (like tcp_retransmits)
+// because tcp_enter_loss, tcp_enter_recovery, and tcp_send_probe0 all fire from kernel
+// timer/softirq context without a reliable userspace PID.
+// Stored in a separate BPF map for active-connection polling; also embedded
+// in tcp_stats_t so closed connections carry the final values.
+typedef struct {
+    __u32 rto_count;
+    __u32 recovery_count;
+    __u32 probe0_count;
+} tcp_event_stats_t;
+
 typedef struct {
     __u32 rtt;
     __u32 rtt_var;
@@ -93,6 +104,22 @@ typedef struct {
     // Bit mask containing all TCP state transitions tracked by our tracer
     __u16 state_transitions;
     __u16 failure_reason;
+
+    // Discrete TCP event counters (RTO, fast recovery, zero-window probes)
+    tcp_event_stats_t tcp_event_stats;
+
+    // TCP congestion stats (from tcp_sock reads in sendmsg/recvmsg, CO-RE/runtime only)
+    __u32 reord_seen;
+    __u32 rcv_ooopack;
+    __u32 delivered_ce;
+    __u8 ecn_negotiated;
+    __u8 _pad[3]; // explicit padding to maintain 4-byte alignment
+
+    // Explicit padding to make tcp_stats_t a multiple of 8 bytes (48 total).
+    // Without this, conn_stats_ts_t (which starts with uint64 sent_bytes)
+    // would be at offset 92 in conn_t — not 8-byte aligned — causing
+    // different struct layouts on x86_64 vs ARM64.
+    __u32 _pad2;
 } tcp_stats_t;
 
 // Full data for a tcp connection
@@ -108,18 +135,25 @@ typedef struct {
 #define CONN_CLOSED_BATCH_SIZE 4
 #endif
 
-// This struct is meant to be used as a container for batching
-// writes to the perf buffer. Ideally we should have an array of tcp_conn_t objects
-// but apparently eBPF verifier doesn't allow arbitrary index access during runtime.
+// Container for batching closed connection writes to perf/ring buffer.
+// Metadata is at the front so the perf buffer path (older kernels) can send a
+// prefix of metadata + 3 connections without including the unused 4th slot.
+// The eBPF verifier doesn't allow arbitrary index access, hence the named fields.
 typedef struct {
+    __u64 id;
+    __u32 cpu;
+    __u16 len;
+    __u16 _pad;
     conn_t c0;
     conn_t c1;
     conn_t c2;
     conn_t c3;
-    __u64 id;
-    __u32 cpu;
-    __u16 len;
 } batch_t;
+
+// Size of batch metadata prefix plus 3 connections. Used for stack-copy on
+// the perf buffer path where the full batch (4 conns) exceeds 512 bytes.
+// Must equal offsetof(batch_t, c3): header (16) + 3 * sizeof(conn_t).
+#define PERF_BATCH_COPY_SIZE (16 + 3 * sizeof(conn_t))
 
 // Telemetry names
 typedef struct {
