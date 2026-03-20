@@ -34,7 +34,7 @@ def _cgo_godefs_impl(ctx):
     out = ctx.actions.declare_file(out_name)
     outputs = [out]
 
-    all_deps = list(ctx.attr._std_deps) + list(ctx.attr.deps)
+    all_deps = list(ctx.attr.deps)
     inc = collect_include_dirs(all_deps)
     headers = collect_headers(all_deps + list(ctx.attr.hdrs))
     src_dir = src.dirname
@@ -124,19 +124,9 @@ _cgo_godefs = rule(
             allow_single_file = [".go"],
             doc = """The Go source file containing C type references (import "C").""",
         ),
-        "_std_deps": attr.label_list(
-            default = select({
-                "@platforms//os:linux": [
-                    "//pkg/network/ebpf/c:ebpf_c_network",
-                    "//pkg/ebpf/c:ebpf_c_headers",
-                ],
-                "//conditions:default": [],
-            }),
-            providers = [CcInfo],
-        ),
         "deps": attr.label_list(
             providers = [CcInfo],
-            doc = "Additional cc_library targets providing C headers and -I include paths beyond the standard ebpf ones.",
+            doc = "cc_library targets providing C headers and -I include paths needed by the cgo source.",
         ),
         "hdrs": attr.label_list(
             providers = [CcInfo],
@@ -154,12 +144,19 @@ _cgo_godefs = rule(
     toolchains = ["@rules_go//go:toolchain"],
 )
 
+_STD_LINUX_DEPS = [
+    "//pkg/network/ebpf/c:ebpf_c_network",
+    "//pkg/ebpf/c:ebpf_c_headers",
+]
+
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
+    all_deps = (_STD_LINUX_DEPS if platform == "linux" else []) + deps
+
     gen = name + "_gen"
     _cgo_godefs(
         name = gen,
         src = src,
-        deps = deps,
+        deps = all_deps,
         hdrs = hdrs,
         target_compatible_with = select({
             "@platforms//os:linux": [],
@@ -206,8 +203,9 @@ cgo_godefs = macro(
     Runs `go tool cgo -godefs` on the source file, post-processes with genpost,
     and on Linux also generates alignment test stubs.
 
-    The standard include deps (pkg/network/ebpf/c and pkg/ebpf/c) are
-    provided automatically. Use deps/hdrs only for additional headers.
+    On Linux, standard eBPF include deps (pkg/network/ebpf/c and
+    pkg/ebpf/c) are prepended automatically. Use deps/hdrs for
+    additional headers or all headers on Windows.
 
     The main target (`name`) verifies the generated output matches the
     committed file. Use `bazel test` to verify, `bazel run` to update.
