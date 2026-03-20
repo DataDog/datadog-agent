@@ -1045,22 +1045,22 @@ new-e2e-ssi-gke:
     # Image volume is not supported on GKE in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
-new-e2e-ssi-openshift-init:
-  extends: .new-e2e_ssi_extra_distribution_init
-  before_script:
-    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
-    - !reference [.new_e2e_template, before_script]
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
-  variables:
-    E2E_PROVISIONER: openshift
-    E2E_STACK_NAME_SUFFIX: openshift
-    EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+# new-e2e-ssi-openshift-init:
+#   extends: .new-e2e_ssi_extra_distribution_init
+#   before_script:
+#     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+#     - !reference [.new_e2e_template, before_script]
+#     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+#   variables:
+#     E2E_PROVISIONER: openshift
+#     E2E_STACK_NAME_SUFFIX: openshift
+#     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
 
 new-e2e-ssi-openshift:
   extends: .new-e2e_ssi_extra_distribution
   needs:
     - !reference [.new-e2e_ssi_extra_distribution, needs]
-    - new-e2e-ssi-openshift-init
+    # - new-e2e-ssi-openshift-init
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
     - !reference [.new_e2e_template, before_script]
@@ -1068,7 +1068,7 @@ new-e2e-ssi-openshift:
   variables:
     E2E_PROVISIONER: openshift
     E2E_STACK_NAME_SUFFIX: openshift
-    E2E_PRE_INITIALIZED: "true"
+    # E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
 
 .new-e2e_package_signing:
