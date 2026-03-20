@@ -429,6 +429,68 @@ func (_c *SecurityModuleCmdClientWrapper_GetConfig_Call) RunAndReturn(run func()
 	return _c
 }
 
+// GetLoadedPolicies provides a mock function for the type SecurityModuleCmdClientWrapper
+func (_mock *SecurityModuleCmdClientWrapper) GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error) {
+	ret := _mock.Called(includeBundled)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLoadedPolicies")
+	}
+
+	var r0 *api.GetLoadedPoliciesMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(bool) (*api.GetLoadedPoliciesMessage, error)); ok {
+		return returnFunc(includeBundled)
+	}
+	if returnFunc, ok := ret.Get(0).(func(bool) *api.GetLoadedPoliciesMessage); ok {
+		r0 = returnFunc(includeBundled)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.GetLoadedPoliciesMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(bool) error); ok {
+		r1 = returnFunc(includeBundled)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLoadedPolicies'
+type SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call struct {
+	*mock.Call
+}
+
+// GetLoadedPolicies is a helper method to define mock.On call
+//   - includeBundled bool
+func (_e *SecurityModuleCmdClientWrapper_Expecter) GetLoadedPolicies(includeBundled interface{}) *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call {
+	return &SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call{Call: _e.mock.On("GetLoadedPolicies", includeBundled)}
+}
+
+func (_c *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call) Run(run func(includeBundled bool)) *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 bool
+		if args[0] != nil {
+			arg0 = args[0].(bool)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call) Return(getLoadedPoliciesMessage *api.GetLoadedPoliciesMessage, err error) *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call {
+	_c.Call.Return(getLoadedPoliciesMessage, err)
+	return _c
+}
+
+func (_c *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call) RunAndReturn(run func(includeBundled bool) (*api.GetLoadedPoliciesMessage, error)) *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetRuleSetReport provides a mock function for the type SecurityModuleCmdClientWrapper
 func (_mock *SecurityModuleCmdClientWrapper) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
 	ret := _mock.Called()
