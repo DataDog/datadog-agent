@@ -387,9 +387,11 @@ func (s *procmgrLinuxSuite) getRestartCount(name string) int {
 }
 
 func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expectedBinary string) {
-	exePath := strings.TrimSpace(
-		s.Env().RemoteHost.MustExecute("sudo readlink -f /proc/" + pid + "/exe"))
-	assert.Equal(t, expectedBinary, exePath,
+	out, err := s.Env().RemoteHost.Execute("sudo readlink -f /proc/" + pid + "/exe")
+	if !assert.NoError(t, err, "readlink /proc/%s/exe failed (process may have exited)", pid) {
+		return
+	}
+	assert.Equal(t, expectedBinary, strings.TrimSpace(out),
 		"process %s should be running %s", pid, expectedBinary)
 }
 
