@@ -208,16 +208,16 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 	return nil
 }
 
-func anomalySourceFromSeriesName(name string) observer.AnomalySource {
+func anomalySourceFromSeriesName(name string) observer.SeriesDescriptor {
 	if idx := strings.LastIndex(name, ":"); idx != -1 {
 		if agg, ok := parseAggregateSuffix(name[idx+1:]); ok {
-			return observer.AnomalySource{
+			return observer.SeriesDescriptor{
 				Name:      name[:idx],
 				Aggregate: agg,
 			}
 		}
 	}
-	return observer.AnomalySource{Name: name}
+	return observer.SeriesDescriptor{Name: name}
 }
 
 func parseAggregateSuffix(s string) (observer.Aggregate, bool) {

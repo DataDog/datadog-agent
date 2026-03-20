@@ -12,7 +12,6 @@ package observer
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -269,9 +268,6 @@ type LogMetricsExtractorOutput struct {
 	Telemetry []ObserverTelemetry
 }
 
-// MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").
-// Multiple series can share a MetricName if they differ by tags.
-type MetricName string
 
 // SeriesDescriptor is the fully resolved identity of a time series.
 // It carries namespace, metric name, tags, and aggregation — everything
@@ -323,43 +319,10 @@ func (sd SeriesDescriptor) Key() string {
 	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
 }
 
-// AnomalySource is an alias for SeriesDescriptor for backward compatibility.
-// Deprecated: use SeriesDescriptor directly.
-type AnomalySource = SeriesDescriptor
-
 // SeriesRef is a compact numeric handle for a stored time series.
 // Storage assigns a SeriesRef when a series key is first created;
 // the ref remains stable for the lifetime of the storage instance.
-// Use NoSeriesRef as a sentinel for "no series".
 type SeriesRef int
-
-// NoSeriesRef is the sentinel value meaning "no series".
-const NoSeriesRef SeriesRef = -1
-
-// QueryHandle pairs a SeriesRef with an Aggregate, uniquely identifying
-// a view over a stored series (e.g. series 42 read as avg).
-// This type lives at the detector→engine boundary; it does NOT cross
-// into correlators, API serialization, or ActiveCorrelation.
-type QueryHandle struct {
-	Ref       SeriesRef
-	Aggregate Aggregate
-}
-
-// NoQueryHandle is the zero-value sentinel for "no query handle".
-var NoQueryHandle = QueryHandle{Ref: NoSeriesRef}
-
-// IsValid returns true if the QueryHandle refers to a real series.
-func (qh QueryHandle) IsValid() bool {
-	return qh.Ref != NoSeriesRef
-}
-
-// String returns "ref:agg" (e.g. "42:avg"). Returns "" for invalid handles.
-func (qh QueryHandle) String() string {
-	if qh.Ref == NoSeriesRef {
-		return ""
-	}
-	return strconv.Itoa(int(qh.Ref)) + ":" + AggregateString(qh.Aggregate)
-}
 
 // AnomalyType distinguishes the source type of an anomaly.
 type AnomalyType string

@@ -657,10 +657,10 @@ func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	return s.seriesGen
 }
 
-// CompactSeriesID translates a full series key (as used in SourceSeriesID) to its
-// compact numeric ID string. The full key format is "namespace|name:agg|tags" where
-// the storage key is "namespace|name|tags" (without the agg suffix). This method
-// strips the agg suffix, looks up the numeric ID, and returns "numericID:agg".
+// CompactSeriesID translates a full series key to its compact numeric ID string.
+// The full key format is "namespace|name:agg|tags" where the storage key is
+// "namespace|name|tags" (without the agg suffix). This method strips the agg
+// suffix, looks up the numeric ID, and returns "numericID:agg".
 // Returns the original key unchanged if no mapping exists.
 func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	s.mu.RLock()
@@ -690,25 +690,6 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 		return fmt.Sprintf("%d:%s", numID, aggStr)
 	}
 	return strconv.Itoa(int(numID))
-}
-
-// LookupRef returns the SeriesRef for the given internal storage key, if it exists.
-func (s *timeSeriesStorage) LookupRef(key string) (observer.SeriesRef, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	ref, ok := s.seriesIDs[key]
-	return ref, ok
-}
-
-// FullKeyForNumericID returns the internal storage key for a compact numeric ID.
-func (s *timeSeriesStorage) FullKeyForNumericID(ref observer.SeriesRef) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if ref < 0 || int(ref) >= len(s.seriesIDKeys) {
-		return "", false
-	}
-	return s.seriesIDKeys[ref], true
 }
 
 // StorageReader interface implementation

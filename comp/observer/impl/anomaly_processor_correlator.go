@@ -33,7 +33,7 @@ type timestampedAnomaly struct {
 // correlationPattern defines a known pattern of correlated signals.
 type correlationPattern struct {
 	name            string
-	requiredSources []observer.MetricName
+	requiredSources []string
 	reportTitle     string
 }
 
@@ -44,19 +44,19 @@ var knownPatterns = []correlationPattern{
 	{
 		// Most specific: all 3 signals indicate kernel-level issue
 		name:            "kernel_bottleneck",
-		requiredSources: []observer.MetricName{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		requiredSources: []string{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Kernel network bottleneck",
 	},
 	{
 		// Less specific: network issues without clear kernel involvement
 		name:            "network_degradation",
-		requiredSources: []observer.MetricName{"network.retransmits:avg", "connection.errors:count"},
+		requiredSources: []string{"network.retransmits:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Network degradation",
 	},
 	{
 		// Lock contention causing downstream failures
 		name:            "lock_contention_cascade",
-		requiredSources: []observer.MetricName{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		requiredSources: []string{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Lock contention cascade",
 	},
 }
@@ -138,9 +138,9 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 	c.evictOldEntries()
 
 	// Extract unique signal sources from anomalies (display names for pattern matching)
-	sourceSet := make(map[observer.MetricName]struct{})
+	sourceSet := make(map[string]struct{})
 	for _, entry := range c.buffer {
-		sourceSet[observer.MetricName(entry.anomaly.Source.String())] = struct{}{}
+		sourceSet[entry.anomaly.Source.String()] = struct{}{}
 	}
 
 	// Track which patterns are currently active
@@ -189,7 +189,7 @@ func (c *CrossSignalCorrelator) Reset() {
 }
 
 // patternMatches checks if all required sources for a pattern are present.
-func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sources map[observer.MetricName]struct{}) bool {
+func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sources map[string]struct{}) bool {
 	for _, required := range pattern.requiredSources {
 		if _, ok := sources[required]; !ok {
 			return false
@@ -202,10 +202,10 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 // deduped by source - keeping only the most recent anomaly per source.
 func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPattern) []observer.Anomaly {
 	// Map from source to most recent anomaly for that source
-	bySource := make(map[observer.MetricName]observer.Anomaly)
+	bySource := make(map[string]observer.Anomaly)
 
 	for _, entry := range c.buffer {
-		display := observer.MetricName(entry.anomaly.Source.String())
+		display := entry.anomaly.Source.String()
 		for _, src := range pattern.requiredSources {
 			if display == src {
 				existing, exists := bySource[src]
