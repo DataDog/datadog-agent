@@ -613,9 +613,8 @@ func (e ECSContainer) String(verbose bool) string {
 
 // ContainerProbe represents a health check probe for a Container
 type ContainerProbe struct {
-	// This is only used by KSM, so it only includes the fields used by KSM. We
-	// can add the rest later as needed.
 	InitialDelaySeconds int32
+	FailureThreshold    int32
 }
 
 // Container is an Entity representing a containerized workload.
