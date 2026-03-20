@@ -162,12 +162,27 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetricTags() {
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics with tags")
 }
 
-// TestTracesHaveContainerTag is skipped in the VM suite. The agent runs on the host (not in a container),
-// so IsContainerized is false and the trace agent uses the noop container ID provider—it does not resolve
-// container IDs from headers or add container tags to traces. Container-tag behavior is tested in
-// DockerFakeintakeSuite.TestTracesHaveContainerTag where the agent runs containerized.
 func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
-	s.T().Skip("VM suite runs agent on host; container tags are only added when agent is containerized (see DockerFakeintakeSuite.TestTracesHaveContainerTag)")
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 func (s *VMFakeintakeSuite) TestStatsForService() {
 	// Test both normal stats computes by agent, and client stats from tracer
