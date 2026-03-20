@@ -180,11 +180,11 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
-    - tar czf test-binaries.tar.gz test-binaries
+    - tar -cf test-binaries.tar.zst -I "zstd -T0" test-binaries
   artifacts:
     expire_in: 1 week
     paths:
-      - test-binaries.tar.gz
+      - test-binaries.tar.zst
       - manifest.json
   rules:
     - !reference [.except_mergequeue]
@@ -306,6 +306,7 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
+# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift-init:
   stage: e2e_init
   extends: .new_e2e_template
@@ -313,6 +314,7 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - go_tools_deps
   rules:
+    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -335,9 +337,11 @@ new-e2e-containers-openshift-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+# TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
+    - when: never # Skip: openshift test is broken
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -998,6 +1002,10 @@ new-e2e-ssi-kind:
   variables:
     E2E_PROVISIONER: kind
     E2E_STACK_NAME_SUFFIX: kind
+    # TestInjectionMode includes the image_volume injection mode, which requires image volume
+    # SubPath support. Kind's kindest/node:v1.34 ships with a containerd version that lacks this,
+    # so we run this suite on v1.35 where it works out of the box.
+    EXTRA_PARAMS: "-c ddinfra:kubernetesVersion=1.35"
 
 new-e2e-ssi-eks-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -1014,6 +1022,8 @@ new-e2e-ssi-eks:
     E2E_PROVISIONER: eks
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on EKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 new-e2e-ssi-gke-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -1030,6 +1040,8 @@ new-e2e-ssi-gke:
     E2E_PROVISIONER: gke
     E2E_STACK_NAME_SUFFIX: gke
     E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 .new-e2e_package_signing:
   variables:

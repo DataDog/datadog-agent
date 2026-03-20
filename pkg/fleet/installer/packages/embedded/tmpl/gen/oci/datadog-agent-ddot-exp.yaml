@@ -17,6 +17,7 @@ start_limit_burst: 5
 environment_file: -/etc/datadog-agent-exp/environment
 env:
   DD_FLEET_POLICIES_DIR: /etc/datadog-agent-exp/managed/datadog-agent/stable
+  DD_OTELCOLLECTOR_INSTALLATION_METHOD: bare-metal
   DD_INVENTORIES_FIRST_RUN_DELAY: "5"
 stdout: inherit
 stderr: inherit

@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -240,6 +241,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
 		}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 		testutil.WithMIGDisabled(),
 	)
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -328,6 +330,12 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 			}
 			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions()), nvml.SUCCESS
 		}
+		d.GpmMigSampleGetFunc = func(_ int, _ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
+		d.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
 	})
 
 	// Setup NVML mock with single parent device
@@ -336,6 +344,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS
 		}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 	)
 	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
 	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
@@ -839,6 +848,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
+	// required to emit gpu.devices.unhealthy metric
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 	archFile, err := gpuspec.LoadArchitecturesSpec()
