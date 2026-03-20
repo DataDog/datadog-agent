@@ -7,6 +7,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
 	"testing"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -15,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -548,4 +553,64 @@ func TestLexerObfuscation(t *testing.T) {
 	}
 	agnt.obfuscateSpan(span)
 	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
+}
+
+func TestObfuscateSpanParameterized(t *testing.T) {
+	type RawTestCase struct {
+		Name     string                 `json:"name"`
+		Input    pb.Span                `json:"input"`
+		Expected pb.Span                `json:"expected"`
+		Config   map[string]interface{} `json:"config"`
+	}
+	f, err := os.Open("./testdata/obfuscation_test_spans.jsonl")
+	assert.NoError(t, err)
+	d := json.NewDecoder(f)
+	for {
+		var raw RawTestCase
+		if err := d.Decode(&raw); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatalf("failed to decode test case: %v", err)
+		}
+		t.Run(fmt.Sprintf("TestObfuscateSpanParameterized name=%s", raw.Name), func(t *testing.T) {
+			assert.NotEmpty(t, raw.Name)
+
+			var ocfg config.ObfuscationConfig
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				Result:  &ocfg,
+				TagName: "mapstructure",
+			})
+			assert.NoError(t, err)
+			assert.NoError(t, decoder.Decode(raw.Config))
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.Features["sqllexer"] = struct{}{}
+			cfg.Obfuscation = &ocfg
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+			span := raw.Input
+			agnt.obfuscateSpan(&span)
+			assertSpanEqual(t, &raw.Expected, &span)
+		})
+	}
+}
+
+func assertSpanEqual(t *testing.T, expected *pb.Span, actual *pb.Span) {
+	assert.Equal(t, expected.Service, actual.Service)
+	assert.Equal(t, expected.Name, actual.Name)
+	assert.Equal(t, expected.Resource, actual.Resource)
+	assert.Equal(t, expected.TraceID, actual.TraceID)
+	assert.Equal(t, expected.SpanID, actual.SpanID)
+	assert.Equal(t, expected.ParentID, actual.ParentID)
+	assert.Equal(t, expected.Start, actual.Start)
+	assert.Equal(t, expected.Duration, actual.Duration)
+	assert.Equal(t, expected.Error, actual.Error)
+	assert.Equal(t, expected.Meta, actual.Meta)
+	assert.Equal(t, expected.Metrics, actual.Metrics)
+	assert.Equal(t, expected.Type, actual.Type)
+	assert.Equal(t, expected.MetaStruct, actual.MetaStruct)
+	assert.Equal(t, expected.SpanLinks, actual.SpanLinks)
+	assert.Equal(t, expected.SpanEvents, actual.SpanEvents)
 }
