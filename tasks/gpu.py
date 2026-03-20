@@ -6,9 +6,6 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.auth import dd_auth_api_app_keys
-from tasks.libs.gpu.render import render_results
-from tasks.libs.gpu.types import ValidationResults
-from tasks.libs.gpu.validation import compute_validation, require_api_keys, resolve_spec_paths
 
 
 @task(
@@ -24,6 +21,11 @@ def validate_metrics(ctx, spec=None, architectures=None, lookback_seconds=3600, 
     """
     Validate live GPU metrics for the selected Datadog org(s).
     """
+    # Import here to avoid bringing in dependencies that are not always installed
+    from tasks.libs.gpu.render import render_results
+    from tasks.libs.gpu.types import ValidationResults
+    from tasks.libs.gpu.validation import compute_validation, require_api_keys, resolve_spec_paths
+
     spec_path, architectures_path = resolve_spec_paths(spec, architectures)
     orgs_by_name = {
         "prod": ("prod", "app.datadoghq.com"),
