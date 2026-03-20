@@ -82,7 +82,13 @@ echo "# Preparing log dir"
 chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
 
 echo "# Installing the app"
-mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
+if [ ! -d "$OPT_APP_DIR" ]; then
+    echo "ERROR: Datadog Agent.app not found at $OPT_APP_DIR (package payload may be incomplete or unexpectedly relocated)"
+    echo "Contents of $INSTALL_DIR:"
+    ls -la "$INSTALL_DIR" || true
+    exit 1
+fi
+mv -v "$OPT_APP_DIR" /Applications
 
 # Set the run directory for the agent
 # This directory is used for agent runtime files including databases and registries

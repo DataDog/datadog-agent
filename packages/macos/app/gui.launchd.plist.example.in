@@ -12,6 +12,9 @@
         <dict>
             <key>DD_INSTALL_PATH</key>
             <string>{install_dir}</string>
+            <!-- Optional: set to true or 1 to show location permission dialog when status is denied (for testing). -->
+            <!-- <key>DD_GUI_SHOW_LOCATION_DIALOG_WHEN_DENIED</key>
+            <string>true</string> -->
         </dict>
         <key>ProgramArguments</key>
         <array>
