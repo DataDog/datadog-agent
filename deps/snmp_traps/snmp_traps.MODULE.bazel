@@ -1,18 +1,15 @@
 # snmp-traps
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
 VERSION = "0.5.0"
 
-http_archive(
+http_file(
     name = "snmp_traps",
-    sha256 = "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5",
+    sha256 = "3ec097d9fd30183b462d647162cce4c389e243620d06ed3e0a9fa8c8d3149fe5",
     urls = [
-        "https://github.com/DataDog/snmp-traps/archive/refs/tags/v{version}.tar.gz".format(
+        "https://github.com/DataDog/ndm-traps-db/releases/download/v{version}/dd_traps_db-{version}.json.gz".format(
             version = VERSION,
         ),
     ],
-    strip_prefix = "snmp-traps-{version}".format(version = VERSION),
-    build_file_content = """exports_files(["generated/dd_traps_db.json"])
-""",
 )
