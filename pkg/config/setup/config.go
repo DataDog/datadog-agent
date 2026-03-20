@@ -376,6 +376,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", false)
 	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", false)
 
+	// Observer extractor toggles (override catalog defaults)
+	config.BindEnvAndSetDefault("observer.extractors.log_metrics_extractor.enabled", false)
+	config.BindEnvAndSetDefault("observer.extractors.connection_error_extractor.enabled", false)
+	config.BindEnvAndSetDefault("observer.extractors.log_pattern_extractor.enabled", false)
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)

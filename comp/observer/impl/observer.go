@@ -190,6 +190,8 @@ func NewComponent(deps Requires) Provides {
 				key = "observer.detectors." + entry.name + ".enabled"
 			case componentCorrelator:
 				key = "observer.correlators." + entry.name + ".enabled"
+			case componentExtractor:
+				key = "observer.extractors." + entry.name + ".enabled"
 			default:
 				continue
 			}
