@@ -86,7 +86,6 @@ pkg_filegroup(
     prefix = "embedded",
 )
 
-
 # This is an intermediate node so that have a place to collect all
 # the dependencies so we can walk the aspect to gather the OSS
 # licenses.  This is close to "everything except for licenses"
