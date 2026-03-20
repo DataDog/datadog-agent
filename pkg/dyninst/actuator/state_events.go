@@ -136,6 +136,15 @@ func (e eventGetMetrics) String() string {
 	return "eventGetMetrics{}"
 }
 
+type eventGetDebugInfo struct {
+	baseEvent
+	debugInfoChan chan<- DebugInfo
+}
+
+func (e eventGetDebugInfo) String() string {
+	return "eventGetDebugInfo{}"
+}
+
 type eventHeartbeatCheck struct {
 	baseEvent
 }

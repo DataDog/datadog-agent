@@ -40,6 +40,7 @@ type Module struct {
 	store        *processStore
 	diagnostics  *diagnosticsManager
 	runtimeStats *runtimeStats
+	config       *Config
 
 	cancel context.CancelFunc
 
@@ -66,6 +67,7 @@ func NewModule(
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
 	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath)
+	m.config = config
 	m.shutdown.realDependencies = realDeps
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -314,6 +316,9 @@ func (m *Module) Register(router *module.Router) error {
 			},
 		),
 	)
+
+	m.registerDebugEndpoints(router)
+
 	return nil
 }
 

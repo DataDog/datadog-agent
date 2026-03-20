@@ -12,7 +12,7 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        # dependency cacerts
+        "//deps/cacerts:all_files",
         "//deps/jmxfetch:all_files",
         # Used for memory profiling with the `status py` agent subcommand
         # dependency 'pympler'

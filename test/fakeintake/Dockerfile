@@ -36,7 +36,7 @@ ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.21.3
+FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.23.3
 
 RUN apk add curl
 

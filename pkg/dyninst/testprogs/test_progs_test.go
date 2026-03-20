@@ -17,6 +17,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 const inSubprocessEnvVar = "DD_DYNINST_TESTPROGS_IN_SUBPROCESS"
@@ -132,4 +134,74 @@ func testInitFromBinariesInSubprocess(t *testing.T) {
 	}
 	_, err = os.Stderr.Write(out)
 	require.NoError(t, err)
+}
+
+// mockProbe implements ir.ProbeDefinition for testing issue tag functions.
+type mockProbe struct {
+	tags []string
+}
+
+func (m *mockProbe) GetID() string                        { return "test" }
+func (m *mockProbe) GetVersion() int                      { return 0 }
+func (m *mockProbe) GetTags() []string                    { return m.tags }
+func (m *mockProbe) GetKind() ir.ProbeKind                { return ir.ProbeKindLog }
+func (m *mockProbe) GetWhere() ir.Where                   { return nil }
+func (m *mockProbe) GetCaptureConfig() ir.CaptureConfig   { return nil }
+func (m *mockProbe) GetThrottleConfig() ir.ThrottleConfig { return nil }
+func (m *mockProbe) GetTemplate() ir.TemplateDefinition   { return nil }
+func (m *mockProbe) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
+	return nil
+}
+
+func TestIsIntegrationConfigSkipped(t *testing.T) {
+	cases := []struct {
+		name     string
+		tags     []string
+		cfg      Config
+		expected bool
+	}{
+		{
+			name:     "no tags",
+			tags:     nil,
+			cfg:      Config{GOARCH: "amd64", GOTOOLCHAIN: "go1.24.3"},
+			expected: false,
+		},
+		{
+			name:     "exact match",
+			tags:     []string{"skip_integration:arch=arm64,toolchain=go1.25.0"},
+			cfg:      Config{GOARCH: "arm64", GOTOOLCHAIN: "go1.25.0"},
+			expected: true,
+		},
+		{
+			name:     "arch does not match",
+			tags:     []string{"skip_integration:arch=arm64,toolchain=go1.25.0"},
+			cfg:      Config{GOARCH: "amd64", GOTOOLCHAIN: "go1.25.0"},
+			expected: false,
+		},
+		{
+			name:     "toolchain does not match",
+			tags:     []string{"skip_integration:arch=arm64,toolchain=go1.25.0"},
+			cfg:      Config{GOARCH: "arm64", GOTOOLCHAIN: "go1.24.3"},
+			expected: false,
+		},
+		{
+			name:     "issue tag is not matched",
+			tags:     []string{"issue:UnsupportedFeature"},
+			cfg:      Config{GOARCH: "amd64", GOTOOLCHAIN: "go1.24.3"},
+			expected: false,
+		},
+		{
+			name:     "multiple skip tags one matches",
+			tags:     []string{"skip_integration:arch=amd64,toolchain=go1.24.3", "skip_integration:arch=arm64,toolchain=go1.24.3"},
+			cfg:      Config{GOARCH: "arm64", GOTOOLCHAIN: "go1.24.3"},
+			expected: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &mockProbe{tags: tc.tags}
+			require.Equal(t, tc.expected, IsIntegrationConfigSkipped(t, p, tc.cfg))
+		})
+	}
 }
