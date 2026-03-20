@@ -8,7 +8,6 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -200,6 +199,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 
 	// New path: use manifest-provided NodePool when available
 	if knp := npi.KarpenterNodePool(); knp != nil {
+		knp = knp.DeepCopy()
 		var err error
 		knp, err = c.updateNodePoolWithNodeClass(ctx, knp)
 		if err != nil {
@@ -266,32 +266,21 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 }
 
 func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
-
 	// New path: patch from manifest-provided NodePool when available
-	if desired := npi.KarpenterNodePool(); desired != nil {
+	if desired := npi.KarpenterNodePool().DeepCopy(); desired != nil {
 		if desired.Labels == nil {
 			desired.Labels = make(map[string]string)
 		}
+		// Preserve DatadogCreatedLabelKey from the live object so the controller
+		// continues to treat this NodePool as fully managed after updates.
+		if _, ok := datadogNp.Labels[model.DatadogCreatedLabelKey]; ok {
+			desired.Labels[model.DatadogCreatedLabelKey] = "true"
+		}
 		desired.Labels[model.DatadogModifiedLabelKey] = "true"
 
-		currentSpecJSON, err := json.Marshal(datadogNp.Spec)
-		if err != nil {
-			return fmt.Errorf("unable to marshal current NodePool spec: %w", err)
-		}
-		desiredSpecJSON, err := json.Marshal(desired.Spec)
-		if err != nil {
-			return fmt.Errorf("unable to marshal desired NodePool spec: %w", err)
-		}
-		currentMetaJSON, err := json.Marshal(map[string]any{"labels": datadogNp.Labels, "annotations": datadogNp.Annotations})
-		if err != nil {
-			return fmt.Errorf("unable to marshal current NodePool metadata: %w", err)
-		}
-		desiredMetaJSON, err := json.Marshal(map[string]any{"labels": desired.Labels, "annotations": desired.Annotations})
-		if err != nil {
-			return fmt.Errorf("unable to marshal desired NodePool metadata: %w", err)
-		}
-
-		if bytes.Equal(currentSpecJSON, desiredSpecJSON) && bytes.Equal(currentMetaJSON, desiredMetaJSON) {
+		if equality.Semantic.DeepEqual(datadogNp.Spec, desired.Spec) &&
+			maps.Equal(datadogNp.Labels, desired.Labels) &&
+			maps.Equal(datadogNp.Annotations, desired.Annotations) {
 			log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
 			return nil
 		}
@@ -366,6 +355,9 @@ func (c *Controller) updateNodePoolWithNodeClass(ctx context.Context, knp *karpe
 		_, err := c.Client.Resource(nodeClassGVR).Get(ctx, nc.Name, metav1.GetOptions{})
 		if err == nil {
 			return knp, nil
+		}
+		if !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("unable to validate NodeClassRef %q: %w", nc.Name, err)
 		}
 		log.Debugf("NodeClass %s not found, falling back to an existing NodeClass", nc.Name)
 	}

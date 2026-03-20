@@ -77,6 +77,7 @@ func NewNodePoolInternal(v ClusterAutoscalingValues) NodePoolInternal {
 
 func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.NodePool {
 	if kv1.Spec == nil {
+		log.Debugf("KarpenterV1NodePool %q has nil spec, skipping manifest path", kv1.Metadata.Name)
 		return nil
 	}
 	labels := make(map[string]string, len(kv1.Metadata.Labels))
