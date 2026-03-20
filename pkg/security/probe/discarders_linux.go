@@ -641,7 +641,7 @@ func setDNSDiscarderMask(manager *manager.Manager, dnsMask uint16) error {
 	return nil
 }
 
-func auidDiscarder(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
+func auidDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
 	value, err := event.GetFieldValue("process.auid")
 	if err != nil {
 		return false, err
