@@ -92,7 +92,7 @@ type Event struct {
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
-	return collector{
+	c := collector{
 		id:                     id,
 		catalog:                catalog,
 		clock:                  clock,
@@ -109,6 +109,16 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		pidHeartbeats:            make(map[int32]time.Time),
 		knownInjectionStatusPids: make(core.PidSet),
 	}
+	if c.isServiceDiscoveryEnabled() {
+		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
+			collectorID,
+			"discovered_services",
+			[]string{},
+			"Number of discovered alive services.",
+			telemetry.DefaultOptions,
+		)
+	}
+	return c
 }
 
 type dependencies struct {
@@ -213,14 +223,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	if c.isServiceDiscoveryEnabled() {
 		serviceCollectionInterval := c.getServiceCollectionInterval()
-		// Initialize service discovery metric
-		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
-			collectorID,
-			"discovered_services",
-			[]string{},
-			"Number of discovered alive services.",
-			telemetry.DefaultOptions,
-		)
 
 		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
