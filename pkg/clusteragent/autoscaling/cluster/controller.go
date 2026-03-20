@@ -13,8 +13,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -166,13 +168,13 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 
 		if datadogNp == nil {
 			// Present in store but not found in cluster; create it
-			if err := c.createNodePool(ctx, npi); err != nil {
+			if err := c.createNodePool(ctx, targetNp, npi); err != nil {
 				log.Errorf("Error creating NodePool: %v", err)
 				return autoscaling.Requeue
 			}
 		} else {
 			// Present in store and found in cluster; update it
-			if err := c.patchNodePool(ctx, datadogNp, npi); err != nil {
+			if err := c.updateNodePool(ctx, targetNp, datadogNp, npi); err != nil {
 				log.Errorf("Error updating NodePool: %v", err)
 				return autoscaling.Requeue
 			}
@@ -193,26 +195,62 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 	return autoscaling.NoRequeue
 }
 
-func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal) error {
+func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
-	knp := npi.KarpenterNodePool()
 
-	// Validate NodeClassRef is valid
-	knp, err := c.updateNodePoolWithNodeClass(ctx, knp)
-	if err != nil {
-		return err
+	// New path: use manifest-provided NodePool when available
+	if knp := npi.KarpenterNodePool(); knp != nil {
+		var err error
+		knp, err = c.updateNodePoolWithNodeClass(ctx, knp)
+		if err != nil {
+			return err
+		}
+		if knp.Labels == nil {
+			knp.Labels = make(map[string]string)
+		}
+		knp.Labels[model.DatadogCreatedLabelKey] = "true"
+		if knp.Annotations == nil {
+			knp.Annotations = make(map[string]string)
+		}
+		knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
+		npUnstr, err := convertNodePoolToUnstructured(knp)
+		if err != nil {
+			return err
+		}
+		_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
+		}
+		c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool %q", npi.Name())
+		return nil
 	}
 
-	if knp.Labels == nil {
-		knp.Labels = make(map[string]string)
-	}
-	knp.Labels[model.DatadogCreatedLabelKey] = "true"
-	if knp.Annotations == nil {
-		knp.Annotations = make(map[string]string)
-	}
-	knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
+	var np *karpenterv1.NodePool
 
-	npUnstr, err := convertNodePoolToUnstructured(knp)
+	// Create replica of original NodePool if Target exists; otherwise use NodePoolInternal to create a NodePool
+	if targetNp != nil {
+		log.Debugf("Building replica of NodePool: %s", npi.TargetName())
+		np = model.BuildReplicaNodePool(targetNp, npi)
+	} else {
+		// Get NodeClass. If there's none or more than one, then we should not create the NodePool
+		ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to list NodeClasses: %w", err)
+		}
+
+		if len(ncList.Items) == 0 {
+			return errors.New("no NodeClasses found, NodePool cannot be created")
+		}
+
+		if len(ncList.Items) > 1 {
+			return fmt.Errorf("too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
+		}
+
+		u := ncList.Items[0]
+		np = model.ConvertToKarpenterNodePool(npi, u.GetName())
+	}
+
+	npUnstr, err := convertNodePoolToUnstructured(np)
 	if err != nil {
 		return err
 	}
@@ -221,67 +259,90 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 	if err != nil {
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
-	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool %q", npi.Name())
+
+	c.eventRecorder.Eventf(np, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool with instances %q", npi.RecommendedInstanceTypes())
+
 	return nil
 }
 
-func (c *Controller) patchNodePool(ctx context.Context, current *karpenterv1.NodePool, npi model.NodePoolInternal) error {
-	desired := npi.KarpenterNodePool()
-	if desired.Labels == nil {
-		desired.Labels = make(map[string]string)
-	}
-	desired.Labels[model.DatadogModifiedLabelKey] = "true"
+func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 
-	currentSpecJSON, err := json.Marshal(current.Spec)
-	if err != nil {
-		return fmt.Errorf("unable to marshal current NodePool spec: %w", err)
-	}
-	desiredSpecJSON, err := json.Marshal(desired.Spec)
-	if err != nil {
-		return fmt.Errorf("unable to marshal desired NodePool spec: %w", err)
-	}
+	// New path: patch from manifest-provided NodePool when available
+	if desired := npi.KarpenterNodePool(); desired != nil {
+		if desired.Labels == nil {
+			desired.Labels = make(map[string]string)
+		}
+		desired.Labels[model.DatadogModifiedLabelKey] = "true"
 
-	currentMetaJSON, err := json.Marshal(map[string]any{"labels": current.Labels, "annotations": current.Annotations})
-	if err != nil {
-		return fmt.Errorf("unable to marshal current NodePool metadata: %w", err)
-	}
-	desiredMetaJSON, err := json.Marshal(map[string]any{"labels": desired.Labels, "annotations": desired.Annotations})
-	if err != nil {
-		return fmt.Errorf("unable to marshal desired NodePool metadata: %w", err)
-	}
+		currentSpecJSON, err := json.Marshal(datadogNp.Spec)
+		if err != nil {
+			return fmt.Errorf("unable to marshal current NodePool spec: %w", err)
+		}
+		desiredSpecJSON, err := json.Marshal(desired.Spec)
+		if err != nil {
+			return fmt.Errorf("unable to marshal desired NodePool spec: %w", err)
+		}
+		currentMetaJSON, err := json.Marshal(map[string]any{"labels": datadogNp.Labels, "annotations": datadogNp.Annotations})
+		if err != nil {
+			return fmt.Errorf("unable to marshal current NodePool metadata: %w", err)
+		}
+		desiredMetaJSON, err := json.Marshal(map[string]any{"labels": desired.Labels, "annotations": desired.Annotations})
+		if err != nil {
+			return fmt.Errorf("unable to marshal desired NodePool metadata: %w", err)
+		}
 
-	if bytes.Equal(currentSpecJSON, desiredSpecJSON) && bytes.Equal(currentMetaJSON, desiredMetaJSON) {
-		log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
+		if bytes.Equal(currentSpecJSON, desiredSpecJSON) && bytes.Equal(currentMetaJSON, desiredMetaJSON) {
+			log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
+			return nil
+		}
+
+		log.Infof("Patching NodePool: %s", npi.Name())
+		patchData := map[string]any{
+			"metadata": map[string]any{
+				"labels":      desired.Labels,
+				"annotations": desired.Annotations,
+			},
+			"spec": desired.Spec,
+		}
+		patchBytes, err := json.Marshal(patchData)
+		if err != nil {
+			c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
+			return fmt.Errorf("error marshaling patch data: %s, err: %v", npi.Name(), err)
+		}
+		_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
+		if err != nil {
+			c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
+			return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
+		}
+		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool %q", npi.Name())
 		return nil
 	}
 
-	log.Infof("Patching NodePool: %s", npi.Name())
-	patchLabels := desired.Labels
-	if patchLabels == nil {
-		patchLabels = map[string]string{}
+	// Apply updates from NodePoolInternal to the NodePool object
+	desiredNp := model.UpdateNodePoolObject(targetNp, datadogNp, npi)
+	// Compare entire Spec
+	if equality.Semantic.DeepEqual(datadogNp.Spec, desiredNp.Spec) && maps.Equal(datadogNp.GetLabels(), desiredNp.GetLabels()) {
+		log.Debugf("NodePool: %s spec and labels have not changed, no action will be applied.", npi.Name())
+		return nil
 	}
-	patchAnnotations := desired.Annotations
-	if patchAnnotations == nil {
-		patchAnnotations = map[string]string{}
-	}
-	patchData := map[string]any{
-		"metadata": map[string]any{
-			"labels":      patchLabels,
-			"annotations": patchAnnotations,
-		},
-		"spec": desired.Spec,
-	}
-	patchBytes, err := json.Marshal(patchData)
+
+	log.Infof("Updating NodePool: %s", npi.Name())
+
+	// Convert to unstructured
+	updatedUnstr, err := convertNodePoolToUnstructured(&desiredNp)
 	if err != nil {
-		c.eventRecorder.Eventf(current, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
-		return fmt.Errorf("error marshaling patch data: %s, err: %v", npi.Name(), err)
+		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to convert NodePool: %v", err)
+		return fmt.Errorf("error converting NodePool to unstructured: %s, err: %v", npi.Name(), err)
 	}
-	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
+
+	// Update the NodePool
+	_, err = c.Client.Resource(nodePoolGVR).Update(ctx, updatedUnstr, metav1.UpdateOptions{})
 	if err != nil {
-		c.eventRecorder.Eventf(current, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
+		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
-	c.eventRecorder.Eventf(current, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool %q", npi.Name())
+
+	c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool with instances %q", npi.RecommendedInstanceTypes())
 	return nil
 }
 
