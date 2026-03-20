@@ -463,7 +463,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
 func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesHandle, aggStr string, originalID string) {
-	agg := AggregateAverage
+	var agg Aggregate
 	switch aggStr {
 	case "avg":
 		agg = AggregateAverage
