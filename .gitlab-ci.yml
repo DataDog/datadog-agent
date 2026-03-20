@@ -39,7 +39,7 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
-  # cmd/ 
+  # cmd/
   - cmd/agent/**/*
   - cmd/process-agent/**/*
   - cmd/security-agent/**/*
@@ -70,6 +70,7 @@
   - tools/windows/**/*
 
   # Build/packaging
+  - MODULE.bazel*
   - omnibus/**/*
   - packages/**/*
   - deps/**/*
