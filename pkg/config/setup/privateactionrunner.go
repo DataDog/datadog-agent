@@ -34,7 +34,7 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
