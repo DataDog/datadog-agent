@@ -47,6 +47,9 @@ var resourceDetectionDefaultConfig = confMap{
 //   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
 //   - remove ddprofiling & hpflare extensions
+//   - At least one health_check extension declared and activated
+//   - At least one k8sattributes processor declared and used in the profiles pipeline, with pod_association configured
+//     with at least one source configured to use resource_attribute from container.id
 type converterWithoutAgent struct{}
 
 func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
@@ -92,6 +95,13 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	if err != nil {
 		return err
 	}
+
+	// TODO: remove forceK8sAttributesInProfilesPipeline once profile SIG is supported in upstream helm chart.
+	newProcessorNames, err = forceK8sAttributesInProfilesPipeline(confStringMap, newProcessorNames)
+	if err != nil {
+		return err
+	}
+
 	newProcessorNames, err = addProfilerMetadataTags(confStringMap, newProcessorNames)
 	if err != nil {
 		return err
@@ -112,8 +122,17 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		return err
 	}
 
+	// Ensures k8sattributes processor has a pod_association source configured to use resource_attribute from container.id
+	if err := ensureK8sAttributesPodAssociation(confStringMap); err != nil {
+		return err
+	}
+
 	// Remove agent-only extensions
 	if err := c.removeAgentOnlyExtensions(confStringMap); err != nil {
+		return err
+	}
+
+	if err := c.ensureHealthCheckExtension(confStringMap); err != nil {
 		return err
 	}
 
@@ -389,4 +408,145 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	}
 
 	return nil
+}
+
+// ensureHealthCheckExtension adds a default health_check extension if none is
+// already configured. It touches both the global extensions section and the
+// service.extensions list so the extension is actually activated.
+func (c *converterWithoutAgent) ensureHealthCheckExtension(conf confMap) error {
+	service, err := Ensure[confMap](conf, "service")
+	if err != nil {
+		return err
+	}
+
+	serviceExtensions, err := Ensure[[]any](service, "extensions")
+	if err != nil {
+		return err
+	}
+
+	for _, extAny := range serviceExtensions {
+		ext, ok := extAny.(string)
+		if !ok {
+			return errors.New("extension names in service should be strings")
+		}
+		if isComponentType(ext, componentTypeHealthCheck) {
+			return nil
+		}
+	}
+
+	extensions, err := Ensure[confMap](conf, "extensions")
+	if err != nil {
+		return err
+	}
+
+	if _, exists := extensions[defaultHealthCheckName]; !exists {
+		extensions[defaultHealthCheckName] = confMap{
+			"endpoint": defaultHealthCheckEndpoint,
+		}
+	}
+
+	service["extensions"] = append(serviceExtensions, defaultHealthCheckName)
+	slog.Warn("Added default health_check extension to user configuration")
+	return nil
+}
+
+// forceK8sAttributesInProfilesPipeline adds a default k8sattributes processor
+// to the profiles pipeline if none is already present there.
+// TODO: remove forceK8sAttributesInProfilesPipeline once profile SIG is supported in upstream helm chart.
+func forceK8sAttributesInProfilesPipeline(conf confMap, processorNames []any) ([]any, error) {
+	for _, nameAny := range processorNames {
+		name, ok := nameAny.(string)
+		if !ok {
+			return nil, fmt.Errorf("processor name must be a string, got %T", nameAny)
+		}
+		if isComponentType(name, componentTypeK8sAttributes) {
+			return processorNames, nil
+		}
+	}
+
+	processors, err := Ensure[confMap](conf, "processors")
+	if err != nil {
+		return nil, err
+	}
+	if _, exists := processors[defaultK8sAttributesName]; !exists {
+		if err := Set(processors, defaultK8sAttributesName, confMap{}); err != nil {
+			return nil, err
+		}
+	}
+
+	slog.Warn("Added default k8sattributes processor to profiles pipeline")
+	return append(processorNames, defaultK8sAttributesName), nil
+}
+
+// ensureK8sAttributesPodAssociation walks every k8sattributes processor in the
+// global processors section and ensures each one has a container.id
+// pod_association source.
+func ensureK8sAttributesPodAssociation(conf confMap) error {
+	processors, ok := Get[confMap](conf, "processors")
+	if !ok {
+		return nil
+	}
+
+	for name := range processors {
+		if !isComponentType(name, componentTypeK8sAttributes) {
+			continue
+		}
+		k8sConfig, err := Ensure[confMap](conf, pathPrefixProcessors+name)
+		if err != nil {
+			return err
+		}
+		if err := ensureContainerIDPodAssociation(k8sConfig); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureContainerIDPodAssociation ensures pod_association contains a source
+// with {from: resource_attribute, name: container.id}. Appends it if missing,
+// leaves the existing list untouched otherwise.
+func ensureContainerIDPodAssociation(k8sConfig confMap) error {
+	podAssoc, err := Ensure[[]any](k8sConfig, "pod_association")
+	if err != nil {
+		return err
+	}
+
+	if hasContainerIDSource(podAssoc) {
+		return nil
+	}
+
+	k8sConfig["pod_association"] = append(podAssoc, confMap{
+		"sources": []any{
+			confMap{
+				"from": "resource_attribute",
+				"name": "container.id",
+			},
+		},
+	})
+	return nil
+}
+
+func hasContainerIDSource(podAssoc []any) bool {
+	for _, assocAny := range podAssoc {
+		assoc, ok := assocAny.(confMap)
+		if !ok {
+			continue
+		}
+		sources, ok := Get[[]any](assoc, "sources")
+		if !ok {
+			continue
+		}
+		for _, srcAny := range sources {
+			src, ok := srcAny.(confMap)
+			if !ok {
+				continue
+			}
+			from, hasFrom := src["from"]
+			name, hasName := src["name"]
+			if hasFrom && hasName && from == "resource_attribute" && name == "container.id" {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -1,0 +1,22 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+processors:
+  k8sattributes:
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: container.id
+      - sources:
+          - from: connection
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: "test-key"
+service:
+  pipelines:
+    profiles:
+      receivers: [hostprofiler]
+      processors: [k8sattributes]
+      exporters: [otlphttp]

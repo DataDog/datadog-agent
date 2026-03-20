@@ -2,7 +2,15 @@ exporters:
     otlphttp:
         headers:
             dd-api-key: test-key
+extensions:
+    health_check:
+        endpoint: ${env:MY_POD_IP:-localhost}:13133
 processors:
+    k8sattributes:
+        pod_association:
+            - sources:
+                - from: resource_attribute
+                  name: container.id
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -23,6 +31,8 @@ receivers:
         symbol_uploader:
             enabled: false
 service:
+    extensions:
+        - health_check
     pipelines:
         metrics:
             processors: []
@@ -31,6 +41,7 @@ service:
                 - otlphttp
             processors:
                 - resourcedetection
+                - k8sattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler

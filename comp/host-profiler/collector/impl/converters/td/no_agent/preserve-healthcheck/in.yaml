@@ -1,0 +1,20 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+processors: {}
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: "test-key"
+extensions:
+  health_check/custom:
+    endpoint: "0.0.0.0:8080"
+service:
+  extensions:
+    - health_check/custom
+  pipelines:
+    profiles:
+      receivers: [hostprofiler]
+      processors: []
+      exporters: [otlphttp]

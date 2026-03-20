@@ -37,6 +37,8 @@ const (
 	componentTypeOtlpHTTP          = "otlphttp"
 	componentTypeDDProfiling       = "ddprofiling"
 	componentTypeHPFlare           = "hpflare"
+	componentTypeHealthCheck       = "health_check"
+	componentTypeK8sAttributes     = "k8sattributes"
 )
 
 // Default component names
@@ -44,6 +46,9 @@ const (
 	defaultInfraAttributesName   = "infraattributes/default"
 	defaultResourceDetectionName = "resourcedetection/default"
 	defaultHostProfilerName      = "hostprofiler"
+	defaultHealthCheckName       = "health_check"
+	defaultHealthCheckEndpoint   = "${env:MY_POD_IP:-localhost}:13133"
+	defaultK8sAttributesName     = "k8sattributes"
 )
 
 // Configuration paths used multiple times across converters

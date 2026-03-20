@@ -248,6 +248,31 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
 			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
 		},
+		{
+			name:     "preserves-user-health-check",
+			provided: "no_agent/preserve-healthcheck/in.yaml",
+			expected: "no_agent/preserve-healthcheck/out.yaml",
+		},
+		{
+			name:     "health-check-global-not-in-service",
+			provided: "no_agent/healthcheck-global-not-service/in.yaml",
+			expected: "no_agent/healthcheck-global-not-service/out.yaml",
+		},
+		{
+			name:     "preserves-user-k8sattributes",
+			provided: "no_agent/preserve-k8sattr/in.yaml",
+			expected: "no_agent/preserve-k8sattr/out.yaml",
+		},
+		{
+			name:     "preserves-user-k8sattributes-custom-name",
+			provided: "no_agent/preserve-k8sattr-custom/in.yaml",
+			expected: "no_agent/preserve-k8sattr-custom/out.yaml",
+		},
+		{
+			name:     "k8sattr-already-has-container-id",
+			provided: "no_agent/k8sattr-has-containerid/in.yaml",
+			expected: "no_agent/k8sattr-has-containerid/out.yaml",
+		},
 	}
 
 	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)

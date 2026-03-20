@@ -1,18 +1,11 @@
 exporters:
     otlphttp:
-        endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
 extensions:
-    custom:
-        config: value
-    health_check:
-        endpoint: ${env:MY_POD_IP:-localhost}:13133
-    other:
-        config: value
+    health_check/custom:
+        endpoint: 0.0.0.0:8080
 processors:
-    batch:
-        timeout: 10s
     k8sattributes:
         pod_association:
             - sources:
@@ -43,9 +36,7 @@ receivers:
             enabled: false
 service:
     extensions:
-        - custom
-        - other
-        - health_check
+        - health_check/custom
     pipelines:
         metrics:
             processors: []
@@ -53,7 +44,6 @@ service:
             exporters:
                 - otlphttp
             processors:
-                - batch
                 - resourcedetection/default
                 - k8sattributes
                 - resource/dd-profiler-internal-metadata

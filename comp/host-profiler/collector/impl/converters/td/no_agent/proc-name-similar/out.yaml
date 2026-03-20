@@ -2,11 +2,19 @@ exporters:
     otlphttp:
         headers:
             dd-api-key: test-key
+extensions:
+    health_check:
+        endpoint: ${env:MY_POD_IP:-localhost}:13133
 processors:
     batch:
         timeout: 10s
     infraattributes_custom:
         other_config: value
+    k8sattributes:
+        pod_association:
+            - sources:
+                - from: resource_attribute
+                  name: container.id
     myinfraat tributes:
         some_config: value
     resource/dd-profiler-internal-metadata:
@@ -33,6 +41,8 @@ receivers:
         symbol_uploader:
             enabled: false
 service:
+    extensions:
+        - health_check
     pipelines:
         metrics:
             processors: []
@@ -44,6 +54,7 @@ service:
                 - infraattributes_custom
                 - batch
                 - resourcedetection/default
+                - k8sattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler

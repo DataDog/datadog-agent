@@ -1,0 +1,19 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+processors:
+  k8sattributes/enrichment:
+    pod_association:
+      - sources:
+          - from: connection
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: "test-key"
+service:
+  pipelines:
+    profiles:
+      receivers: [hostprofiler]
+      processors: [k8sattributes/enrichment]
+      exporters: [otlphttp]
