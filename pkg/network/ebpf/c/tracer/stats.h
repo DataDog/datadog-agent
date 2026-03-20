@@ -328,14 +328,12 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
         bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
         val->reord_seen = tmp;
     }
-    // REPRO: use bpf_core_field_exists + BPF_CORE_READ_INTO instead of
-    // LOAD_CONSTANT. This should fail on kernels where rcv_ooopack doesn't
-    // exist (< 5.4) because the BPF_CORE_READ_INTO generates a CO-RE
-    // relocation that gets poisoned, and older verifiers don't prune the
-    // dead code branch.
-    if (bpf_core_field_exists(struct tcp_sock, rcv_ooopack)) {
-        BPF_CORE_READ_INTO(&val->rcv_ooopack, tcp_sk(sk), rcv_ooopack);
-    }
+    // REPRO: unguarded BPF_CORE_READ_INTO (matching PR #46839 pattern).
+    // This should fail on kernels where rcv_ooopack doesn't exist (< 5.4)
+    // because the CO-RE relocation is poisoned with no dead branch to prune.
+    // The bpf_core_field_exists guard (tested above) was NOT the problem —
+    // it works correctly. The PR #46839 failure was from bare reads.
+    BPF_CORE_READ_INTO(&val->rcv_ooopack, tcp_sk(sk), rcv_ooopack);
     __u64 delivered_ce_offset = 0;
     LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
     if (delivered_ce_offset > 0) {
