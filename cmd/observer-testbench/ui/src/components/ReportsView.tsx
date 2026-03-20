@@ -447,6 +447,15 @@ function ScenarioSelector({
               }`}
             >
               <div className="font-medium">{scenario.name}</div>
+              <div className="text-xs text-slate-400 mt-0.5">
+                {[
+                  scenario.hasParquet && 'parquet',
+                  scenario.hasLogs && 'logs',
+                  scenario.hasEvents && 'events',
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'empty'}
+              </div>
             </button>
           ))
         )}
@@ -455,13 +464,38 @@ function ScenarioSelector({
   );
 }
 
+/** Same compact stat hint as CorrelatorView sidebar. */
+function StatsLabel({ stats }: { stats: Record<string, unknown> }) {
+  const entries = Object.entries(stats).filter(([k, v]) =>
+    typeof v === 'number' && k !== 'enabled' && v > 0
+  );
+  if (entries.length === 0) return null;
+  const preferred = ['clusterCount', 'edgeCount', 'pairCount'];
+  const best = preferred.find((k) => stats[k] && (stats[k] as number) > 0);
+  const [key, value] = best ? [best, stats[best]] : entries[0];
+  const label = key.replace(/Count$/, 's').replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+  return (
+    <span className="text-xs text-slate-500">{value as number} {label}</span>
+  );
+}
+
 export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers }: ReportsViewProps) {
   const scenarios = state.scenarios ?? [];
+  const components = state.components ?? [];
+  const correlatorStats = state.correlatorStats;
   const allReports = state.reports ?? [];
+
+  const correlatorComponents = useMemo(
+    () => components.filter((c) => c.category === 'correlator'),
+    [components]
+  );
 
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [hoveredReportIndex, setHoveredReportIndex] = useState<number | null>(null);
-  const [expandedReportIndex, setExpandedReportIndex] = useState<number | null>(null);
+  /** Row selected from timeline click (highlight + scroll); separate from accordion expand. */
+  const [timelineFocusedIndex, setTimelineFocusedIndex] = useState<number | null>(null);
+  /** Which list rows show full message body (collapsed by default). */
+  const [expandedRowIndices, setExpandedRowIndices] = useState<Set<number>>(() => new Set());
   const reportRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const initializedScenarioRef = useRef<string | null>(null);
 
@@ -470,9 +504,14 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
       initializedScenarioRef.current = state.activeScenario;
       setTagFilterInput('');
       setHoveredReportIndex(null);
-      setExpandedReportIndex(null);
+      setTimelineFocusedIndex(null);
+      setExpandedRowIndices(new Set());
     }
   }, [state.activeScenario]);
+
+  useEffect(() => {
+    setExpandedRowIndices(new Set());
+  }, [tagFilterInput]);
 
   const tagGroups = useMemo(() => {
     const all = extractTagGroups(allReports.map((r) => r.tags ?? []));
@@ -500,12 +539,52 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
 
-  const activeReportIndex = hoveredReportIndex !== null ? hoveredReportIndex : expandedReportIndex;
+  const activeReportIndex = hoveredReportIndex !== null ? hoveredReportIndex : timelineFocusedIndex;
+
+  const toggleRowExpanded = (idx: number) => {
+    setExpandedRowIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
 
   return (
     <div className="flex-1 flex">
       <aside className="bg-slate-800 border-r border-slate-700 overflow-y-auto" style={{ width: sidebarWidth }}>
         <ScenarioSelector scenarios={scenarios} activeScenario={state.activeScenario} onLoadScenario={actions.loadScenario} />
+
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Correlators</h2>
+          <p className="text-[11px] text-slate-500 mb-3 leading-snug">
+            Reports are built from correlation output. Turn on at least one correlator (e.g. time cluster), then wait for the run to finish.
+          </p>
+          <div className="space-y-1">
+            {correlatorComponents.map((comp) => {
+              const stats = correlatorStats?.[comp.name];
+              return (
+                <div key={comp.name} className="flex items-center gap-2 px-2 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => actions.toggleComponent(comp.name)}
+                    className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
+                      comp.enabled ? 'bg-purple-600' : 'bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                        comp.enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                  {stats && <StatsLabel stats={stats} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Tag Filter</h2>
@@ -542,53 +621,59 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
         </div>
       </aside>
 
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 flex flex-col min-h-0 p-6 overflow-hidden">
         {state.error && state.connectionState === 'ready' && (
-          <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
+          <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6 shrink-0">
             <div className="text-red-400">{state.error}</div>
           </div>
         )}
 
         {state.connectionState !== 'ready' && (
-          <EmptyState connectionState={state.connectionState} activeScenario={state.activeScenario} error={state.error} />
+          <div className="overflow-y-auto flex-1 min-h-0">
+            <EmptyState connectionState={state.connectionState} activeScenario={state.activeScenario} error={state.error} />
+          </div>
         )}
 
         {state.connectionState === 'ready' && (
-          <div>
-            <ReportsTimelineChart
-              reports={sortedReports}
-              scenarioStart={scenarioStart}
-              scenarioEnd={scenarioEnd}
-              timeRange={timeRange}
-              onTimeRangeChange={onTimeRangeChange}
-              phaseMarkers={phaseMarkers}
-              hoveredReportIndex={hoveredReportIndex}
-              activeReportIndex={activeReportIndex}
-              onReportHover={setHoveredReportIndex}
-              onReportClick={(idx) => {
-                setExpandedReportIndex(idx);
-                setTimeout(() => {
-                  reportRowRefs.current.get(idx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                }, 50);
-              }}
-            />
+          <div className="flex flex-col flex-1 min-h-0 gap-4">
+            <div className="shrink-0">
+              <ReportsTimelineChart
+                reports={sortedReports}
+                scenarioStart={scenarioStart}
+                scenarioEnd={scenarioEnd}
+                timeRange={timeRange}
+                onTimeRangeChange={onTimeRangeChange}
+                phaseMarkers={phaseMarkers}
+                hoveredReportIndex={hoveredReportIndex}
+                activeReportIndex={activeReportIndex}
+                onReportHover={setHoveredReportIndex}
+                onReportClick={(idx) => {
+                  setTimelineFocusedIndex(idx);
+                  setTimeout(() => {
+                    reportRowRefs.current.get(idx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                  }, 50);
+                }}
+              />
+            </div>
 
             {sortedReports.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-sm">No reports match the current filters.</div>
+              <div className="text-center py-12 text-slate-500 text-sm shrink-0">No reports match the current filters.</div>
             ) : (
-              <div className="bg-slate-800 rounded-lg overflow-hidden">
-                <div className="px-4 py-2 border-b border-slate-700 text-sm font-medium text-slate-300">
+              <div className="flex flex-col flex-1 min-h-0 bg-slate-800 rounded-lg overflow-hidden border border-slate-700/80">
+                <div className="px-4 py-2 border-b border-slate-700 text-sm font-medium text-slate-300 shrink-0">
                   Reports
                   {timeRange && (
                     <span className="ml-2 text-xs text-slate-500 font-normal">
                       ({visibleReports.length} in time span)
                     </span>
                   )}
+                  <span className="ml-2 text-xs text-slate-500 font-normal">· scroll list · click row to expand</span>
                 </div>
-                <div className="divide-y divide-slate-700/80">
+                <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-700/80">
                   {sortedReports.map((rep, idx) => {
                     const inView = !timeRange || (rep.lastUpdated >= timeRange.start && rep.firstSeen <= timeRange.end);
                     const isHi = activeReportIndex === idx;
+                    const isExpanded = expandedRowIndices.has(idx);
                     return (
                       <div
                         key={`${rep.pattern}-${rep.firstSeen}-${idx}`}
@@ -596,15 +681,23 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                           if (el) reportRowRefs.current.set(idx, el);
                           else reportRowRefs.current.delete(idx);
                         }}
-                        className={`px-4 py-3 transition-colors ${
+                        className={`transition-colors ${
                           isHi ? 'bg-purple-900/35 ring-1 ring-inset ring-purple-500/40' : 'hover:bg-slate-700/40'
                         } ${!inView ? 'opacity-45' : ''}`}
                         onMouseEnter={() => setHoveredReportIndex(idx)}
                         onMouseLeave={() => setHoveredReportIndex(null)}
                       >
-                        <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleRowExpanded(idx)}
+                          className="w-full text-left px-4 py-2.5 flex items-start gap-2"
+                          aria-expanded={isExpanded}
+                        >
+                          <span className="mt-0.5 text-slate-500 tabular-nums w-4 flex-shrink-0 select-none" aria-hidden>
+                            {isExpanded ? '▼' : '▶'}
+                          </span>
                           <span
-                            className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                            className="mt-1 w-2 h-2 rounded-full flex-shrink-0"
                             style={{ backgroundColor: reportColor(rep.pattern) }}
                           />
                           <div className="min-w-0 flex-1">
@@ -615,16 +708,26 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                             <div className="text-xs text-slate-500 font-mono mt-0.5 truncate" title={rep.pattern}>
                               {rep.pattern}
                             </div>
-                            <p className="text-sm text-slate-300 mt-2 whitespace-pre-wrap">{rep.message}</p>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {(rep.tags ?? []).map((t) => (
-                                <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono">
-                                  {t}
-                                </span>
-                              ))}
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="px-4 pb-3 flex gap-2">
+                            <span className="w-4 flex-shrink-0" aria-hidden />
+                            <span className="w-2 flex-shrink-0" aria-hidden />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-slate-300 whitespace-pre-wrap break-words">{rep.message}</p>
+                              {(rep.tags ?? []).length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {(rep.tags ?? []).map((t) => (
+                                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono">
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
