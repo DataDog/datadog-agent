@@ -285,6 +285,62 @@ func TestIsStreamResetError(t *testing.T) {
 	}
 }
 
+func TestWithRegistryOverride(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:            "original.registry.com",
+		RegistryAuthOverride:        "docker",
+		RegistryUsername:            "origuser",
+		RegistryPassword:            "origpass",
+		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.io"},
+		RegistryAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+		Site:                        "datadoghq.com",
+	}
+	client := http.DefaultClient
+	d := NewDownloader(original, client)
+
+	overridden := d.WithRegistryOverride("custom.registry.com", "password", "newuser", "newpass")
+
+	// Overridden downloader has new values
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "password", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "newuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "newpass", overridden.env.RegistryPassword)
+
+	// Image-scoped override maps are preserved (env vars take precedence)
+	assert.Equal(t, map[string]string{"agent-package": "image-scoped.io"}, overridden.env.RegistryOverrideByImage)
+	assert.Equal(t, map[string]string{"agent-package": "gcr"}, overridden.env.RegistryAuthOverrideByImage)
+
+	// Original is unchanged
+	assert.Equal(t, "original.registry.com", d.env.RegistryOverride)
+	assert.Equal(t, "docker", d.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", d.env.RegistryUsername)
+	assert.Equal(t, "origpass", d.env.RegistryPassword)
+
+	// Shares same HTTP client
+	assert.Same(t, d.client, overridden.client)
+
+	// Non-registry fields are preserved
+	assert.Equal(t, "datadoghq.com", overridden.env.Site)
+}
+
+func TestWithRegistryOverridePartial(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:     "original.registry.com",
+		RegistryAuthOverride: "docker",
+		RegistryUsername:     "origuser",
+		RegistryPassword:     "origpass",
+	}
+	d := NewDownloader(original, http.DefaultClient)
+
+	// Only override URL, leave auth/username/password empty
+	overridden := d.WithRegistryOverride("custom.registry.com", "", "", "")
+
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "docker", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "origpass", overridden.env.RegistryPassword)
+}
+
 func TestGetRefAndKeychains(t *testing.T) {
 	type test struct {
 		name                    string
