@@ -49,6 +49,9 @@ _agent_components = [
     "@unixodbc//:odbccr_pkg",
     "@unixodbc//:odbcinst_pkg",
     "@freetds//:tdsodbc_pkg",
+    # Technically this isn't needed when we ship openscap, but since
+    # the curl binaries are currently expected to be shipped, let's keep
+    # it explicitly until we refine our packaging targets
     "@curl//:curl_pkg",
 ]
 
@@ -72,9 +75,17 @@ pkg_filegroup(
 )
 
 dd_collect_dependencies(
-    name = "collected_deps",
-    srcs = _agent_components
+    name = "_collected_deps",
+    srcs = _agent_components,
+    visibility = ["//visibility:private"],
 )
+
+pkg_filegroup(
+    name = "collected_deps_embedded",
+    srcs = [":_collected_deps"],
+    prefix = "embedded",
+)
+
 
 # This is an intermediate node so that have a place to collect all
 # the dependencies so we can walk the aspect to gather the OSS
@@ -86,7 +97,6 @@ pkg_filegroup(
     srcs = [
         ":agent_components",
         ":transitive_deps",
-        ":collected_deps",
     ],
 )
 
