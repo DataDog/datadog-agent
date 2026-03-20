@@ -176,7 +176,13 @@ export function MetricsView({
   );
 
   const displayGroups = useMemo(
-    () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
+    () =>
+      visibleGroups.map((g) => ({
+        key: g.key,
+        name: g.baseName,
+        displayName: g.baseName,
+        virtual: g.virtual,
+      })),
     [visibleGroups]
   );
 
