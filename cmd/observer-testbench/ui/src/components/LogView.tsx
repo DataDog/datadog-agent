@@ -517,6 +517,22 @@ function LogRateChart({
 const PATTERN_CHART_HEIGHT = 60;
 const PATTERN_CHART_MARGIN = { top: 4, right: 8, bottom: 18, left: 8 };
 
+const PATTERN_EVOLUTION_HEIGHT = 100;
+const PATTERN_EVOLUTION_MARGIN = { top: 4, right: 8, bottom: 20, left: 36 };
+const MAX_EVOLUTION_PATTERNS = 10;
+const PATTERN_EVOLUTION_COLORS = [
+  '#2dd4bf', // teal-400
+  '#60a5fa', // blue-400
+  '#4ade80', // green-400
+  '#facc15', // yellow-400
+  '#f87171', // red-400
+  '#c084fc', // purple-400
+  '#fb923c', // orange-400
+  '#22d3ee', // cyan-400
+  '#a78bfa', // violet-400
+  '#f472b6', // pink-400
+];
+
 function PatternCountChart({
   seriesIDs,
   timeRange,
@@ -630,6 +646,202 @@ function PatternCountChart({
   return (
     <div ref={containerRef} className="w-full mt-2">
       <svg ref={svgRef} style={{ display: 'block' }} />
+    </div>
+  );
+}
+
+// Chart showing the count evolution of every pattern stacked over time.
+// Up to MAX_EVOLUTION_PATTERNS patterns are shown (top by count).
+function PatternEvolutionChart({
+  patterns,
+  timeRange,
+  scenarioStart,
+  scenarioEnd,
+  phaseMarkers = [],
+  selectedPatternHash,
+}: {
+  patterns: LogPattern[];
+  timeRange?: TimeRange | null;
+  scenarioStart: number | null;
+  scenarioEnd: number | null;
+  phaseMarkers?: PhaseMarker[];
+  selectedPatternHash?: string | null;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [seriesDataMap, setSeriesDataMap] = useState<Map<string, SeriesData>>(new Map());
+
+  // Only show top N patterns by count
+  const chartPatterns = useMemo(
+    () => patterns.slice(0, MAX_EVOLUTION_PATTERNS),
+    [patterns]
+  );
+
+  // Collect unique series IDs across the displayed patterns
+  const allSeriesIDs = useMemo(() => {
+    const ids = new Set<string>();
+    for (const p of chartPatterns) {
+      for (const id of (p.seriesIDs ?? [])) ids.add(id);
+    }
+    return Array.from(ids);
+  }, [chartPatterns]);
+
+  useEffect(() => {
+    if (allSeriesIDs.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      allSeriesIDs.map((id) =>
+        api.getSeriesDataByID(id).then((s) => [id, s] as [string, SeriesData])
+      )
+    ).then((results) => {
+      if (!cancelled) setSeriesDataMap(new Map(results));
+    }).catch(console.error);
+    return () => { cancelled = true; };
+  }, [allSeriesIDs]);
+
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current) return;
+    if (seriesDataMap.size === 0 && allSeriesIDs.length > 0) return;
+    if (chartPatterns.length === 0) return;
+
+    const m = PATTERN_EVOLUTION_MARGIN;
+    const container = containerRef.current;
+    const width = container.clientWidth;
+    const innerWidth = width - m.left - m.right;
+    const innerHeight = PATTERN_EVOLUTION_HEIGHT - m.top - m.bottom;
+    if (innerWidth <= 0 || innerHeight <= 0) return;
+
+    const displayStart = timeRange?.start ?? scenarioStart;
+    const displayEnd = timeRange?.end ?? scenarioEnd;
+    if (!displayStart || !displayEnd || displayEnd <= displayStart) return;
+
+    const bucketCount = 60;
+    const bucketSize = (displayEnd - displayStart) / bucketCount;
+
+    // Compute per-pattern bucketed counts
+    const patternBuckets = chartPatterns.map((p) => {
+      const counts = new Array<number>(bucketCount).fill(0);
+      for (const id of (p.seriesIDs ?? [])) {
+        const series = seriesDataMap.get(id);
+        if (!series) continue;
+        for (const pt of series.points) {
+          const t = pt.timestamp;
+          if (t < displayStart || t > displayEnd) continue;
+          const idx = Math.min(Math.floor((t - displayStart) / bucketSize), bucketCount - 1);
+          counts[idx] += pt.value;
+        }
+      }
+      return counts;
+    });
+
+    const stackedBuckets = Array.from({ length: bucketCount }, (_, i) => ({
+      startT: displayStart + i * bucketSize,
+      endT: displayStart + (i + 1) * bucketSize,
+      total: patternBuckets.reduce((s, c) => s + c[i], 0),
+      segments: patternBuckets.map((c) => c[i]),
+    }));
+
+    const maxTotal = Math.max(1, ...stackedBuckets.map((b) => b.total));
+
+    d3.select(svgRef.current).selectAll('*').remove();
+    const svg = d3.select(svgRef.current).attr('width', width).attr('height', PATTERN_EVOLUTION_HEIGHT);
+    svg.append('defs').append('clipPath').attr('id', 'ptn-evo-clip')
+      .append('rect').attr('width', innerWidth).attr('height', innerHeight);
+    const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+    const xScale = d3.scaleLinear().domain([displayStart, displayEnd]).range([0, innerWidth]);
+    const barsG = g.append('g').attr('clip-path', 'url(#ptn-evo-clip)');
+
+    stackedBuckets.forEach((b) => {
+      const x = xScale(b.startT);
+      const bw = Math.max(0, xScale(b.endT) - x - 1);
+      if (bw <= 0) return;
+
+      if (b.total === 0) {
+        barsG.append('rect').attr('x', x).attr('width', bw)
+          .attr('y', innerHeight - 2).attr('height', 2)
+          .attr('fill', 'rgba(51, 65, 85, 0.25)');
+        return;
+      }
+
+      const totalH = Math.max(3, (b.total / maxTotal) * innerHeight);
+      let yBottom = innerHeight;
+      b.segments.forEach((count, i) => {
+        if (count === 0) return;
+        const isSelected = selectedPatternHash === chartPatterns[i].hash;
+        const opacity = selectedPatternHash && !isSelected ? 0.25 : 0.85;
+        const segH = (count / b.total) * totalH;
+        const hex = PATTERN_EVOLUTION_COLORS[i % PATTERN_EVOLUTION_COLORS.length];
+        barsG.append('rect').attr('x', x).attr('width', bw)
+          .attr('y', yBottom - segH).attr('height', segH)
+          .attr('fill', hex).attr('opacity', opacity);
+        yBottom -= segH;
+      });
+    });
+
+    phaseMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp);
+      if (x < -20 || x > innerWidth + 20) return;
+      barsG.append('line')
+        .attr('x1', x).attr('x2', x).attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', marker.color).attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3').attr('opacity', 0.8);
+    });
+
+    // Y axis
+    const yScale = d3.scaleLinear().domain([0, maxTotal]).range([innerHeight, 0]);
+    const yAxis = g.append('g')
+      .call(d3.axisLeft(yScale).ticks(3).tickFormat(d3.format('.0~s') as (v: d3.NumberValue) => string));
+    yAxis.attr('color', '#334155');
+    yAxis.selectAll('text').attr('fill', '#64748b').attr('font-size', '9px');
+    yAxis.select('.domain').attr('stroke', '#334155');
+
+    // X axis
+    const xAxis = g.append('g').attr('transform', `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(xScale).ticks(5)
+        .tickFormat((d) => {
+          const date = new Date((d as number) * 1000);
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        }));
+    xAxis.attr('color', '#334155');
+    xAxis.selectAll('text').attr('fill', '#64748b').attr('font-size', '9px');
+    xAxis.select('.domain').attr('stroke', '#334155');
+  }, [seriesDataMap, chartPatterns, allSeriesIDs, timeRange, scenarioStart, scenarioEnd, phaseMarkers, selectedPatternHash]);
+
+  if (chartPatterns.length === 0) return null;
+
+  return (
+    <div className="mb-3 bg-slate-900/40 rounded border border-slate-700/40 p-2">
+      <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5 flex items-center justify-between">
+        <span>Patterns over time</span>
+        {patterns.length > MAX_EVOLUTION_PATTERNS && (
+          <span className="normal-case text-slate-600">top {MAX_EVOLUTION_PATTERNS} of {patterns.length}</span>
+        )}
+      </div>
+      <div ref={containerRef} className="w-full">
+        <svg ref={svgRef} style={{ display: 'block' }} />
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+        {chartPatterns.map((p, i) => {
+          const isSelected = selectedPatternHash === p.hash;
+          return (
+            <div
+              key={p.hash}
+              className={`flex items-center gap-1 text-[10px] transition-opacity ${
+                selectedPatternHash && !isSelected ? 'opacity-40' : 'opacity-100'
+              }`}
+            >
+              <span
+                className="w-2 h-2 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: PATTERN_EVOLUTION_COLORS[i % PATTERN_EVOLUTION_COLORS.length] }}
+              />
+              <span className="text-slate-400 truncate max-w-[140px]" title={p.patternString}>
+                {p.patternString}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1445,6 +1657,16 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                   </div>
                 ) : (
                   <>
+                    {/* Pattern count evolution chart */}
+                    <PatternEvolutionChart
+                      patterns={logPatterns}
+                      timeRange={timeRange}
+                      scenarioStart={scenarioStart}
+                      scenarioEnd={scenarioEnd}
+                      phaseMarkers={phaseMarkers}
+                      selectedPatternHash={selectedPatternHash}
+                    />
+
                     {/* Search + sort bar */}
                     <div className="flex items-center gap-2 mb-3">
                       <div className="relative flex-1">
