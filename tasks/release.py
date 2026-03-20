@@ -124,7 +124,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
         for module in modules.values():
-            for dependency in module.dependencies:
+            for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
                 if (
                     agent_version.startswith('6')

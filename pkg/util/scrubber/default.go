@@ -61,6 +61,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 		LastUpdated: defaultVersion,
 	}
+	prefixedAPPKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9]{28}_[a-zA-Z0-9]([a-zA-Z0-9]{4})`),
+		Hints: []string{"ddapp_"},
+		Repl:  []byte(`************************************$1`),
+
+		LastUpdated: parseVersion("7.78.0"),
+	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
@@ -145,18 +152,25 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.73.1"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
-		`token`,
-		[]string{"token"},
+		`_?(token|jwt)`,
+		[]string{"token", "jwt"},
 		[]byte(`$1 "********"`),
 	)
-	tokenReplacer.LastUpdated = parseVersion("7.70.2")
+	tokenReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
 
-	secretReplacer := matchYAMLKey(
-		`(token_secret|consumer_secret)`,
-		[]string{"token_secret", "consumer_secret"},
+	secretReplacer := matchYAMLKeyEnding(
+		`_secret(_id)?`,
+		[]string{"secret", "secret_id"},
 		[]byte(`$1 "********"`),
 	)
-	secretReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
+	secretReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
+
+	accessKeyReplacer := matchYAMLKeyEnding(
+		`access_key`,
+		[]string{"access_key"},
+		[]byte(`$1 "********"`),
+	)
+	accessKeyReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
 
 	// OAuth credentials scrubbers for continuous_ai_netsuite and similar integrations
 	consumerKeyAndTokenIDReplacer := matchYAMLKey(
@@ -281,6 +295,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
@@ -300,6 +315,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, consumerKeyAndTokenIDReplacer)
 	scrubber.AddReplacer(SingleLine, secretReplacer)
+	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)

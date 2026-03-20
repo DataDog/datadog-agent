@@ -85,7 +85,7 @@ git_override(
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
+    commit = "14c78b8e9347a60919999f13177f1aa3fb850ea3",  # main as of Mar 17, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
@@ -289,6 +289,9 @@ include("//deps:repos.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/cacerts:cacerts.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/compile_policy:compile_policy.MODULE.bazel")
