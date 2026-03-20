@@ -201,7 +201,6 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 	namespace := "test-namespace"
 	deviceID := "test-namespace:10.0.0.1"
 	deviceIP := "10.0.0.1"
-	deviceTags := []string{"device_namespace:test-namespace", "device_ip:10.0.0.1"}
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
@@ -209,7 +208,7 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
 
-	err := ncmSender.SendDeviceMetadata(deviceID, deviceIP, deviceTags)
+	err := ncmSender.SendDeviceMetadata(deviceID, deviceIP)
 	assert.NoError(t, err)
 
 	var expectedEvent = []byte(`
@@ -220,7 +219,6 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
     {
       "id": "test-namespace:10.0.0.1",
       "id_tags": null,
-      "tags": ["device_namespace:test-namespace", "device_ip:10.0.0.1"],
       "ip_address": "10.0.0.1",
       "status": 1
     }
