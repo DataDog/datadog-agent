@@ -16,15 +16,15 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// NewTestScheduler create a Scheduler for testing.
-func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component) *Scheduler {
-	rollout := rolloutFunc(func(context.Context, ownerKey, time.Time) (bool, error) {
-		return true, nil
-	})
+// NewTestScheduler creates a Scheduler for testing.
+func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error) *Scheduler {
 	isLeader := func() bool {
 		return true
 	}
-	return newScheduler(config, clk, wlm, rollout, isLeader)
+	evictorFunc := podEvictorFunc(func(_ context.Context, namespace, name string) error {
+		return evictPod(namespace, name)
+	})
+	return newScheduler(config, clk, wlm, evictorFunc, isLeader)
 }
 
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given owner.
@@ -53,9 +53,9 @@ func (s *Scheduler) IsSpotSchedulingDisabled() (time.Time, bool) {
 	return s.isSpotSchedulingDisabled()
 }
 
-// rolloutFunc is a function type implementing rollout for testing.
-type rolloutFunc func(context.Context, ownerKey, time.Time) (bool, error)
+// podEvictorFunc is a function type implementing podEvictor for testing.
+type podEvictorFunc func(ctx context.Context, namespace, name string) error
 
-func (f rolloutFunc) restart(ctx context.Context, k ownerKey, ts time.Time) (bool, error) {
-	return f(ctx, k, ts)
+func (f podEvictorFunc) evictPod(ctx context.Context, namespace, name string) error {
+	return f(ctx, namespace, name)
 }

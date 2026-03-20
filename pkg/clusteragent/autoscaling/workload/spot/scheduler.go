@@ -14,7 +14,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -30,7 +30,7 @@ type Scheduler struct {
 	config     Config
 	clock      clock.WithTicker
 	wlm        workloadmeta.Component
-	rollout    rollout
+	evictor    podEvictor
 	isLeader   func() bool
 	tracker    *podTracker
 	subscribed chan struct{}
@@ -40,16 +40,16 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a new spot Scheduler.
-func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client dynamic.Interface, isLeader func() bool) *Scheduler {
-	return newScheduler(cfg, clk, wlm, newKubeRollout(client), isLeader)
+func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client kubernetes.Interface, isLeader func() bool) *Scheduler {
+	return newScheduler(cfg, clk, wlm, newKubePodEvictor(client), isLeader)
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, r rollout, isLeader func() bool) *Scheduler {
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, e podEvictor, isLeader func() bool) *Scheduler {
 	return &Scheduler{
 		config:     cfg,
 		clock:      clk,
 		wlm:        wlm,
-		rollout:    r,
+		evictor:    e,
 		isLeader:   isLeader,
 		tracker:    newPodTracker(clk),
 		subscribed: make(chan struct{}),
@@ -207,14 +207,13 @@ func assignToSpot(pod *corev1.Pod) {
 	pod.Labels[SpotAssignedLabel] = SpotAssignedSpot
 }
 
-// checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and triggers rollout for pending workloads if needed.
+// checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and evicts timed-out pods if needed.
 func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time) {
 	if s.reEnableSpotScheduling(now) {
 		log.Infof("Spot scheduling re-enabled")
 	}
 
-	pendingSpotPodsByRolloutOwner := s.tracker.getPendingSpotPods(now.Add(-s.config.ScheduleTimeout))
-	if len(pendingSpotPodsByRolloutOwner) == 0 {
+	if !s.tracker.hasPendingSpotPods(now.Add(-s.config.ScheduleTimeout)) {
 		return
 	}
 
@@ -223,22 +222,13 @@ func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 		log.Infof("Disabling spot scheduling until %v", disabledUntil)
 	}
 
-	for owner, pods := range pendingSpotPodsByRolloutOwner {
-		// Restart workload.
-		// New pods will be on-demand since spot scheduling is disabled at this point.
-		// Use disabledUntil timestamp for no-op patch in case owner was already patched in the previous cycle and
-		// pending pods have updated since then.
-		updated, err := s.rollout.restart(ctx, owner, disabledUntil)
-		if err != nil {
-			log.Errorf("Failed to trigger rollout restart for %s: %v", owner, err)
+	for uid, pod := range s.tracker.getPendingSpotPods() {
+		if err := s.evictor.evictPod(ctx, pod.namespace, pod.name); err != nil {
+			log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.namespace, pod.name, err)
 			continue
 		}
-		if updated {
-			log.Infof("%s has %d timed-out spot pod(s), triggered rollout restart for on-demand fallback", owner, len(pods))
-		} else {
-			log.Debugf("Rollout already restarted for %s, skipping", owner)
-		}
-		s.tracker.removePendingSpotPods(pods)
+		log.Infof("Evicted timed-out pending spot pod %s/%s (owner: %s) for on-demand fallback", pod.namespace, pod.name, pod.owner)
+		s.tracker.deletePendingSpotPod(uid)
 	}
 }
 

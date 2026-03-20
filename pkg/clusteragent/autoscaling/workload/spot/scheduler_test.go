@@ -34,7 +34,7 @@ func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.Schedule
 
 	clk := clocktesting.NewFakeClock(time.Now())
 
-	scheduler := spot.NewTestScheduler(config, clk, cluster.WLM())
+	scheduler := spot.NewTestScheduler(config, clk, cluster.WLM(), cluster.EvictPodByName)
 	scheduler.Start(ctx)
 	<-scheduler.WaitSubscribed()
 
@@ -199,11 +199,17 @@ func TestScenarios(t *testing.T) {
 			return disabled
 		}, 1*time.Second, 50*time.Millisecond)
 
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectRunning("on-demand", 4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectPending(0))
+
 		// When
-		rs2 := updateDeployment(cluster, "default", "nginx", 10, annotations, rs1)
+		// ReplicaSet recreates pods
+		for range 6 {
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs1, annotations))
+		}
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("on-demand", 10))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectRunning("on-demand", 10))
 
 		// When
 		cluster.AddSpotNode("spot")
@@ -214,11 +220,12 @@ func TestScenarios(t *testing.T) {
 			return !disabled
 		}, 1*time.Second, 50*time.Millisecond)
 
-		rs3 := updateDeployment(cluster, "default", "nginx", 10, annotations, rs2)
+		// TODO: auto-recovery
+		rs2 := updateDeployment(cluster, "default", "nginx", 10, annotations, rs1)
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs3, expectRunning("spot", 6))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs3, expectRunning("on-demand", 4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("spot", 6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("on-demand", 4))
 	})
 
 	t.Run("Pod replacement preserves ratio", func(t *testing.T) {

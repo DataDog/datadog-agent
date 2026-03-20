@@ -20,6 +20,8 @@ import (
 
 type pendingSpotPod struct {
 	owner     ownerKey
+	namespace string
+	name      string
 	createdAt time.Time
 }
 
@@ -98,7 +100,7 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		// so only check the Phase and use now for createdAt.
 		if pod.Phase == string(corev1.PodPending) {
 			if _, exists := t.pendingSpotPods[pod.ID]; !exists {
-				t.pendingSpotPods[pod.ID] = pendingSpotPod{owner: owner, createdAt: t.clock.Now()}
+				t.pendingSpotPods[pod.ID] = pendingSpotPod{owner: owner, namespace: pod.Namespace, name: pod.Name, createdAt: t.clock.Now()}
 				log.Debugf("Tracking pending spot pod %s", pod.ID)
 			}
 		} else {
@@ -149,36 +151,36 @@ func (t *podTracker) getPodsLocked(owner ownerKey) *pods {
 	return pods
 }
 
-// getPendingSpotPods returns spot-assigned pods created before since, grouped by rollout owner.
-func (t *podTracker) getPendingSpotPods(since time.Time) map[ownerKey][]string {
-	pendingSince := map[string]pendingSpotPod{}
+// hasPendingSpotPods returns true if any spot-assigned pod has been pending since before the given time.
+func (t *podTracker) hasPendingSpotPods(since time.Time) bool {
 	t.mu.RLock()
-	for uid, info := range t.pendingSpotPods {
+	defer t.mu.RUnlock()
+
+	for _, info := range t.pendingSpotPods {
 		if info.createdAt.Before(since) {
-			pendingSince[uid] = info
+			return true
 		}
 	}
-	t.mu.RUnlock()
+	return false
+}
 
-	result := map[ownerKey][]string{}
-	for uid, info := range pendingSince {
-		rolloutOwner, ok := resolveRolloutOwner(info.owner)
-		if !ok {
-			log.Warnf("Cannot resolve rollout owner for %s, skipping", info.owner)
-			continue
-		}
-		result[rolloutOwner] = append(result[rolloutOwner], uid)
+// getPendingSpotPods returns all pending spot-assigned pods, keyed by pod UID.
+func (t *podTracker) getPendingSpotPods() map[string]pendingSpotPod {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	result := make(map[string]pendingSpotPod, len(t.pendingSpotPods))
+	for uid, info := range t.pendingSpotPods {
+		result[uid] = info
 	}
 	return result
 }
 
-// removePendingSpotPods removes the given pods from pending tracking.
-func (t *podTracker) removePendingSpotPods(uids []string) {
+// deletePendingSpotPod removes a single pod from pending tracking.
+func (t *podTracker) deletePendingSpotPod(uid string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for _, uid := range uids {
-		delete(t.pendingSpotPods, uid)
-	}
+	delete(t.pendingSpotPods, uid)
 }
 
 func newPods() *pods {

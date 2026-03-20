@@ -65,7 +65,7 @@ func StartWorkloadAutoscaling(
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 	var spotScheduler *spot.Scheduler
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.spot.enabled") {
-		spotScheduler = spot.NewScheduler(spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm, apiCl.DynamicCl, isLeaderFunc)
+		spotScheduler = spot.NewScheduler(spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm, apiCl.Cl, isLeaderFunc)
 	}
 	podHandler := workload.NewPodHandler(podPatcher, spotScheduler)
 

@@ -33,10 +33,13 @@ On-demand pods are not modified as they have no matching toleration, so the Kube
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
 Cluster Agent periodically checks all tracked pods and if spot-assigned pods are pending longer than the configured
-timeout it disables spot scheduling for a configured interval and triggers a rollout restart on the owning workload
-(Deployment or StatefulSet) by patching `spec.template.metadata.annotations[autoscaling.datadoghq.com/spot-disabled-until]`
-with a timestamp, equivalent to `kubectl rollout restart`. This causes the workload controller to replace the stuck
-spot-assigned pods. Since spot scheduling is disabled at this point, newly admitted pods are scheduled on-demand (on-demand fallback).
+timeout it disables spot scheduling for a configured interval and evicts the stuck spot-assigned pods.
+The workload controller replaces the evicted pods, and since spot scheduling is disabled at this point,
+newly admitted pods are scheduled on-demand (on-demand fallback).
+
+The disabled-until timestamp is persisted to a ConfigMap (`spot-scheduler-state`) so that all Cluster Agent
+replicas share the same fallback state. Non-leader replicas sync the disabled state from the ConfigMap every
+10 seconds, ensuring their admission webhooks also route replacement pods to on-demand.
 
 Cluster Agent re-enables spot scheduling after the spot disabled interval elapses.
 

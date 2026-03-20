@@ -21,10 +21,6 @@ const (
 	// SpotAssignedSpot is the SpotAssignedLabel value for pods assigned to spot instances.
 	SpotAssignedSpot = "true"
 
-	// SpotDisabledUntilAnnotation is the annotation key added to the workload pod template to trigger a
-	// rollout restart during on-demand fallback. Its value is the timestamp until which spot scheduling is disabled.
-	SpotDisabledUntilAnnotation = "autoscaling.datadoghq.com/spot-disabled-until"
-
 	// KarpenterCapacityTypeLabel is the Karpenter node label for capacity type
 	KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
 	// KarpenterCapacityTypeSpot is the Karpenter capacity type value for spot instances

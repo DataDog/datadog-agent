@@ -80,34 +80,3 @@ func TestResolveWLMPodOwner(t *testing.T) {
 		assert.Equal(t, "nginx-bcdfg", key.Name)
 	})
 }
-
-func TestResolveRolloutOwner(t *testing.T) {
-	t.Run("replicaset with valid deployment name resolves to deployment", func(t *testing.T) {
-		key := ownerKey{Namespace: "default", Kind: kubernetes.ReplicaSetKind, Name: "nginx-bcdfg"}
-		result, ok := resolveRolloutOwner(key)
-		assert.True(t, ok)
-		assert.Equal(t, kubernetes.DeploymentKind, result.Kind)
-		assert.Equal(t, "nginx", result.Name)
-		assert.Equal(t, "default", result.Namespace)
-	})
-
-	t.Run("replicaset with no deployment name returns false", func(t *testing.T) {
-		// "nginx" has no hyphen suffix with valid chars → ParseDeploymentForReplicaSet returns ""
-		key := ownerKey{Namespace: "default", Kind: kubernetes.ReplicaSetKind, Name: "nginx"}
-		_, ok := resolveRolloutOwner(key)
-		assert.False(t, ok)
-	})
-
-	t.Run("statefulset resolves to itself", func(t *testing.T) {
-		key := ownerKey{Namespace: "default", Kind: kubernetes.StatefulSetKind, Name: "redis"}
-		result, ok := resolveRolloutOwner(key)
-		assert.True(t, ok)
-		assert.Equal(t, key, result)
-	})
-
-	t.Run("unsupported kind returns false", func(t *testing.T) {
-		key := ownerKey{Namespace: "default", Kind: kubernetes.DaemonSetKind, Name: "prometheus"}
-		_, ok := resolveRolloutOwner(key)
-		assert.False(t, ok)
-	})
-}

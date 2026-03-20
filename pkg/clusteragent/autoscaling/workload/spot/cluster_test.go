@@ -168,6 +168,16 @@ func (c *fakeCluster) ListOwnerPods(ownerKind, namespace, ownerName string) []*w
 	return pods
 }
 
+// EvictPodByName evicts a pod by namespace and name, simulating pod eviction for tests.
+func (c *fakeCluster) EvictPodByName(namespace, name string) error {
+	pod, err := c.wlm.GetKubernetesPodByName(name, namespace)
+	if err != nil {
+		return nil // pod not found, already gone
+	}
+	c.DeletePod(pod)
+	return nil
+}
+
 // DeletePod removes a pod from the cluster.
 func (c *fakeCluster) DeletePod(pod *workloadmeta.KubernetesPod) {
 	corePod := wlmPodToCorePod(pod)

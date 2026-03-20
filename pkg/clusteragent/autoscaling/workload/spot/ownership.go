@@ -60,20 +60,3 @@ func resolveWLMPodOwner(pod *workloadmeta.KubernetesPod) (ownerKey, bool) {
 
 	return ownerKey{Namespace: pod.Namespace, Kind: owner.Kind, Name: owner.Name}, true
 }
-
-// resolveRolloutOwner resolves the top-level workload owner for triggering a rollout restart.
-// ReplicaSets are resolved up to their Deployment; StatefulSets are their own rollout owner.
-func resolveRolloutOwner(owner ownerKey) (ownerKey, bool) {
-	switch owner.Kind {
-	case kubernetes.ReplicaSetKind:
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
-		if deploymentName == "" {
-			return ownerKey{}, false
-		}
-		return ownerKey{Namespace: owner.Namespace, Kind: kubernetes.DeploymentKind, Name: deploymentName}, true
-	case kubernetes.StatefulSetKind:
-		return owner, true
-	default:
-		return ownerKey{}, false
-	}
-}
