@@ -196,7 +196,7 @@ func shouldTriggerRollout(
 	}
 
 	// Step 2: Check if we already triggered a rollout for THIS recommendation
-	if lastAction != nil && lastAction.Version == recommendationID {
+	if lastAction != nil && lastAction.Type == datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType && lastAction.Version == recommendationID {
 		log.Debugf("Rollout already triggered for recommendation %s on autoscaler %s, waiting for completion",
 			recommendationID, autoscalerID)
 		return rolloutDecisionWait
@@ -483,10 +483,13 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 	return modified
 }
 
-// shouldFallbackToRollout returns true if any pod in toEvict has been stuck in its
-// unresolvable state longer than RolloutFallbackDelay seconds, indicating that
-// eviction is not making progress and a full rollout should be triggered instead.
-func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
+// shouldFallbackToRollout returns true if a rollout should be triggered instead
+// of continuing to attempt in-place resizing
+func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time, patchForbidden bool) bool {
+	if patchForbidden {
+		return true
+	}
+
 	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
 		return false
 	}
