@@ -9,13 +9,14 @@ mod pattern;
 mod properties;
 mod yaml;
 
-use crate::fs::{SubDirFs, UnverifiedZipArchive};
+use crate::fs::SubDirFs;
 use crate::procfs::Cmdline;
 use crate::service_name::context::DetectionContext;
+use crate::thin_zip::FilteredZipReader;
 use config::extract_spring_boot_config;
 use pattern::{longest_path_prefix, match_start, matches};
 use properties::parse_properties;
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read, Seek};
 use std::iter;
 use std::path::{Path, PathBuf};
 use yaml::parse_yaml;
@@ -95,26 +96,30 @@ fn parse_property_file_from_fs(
 }
 
 /// Scan archive for a specific property, returning early when found
-fn scan_property_from_archive<R: Read + io::Seek>(
-    archive: &mut UnverifiedZipArchive<R>,
+fn scan_property_from_archive<R: Read + Seek>(
+    reader: &mut FilteredZipReader<R>,
     patterns: &[String],
     property_key: &str,
 ) -> Option<String> {
-    for i in 0..archive.len() {
-        let Ok(file) = archive.by_index(i) else {
+    // Collect matching indices first so we can borrow reader mutably for reads.
+    let matching: Vec<usize> = reader
+        .entries()
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| {
+            let name = entry.name();
+            name.starts_with(BOOT_INF_JAR_PATH)
+                && patterns.iter().any(|pattern| matches(pattern, name))
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    for i in matching {
+        let name = reader.entries().get(i)?.name().to_string();
+        let Ok(data) = reader.read_entry_by_index(i) else {
             continue;
         };
-
-        let name = file.name().to_string();
-        // Skip files not in BOOT-INF/classes
-        if !name.starts_with(BOOT_INF_JAR_PATH) {
-            continue;
-        }
-
-        if patterns.iter().any(|pattern| matches(pattern, &name))
-            && let Ok(verified_reader) = file.verify(None)
-            && let Some(value) = parse_property_file(verified_reader, &name, property_key)
-        {
+        if let Some(value) = parse_property_file(io::Cursor::new(data), &name, property_key) {
             return Some(value);
         }
     }
@@ -178,6 +183,12 @@ where
     None
 }
 
+/// Filter predicate for the thin ZIP reader: keep only entries that the
+/// Spring Boot detection logic may need to read.
+fn spring_boot_entry_filter(name: &str) -> bool {
+    name.starts_with(BOOT_INF_JAR_PATH) || name == MANIFEST_FILE
+}
+
 /// Get Spring Boot application name from a JAR file
 pub fn get_spring_boot_app_name(
     jarname: &str,
@@ -195,22 +206,22 @@ pub fn get_spring_boot_app_name(
     );
 
     let file = ctx.fs.open(abs_name).ok()?;
-    let mut archive = file.verify_zip().ok()?;
+    let mut reader = file.verify_filtered_zip(spring_boot_entry_filter).ok()?;
 
-    get_spring_boot_app_name_from_jar(ctx, cmdline.args(), &mut archive)
+    get_spring_boot_app_name_from_jar(ctx, cmdline.args(), &mut reader)
 }
 
-fn get_spring_boot_app_name_from_jar<R: Read + io::Seek>(
+fn get_spring_boot_app_name_from_jar<R: Read + Seek>(
     ctx: &DetectionContext,
     args: impl Iterator<Item = impl AsRef<str>>,
-    archive: &mut UnverifiedZipArchive<R>,
+    reader: &mut FilteredZipReader<R>,
 ) -> Option<String> {
-    if !is_spring_boot_archive(archive) {
+    if !reader.is_spring_boot() {
         return None;
     }
 
     get_spring_boot_app_name_with_reader(ctx, args, |patterns, property_key| {
-        scan_property_from_archive(archive, patterns, property_key)
+        scan_property_from_archive(reader, patterns, property_key)
     })
 }
 
@@ -253,14 +264,14 @@ pub fn get_spring_boot_launcher_app_name(
 
     if is_jar {
         let file = ctx.fs.open(base_path).ok()?;
-        let mut archive = file.verify_zip().ok()?;
+        let mut reader = file.verify_filtered_zip(spring_boot_entry_filter).ok()?;
 
-        if let Some(name) = get_spring_boot_app_name_from_jar(ctx, cmdline.args(), &mut archive) {
+        if let Some(name) = get_spring_boot_app_name_from_jar(ctx, cmdline.args(), &mut reader) {
             return Some(name);
         }
 
         // Fallback to manifest Start-Class
-        if let Some(name) = get_start_class_name_from_jar(&mut archive) {
+        if let Some(name) = get_start_class_name_from_jar(&mut reader) {
             return Some(name);
         }
     } else {
@@ -282,16 +293,8 @@ pub fn get_spring_boot_launcher_app_name(
     None
 }
 
-fn is_spring_boot_archive<R: Read + io::Seek>(archive: &mut UnverifiedZipArchive<R>) -> bool {
-    for i in 0..archive.len() {
-        if let Ok(file) = archive.by_index(i)
-            && file.name().starts_with("BOOT-INF/")
-        {
-            return true;
-        }
-    }
-    false
-}
+// is_spring_boot_archive is no longer needed — FilteredZipReader tracks this
+// during central directory parsing via is_spring_boot().
 
 /// Get first class path from Java command line arguments
 fn get_first_class_path<'a, I>(args: I) -> String
@@ -361,13 +364,12 @@ fn get_start_class_name_from_file(ctx: &DetectionContext, filename: PathBuf) -> 
     parse_start_class(reader)
 }
 
-fn get_start_class_name_from_jar<R: Read + io::Seek>(
-    archive: &mut UnverifiedZipArchive<R>,
+fn get_start_class_name_from_jar<R: Read + Seek>(
+    reader: &mut FilteredZipReader<R>,
 ) -> Option<String> {
-    let file = archive.by_name(MANIFEST_FILE).ok()?;
-    let reader = file.verify(None).ok()?;
-
-    parse_start_class(reader)
+    let index = reader.index_for_name(MANIFEST_FILE)?;
+    let data = reader.read_entry_by_index(index).ok()?;
+    parse_start_class(io::Cursor::new(data))
 }
 
 #[cfg(test)]
@@ -381,7 +383,6 @@ mod tests {
     use std::collections::HashMap;
     use std::io::Write;
     use tempfile::TempDir;
-    use zip::ZipArchive;
 
     // Helper function to create a ZIP file with specific contents
     fn create_zip_with_files(files: Vec<(&str, &str)>) -> Vec<u8> {
@@ -400,34 +401,32 @@ mod tests {
         buf
     }
 
+    fn make_filtered_reader(
+        data: Vec<u8>,
+    ) -> FilteredZipReader<std::io::Cursor<Vec<u8>>> {
+        FilteredZipReader::new(std::io::Cursor::new(data), spring_boot_entry_filter).unwrap()
+    }
+
     #[test]
     fn test_is_spring_boot_archive_with_boot_inf_directory() {
         let buf = create_zip_with_files(vec![("MANIFEST.MF", ""), ("BOOT-INF/", "")]);
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
-        assert!(is_spring_boot_archive(&mut archive));
+        let reader = make_filtered_reader(buf);
+        assert!(reader.is_spring_boot());
     }
 
     #[test]
     fn test_is_spring_boot_archive_with_boot_inf_file() {
         let buf = create_zip_with_files(vec![("BOOT-INF", "")]);
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
-        assert!(!is_spring_boot_archive(&mut archive));
+        let reader = make_filtered_reader(buf);
+        // "BOOT-INF" does not start with "BOOT-INF/" so it's not detected
+        assert!(!reader.is_spring_boot());
     }
 
     #[test]
     fn test_is_spring_boot_archive_with_nested_boot_inf() {
         let buf = create_zip_with_files(vec![("MANIFEST.MF", ""), ("META-INF/BOOT-INF/", "")]);
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
-        assert!(!is_spring_boot_archive(&mut archive));
+        let reader = make_filtered_reader(buf);
+        assert!(!reader.is_spring_boot());
     }
 
     #[test]
@@ -443,9 +442,7 @@ mod tests {
             ),
         ]);
 
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
+        let mut reader = make_filtered_reader(buf);
 
         // Test finding default application.properties
         let patterns_default = vec![
@@ -453,11 +450,11 @@ mod tests {
             "BOOT-INF/classes/config/*/application.properties".to_string(),
         ];
         let result =
-            scan_property_from_archive(&mut archive, &patterns_default, "spring.application.name");
+            scan_property_from_archive(&mut reader, &patterns_default, "spring.application.name");
         assert_eq!(result, Some("default".to_string()));
 
         // Test finding prod application.properties
-        let cursor2 = std::io::Cursor::new(create_zip_with_files(vec![
+        let buf2 = create_zip_with_files(vec![
             (
                 "BOOT-INF/classes/application.properties",
                 "spring.application.name=default",
@@ -466,21 +463,20 @@ mod tests {
                 "BOOT-INF/classes/config/prod/application-prod.properties",
                 "spring.application.name=prod",
             ),
-        ]));
-        let archive2 = ZipArchive::new(cursor2).unwrap();
-        let mut archive2 = UnverifiedZipArchive::from_archive(archive2);
+        ]);
+        let mut reader2 = make_filtered_reader(buf2);
 
         let patterns_prod = vec![
             "BOOT-INF/classes/application-prod.properties".to_string(),
             "BOOT-INF/classes/config/*/application-prod.properties".to_string(),
         ];
         let result2 =
-            scan_property_from_archive(&mut archive2, &patterns_prod, "spring.application.name");
+            scan_property_from_archive(&mut reader2, &patterns_prod, "spring.application.name");
         assert_eq!(result2, Some("prod".to_string()));
 
         // Test property not found
         let result3 =
-            scan_property_from_archive(&mut archive2, &patterns_prod, "non.existent.property");
+            scan_property_from_archive(&mut reader2, &patterns_prod, "non.existent.property");
         assert_eq!(result3, None);
     }
 

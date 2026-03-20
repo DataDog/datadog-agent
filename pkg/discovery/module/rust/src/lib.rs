@@ -34,6 +34,7 @@ mod ports;
 mod procfs;
 mod service_name;
 mod services;
+mod thin_zip;
 mod tracer_metadata;
 mod ust;
 

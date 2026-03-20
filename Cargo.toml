@@ -46,6 +46,7 @@ tonic-reflection = "0.12"
 uzers = "0.12"
 walkdir = "2"
 yaml-rust2 = "0.9"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 tower = "0.4"

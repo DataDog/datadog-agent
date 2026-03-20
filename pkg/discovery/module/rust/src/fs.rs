@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use crate::thin_zip::FilteredZipReader;
 use cap_std::fs::Dir;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -61,6 +62,24 @@ impl UnverifiedFile {
     ) -> Result<UnverifiedZipArchive<cap_std::fs::File>, zip::result::ZipError> {
         verified_zip_archive(self)
     }
+
+    /// Opens the file as a ZIP archive using a lightweight parser that only
+    /// stores entries matching `filter`.  This avoids the large memory overhead
+    /// of [`verify_zip`](Self::verify_zip) / `ZipArchive::new()` for archives
+    /// with many entries (e.g. Spring Boot fat JARs).
+    pub fn verify_filtered_zip(
+        self,
+        filter: impl Fn(&str) -> bool,
+    ) -> io::Result<FilteredZipReader<cap_std::fs::File>> {
+        let metadata = self.0.metadata()?;
+        if !metadata.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "not a regular file",
+            ));
+        }
+        FilteredZipReader::new(self.0, filter)
+    }
 }
 
 /// UnverifiedZipArchive is a wrapper around ZipArchive that prevents reading
@@ -91,6 +110,12 @@ impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
     /// Returns the number of files in the archive.
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Returns the name of the entry at the given index from the central directory.
+    /// This does NOT open the file or allocate a decompressor, unlike `by_index()`.
+    pub fn name_for_index(&self, index: usize) -> Option<&str> {
+        self.0.name_for_index(index)
     }
 
     /// Creates an UnverifiedZipArchive from a ZipArchive.
