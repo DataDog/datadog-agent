@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	k8sclient "k8s.io/client-go/kubernetes"
 	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -93,6 +94,7 @@ func NewController(
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
 	scaleClient scaleclient.ScalesGetter,
+	client k8sclient.Interface,
 	dynamicClient dynamic.Interface,
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
@@ -148,7 +150,7 @@ func NewController(
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, c.scaler)
 
 	patchClient := workloadpatcher.NewPatcher(dynamicClient, nil) // let controller handle leader check
-	c.verticalController = newVerticalController(c.clock, eventRecorder, patchClient, c.podWatcher)
+	c.verticalController = newVerticalController(c.clock, eventRecorder, client, isLeader, patchClient, c.podWatcher)
 
 	return c, nil
 }

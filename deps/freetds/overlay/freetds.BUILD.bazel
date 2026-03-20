@@ -46,6 +46,7 @@ copy_file(
         "@platforms//os:linux": "linux/include/config.h",
     }),
     out = "include/config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
@@ -53,22 +54,6 @@ cc_library(
     hdrs = [
         ":copy_config_h",
     ],
-)
-
-dd_agent_expand_template(
-    name = "gen_version_h",
-    out = "include/freedts/version.h",
-    substitutions = {
-        "@PACKAGE@": "freetds",
-        "@VERSION@": VERSION,
-        "@MAJOR@": VERSION.split(".")[0],
-        "@MINOR@": VERSION.split(".")[1],
-        "@SUBVERSION@": VERSION.split(".")[2],
-        # This was based on date of build. That breaks caching.
-        # Let's use date of update of this file.
-        "@BUILD_NUMBER@": "20260121",
-    },
-    template = "include/freetds/version.h.in",
 )
 
 dd_agent_expand_template(
@@ -95,7 +80,6 @@ cc_library(
     name = "libtdsodbc",
     srcs = [
         ":gen_sysdep_h",
-        ":gen_version_h",
         "include/freetds/alloca.h",
         "include/freetds/bool.h",
         "include/freetds/bytes.h",
@@ -230,20 +214,20 @@ cc_shared_library(
 pkg_files(
     name = "lib_file",
     srcs = [":tdsodbc_so"],
-    prefix = "embedded/lib",
+    prefix = "lib",
 )
 
 pkg_mklink(
     name = "so_link",
     attributes = pkg_attributes(mode = "755"),
-    link_name = "embedded/lib/libtdsodbc.so.%s" % SO_VERSION,
+    link_name = "lib/libtdsodbc.so.%s" % SO_VERSION,
     target = "libtdsodbc.so",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include/tdsodbc/",
+    prefix = "include/tdsodbc/",
 )
 
 pkg_filegroup(
@@ -257,6 +241,7 @@ pkg_filegroup(
         ":lib_file",
         ":so_link",
     ],
+    prefix = "embedded",
     visibility = ["//visibility:public"],
 )
 

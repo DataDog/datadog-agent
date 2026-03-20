@@ -45,7 +45,7 @@ func (m *Monitor) SendStats() error {
 	buffer := m.stats[1-m.activeStatsBuffer]
 	iterator := buffer.Iterate()
 	statsAcrossAllCPUs := make([]Stats, m.numCPU)
-	statsByEventType := make([]Stats, model.MaxAllEventType)
+	statsByEventType := make([]Stats, model.MaxAllEventType+1)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {

@@ -27,16 +27,16 @@ import (
 
 // Exporter defines fields for the logs agent exporter
 type Exporter struct {
-	set                component.TelemetrySettings
-	logsAgentChannel   chan *message.Message
-	logSource          *sources.LogSource
-	translator         *logsmapping.Translator
-	gatewaysUsage      otel.GatewayUsage
-	orchestratorConfig OrchestratorConfig
-	reporter           *inframetadata.Reporter
-	cfg                *Config
-	coatGwUsageMetric  telemetry.Gauge
-	buildInfo          component.BuildInfo
+	set                  component.TelemetrySettings
+	logsAgentChannel     chan *message.Message
+	logSource            *sources.LogSource
+	translator           *logsmapping.Translator
+	gatewaysUsage        otel.GatewayUsage
+	orchestratorExporter orchestratorExporter
+	reporter             *inframetadata.Reporter
+	cfg                  *Config
+	coatGwUsageMetric    telemetry.Gauge
+	buildInfo            component.BuildInfo
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -67,15 +67,15 @@ func NewExporterWithGatewayUsage(
 	}
 
 	return &Exporter{
-		set:                set,
-		logsAgentChannel:   logsAgentChannel,
-		logSource:          logSource,
-		translator:         translator,
-		gatewaysUsage:      gatewaysUsage,
-		coatGwUsageMetric:  coatGwUsageMetric,
-		buildInfo:          buildInfo,
-		orchestratorConfig: cfg.OrchestratorConfig,
-		cfg:                cfg,
+		set:                  set,
+		logsAgentChannel:     logsAgentChannel,
+		logSource:            logSource,
+		translator:           translator,
+		gatewaysUsage:        gatewaysUsage,
+		coatGwUsageMetric:    coatGwUsageMetric,
+		buildInfo:            buildInfo,
+		orchestratorExporter: newOrchestratorExporter(cfg.OrchestratorConfig),
+		cfg:                  cfg,
 	}, nil
 }
 
@@ -84,7 +84,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	scope := getLogsScope(ld)
 	switch scope {
 	case K8sObjectsReceiver:
-		if e.orchestratorConfig.Enabled {
+		if e.orchestratorExporter.config.Enabled {
 			return e.consumeK8sObjects(ctx, ld)
 		}
 		fallthrough

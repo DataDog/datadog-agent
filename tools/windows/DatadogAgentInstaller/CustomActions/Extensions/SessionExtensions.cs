@@ -96,6 +96,7 @@ namespace Datadog.CustomActions.Extensions
                 Path.Combine(configRoot, "checks.d"),
                 Path.Combine(configRoot, "run"),
                 Path.Combine(configRoot, "logs"),
+                Path.Combine(configRoot, "logonduration"),
                 Path.Combine(configRoot, "datadog.yaml"),
                 Path.Combine(configRoot, "system-probe.yaml"),
                 Path.Combine(configRoot, "install_info"),

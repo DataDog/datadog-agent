@@ -4,7 +4,7 @@ load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -124,6 +124,7 @@ copy_file(
         "@//:linux_arm64": "config-linux-aarch64.h",
     }),
     out = "src/config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
@@ -210,6 +211,7 @@ genrule(
     tools = [":mkheader"],
     outs = ["src/gpg-error.h"],
     cmd = select({"@@//:%s" % config: mkheader_cmds[config] for config in config_to_abi.keys()}),
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
