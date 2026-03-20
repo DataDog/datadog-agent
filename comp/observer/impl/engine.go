@@ -70,7 +70,7 @@ type engine struct {
 	maxRawAnomalies      int                                // max count to keep (0 = unlimited)
 	currentDataTime      int64                              // latest anomaly timestamp seen
 	totalAnomalyCount    int                                // total count ever (no cap)
-	uniqueAnomalySources map[observerdef.AnomalySource]bool // unique sources that had anomalies
+	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
 
 	// Accumulated correlations from all advance cycles.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -400,11 +400,11 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	e.totalAnomalyCount++
 
 	if e.uniqueAnomalySources == nil {
-		e.uniqueAnomalySources = make(map[observerdef.AnomalySource]bool)
+		e.uniqueAnomalySources = make(map[string]bool)
 	}
 	const maxUniqueSources = 500
 	if len(e.uniqueAnomalySources) < maxUniqueSources {
-		e.uniqueAnomalySources[anomaly.Source] = true
+		e.uniqueAnomalySources[anomaly.Source.Key()] = true
 	}
 
 	if anomaly.Timestamp > e.currentDataTime {

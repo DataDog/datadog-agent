@@ -515,9 +515,10 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			for j := range result.Anomalies {
 				result.Anomalies[j].Type = observerdef.AnomalyTypeMetric
 				result.Anomalies[j].DetectorName = a.detector.Name()
-				result.Anomalies[j].Source = observerdef.AnomalySource{
+				result.Anomalies[j].Source = observerdef.SeriesDescriptor{
 					Namespace: series.Namespace,
 					Name:      series.Name,
+					Tags:      series.Tags,
 					Aggregate: agg,
 				}
 				result.Anomalies[j].SourceView = observerdef.QueryHandle{Ref: meta.Ref, Aggregate: agg}

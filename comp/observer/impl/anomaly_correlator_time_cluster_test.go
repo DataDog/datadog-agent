@@ -21,13 +21,13 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 
 	// Two anomalies with nearby timestamps should cluster together
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly A",
 		Timestamp:  100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.b"},
+		Source:     observer.SeriesDescriptor{Name: "metric.b"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly B",
 		Timestamp:  105, // 5 seconds later, within 10s proximity
@@ -36,8 +36,7 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	assert.Contains(t, correlations[0].MemberRefs, observer.SeriesRef(0))
-	assert.Contains(t, correlations[0].MemberRefs, observer.SeriesRef(1))
+	assert.Len(t, correlations[0].Members, 2)
 }
 
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
@@ -48,13 +47,13 @@ func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 
 	// Anomalies within proximity window should cluster
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly A",
 		Timestamp:  100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.b"},
+		Source:     observer.SeriesDescriptor{Name: "metric.b"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly B",
 		Timestamp:  108, // 8 seconds later, within 10s proximity
@@ -73,13 +72,13 @@ func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 
 	// Anomalies outside proximity window should form separate clusters
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly A",
 		Timestamp:  100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.b"},
+		Source:     observer.SeriesDescriptor{Name: "metric.b"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly B",
 		Timestamp:  150, // 50 seconds later, outside 10s proximity
@@ -100,13 +99,13 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 
 	// Create two separate clusters
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly A",
 		Timestamp:  100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.b"},
+		Source:     observer.SeriesDescriptor{Name: "metric.b"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly B",
 		Timestamp:  120, // Far enough to be separate (20s apart)
@@ -117,7 +116,7 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 
 	// Add anomaly that bridges both clusters
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.c"},
+		Source:     observer.SeriesDescriptor{Name: "metric.c"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(2), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly C",
 		Timestamp:  110, // Near both clusters
@@ -138,14 +137,14 @@ func TestTimeClusterCorrelator_SameSeriesMultipleAnomalies(t *testing.T) {
 
 	// Multiple anomalies from the same series should all be kept
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:      observer.AnomalySource{Name: "metric.a"},
+		Source:      observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView:  observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Title:       "Anomaly A v1",
 		Description: "first",
 		Timestamp:   100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:      observer.AnomalySource{Name: "metric.a"},
+		Source:      observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView:  observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Title:       "Anomaly A v2",
 		Description: "second",
@@ -155,8 +154,8 @@ func TestTimeClusterCorrelator_SameSeriesMultipleAnomalies(t *testing.T) {
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	// Single unique series
-	assert.Len(t, correlations[0].MemberRefs, 1)
+	// Single unique series (same Source descriptor)
+	assert.Len(t, correlations[0].Members, 1)
 }
 
 func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
@@ -168,13 +167,13 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	// Same metric name, different tags = different SourceView refs
 	// Both should be separate members in the cluster
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(6), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly from host A",
 		Timestamp:  100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(7), Aggregate: observer.AggregateAverage},
 		Title:      "Anomaly from host B",
 		Timestamp:  102,
@@ -183,8 +182,8 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	assert.Contains(t, correlations[0].MemberRefs, observer.SeriesRef(6))
-	assert.Contains(t, correlations[0].MemberRefs, observer.SeriesRef(7))
+	// Same Source descriptor (both have same name, no tags) = 1 unique member
+	assert.Len(t, correlations[0].Members, 1)
 }
 
 func TestTimeClusterCorrelator_Eviction(t *testing.T) {
@@ -195,7 +194,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	// Add old anomaly
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.old"},
+		Source:     observer.SeriesDescriptor{Name: "metric.old"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(8), Aggregate: observer.AggregateAverage},
 		Title:      "Old Anomaly",
 		Timestamp:  100,
@@ -203,7 +202,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	// Add recent anomaly (advances currentDataTime)
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.new"},
+		Source:     observer.SeriesDescriptor{Name: "metric.new"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(9), Aggregate: observer.AggregateAverage},
 		Title:      "New Anomaly",
 		Timestamp:  200, // 100 seconds later, old one should be evicted
@@ -214,7 +213,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
-	assert.Equal(t, observer.SeriesRef(9), correlations[0].MemberRefs[0])
+	assert.Equal(t, "metric.new", correlations[0].Members[0].Name)
 }
 
 func TestTimeClusterCorrelator_SingletonCluster(t *testing.T) {
@@ -225,7 +224,7 @@ func TestTimeClusterCorrelator_SingletonCluster(t *testing.T) {
 
 	// A single anomaly should form a cluster of one
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Timestamp:  100,
 	})
@@ -244,28 +243,28 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 
 	// Create a cluster of 2 and a cluster of 3
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.a"},
+		Source:     observer.SeriesDescriptor{Name: "metric.a"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage},
 		Timestamp:  100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.b"},
+		Source:     observer.SeriesDescriptor{Name: "metric.b"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage},
 		Timestamp:  105,
 	})
 
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.c"},
+		Source:     observer.SeriesDescriptor{Name: "metric.c"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(2), Aggregate: observer.AggregateAverage},
 		Timestamp:  200,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.d"},
+		Source:     observer.SeriesDescriptor{Name: "metric.d"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(3), Aggregate: observer.AggregateAverage},
 		Timestamp:  205,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.e"},
+		Source:     observer.SeriesDescriptor{Name: "metric.e"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(4), Aggregate: observer.AggregateAverage},
 		Timestamp:  208,
 	})
@@ -284,7 +283,7 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 
 	// Once the small cluster grows to meet threshold, it should appear
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.AnomalySource{Name: "metric.f"},
+		Source:     observer.SeriesDescriptor{Name: "metric.f"},
 		SourceView: observer.QueryHandle{Ref: observer.SeriesRef(5), Aggregate: observer.AggregateAverage},
 		Timestamp:  103,
 	})

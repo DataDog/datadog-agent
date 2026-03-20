@@ -38,7 +38,7 @@ func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime in
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{
 			{
-				Source:         observerdef.AnomalySource{Name: fmt.Sprintf("%s%d", d.prefix, d.currentIndex)},
+				Source:         observerdef.SeriesDescriptor{Name: fmt.Sprintf("%s%d", d.prefix, d.currentIndex)},
 				SourceView: observerdef.QueryHandle{Ref: observerdef.SeriesRef(d.currentIndex), Aggregate: observerdef.AggregateAverage},
 				DetectorName:   d.Name(),
 				Title:          fmt.Sprintf("anomaly_%d", d.currentIndex),

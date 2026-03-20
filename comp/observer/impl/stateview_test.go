@@ -69,12 +69,12 @@ func TestStateView_Anomalies(t *testing.T) {
 
 	// Add some anomalies via the engine
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:       observerdef.AnomalySource{Name: "cpu"},
+		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
 		DetectorName: "cusum",
 		Timestamp:    100,
 	})
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:       observerdef.AnomalySource{Name: "mem"},
+		Source:       observerdef.SeriesDescriptor{Name: "mem"},
 		DetectorName: "bocpd",
 		Timestamp:    101,
 	})
@@ -113,7 +113,7 @@ func TestStateView_Anomalies(t *testing.T) {
 	// AnomaliesForView filters by SourceView (QueryHandle)
 	diskView := observerdef.QueryHandle{Ref: observerdef.SeriesRef(42), Aggregate: observerdef.AggregateAverage}
 	e.captureRawAnomaly(observerdef.Anomaly{
-		Source:       observerdef.AnomalySource{Name: "disk"},
+		Source:       observerdef.SeriesDescriptor{Name: "disk"},
 		DetectorName: "cusum",
 		Timestamp:    102,
 		SourceView:   diskView,

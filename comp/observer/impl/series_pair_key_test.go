@@ -8,13 +8,12 @@ package observerimpl
 import (
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSeriesPairKeyCanonicalization(t *testing.T) {
-	a := observer.SeriesRef(0)
-	b := observer.SeriesRef(1)
+	a := "cpu.user:avg"
+	b := "mem.used:avg"
 
 	k1 := newSeriesPairKey(a, b)
 	k2 := newSeriesPairKey(b, a)
@@ -25,9 +24,8 @@ func TestSeriesPairKeyCanonicalization(t *testing.T) {
 }
 
 func TestSeriesPairKeyHashKeyAvoidsDelimiterAmbiguity(t *testing.T) {
-	// These pairs should have different hash keys since they are different refs
-	k1 := newSeriesPairKey(observer.SeriesRef(0), observer.SeriesRef(1))
-	k2 := newSeriesPairKey(observer.SeriesRef(2), observer.SeriesRef(3))
+	k1 := newSeriesPairKey("cpu.user:avg", "mem.used:avg")
+	k2 := newSeriesPairKey("disk.io:count", "net.tx:sum")
 
 	assert.NotEqual(t, k1.hashKey(), k2.hashKey())
 }

@@ -179,7 +179,6 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 				Title:  "CUSUM shift detected: " + series.Name,
 				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ above baseline of %.2f)",
 					series.Name, p.Value, deviation, baselineMean),
-				Tags:      series.Tags,
 				Timestamp: series.Points[i].Timestamp,
 				DebugInfo: debugInfo,
 			}
@@ -200,7 +199,6 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 				Title:  "CUSUM shift detected: " + series.Name,
 				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ below baseline of %.2f)",
 					series.Name, p.Value, deviation, baselineMean),
-				Tags:      series.Tags,
 				Timestamp: series.Points[i].Timestamp,
 				DebugInfo: debugInfo,
 			}

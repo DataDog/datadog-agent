@@ -969,7 +969,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 			members = append(members, seriesCompact{
 				Namespace: a.Source.Namespace,
 				Name:      a.Source.Name + ":" + aggStr,
-				Tags:      a.Tags,
+				Tags:      a.Source.Tags,
 			})
 		}
 
@@ -1295,13 +1295,12 @@ func (tb *TestBench) loadDemoScenario() error {
 	for _, a := range demoAnomalies {
 		anomaly := observerdef.Anomaly{
 			Type:         observerdef.AnomalyTypeLog,
-			Source:       observerdef.AnomalySource{Name: "logs"},
+			Source:       observerdef.SeriesDescriptor{Name: "logs", Tags: []string{"service:" + a.service}},
 			DetectorName: a.detectorName,
 			Title:        a.title,
 			Description:  a.description,
 			Timestamp:    a.ts,
 			Score:        a.score,
-			Tags:         []string{"service:" + a.service},
 		}
 		tb.logAnomalies = append(tb.logAnomalies, anomaly)
 		tb.logAnomaliesByDetector[a.detectorName] = append(tb.logAnomaliesByDetector[a.detectorName], anomaly)

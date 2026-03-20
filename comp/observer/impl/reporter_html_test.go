@@ -28,7 +28,7 @@ func TestHTMLReporter_Report_AddsToBuffer(t *testing.T) {
 	r.Report(observer.ReportOutput{
 		AdvancedToSec: 100,
 		NewAnomalies: []observer.Anomaly{
-			{Source: observer.AnomalySource{Name: "cpu"}, DetectorName: "test"},
+			{Source: observer.SeriesDescriptor{Name: "cpu"}, DetectorName: "test"},
 		},
 		ActiveCorrelations: []observer.ActiveCorrelation{
 			{Pattern: "p1", Title: "Correlation 1"},
@@ -151,7 +151,7 @@ func TestHTMLReporter_APIReports_ReturnsJSON(t *testing.T) {
 	r.Report(observer.ReportOutput{
 		AdvancedToSec: 42,
 		NewAnomalies: []observer.Anomaly{
-			{Source: observer.AnomalySource{Name: "cpu"}},
+			{Source: observer.SeriesDescriptor{Name: "cpu"}},
 		},
 	})
 
@@ -408,12 +408,12 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 			{
 				Pattern: "test_pattern",
 				Title:   "Test Correlation",
-				MemberRefs: []observer.SeriesRef{
-					observer.SeriesRef(0),
-					observer.SeriesRef(1),
+				Members: []observer.SeriesDescriptor{
+					{Name: "signal1"},
+					{Name: "signal2"},
 				},
 				Anomalies: []observer.Anomaly{
-					{Source: observer.AnomalySource{Name: "signal1"}, Title: "Anomaly 1", Description: "Description 1"},
+					{Source: observer.SeriesDescriptor{Name: "signal1"}, Title: "Anomaly 1", Description: "Description 1"},
 				},
 			},
 		},

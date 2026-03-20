@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLeadLagCorrelator_PreservesFullSeriesIDs(t *testing.T) {
+func TestLeadLagCorrelator_PreservesDescriptorKeys(t *testing.T) {
 	c := NewLeadLagCorrelator(LeadLagConfig{
 		MaxLagSeconds:       30,
 		MinObservations:     1,
@@ -22,19 +22,19 @@ func TestLeadLagCorrelator_PreservesFullSeriesIDs(t *testing.T) {
 		WindowSeconds:       120,
 	})
 
-	seriesA := observer.SeriesRef(0)
-	seriesB := observer.SeriesRef(1)
+	srcA := observer.SeriesDescriptor{Name: "cpu.user", Aggregate: observer.AggregateAverage}
+	srcB := observer.SeriesDescriptor{Name: "mem.used", Aggregate: observer.AggregateAverage}
 
-	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesA, Aggregate: observer.AggregateAverage}, Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesB, Aggregate: observer.AggregateAverage}, Timestamp: 108})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcA, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcB, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage}, Timestamp: 108})
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)
-	assert.Contains(t, []string{"0", "1"}, edges[0].Leader)
-	assert.Contains(t, []string{"0", "1"}, edges[0].Follower)
+	assert.Contains(t, []string{srcA.Key(), srcB.Key()}, edges[0].Leader)
+	assert.Contains(t, []string{srcA.Key(), srcB.Key()}, edges[0].Follower)
 }
 
-func TestSurpriseCorrelator_PreservesFullSeriesIDs(t *testing.T) {
+func TestSurpriseCorrelator_PreservesDescriptorKeys(t *testing.T) {
 	c := NewSurpriseCorrelator(SurpriseConfig{
 		WindowSizeSeconds:     10,
 		MinLift:               1.0,
@@ -45,15 +45,15 @@ func TestSurpriseCorrelator_PreservesFullSeriesIDs(t *testing.T) {
 		EvictionWindowSeconds: 300,
 	})
 
-	seriesA := observer.SeriesRef(0)
-	seriesB := observer.SeriesRef(1)
+	srcA := observer.SeriesDescriptor{Name: "cpu.user", Aggregate: observer.AggregateAverage}
+	srcB := observer.SeriesDescriptor{Name: "mem.used", Aggregate: observer.AggregateAverage}
 
-	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesA, Aggregate: observer.AggregateAverage}, Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{SourceView: observer.QueryHandle{Ref: seriesB, Aggregate: observer.AggregateAverage}, Timestamp: 101})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcA, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(0), Aggregate: observer.AggregateAverage}, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{Source: srcB, SourceView: observer.QueryHandle{Ref: observer.SeriesRef(1), Aggregate: observer.AggregateAverage}, Timestamp: 101})
 	c.Advance(200) // finalize window
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)
-	assert.Contains(t, []string{"0", "1"}, edges[0].Source1)
-	assert.Contains(t, []string{"0", "1"}, edges[0].Source2)
+	assert.Contains(t, []string{srcA.Key(), srcB.Key()}, edges[0].Source1)
+	assert.Contains(t, []string{srcA.Key(), srcB.Key()}, edges[0].Source2)
 }

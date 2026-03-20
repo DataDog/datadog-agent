@@ -43,22 +43,25 @@ func newTestBenchForOutput() *TestBench {
 // testCorrelation returns a test correlation with known values.
 func testCorrelation() observerdef.ActiveCorrelation {
 	return observerdef.ActiveCorrelation{
-		Pattern:     "cluster_1000",
-		Title:       "Correlated anomalies at 1000",
-		MemberRefs:  []observerdef.SeriesRef{observerdef.SeriesRef(0), observerdef.SeriesRef(1)},
+		Pattern: "cluster_1000",
+		Title:   "Correlated anomalies at 1000",
+		Members: []observerdef.SeriesDescriptor{
+			{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
+			{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
+		},
 		FirstSeen:   1000,
 		LastUpdated: 1500,
 		Anomalies: []observerdef.Anomaly{
 			{
 				Timestamp:    1000,
-				Source:       observerdef.AnomalySource{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
+				Source:       observerdef.SeriesDescriptor{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
 				SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
 				DetectorName: "cusum",
 				Description:  "CUSUM detected shift in cpu.user:avg",
 			},
 			{
 				Timestamp:    1200,
-				Source:       observerdef.AnomalySource{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
+				Source:       observerdef.SeriesDescriptor{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
 				SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(1), Aggregate: observerdef.AggregateAverage},
 				DetectorName: "cusum",
 				Description:  "CUSUM detected shift in mem.used:avg",
@@ -170,7 +173,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	assert.Equal(t, []string{"source:agent-q-branch-observer", "pattern:cluster_1000"}, corr.Tags)
 	assert.Equal(t, int64(1000), corr.PeriodStart)
 	assert.Equal(t, int64(1500), corr.PeriodEnd)
-	assert.Equal(t, []string{"0", "1"}, corr.MemberSeries)
+	assert.Equal(t, []string{"cpu.user:avg", "mem.used:avg"}, corr.MemberSeries)
 
 	// Nested anomalies
 	require.Len(t, corr.Anomalies, 2)
@@ -209,13 +212,13 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 		{
 			Pattern:     "p1",
 			Title:       "Title with \"quotes\" and\nnewlines",
-			MemberRefs:  []observerdef.SeriesRef{observerdef.SeriesRef(0)},
+			Members:     []observerdef.SeriesDescriptor{{Name: "metric", Aggregate: observerdef.AggregateAverage}},
 			FirstSeen:   100,
 			LastUpdated: 200,
 			Anomalies: []observerdef.Anomaly{
 				{
 					Timestamp:    100,
-					Source:       observerdef.AnomalySource{Name: "metric"},
+					Source:       observerdef.SeriesDescriptor{Name: "metric"},
 					SourceView:   observerdef.QueryHandle{Ref: observerdef.SeriesRef(0), Aggregate: observerdef.AggregateAverage},
 					DetectorName: "cusum",
 				},

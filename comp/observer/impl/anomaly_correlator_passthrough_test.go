@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func passthroughSource(name string) observer.AnomalySource {
-	return observer.AnomalySource{Name: name}
+func passthroughSource(name string) observer.SeriesDescriptor {
+	return observer.SeriesDescriptor{Name: name}
 }
 
 func TestDetectorPassthroughCorrelator_OnePerAnomaly(t *testing.T) {
@@ -63,8 +63,8 @@ func TestDetectorPassthroughCorrelator_SeriesIDAndSource(t *testing.T) {
 
 	corrs := c.ActiveCorrelations()
 	require.Len(t, corrs, 1)
-	assert.Equal(t, []observer.SeriesRef{observer.SeriesRef(0)}, corrs[0].MemberRefs)
-	assert.Equal(t, []observer.MetricName{"redis.cpu.sys"}, corrs[0].MetricNames)
+	require.Len(t, corrs[0].Members, 1)
+	assert.Equal(t, "redis.cpu.sys", corrs[0].Members[0].Name)
 }
 
 func TestDetectorPassthroughCorrelator_Reset(t *testing.T) {

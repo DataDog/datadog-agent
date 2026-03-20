@@ -6,8 +6,6 @@
 package observerimpl
 
 import (
-	"sort"
-
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -160,18 +158,16 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = c.currentDataTime
 				existing.Anomalies = matchingAnomalies
-				existing.MemberRefs = sortedUniqueRefs(matchingAnomalies)
-				existing.MetricNames = c.getSortedMetricNames(sourceSet)
+				existing.Members = sortedUniqueMembers(matchingAnomalies)
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
-					Pattern:         pattern.name,
-					Title:           pattern.reportTitle,
-					MemberRefs: sortedUniqueRefs(matchingAnomalies),
-					MetricNames:     c.getSortedMetricNames(sourceSet),
-					Anomalies:       matchingAnomalies,
-					FirstSeen:       c.currentDataTime,
-					LastUpdated:     c.currentDataTime,
+					Pattern:     pattern.name,
+					Title:       pattern.reportTitle,
+					Members:     sortedUniqueMembers(matchingAnomalies),
+					Anomalies:   matchingAnomalies,
+					FirstSeen:   c.currentDataTime,
+					LastUpdated: c.currentDataTime,
 				}
 			}
 		}
@@ -235,15 +231,6 @@ func (c *CrossSignalCorrelator) getBuffer() []timestampedAnomaly {
 	return c.buffer
 }
 
-// getSortedMetricNames returns a sorted slice of metric names from a source set.
-func (c *CrossSignalCorrelator) getSortedMetricNames(sources map[observer.MetricName]struct{}) []observer.MetricName {
-	sourceList := make([]observer.MetricName, 0, len(sources))
-	for source := range sources {
-		sourceList = append(sourceList, source)
-	}
-	sort.Slice(sourceList, func(i, j int) bool { return sourceList[i] < sourceList[j] })
-	return sourceList
-}
 
 // ActiveCorrelations returns a copy of the currently active correlation patterns.
 func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
@@ -253,8 +240,7 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     ac.Pattern,
 			Title:       ac.Title,
-			MemberRefs:  append([]observer.SeriesRef(nil), ac.MemberRefs...),
-			MetricNames: append([]observer.MetricName(nil), ac.MetricNames...),
+			Members:     append([]observer.SeriesDescriptor(nil), ac.Members...),
 			Anomalies:   ac.Anomalies,
 			FirstSeen:   ac.FirstSeen,
 			LastUpdated: ac.LastUpdated,

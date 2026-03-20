@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -232,13 +231,13 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		seen := make(map[observer.SeriesRef]bool)
+		seen := make(map[string]bool)
 		for _, a := range cluster.anomalies {
-			seen[a.SourceView.Ref] = true
+			seen[a.Source.Key()] = true
 		}
 		sources := make([]string, 0, len(seen))
-		for ref := range seen {
-			sources = append(sources, strconv.Itoa(int(ref)))
+		for key := range seen {
+			sources = append(sources, key)
 		}
 		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
@@ -299,23 +298,10 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		// Collect unique series refs
-		seen := make(map[observer.SeriesRef]bool)
-		for _, a := range cluster.anomalies {
-			seen[a.SourceView.Ref] = true
-		}
-		memberRefs := make([]observer.SeriesRef, 0, len(seen))
-		for ref := range seen {
-			memberRefs = append(memberRefs, ref)
-		}
-		sort.Slice(memberRefs, func(i, j int) bool { return memberRefs[i] < memberRefs[j] })
-		metricNames := sortedUniqueMetricNames(cluster.anomalies)
-
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
 			Title:       fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
-			MemberRefs:  memberRefs,
-			MetricNames: metricNames,
+			Members:     sortedUniqueMembers(cluster.anomalies),
 			Anomalies:   cluster.anomalies,
 			FirstSeen:   cluster.minTimestamp,
 			LastUpdated: cluster.maxTimestamp,

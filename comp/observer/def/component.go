@@ -10,7 +10,11 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
-import "strconv"
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // team: agent-metric-pipelines
 
@@ -269,29 +273,59 @@ type LogMetricsExtractorOutput struct {
 // Multiple series can share a MetricName if they differ by tags.
 type MetricName string
 
-// AnomalySource identifies the metric that an anomaly is about using
-// structured fields rather than string concatenation.
-type AnomalySource struct {
+// SeriesDescriptor is the fully resolved identity of a time series.
+// It carries namespace, metric name, tags, and aggregation — everything
+// needed to display, key, and compare series across correlators and API.
+type SeriesDescriptor struct {
 	// Namespace identifies the component that produced this metric
 	// (e.g. an extractor name like "log_metrics_extractor", or "dogstatsd").
 	Namespace string
 	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
 	Name string
+	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
+	Tags []string
 	// Aggregate is the aggregation applied when reading the series.
 	Aggregate Aggregate
 }
 
 // String returns a human-readable representation (e.g. "cpu.user:avg").
-// Namespace is structural and not included in the display string.
-func (s AnomalySource) String() string {
-	if s.Name == "" {
+// Namespace and tags are not included — use DisplayName() for that.
+func (sd SeriesDescriptor) String() string {
+	if sd.Name == "" {
 		return ""
 	}
-	if s.Aggregate == AggregateNone {
-		return s.Name
+	if sd.Aggregate == AggregateNone {
+		return sd.Name
 	}
-	return s.Name + ":" + AggregateString(s.Aggregate)
+	return sd.Name + ":" + AggregateString(sd.Aggregate)
 }
+
+// DisplayName returns a display string with tags (e.g. "cpu.user:avg{host:web-1}").
+func (sd SeriesDescriptor) DisplayName() string {
+	base := sd.String()
+	if len(sd.Tags) == 0 {
+		return base
+	}
+	return base + "{" + strings.Join(sd.Tags, ",") + "}"
+}
+
+// Key returns a stable string suitable for use as a map key.
+// Format: "namespace|name:agg|tag1,tag2,..."
+func (sd SeriesDescriptor) Key() string {
+	aggStr := AggregateString(sd.Aggregate)
+	var tagStr string
+	if len(sd.Tags) > 0 {
+		sorted := make([]string, len(sd.Tags))
+		copy(sorted, sd.Tags)
+		sort.Strings(sorted)
+		tagStr = strings.Join(sorted, ",")
+	}
+	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
+}
+
+// AnomalySource is an alias for SeriesDescriptor for backward compatibility.
+// Deprecated: use SeriesDescriptor directly.
+type AnomalySource = SeriesDescriptor
 
 // SeriesRef is a compact numeric handle for a stored time series.
 // Storage assigns a SeriesRef when a series key is first created;
@@ -344,8 +378,8 @@ type Anomaly struct {
 	// Type distinguishes log-based anomalies from metric-based ones.
 	// Defaults to AnomalyTypeMetric if not set.
 	Type AnomalyType
-	// Source identifies which metric/signal the anomaly is about.
-	Source AnomalySource
+	// Source is the fully resolved series identity (namespace, name, tags, aggregate).
+	Source SeriesDescriptor
 	// SourceView identifies the concrete storage series + aggregate that produced
 	// this anomaly. Invalid (NoQueryHandle) for log anomalies.
 	SourceView QueryHandle
@@ -356,7 +390,6 @@ type Anomaly struct {
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
-	Tags      []string
 	Timestamp int64    // when the anomaly was detected (unix seconds)
 	Score     *float64 // confidence/severity score (nil if not available)
 	// DebugInfo contains detector-specific debug information explaining the detection.
@@ -466,10 +499,8 @@ type Reporter interface {
 type ActiveCorrelation struct {
 	Pattern string // pattern name, e.g. "kernel_bottleneck"
 	Title   string // display title, e.g. "Correlated: Kernel network bottleneck"
-	// MemberRefs are the storage series refs participating in this correlation.
-	MemberRefs []SeriesRef
-	// MetricNames are display-oriented metric names participating in this correlation.
-	MetricNames []MetricName
+	// Members are the fully resolved series descriptors participating in this correlation.
+	Members     []SeriesDescriptor
 	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
 	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
 	LastUpdated int64     // most recent contributing signal (unix seconds, from data)

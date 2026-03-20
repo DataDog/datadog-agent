@@ -1131,21 +1131,15 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Requ
 					Source:      a.Source.String(),
 					Title:       a.Title,
 					Description: a.Description,
-					Tags:        a.Tags,
+					Tags:        a.Source.Tags,
 					Timestamp:   a.Timestamp,
 					Score:       a.Score,
 				}
 			}
-			// Collect unique source view strings from anomalies.
-			sourceSet := make(map[string]struct{})
-			for _, a := range ac.Anomalies {
-				if s := a.SourceView.String(); s != "" {
-					sourceSet[s] = struct{}{}
-				}
-			}
-			sources := make([]string, 0, len(sourceSet))
-			for s := range sourceSet {
-				sources = append(sources, s)
+			// Collect unique source strings from members.
+			sources := make([]string, len(ac.Members))
+			for k, m := range ac.Members {
+				sources[k] = m.String()
 			}
 			sort.Strings(sources)
 
@@ -1186,7 +1180,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, _ *http.Requ
 				DetectorName: a.DetectorName,
 				Title:        a.Title,
 				Description:  a.Description,
-				Tags:         a.Tags,
+				Tags:         a.Source.Tags,
 				Timestamp:    a.Timestamp,
 				Score:        a.Score,
 			}

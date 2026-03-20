@@ -770,7 +770,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
 			Description:       a.Description,
-			Tags:              a.Tags,
+			Tags:              a.Source.Tags,
 			Timestamp:         a.Timestamp,
 		}
 		if a.DebugInfo != nil {
@@ -851,7 +851,7 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
-			Tags:         a.Tags,
+			Tags:         a.Source.Tags,
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
 		})
@@ -1034,7 +1034,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
-			tags := a.Tags
+			tags := a.Source.Tags
 			if tags == nil {
 				tags = []string{}
 			}
@@ -1047,16 +1047,21 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				Tags:        tags,
 			}
 		}
-		// Build member series ID strings from MemberRefs
-		memberIDs := make([]string, len(c.MemberRefs))
-		for k, ref := range c.MemberRefs {
-			memberIDs[k] = strconv.Itoa(int(ref))
+		// Build member series strings from Members
+		memberIDs := make([]string, len(c.Members))
+		for k, m := range c.Members {
+			memberIDs[k] = m.String()
+		}
+		// Build metric names from Members for backward compatibility
+		metricNames := make([]string, len(c.Members))
+		for k, m := range c.Members {
+			metricNames[k] = m.String()
 		}
 		response[i] = correlationResponse{
 			Pattern:         c.Pattern,
 			Title:           c.Title,
 			MemberSeriesIDs: memberIDs,
-			MetricNames:     metricNamesToStrings(c.MetricNames),
+			MetricNames:     metricNames,
 			Anomalies:       anomalies,
 			FirstSeen:       c.FirstSeen,
 			LastUpdated:     c.LastUpdated,
@@ -1066,13 +1071,6 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 	api.writeJSON(w, response)
 }
 
-func metricNamesToStrings(names []observerdef.MetricName) []string {
-	out := make([]string, len(names))
-	for i, n := range names {
-		out[i] = string(n)
-	}
-	return out
-}
 
 // handleLeadLag returns lead-lag edges.
 func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, _ *http.Request) {

@@ -394,9 +394,10 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 
 // makeAnomaly constructs an Anomaly for a new alert onset.
 func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, ref observer.SeriesRef, cpProb, shortRunMass float64) *observer.Anomaly {
-	source := observer.AnomalySource{
+	source := observer.SeriesDescriptor{
 		Namespace: series.Namespace,
 		Name:      series.Name,
+		Tags:      series.Tags,
 		Aggregate: agg,
 	}
 	deviation := (p.Value - state.baselineMean) / state.baselineStddev
@@ -419,7 +420,6 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 		Title:          "BOCPD changepoint detected: " + displayName,
 		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
 			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
-		Tags:      series.Tags,
 		Timestamp: p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMean:   state.baselineMean,
