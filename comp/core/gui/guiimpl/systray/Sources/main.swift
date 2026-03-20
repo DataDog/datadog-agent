@@ -43,7 +43,7 @@ if headlessMode {
         Logger.info("WiFi IPC server started successfully", context: "GUI")
     } catch {
         Logger.error("Failed to start WiFi IPC server: \(error.localizedDescription)", context: "GUI")
-        exit(1)
+        Logger.error("WiFi metrics will be unavailable for the agent", context: "GUI")
     }
 
     // Keep the app running

@@ -23,12 +23,9 @@ class WiFiIPCServer {
     init(wifiDataProvider: WiFiDataProvider) {
         self.wifiDataProvider = wifiDataProvider
 
-        // Get installation path from environment (set by LaunchAgent) or use default
-        let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
-
         // Create socket path based on current user's UID
         let uid = getuid()
-        self.socketPath = "\(installPath)/run/ipc/gui-\(uid).sock"
+        self.socketPath = "\(InstallPaths.guiIPCDirectory)/gui-\(uid).sock"
         // Use .background QoS for agent telemetry collection (not user-facing work)
         self.acceptQueue = DispatchQueue(label: "com.datadoghq.wifi.ipc", qos: .background)
 
@@ -137,9 +134,7 @@ class WiFiIPCServer {
 
     // Private Methods
     private func createSocketDirectory() throws {
-        // Get installation path from environment (set by LaunchAgent) or use default
-        let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
-        let socketDir = "\(installPath)/run/ipc"
+        let socketDir = InstallPaths.guiIPCDirectory
         let fileManager = FileManager.default
 
         // Check if directory exists
