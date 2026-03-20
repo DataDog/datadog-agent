@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MetricsChart, getSeriesVariantColor, getDetectorColorStable } from './MetricsChart';
 import type { SeriesVariant } from './MetricsChart';
 import type { Point, AnomalyMarker, Anomaly, SeriesID } from '../api/client';
@@ -36,6 +36,7 @@ interface ChartWithAnomalyDetailsProps {
   seriesVariants?: SeriesVariant[];
   isTelemetry?: boolean;
   phaseMarkers?: PhaseMarker[];
+  subtitle?: React.ReactNode;
 }
 
 function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<SeriesID> {
@@ -92,6 +93,7 @@ export function ChartWithAnomalyDetails({
   seriesVariants,
   isTelemetry = false,
   phaseMarkers,
+  subtitle,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
@@ -212,6 +214,13 @@ export function ChartWithAnomalyDetails({
         isTelemetry={isTelemetry}
         phaseMarkers={phaseMarkers}
       />
+
+      {/* Optional subtitle — e.g. log pattern info */}
+      {subtitle && (
+        <div className="border-t border-slate-700 px-4 py-2">
+          {subtitle}
+        </div>
+      )}
 
       {/* Anomaly details - compact list below chart */}
       {filteredAnomalies.length > 0 && (

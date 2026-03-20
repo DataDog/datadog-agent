@@ -186,6 +186,8 @@ function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
   const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [requestedFocusedGroupKey, setRequestedFocusedGroupKey] = useState<string | null>(null);
+  const [requestedPatternFilter, setRequestedPatternFilter] = useState<string | null>(null);
   const [smoothLines, setSmoothLines] = useState(true);
   const isResizingRef = useRef(false);
 
@@ -289,6 +291,7 @@ function App() {
     appliedEpisodeRef.current = null; // Allow episode range to be re-applied
     setTimeRangeLive(null);
     setNav({ history: [null], index: 0 });
+    setRequestedFocusedGroupKey(null);
   }, [state.activeScenario]);
 
   // Once episode info arrives for a freshly loaded scenario, apply its time range as default
@@ -522,6 +525,12 @@ function App() {
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
             phaseMarkers={phaseMarkers}
+            requestedFocusedGroupKey={requestedFocusedGroupKey}
+            onRequestedFocusedGroupKeyConsumed={() => setRequestedFocusedGroupKey(null)}
+            onJumpToPattern={(patternHash) => {
+              setRequestedPatternFilter(patternHash);
+              setActiveTab('logs');
+            }}
           />
         </div>
         <div className={`flex-1 flex ${activeTab !== 'correlators' ? 'hidden' : ''}`}>
@@ -541,6 +550,12 @@ function App() {
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
             phaseMarkers={phaseMarkers}
+            onJumpToSeries={(groupKey) => {
+              setRequestedFocusedGroupKey(groupKey);
+              setActiveTab('timeseries');
+            }}
+            requestedPatternFilter={requestedPatternFilter}
+            onRequestedPatternFilterConsumed={() => setRequestedPatternFilter(null)}
           />
         </div>
       </div>
