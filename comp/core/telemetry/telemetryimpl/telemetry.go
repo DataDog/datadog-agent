@@ -73,8 +73,6 @@ func newTelemetryComponent(deps dependencies) telemetry.Component {
 }
 
 func newTelemetry() telemetry.Component {
-	mutex.Lock()
-	defer mutex.Unlock()
 	return &telemetryImpl{
 		mutex:    &mutex,
 		registry: registry,
