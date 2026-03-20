@@ -632,6 +632,16 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Reset ALL components (not just enabled) so disabled ones clear stale state
 	tb.resetAllState()
 
+	// Register a replay reporter before the run so it captures events exactly as
+	// EventReporter would in live mode: one event per pattern appearance, with
+	// patterns eligible to re-fire after going inactive. This correctly counts
+	// repeated incidents for stable pattern names (cross-signal, lead-lag, surprise).
+	replay := &replayReporter{}
+	unsub := tb.engine.Subscribe(&reporterEventSink{
+		reporters: []observerdef.Reporter{replay},
+		state:     tb.engine.StateView(),
+	})
+
 	// Feed raw logs through the engine's IngestLog path so that extractors,
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
@@ -651,6 +661,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// The engine's captureRawAnomaly deduplicates anomalies internally,
 	// so stateView.Anomalies() returns a clean deduplicated set.
 	result := tb.engine.ReplayStoredData()
+	unsub()
 
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
@@ -676,8 +687,8 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Invalidate compressed correlations cache
 	tb.corrGeneration++
 
-	// Rebuild events that would have been sent to the Datadog backend.
-	tb.reportedEvents = buildReportedEvents(tb.engine.StateView().CorrelationHistory())
+	// Publish the ordered event log captured during replay.
+	tb.reportedEvents = replay.events
 
 	// Mark scenario ready now that all analysis is complete
 	tb.ready = true
