@@ -26,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
-
 func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
 
