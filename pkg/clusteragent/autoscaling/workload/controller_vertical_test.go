@@ -650,8 +650,8 @@ func interceptEvictions(k8sClient *k8sfake.Clientset) {
 }
 
 // buildInPlacePAI builds a PodAutoscalerInternal for in-place mode tests.
-// mode controls ApplyPolicy.Update.Mode; use "" (empty) for in-place (non-TriggerRollout).
-func buildInPlacePAI(ns, name string, sv *model.VerticalScalingValues, mode datadoghqcommon.DatadogPodAutoscalerUpdateMode) model.PodAutoscalerInternal {
+// strategy controls ApplyPolicy.Update.Strategy; use "" (empty) for in-place (non-TriggerRollout).
+func buildInPlacePAI(ns, name string, sv *model.VerticalScalingValues, strategy datadoghqcommon.DatadogPodAutoscalerUpdateStrategy) model.PodAutoscalerInternal {
 	return (&model.FakePodAutoscalerInternal{
 		Namespace: ns,
 		Name:      name,
@@ -659,7 +659,7 @@ func buildInPlacePAI(ns, name string, sv *model.VerticalScalingValues, mode data
 			TargetRef: v2.CrossVersionObjectReference{Name: "target", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-					Mode: mode,
+					Strategy: strategy,
 				},
 			},
 		},
@@ -707,7 +707,7 @@ func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datado
 	if sv == nil {
 		sv = scalingValWithRequests(recommendationID, "500m")
 	}
-	// Config enabled + Mode: Auto -> in-place path.
+	// Config enabled + Strategy: Auto -> in-place path.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace:     "default",
 		Name:          "ai",
@@ -715,7 +715,7 @@ func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datado
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-					Mode: datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode,
+					Strategy: datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
 				},
 			},
 		},
@@ -988,10 +988,10 @@ func TestSyncInternal_InPlace_NoFallback_WhenDelayZero(t *testing.T) {
 	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
 }
 
-// TestSyncInternal_TriggerRolloutMode_UsesRolloutPath verifies that when
-// ApplyPolicy.Update.Mode is TriggerRollout, syncInternal patches the workload
+// TestSyncInternal_TriggerRolloutStrategy_UsesRolloutPath verifies that when
+// ApplyPolicy.Update.Strategy is TriggerRollout, syncInternal patches the workload
 // (rollout path) rather than individual pods.
-func TestSyncInternal_TriggerRolloutMode_UsesRolloutPath(t *testing.T) {
+func TestSyncInternal_TriggerRolloutStrategy_UsesRolloutPath(t *testing.T) {
 	f := newVerticalControllerFixture(t, time.Now())
 	f.createTarget("default", "d1", kubernetes.DeploymentKind)
 
@@ -1014,7 +1014,7 @@ func TestSyncInternal_TriggerRolloutMode_UsesRolloutPath(t *testing.T) {
 			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-					Mode: datadoghqcommon.DatadogPodAutoscalerTriggerRolloutMode,
+					Strategy: datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy,
 				},
 			},
 		},
@@ -1074,9 +1074,9 @@ func TestSyncInternal_ConfigDisabled_NoApplyPolicy_UsesRolloutPath(t *testing.T)
 	assert.True(t, workloadPatched, "Config disabled + no ApplyPolicy must use rollout path")
 }
 
-// TestSyncInternal_ConfigDisabled_AutoMode_UsesRolloutPath verifies that with the
-// config flag disabled, even a DPA with Mode: Auto still uses the rollout path.
-func TestSyncInternal_ConfigDisabled_AutoMode_UsesRolloutPath(t *testing.T) {
+// TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath verifies that with the
+// config flag disabled, even a DPA with Strategy: Auto still uses the rollout path.
+func TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath(t *testing.T) {
 	// Config flag defaults to false — do not set it.
 	f := newVerticalControllerFixture(t, time.Now())
 	f.createTarget("default", "d1", kubernetes.DeploymentKind)
@@ -1092,7 +1092,7 @@ func TestSyncInternal_ConfigDisabled_AutoMode_UsesRolloutPath(t *testing.T) {
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
 	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
 
-	// Mode: Auto but config disabled -> rollout.
+	// Strategy: Auto but config disabled -> rollout.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "ai",
@@ -1101,7 +1101,7 @@ func TestSyncInternal_ConfigDisabled_AutoMode_UsesRolloutPath(t *testing.T) {
 			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-					Mode: datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode,
+					Strategy: datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
 				},
 			},
 		},
@@ -1117,7 +1117,7 @@ func TestSyncInternal_ConfigDisabled_AutoMode_UsesRolloutPath(t *testing.T) {
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
-	assert.True(t, workloadPatched, "Config disabled + Mode: Auto must still use rollout path")
+	assert.True(t, workloadPatched, "Config disabled + Strategy: Auto must still use rollout path")
 }
 
 // TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath verifies that with the
@@ -1163,9 +1163,9 @@ func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath(t *testing.T)
 	assert.True(t, workloadPatched, "Config enabled but no ApplyPolicy must use rollout path")
 }
 
-// TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath verifies that in-place scaling
-// is used only when the config flag is enabled AND the DPA explicitly sets Mode: Auto.
-func TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath(t *testing.T) {
+// TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath verifies that in-place scaling
+// is used only when the config flag is enabled AND the DPA explicitly sets Strategy: Auto.
+func TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
@@ -1180,7 +1180,7 @@ func TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath(t *testing.T) {
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
 	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
 
-	// Config enabled + Mode: Auto -> in-place path.
+	// Config enabled + Strategy: Auto -> in-place path.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "ai",
@@ -1189,7 +1189,7 @@ func TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath(t *testing.T) {
 			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-					Mode: datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode,
+					Strategy: datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
 				},
 			},
 		},
@@ -1206,5 +1206,5 @@ func TestSyncInternal_InPlaceEnabled_AutoMode_UsesInPlacePath(t *testing.T) {
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
-	assert.False(t, workloadPatched, "Config enabled + Mode: Auto must use in-place path, not rollout")
+	assert.False(t, workloadPatched, "Config enabled + Strategy: Auto must use in-place path, not rollout")
 }

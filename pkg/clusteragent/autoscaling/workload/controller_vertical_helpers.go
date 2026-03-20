@@ -509,7 +509,7 @@ func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.D
 // isRolloutRequired checks if a rollout is required for the podAutoscaler.
 // In-place scaling requires both the global config flag
 // (autoscaling.workload.in_place_vertical_scaling.enabled) AND an explicit
-// ApplyPolicy.Update.Mode of "Auto" on the DPA. All other cases use rollout.
+// ApplyPolicy.Update.Strategy of "Auto" on the DPA. All other cases use rollout.
 func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
@@ -520,7 +520,7 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 		return true
 	}
 
-	return spec.ApplyPolicy.Update.Mode != datadoghqcommon.DatadogPodAutoscalerAutoUpdateMode
+	return spec.ApplyPolicy.Update.Strategy != datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime
