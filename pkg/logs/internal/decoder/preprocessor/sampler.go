@@ -165,7 +165,6 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		matchCount: 1,
 		sampled:    1,
 	})
-	msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(1))
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
 }
