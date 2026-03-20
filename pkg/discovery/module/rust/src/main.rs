@@ -237,7 +237,7 @@ async fn handle_request(
         (&Method::GET, "/config/by-source") => handle_config_by_source().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
         _ => {
-            debug!(
+            info!(
                 "{} Request to unknown endpoint: {}",
                 req.method(),
                 req.uri().path()

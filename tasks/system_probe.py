@@ -22,7 +22,6 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -94,6 +93,12 @@ LIBPCAP_VERSION = "1.10.5"
 TEST_HELPER_CBINS = ["cudasample"]
 
 RUST_BINARIES = [
+    "pkg/discovery/module/rust",
+]
+
+# Rust packages that produce a shared library (.so).
+# Kept separate from RUST_BINARIES since not every Rust package exposes a library install target.
+RUST_LIBS = [
     "pkg/discovery/module/rust",
 ]
 
@@ -411,7 +416,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
 
-    bazel(ctx, "run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
+    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
     ctx.run(f"strip -g {target_file}")
     return
 
@@ -536,6 +541,10 @@ def build_sysprobe_binary(
                 env[k] += f" {v}"
             else:
                 env[k] = v
+
+    if not is_windows and not is_macos and not static:
+        build_rust_libs(ctx, arch=arch_obj)
+        build_tags.append("dd_discovery_rust")
 
     if os.path.exists(binary):
         os.remove(binary)
@@ -1269,9 +1278,13 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
     all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(inplace_targets.keys())
+    targets_str = " ".join(all_targets)
+
     print(f"Building {len(all_targets)} eBPF targets via Bazel...")
-    bazel(ctx, "build", *all_targets)
-    bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+    ctx.run(f"bazelisk build {targets_str}")
+
+    result = ctx.run("bazelisk info bazel-bin", hide=True)
+    bazel_bin = result.stdout.strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
@@ -1346,7 +1359,7 @@ def build_object_files(
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        bazel(ctx, "run", "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+        ctx.run(f"{sudo} bazelisk run -- @llvm_bpf//:install --destdir=/opt/datadog-agent")
 
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir)
@@ -1400,16 +1413,35 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         "arm64": "//bazel/platforms:linux_arm64",
     }
 
-    platform_flags = []
+    platform_flag = ""
     if arch.kmt_arch in platform_map:
-        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
+        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
 
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
+
+
+def build_rust_libs(ctx: Context, arch: Arch):
+    if is_windows or is_macos:
+        return
+
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
+
+    platform_flag = ""
+    if arch.kmt_arch in platform_map:
+        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+
+    for source_path in RUST_LIBS:
+        ctx.run(
+            f"bazelisk run --config=release {platform_flag} -- @//{source_path}:install_libs --destdir={Path(source_path)}"
+        )
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1436,8 +1468,10 @@ def build_cws_object_files(
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
-        bazel(ctx, "build", *targets)
-        bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+        ctx.run(f"bazelisk build {' '.join(targets)}")
+
+        result = ctx.run("bazelisk info bazel-bin", hide=True)
+        bazel_bin = result.stdout.strip()
 
         for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
             label_path, name = target.lstrip("/").rsplit(":", 1)
