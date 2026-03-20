@@ -8,6 +8,11 @@
         <true/>
         <key>Label</key>
         <string>com.datadoghq.gui</string>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_INSTALL_PATH</key>
+            <string>{install_dir}</string>
+        </dict>
         <key>ProgramArguments</key>
         <array>
             <string>/Applications/Datadog Agent.app/Contents/MacOS/gui</string>
@@ -15,9 +20,9 @@
             <!-- <string>--use-file-logging</string> -->
         </array>
         <key>StandardOutPath</key>
-        <string>/opt/datadog-agent/logs/gui.log</string>
+        <string>{install_dir}/logs/gui.log</string>
         <key>StandardErrorPath</key>
-        <string>/opt/datadog-agent/logs/gui.log</string>
+        <string>{install_dir}/logs/gui.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
     </dict>

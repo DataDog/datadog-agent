@@ -2,12 +2,6 @@ import Foundation
 import CoreLocation
 import CoreWLAN
 
-enum InstallPaths {
-    static let agentRoot = "/opt/datadog-agent"
-    static let agentBinary = "\(agentRoot)/bin/agent/agent"
-    static let guiIPCDirectory = "\(agentRoot)/run/ipc"
-}
-
 /// WiFiData represents the WiFi connection information
 struct WiFiData: Codable {
     let rssi: Int
@@ -68,9 +62,10 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     /// Default when configcheck succeeds but request_location_permission is missing or unparseable in WLAN config. Case 1: show prompt.
     private static let defaultRequestLocationPermissionWhenMissing = true
 
-    /// Returns the path to the agent binary.
+    /// Returns the path to the agent binary (uses DD_INSTALL_PATH from LaunchAgent plist or default).
     private static func agentBinaryPath() -> String {
-        return InstallPaths.agentBinary
+        let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
+        return "\(installPath)/bin/agent/agent"
     }
 
     /// Runs the agent binary with arguments ["configcheck", "wlan", "-j"] and returns stdout on success (exit 0), nil on failure.
