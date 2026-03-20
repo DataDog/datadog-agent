@@ -463,7 +463,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
 func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesHandle, aggStr string, originalID string) {
-	var agg Aggregate
+	agg := AggregateAverage
 	switch aggStr {
 	case "avg":
 		agg = AggregateAverage
@@ -727,7 +727,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			sourceSeriesID = storage.CompactSeriesID(sourceSeriesID)
 		}
 		resp := anomalyResponse{
-			Source:            string(a.Source),
+			Source:            a.Source.String(),
 			SourceSeriesID:    sourceSeriesID,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
@@ -763,7 +763,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			for _, a := range anomalies {
 				if a.DetectorName == "" || a.Timestamp == 0 {
 					log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-						a.DetectorName, a.Source, a.Timestamp)
+						a.DetectorName, a.Source.String(), a.Timestamp)
 					continue
 				}
 				response = append(response, toResponse(a))
@@ -775,7 +775,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		for _, a := range anomalies {
 			if a.DetectorName == "" || a.Timestamp == 0 {
 				log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-					a.DetectorName, a.Source, a.Timestamp)
+					a.DetectorName, a.Source.String(), a.Timestamp)
 				continue
 			}
 			response = append(response, toResponse(a))
@@ -810,7 +810,7 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 	response := make([]logAnomalyResponse, 0, len(anomalies))
 	for _, a := range anomalies {
 		response = append(response, logAnomalyResponse{
-			Source:       string(a.Source),
+			Source:       a.Source.String(),
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
@@ -984,7 +984,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				tags = []string{}
 			}
 			anomalies[j] = anomalyOutput{
-				Source:      string(a.Source),
+				Source:      a.Source.String(),
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,

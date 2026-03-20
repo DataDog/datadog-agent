@@ -28,7 +28,7 @@ func TestHTMLReporter_Report_AddsToBuffer(t *testing.T) {
 	r.Report(observer.ReportOutput{
 		AdvancedToSec: 100,
 		NewAnomalies: []observer.Anomaly{
-			{Source: "cpu", DetectorName: "test"},
+			{Source: observer.AnomalySource{Name: "cpu"}, DetectorName: "test"},
 		},
 		ActiveCorrelations: []observer.ActiveCorrelation{
 			{Pattern: "p1", Title: "Correlation 1"},
@@ -151,7 +151,7 @@ func TestHTMLReporter_APIReports_ReturnsJSON(t *testing.T) {
 	r.Report(observer.ReportOutput{
 		AdvancedToSec: 42,
 		NewAnomalies: []observer.Anomaly{
-			{Source: "cpu"},
+			{Source: observer.AnomalySource{Name: "cpu"}},
 		},
 	})
 
@@ -413,7 +413,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 					observer.SeriesID("series|signal2|"),
 				},
 				Anomalies: []observer.Anomaly{
-					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
+					{Source: observer.AnomalySource{Name: "signal1"}, Title: "Anomaly 1", Description: "Description 1"},
 				},
 			},
 		},
@@ -435,7 +435,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 	assert.Equal(t, "test_pattern", correlations[0].Pattern)
 	assert.Equal(t, "Test Correlation", correlations[0].Title)
 	require.Len(t, correlations[0].Anomalies, 1)
-	assert.Equal(t, "signal1", string(correlations[0].Anomalies[0].Source))
+	assert.Equal(t, "signal1", correlations[0].Anomalies[0].Source)
 }
 
 func TestHTMLReporter_APICorrelations_NoState(t *testing.T) {

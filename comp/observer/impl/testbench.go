@@ -176,11 +176,12 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	detectors, correlators, extractors, components := catalog.Instantiate(config.ComponentSettings)
 
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
-		extractors:  extractors,
-		detectors:   detectors,
-		correlators: correlators,
-		scheduler:   &currentBehaviorPolicy{},
+		storage:          newTimeSeriesStorage(),
+		extractors:       extractors,
+		detectors:        detectors,
+		correlators:      correlators,
+		contextProviders: collectContextProviders(extractors),
+		scheduler:        &currentBehaviorPolicy{},
 	})
 
 	hub := newSSEHub()
@@ -823,8 +824,8 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
 	for i := range anomalies {
 		a := &anomalies[i]
-		if a.SourceSeriesID == "" && a.Source != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + string(a.Source)
+		if a.SourceSeriesID == "" && a.Source.Name != "" {
+			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
 			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
 		}
 	}
@@ -1221,7 +1222,7 @@ func (tb *TestBench) loadDemoScenario() error {
 	for _, a := range demoAnomalies {
 		anomaly := observerdef.Anomaly{
 			Type:         observerdef.AnomalyTypeLog,
-			Source:       "logs",
+			Source:       observerdef.AnomalySource{Name: "logs"},
 			DetectorName: a.detectorName,
 			Title:        a.title,
 			Description:  a.description,

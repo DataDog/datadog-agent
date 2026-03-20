@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -147,6 +148,7 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult 
 func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64, debugInfo *observer.AnomalyDebugInfo) *observer.Anomaly {
 	var sHigh, sLow float64
 	cusumValues := make([]float64, 0, len(series.Points))
+	source := anomalySourceFromSeriesName(series.Name)
 
 	for i, p := range series.Points {
 		// Upper CUSUM: detect increases
@@ -173,7 +175,7 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 				debugInfo.CUSUMValues = cusumValues
 			}
 			return &observer.Anomaly{
-				Source: observer.MetricName(series.Name),
+				Source: source,
 				Title:  "CUSUM shift detected: " + series.Name,
 				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ above baseline of %.2f)",
 					series.Name, p.Value, deviation, baselineMean),
@@ -194,7 +196,7 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 				debugInfo.CUSUMValues = cusumValues
 			}
 			return &observer.Anomaly{
-				Source: observer.MetricName(series.Name),
+				Source: source,
 				Title:  "CUSUM shift detected: " + series.Name,
 				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ below baseline of %.2f)",
 					series.Name, p.Value, deviation, baselineMean),
@@ -206,6 +208,35 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 	}
 
 	return nil
+}
+
+func anomalySourceFromSeriesName(name string) observer.AnomalySource {
+	if idx := strings.LastIndex(name, ":"); idx != -1 {
+		if agg, ok := parseAggregateSuffix(name[idx+1:]); ok {
+			return observer.AnomalySource{
+				Name:      name[:idx],
+				Aggregate: agg,
+			}
+		}
+	}
+	return observer.AnomalySource{Name: name}
+}
+
+func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
+	switch s {
+	case "avg":
+		return observer.AggregateAverage, true
+	case "sum":
+		return observer.AggregateSum, true
+	case "count":
+		return observer.AggregateCount, true
+	case "min":
+		return observer.AggregateMin, true
+	case "max":
+		return observer.AggregateMax, true
+	default:
+		return 0, false
+	}
 }
 
 // mean calculates the arithmetic mean of points.
