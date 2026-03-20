@@ -28,7 +28,7 @@ func TestPrivateActionRunnerHttpAllowlistFromEnv(t *testing.T) {
 }
 
 func TestPrivateActionRunnerRestrictedShellAllowedPathsFromEnv(t *testing.T) {
-	t.Setenv("DD_RESTRICTED_SHELL_ALLOWED_PATHS", "/var/log,/tmp")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", "/var/log,/tmp")
 
 	cfg := newTestConf(t)
 
@@ -36,7 +36,7 @@ func TestPrivateActionRunnerRestrictedShellAllowedPathsFromEnv(t *testing.T) {
 }
 
 func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
-	t.Setenv("DD_RESTRICTED_SHELL_ALLOWED_PATHS", "")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", "")
 
 	cfg := newTestConf(t)
 
