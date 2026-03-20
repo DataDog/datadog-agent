@@ -112,6 +112,9 @@ type TestBench struct {
 	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
+	// Events captured during replay (mirrors what EventReporter would send in live mode).
+	reportedEvents []ReportedEvent
+
 	// Cached compressed correlations (expensive to recompute)
 	compCorrCache      []CompressedGroup
 	compCorrThreshold  float64
@@ -1353,7 +1356,7 @@ func (tb *TestBench) GetReportedEvents() []ReportedEvent {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return buildReportedEvents(tb.engine.StateView().CorrelationHistory())
+	return tb.reportedEvents
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.

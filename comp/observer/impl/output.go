@@ -59,6 +59,7 @@ type ObserverAnomaly struct {
 func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 	tb.mu.RLock()
 	correlations := tb.engine.StateView().CorrelationHistory()
+	reportedEvents := tb.reportedEvents
 
 	scenario := tb.loadedScenario
 	timelineStart, timelineEnd, hasBounds := tb.engine.Storage().TimeBounds()
@@ -116,8 +117,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
-	// Same correlation slice as anomaly_periods — avoids drift vs cached snapshots.
-	reports := buildReportedEvents(correlations)
+	reports := reportedEvents
 
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
