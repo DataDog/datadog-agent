@@ -72,7 +72,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
 # gazelle:exclude pkg/dyninst/uprobe
-# gazelle:exclude pkg/ebpf
 # gazelle:exclude pkg/errors
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/fips
