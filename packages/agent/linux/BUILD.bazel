@@ -66,10 +66,6 @@ pkg_filegroup(
     srcs = [
         "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",
-        "//deps/openscap:all_files",
-        "@freetds//:all_files",
-        "@nghttp2//:all_files",
-        "@xz//:all_files",
     ],
     prefix = "/opt/datadog-agent",
 )
