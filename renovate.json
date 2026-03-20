@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile", "docker-compose", "bazel-module"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile", "docker-compose", "cargo", "bazel-module"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",

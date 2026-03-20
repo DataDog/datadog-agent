@@ -11,6 +11,7 @@ use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "b
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
 use_repo(
     go_deps,
+    "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_units",
@@ -214,9 +215,9 @@ use_repo(
     "com_github_datadog_ddtrivy",
     "com_github_datadog_ebpf_manager",
     "com_github_datadog_go_sqllexer",
-    "com_github_datadog_gopsutil",
     "com_github_datadog_jsonapi",
     "com_github_datadog_nikos",
+    "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_viper",
     "com_github_datadog_watermarkpodautoscaler_apis",
