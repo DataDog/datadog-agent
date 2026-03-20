@@ -361,6 +361,8 @@ func ReadMetricsFromDir(dir string) ([]recorderdef.MetricData, error) {
 		var value float64
 		if m.ValueFloat != nil {
 			value = *m.ValueFloat
+		} else if m.ValueInt != nil {
+			value = float64(*m.ValueInt)
 		}
 		tags := make([]string, 0, len(m.Tags))
 		for k, v := range m.Tags {

@@ -15,7 +15,7 @@ import (
 // realExtractors returns the same extractors the live observer registers in NewComponent.
 func realExtractors() []observerdef.LogMetricsExtractor {
 	return []observerdef.LogMetricsExtractor{
-		&LogMetricsExtractor{
+		NewLogMetricsExtractor(LogMetricsExtractorConfig{
 			MaxEvalBytes: 4096,
 			ExcludeFields: map[string]struct{}{
 				"timestamp": {},
@@ -26,15 +26,14 @@ func realExtractors() []observerdef.LogMetricsExtractor {
 				"uid":       {},
 				"gid":       {},
 			},
-		},
+		}),
 		&ConnectionErrorExtractor{},
 	}
 }
 
 // BenchmarkLogIngestion_Real_Cardinality measures raw log ingestion cost with
 // real extractors (LogMetricsExtractor + ConnectionErrorExtractor) across
-// increasing series cardinality. Iteration 1 had no extractors; this benchmark
-// measures the actual production overhead.
+// increasing series cardinality.
 func BenchmarkLogIngestion_Real_Cardinality(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
@@ -68,56 +67,14 @@ func BenchmarkLogIngestion_Real_Cardinality(b *testing.B) {
 	}
 }
 
-// virtualRRCFCatalogFromLogs builds an RRCF catalog that matches the virtual
-// metrics produced by ingesting the given logs through realExtractors(). This
-// fixes the namespace mismatch in previous iterations where RRCF was configured
-// for the "system" namespace and silently matched nothing.
-//
-// Runs one pass of log ingestion to discover which virtual metric names the
-// extractors produce, then configures RRCF to watch them.
-func virtualRRCFCatalogFromLogs(logs []*logObs) *componentCatalog {
-	probe := newEngine(engineConfig{
-		storage:    newTimeSeriesStorage(),
-		extractors: realExtractors(),
-	})
-	for _, l := range logs {
-		l2 := *l
-		l2.timestampMs = 0
-		l2.content = append([]byte(nil), l.content...) // copy to avoid sharing backing array
-		probe.IngestLog("ns", &l2)
-	}
-
-	allSeries := probe.Storage().AllSeries("ns", AggregateAverage)
-	var rrcfMetrics []RRCFMetricDef
-	for _, s := range allSeries {
-		if len(s.Name) > 9 && s.Name[:9] == "_virtual." {
-			rrcfMetrics = append(rrcfMetrics, RRCFMetricDef{
-				Namespace: "ns",
-				Name:      s.Name,
-			})
-		}
-	}
-
-	cat := defaultCatalog()
-	if len(rrcfMetrics) == 0 {
-		// No virtual metrics found — disable RRCF rather than silently no-op.
-		return cat.WithDefaultEnabled("rrcf", false)
-	}
-	return cat.WithOverride("rrcf", func() any {
-		cfg := DefaultRRCFConfig()
-		cfg.Metrics = rrcfMetrics
-		return NewRRCFDetector(cfg)
-	})
-}
-
 // BenchmarkLogIngestionWithDetection_Real_Cardinality measures log ingestion
-// with real extractors plus BOCPD + RRCF detection, across increasing series
-// cardinality. RRCF is configured to match the virtual metrics the extractors
-// actually produce (fixes the previous silent namespace mismatch).
+// with real extractors plus detection from the default catalog, across
+// increasing series cardinality.
 func BenchmarkLogIngestionWithDetection_Real_Cardinality(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
+			cat := defaultCatalog()
 			logs := make([]*logObs, numSeries)
 			for s := 0; s < numSeries; s++ {
 				logs[s] = &logObs{
@@ -126,12 +83,11 @@ func BenchmarkLogIngestionWithDetection_Real_Cardinality(b *testing.B) {
 					tags:    []string{fmt.Sprintf("series:%d", s)},
 				}
 			}
-			cat := virtualRRCFCatalogFromLogs(logs)
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
 				storage := newTimeSeriesStorage()
-				detectors, correlators, _ := cat.Instantiate(nil)
+				detectors, correlators, _, _ := cat.Instantiate(ComponentSettings{})
 				e := newEngine(engineConfig{
 					storage:     storage,
 					extractors:  realExtractors(),

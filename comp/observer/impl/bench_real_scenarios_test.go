@@ -48,7 +48,7 @@ func loadScenarioStorage(b *testing.B, scenarioName string) *timeSeriesStorage {
 	return storage
 }
 
-// BenchmarkRealScenario_Detection runs BOCPD + RRCF + cross_signal on real
+// BenchmarkRealScenario_Detection runs detection with the default catalog on real
 // production scenario data. Each iteration replays the full stored dataset.
 //
 // Requires local scenario data in comp/observer/scenarios/; skipped in CI.
@@ -69,7 +69,7 @@ func BenchmarkRealScenario_Detection(b *testing.B) {
 			// Setup outside timer: load parquet data into storage.
 			storage := loadScenarioStorage(b, scenario)
 
-			detectors, correlators, _ := defaultCatalog().Instantiate(nil)
+			detectors, correlators, _, _ := defaultCatalog().Instantiate(ComponentSettings{})
 			e := newEngine(engineConfig{
 				storage:     storage,
 				detectors:   detectors,
@@ -78,7 +78,9 @@ func BenchmarkRealScenario_Detection(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
+				b.StopTimer()
 				e.resetFull()
+				b.StartTimer()
 				e.ReplayStoredData()
 			}
 		})
