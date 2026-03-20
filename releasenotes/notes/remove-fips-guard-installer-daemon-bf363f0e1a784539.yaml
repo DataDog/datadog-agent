@@ -1,6 +1,5 @@
 ---
 enhancements:
   - |
-    The installer daemon no longer refuses to start in FIPS environments.
-    When Remote Configuration is explicitly enabled, the daemon now operates
-    normally regardless of FIPS mode.
+    Remote Agent Management is now enabled by default on FIPS environments
+    when Remote Configuration is explicitly enabled.
