@@ -17,12 +17,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
@@ -53,12 +55,22 @@ func newVerticalControllerFixture(t *testing.T, testTime time.Time) *verticalCon
 		clock:         fakeClock,
 		dynamicClient: dynamicClient,
 		controller: &verticalController{
-			clock:           fakeClock,
-			eventRecorder:   record.NewFakeRecorder(100),
-			patchClient:     workloadpatcher.NewPatcher(dynamicClient, nil),
-			progressTracker: newRolloutProgressTracker(),
+			clock:                      fakeClock,
+			eventRecorder:              record.NewFakeRecorder(100),
+			patchClient:                workloadpatcher.NewPatcher(dynamicClient, nil),
+			progressTracker:            newRolloutProgressTracker(),
+			client:                     k8sfake.NewSimpleClientset(),
+			inPlaceResizeSupported:     func() *bool { b := true; return &b }(),
+			inPlaceResizeSupportedTime: fakeClock.Now(),
 		},
 	}
+}
+
+// attachK8sClient creates a fake k8s client and attaches it to the controller.
+func (f *verticalControllerFixture) attachK8sClient() *k8sfake.Clientset {
+	k8sClient := k8sfake.NewSimpleClientset()
+	f.controller.client = k8sClient
+	return k8sClient
 }
 
 type verticalTestArgs struct {
@@ -229,6 +241,56 @@ func (f *verticalControllerFixture) createTarget(ns, name, kind string) {
 	_, _ = f.dynamicClient.Resource(gvr).Namespace(ns).Create(context.Background(), obj, metav1.CreateOptions{})
 }
 
+// scalingValWithRequests builds a VerticalScalingValues with both requests and limits set.
+func scalingValWithRequests(recID, cpu string) *model.VerticalScalingValues {
+	return &model.VerticalScalingValues{
+		ResourcesHash: recID,
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "c1",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse(cpu)},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse(cpu)},
+			},
+		},
+	}
+}
+
+// makeDPAWithFallbackDelay builds a DPA with RolloutFallbackDelay set.
+func makeDPAWithFallbackDelay(ns, name string, delaySeconds int32) *datadoghq.DatadogPodAutoscaler {
+	return &datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: datadoghq.DatadogPodAutoscalerSpec{
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					RolloutFallbackDelay: delaySeconds,
+				},
+			},
+		},
+	}
+}
+
+// makeDPAWithPendingPeriod builds a DPA with the resize pending period and optional last-action time set.
+func makeDPAWithPendingPeriod(ns, name string, periodSeconds int32, lastActionTime *time.Time) *datadoghq.DatadogPodAutoscaler {
+	dpa := &datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: datadoghq.DatadogPodAutoscalerSpec{
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					ResizePendingPeriod: periodSeconds,
+				},
+			},
+		},
+	}
+	if lastActionTime != nil {
+		dpa.Status.Vertical = &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
+			LastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+				Time: metav1.NewTime(*lastActionTime),
+			},
+		}
+	}
+	return dpa
+}
+
 // Pod builders
 func pod(name, recID, ownerKind, owner string) *workloadmeta.KubernetesPod {
 	return &workloadmeta.KubernetesPod{
@@ -255,6 +317,26 @@ func podWithLimit(name, recID, ownerKind, owner string, cpu float64) *workloadme
 func podWithRevLimit(name, recID, ownerKind, owner, rev string, cpu float64) *workloadmeta.KubernetesPod {
 	p := podWithRev(name, recID, ownerKind, owner, rev)
 	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{CPULimit: &cpu}}}
+	return p
+}
+
+// podWithResizeCondition creates a pod with a given pod condition type and reason.
+func podWithResizeCondition(name, recID, ownerKind, owner, conditionType, reason string) *workloadmeta.KubernetesPod {
+	return podWithResizeConditionAt(name, recID, ownerKind, owner, conditionType, reason, time.Time{})
+}
+
+// podWithResizeConditionAt creates a pod with a given condition and a specific LastTransitionTime.
+func podWithResizeConditionAt(name, recID, ownerKind, owner, conditionType, reason string, ltt time.Time) *workloadmeta.KubernetesPod {
+	p := pod(name, recID, ownerKind, owner)
+	p.Conditions = []workloadmeta.KubernetesPodCondition{{Type: conditionType, Reason: reason, LastTransitionTime: ltt}}
+	return p
+}
+
+// podTerminating creates a pod with a non-nil DeletionTimestamp.
+func podTerminating(name, recID, ownerKind, owner string) *workloadmeta.KubernetesPod {
+	p := pod(name, recID, ownerKind, owner)
+	now := time.Now()
+	p.DeletionTimestamp = &now
 	return p
 }
 
@@ -541,4 +623,436 @@ func TestRolloutSyncTriggerRollout(t *testing.T) {
 		expectPatch:             true,
 		expectActionSet:         true,
 	})
+}
+
+// countEvictions counts eviction create calls on the fake k8s client.
+func countEvictions(t *testing.T, actions []k8stesting.Action) int {
+	t.Helper()
+	count := 0
+	for _, a := range actions {
+		if a.GetResource().Resource == "pods" && a.GetSubresource() == "eviction" {
+			count++
+		}
+	}
+	return count
+}
+
+// interceptEvictions prepends a reactor that accepts all pod evictions, preventing the
+// default object tracker from rejecting them because the pods don't exist in the fake client.
+func interceptEvictions(k8sClient *k8sfake.Clientset) {
+	k8sClient.PrependReactor("create", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		if a.GetSubresource() == "eviction" {
+			return true, nil, nil
+		}
+		return false, nil, nil
+	})
+}
+
+// buildInPlacePAI builds a PodAutoscalerInternal for in-place mode tests.
+// mode controls ApplyPolicy.Update.Mode; use "" (empty) for in-place (non-TriggerRollout).
+func buildInPlacePAI(ns, name string, sv *model.VerticalScalingValues, mode datadoghqcommon.DatadogPodAutoscalerUpdateMode) model.PodAutoscalerInternal {
+	return (&model.FakePodAutoscalerInternal{
+		Namespace: ns,
+		Name:      name,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "target", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					Mode: mode,
+				},
+			},
+		},
+		ScalingValues: model.ScalingValues{Vertical: sv},
+	}).Build()
+}
+
+// --- patchInPlace unit tests ---
+
+// TestPatchInPlace_NeedsPatch_PatchesResources verifies that patchInPlace issues a resize
+// subresource patch followed by a metadata annotation patch.
+func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+
+	patchCallCount := 0
+	f.dynamicClient.PrependReactor("patch", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		patchCallCount++
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	// Pod must contain the "c1" container so fromAutoscalerToContainerResourcePatches
+	// includes it in the resize patch.
+	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
+	ai := buildInPlacePAI("default", "ai", scalingValWithRequests("r1", "500m"), "")
+
+	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
+	assert.NoError(t, err)
+	// Expect two sequential patches: resize subresource, then metadata annotation.
+	assert.Equal(t, 2, patchCallCount, "expected resize patch + annotation patch for pod needing update")
+}
+
+// runSyncInPlaceMode runs syncInternal against a deployment target using the in-place path
+func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datadoghq.DatadogPodAutoscaler, sv *model.VerticalScalingValues, recommendationID string, pods []*workloadmeta.KubernetesPod) (autoscaling.ProcessResult, error) {
+	t.Helper()
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "target"}
+
+	if sv == nil {
+		sv = scalingValWithRequests(recommendationID, "500m")
+	}
+	// No ApplyPolicy -> isRolloutRequired returns false -> in-place path.
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace:     "default",
+		Name:          "ai",
+		ScalingValues: model.ScalingValues{Vertical: sv},
+	}).Build()
+
+	if dpa == nil {
+		dpa = &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+	}
+
+	return f.controller.syncInternal(
+		context.Background(), dpa, &ai, target, gvk, recommendationID,
+		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, recommendationID),
+	)
+}
+
+// buildPodsByResizeStatus mirrors the classification done by sync() for test helpers.
+func buildPodsByResizeStatus(pods []*workloadmeta.KubernetesPod, recommendationID string) map[PodResizeStatus][]classifiedPod {
+	m := make(map[PodResizeStatus][]classifiedPod)
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		status, ltt := getPodResizeStatus(pod, recommendationID)
+		m[status] = append(m[status], classifiedPod{pod: pod, lastTransitionTime: ltt})
+	}
+	return m
+}
+
+// TestSyncInternal_InPlace_Completed_NoRequeue verifies that pods matching the current
+// recommendation with no resize conditions are counted as scaled and no requeue is issued.
+func TestSyncInternal_InPlace_Completed_NoRequeue(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+
+	pods := []*workloadmeta.KubernetesPod{
+		pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1"),
+		pod("p2", "r1", kubernetes.ReplicaSetKind, "rs1"),
+	}
+	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.False(t, result.Requeue, "all pods complete -> no requeue")
+}
+
+// TestSyncInternal_InPlace_InProgress_Requeues verifies that a pod actively being resized
+// causes a requeue.
+func TestSyncInternal_InPlace_InProgress_Requeues(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+
+	pods := []*workloadmeta.KubernetesPod{
+		pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1"),
+		podWithResizeCondition("p2", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizeInProgress, ""),
+	}
+	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.True(t, result.Requeue)
+	assert.Equal(t, inplaceResizeRequeueDelay, result.RequeueAfter)
+}
+
+// TestSyncInternal_InPlace_SkipsTerminatingPods verifies that terminating pods are not
+// patched and are excluded from the active-pod count.
+func TestSyncInternal_InPlace_SkipsTerminatingPods(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+
+	podPatched := false
+	f.dynamicClient.PrependReactor("patch", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		podPatched = true
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	pods := []*workloadmeta.KubernetesPod{podTerminating("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
+	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.False(t, podPatched, "terminating pods must not be patched")
+	// All active (non-terminating) pods are zero -> complete -> no requeue.
+	assert.False(t, result.Requeue, "no active pods means resize is complete")
+}
+
+// TestSyncInternal_InPlace_Infeasible_Evicts verifies that a pod with an infeasible resize
+// is evicted.
+func TestSyncInternal_InPlace_Infeasible_Evicts(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
+	}
+	_, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
+}
+
+// TestSyncInternal_InPlace_Error_Evicts verifies that a pod with PodResizeInProgress/Error
+// is evicted.
+func TestSyncInternal_InPlace_Error_Evicts(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizeInProgress, kubePodConditionResizeInProgressReasonError),
+	}
+	_, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
+}
+
+// TestSyncInternal_InPlace_Deferred_PeriodElapsed_Evicts verifies a deferred pod is evicted
+// once ResizePendingPeriod has elapsed.
+func TestSyncInternal_InPlace_Deferred_PeriodElapsed_Evicts(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	lastAction := now.Add(-2 * time.Minute)
+	dpa := makeDPAWithPendingPeriod("default", "ai", 60, &lastAction)
+
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonDeferred),
+	}
+	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
+}
+
+// TestSyncInternal_InPlace_Deferred_PeriodNotElapsed_NoEviction verifies a deferred pod is
+// NOT evicted while ResizePendingPeriod has not elapsed.
+func TestSyncInternal_InPlace_Deferred_PeriodNotElapsed_NoEviction(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	k8sClient := f.attachK8sClient()
+
+	lastAction := now.Add(-30 * time.Second)
+	dpa := makeDPAWithPendingPeriod("default", "ai", 60, &lastAction)
+
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonDeferred),
+	}
+	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, countEvictions(t, k8sClient.Actions()))
+}
+
+// TestSyncInternal_InPlace_PDB_StopsEviction verifies that a PDB-blocked eviction stops
+// the loop — only the first pod is attempted, and the sync requeues.
+func TestSyncInternal_InPlace_PDB_StopsEviction(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	k8sClient := f.attachK8sClient()
+
+	// Return 429 for every eviction.
+	k8sClient.PrependReactor("create", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		if a.GetSubresource() == "eviction" {
+			return true, nil, &k8serrors.StatusError{ErrStatus: metav1.Status{Code: 429, Reason: metav1.StatusReasonTooManyRequests}}
+		}
+		return false, nil, nil
+	})
+
+	// Two infeasible pods; PDB blocks the first -> second should not be attempted.
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
+		podWithResizeCondition("p2", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
+	}
+	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.True(t, result.Requeue, "must requeue after PDB-blocked eviction")
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()), "only first eviction attempted before PDB stop")
+}
+
+// TestSyncInternal_InPlace_FallbackToRollout_WhenStuck verifies that a pod stuck beyond
+// RolloutFallbackDelay triggers a rollout instead of eviction.
+func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
+
+	stuckSince := now.Add(-10 * time.Minute)
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+	}
+	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
+
+	result, err := f.controller.syncInternal(
+		context.Background(), dpa, &ai, target, gvk, "r1",
+		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.True(t, workloadPatched, "rollout must be triggered when pod is stuck beyond RolloutFallbackDelay")
+	assert.True(t, result.Requeue)
+}
+
+// TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough verifies that a pod stuck
+// less than RolloutFallbackDelay is evicted normally without triggering a rollout.
+func TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	stuckSince := now.Add(-1 * time.Minute)
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+	}
+	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
+
+	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.False(t, workloadPatched, "no rollout when pod has not been stuck long enough")
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()), "eviction must proceed when under the fallback threshold")
+}
+
+// TestSyncInternal_InPlace_NoFallback_WhenDelayZero verifies that RolloutFallbackDelay=0
+// (disabled) never triggers the rollout fallback, even for a long-stuck pod.
+func TestSyncInternal_InPlace_NoFallback_WhenDelayZero(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	stuckSince := now.Add(-24 * time.Hour)
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+	}
+	dpa := makeDPAWithFallbackDelay("default", "ai", 0) // disabled
+
+	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.False(t, workloadPatched, "rollout fallback must not trigger when RolloutFallbackDelay is 0")
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
+}
+
+// TestSyncInternal_TriggerRolloutMode_UsesRolloutPath verifies that when
+// ApplyPolicy.Update.Mode is TriggerRollout, syncInternal patches the workload
+// (rollout path) rather than individual pods.
+func TestSyncInternal_TriggerRolloutMode_UsesRolloutPath(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		TargetGVK: gvk,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					Mode: datadoghqcommon.DatadogPodAutoscalerTriggerRolloutMode,
+				},
+			},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
+
+	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
+
+	_, err := f.controller.syncInternal(
+		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.True(t, workloadPatched, "TriggerRollout mode must patch the workload, not pods")
+}
+
+// TestSyncInternal_DefaultMode_UsesInPlacePath verifies that a DPA with no ApplyPolicy
+// (the default) uses the in-place path and does NOT trigger a workload rollout.
+func TestSyncInternal_DefaultMode_UsesInPlacePath(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	// No ApplyPolicy at all -> isRolloutRequired returns false -> in-place path.
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		TargetGVK: gvk,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
+
+	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+	// Pod already complete -> in-place loop finishes without any patch.
+	pods := []*workloadmeta.KubernetesPod{pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1")}
+
+	_, err := f.controller.syncInternal(
+		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		pods, map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
+		buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.False(t, workloadPatched, "nil ApplyPolicy (default) must use in-place path, not rollout")
 }

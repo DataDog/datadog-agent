@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -29,6 +30,9 @@ import (
 const (
 	commandTimeoutDuration = 10 * time.Second
 	configDir              = "/etc/datadog-agent"
+
+	parDefaultAllowlistNix     = "com.datadoghq.script.runPredefinedScript"
+	parDefaultAllowlistWindows = "com.datadoghq.script.runPredefinedPowershellScript"
 )
 
 // Setup allows setup scripts to define packages and configurations to install.
@@ -47,6 +51,24 @@ type Setup struct {
 	DdAgentAdditionalGroups   []string
 	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
 	NoConfig                  bool
+}
+
+// parActionsAllowlist returns the PAR actions allowlist to use.
+//   - If envValue is non-empty it is split on commas and used as-is.
+//   - If envValue is empty and freshInstall is true, an OS-appropriate default is returned.
+//   - If envValue is empty and freshInstall is false (upgrade/reinstall), nil is returned so
+//     WriteConfigs does not overwrite a user-customised allowlist already on disk.
+func parActionsAllowlist(envValue, goos string, freshInstall bool) []string {
+	if envValue != "" {
+		return strings.Split(envValue, ",")
+	}
+	if !freshInstall {
+		return nil
+	}
+	if goos == "windows" {
+		return []string{parDefaultAllowlistWindows}
+	}
+	return []string{parDefaultAllowlistNix}
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -108,10 +130,13 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		s.Config.DatadogYAML.AppKey = os.Getenv("DD_APP_KEY")
 		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
 		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
-		if parAllowlistEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"); parAllowlistEnv != "" {
-			parAllowlist := strings.Split(parAllowlistEnv, ",")
-			s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = parAllowlist
-		}
+		_, statErr := os.Stat(filepath.Join(paths.DatadogDataDir, "datadog.yaml"))
+		freshInstall := os.IsNotExist(statErr)
+		s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = parActionsAllowlist(
+			os.Getenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"),
+			runtime.GOOS,
+			freshInstall,
+		)
 	}
 
 	return s, nil

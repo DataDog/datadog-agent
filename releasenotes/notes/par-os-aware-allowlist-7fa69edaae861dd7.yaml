@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed the Datadog Agent installer on Windows: when ``DD_PRIVATE_ACTION_RUNNER_ENABLED=true``
+    is set without an explicit ``DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST``, the
+    Private Action Runner now defaults to ``com.datadoghq.script.runPredefinedPowershellScript``
+    on Windows and ``com.datadoghq.script.runPredefinedScript`` on Linux/macOS.

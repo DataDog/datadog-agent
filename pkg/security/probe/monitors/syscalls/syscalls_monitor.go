@@ -35,7 +35,7 @@ type Monitor struct {
 func (d *Monitor) SendStats() error {
 	iterator := d.stats.Iterate()
 	statsAcrossAllCPUs := make([][8]byte, d.numCPU)
-	statsByEventType := make([]int32, model.MaxAllEventType)
+	statsByEventType := make([]int32, model.MaxAllEventType+1)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {

@@ -55,6 +55,7 @@ type FakePodAutoscalerInternal struct {
 	VerticalActionSuccessCount         uint
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
+	EvictedReplicas                    *int32
 	Error                              error
 	Deleted                            bool
 	TargetGVK                          schema.GroupVersionKind
@@ -100,6 +101,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		verticalActionSuccessCount:         f.VerticalActionSuccessCount,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,
+		evictedReplicas:                    f.EvictedReplicas,
 		error:                              f.Error,
 		deleted:                            f.Deleted,
 		targetGVK:                          f.TargetGVK,

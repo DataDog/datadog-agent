@@ -29,7 +29,7 @@ func init() { registerModule(DynamicInstrumentation) }
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
 	Name:             config.DynamicInstrumentationModule,
-	ConfigNamespaces: []string{},
+	ConfigNamespaces: []string{"dynamic_instrumentation"},
 	Fn: func(agentConfiguration *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {

@@ -123,6 +123,10 @@ type PodAutoscalerInternal struct {
 	// scaledReplicas is the current number of PODs for the targetRef matching the resources recommendations
 	scaledReplicas *int32
 
+	// evictedReplicas is the number of pods evicted as an in-place resize fallback during the
+	// current recommendation cycle. Resets when the recommendation ID changes.
+	evictedReplicas *int32
+
 	// error is the an error encountered by the controller not specific to a scaling action
 	error error
 
@@ -335,6 +339,29 @@ func (p *PodAutoscalerInternal) ClearVerticalState() {
 	p.verticalLastActionError = nil
 	p.verticalLastLimitReason = nil
 	p.scaledReplicas = nil
+	p.evictedReplicas = nil
+}
+
+// SetEvictedReplicas sets the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) SetEvictedReplicas(replicas int32) {
+	p.evictedReplicas = &replicas
+}
+
+// AddEvictedReplicas increments the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) AddEvictedReplicas(count int32) {
+	if count == 0 {
+		return
+	}
+	if p.evictedReplicas == nil {
+		p.evictedReplicas = &count
+		return
+	}
+	*p.evictedReplicas += count
+}
+
+// EvictedReplicas returns the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) EvictedReplicas() *int32 {
+	return p.evictedReplicas
 }
 
 // SetGeneration sets the generation of the PodAutoscaler
@@ -705,6 +732,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Version:          p.scalingValues.Vertical.ResourcesHash,
 				DesiredResources: p.scalingValues.Vertical.ContainerResources,
 				Scaled:           p.scaledReplicas,
+				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
 				PodMemoryRequest: memReqSum,
 			},

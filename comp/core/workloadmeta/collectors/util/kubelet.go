@@ -586,9 +586,10 @@ func convertConditions(conditions []kubelet.Conditions) []workloadmeta.Kubernete
 
 	for i, condition := range conditions {
 		result[i] = workloadmeta.KubernetesPodCondition{
-			Type:   condition.Type,
-			Status: condition.Status,
-			Reason: condition.Reason,
+			Type:               condition.Type,
+			Status:             condition.Status,
+			Reason:             condition.Reason,
+			LastTransitionTime: condition.LastTransitionTime,
 		}
 	}
 

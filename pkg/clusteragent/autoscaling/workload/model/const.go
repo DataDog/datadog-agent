@@ -27,4 +27,11 @@ const (
 	SuccessfulTriggerRolloutEventReason = "SuccessfulTriggerRollout"
 	// FailedTriggerRolloutEventReason is the event reason when a trigger rollout fails
 	FailedTriggerRolloutEventReason = "FailedTriggerRollout"
+	// ResizeSuccessfulEventReason is the event reason when all pods have completed an in-place resize cycle.
+	ResizeSuccessfulEventReason = "ResizeSuccessful"
+	// InPlaceEvictedEventReason is the event reason when a pod is evicted because it
+	// could not be resized in-place (infeasible, deferred timeout, or resize error).
+	InPlaceEvictedEventReason = "InPlaceEvicted"
+	// FailedToEvictEventReason is the event reason when a pod could not be evicted
+	FailedToEvictEventReason = "FailedToEvict"
 )
