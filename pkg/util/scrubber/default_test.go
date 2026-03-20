@@ -26,29 +26,29 @@ func assertClean(t *testing.T, contents, cleanContents string) {
 func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
 		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`api_key: "***************************abbbb"`)
+		`api_key: "****************************bbbb"`)
 	assertClean(t,
 		`api_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB`,
-		`api_key: "***************************ABBBB"`)
+		`api_key: "****************************BBBB"`)
 	assertClean(t,
 		`api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
-		`api_key: "***************************abbbb"`)
+		`api_key: "****************************bbbb"`)
 	assertClean(t,
 		`api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'`,
-		`api_key: '***************************abbbb'`)
+		`api_key: '****************************bbbb'`)
 	assertClean(t,
 		`api_key: |
 			aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
 		`api_key: |
-			***************************abbbb`)
+			****************************bbbb`)
 	assertClean(t,
 		`api_key: >
 			aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
 		`api_key: >
-			***************************abbbb`)
+			****************************bbbb`)
 	assertClean(t,
 		`   api_key:   'aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'   `,
-		`   api_key:   '***************************abbbb'   `)
+		`   api_key:   '****************************bbbb'   `)
 	assertClean(t,
 		`
 		additional_endpoints:
@@ -61,11 +61,11 @@ func TestConfigStripApiKey(t *testing.T) {
 		`
 		additional_endpoints:
 			"https://app.datadoghq.com":
-			- "***************************abbbb",
-			- "***************************baaaa",
+			- "****************************bbbb",
+			- "****************************aaaa",
 			"https://dog.datadoghq.com":
-			- "***************************abbbb",
-			- "***************************baaaa"`)
+			- "****************************bbbb",
+			- "****************************aaaa"`)
 	// make sure we don't strip container ids
 	assertClean(t,
 		`container_id: "b32bd6f9b73ba7ccb64953a04b82b48e29dfafab65fd57ca01d3b94a0e024885"`,
@@ -75,29 +75,43 @@ func TestConfigStripApiKey(t *testing.T) {
 func TestConfigAppKey(t *testing.T) {
 	assertClean(t,
 		`app_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`app_key: "***********************************abbbb"`)
+		`app_key: "************************************bbbb"`)
 	assertClean(t,
 		`app_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB`,
-		`app_key: "***********************************ABBBB"`)
+		`app_key: "************************************BBBB"`)
 	assertClean(t,
 		`app_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
-		`app_key: "***********************************abbbb"`)
+		`app_key: "************************************bbbb"`)
 	assertClean(t,
 		`app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'`,
-		`app_key: '***********************************abbbb'`)
+		`app_key: '************************************bbbb'`)
 	assertClean(t,
 		`app_key: |
 			aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
 		`app_key: |
-			***********************************abbbb`)
+			************************************bbbb`)
 	assertClean(t,
 		`app_key: >
 			aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
 		`app_key: >
-			***********************************abbbb`)
+			************************************bbbb`)
 	assertClean(t,
 		`   app_key:   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'   `,
-		`   app_key:   '***********************************abbbb'   `)
+		`   app_key:   '************************************bbbb'   `)
+}
+
+func TestConfigPrefixedAppKey(t *testing.T) {
+	// Identifiable app key format: ddapp_<random28>_<checksum5> (40 chars total)
+	// Last 4 chars of the checksum are preserved in output
+	assertClean(t,
+		`ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`************************************bcde`)
+	assertClean(t,
+		`app_key: ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`app_key: ************************************bcde`)
+	assertClean(t,
+		`config with ddapp_AAAAAAAAAAAAAAAAAAAAAAAAAAAA_aBCDE in the middle`,
+		`config with ************************************BCDE in the middle`)
 }
 
 func TestConfigRCAppKey(t *testing.T) {
@@ -175,31 +189,31 @@ func TestConfigStripURLPassword(t *testing.T) {
 func TestTextStripApiKey(t *testing.T) {
 	assertClean(t,
 		`Error status code 500 : http://dog.tld/api?key=3290abeefc68e1bbe852a25252bad88c`,
-		`Error status code 500 : http://dog.tld/api?key=***************************ad88c`)
+		`Error status code 500 : http://dog.tld/api?key=****************************d88c`)
 	assertClean(t,
 		`hintedAPIKeyReplacer : http://dog.tld/api_key=InvalidLength12345abbbb`,
-		`hintedAPIKeyReplacer : http://dog.tld/api_key=***************************abbbb`)
+		`hintedAPIKeyReplacer : http://dog.tld/api_key=****************************bbbb`)
 	assertClean(t,
 		`hintedAPIKeyReplacer : http://dog.tld/apikey=InvalidLength12345abbbb`,
-		`hintedAPIKeyReplacer : http://dog.tld/apikey=***************************abbbb`)
+		`hintedAPIKeyReplacer : http://dog.tld/apikey=****************************bbbb`)
 	assertClean(t,
 		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/***************************abbbb`)
+		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/****************************bbbb`)
 }
 
 func TestTextStripAppKey(t *testing.T) {
 	assertClean(t,
 		`hintedAPPKeyReplacer : http://dog.tld/app_key=InvalidLength12345abbbb`,
-		`hintedAPPKeyReplacer : http://dog.tld/app_key=***********************************abbbb`)
+		`hintedAPPKeyReplacer : http://dog.tld/app_key=************************************bbbb`)
 	assertClean(t,
 		`hintedAPPKeyReplacer : http://dog.tld/appkey=InvalidLength12345abbbb`,
-		`hintedAPPKeyReplacer : http://dog.tld/appkey=***********************************abbbb`)
+		`hintedAPPKeyReplacer : http://dog.tld/appkey=************************************bbbb`)
 	assertClean(t,
 		`hintedAPPKeyReplacer : http://dog.tld/application_key=InvalidLength12345abbbb`,
-		`hintedAPPKeyReplacer : http://dog.tld/application_key=***********************************abbbb`)
+		`hintedAPPKeyReplacer : http://dog.tld/application_key=************************************bbbb`)
 	assertClean(t,
 		`appKeyReplacer: http://dog.tld/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`appKeyReplacer: http://dog.tld/***********************************abbbb`)
+		`appKeyReplacer: http://dog.tld/************************************bbbb`)
 }
 
 func TestTextStripURLPassword(t *testing.T) {
@@ -271,7 +285,7 @@ api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 proxy: http://user:password@host:port
 password: foo`,
 			want: `dd_url: https://app.datadoghq.com
-api_key: "***************************aaaaa"
+api_key: "****************************aaaa"
 proxy: http://user:********@host:port
 password: "********"`,
 		},
@@ -316,7 +330,7 @@ func TestDockerSelfInspectApiKey(t *testing.T) {
 	]`,
 		`
 	"Env": [
-		"DD_API_KEY=***************************ad88c",
+		"DD_API_KEY=****************************d88c",
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		"DOCKER_DD_AGENT=yes",
 		"AGENT_VERSION=1:6.0",
@@ -590,7 +604,7 @@ network_devices:
     - 'password2'
 log_level: info`,
 		`dd_url: https://app.datadoghq.com
-api_key: "***************************aaaaa"
+api_key: "****************************aaaa"
 proxy: http://user:********@host:port
 password: "********"
 auth_token: "********"
@@ -692,6 +706,34 @@ func TestOAuthCredentials(t *testing.T) {
   token_secret: "********"`)
 }
 
+func TestSecretBackendCredentials(t *testing.T) {
+	// Verifies that all sensitive credential keys used by secret backend integrations
+	// are scrubbed when they appear under a nested session config block.
+	assertClean(t,
+		`secret_backend_config:
+  session:
+    azure_client_secret: my-sp-secret
+    azure_client_certificate_password: my-cert-password
+    aws_secret_access_key: AKIAIOSFODNN7EXAMPLE
+    vault_secret_id: my-vault-secret-id
+    vault_password: my-vault-password
+    vault_ldap_password: my-ldap-password
+    vault_token: s.my-vault-token
+    vault_kubernetes_jwt: eyJhbGciOiJSUzI1NiJ9
+    akeyless_access_key: my-akeyless-key`,
+		`secret_backend_config:
+  session:
+    azure_client_secret: "********"
+    azure_client_certificate_password: "********"
+    aws_secret_access_key: "********"
+    vault_secret_id: "********"
+    vault_password: "********"
+    vault_ldap_password: "********"
+    vault_token: "********"
+    vault_kubernetes_jwt: "********"
+    akeyless_access_key: "********"`)
+}
+
 func TestScrubCommandsEnv(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -701,11 +743,11 @@ func TestScrubCommandsEnv(t *testing.T) {
 		{
 			"api key",
 			`DD_API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa agent run`,
-			`DD_API_KEY=***************************aaaaa agent run`,
+			`DD_API_KEY=****************************aaaa agent run`,
 		}, {
 			"app key",
 			`DD_APP_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa agent run`,
-			`DD_APP_KEY=***********************************aaaaa agent run`,
+			`DD_APP_KEY=************************************aaaa agent run`,
 		},
 	}
 
@@ -819,7 +861,7 @@ secret_backend_command: "/usr/local/bin/vault-helper"
 secret_backend_arguments: ["--config", "/etc/vault.conf"]
 secret_backend_timeout: 30
 secret_refresh_interval: 3600
-api_key: "***************************aaaaa"
+api_key: "****************************aaaa"
 password: "********"
 other_config: "not_secret"`,
 		},
@@ -835,7 +877,7 @@ other_config: "not_secret"`,
 func TestConfigFile(t *testing.T) {
 	cleanedConfigFile := `dd_url: https://app.datadoghq.com
 
-api_key: "***************************aaaaa"
+api_key: "****************************aaaa"
 
 proxy: http://user:********@host:port
 

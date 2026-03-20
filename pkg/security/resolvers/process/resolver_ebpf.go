@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -100,9 +101,8 @@ type EBPFResolver struct {
 	brokenLineage             *atomic.Int64
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
-	entryCache              map[uint32]*model.ProcessCacheEntry
-	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
-	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -415,7 +415,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
-		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.PathKey, entry.Process.Pid)
+		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
 		if err != nil {
 			seclog.Debugf("snapshot failed for mount %d with pid %d : couldn't get the filesystem: %s", entry.Process.FileEvent.MountID, proc.Pid, err)
 		}
@@ -742,31 +742,6 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	return nil
 }
 
-func (p *EBPFResolver) resolveFullFilePath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
-	var (
-		pathnameStr, mountPath string
-		source                 model.MountSource
-		origin                 model.MountOrigin
-		err                    error
-		maxDepthRetry          = 3
-	)
-	for maxDepthRetry > 0 {
-		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFullFilePath(e, &pce.PIDContext)
-		if err == nil {
-			return pathnameStr, mountPath, source, origin, nil
-		}
-		parent, exists := p.entryCache[pce.PPid]
-		if !exists {
-			break
-		}
-
-		pce = parent
-		maxDepthRetry--
-	}
-
-	return pathnameStr, mountPath, source, origin, err
-}
-
 // setProcessPath resolves process file path
 func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.ProcessCacheEntry) (string, error) {
 	onError := func(pathnameStr string, err error) (string, error) {
@@ -781,7 +756,7 @@ func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
-	pathnameStr, mountPath, source, origin, err := p.resolveFullFilePath(&fileEvent.FileFields, pce)
+	pathnameStr, mountPath, source, origin, err := p.pathResolver.ResolveFullFilePath(&fileEvent.FileFields, &pce.PIDContext)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -814,7 +789,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *EBPFResolver) setProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.PathKey, entry.Pid)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid)
 		if err != nil {
 			return "", err
 		}
@@ -1312,11 +1287,6 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 	}
 }
 
-// SyncBoundSockets sets the bound sockets discovered during the snapshot
-func (p *EBPFResolver) SyncBoundSockets(pid uint32, boundSockets []model.SnapshottedBoundSocket) {
-	p.SnapshottedBoundSockets[pid] = boundSockets
-}
-
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
@@ -1378,6 +1348,17 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
 		seclog.Trace(err)
 		return nil
+	}
+
+	var err error
+	entry.SnapshottedMmapedFiles, err = procfs.GetMmapedFiles(proc)
+	if err != nil {
+		seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", proc.Pid, err)
+	}
+
+	entry.SnapshottedBoundSockets, err = procfs.NewBoundSocketSnapshotter().GetBoundSockets(proc)
+	if err != nil {
+		seclog.Debugf("error while listing sockets (pid: %v): %s", proc.Pid, err)
 	}
 
 	// use the inode from the pid context if set so that we don't propagate a potentially wrong inode
@@ -1604,7 +1585,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),

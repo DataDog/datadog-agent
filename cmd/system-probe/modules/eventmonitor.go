@@ -22,6 +22,7 @@ import (
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,6 +41,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.StatsdClient = deps.Statsd
 	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	opts.ProbeOpts.Tagger = deps.Tagger
+	opts.ProbeOpts.WorkloadMeta = deps.WMeta
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options
@@ -53,7 +55,9 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
-	if hostname == "" {
+
+	// there is no hostname on Fargate instance
+	if !fargate.IsSidecar() && hostname == "" {
 		return nil, errors.New("hostname from core agent is empty")
 	}
 

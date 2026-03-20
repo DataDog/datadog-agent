@@ -7,7 +7,7 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
-# TODO(agent-build): remove below `gazelle:exclude` directives and add corresponding paths to bazel/go.work
+# TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
 # gazelle:exclude comp
 # gazelle:exclude internal/remote-agent
@@ -23,7 +23,26 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/collector
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
-# gazelle:exclude pkg/config
+# gazelle:exclude pkg/config/autodiscovery
+# gazelle:exclude pkg/config/basic
+# gazelle:exclude pkg/config/create
+# gazelle:exclude pkg/config/env
+# gazelle:exclude pkg/config/fetcher
+# gazelle:exclude pkg/config/fetcher/sysprobe
+# gazelle:exclude pkg/config/fetcher/tracers
+# gazelle:exclude pkg/config/helper
+# gazelle:exclude pkg/config/legacy
+# gazelle:exclude pkg/config/mock
+# gazelle:exclude pkg/config/model
+# gazelle:exclude pkg/config/nodetreemodel
+# gazelle:exclude pkg/config/remote
+# gazelle:exclude pkg/config/settings
+# gazelle:exclude pkg/config/settings/http
+# gazelle:exclude pkg/config/setup
+# gazelle:exclude pkg/config/structure
+# gazelle:exclude pkg/config/teeconfig
+# gazelle:exclude pkg/config/utils
+# gazelle:exclude pkg/config/viperconfig
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
@@ -53,7 +72,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
 # gazelle:exclude pkg/dyninst/uprobe
-# gazelle:exclude pkg/ebpf
 # gazelle:exclude pkg/errors
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/fips
@@ -66,13 +84,13 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection
+# gazelle:exclude pkg/logonduration
 # gazelle:exclude pkg/logs
 # gazelle:exclude pkg/metrics
 # gazelle:exclude pkg/network
 # gazelle:exclude pkg/networkconfigmanagement
 # gazelle:exclude pkg/networkdevice
 # gazelle:exclude pkg/networkpath
-# gazelle:exclude pkg/obfuscate
 # gazelle:exclude pkg/opentelemetry-mapping-go
 # gazelle:exclude pkg/orchestrator
 # gazelle:exclude pkg/persistentcache
@@ -96,7 +114,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/tagger
 # gazelle:exclude pkg/tagset
 # gazelle:exclude pkg/telemetry
-# gazelle:exclude pkg/template
 # gazelle:exclude pkg/trace
 # gazelle:exclude pkg/util
 # gazelle:exclude pkg/version
