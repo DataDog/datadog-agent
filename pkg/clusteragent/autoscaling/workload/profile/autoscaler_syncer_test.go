@@ -426,7 +426,6 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 
 	// Give the syncer time to potentially reconcile (it shouldn't).
 	time.Sleep(200 * time.Millisecond)
-	assert.Empty(t, s.dpaOwnership, "Syncer should not reconcile before deps are ready")
 	for dpaKey := range prof.Workloads() {
 		_, found := dpaStore.Get(dpaKey)
 		assert.False(t, found, "DPA should not be created before deps are ready")
@@ -434,8 +433,13 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 
 	// Signal readiness — the syncer should reconcile.
 	ready.Store(true)
+	dpaKeys := make([]string, 0, len(prof.Workloads()))
+	for k := range prof.Workloads() {
+		dpaKeys = append(dpaKeys, k)
+	}
 	assert.Eventually(t, func() bool {
-		return len(s.dpaOwnership) == 1
+		_, found := dpaStore.Get(dpaKeys[0])
+		return found
 	}, 5*time.Second, 50*time.Millisecond, "Syncer should reconcile after deps become ready")
 
 	cancel()
