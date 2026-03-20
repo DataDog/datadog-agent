@@ -12,40 +12,28 @@ from tasks.libs.gpu.validation import compute_validation, require_api_keys, reso
 
 
 @task(
-    name="validate-metrics-single-org",
-    help={
-        "spec": "Path to gpu_metrics.yaml",
-        "architectures": "Path to architectures.yaml",
-        "site": "Datadog site (defaults to datadoghq.com)",
-        "lookback_seconds": "Metrics lookback window in seconds",
-    },
-)
-def validate_metrics_single_org(_, spec=None, architectures=None, site="datadoghq.com", lookback_seconds=3600):
-    """
-    Validate live GPU metrics by architecture/device-mode combinations for one org.
-    """
-    require_api_keys()
-    spec_path, architectures_path = resolve_spec_paths(spec, architectures)
-    result = compute_validation(spec_path, architectures_path, site, int(lookback_seconds), progress_writer=print)
-    render_results(result)
-    if result.failing_count > 0:
-        raise Exit(code=1)
-
-
-@task(
-    name="validate-metrics-all-dd",
+    name="validate-metrics",
     help={
         "spec": "Path to gpu_metrics.yaml",
         "architectures": "Path to architectures.yaml",
         "lookback_seconds": "Metrics lookback window in seconds",
+        "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
     },
 )
-def validate_metrics_all_dd(ctx, spec=None, architectures=None, lookback_seconds=3600):
+def validate_metrics(ctx, spec=None, architectures=None, lookback_seconds=3600, org: str | None = None):
     """
-    Validate live GPU metrics for Datadog prod and staging using dd-auth credentials.
+    Validate live GPU metrics for the selected Datadog org(s).
     """
     spec_path, architectures_path = resolve_spec_paths(spec, architectures)
-    orgs = [("prod", "app.datadoghq.com"), ("staging", "ddstaging.datadoghq.com")]
+    orgs_by_name = {
+        "prod": ("prod", "app.datadoghq.com"),
+        "staging": ("staging", "ddstaging.datadoghq.com"),
+    }
+
+    if org is not None:
+        orgs = [orgs_by_name[org]]
+    else:
+        orgs = list(orgs_by_name.values())
 
     results: ValidationResults | None = None
     org_errors: list[str] = []
