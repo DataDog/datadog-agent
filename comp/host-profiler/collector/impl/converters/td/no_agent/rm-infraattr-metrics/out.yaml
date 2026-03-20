@@ -4,15 +4,10 @@ exporters:
             dd-api-key: test-key
 extensions:
     health_check:
-        endpoint: ${env:MY_POD_IP:-localhost}:13133
+        endpoint: 0.0.0.0:13133
 processors:
     batch:
         timeout: 10s
-    k8sattributes:
-        pod_association:
-            - sources:
-                - from: resource_attribute
-                  name: container.id
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -51,7 +46,6 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
-                - k8sattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler

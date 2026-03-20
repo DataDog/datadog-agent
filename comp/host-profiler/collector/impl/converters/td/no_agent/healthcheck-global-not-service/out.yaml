@@ -6,11 +6,6 @@ extensions:
     health_check:
         endpoint: 0.0.0.0:9090
 processors:
-    k8sattributes:
-        pod_association:
-            - sources:
-                - from: resource_attribute
-                  name: container.id
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -45,7 +40,6 @@ service:
                 - otlphttp
             processors:
                 - resourcedetection/default
-                - k8sattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler

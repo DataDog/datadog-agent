@@ -4,7 +4,7 @@ exporters:
             dd-api-key: test-key
 extensions:
     health_check:
-        endpoint: ${env:MY_POD_IP:-localhost}:13133
+        endpoint: 0.0.0.0:13133
 processors:
     k8sattributes/enrichment:
         pod_association:

@@ -96,8 +96,7 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		return err
 	}
 
-	// TODO: remove forceK8sAttributesInProfilesPipeline once profile SIG is supported in upstream helm chart.
-	newProcessorNames, err = forceK8sAttributesInProfilesPipeline(confStringMap, newProcessorNames)
+	newProcessorNames, err = ensureK8sAttributesProcessor(confStringMap, newProcessorNames)
 	if err != nil {
 		return err
 	}
@@ -119,11 +118,6 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	// Go through every configured processor to make sure there are no infraattributes declared that were not in the
 	// pipeline
 	if err := c.ensureGlobalProcessors(confStringMap); err != nil {
-		return err
-	}
-
-	// Ensures k8sattributes processor has a pod_association source configured to use resource_attribute from container.id
-	if err := ensureK8sAttributesPodAssociation(confStringMap); err != nil {
 		return err
 	}
 
@@ -450,56 +444,48 @@ func (c *converterWithoutAgent) ensureHealthCheckExtension(conf confMap) error {
 	return nil
 }
 
-// forceK8sAttributesInProfilesPipeline adds a default k8sattributes processor
-// to the profiles pipeline if none is already present there.
-// TODO: remove forceK8sAttributesInProfilesPipeline once profile SIG is supported in upstream helm chart.
-func forceK8sAttributesInProfilesPipeline(conf confMap, processorNames []any) ([]any, error) {
+// ensureK8sAttributesProcessor handles k8sattributes processors that the user
+// already defined in the global processors section. For each one it:
+//  1. ensures the container.id pod_association source is present
+//  2. wires it into the profiles pipeline if not already there
+//
+// If no k8sattributes processor exists in the user config, nothing happens.
+func ensureK8sAttributesProcessor(conf confMap, processorNames []any) ([]any, error) {
+	processors, ok := Get[confMap](conf, "processors")
+	if !ok {
+		return processorNames, nil
+	}
+
+	alreadyInPipeline := make(map[string]bool)
 	for _, nameAny := range processorNames {
 		name, ok := nameAny.(string)
 		if !ok {
 			return nil, fmt.Errorf("processor name must be a string, got %T", nameAny)
 		}
 		if isComponentType(name, componentTypeK8sAttributes) {
-			return processorNames, nil
+			alreadyInPipeline[name] = true
 		}
-	}
-
-	processors, err := Ensure[confMap](conf, "processors")
-	if err != nil {
-		return nil, err
-	}
-	if _, exists := processors[defaultK8sAttributesName]; !exists {
-		if err := Set(processors, defaultK8sAttributesName, confMap{}); err != nil {
-			return nil, err
-		}
-	}
-
-	slog.Warn("Added default k8sattributes processor to profiles pipeline")
-	return append(processorNames, defaultK8sAttributesName), nil
-}
-
-// ensureK8sAttributesPodAssociation walks every k8sattributes processor in the
-// global processors section and ensures each one has a container.id
-// pod_association source.
-func ensureK8sAttributesPodAssociation(conf confMap) error {
-	processors, ok := Get[confMap](conf, "processors")
-	if !ok {
-		return nil
 	}
 
 	for name := range processors {
 		if !isComponentType(name, componentTypeK8sAttributes) {
 			continue
 		}
+
 		k8sConfig, err := Ensure[confMap](conf, pathPrefixProcessors+name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := ensureContainerIDPodAssociation(k8sConfig); err != nil {
-			return err
+			return nil, err
+		}
+
+		if !alreadyInPipeline[name] {
+			processorNames = append(processorNames, name)
 		}
 	}
-	return nil
+
+	return processorNames, nil
 }
 
 // ensureContainerIDPodAssociation ensures pod_association contains a source

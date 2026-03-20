@@ -47,7 +47,7 @@ const (
 	defaultResourceDetectionName = "resourcedetection/default"
 	defaultHostProfilerName      = "hostprofiler"
 	defaultHealthCheckName       = "health_check"
-	defaultHealthCheckEndpoint   = "${env:MY_POD_IP:-localhost}:13133"
+	defaultHealthCheckEndpoint   = "0.0.0.0:13133"
 	defaultK8sAttributesName     = "k8sattributes"
 )
 
