@@ -8,19 +8,20 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"sort"
 	"strings"
 	"sync"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
 	mu     sync.RWMutex
+	logger log.Component
 	series map[string]*seriesStats
 
 	// observationTimestamps tracks all timestamps where observations occurred,
@@ -189,14 +190,19 @@ func searchAtOrAfter(timestamps []int64, value int64) int {
 }
 
 // newTimeSeriesStorage creates a new time series storage.
-func newTimeSeriesStorage() *timeSeriesStorage {
-	return &timeSeriesStorage{
+// An optional log.Component can be passed; if nil, log calls are silently dropped.
+func newTimeSeriesStorage(logger ...log.Component) *timeSeriesStorage {
+	s := &timeSeriesStorage{
 		series:                make(map[string]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		seriesIDs:             make(map[string]observer.SeriesHandle),
 		droppedByMetric:       make(map[string]int64),
 		sampledDrops:          make(map[string]int),
 	}
+	if len(logger) > 0 && logger[0] != nil {
+		s.logger = logger[0]
+	}
+	return s
 }
 
 // Add records a data point for a named metric in a namespace.
@@ -234,7 +240,9 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.seriesIDKeys = append(s.seriesIDKeys, key)
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
-		log.Printf("[INFO] new observer series: namespace=%q name=%q tags=%v", namespace, name, tags)
+		if s.logger != nil {
+			s.logger.Infof("[observer] new series: namespace=%q name=%q tags=%v", namespace, name, tags)
+		}
 	}
 	stats.writeGeneration++
 
@@ -295,8 +303,10 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 	sampled := s.sampledDrops[metricKey]
 	if sampled < 3 {
 		s.sampledDrops[metricKey] = sampled + 1
-		log.Printf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
-			reason, namespace, name, value, timestamp, tags, sampled+1)
+		if s.logger != nil {
+			s.logger.Warnf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
+				reason, namespace, name, value, timestamp, tags, sampled+1)
+		}
 	}
 }
 

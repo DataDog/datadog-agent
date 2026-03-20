@@ -202,7 +202,7 @@ func NewComponent(deps Requires) Provides {
 	detectors, correlators, extractors, _ := catalog.Instantiate(nil)
 
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
+		storage:     newTimeSeriesStorage(deps.Log),
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
