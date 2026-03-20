@@ -212,7 +212,7 @@ func TestAggSuffix(t *testing.T) {
 	assert.Equal(t, "min", aggSuffix(AggregateMin))
 	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
-	// Test unknown aggregation type
+	// Unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 

@@ -302,7 +302,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
-		Source:         observer.MetricName(seriesName),
+		Source:         observer.AnomalySource{Namespace: series.Namespace, Name: series.Name, Aggregate: agg},
 		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
 		DetectorName:   d.Name(),
 		Title:          "ScanWelch changepoint: " + seriesName,

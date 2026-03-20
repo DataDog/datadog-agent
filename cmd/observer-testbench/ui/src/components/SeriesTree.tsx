@@ -1,9 +1,15 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 
+/** Native tooltip for rows where every metric under the node is extractor-backed. */
+const VIRTUAL_METRIC_GROUP_TITLE =
+  'Virtual metric — produced by log/metric extractors from log lines, not from raw DogStatsD ingestion.';
+
 interface SeriesInfo {
   key: string;
   name: string;
   displayName?: string;
+  /** True when the metric group is log-derived (extractor); used for the cyan "v" badge. */
+  virtual?: boolean;
 }
 
 interface TreeNode {
@@ -77,6 +83,7 @@ interface TreeNodeComponentProps {
   depth: number;
   selectedSeries: Set<string>;
   anomalousSources: Set<string>;
+  virtualByKey: Map<string, boolean>;
   onToggleNode: (keys: string[]) => void;
   expandedPaths: Set<string>;
   onToggleExpanded: (path: string) => void;
@@ -87,6 +94,7 @@ function TreeNodeComponent({
   depth,
   selectedSeries,
   anomalousSources,
+  virtualByKey,
   onToggleNode,
   expandedPaths,
   onToggleExpanded,
@@ -94,6 +102,9 @@ function TreeNodeComponent({
   const isExpanded = expandedPaths.has(node.fullPath);
   const hasChildren = node.children.size > 0;
   const keys = node.seriesKeys;
+  const uniqueKeys = [...new Set(keys)];
+  const onlyVirtual =
+    uniqueKeys.length > 0 && uniqueKeys.every((k) => virtualByKey.get(k) === true);
 
   const allSelected = keys.length > 0 && keys.every((k) => selectedSeries.has(k));
   const someSelected = keys.some((k) => selectedSeries.has(k));
@@ -106,8 +117,9 @@ function TreeNodeComponent({
       <div
         className={`flex items-center gap-1 py-0.5 px-1 rounded cursor-pointer ${
           hasAnomaly ? 'bg-red-900/20' : 'hover:bg-slate-700/50'
-        }`}
+        } ${onlyVirtual ? 'cursor-help' : ''}`}
         style={{ paddingLeft: `${depth * 12}px` }}
+        title={onlyVirtual ? VIRTUAL_METRIC_GROUP_TITLE : undefined}
       >
         {hasChildren && !node.isLeaf ? (
           <button
@@ -135,7 +147,7 @@ function TreeNodeComponent({
         />
 
         <span
-          className={`text-sm truncate flex-1 ${hasAnomaly ? 'text-red-400' : 'text-slate-400'}`}
+          className={`text-sm truncate flex-1 min-w-0 ${hasAnomaly ? 'text-red-400' : 'text-slate-400'}`}
           onClick={() => {
             if (hasChildren && !node.isLeaf) {
               onToggleExpanded(node.fullPath);
@@ -145,8 +157,12 @@ function TreeNodeComponent({
           {node.name}
         </span>
 
+        {onlyVirtual && (
+          <span className="text-[10px] font-semibold text-cyan-400/85 shrink-0 leading-none select-none">v</span>
+        )}
+
         {hasChildren && !node.isLeaf && (
-          <span className="text-xs text-slate-500">{keys.length}</span>
+          <span className="text-xs text-slate-500">{uniqueKeys.length}</span>
         )}
 
         {hasAnomaly && <span className="text-red-500 text-xs">!</span>}
@@ -161,6 +177,7 @@ function TreeNodeComponent({
               depth={depth + 1}
               selectedSeries={selectedSeries}
               anomalousSources={anomalousSources}
+              virtualByKey={virtualByKey}
               onToggleNode={onToggleNode}
               expandedPaths={expandedPaths}
               onToggleExpanded={onToggleExpanded}
@@ -181,6 +198,14 @@ export function SeriesTree({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
   const tree = useMemo(() => buildTree(series, anomalousSources), [series, anomalousSources]);
+
+  const virtualByKey = useMemo(() => {
+    const m = new Map<string, boolean>();
+    for (const s of series) {
+      m.set(s.key, s.virtual === true);
+    }
+    return m;
+  }, [series]);
 
   const toggleExpanded = (path: string) => {
     setExpandedPaths((prev) => {
@@ -309,6 +334,7 @@ export function SeriesTree({
             depth={0}
             selectedSeries={selectedSeries}
             anomalousSources={anomalousSources}
+            virtualByKey={virtualByKey}
             onToggleNode={toggleNode}
             expandedPaths={expandedPaths}
             onToggleExpanded={toggleExpanded}

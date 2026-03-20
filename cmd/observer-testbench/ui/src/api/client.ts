@@ -70,6 +70,8 @@ export interface SeriesInfo {
   name: string;
   tags: string[];
   pointCount: number;
+  /** True when the series is produced by a log/metric extractor (formerly _virtual.* names). */
+  virtual?: boolean;
 }
 
 export interface Point {

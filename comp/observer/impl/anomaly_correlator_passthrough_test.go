@@ -13,12 +13,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func passthroughSource(name string) observer.AnomalySource {
+	return observer.AnomalySource{Name: name}
+}
+
 func TestDetectorPassthroughCorrelator_OnePerAnomaly(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: "redis.cpu.sys", SourceSeriesID: "s1", Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Source: "redis.cpu.sys", SourceSeriesID: "s1", Timestamp: 105})
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: "redis.info.latency_ms", SourceSeriesID: "s2", Timestamp: 110})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), SourceSeriesID: "s1", Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Source: passthroughSource("redis.cpu.sys"), SourceSeriesID: "s1", Timestamp: 105})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.info.latency_ms"), SourceSeriesID: "s2", Timestamp: 110})
 
 	corrs := c.ActiveCorrelations()
 	// 3 anomalies = 3 correlations (one per anomaly)
@@ -55,7 +59,7 @@ func TestDetectorPassthroughCorrelator_TimestampOrdering(t *testing.T) {
 func TestDetectorPassthroughCorrelator_SeriesIDAndSource(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: "redis.cpu.sys", SourceSeriesID: "s1", Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), SourceSeriesID: "s1", Timestamp: 100})
 
 	corrs := c.ActiveCorrelations()
 	require.Len(t, corrs, 1)

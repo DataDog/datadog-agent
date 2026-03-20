@@ -51,14 +51,14 @@ func testCorrelation() observerdef.ActiveCorrelation {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Timestamp:      1000,
-				Source:         "cpu.user:avg",
+				Source:         observerdef.AnomalySource{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
 				SourceSeriesID: "parquet|cpu.user:avg|host:a",
 				DetectorName:   "cusum",
 				Description:    "CUSUM detected shift in cpu.user:avg",
 			},
 			{
 				Timestamp:      1200,
-				Source:         "mem.used:avg",
+				Source:         observerdef.AnomalySource{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
 				SourceSeriesID: "parquet|mem.used:avg|host:a",
 				DetectorName:   "cusum",
 				Description:    "CUSUM detected shift in mem.used:avg",
@@ -213,7 +213,7 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 			Anomalies: []observerdef.Anomaly{
 				{
 					Timestamp:      100,
-					Source:         "metric:avg",
+					Source:         observerdef.AnomalySource{Name: "metric"},
 					SourceSeriesID: "s1",
 					DetectorName:   "cusum",
 				},

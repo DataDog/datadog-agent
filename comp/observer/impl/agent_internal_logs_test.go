@@ -50,13 +50,14 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	sig := logSignature(payload, 4096)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
-	metricName := "_virtual.log.pattern." + toHex64(h.Sum64()) + ".count"
-	tags := []string{"source:datadog-agent", "component:core", "level:info"}
+	metricName := "log.pattern." + toHex64(h.Sum64()) + ".count"
+	tags := []string{"component:core", "level:info", "observer_source:agent-internal-logs", "source:datadog-agent"}
 
 	// Poll briefly since observer processes asynchronously.
+	// Namespace is the extractor component name (log_metrics_extractor).
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if s := obs.engine.Storage().GetSeries("agent-internal-logs", metricName, tags, AggregateSum); s != nil && len(s.Points) > 0 {
+		if s := obs.engine.Storage().GetSeries("log_metrics_extractor", metricName, tags, AggregateSum); s != nil && len(s.Points) > 0 {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
