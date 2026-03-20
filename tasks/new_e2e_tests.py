@@ -25,7 +25,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.ci_visibility import ci_visibility_section
+from tasks.libs.common.ci_visibility import ci_visibility_section, create_spans_from_test_json
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
@@ -504,6 +504,12 @@ def run(
                 test_profiler=None,
                 recursive=recursive,
             )
+        # Create per-test CI Visibility spans from the JSON output
+        create_spans_from_test_json(
+            partial_result_json,
+            tags={"agent-category": "e2e", "test.attempt": str(attempt)},
+        )
+
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
             return
