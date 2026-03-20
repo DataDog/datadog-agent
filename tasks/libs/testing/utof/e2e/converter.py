@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ResultJson
+from tasks.libs.testing.utof.e2e.extractors import pulumi_extractor
 from tasks.libs.testing.utof.go_parser.run_parser import (
     build_attempts,
     build_summary,
@@ -12,16 +13,20 @@ from tasks.libs.testing.utof.go_parser.run_parser import (
     classify_flaky,
     compute_duration,
     compute_retry_count,
+    compute_total_duration,
     count_leaves,
     determine_status,
     generate_test_id,
     leaf_name,
-    set_total_duration,
 )
 from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata, UTOFTestResult
 
+_E2E_EXTRACTORS = [pulumi_extractor]
+
 if TYPE_CHECKING:
+    from invoke import Context
+
     from tasks.testwasher import TestWasher
 
 _TEST_TYPE = "e2e"
@@ -38,6 +43,7 @@ def _suite_name(full_test_name: str) -> str:
 
 
 def convert_e2e_test_results(
+    ctx: Context,
     result_json: ResultJson,
     test_washer: TestWasher | None = None,
     metadata: UTOFMetadata | None = None,
@@ -53,9 +59,9 @@ def convert_e2e_test_results(
         A UTOFDocument containing all e2e test results.
     """
     if metadata is None:
-        metadata = generate_metadata(test_system=_TEST_TYPE)
+        metadata = generate_metadata(ctx, test_system=_TEST_TYPE)
 
-    set_total_duration(metadata, result_json)
+    metadata.duration_seconds = compute_total_duration(result_json)
 
     flaky_failures: dict[str, set[str]] = test_washer.get_flaky_failures() if test_washer else {}
 
@@ -69,7 +75,7 @@ def convert_e2e_test_results(
             status = determine_status(actions)
             duration = compute_duration(actions)
             retry_count = compute_retry_count(actions)
-            attempts = build_attempts(actions)
+            attempts = build_attempts(actions, custom_extractors=_E2E_EXTRACTORS)
             flaky = None
             if test_washer:
                 status, flaky = classify_flaky(status, package, test_name, actions, flaky_failures, test_washer)

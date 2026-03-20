@@ -973,7 +973,7 @@ class TestE2EConvertBasic(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(_mock_ctx(), self.result)
 
     def test_metadata_test_system(self):
         self.assertEqual(self.doc.metadata.test_system, "e2e")
@@ -1014,7 +1014,7 @@ class TestE2ETestHierarchy(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(_mock_ctx(), self.result)
 
     def test_suite_is_root(self):
         """TestWindowsTestSuite should be the single root."""
@@ -1054,7 +1054,7 @@ class TestE2EFailureExtraction(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(_mock_ctx(), self.result)
         self.leaves = _flatten_leaves(self.doc.tests)
 
     def test_failing_test_has_failure(self):
@@ -1080,7 +1080,7 @@ class TestE2EJsonSerialization(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(_mock_ctx(), self.result)
 
     def test_valid_json(self):
         d = self.doc.to_dict()
@@ -1108,7 +1108,7 @@ class TestE2EReport(unittest.TestCase):
 
     def setUp(self):
         self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
-        self.doc = convert_e2e_test_results(self.result)
+        self.doc = convert_e2e_test_results(_mock_ctx(), self.result)
         self.report = format_report(self.doc)
 
     def test_report_shows_e2e_system(self):
@@ -1135,7 +1135,7 @@ class TestE2EWithWasher(unittest.TestCase):
         result_json_path = str(TESTDATA / "test_output_e2e_warning.json")
         result_json = ResultJson.from_file(result_json_path)
         tw = TestWasher(test_output_json_file=result_json_path)
-        doc = convert_e2e_test_results(result_json, test_washer=tw)
+        doc = convert_e2e_test_results(_mock_ctx(), result_json, test_washer=tw)
         self.assertIsNotNone(doc)
         self.assertGreater(doc.summary.total, 0)
 
@@ -1143,7 +1143,7 @@ class TestE2EWithWasher(unittest.TestCase):
         result_json_path = str(TESTDATA / "test_output_e2e_warning.json")
         result_json = ResultJson.from_file(result_json_path)
         tw = TestWasher(test_output_json_file=result_json_path)
-        doc = convert_e2e_test_results(result_json, test_washer=tw)
+        doc = convert_e2e_test_results(_mock_ctx(), result_json, test_washer=tw)
         report = format_report(doc)
         self.assertIn("Test Report (e2e)", report)
 
