@@ -25,14 +25,20 @@ _arch_names = {
     # debs use amd64.  E.g. datadog-agent-dbg-7.78.0~devel.git.684.d9f682a.pipeline.103327127-1.x86_64.rpm
     "deb": {
         "aarch64": "arm64",
+        "arm64": "arm64",
+        "k8": "amd64",
         "x86_64": "amd64",
         "x86": "amd64",
+        "64": "amd64",  # Macos amd comes back with just "64"
     },
     # rpms use x86_64.  E.g. datadog-agent-dbg-7.78.0~devel.git.684.d9f682a.pipeline.103327127-1.x86_64.rpm
     "rpm": {
-        "aarch64": "arm64",
+        "aarch64": "aarch64",
+        "arm64": "aarch64",
         "amd64": "x86_64",
+        "k8": "x86_64",
         "x86": "x86_64",
+        "64": "x86_64",
     },
 }
 
@@ -74,14 +80,22 @@ def _extract_arch(ctx, cpu, style):
 
     # The current linux toolchain that we use does not return the target CPU.
     # It returns "local", probably because we are building without --platforms.
-    if cpu == "local" and ctx.var.get("TARGET_CPU"):
-        cpu = ctx.var.get("TARGET_CPU")
-    arch = cpu
+    target_cpu = ctx.var.get("TARGET_CPU")
+
+    if cpu == "local" and target_cpu:
+        cpu = target_cpu
 
     # darwin has the strange habit of calling a cpu "darwin_arm64".
+    arch = cpu
     if "_" in cpu:
         arch = cpu.split("_")[-1]
-    return _arch_names[style].get(arch) or arch
+    arch_name = _arch_names[style].get(arch)
+    if arch_name:
+        return arch_name
+
+    # Sometimes the arch from the toolchain is just strange. Bazel's fallback
+    # of target CPU is often better.
+    return _arch_names[style].get(target_cpu) or target_cpu
 
 def _inject_flavor(name, flavor):
     """Forms a canonical name from the base product name and the flavor"""
