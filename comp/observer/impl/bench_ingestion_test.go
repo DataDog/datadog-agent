@@ -30,8 +30,8 @@ func buildSyntheticStorage(numSeries, numSeconds int) *timeSeriesStorage {
 	return storage
 }
 
-// BenchmarkIngestion_Cardinality ramps the number of series, measuring raw write cost.
-func BenchmarkIngestion_Cardinality(b *testing.B) {
+// BenchmarkIngestion_SeriesCount ramps the number of series, measuring raw write cost.
+func BenchmarkIngestion_SeriesCount(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {

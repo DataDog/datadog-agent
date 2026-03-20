@@ -31,10 +31,10 @@ func realExtractors() []observerdef.LogMetricsExtractor {
 	}
 }
 
-// BenchmarkLogExtraction_Cardinality measures raw log ingestion cost with
+// BenchmarkLogExtraction_SeriesCount measures raw log ingestion cost with
 // real extractors (LogMetricsExtractor + ConnectionErrorExtractor) across
-// increasing series cardinality.
-func BenchmarkLogExtraction_Cardinality(b *testing.B) {
+// increasing series count.
+func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {

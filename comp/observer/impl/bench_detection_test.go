@@ -12,9 +12,9 @@ import (
 	"testing"
 )
 
-// BenchmarkDetection_Cardinality measures the steady-state per-advance cost of
+// BenchmarkDetection_SeriesCount measures the steady-state per-advance cost of
 // whatever algorithms are currently enabled in defaultCatalog, across increasing
-// series cardinality.
+// series count.
 //
 // Setup: 600s of pre-existing history, detectors warmed via ReplayStoredData.
 // Each iteration: add one new second of data (untimed + GC), time one Advance call.
@@ -22,7 +22,7 @@ import (
 // This answers: "at N series, how much CPU does the current detection stack use
 // per second of data?" As algorithms are added or removed from the defaults,
 // this benchmark automatically reflects the new cost.
-func BenchmarkDetection_Cardinality(b *testing.B) {
+func BenchmarkDetection_SeriesCount(b *testing.B) {
 	for _, numSeries := range []int{5, 10, 20, 50, 200} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
@@ -57,7 +57,7 @@ func BenchmarkDetection_Cardinality(b *testing.B) {
 
 // BenchmarkDetection_AdvanceFrequency measures how batch size — seconds of data
 // accumulated before a single Advance call — affects detection cost with the
-// current default stack. Cardinality is fixed at 50 series.
+// current default stack. Series count is fixed at 50.
 //
 // This answers: "what happens to CPU cost when the scheduler stalls and data
 // piles up before being processed?"
