@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,12 @@ from tasks.libs.testing.utof.models import UTOFFailure
 
 if TYPE_CHECKING:
     from tasks.libs.testing.result_json import ResultJsonLine
+
+# A custom extractor receives raw output lines and returns either
+# (failure_type, message) when it matches, or None to defer to defaults.
+# This allows format-specific parsers (e.g. E2E/Pulumi) to inject their
+# own message extraction without polluting the generic Go test parser.
+FailureExtractor = Callable[[list[str]], tuple[str, str] | None]
 
 # Regex for testify "Error:" lines, e.g.:
 #   \tError:      \tExpected nil, but got: ...
@@ -35,12 +42,6 @@ _RE_TESTIFY_MESSAGES = re.compile(r'^\s+Messages:\s+(.+)')
 # Error texts emitted by testify wrapper constructs (e.g. EventuallyWithT).
 # These blocks don't add information when an inner assertion already explains the failure.
 _EVENTUALLY_WRAPPER_ERRORS = {"Condition never satisfied"}
-
-# Pulumi resource section header: "  kubernetes:helm.sh/v3:Release (dda-linux):"
-_RE_PULUMI_RESOURCE_SECTION = re.compile(r'^\s+(\w[\w./-]*:\w[\w./-]*:\w[\w./ -]*)\s+\(([^)]+)\):\s*$')
-
-# Pulumi error bullet: "    \t* Helm release ..."
-_RE_PULUMI_ERROR_BULLET = re.compile(r'^\s+\t\*\s+(.+)')
 
 
 @dataclass
@@ -128,39 +129,6 @@ def _drop_eventually_wrappers(blocks: list[_AssertionBlock]) -> list[_AssertionB
     return real if real else blocks
 
 
-def _extract_pulumi_errors(raw_output_lines: list[str]) -> list[str]:
-    """Extract Pulumi resource error messages from Go test output.
-
-    Pulumi formats infrastructure failures as:
-        resource:type:Name (logical-name):
-            error: N error(s) occurred:
-            \\t* <actual error message>
-
-    Returns a deduplicated list of "resource (name): error" strings,
-    or an empty list if no Pulumi error bullets are found.
-    """
-    # resource -> last error message seen (later retries overwrite earlier ones)
-    by_resource: dict[str, str] = {}
-    order: list[str] = []
-    current_resource = ""
-
-    for line in raw_output_lines:
-        m_res = _RE_PULUMI_RESOURCE_SECTION.match(line)
-        if m_res:
-            current_resource = f"{m_res.group(1)} ({m_res.group(2)})"
-            continue
-
-        m_bullet = _RE_PULUMI_ERROR_BULLET.match(line)
-        if m_bullet:
-            msg = m_bullet.group(1).strip()
-            key = current_resource or ""
-            if key not in by_resource:
-                order.append(key)
-            by_resource[key] = msg
-
-    return [f"{key}: {by_resource[key]}" if key else by_resource[key] for key in order]
-
-
 def _extract_message_from_raw_output(raw_output_lines: list[str]) -> str:
     """Parse raw Go test output lines to extract a meaningful error message.
 
@@ -224,8 +192,18 @@ def _extract_stacktrace_from_raw_output(raw_output_lines: list[str]) -> str:
     return ""
 
 
-def _extract_failure_info(lines: list[ResultJsonLine]) -> UTOFFailure | None:
-    """Extract structured failure information from test output lines."""
+def _extract_failure_info(
+    lines: list[ResultJsonLine],
+    custom_extractors: list[FailureExtractor] | None = None,
+) -> UTOFFailure | None:
+    """Extract structured failure information from test output lines.
+
+    Args:
+        lines: Action lines for a single test attempt.
+        custom_extractors: Optional list of format-specific extractors
+            (e.g. Pulumi for E2E tests). Each receives raw output lines and
+            returns ``(failure_type, message)`` or ``None``. First match wins.
+    """
     has_failure = False
     failure_type = ""
     message = ""
@@ -294,12 +272,17 @@ def _extract_failure_info(lines: list[ResultJsonLine]) -> UTOFFailure | None:
     # For non-panic failures, parse the raw output to extract a useful message.
     direct = failure_type == "panic"
     if failure_type != "panic" and not message:
-        pulumi_errors = _extract_pulumi_errors(raw_output_lines)
-        if pulumi_errors:
-            message = "\n".join(pulumi_errors)
-            failure_type = "infrastructure"
-            direct = True
-        else:
+        # Try custom extractors first (e.g. Pulumi for E2E tests)
+        if custom_extractors:
+            for extractor in custom_extractors:
+                result = extractor(raw_output_lines)
+                if result is not None:
+                    failure_type, message = result
+                    direct = True
+                    break
+
+        # Default: testify assertions / standard Go test errors
+        if not message:
             blocks = _drop_eventually_wrappers(_parse_assertion_blocks(raw_output_lines))
             if blocks:
                 direct = True

@@ -12,11 +12,11 @@ from tasks.libs.testing.utof.go_parser.run_parser import (
     classify_flaky,
     compute_duration,
     compute_retry_count,
+    compute_total_duration,
     count_leaves,
     determine_status,
     generate_test_id,
     leaf_name,
-    set_total_duration,
 )
 from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata, UTOFTestResult
@@ -47,7 +47,7 @@ def convert_unit_test_results(
     """
     if metadata is None:
         metadata = generate_metadata(ctx, test_system=_TEST_TYPE)
-    set_total_duration(metadata, result_json)
+    metadata.duration_seconds = compute_total_duration(result_json)
 
     flaky_failures: dict[str, set[str]] = test_washer.get_flaky_failures() if test_washer else {}
 

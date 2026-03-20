@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ActionType, ResultJson, run_is_failing
-from tasks.libs.testing.utof.go_parser.failure_parser import _extract_failure_info
+from tasks.libs.testing.utof.go_parser.failure_parser import FailureExtractor, _extract_failure_info
 from tasks.libs.testing.utof.models import UTOFAttempt, UTOFFlaky, UTOFSummary, UTOFTestResult
 
 if TYPE_CHECKING:
@@ -83,12 +83,23 @@ def split_into_attempts(lines: list[ResultJsonLine]) -> list[list[ResultJsonLine
     return attempts if attempts else [lines]
 
 
-def build_attempts(lines: list[ResultJsonLine]) -> list[UTOFAttempt]:
-    """Build per-attempt detail from a test's action lines."""
+def build_attempts(
+    lines: list[ResultJsonLine],
+    custom_extractors: list[FailureExtractor] | None = None,
+) -> list[UTOFAttempt]:
+    """Build per-attempt detail from a test's action lines.
+
+    Args:
+        lines: All action lines for a single test (may span multiple attempts).
+        custom_extractors: Optional format-specific failure extractors passed
+            through to ``_extract_failure_info``.
+    """
     attempts: list[UTOFAttempt] = []
     for i, attempt_lines in enumerate(split_into_attempts(lines), start=1):
         status = determine_status(attempt_lines)
-        failure = _extract_failure_info(attempt_lines) if status == "fail" else None
+        failure = (
+            _extract_failure_info(attempt_lines, custom_extractors=custom_extractors) if status == "fail" else None
+        )
         attempts.append(
             UTOFAttempt(
                 attempt=i,
@@ -110,6 +121,29 @@ def determine_status(lines: list[ResultJsonLine]) -> str:
     return "pass"
 
 
+def _get_or_create_test_node(
+    by_full_name: dict[str, UTOFTestResult],
+    suite_fn: Callable[[str], str],
+    full_name: str,
+    ref_result: UTOFTestResult,
+) -> UTOFTestResult:
+    """Return an existing node or create a synthetic one."""
+    existing = by_full_name.get(full_name)
+    if existing is not None:
+        return existing
+    synthetic = UTOFTestResult(
+        id=generate_test_id(ref_result.package, full_name),
+        name=leaf_name(full_name),
+        full_name=full_name,
+        package=ref_result.package,
+        suite=suite_fn(full_name),
+        type=ref_result.type,
+        status="pass",
+    )
+    by_full_name[full_name] = synthetic
+    return synthetic
+
+
 def build_test_tree(
     flat_results: list[UTOFTestResult],
     suite_fn: Callable[[str], str] = lambda _: "",
@@ -124,23 +158,6 @@ def build_test_tree(
     by_full_name: dict[str, UTOFTestResult] = {r.full_name: r for r in flat_results}
     attached: set[str] = set()
 
-    def _get_or_create(full_name: str, ref_result: UTOFTestResult) -> UTOFTestResult:
-        """Return an existing node or create a synthetic one."""
-        existing = by_full_name.get(full_name)
-        if existing is not None:
-            return existing
-        synthetic = UTOFTestResult(
-            id=generate_test_id(ref_result.package, full_name),
-            name=leaf_name(full_name),
-            full_name=full_name,
-            package=ref_result.package,
-            suite=suite_fn(full_name),
-            type=ref_result.type,
-            status="pass",
-        )
-        by_full_name[full_name] = synthetic
-        return synthetic
-
     # Attach each result to its parent, creating synthetic ancestors as needed.
     # Process all names (including newly created synthetics) by iterating until
     # no new attachments are made.
@@ -152,7 +169,7 @@ def build_test_tree(
             if idx < 0:
                 continue  # root node
             parent_full = full[:idx]
-            parent = _get_or_create(parent_full, by_full_name[full])
+            parent = _get_or_create_test_node(by_full_name, suite_fn, parent_full, by_full_name[full])
             if parent.subtests is None:
                 parent.subtests = []
             child = by_full_name[full]
@@ -196,11 +213,9 @@ def count_leaves(tests: list[UTOFTestResult]) -> dict[str, int]:
     return counts
 
 
-def set_total_duration(metadata, result_json: ResultJson) -> None:
-    """Set metadata.duration_seconds from the full span of the result lines."""
-    if result_json.lines:
-        all_times = [line.time for line in result_json.lines]
-        metadata.duration_seconds = (max(all_times) - min(all_times)).total_seconds()
+def compute_total_duration(result_json: ResultJson) -> float:
+    """Duration in seconds from first to last action across the full result stream."""
+    return compute_duration(result_json.lines)
 
 
 def build_summary(counts: dict[str, int]) -> UTOFSummary:
