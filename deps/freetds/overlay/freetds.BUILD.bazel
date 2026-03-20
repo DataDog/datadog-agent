@@ -9,7 +9,7 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_attributes", "pkg_mklink")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
@@ -217,10 +217,28 @@ pkg_files(
     prefix = "include/tdsodbc/",
 )
 
+# Manually create the symlink, freetds doesn't create the usual set
+# but only creates a single lib.so.$FULL_SO_VERSION
+pkg_mklink(
+    name = "so_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "lib/libtdsodbc.so.%s" % SO_VERSION,
+    target = "libtdsodbc.so",
+)
+
+pkg_filegroup(
+    name = "so_links",
+    srcs = [
+        ":so_link",
+    ],
+)
+
 dd_cc_packaged(
     name = "tdsodbc_pkg",
     input = ":tdsodbc",
-    version = SO_VERSION,
+    installed_files = [
+        ":so_links",
+    ],
     visibility = ["//visibility:public"],
 )
 
