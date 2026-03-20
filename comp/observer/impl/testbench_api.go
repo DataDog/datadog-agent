@@ -52,6 +52,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
 	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
+	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
@@ -1108,6 +1109,15 @@ func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, _ *http.Request) 
 func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
 	stats := api.tb.GetCorrelatorStats()
 	api.writeJSON(w, stats)
+}
+
+// handleReports returns the events that would have been sent to the Datadog backend.
+func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
+	events := api.tb.GetReportedEvents()
+	if events == nil {
+		events = []ReportedEvent{}
+	}
+	api.writeJSON(w, events)
 }
 
 // handleComponentAction handles /api/components/{name}/{action} (toggle, data).

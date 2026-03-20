@@ -3,10 +3,11 @@ import { useObserver } from './hooks/useObserver';
 import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
+import { ReportsView } from './components/ReportsView';
 import type { EpisodeInfo } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
-type TabID = 'timeseries' | 'correlators' | 'logs';
+type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports';
 
 function ConnectionStatus({ state }: { state: string }) {
   const colors: Record<string, string> = {
@@ -377,6 +378,16 @@ function App() {
               >
                 Logs
               </button>
+              <button
+                onClick={() => setActiveTab('reports')}
+                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                  activeTab === 'reports'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Reports
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -472,6 +483,9 @@ function App() {
             {state.status && (
               <span className="text-sm text-slate-400">
                 {series.length} series, {anomalies.length} anomalies
+                {activeTab === 'reports' && state.reports && (
+                  <span className="ml-2">· {state.reports.length} report{state.reports.length !== 1 ? 's' : ''}</span>
+                )}
               </span>
             )}
           </div>
@@ -556,6 +570,16 @@ function App() {
             }}
             requestedPatternFilter={requestedPatternFilter}
             onRequestedPatternFilterConsumed={() => setRequestedPatternFilter(null)}
+          />
+        </div>
+        <div className={`flex-1 flex ${activeTab !== 'reports' ? 'hidden' : ''}`}>
+          <ReportsView
+            state={state}
+            actions={actions}
+            sidebarWidth={sidebarWidth}
+            timeRange={activeTimeRange}
+            onTimeRangeChange={setTimeRange}
+            phaseMarkers={phaseMarkers}
           />
         </div>
       </div>

@@ -201,6 +201,7 @@ These endpoints are available in interactive mode (not headless).
 | GET | `/api/logs` | Get loaded log entries |
 | GET | `/api/log-anomalies` | Get log anomalies |
 | GET | `/api/correlations` | Get correlation outputs |
+| GET | `/api/reports` | Datadog-style report events (same payload as headless `reports` JSON) |
 | GET | `/api/correlations/compressed` | Get compressed correlation outputs |
 | GET | `/api/correlators/{name}` | Get data for a specific correlator |
 | GET | `/api/leadlag` | Get LeadLag edges (if enabled) |
@@ -218,3 +219,4 @@ These endpoints are available in interactive mode (not headless).
 - **Surprise Patterns**: View unexpected co-occurrence patterns
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison
+- **Reports**: Datadog-style incident events on a zoomable timeline (same gestures as Logs); hover a row to highlight the span on the chart

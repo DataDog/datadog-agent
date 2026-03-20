@@ -116,7 +116,8 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
-	reports := tb.GetReportedEvents()
+	// Same correlation slice as anomaly_periods — avoids drift vs cached snapshots.
+	reports := buildReportedEvents(correlations)
 
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{

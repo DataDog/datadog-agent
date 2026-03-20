@@ -183,6 +183,17 @@ export interface Correlation {
   lastUpdated: number;
 }
 
+/** Datadog-style incident event (mirrors headless JSON `reports` entries). */
+export interface ReportEvent {
+  pattern: string;
+  title: string;
+  message: string;
+  tags: string[];
+  firstSeen: number;
+  lastUpdated: number;
+  formattedTime: string;
+}
+
 // Lead-Lag edge represents temporal causality between sources
 export interface LeadLagEdge {
   leader: SeriesID;
@@ -336,6 +347,10 @@ class ApiClient {
 
   async getCorrelations(): Promise<Correlation[]> {
     return this.fetch('/correlations');
+  }
+
+  async getReports(): Promise<ReportEvent[]> {
+    return this.fetch('/reports');
   }
 
   async getComponentData(name: string): Promise<ComponentDataResponse> {
