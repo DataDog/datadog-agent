@@ -672,6 +672,36 @@ func TestGetDogtelExtensionConfig_InvalidExtensions(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid extensions config")
 }
 
+// TestGetDogtelExtensionConfig_MultipleDogtelEntries verifies that having more than one
+// "dogtel*" extension returns an error instead of silently picking one.
+func TestGetDogtelExtensionConfig_MultipleDogtelEntries(t *testing.T) {
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel":         nil,
+			"dogtel/second":  nil,
+		},
+	})
+	_, err := getDogtelExtensionConfig(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple dogtel extensions found")
+}
+
+// TestGetDogtelExtensionConfig_SingleNamedDogtelEntry verifies that a single
+// named "dogtel/<name>" entry (not literally "dogtel") is accepted without error.
+func TestGetDogtelExtensionConfig_SingleNamedDogtelEntry(t *testing.T) {
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel/custom": map[string]any{
+				"hostname": "myhost",
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	assert.Equal(t, "myhost", extcfg.Hostname)
+}
+
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
@@ -18,6 +19,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
+
+var taggerServerGracefulStopTimeout = 5 * time.Second
 
 // taggerServerWrapper implements minimal pb.AgentSecureServer for tagger only
 type taggerServerWrapper struct {
@@ -103,11 +106,26 @@ func (e *dogtelExtension) startTaggerServer() error {
 	return nil
 }
 
-// stopTaggerServer stops the tagger gRPC server gracefully
+// stopTaggerServer stops the tagger gRPC server. It attempts a graceful stop
+// (waiting for in-flight RPCs to finish) but falls back to a forced Stop() if
+// any stream subscriber is still connected after taggerServerGracefulStopTimeout.
+// This prevents TaggerStreamEntities long-lived streams from blocking process exit.
 func (e *dogtelExtension) stopTaggerServer() {
 	if e.taggerServer != nil {
 		e.log.Info("Stopping tagger gRPC server")
-		e.taggerServer.GracefulStop()
+		stopped := make(chan struct{})
+		go func() {
+			e.taggerServer.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+			// clean shutdown
+		case <-time.After(taggerServerGracefulStopTimeout):
+			e.log.Warn("Tagger gRPC server did not stop gracefully within timeout; forcing stop")
+			e.taggerServer.Stop()
+			<-stopped // wait for GracefulStop goroutine to return
+		}
 		e.taggerServer = nil
 	}
 	if e.taggerListener != nil {

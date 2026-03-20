@@ -311,6 +311,15 @@ func getDogtelExtensionConfig(cfg *confmap.Conf) (*dogtelextensionimpl.Config, e
 		if !ok {
 			return nil, errors.New("invalid extensions config")
 		}
+		var dogtelNames []string
+		for name := range extensions {
+			if strings.HasPrefix(name, "dogtel") {
+				dogtelNames = append(dogtelNames, name)
+			}
+		}
+		if len(dogtelNames) > 1 {
+			return nil, fmt.Errorf("multiple dogtel extensions found (%s): only one is allowed", strings.Join(dogtelNames, ", "))
+		}
 		for name, val := range extensions {
 			if !strings.HasPrefix(name, "dogtel") {
 				continue
