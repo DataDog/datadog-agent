@@ -24,6 +24,12 @@ function getAggregationType(name: string): AggregationType | null {
   return match ? (match[1] as AggregationType) : null;
 }
 
+/** Log-derived (extractor) metrics; falls back to legacy `_virtual.` name prefix. */
+function seriesIsVirtual(s: SeriesInfo): boolean {
+  if (typeof s.virtual === 'boolean') return s.virtual;
+  return getBaseMetricName(s.name).startsWith('_virtual.');
+}
+
 function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
@@ -39,6 +45,7 @@ interface MetricGroup {
   namespace: string;
   baseName: string;
   members: SeriesInfo[];
+  virtual: boolean;
 }
 
 interface MetricsViewProps {
@@ -119,6 +126,7 @@ export function MetricsView({
           namespace: s.namespace,
           baseName,
           members: [],
+          virtual: seriesIsVirtual(s),
         });
       }
       groups.get(key)!.members.push(s);
@@ -163,7 +171,7 @@ export function MetricsView({
   );
 
   const virtualGroups = useMemo(
-    () => visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')),
+    () => visibleGroups.filter((g) => g.virtual),
     [visibleGroups]
   );
 
@@ -190,7 +198,7 @@ export function MetricsView({
     if (scenarioHasSeries && allSeries.length === 0) return;
 
     const mainGroups = [...visibleGroups]
-      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'));
+      .filter((g) => g.namespace !== 'telemetry' && !g.virtual);
 
     const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
     const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
@@ -529,7 +537,7 @@ export function MetricsView({
                   const cards = Array.from(selectedGroups)
                     .filter((key) => {
                       const g = groupByKey.get(key);
-                      return g && g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.');
+                      return g && g.namespace !== 'telemetry' && !g.virtual;
                     })
                     .map((groupKey) => {
                       const dataList = groupSeriesData.get(groupKey) ?? [];
@@ -588,7 +596,7 @@ export function MetricsView({
                       {Array.from(selectedGroups)
                         .filter((key) => {
                           const g = groupByKey.get(key);
-                          return g && g.baseName.startsWith('_virtual.');
+                          return g && g.virtual;
                         })
                         .map((groupKey) => {
                           const dataList = groupSeriesData.get(groupKey) ?? [];

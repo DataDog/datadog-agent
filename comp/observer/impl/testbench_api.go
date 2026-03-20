@@ -402,9 +402,12 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		Name       string   `json:"name"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
+		Virtual    bool     `json:"virtual"`
 	}
 
 	var allSeries []seriesInfo
+
+	extractorNs := api.tb.extractorNamespaces()
 
 	// Get series metadata from all namespaces — no point data materialized.
 	// Use compact numeric IDs: "{numericID}:{aggSuffix}" (e.g. "42:avg").
@@ -414,12 +417,14 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
 				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
+				_, virtual := extractorNs[m.Namespace]
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
 					Tags:       m.Tags,
 					PointCount: m.PointCount,
+					Virtual:    virtual,
 				})
 			}
 		}
