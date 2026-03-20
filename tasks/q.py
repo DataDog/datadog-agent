@@ -532,7 +532,7 @@ def benchmark(ctx, bench=_BENCH_FILTER, benchtime="3s", count=1):
         dda inv q.benchmark
         dda inv q.benchmark --bench BenchmarkDetection --benchtime 5s
     """
-    cmd = f"go test -run=^$ -bench={bench} -benchmem -benchtime={benchtime} -count={count} ./comp/observer/impl/"
+    cmd = f"go test -run=^$ -bench='{bench}' -benchmem -benchtime={benchtime} -count={count} ./comp/observer/impl/"
     print(color_message(f"\nRunning: {cmd}\n", Color.BLUE))
     result = ctx.run(cmd, warn=True)
     if result and result.failed:
