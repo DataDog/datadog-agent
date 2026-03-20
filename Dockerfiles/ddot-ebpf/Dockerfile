@@ -47,5 +47,5 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends binutils && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-ENTRYPOINT ["/opt/datadog-agent/embedded/bin/full-host-profiler"]
-CMD ["run", "--config", "/etc/datadog-agent/host-profiler-config.yaml"]
+ENTRYPOINT ["/opt/datadog-agent/embedded/bin/full-host-profiler", "run"]
+CMD ["--config", "/etc/datadog-agent/host-profiler-config.yaml"]
