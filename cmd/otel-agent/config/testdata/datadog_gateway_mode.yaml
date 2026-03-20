@@ -1,3 +1,0 @@
-otelcollector:
-  gateway:
-    mode: true

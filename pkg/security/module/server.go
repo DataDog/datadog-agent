@@ -176,6 +176,7 @@ type APIServer struct {
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
+	wg       sync.WaitGroup
 
 	securityAgentAPIClient *SecurityAgentAPIClient
 }
@@ -265,7 +266,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Debugf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -327,6 +328,15 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 	}
 }
 
+// SendCustomEventKillAction sends a custom remediation event for each resolved kill action report
+func SendCustomEventKillAction(probe *sprobe.Probe, tags []string, actionReports []model.ActionReport) {
+	for _, report := range actionReports {
+		if _, ok := report.(*sprobe.KillActionReport); ok {
+			probe.SendCustomEventKillAction(report, tags)
+		}
+	}
+}
+
 func (a *APIServer) start(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -358,6 +368,9 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
+				// For kill actions, send a custom remediation event per resolved kill report
+				// If a rule contains multiple kill, a custom event will be sent for each action
+				SendCustomEventKillAction(a.probe, msg.tags, msg.actionReports)
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
 					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
@@ -409,7 +422,11 @@ func (a *APIServer) Start(ctx context.Context) {
 		})
 		go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
 	}
-	go a.start(ctx)
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.start(ctx)
+	}()
 }
 
 // GetConfig returns config of the runtime security module required by the security agent
@@ -685,8 +702,12 @@ func (a *APIServer) GetSECLVariables() map[string]*api.SECLVariableState {
 	return a.cwsConsumer.ruleEngine.GetSECLVariables()
 }
 
-// Stop stops the API server
+// Stop stops the API server. The start goroutine must finish before the
+// stopper closes pipeline channels, otherwise sends to logChan will panic.
 func (a *APIServer) Stop() {
+	// Wait for the start goroutine to exit (triggered by context cancellation)
+	// before stopping pipeline providers which close the underlying channels.
+	a.wg.Wait()
 	a.stopper.Stop()
 }
 

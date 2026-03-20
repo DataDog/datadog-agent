@@ -7,6 +7,7 @@
 package delegatedauthimpl
 
 import (
+	"context"
 	"io"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -34,7 +35,7 @@ func NewComponent() Provides {
 }
 
 // AddInstance does nothing in the noop implementation
-func (d *delegatedAuthNoop) AddInstance(_ delegatedauth.InstanceParams) error {
+func (d *delegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
 	return nil
 }
 

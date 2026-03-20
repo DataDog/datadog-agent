@@ -22,11 +22,13 @@ func TestTagsProvider_WithClusterTags(t *testing.T) {
 
 	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
 
-	require.Len(t, tags, 4)
+	require.Len(t, tags, 5)
 	assert.Contains(t, tags, "runner-id:runner-abc")
 	assert.Contains(t, tags, "hostname:host-01")
 	assert.Contains(t, tags, "orch_cluster_id:abc-123-def")
 	assert.Contains(t, tags, "kube_cluster_name:production")
+	// agent_flavor tag is added automatically (defaults to "agent")
+	assert.Contains(t, tags, "agent_flavor:agent")
 }
 
 func TestTagsProvider_WithEnvTag(t *testing.T) {
@@ -40,9 +42,10 @@ func TestTagsProvider_WithEnvTag(t *testing.T) {
 
 	tags := provider.GetTags(context.Background(), "runner-xyz", "host-02")
 
-	require.Len(t, tags, 4)
+	require.Len(t, tags, 5)
 	assert.Contains(t, tags, "runner-id:runner-xyz")
 	assert.Contains(t, tags, "hostname:host-02")
+	assert.Contains(t, tags, "agent_flavor:agent")
 	assert.Contains(t, tags, "env:production")
 	assert.Contains(t, tags, "kube_cluster_name:my-cluster")
 	assert.NotContains(t, tags, "team:platform") // Filtered out
@@ -54,9 +57,10 @@ func TestTagsProvider_NoClusterTagsAvailable(t *testing.T) {
 
 	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
 
-	require.Len(t, tags, 2)
+	require.Len(t, tags, 3)
 	assert.Contains(t, tags, "runner-id:runner-abc")
 	assert.Contains(t, tags, "hostname:host-01")
+	assert.Contains(t, tags, "agent_flavor:agent")
 }
 
 func TestTagsProvider_AllWhitelistedTags(t *testing.T) {
@@ -74,10 +78,11 @@ func TestTagsProvider_AllWhitelistedTags(t *testing.T) {
 
 	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
 
-	// Should have: runner-id, hostname + 5 whitelisted tags
-	require.Len(t, tags, 7)
+	// Should have: runner-id, hostname, agent_flavor + 5 whitelisted tags
+	require.Len(t, tags, 8)
 	assert.Contains(t, tags, "runner-id:runner-abc")
 	assert.Contains(t, tags, "hostname:host-01")
+	assert.Contains(t, tags, "agent_flavor:agent")
 	assert.Contains(t, tags, "env:staging")
 	assert.Contains(t, tags, "cluster_name:my-cluster")
 	assert.Contains(t, tags, "kube_cluster_name:k8s-cluster")

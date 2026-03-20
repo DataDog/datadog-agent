@@ -30,6 +30,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -77,6 +78,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
+		flaretypes.NewFiller(provideRuntimeDebugInfo),
 	}
 
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
@@ -130,8 +132,8 @@ func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) er
 }
 
 func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                              //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                                            //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettingsWithoutSecrets()) }) //nolint:errcheck
 	return nil
 }
 
@@ -162,7 +164,7 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_goprocs.json"), getSystemProbeDyninstProcs)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
-		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettingsWithoutSecrets()) })
 	}
 	return nil
 }
@@ -175,7 +177,7 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	} else {
 		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
-		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}

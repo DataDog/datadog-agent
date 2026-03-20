@@ -18,7 +18,11 @@ import (
 type StringCmpOpts struct {
 	CaseInsensitive        bool
 	PathSeparatorNormalize bool
-	TrimLeadingDot         bool
+	Sanitize               func(kind FieldValueType, pattern string) (string, error)
+}
+
+func (o StringCmpOpts) IsDefault() bool {
+	return o.Sanitize == nil && !o.CaseInsensitive && !o.PathSeparatorNormalize
 }
 
 // DefaultStringCmpOpts defines the default comparison options
@@ -51,7 +55,7 @@ func (s *StringValues) AppendFieldValue(value FieldValue) {
 func (s *StringValues) Compile(opts StringCmpOpts) error {
 	for _, value := range s.fieldValues {
 		// fast path for scalar value without specific comparison behavior
-		if opts == DefaultStringCmpOpts && value.Type == ScalarValueType {
+		if opts.IsDefault() && value.Type == ScalarValueType {
 			str := value.Value.(string)
 			s.scalars = append(s.scalars, str)
 		} else {
@@ -266,8 +270,12 @@ func (s *ScalarStringMatcher) Matches(value string) bool {
 
 // NewStringMatcher returns a new string matcher
 func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (StringMatcher, error) {
-	if opts.TrimLeadingDot {
-		pattern = strings.TrimPrefix(pattern, ".")
+	if opts.Sanitize != nil {
+		var err error
+		pattern, err = opts.Sanitize(kind, pattern)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	switch kind {

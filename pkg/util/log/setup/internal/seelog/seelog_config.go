@@ -103,7 +103,6 @@ func (c *Config) SlogLogger() (types.LoggerInterface, *stdslog.LevelVar, error) 
 	// level handler -> async handler -> multi handler
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
-	closeFuncs = append(closeFuncs, asyncHandler.Close)
 
 	lvl, err := log.ValidateLogLevel(c.logLevel)
 	if err != nil {
@@ -113,7 +112,10 @@ func (c *Config) SlogLogger() (types.LoggerInterface, *stdslog.LevelVar, error) 
 	levelVar.Set(types.ToSlogLevel(lvl))
 	levelHandler := handlers.NewLevel(levelVar, asyncHandler)
 
+	// Close async handler first so it drains and stops writing, then close writers.
+	// Otherwise the async goroutine can still call Write() while the file writer is closed (data race).
 	closeFunc := func() {
+		asyncHandler.Close()
 		for _, closeFunc := range closeFuncs {
 			closeFunc()
 		}

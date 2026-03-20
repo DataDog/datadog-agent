@@ -374,6 +374,8 @@ type Process struct {
 	ExitTime time.Time `field:"exit_time,opts:getters_only"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only"`
 
+	ForkFlags uint64 `field:"-"`
+
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
@@ -853,19 +855,19 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                       // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                                // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`                                                   // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr       IPPortContext `field:"addr"`                                                                          // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                      // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveAcceptHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                               // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr"`                                                                         // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveAcceptHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                                                  // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device

@@ -181,7 +181,6 @@ type AgentType uint8
 const (
 	NodeAgent AgentType = 1 << iota
 	ClusterAgent
-	ProcessAgent
 	Remote
 )
 
@@ -1079,9 +1078,10 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type   string
-	Status string
-	Reason string
+	Type               string
+	Status             string
+	Reason             string
+	LastTransitionTime time.Time
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1678,9 +1678,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1743,6 +1740,7 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
+	UsesGPU        bool           // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1821,7 +1819,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
@@ -2183,8 +2180,8 @@ func (crd *CRD) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (crd CRD) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(crd).(*CRD)
-	return copyCrd
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return &copyCrd
 }
 
 // String return the string representation of the given CRD entity.

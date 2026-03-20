@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // TODO: (components) Delete this module when the sender and event platform forwarder are fully componentized.
 

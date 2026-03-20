@@ -720,6 +720,9 @@ func (p *EBPFLessProbe) EnableEnforcement(state bool) {
 	p.processKiller.SetState(state)
 }
 
+// SendCustomEventKillAction is a no-op for EBPFLess (remediation custom events use EBPF probe).
+func (p *EBPFLessProbe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}
+
 // GetAgentContainerContext returns the agent container context
 func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext {
 	return p.probe.GetAgentContainerContext()

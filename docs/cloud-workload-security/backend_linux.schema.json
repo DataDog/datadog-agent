@@ -219,7 +219,7 @@
         },
         "variables": {
           "$ref": "#/$defs/Variables",
-          "description": "Variables values"
+          "description": "Variable values"
         }
       },
       "additionalProperties": false,
@@ -299,7 +299,7 @@
         },
         "variables": {
           "$ref": "#/$defs/Variables",
-          "description": "Variables values"
+          "description": "Variable values"
         }
       },
       "additionalProperties": false,
@@ -425,7 +425,7 @@
         },
         "variables": {
           "$ref": "#/$defs/Variables",
-          "description": "Variables values"
+          "description": "Variable values"
         },
         "rule_context": {
           "$ref": "#/$defs/RuleContext",
@@ -1323,6 +1323,10 @@
           "type": "integer",
           "description": "Thread ID"
         },
+        "fork_flags": {
+          "type": "integer",
+          "description": "ForkFlags"
+        },
         "uid": {
           "type": "integer",
           "description": "User ID"
@@ -1438,9 +1442,17 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec": {
+          "type": "boolean",
+          "description": "Indicates whether the process entry is from a new binary execution"
+        },
         "is_exec_child": {
           "type": "boolean",
           "description": "Indicates whether the process is an exec following another exec"
+        },
+        "is_parent_missing": {
+          "type": "boolean",
+          "description": "Indicates whether the direct parent is missing"
         },
         "source": {
           "type": "string",
@@ -1463,11 +1475,16 @@
           },
           "type": "object",
           "description": "Tags from an APM tracer instrumentation"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variable values"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "fork_flags",
         "uid",
         "gid"
       ],
@@ -1487,6 +1504,10 @@
           "type": "integer",
           "description": "Thread ID"
         },
+        "fork_flags": {
+          "type": "integer",
+          "description": "ForkFlags"
+        },
         "uid": {
           "type": "integer",
           "description": "User ID"
@@ -1602,9 +1623,17 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec": {
+          "type": "boolean",
+          "description": "Indicates whether the process entry is from a new binary execution"
+        },
         "is_exec_child": {
           "type": "boolean",
           "description": "Indicates whether the process is an exec following another exec"
+        },
+        "is_parent_missing": {
+          "type": "boolean",
+          "description": "Indicates whether the direct parent is missing"
         },
         "source": {
           "type": "string",
@@ -1628,6 +1657,10 @@
           "type": "object",
           "description": "Tags from an APM tracer instrumentation"
         },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variable values"
+        },
         "parent": {
           "$ref": "#/$defs/Process",
           "description": "Parent process"
@@ -1639,10 +1672,6 @@
           "type": "array",
           "description": "Ancestor processes"
         },
-        "variables": {
-          "$ref": "#/$defs/Variables",
-          "description": "Variables values"
-        },
         "truncated_ancestors": {
           "type": "boolean",
           "description": "True if the ancestors list was truncated because it was too big"
@@ -1651,6 +1680,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "fork_flags",
         "uid",
         "gid"
       ],

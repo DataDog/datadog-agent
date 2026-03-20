@@ -1,7 +1,7 @@
 ---
 # Unit test of internal python code
 invoke_unit_tests:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
