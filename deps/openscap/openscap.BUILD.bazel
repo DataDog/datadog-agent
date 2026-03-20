@@ -501,6 +501,7 @@ cc_shared_library(
         "@libselinux//:selinux_pkg",
         "@libsepol//:sepol_pkg",
         "@libxslt//:exslt_pkg",
+        "@libxslt//:xslt_pkg",
         "@libyaml//:yaml_pkg",
         "@pcre2//:pcre2-8_pkg",
         "@popt//:popt_pkg",
