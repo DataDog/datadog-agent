@@ -2434,3 +2434,25 @@ probes:
             ref: "x"
     sampling:
       snapshotsPerSecond: 100
+  - id: testLineProbeTemplateWithStructFields
+    type: LOG_PROBE
+    where:
+      methodName: main.executeStructFuncs
+      sourceFile: structs.go
+      lines:
+        - "208"
+    template: "sta.a: {sta.a} sta.b: {sta.b} sta.c: {sta.c}"
+    segments:
+      - str: "sta.a: "
+      - json:
+          getmember: [{ ref: "sta" }, "a"]
+        dsl: "sta.a"
+      - str: " sta.b: "
+      - json:
+          getmember: [{ ref: "sta" }, "b"]
+        dsl: "sta.b"
+      - str: " sta.c: "
+      - json:
+          getmember: [{ ref: "sta" }, "c"]
+        dsl: "sta.c"
+    captureSnapshot: false

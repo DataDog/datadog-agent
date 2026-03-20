@@ -1,0 +1,31 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.executeStructFuncs",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "testLineProbeTemplateWithStructFields",
+          "location": {
+            "method": "main.executeStructFuncs",
+            "file": "structs.go",
+            "line": 208
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "sta.a: [1, 2, 3] sta.b: 1 sta.c: [1, 2, 3, ...]"
+  }
+]
