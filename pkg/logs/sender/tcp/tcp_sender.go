@@ -44,6 +44,7 @@ func NewTCPSender(
 		queueCount,
 		workersPerQueue,
 		pipelineMonitor,
+		nil, // retrier: created at the pipeline level, nil defaults to noop
 	)
 }
 

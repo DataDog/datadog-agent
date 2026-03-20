@@ -1823,6 +1823,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Pipeline failover configuration
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
+
+	// Disk retry: save payloads to disk when the destination is unreachable instead of dropping them.
+	// Set max_size_bytes to a non-zero value to enable. 0 = disabled (default).
+	config.BindEnvAndSetDefault("logs_config.disk_retry.max_size_bytes", 0)
+	config.BindEnvAndSetDefault("logs_config.disk_retry.path", "")
+	config.BindEnvAndSetDefault("logs_config.disk_retry.max_disk_ratio", 0.80)
+	config.BindEnvAndSetDefault("logs_config.disk_retry.file_ttl_days", 7)
 }
 
 // vector integration

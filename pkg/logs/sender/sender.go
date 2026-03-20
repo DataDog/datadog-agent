@@ -7,12 +7,14 @@ package sender
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender/diskretry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"go.uber.org/atomic"
@@ -57,6 +59,7 @@ type PipelineComponent interface {
 type Sender struct {
 	workers []*worker
 	queues  []chan *message.Payload
+	retrier diskretry.Retrier
 
 	pipelineMonitor metrics.PipelineMonitor
 	idx             *atomic.Uint32
@@ -120,7 +123,12 @@ func NewSender(
 	queueCount int,
 	workersPerQueue int,
 	pipelineMonitor metrics.PipelineMonitor,
+	retrier diskretry.Retrier,
 ) *Sender {
+	if retrier == nil {
+		retrier = newRetrierFromConfig(config)
+	}
+
 	var workers []*worker
 	if queueCount <= 0 {
 		queueCount = DefaultQueuesCount
@@ -145,6 +153,7 @@ func NewSender(
 				serverlessMeta,
 				pipelineMonitor,
 				workerID,
+				retrier,
 			)
 			workers = append(workers, worker)
 		}
@@ -152,6 +161,7 @@ func NewSender(
 
 	return &Sender{
 		workers:         workers,
+		retrier:         retrier,
 		pipelineMonitor: pipelineMonitor,
 		queues:          queues,
 		idx:             &atomic.Uint32{},
@@ -169,20 +179,56 @@ func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
 	return s.pipelineMonitor
 }
 
-// Start starts all sender workers.
+// Start starts all sender workers and the disk retry replay loop.
 func (s *Sender) Start() {
 	for _, worker := range s.workers {
 		worker.start()
 	}
+	// Disk retry replay loop -> replayed payloads are fed back through the worker input channel.
+	s.retrier.StartReplayLoop(func(payload *message.Payload) bool {
+		select {
+		case s.queues[0] <- payload:
+			return true
+		default:
+			return false
+		}
+	})
 }
 
-// Stop stops all sender workers
+// Stop stops all sender workers and the disk retry replay loop.
 func (s *Sender) Stop() {
 	log.Debug("sender mux stopping")
+	s.retrier.Stop()
 	for _, s := range s.workers {
 		s.stop()
 	}
 	for _, q := range s.queues {
 		close(q)
 	}
+}
+
+// newRetrierFromConfig creates a disk retrier based on agent configuration.
+// Returns a noopRetrier when disk retry is disabled (max_size_bytes == 0).
+func newRetrierFromConfig(cfg pkgconfigmodel.Reader) diskretry.Retrier {
+	maxSizeBytes := cfg.GetInt64("logs_config.disk_retry.max_size_bytes")
+	if maxSizeBytes <= 0 {
+		return diskretry.NewNoopRetrier()
+	}
+
+	storagePath := cfg.GetString("logs_config.disk_retry.path")
+	if storagePath == "" {
+		storagePath = filepath.Join(cfg.GetString("logs_config.run_path"), "logs-retry")
+	}
+	maxDiskRatio := cfg.GetFloat64("logs_config.disk_retry.max_disk_ratio")
+	fileTTLDays := cfg.GetInt("logs_config.disk_retry.file_ttl_days")
+
+	retrier, err := diskretry.NewDiskRetryManager(storagePath, maxSizeBytes, maxDiskRatio, fileTTLDays)
+	if err != nil {
+		log.Errorf("Disk retry: failed to initialize, falling back to noop: %v", err)
+		return diskretry.NewNoopRetrier()
+	}
+
+	log.Infof("Disk retry: enabled with max_size_bytes=%d, path=%s, max_disk_ratio=%.2f, file_ttl_days=%d",
+		maxSizeBytes, storagePath, maxDiskRatio, fileTTLDays)
+	return retrier
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender/diskretry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,6 +44,7 @@ type worker struct {
 	flushWg        *sync.WaitGroup
 	sink           Sink
 	workerID       string
+	retrier        diskretry.Retrier
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -57,6 +59,7 @@ func newWorker(
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
 	workerID string,
+	retrier diskretry.Retrier,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -76,6 +79,7 @@ func newWorker(
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
+		retrier:        retrier,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
@@ -157,8 +161,12 @@ func (s *worker) run() {
 				// loss on intermittent failures.
 				if !destSender.lastSendSucceeded {
 					if !destSender.NonBlockingSend(payload) {
-						tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-						tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+						// Buffer is full we attempt to save to disk instead of dropping.
+						if err := s.retrier.Store(payload); err != nil {
+							// Disk write failed too; payload is truly lost
+							tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+							tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+						}
 					}
 				}
 			}

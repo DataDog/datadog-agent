@@ -56,6 +56,7 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 				tc.queuesCount,
 				tc.workersPerQueue,
 				pipelineMonitor,
+				nil, // retrier: defaults to noop
 			)
 
 			assert.Equal(t, tc.expectedWorkers, len(sender.workers))
