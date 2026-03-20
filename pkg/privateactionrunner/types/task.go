@@ -35,6 +35,31 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 }
 
+// TimeoutSeconds returns the timeout from the task inputs if present and a valid number, otherwise nil.
+func (task *Task) TimeoutSeconds() *int32 {
+	if task.Data.Attributes == nil {
+		return nil
+	}
+	v, ok := task.Data.Attributes.Inputs["timeout"]
+	if !ok {
+		return nil
+	}
+	switch t := v.(type) {
+	case float64:
+		val := int32(t)
+		return &val
+	case int32:
+		return &t
+	case int64:
+		val := int32(t)
+		return &val
+	case int:
+		val := int32(t)
+		return &val
+	}
+	return nil
+}
+
 func (task *Task) GetFQN() string {
 	return fmt.Sprintf("%s.%s", task.Data.Attributes.BundleID, task.Data.Attributes.Name)
 }
