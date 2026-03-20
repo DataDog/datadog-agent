@@ -93,7 +93,7 @@ type Event struct {
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
 	var discoveredServicesGauge telemetry.Gauge
-	if systemProbeConfig.GetBool("discovery.enabled") {
+	if serviceDiscoveryEnabled(systemProbeConfig) {
 		discoveredServicesGauge = telemetry.NewGaugeWithOpts(
 			collectorID,
 			"discovered_services",
@@ -170,7 +170,11 @@ func (c *collector) isProcessCollectionEnabled() bool {
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
-	return c.systemProbeConfig.GetBool("discovery.enabled")
+	return serviceDiscoveryEnabled(c.systemProbeConfig)
+}
+
+func serviceDiscoveryEnabled(systemProbeConfig pkgconfigmodel.Reader) bool {
+	return systemProbeConfig.GetBool("discovery.enabled")
 }
 
 // isGPUMonitoringEnabled returns a boolean indicating if GPU monitoring is enabled
