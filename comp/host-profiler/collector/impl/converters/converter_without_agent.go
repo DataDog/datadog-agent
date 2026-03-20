@@ -450,6 +450,9 @@ func (c *converterWithoutAgent) ensureHealthCheckExtension(conf confMap) error {
 //  2. wires it into the profiles pipeline if not already there
 //
 // If no k8sattributes processor exists in the user config, nothing happens.
+
+// TODO: At the moment k8s preset doesn't add k8sattributes to profiles processor pipeline, once it does, we can remove:
+//  2. wires it into the profiles pipeline if not already there
 func ensureK8sAttributesProcessor(conf confMap, processorNames []any) ([]any, error) {
 	processors, ok := Get[confMap](conf, "processors")
 	if !ok {
