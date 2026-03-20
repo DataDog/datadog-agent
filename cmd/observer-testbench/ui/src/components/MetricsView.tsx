@@ -49,7 +49,9 @@ interface MetricsViewProps {
   onTimeRangeChange: (range: TimeRange | null) => void;
   smoothLines: boolean;
   phaseMarkers?: PhaseMarker[];
-  focusedGroupKey?: string | null;
+  /** One-shot jump from Logs tab; cleared via onRequestedFocusedGroupKeyConsumed after applying. */
+  requestedFocusedGroupKey?: string | null;
+  onRequestedFocusedGroupKeyConsumed?: () => void;
   onJumpToPattern?: (patternHash: string) => void;
 }
 
@@ -61,7 +63,8 @@ export function MetricsView({
   onTimeRangeChange,
   smoothLines,
   phaseMarkers,
-  focusedGroupKey,
+  requestedFocusedGroupKey,
+  onRequestedFocusedGroupKeyConsumed,
   onJumpToPattern,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
@@ -137,17 +140,19 @@ export function MetricsView({
     setPatternViewMode((prev) => new Map([...prev, [groupKey, mode]]));
   };
 
-  // When LogView requests a jump to a specific series group, select it.
+  // When LogView requests a jump to a specific series group, select it, then clear the request
+  // so the same groupKey can be requested again (same pattern as requestedPatternFilter in LogView).
   // Virtual series (pattern counts) use the :count aggregation, so switch to it.
   // Default to rate-sec view for pattern series.
   useEffect(() => {
-    if (!focusedGroupKey) return;
+    if (!requestedFocusedGroupKey) return;
     setAggregationType('count');
-    setSelectedGroups((prev) => new Set([...prev, focusedGroupKey]));
-    if (getPatternHash(focusedGroupKey)) {
-      setPatternViewMode((prev) => new Map([...prev, [focusedGroupKey, 'rate-sec']]));
+    setSelectedGroups((prev) => new Set([...prev, requestedFocusedGroupKey]));
+    if (getPatternHash(requestedFocusedGroupKey)) {
+      setPatternViewMode((prev) => new Map([...prev, [requestedFocusedGroupKey, 'rate-sec']]));
     }
-  }, [focusedGroupKey]);
+    onRequestedFocusedGroupKeyConsumed?.();
+  }, [requestedFocusedGroupKey, onRequestedFocusedGroupKeyConsumed]);
 
   // Auto-set rate-sec view for pattern groups when they're newly selected from the sidebar.
   const prevSelectedForRateRef = useRef<Set<string>>(new Set());

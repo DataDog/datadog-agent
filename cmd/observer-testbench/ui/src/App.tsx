@@ -186,7 +186,7 @@ function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
   const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [focusedGroupKey, setFocusedGroupKey] = useState<string | null>(null);
+  const [requestedFocusedGroupKey, setRequestedFocusedGroupKey] = useState<string | null>(null);
   const [requestedPatternFilter, setRequestedPatternFilter] = useState<string | null>(null);
   const [smoothLines, setSmoothLines] = useState(true);
   const isResizingRef = useRef(false);
@@ -291,6 +291,7 @@ function App() {
     appliedEpisodeRef.current = null; // Allow episode range to be re-applied
     setTimeRangeLive(null);
     setNav({ history: [null], index: 0 });
+    setRequestedFocusedGroupKey(null);
   }, [state.activeScenario]);
 
   // Once episode info arrives for a freshly loaded scenario, apply its time range as default
@@ -524,7 +525,8 @@ function App() {
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
             phaseMarkers={phaseMarkers}
-            focusedGroupKey={focusedGroupKey}
+            requestedFocusedGroupKey={requestedFocusedGroupKey}
+            onRequestedFocusedGroupKeyConsumed={() => setRequestedFocusedGroupKey(null)}
             onJumpToPattern={(patternHash) => {
               setRequestedPatternFilter(patternHash);
               setActiveTab('logs');
@@ -549,7 +551,7 @@ function App() {
             onTimeRangeChange={setTimeRange}
             phaseMarkers={phaseMarkers}
             onJumpToSeries={(groupKey) => {
-              setFocusedGroupKey(groupKey);
+              setRequestedFocusedGroupKey(groupKey);
               setActiveTab('timeseries');
             }}
             requestedPatternFilter={requestedPatternFilter}
