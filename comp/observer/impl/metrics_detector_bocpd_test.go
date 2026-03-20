@@ -127,7 +127,7 @@ func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
 	// Should emit at most one anomaly per series/agg despite sustained shift.
 	anomalyCount := 0
 	for _, a := range result.Anomalies {
-		if a.Source == "test.metric:avg" {
+		if a.Source.String() == "test.metric:avg" {
 			anomalyCount++
 		}
 	}
@@ -193,7 +193,7 @@ func TestBOCPDDetector_RecoveryAndReAlert(t *testing.T) {
 	// Count total anomalies for m:avg across r3 and r4.
 	avgAnomalies := 0
 	for _, a := range append(r3.Anomalies, r4.Anomalies...) {
-		if a.Source == "m:avg" {
+		if a.Source.String() == "m:avg" {
 			avgAnomalies++
 		}
 	}

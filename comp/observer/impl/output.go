@@ -106,7 +106,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			for j, a := range corr.Anomalies {
 				oc.Anomalies[j] = ObserverAnomaly{
 					Timestamp:      a.Timestamp,
-					Source:         string(a.Source),
+					Source:         a.Source.String(),
 					SourceSeriesID: string(a.SourceSeriesID),
 					Detector:       a.DetectorName,
 				}

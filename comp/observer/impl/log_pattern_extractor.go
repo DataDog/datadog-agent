@@ -14,17 +14,12 @@ import (
 
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
-	// Hash is the ID of this object, used to find it back in the map.
-	Hash      int64
 	ClusterID int64
 }
 
 // NewPatternKeyInfo creates a PatternKeyInfo for the given cluster ID.
 func NewPatternKeyInfo(clusterID int64) PatternKeyInfo {
-	return PatternKeyInfo{
-		Hash:      clusterID + 1,
-		ClusterID: clusterID,
-	}
+	return PatternKeyInfo{ClusterID: clusterID}
 }
 
 // LogPatternExtractorConfig holds configuration for the LogPatternExtractor.
@@ -39,10 +34,16 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
 	PatternClusterer *patterns.PatternClusterer
-	PatternKeys      map[int64]PatternKeyInfo
+	patternContext   map[string]patternMetricContext
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
+var _ observerdef.ContextProvider = (*LogPatternExtractor)(nil)
+
+type patternMetricContext struct {
+	keyInfo PatternKeyInfo
+	example string
+}
 
 // NewLogPatternExtractor creates a new LogPatternExtractor.
 func NewLogPatternExtractor() *LogPatternExtractor {
@@ -52,13 +53,47 @@ func NewLogPatternExtractor() *LogPatternExtractor {
 			Stride: 1,
 			Index:  0,
 		}),
-		PatternKeys: make(map[int64]PatternKeyInfo),
 	}
 }
 
 // Name returns the extractor name.
 func (e *LogPatternExtractor) Name() string {
 	return "log_pattern_extractor"
+}
+
+// Reset clears clustering and cached per-series context so reanalysis starts
+// from the currently observed logs.
+func (e *LogPatternExtractor) Reset() {
+	e.PatternClusterer = patterns.NewPatternClusterer(patterns.IDComputeInfo{
+		Offset: 0,
+		Stride: 1,
+		Index:  0,
+	})
+	e.patternContext = nil
+}
+
+// GetContextByKey implements observerdef.ContextProvider for pattern metrics
+// emitted by this extractor.
+func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricContext, bool) {
+	if e.patternContext == nil {
+		return observerdef.MetricContext{}, false
+	}
+	entry, ok := e.patternContext[key]
+	if !ok {
+		return observerdef.MetricContext{}, false
+	}
+
+	pattern := ""
+	cluster, err := e.PatternClusterer.GetCluster(entry.keyInfo.ClusterID)
+	if err == nil && cluster != nil {
+		pattern = cluster.PatternString()
+	}
+
+	return observerdef.MetricContext{
+		Pattern: pattern,
+		Example: entry.example,
+		Source:  e.Name(),
+	}, true
 }
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
@@ -70,11 +105,21 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) []observerdef.
 	}
 
 	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)
-	e.PatternKeys[patternKey.Hash] = patternKey
+	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), clusterResult.Cluster.ID+1)
+	contextKey := metricContextKey(metricName, log.GetTags())
+
+	if e.patternContext == nil {
+		e.patternContext = make(map[string]patternMetricContext)
+	}
+	e.patternContext[contextKey] = patternMetricContext{
+		keyInfo: patternKey,
+		example: message,
+	}
 
 	return []observerdef.MetricOutput{{
-		Name:  fmt.Sprintf("log.%s.%x.count", e.Name(), patternKey.Hash),
-		Value: 1,
-		Tags:  log.GetTags(),
+		Name:       metricName,
+		Value:      1,
+		Tags:       log.GetTags(),
+		ContextKey: contextKey,
 	}}
 }

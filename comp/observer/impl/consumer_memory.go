@@ -80,9 +80,9 @@ func (r *StdoutReporter) reportNewAnomalies(anomalies []observer.Anomaly) {
 	}
 
 	for _, anomaly := range anomalies {
-		key := string(anomaly.Source) + "|" + anomaly.DetectorName
+		key := anomaly.Source.String() + "|" + anomaly.DetectorName
 		if !r.seenRawAnomalies[key] {
-			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.DetectorName, anomaly.Source)
+			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.DetectorName, anomaly.Source.String())
 			fmt.Printf("           %s\n", anomaly.Description)
 			r.seenRawAnomalies[key] = true
 		}

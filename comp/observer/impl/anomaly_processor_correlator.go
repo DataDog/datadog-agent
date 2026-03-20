@@ -139,10 +139,10 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 	// Evict old entries before checking patterns
 	c.evictOldEntries()
 
-	// Extract unique signal sources from anomalies
+	// Extract unique signal sources from anomalies (display names for pattern matching)
 	sourceSet := make(map[observer.MetricName]struct{})
 	for _, entry := range c.buffer {
-		sourceSet[entry.anomaly.Source] = struct{}{}
+		sourceSet[observer.MetricName(entry.anomaly.Source.String())] = struct{}{}
 	}
 
 	// Track which patterns are currently active
@@ -209,8 +209,9 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 	bySource := make(map[observer.MetricName]observer.Anomaly)
 
 	for _, entry := range c.buffer {
+		display := observer.MetricName(entry.anomaly.Source.String())
 		for _, src := range pattern.requiredSources {
-			if entry.anomaly.Source == src {
+			if display == src {
 				existing, exists := bySource[src]
 				// Keep the one with the later timestamp (more recent)
 				if !exists || entry.anomaly.Timestamp > existing.Timestamp {
