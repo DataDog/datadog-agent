@@ -283,8 +283,11 @@ func (c *Controller) discoverNodeClass(ctx context.Context) (*karpenterv1.NodeCl
 	} {
 		ncList, err := c.Client.Resource(provider.gvr).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			log.Debugf("Unable to list %s/%s NodeClasses: %v, trying next provider", provider.gvr.Group, provider.kind, err)
-			continue
+			if apierrors.IsNotFound(err) {
+				log.Debugf("NodeClass CRD %s/%s not found, trying next provider", provider.gvr.Group, provider.kind)
+				continue
+			}
+			return nil, fmt.Errorf("unable to list %s/%s NodeClasses: %w", provider.gvr.Group, provider.kind, err)
 		}
 
 		if len(ncList.Items) == 0 {
