@@ -18,8 +18,6 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
-
-	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 )
 
 // FGMMetric represents a single metric from the FGM parquet file.
@@ -280,7 +278,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 		var runID, metricName string
 		var timestamp int64
 		var valueFloat *float64
-		var tags map[string]string // allocated lazily only when a tag is found
+		tags := make(map[string]string)
 
 		if runIDCol != nil && !runIDCol.IsNull(i) {
 			runID = runIDCol.Value(i)
@@ -305,14 +303,8 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 					tag := tagsValues.Value(int(j))
 					parts := strings.SplitN(tag, ":", 2)
 					if len(parts) == 2 {
-						if tags == nil {
-							tags = make(map[string]string)
-						}
 						tags[parts[0]] = parts[1]
 					} else if len(parts) == 1 && parts[0] != "" {
-						if tags == nil {
-							tags = make(map[string]string)
-						}
 						tags[parts[0]] = ""
 					}
 				}
@@ -323,9 +315,6 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 		for _, lc := range labelCols {
 			if !lc.col.IsNull(i) {
 				if v := lc.col.Value(i); v != "" {
-					if tags == nil {
-						tags = make(map[string]string)
-					}
 					tags[lc.key] = v
 				}
 			}
@@ -340,46 +329,6 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 		}
 	}
 
-	return metrics, nil
-}
-
-// ReadMetricsFromDir reads all metric parquet files from dir and returns them as
-// a flat slice. Exported for use in benchmarks and tests without the component framework.
-// dir should point to a directory containing only observer-metrics-*.parquet files
-// (i.e. the parquet/ subdirectory of a scenario, not the scenario root).
-func ReadMetricsFromDir(dir string) ([]recorderdef.MetricData, error) {
-	reader, err := newParquetReader(dir)
-	if err != nil {
-		return nil, err
-	}
-	metrics := make([]recorderdef.MetricData, 0, reader.Len())
-	for {
-		m := reader.Next()
-		if m == nil {
-			break
-		}
-		var value float64
-		if m.ValueFloat != nil {
-			value = *m.ValueFloat
-		} else if m.ValueInt != nil {
-			value = float64(*m.ValueInt)
-		}
-		tags := make([]string, 0, len(m.Tags))
-		for k, v := range m.Tags {
-			if v != "" {
-				tags = append(tags, k+":"+v)
-			} else {
-				tags = append(tags, k)
-			}
-		}
-		metrics = append(metrics, recorderdef.MetricData{
-			Source:    m.RunID,
-			Name:      m.MetricName,
-			Value:     value,
-			Timestamp: m.Time / 1000, // ms → seconds
-			Tags:      tags,
-		})
-	}
 	return metrics, nil
 }
 

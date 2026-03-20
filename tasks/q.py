@@ -512,7 +512,7 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
 
 # --- Benchmarks ---
 
-_BENCH_FILTER = "BenchmarkDetection|BenchmarkIngestion|BenchmarkLogIngestion|BenchmarkRealScenario"
+_BENCH_FILTER = "BenchmarkDetection|BenchmarkIngestion|BenchmarkLogIngestion"
 
 
 @task
