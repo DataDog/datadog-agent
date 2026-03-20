@@ -8,7 +8,7 @@
 #include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t user, gid_t group) {
-    if (is_discarded_by_pid() || is_auid_discarder()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHOWN)) {
         return 0;
     }
 

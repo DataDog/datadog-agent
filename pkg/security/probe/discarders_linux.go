@@ -650,7 +650,8 @@ func auidDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Dis
 	auid := value.(int)
 	probe.erpcRequest.OP = erpc.DiscardAuidOp
 	probe.erpcRequest.Data = [256]byte{}
-	binary.LittleEndian.PutUint32(probe.erpcRequest.Data[:], uint32(auid))
+	binary.LittleEndian.PutUint32(probe.erpcRequest.Data[:4], uint32(auid))
+	binary.LittleEndian.PutUint64(probe.erpcRequest.Data[4:12], uint64(event.GetEventType()))
 	err = probe.Erpc.Request(probe.erpcRequest)
 
 	if err != nil {

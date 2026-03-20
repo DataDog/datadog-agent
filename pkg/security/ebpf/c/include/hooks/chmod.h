@@ -8,7 +8,7 @@
 #include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mode) {
-    if (is_discarded_by_pid() || is_auid_discarder()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHMOD)) {
         return 0;
     }
 

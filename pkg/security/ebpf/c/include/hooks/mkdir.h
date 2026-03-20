@@ -9,7 +9,7 @@
 #include "helpers/discarders.h"
 
 long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filename, umode_t mode) {
-    if (is_discarded_by_pid() || is_auid_discarder()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_MKDIR)) {
         return 0;
     }
 

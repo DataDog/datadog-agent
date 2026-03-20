@@ -89,9 +89,11 @@ void __attribute__((always_inline)) handle_discard_auid(void * data) {
         return;
     }
     u32 auid;
-    bpf_probe_read(&auid, sizeof(auid), data);
-    discard_auid(auid);
-
+    u64 event_type;
+    char *payload = (char *)data;
+    bpf_probe_read(&auid, sizeof(auid), payload);
+    bpf_probe_read(&event_type, sizeof(event_type), payload + sizeof(auid));
+    discard_auid(auid, event_type);
 }
 int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
     void *req = (void *)CTX_PARM3(ctx);

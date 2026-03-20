@@ -81,7 +81,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         return 0;
     }
-    if (is_auid_discarder()) {
+    if (is_auid_discarder(EVENT_UNLINK)) {
         syscall->state = DISCARDED;
         return 0;
     }

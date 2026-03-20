@@ -68,10 +68,10 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
             return 0;
         }
-        if (is_auid_discarder()) {
-        syscall->state = DISCARDED;
-        return 0;
-    }
+        if (is_auid_discarder(EVENT_RMDIR)) {
+            syscall->state = DISCARDED;
+            return 0;
+        }
 
         break;
     case EVENT_UNLINK:

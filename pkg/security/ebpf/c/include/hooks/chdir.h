@@ -9,7 +9,7 @@
 #include "helpers/discarders.h"
 
 long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
-    if (is_discarded_by_pid() || is_auid_discarder()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHDIR)) {
         return 0;
     }
 
