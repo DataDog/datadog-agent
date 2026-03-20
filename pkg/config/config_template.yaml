@@ -4837,5 +4837,4 @@ api_key:
 #
 #   actions_allowlist:
 #     - com.datadoghq.script.runPredefinedScript
-
 {{ end -}}
