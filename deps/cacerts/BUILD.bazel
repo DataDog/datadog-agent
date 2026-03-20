@@ -47,7 +47,7 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0644",
     ),
-    prefix = "embedded2/ssl",
+    prefix = "embedded3/ssl",
 )
 
 # TODO: add this to //packages/install_dir/embedded:everything
