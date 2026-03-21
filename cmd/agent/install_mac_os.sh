@@ -607,7 +607,7 @@ if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.pl
     max_wait=100  # 100 * 0.1s = 10 seconds
     count=0
     while [ $count -lt $max_wait ]; do
-        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+        if ! pgrep -U "$user_uid" -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
             break
         fi
         sleep 0.1
