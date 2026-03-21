@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 
-go 1.24.0
+go 1.23.1
 
 toolchain go1.24.4
 
