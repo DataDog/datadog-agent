@@ -69,7 +69,7 @@ def package_licenses(name = None, src = None):
             # Windows build; offers_dir is therefore always empty there. rules_python 1.9.0 makes `bazel run` copy
             # runfiles to a fresh temp dir and skips empty dirs, causing pkg_install to fail with FileNotFoundError
             # (Linux/macOS use symlinks so empty TreeArtifacts are fine); remove this select when Windows does.
-            "@platforms//os:windows": [],  #TODO(agent-build): remove `select` when Windows deps use ship_source_offer
+            "@platforms//os:windows": [],  #TODO(ABLD-351): deal with products that don't have source offers
             "//conditions:default": [":%s_offer_dir_stripped_" % name],
         }),
         visibility = ["//visibility:public"],
