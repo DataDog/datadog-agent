@@ -22,15 +22,15 @@ Map suite names to Go package paths:
 
 | Suite | Package path |
 |-------|-------------|
-| `install-test` | `./test/new-e2e/tests/windows/install-test/...` |
-| `service-test` | `./test/new-e2e/tests/windows/service-test/...` |
-| `fips-test` | `./test/new-e2e/tests/windows/fips-test/...` |
-| `domain-test` | `./test/new-e2e/tests/windows/domain-test/...` |
-| `agent-package` | `./test/new-e2e/tests/installer/windows/suites/agent-package/...` |
-| `install-script` | `./test/new-e2e/tests/installer/windows/suites/install-script/...` |
-| `install-exe` | `./test/new-e2e/tests/installer/windows/suites/install-exe/...` |
-| `ddot-package` | `./test/new-e2e/tests/installer/windows/suites/ddot-package/...` |
-| `apm-inject-package` | `./test/new-e2e/tests/installer/windows/suites/apm-inject-package/...` |
+| `install-test` | `./test/new-e2e/tests/windows/install-test` |
+| `service-test` | `./test/new-e2e/tests/windows/service-test` |
+| `fips-test` | `./test/new-e2e/tests/windows/fips-test` |
+| `domain-test` | `./test/new-e2e/tests/windows/domain-test` |
+| `agent-package` | `./test/new-e2e/tests/installer/windows/suites/agent-package` |
+| `install-script` | `./test/new-e2e/tests/installer/windows/suites/install-script` |
+| `install-exe` | `./test/new-e2e/tests/installer/windows/suites/install-exe` |
+| `ddot-package` | `./test/new-e2e/tests/installer/windows/suites/ddot-package` |
+| `apm-inject-package` | `./test/new-e2e/tests/installer/windows/suites/apm-inject-package` |
 
 If the user gives a partial name or test function, search with Glob/Grep under `test/new-e2e/tests/windows/` and `test/new-e2e/tests/installer/windows/` to resolve it.
 
@@ -90,6 +90,8 @@ level and at the subtest level — to avoid accidentally running multiple tests
 that share a name prefix (e.g. `TestUpgradeAgentPackage$` won't match
 `TestUpgradeAgentPackageOCIBootstrap`).
 
+**Important:** Use the exact package path (no trailing `/...`). Using `/...` causes Go to buffer all output per-package and only print it when the package finishes, making the test appear silent. Without `/...`, output streams live as the test runs.
+
 ```bash
 go test -v -timeout 30m -tags test <package-path> -run <TestFunction>$
 ```
@@ -97,13 +99,13 @@ go test -v -timeout 30m -tags test <package-path> -run <TestFunction>$
 For example:
 ```bash
 # MSI install test
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/install-test/... -run TestInstall$
+go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/install-test -run TestInstall$
 
 # Service lifecycle test
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/service-test/... -run TestServiceBehaviorPowerShell$
+go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/service-test -run TestServiceBehaviorPowerShell$
 
 # Fleet Automation — agent package
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/installer/windows/suites/agent-package/... -run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+go test -v -timeout 30m -tags test ./test/new-e2e/tests/installer/windows/suites/agent-package -run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
 ```
 
 Show the full command to the user and confirm before running.
