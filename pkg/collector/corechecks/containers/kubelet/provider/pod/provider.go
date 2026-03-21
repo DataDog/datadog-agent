@@ -90,7 +90,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sender sender.Sender, runningAggregator *runningAggregator, readinessFailures readinessProbeTooManyFailuresMap) {
+func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sender sender.Sender, runningAggregator *runningAggregator, readinessFailures readinessFailureCounts) {
 	p.podUtils.PopulateForPod(pod)
 
 	allContainerStatuses := make([]workloadmeta.KubernetesContainerStatus, 0,

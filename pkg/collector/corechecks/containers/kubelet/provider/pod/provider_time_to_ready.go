@@ -28,9 +28,9 @@ const (
 	// from a readiness probe re-transition rather than the initial startup.
 	maxTimeToReady = 1 * time.Hour
 
-	// maxReadinessProbeFailures is the threshold above which we consider the
-	// pod's Ready condition LastTransitionTime unreliable
-	maxReadinessProbeFailures = 3
+	// defaultFailureThreshold is the Kubernetes default for
+	// readinessProbe.failureThreshold when not explicitly configured.
+	defaultFailureThreshold float64 = 3
 
 	// probesEndpointPath is the path to the kubelet's /metrics/probes endpoint.
 	probesEndpointPath = "/metrics/probes"
@@ -49,14 +49,12 @@ const (
 	podConditionTypeReady = "Ready"
 )
 
-// readinessProbeTooManyFailuresMap maps pod UID to whether we think the pod's Ready condition is unreliable.
-// true means at least one container has had more than maxReadinessProbeFailures failures.
-// false means we think the pod's Ready condition is reliable.
-type readinessProbeTooManyFailuresMap map[string]bool
+// readinessFailureCounts maps pod UID → container name → total readiness probe failure count.
+type readinessFailureCounts map[string]map[string]float64
 
 // scrapeReadinessFailures queries the kubelet's /metrics/probes endpoint and
-// returns a map from pod_uid to whether we think the pod's Ready condition is unreliable.
-func scrapeReadinessFailures(kc kubelet.KubeUtilInterface, timeout time.Duration) readinessProbeTooManyFailuresMap {
+// returns raw per-container readiness probe failure counts keyed by pod UID.
+func scrapeReadinessFailures(kc kubelet.KubeUtilInterface, timeout time.Duration) readinessFailureCounts {
 	if kc == nil {
 		return nil
 	}
@@ -76,7 +74,7 @@ func scrapeReadinessFailures(kc kubelet.KubeUtilInterface, timeout time.Duration
 		return nil
 	}
 
-	result := make(readinessProbeTooManyFailuresMap)
+	result := make(readinessFailureCounts)
 	for _, fam := range families {
 		if fam.Name != proberProbeTotalMetricName {
 			continue
@@ -86,19 +84,57 @@ func scrapeReadinessFailures(kc kubelet.KubeUtilInterface, timeout time.Duration
 				continue
 			}
 			podUID := sample.Metric["pod_uid"]
-			if podUID == "" {
+			containerName := sample.Metric["container"]
+			if podUID == "" || containerName == "" {
 				continue
 			}
-
-			result[podUID] = result[podUID] || sample.Value > maxReadinessProbeFailures
+			if result[podUID] == nil {
+				result[podUID] = make(map[string]float64)
+			}
+			result[podUID][containerName] = sample.Value
 		}
 	}
 	return result
 }
 
+// podHasTooManyReadinessFailures checks whether any container in the pod has
+// accumulated more readiness probe failures than that container's configured
+// failureThreshold.
+func podHasTooManyReadinessFailures(pod *workloadmeta.KubernetesPod, failures readinessFailureCounts, store workloadmeta.Component) bool {
+	containerFailures, ok := failures[pod.ID]
+	if !ok {
+		return false
+	}
+
+	for containerName, failureCount := range containerFailures {
+		threshold := defaultFailureThreshold
+
+		// Look up the container's configured failureThreshold from workloadmeta.
+		if store != nil {
+			for _, cs := range pod.Containers {
+				if cs.Name != containerName || cs.ID == "" {
+					continue
+				}
+				containerEntity, err := store.GetContainer(cs.ID)
+				if err != nil || containerEntity == nil {
+					break
+				}
+				if containerEntity.ReadinessProbe != nil && containerEntity.ReadinessProbe.FailureThreshold > 0 {
+					threshold = float64(containerEntity.ReadinessProbe.FailureThreshold)
+				}
+				break
+			}
+		}
+
+		if failureCount > threshold {
+			return true
+		}
+	}
+	return false
+}
+
 // podStartupTimings holds the computed durations from pod scheduling to
-// the ready and running states. Either field may be zero if the
-// corresponding timing could not be determined.
+// the ready and running states
 type podStartupTimings struct {
 	timeToReady   time.Duration
 	timeToRunning time.Duration
@@ -106,13 +142,11 @@ type podStartupTimings struct {
 
 // computePodStartupTimings extracts time_to_ready and time_to_running from the
 // pod's conditions and container statuses, applying all heuristic validation.
-// Returns an error if none of the timings can be trusted.
 //
-// Heuristics applied:
+// Heuristics:
 //   - Requires a PodScheduled condition with a valid LastTransitionTime.
 //   - Any container restart (regular or init) makes all timings unreliable.
 //   - Readiness probe failures above the threshold make time_to_ready unreliable
-//     (time_to_running is still valid since container start time is unaffected).
 //   - Durations that are negative or exceed maxTimeToReady are discarded.
 //
 // The "running" definition mirrors the kubelet's HasAnyActiveRegularContainerStarted:
@@ -153,7 +187,7 @@ func computePodStartupTimings(pod *workloadmeta.KubernetesPod, podReadinessFailu
 	}
 
 	// time_to_running: earliest regular container StartedAt is not affected
-	// by readiness probes, so it's always trustworthy when present.
+	// by readiness probes
 	var earliestRunningTime time.Time
 	for _, cs := range pod.ContainerStatuses {
 		if cs.State.Running == nil || cs.State.Running.StartedAt.IsZero() {
@@ -164,6 +198,8 @@ func computePodStartupTimings(pod *workloadmeta.KubernetesPod, podReadinessFailu
 		}
 	}
 
+	// time_to_running: earliest regular container StartedAt is not affected
+	// by readiness probes
 	if !earliestRunningTime.IsZero() {
 		d := earliestRunningTime.Sub(scheduledTime)
 		if d > 0 && d <= maxTimeToReady {
@@ -195,10 +231,9 @@ func anyContainerRestarted(pod *workloadmeta.KubernetesPod) bool {
 }
 
 // generatePodStartupMetrics emits kubernetes.pod.time_to_ready and
-// kubernetes.pod.time_to_running as gauges for pods that pass heuristic
-// filters indicating the timings likely reflect the genuine first startup.
-func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.KubernetesPod, readinessFailures readinessProbeTooManyFailuresMap) {
-	// Only consider pods that are currently Ready and Running.
+// kubernetes.pod.time_to_running as gauges for pods
+func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.KubernetesPod, failures readinessFailureCounts) {
+	// consider only pods that are currently Ready and Running
 	if pod.Phase != podPhaseRunning || !pod.Ready {
 		return
 	}
@@ -207,14 +242,13 @@ func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.
 		return
 	}
 
-	timings, err := computePodStartupTimings(pod, readinessFailures[pod.ID])
+	unreliableReady := podHasTooManyReadinessFailures(pod, failures, p.store)
+	timings, err := computePodStartupTimings(pod, unreliableReady)
 	if err != nil {
 		return
 	}
 
 	entityID := types.NewEntityID(types.KubernetesPodUID, pod.ID)
-	// OrchestratorCardinality includes pod_name (low only has namespace/owner).
-	// pod_uid is high cardinality and not included here.
 	tagList, _ := p.tagger.Tag(entityID, types.OrchestratorCardinality)
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 

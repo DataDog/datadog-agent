@@ -284,11 +284,14 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 		provider, mockSender := newTestProvider(t)
 		pod := newTestPod("flaky")
 
-		readinessFailures := readinessProbeTooManyFailuresMap{
-			"flaky": true,
+		// Raw failure counts: container "app" has 5 failures, exceeding default threshold of 3.
+		// The store won't have the container entity, so podHasTooManyReadinessFailures
+		// will fall back to defaultFailureThreshold (3).
+		failures := readinessFailureCounts{
+			"flaky": {"app": 5},
 		}
 
-		provider.generatePodStartupMetrics(mockSender, pod, readinessFailures)
+		provider.generatePodStartupMetrics(mockSender, pod, failures)
 
 		mockSender.AssertMetricNotTaggedWith(t, "Gauge", common.KubeletMetricsPrefix+"pod.time_to_ready", []string{"pod_name:test-pod-flaky"})
 		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-flaky", "cluster:test"})
@@ -339,16 +342,48 @@ func TestScrapeReadinessFailures(t *testing.T) {
 	})
 }
 
-// TestReadinessProbeTooManyFailuresMap tests the map behavior.
-func TestReadinessProbeTooManyFailuresMap(t *testing.T) {
-	t.Run("missing key returns false", func(t *testing.T) {
-		m := readinessProbeTooManyFailuresMap{"pod-a": true}
-		assert.True(t, m["pod-a"])
-		assert.False(t, m["pod-b"])
+// TestPodHasTooManyReadinessFailures tests the per-container failure threshold logic.
+func TestPodHasTooManyReadinessFailures(t *testing.T) {
+	t.Run("no failures returns false", func(t *testing.T) {
+		pod := newTestPod("clean")
+		assert.False(t, podHasTooManyReadinessFailures(pod, nil, nil))
 	})
 
-	t.Run("nil map returns false", func(t *testing.T) {
-		var m readinessProbeTooManyFailuresMap
-		assert.False(t, m["anything"])
+	t.Run("failures below default threshold returns false", func(t *testing.T) {
+		pod := newTestPod("below")
+		failures := readinessFailureCounts{
+			"below": {"app": 2},
+		}
+		assert.False(t, podHasTooManyReadinessFailures(pod, failures, nil))
+	})
+
+	t.Run("failures at default threshold returns false", func(t *testing.T) {
+		pod := newTestPod("at")
+		failures := readinessFailureCounts{
+			"at": {"app": 3},
+		}
+		assert.False(t, podHasTooManyReadinessFailures(pod, failures, nil))
+	})
+
+	t.Run("failures above default threshold returns true", func(t *testing.T) {
+		pod := newTestPod("above")
+		failures := readinessFailureCounts{
+			"above": {"app": 4},
+		}
+		// fallback to default
+		assert.True(t, podHasTooManyReadinessFailures(pod, failures, nil))
+	})
+
+	t.Run("pod not in failures map returns false", func(t *testing.T) {
+		pod := newTestPod("missing")
+		failures := readinessFailureCounts{
+			"other-pod": {"app": 100},
+		}
+		assert.False(t, podHasTooManyReadinessFailures(pod, failures, nil))
+	})
+
+	t.Run("nil failures map returns false", func(t *testing.T) {
+		pod := newTestPod("nil-map")
+		assert.False(t, podHasTooManyReadinessFailures(pod, nil, nil))
 	})
 }
