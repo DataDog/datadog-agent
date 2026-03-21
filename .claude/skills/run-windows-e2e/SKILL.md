@@ -115,7 +115,7 @@ when the test starts. The test will pause until the login is completed — this 
 expected. If `AWS_PROFILE` is set to a non-sandbox profile it will cause auth
 errors; advise them to `unset AWS_PROFILE` before running.
 
-Run with `run_in_background: true` since tests provision real AWS VMs and can take 20–60 minutes.
+Run with `run_in_background: true` since tests provision real AWS VMs. VM provisioning takes a few minutes; once the VM is up, SSH becomes available in under 60s for Linux VMs and under 180s for Windows VMs. If SSH is not available within those windows, troubleshoot before assuming the test is still running normally (see SSH availability note below).
 
 ```bash
 go test -v -timeout 30m -tags test <package-path> -run <TestFunction>$
@@ -163,6 +163,10 @@ ssh -i <privateKeyPath> -o StrictHostKeyChecking=no <username>@<ip> "<command>"
 Check `osFamily` in the JSON output to determine the remote shell:
 - `osFamily: 1` = Linux → use `&&` or `;` (bash)
 - `osFamily: 2` = Windows → use `;` as separator (PowerShell, `&&` is invalid)
+
+**SSH availability:** SSH should be reachable in under 60s for Linux VMs and under 180s for Windows VMs after the VM is provisioned. If it takes longer:
+- Verify the SSH key is loaded in your SSH agent (`ssh-add -l`) or pass `-i` explicitly
+- Check that the keypair name in `~/.test_infra_config.yaml` matches the AWS key pair used to provision the VM — a mismatch means the wrong public key was injected and authentication will always fail
 
 ## Notes
 

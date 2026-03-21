@@ -192,6 +192,15 @@ Windows VMs run PowerShell over SSH, so use `;` as the command separator
 ssh -i <privateKeyPath> -o StrictHostKeyChecking=no <username>@<ip> "<commands>"
 ```
 
+SSH becomes available in under 60s for Linux VMs and under 180s for Windows
+VMs after provisioning. If it takes longer than that:
+
+- Make sure the key is loaded in your SSH agent (`ssh-add -l`) or pass `-i`
+  explicitly to the `ssh` command.
+- Verify that the keypair name in `~/.test_infra_config.yaml` matches the AWS
+  key pair used to provision the VM — a name mismatch means the wrong public
+  key was injected and authentication will always fail.
+
 ## Troubleshooting
 
 ### Pulumi lock errors
