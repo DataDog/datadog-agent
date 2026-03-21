@@ -675,7 +675,35 @@ if [ "$systemdaemon_install" = false ] && [ "$gui_app_menu_enabled" = true ] && 
     printf "${BLUE}\n    - Enabling menu bar GUI (DD_GUI_APP_MENU_ENABLED)...\n${NC}"
     $sudo_cmd sed -i '' '/<string>--headless<\/string>/d' "$user_gui_plist"
     $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
-    $cmd_launchctl load -w "$user_gui_plist"
+
+    # Wait for the headless GUI process to stop before loading menu-bar mode.
+    # This avoids a race where a still-running instance causes the relaunched app to self-exit.
+    max_wait=100  # 100 * 0.1s = 10 seconds
+    count=0
+    while [ $count -lt $max_wait ]; do
+        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 0.1
+        count=$((count + 1))
+    done
+
+    if [ $count -ge $max_wait ]; then
+        printf "${YELLOW}    Warning: GUI process still running after 10s, sending TERM and kickstarting job${NC}\n"
+
+        # Target only the current user's GUI process.
+        stale_gui_pid=$(pgrep -U "$user_uid" -f "Datadog Agent.app/Contents/MacOS/gui" | head -n 1)
+        if [ -n "$stale_gui_pid" ]; then
+            kill -TERM "$stale_gui_pid" 2>/dev/null || true
+        fi
+
+        # Ensure job is loaded, then kickstart to relaunch in menu-bar mode.
+        $cmd_launchctl load -w "$user_gui_plist" 2>/dev/null || true
+        $cmd_launchctl kickstart -k "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || \
+            $cmd_launchctl kickstart "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
+    else
+        $cmd_launchctl load -w "$user_gui_plist"
+    fi
 fi
 
 # Per-user: GUI is started by postinst (headless) or by launchctl load above (menu bar); no open needed
