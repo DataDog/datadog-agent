@@ -125,7 +125,7 @@ go test -v -timeout 30m -tags test <package-path> -run <TestFunction>$
 
 When the test completes:
 - Report pass/fail.
-- On failure, point the user to test outputs at `~/e2e-output/latest/` (locally) — this directory contains WER crash dumps, agent logs, installer logs, and Windows event logs collected by the suite's `AfterTest` hook.
+- On failure, point the user to test outputs at `~/e2e-output/latest/` (locally) — this directory contains WER crash dumps, agent logs, installer logs, and Windows event logs collected by the suite's `AfterTest` hook. If `devMode` is enabled the VM is still running — offer to help the user RDP or SSH into it to troubleshoot (see "Accessing the test VM" below).
 - If the stack is locked (`error: the stack is currently locked`), suggest:
   - `dda inv new-e2e-tests.clean` — remove Pulumi locks
   - `dda inv new-e2e-tests.clean -s` — also wipe local stack state
