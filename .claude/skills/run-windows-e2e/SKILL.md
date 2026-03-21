@@ -15,6 +15,7 @@ Determine:
 - **Suite**: which test suite to run (e.g. `install-test`, `service-test`, `agent-package`, `install-script`). If not provided, ask the user.
 - **Test function**: specific `TestXxx` function to run. Most suites expect exactly one test per run — ask the user which one if not specified.
 - **Artifact source**: `--build pipeline` (default), `--build local`, or `--build release`. If `--pipeline-id <id>` is given, pass it through.
+- **Stable/previous version** (upgrade tests only): if the user specifies a version to upgrade *from*, run `setup-env` a second time with `--prefix STABLE_AGENT --build <mode>` (same modes as current: `pipeline`, `local`, or `release`) plus any relevant flags (`--version`, `--pipeline-id`, etc.) and merge those vars into the inline env block, overriding the defaults from the first run.
 - **Branch**: if the user mentions a specific branch (e.g. "from main", "latest main build"), note it — pass `--branch <name>` to `setup-env` in Step 3. The default is the current git branch, which may have no pipelines if it's a local feature branch.
 
 Map suite names to Go package paths:
