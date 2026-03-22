@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package datadog.sbom;
+
+option go_package = "pkg/proto/pbgo/sbom"; // golang
+
+message SBOMStreamParams {
+}
+
+message SBOMMessage {
+    bytes Data = 1;
+    string Kind = 2;
+    // ID is the ID for this entity, in a format specific to the entity Kind.
+    string ID = 3;
+}
+
+service SBOMCollector {
+    // SBOM
+    rpc GetSBOMStream(SBOMStreamParams) returns (stream SBOMMessage) {}
+}

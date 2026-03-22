@@ -26,8 +26,7 @@ func init() { registerModule(NoisyNeighbor) }
 
 // NoisyNeighbor Factory
 var NoisyNeighbor = &module.Factory{
-	Name:             config.NoisyNeighborModule,
-	ConfigNamespaces: []string{"noisy_neighbor"},
+	Name: config.NoisyNeighborModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the noisy neighbor module")
 		p, err := noisyneighbor.NewProbe(ebpf.NewConfig())

@@ -26,8 +26,7 @@ func init() { registerModule(OOMKillProbe) }
 
 // OOMKillProbe Factory
 var OOMKillProbe = &module.Factory{
-	Name:             config.OOMKillProbeModule,
-	ConfigNamespaces: []string{},
+	Name: config.OOMKillProbeModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := oomkill.NewProbe(ebpf.NewConfig())

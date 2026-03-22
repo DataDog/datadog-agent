@@ -27,9 +27,26 @@ func TestPrivateActionRunnerHttpAllowlistFromEnv(t *testing.T) {
 	assert.Equal(t, []string{"*.datadoghq.com", "datadoghq.eu"}, cfg.GetStringSlice(PARHttpAllowlist))
 }
 
+func TestPrivateActionRunnerRestrictedShellAllowedPathsFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", "/var/log,/tmp")
+
+	cfg := newTestConf(t)
+
+	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", "")
+
+	cfg := newTestConf(t)
+
+	assert.Equal(t, []string{"/var/log"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+}
+
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
 	cfg := newTestConf(t)
 
 	assert.Empty(t, cfg.GetStringSlice(PARActionsAllowlist))
 	assert.Empty(t, cfg.GetStringSlice(PARHttpAllowlist))
+	assert.Equal(t, []string{"/var/log"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
