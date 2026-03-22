@@ -230,8 +230,8 @@ func anyContainerRestarted(pod *workloadmeta.KubernetesPod) bool {
 	return false
 }
 
-// generatePodStartupMetrics emits kubernetes.pod.time_to_ready and
-// kubernetes.pod.time_to_running as gauges for pods
+// generatePodStartupMetrics emits kubernetes.pod.creation_time_to_ready and
+// kubernetes.pod.creation_time_to_running as gauges for pods
 func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.KubernetesPod, failures readinessFailureCounts) {
 	// consider only pods that are currently Ready and Running
 	if pod.Phase != podPhaseRunning || !pod.Ready {
@@ -253,10 +253,10 @@ func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	if timings.timeToReady > 0 {
-		s.Gauge(common.KubeletMetricsPrefix+"pod.time_to_ready", timings.timeToReady.Seconds(), "", tagList)
+		s.Gauge(common.KubeletMetricsPrefix+"pod.creation_time_to_ready", timings.timeToReady.Seconds(), "", tagList)
 	}
 
 	if timings.timeToRunning > 0 {
-		s.Gauge(common.KubeletMetricsPrefix+"pod.time_to_running", timings.timeToRunning.Seconds(), "", tagList)
+		s.Gauge(common.KubeletMetricsPrefix+"pod.creation_time_to_running", timings.timeToRunning.Seconds(), "", tagList)
 	}
 }
