@@ -567,7 +567,11 @@ fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" -quiet >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
-$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse -quiet >/dev/null
+if ! $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse; then
+    printf "${RED}Failed to mount DMG installer at /Volumes/datadog_agent.${NC}\n"
+    printf "${RED}Please verify the DMG file and ensure the mountpoint is not busy.${NC}\n"
+    exit 1;
+fi
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
     printf "${BLUE}\n    - Stopping system-wide Datadog Agent daemon ...\n${NC}"
     # we use "|| true" because if the service is not started/loaded, the commands fail
