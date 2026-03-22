@@ -172,6 +172,7 @@ const (
 	SecurityModuleCmd_RunSelfTest_FullMethodName          = "/api.SecurityModuleCmd/RunSelfTest"
 	SecurityModuleCmd_GetRuleSetReport_FullMethodName     = "/api.SecurityModuleCmd/GetRuleSetReport"
 	SecurityModuleCmd_ReloadPolicies_FullMethodName       = "/api.SecurityModuleCmd/ReloadPolicies"
+	SecurityModuleCmd_GetLoadedPolicies_FullMethodName    = "/api.SecurityModuleCmd/GetLoadedPolicies"
 	SecurityModuleCmd_DumpNetworkNamespace_FullMethodName = "/api.SecurityModuleCmd/DumpNetworkNamespace"
 	SecurityModuleCmd_DumpDiscarders_FullMethodName       = "/api.SecurityModuleCmd/DumpDiscarders"
 	SecurityModuleCmd_DumpActivity_FullMethodName         = "/api.SecurityModuleCmd/DumpActivity"
@@ -192,6 +193,7 @@ type SecurityModuleCmdClient interface {
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
 	GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
+	GetLoadedPolicies(ctx context.Context, in *GetLoadedPoliciesParams, opts ...grpc.CallOption) (*GetLoadedPoliciesMessage, error)
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
 	// Activity dumps
@@ -266,6 +268,16 @@ func (c *securityModuleCmdClient) ReloadPolicies(ctx context.Context, in *Reload
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReloadPoliciesResultMessage)
 	err := c.cc.Invoke(ctx, SecurityModuleCmd_ReloadPolicies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleCmdClient) GetLoadedPolicies(ctx context.Context, in *GetLoadedPoliciesParams, opts ...grpc.CallOption) (*GetLoadedPoliciesMessage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetLoadedPoliciesMessage)
+	err := c.cc.Invoke(ctx, SecurityModuleCmd_GetLoadedPolicies_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -362,6 +374,7 @@ type SecurityModuleCmdServer interface {
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
 	GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
+	GetLoadedPolicies(context.Context, *GetLoadedPoliciesParams) (*GetLoadedPoliciesMessage, error)
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
 	// Activity dumps
@@ -399,6 +412,9 @@ func (UnimplementedSecurityModuleCmdServer) GetRuleSetReport(context.Context, *G
 }
 func (UnimplementedSecurityModuleCmdServer) ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
+}
+func (UnimplementedSecurityModuleCmdServer) GetLoadedPolicies(context.Context, *GetLoadedPoliciesParams) (*GetLoadedPoliciesMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLoadedPolicies not implemented")
 }
 func (UnimplementedSecurityModuleCmdServer) DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpNetworkNamespace not implemented")
@@ -549,6 +565,24 @@ func _SecurityModuleCmd_ReloadPolicies_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SecurityModuleCmdServer).ReloadPolicies(ctx, req.(*ReloadPoliciesParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModuleCmd_GetLoadedPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLoadedPoliciesParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleCmdServer).GetLoadedPolicies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecurityModuleCmd_GetLoadedPolicies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleCmdServer).GetLoadedPolicies(ctx, req.(*GetLoadedPoliciesParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -727,6 +761,10 @@ var SecurityModuleCmd_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReloadPolicies",
 			Handler:    _SecurityModuleCmd_ReloadPolicies_Handler,
+		},
+		{
+			MethodName: "GetLoadedPolicies",
+			Handler:    _SecurityModuleCmd_GetLoadedPolicies_Handler,
 		},
 		{
 			MethodName: "DumpNetworkNamespace",

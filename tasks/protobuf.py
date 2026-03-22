@@ -25,6 +25,7 @@ PROTO_PKGS = {
     'trace/idx': False,
     'workloadfilter': False,
     'dogstatsdhttp': False,
+    'sbom': False,
 }
 
 CLI_EXTRAS = {

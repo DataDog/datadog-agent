@@ -67,6 +67,8 @@ func deepCopyProcessCacheEntryPtr(fieldToCopy *ProcessCacheEntry) *ProcessCacheE
 	}
 	copied := &ProcessCacheEntry{}
 	copied.ProcessContext = deepCopyProcessContext(fieldToCopy.ProcessContext)
+	copied.SnapshottedBoundSockets = deepCopySnapshottedBoundSocketArr(fieldToCopy.SnapshottedBoundSockets)
+	copied.SnapshottedMmapedFiles = deepCopySnapshottedMmapedFileArr(fieldToCopy.SnapshottedMmapedFiles)
 	return copied
 }
 func deepCopyProcessContext(fieldToCopy ProcessContext) ProcessContext {
@@ -171,6 +173,49 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
 	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
 	copied.User = fieldToCopy.User
+	return copied
+}
+func deepCopySnapshottedBoundSocketArr(fieldToCopy []SnapshottedBoundSocket) []SnapshottedBoundSocket {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]SnapshottedBoundSocket, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = deepCopySnapshottedBoundSocket(fieldToCopy[i])
+	}
+	return copied
+}
+func deepCopybyteArr(fieldToCopy []byte) []byte {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]byte, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+	}
+	return copied
+}
+func deepCopySnapshottedBoundSocket(fieldToCopy SnapshottedBoundSocket) SnapshottedBoundSocket {
+	copied := SnapshottedBoundSocket{}
+	copied.Family = fieldToCopy.Family
+	copied.IP = deepCopybyteArr(fieldToCopy.IP)
+	copied.Port = fieldToCopy.Port
+	copied.Protocol = fieldToCopy.Protocol
+	return copied
+}
+func deepCopySnapshottedMmapedFileArr(fieldToCopy []SnapshottedMmapedFile) []SnapshottedMmapedFile {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]SnapshottedMmapedFile, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = deepCopySnapshottedMmapedFile(fieldToCopy[i])
+	}
+	return copied
+}
+func deepCopySnapshottedMmapedFile(fieldToCopy SnapshottedMmapedFile) SnapshottedMmapedFile {
+	copied := SnapshottedMmapedFile{}
+	copied.Path = fieldToCopy.Path
 	return copied
 }
 func deepCopyProcessContextPtr(fieldToCopy *ProcessContext) *ProcessContext {
