@@ -565,9 +565,9 @@ if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --outp
     exit 1;
 fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
-$sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
+$sudo_cmd hdiutil detach "/Volumes/datadog_agent" -quiet >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
-$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
+$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse -quiet >/dev/null
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
     printf "${BLUE}\n    - Stopping system-wide Datadog Agent daemon ...\n${NC}"
     # we use "|| true" because if the service is not started/loaded, the commands fail
@@ -625,7 +625,7 @@ fi
 printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a minute) ...\n${NC}"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
-$sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
+$sudo_cmd hdiutil detach "/Volumes/datadog_agent" -quiet >/dev/null
 
 # Creating or overriding the install information
 install_info_content="---
