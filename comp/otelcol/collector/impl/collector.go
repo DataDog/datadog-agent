@@ -123,23 +123,30 @@ func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter
 	return c.converter
 }
 
-func newConfigProviderSettings(uris []string, converter confmap.Converter, enhanced bool) otelcol.ConfigProviderSettings {
+func newConfigProviderSettings(uris []string, converter confmap.Converter, enhanced bool, remoteCfg *ddopamp.RemoteConfigProvider) otelcol.ConfigProviderSettings {
 	converterFactories := []confmap.ConverterFactory{}
 
 	if enhanced {
 		converterFactories = append(converterFactories, &converterFactory{converter: converter})
 	}
 
+	providerFactories := []confmap.ProviderFactory{
+		fileprovider.NewFactory(),
+		envprovider.NewFactory(),
+		yamlprovider.NewFactory(),
+		httpprovider.NewFactory(),
+		httpsprovider.NewFactory(),
+	}
+	uriList := uris
+	if remoteCfg != nil {
+		providerFactories = append(providerFactories, ddopamp.NewRemoteConfigProviderFactory(remoteCfg))
+		uriList = append(uriList, ddopamp.RemoteConfigURI)
+	}
+
 	return otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: uris,
-			ProviderFactories: []confmap.ProviderFactory{
-				fileprovider.NewFactory(),
-				envprovider.NewFactory(),
-				yamlprovider.NewFactory(),
-				httpprovider.NewFactory(),
-				httpsprovider.NewFactory(),
-			},
+			URIs:               uriList,
+			ProviderFactories:  providerFactories,
 			ConverterFactories: converterFactories,
 			DefaultScheme:      "env",
 		},
@@ -151,7 +158,7 @@ var datadogConnectorType = component.MustNewType("datadog")
 const tracesToTracesStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 
-func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
+func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool, remoteCfg *ddopamp.RemoteConfigProvider) {
 	serializerexporter.InitTelemetry(reqs.Telemetry)
 	logsagentexporter.InitTelemetry(reqs.Telemetry)
 	datadogexporter.InitTelemetry(reqs.Telemetry)
@@ -201,8 +208,8 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
-	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
-	factories.Extensions[ddopamp.Type] = ddopamp.NewFactory()
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false, nil), option.New(reqs.Ipc), byoc)
+	factories.Extensions[ddopamp.Type] = ddopamp.NewFactoryWithRemoteConfig(remoteCfg)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(
 		reqs.Config,
@@ -237,7 +244,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	addFactories(reqs, factories, otel.NewGatewayUsage(reqs.Config.GetBool("otelcollector.gateway.mode")), reqs.Params.BYOC)
+	remoteCfg := &ddopamp.RemoteConfigProvider{}
+	addFactories(reqs, factories, otel.NewGatewayUsage(reqs.Config.GetBool("otelcollector.gateway.mode")), reqs.Params.BYOC, remoteCfg)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	// Replace default core to use Agent logger
@@ -252,7 +260,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled, remoteCfg),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -283,9 +291,10 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	remoteCfg := &ddopamp.RemoteConfigProvider{}
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
-	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.None[ipc.Component](), false)
-	factories.Extensions[ddopamp.Type] = ddopamp.NewFactory()
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false, nil), option.None[ipc.Component](), false)
+	factories.Extensions[ddopamp.Type] = ddopamp.NewFactoryWithRemoteConfig(remoteCfg)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
@@ -294,7 +303,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled, remoteCfg),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

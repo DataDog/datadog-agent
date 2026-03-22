@@ -27,7 +27,7 @@ const opampExtensionName = "opamp"
 // unconditionally, so that the OpAmp server always receives site and deployment
 // type metadata even when the user supplies their own instance_uid.
 //
-// speky:OTELCOL#OTELCOL028
+// speky:DDOT#OTELCOL028
 func (c *ddConverter) ensureOpampInstanceUID(conf *confmap.Conf) {
 	stringMapConf := conf.ToStringMap()
 
@@ -60,7 +60,7 @@ func (c *ddConverter) ensureOpampInstanceUID(conf *confmap.Conf) {
 // This lets the OpAmp server know the site and deployment type without requiring
 // the user to configure them manually.
 //
-// speky:OTELCOL#OTELCOL028
+// speky:DDOT#OTELCOL028
 func (c *ddConverter) enrichOpampAgentDescription(opampCfg map[string]any) {
 	if c.coreConfig == nil {
 		return
@@ -115,7 +115,7 @@ func findOpampExtension(stringMapConf map[string]any) (string, map[string]any) {
 // loadOrCreateInstanceUID reads the persisted instance UID from disk. If the
 // file does not exist yet, a new UUID v4 is generated and written.
 //
-// speky:OTELCOL#OTELCOL028
+// speky:DDOT#OTELCOL028
 func (c *ddConverter) loadOrCreateInstanceUID() (string, error) {
 	path := c.instanceUIDPath()
 
@@ -140,7 +140,7 @@ func (c *ddConverter) loadOrCreateInstanceUID() (string, error) {
 
 // instanceUIDPath returns the path to the persisted instance UID file.
 //
-// speky:OTELCOL#OTELCOL028
+// speky:DDOT#OTELCOL028
 func (c *ddConverter) instanceUIDPath() string {
 	if c.coreConfig != nil {
 		if runPath := c.coreConfig.GetString("run_path"); runPath != "" {
