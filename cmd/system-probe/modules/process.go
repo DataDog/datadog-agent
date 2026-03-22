@@ -28,8 +28,7 @@ func init() { registerModule(Process) }
 
 // Process is a module that fetches process level data
 var Process = &module.Factory{
-	Name:             config.ProcessModule,
-	ConfigNamespaces: []string{},
+	Name: config.ProcessModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 

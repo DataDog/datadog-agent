@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Automatic SBOM generation for running containers via system-probe
+  - |
+    Runtime usage tracking - identifies which files and packages are actively accessed by running processes
+  - |
+    Security enrichment - flags SUID binaries and processes running as root
+  - |
+    gRPC streaming from system-probe to core agent for efficient SBOM forwarding
+  - |
+    Automatic CWS policy generation based on running container SBOMs.
+

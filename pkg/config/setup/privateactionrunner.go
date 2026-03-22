@@ -32,6 +32,9 @@ const (
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
+
+	// Restricted Shell
+	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -65,5 +68,13 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		return strings.Split(s, ",")
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
+
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{"/var/log"})
+	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		return strings.Split(s, ",")
+	})
 
 }
