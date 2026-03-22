@@ -27,7 +27,7 @@ type PoliciesDirProvider struct {
 }
 
 // SetOnNewPoliciesReadyCb implements the policy provider interface
-func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(_ func()) {}
+func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(_ func(silent bool)) {}
 
 // Start starts the policy dir provider
 func (p *PoliciesDirProvider) Start() {}
