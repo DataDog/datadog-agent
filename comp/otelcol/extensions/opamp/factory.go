@@ -25,6 +25,16 @@ func NewFactory() extension.Factory {
 	)
 }
 
+// NewFactoryWithRemoteConfig returns a factory that wires remoteCfg into the
+// extension so that OpAMP RemoteConfig messages trigger a hot reload of the
+// OTel pipeline.
+func NewFactoryWithRemoteConfig(provider *RemoteConfigProvider) extension.Factory {
+	create := func(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
+		return newExtension(set, cfg.(*Config), provider)
+	}
+	return extension.NewFactory(Type, createDefaultConfig, create, component.StabilityLevelBeta)
+}
+
 func createDefaultConfig() component.Config {
 	return &Config{
 		Capabilities: Capabilities{
@@ -36,11 +46,12 @@ func createDefaultConfig() component.Config {
 			ReportsHeartbeat:                true,
 			ReportsConnectionSettingsStatus: true,
 			ReportsOwnMetrics:               true,
+			AcceptsRemoteConfig:             true,
 		},
 		PPIDPollInterval: 5 * time.Second,
 	}
 }
 
 func createExtension(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-	return newExtension(set, cfg.(*Config))
+	return newExtension(set, cfg.(*Config), nil)
 }

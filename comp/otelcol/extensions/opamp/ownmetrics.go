@@ -27,7 +27,7 @@ const ownMetricsScope = "github.com/DataDog/datadog-agent/comp/otelcol/extension
 // server via OwnMetrics ConnectionSettings. It reports a small set of
 // agent-level metrics (uptime, health) to the server-specified endpoint.
 //
-// speky:OTELCOL#OTELCOL032
+// speky:DDOT#OTELCOL032
 type ownMetricsReporter struct {
 	mu     sync.Mutex
 	logger *zap.Logger

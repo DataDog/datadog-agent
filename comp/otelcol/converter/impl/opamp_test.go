@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
 //go:build test
@@ -36,7 +36,7 @@ func TestGenerateUUID(t *testing.T) {
 // TestLoadOrCreateInstanceUID verifies that a new UUID is generated on the first
 // call, written to disk, and the same value is returned on subsequent calls.
 //
-// speky:OTELCOL#T030
+// speky:DDOT#T030
 func TestLoadOrCreateInstanceUID(t *testing.T) {
 	dir := t.TempDir()
 	c := &ddConverter{
@@ -61,7 +61,7 @@ func TestLoadOrCreateInstanceUID(t *testing.T) {
 // TestEnsureOpampInstanceUID_InjectsUID verifies that when the opamp extension is
 // present in the config with no instance_uid, the converter injects one.
 //
-// speky:OTELCOL#T030
+// speky:DDOT#T030
 func TestEnsureOpampInstanceUID_InjectsUID(t *testing.T) {
 	dir := t.TempDir()
 	c := &ddConverter{
@@ -92,7 +92,7 @@ service:
 // TestEnsureOpampInstanceUID_PreservesExisting verifies that a user-supplied
 // instance_uid is not overwritten by the converter.
 //
-// speky:OTELCOL#T030
+// speky:DDOT#T030
 func TestEnsureOpampInstanceUID_PreservesExisting(t *testing.T) {
 	const userUID = "12345678-1234-4234-8234-123456789abc"
 	dir := t.TempDir()
@@ -154,7 +154,7 @@ service:
 // converter populates datadoghq.com/site and datadoghq.com/deployment_type from
 // the core agent config when they are not already set by the user.
 //
-// speky:OTELCOL#T018
+// speky:DDOT#T018
 func TestEnrichOpampAgentDescription_InjectsSiteAndDeployment(t *testing.T) {
 	c := &ddConverter{
 		coreConfig: config.NewMockFromYAML(t, "site: datadoghq.eu"),
@@ -171,7 +171,7 @@ func TestEnrichOpampAgentDescription_InjectsSiteAndDeployment(t *testing.T) {
 // TestEnrichOpampAgentDescription_GatewayMode verifies that gateway mode is
 // reflected in the deployment_type attribute.
 //
-// speky:OTELCOL#T018
+// speky:DDOT#T018
 func TestEnrichOpampAgentDescription_GatewayMode(t *testing.T) {
 	c := &ddConverter{
 		coreConfig: config.NewMockFromYAML(t, "site: datadoghq.com\notelcollector:\n  gateway:\n    mode: true"),
@@ -187,7 +187,7 @@ func TestEnrichOpampAgentDescription_GatewayMode(t *testing.T) {
 // TestEnrichOpampAgentDescription_PreservesUserValues verifies that user-supplied
 // non_identifying_attributes are not overwritten.
 //
-// speky:OTELCOL#T018
+// speky:DDOT#T018
 func TestEnrichOpampAgentDescription_PreservesUserValues(t *testing.T) {
 	c := &ddConverter{
 		coreConfig: config.NewMockFromYAML(t, "site: datadoghq.com"),
@@ -212,7 +212,7 @@ func TestEnrichOpampAgentDescription_PreservesUserValues(t *testing.T) {
 // instance_uid is injected (valid UUID v4) and agent_description is enriched with
 // site and deployment_type from the core agent config.
 //
-// speky:OTELCOL#T030 speky:OTELCOL#T018
+// speky:DDOT#T030 speky:DDOT#T018
 func TestConvertOpamp(t *testing.T) {
 	dir := t.TempDir()
 	acfg := config.NewMockFromYAML(t, "run_path: "+dir+"\nsite: datadoghq.eu\notelcollector:\n  converter:\n    features: []")

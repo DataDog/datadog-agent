@@ -1,6 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
 package opamptest
@@ -32,7 +37,7 @@ const (
 // WebSocket and sends an initial AgentToServer message containing an
 // AgentDescription.
 //
-// speky:OTELCOL#T015 speky:OTELCOL#T016
+// speky:DDOT#T015 speky:DDOT#T016
 func TestOpampConnect(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -51,7 +56,7 @@ func TestOpampConnect(t *testing.T) {
 // agent includes service.name=otel-agent and the Datadog-specific attributes
 // datadoghq.com/site and datadoghq.com/deployment_type.
 //
-// speky:OTELCOL#T018
+// speky:DDOT#T018
 func TestOpampAgentDescription(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -90,7 +95,7 @@ func TestOpampAgentDescription(t *testing.T) {
 // TestOpampRemoteConfig verifies that a RemoteConfig pushed from the server is
 // accepted and acknowledged with status APPLIED.
 //
-// speky:OTELCOL#T019
+// speky:DDOT#T019
 func TestOpampRemoteConfig(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -118,7 +123,7 @@ func TestOpampRemoteConfig(t *testing.T) {
 // contains a Health report with Healthy=true and that the agent reports its
 // effective config.
 //
-// speky:OTELCOL#T021
+// speky:DDOT#T021
 func TestOpampHealthReport(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -158,7 +163,7 @@ func TestOpampHealthReport(t *testing.T) {
 // TestOpampEffectiveConfigUpdated verifies that after a remote config push the
 // agent reports an updated EffectiveConfig that reflects the new configuration.
 //
-// speky:OTELCOL#T031
+// speky:DDOT#T031
 func TestOpampEffectiveConfigUpdated(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -234,7 +239,7 @@ func (ts *testServer) waitForCapabilities(t *testing.T, timeout time.Duration) u
 // to the OpAmp server, and that the heartbeat interval can be shortened by the
 // server via OpAMPConnectionSettings.heartbeat_interval_seconds.
 //
-// speky:OTELCOL#T020
+// speky:DDOT#T020
 func TestOpampHeartbeats(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -280,7 +285,7 @@ func TestOpampHeartbeats(t *testing.T) {
 // OpAMPConnectionSettings push that contains a malformed TLS certificate and
 // reports a FAILED ConnectionSettingsStatus back to the server.
 //
-// speky:OTELCOL#T028
+// speky:DDOT#T028
 func TestOpampInvalidTLSRejected(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -340,7 +345,7 @@ func TestOpampInvalidTLSRejected(t *testing.T) {
 // advertised hash does not match the downloaded content and reports a FAILED
 // PackageStatuses back to the server.
 //
-// speky:OTELCOL#T027
+// speky:DDOT#T027
 func TestOpampPackageHashRejected(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -405,7 +410,7 @@ func TestOpampPackageHashRejected(t *testing.T) {
 // TestOpampInstanceUIDStable verifies that the instance UID reported by the
 // agent to the OpAmp server is preserved across a stop-and-restart cycle.
 //
-// speky:OTELCOL#T030
+// speky:DDOT#T030
 func TestOpampInstanceUIDStable(t *testing.T) {
 	ts := newTestServer(t)
 	cfg := configWithOpamp("")
@@ -454,7 +459,7 @@ func TestOpampInstanceUIDStable(t *testing.T) {
 // time does not cause the agent to restart (no "Starting..." log line after the
 // second push).
 //
-// speky:OTELCOL#T032
+// speky:DDOT#T032
 func TestOpampIdempotentPush(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -494,7 +499,7 @@ func TestOpampIdempotentPush(t *testing.T) {
 // over plain HTTP and sends an initial AgentToServer message with an
 // AgentDescription, using HTTP POST requests to /v1/opamp.
 //
-// speky:OTELCOL#T017
+// speky:DDOT#T017
 func TestOpampConnectHTTP(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpampHTTP(""))
@@ -513,7 +518,7 @@ func TestOpampConnectHTTP(t *testing.T) {
 // and then restarts, the agent detects the disconnection and reconnects,
 // re-sending its AgentDescription with the same instance UID.
 //
-// speky:OTELCOL#T026
+// speky:DDOT#T026
 func TestOpampReconnect(t *testing.T) {
 	ts := newTestServer(t)
 	sharedDir := t.TempDir()
@@ -552,7 +557,7 @@ func TestOpampReconnect(t *testing.T) {
 // pipeline from becoming operational. The agent is expected to log a connection
 // failure and retry in the background.
 //
-// speky:OTELCOL#T025
+// speky:DDOT#T025
 func TestOpampServerUnreachable(t *testing.T) {
 	// No test server started — the agent will fail to connect on port 4320.
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -627,7 +632,7 @@ func startMetricsSink(t *testing.T) (*metricsSink, string) {
 // OwnMetrics ConnectionSettings, the agent starts forwarding its internal
 // metrics to the specified OTLP endpoint.
 //
-// speky:OTELCOL#T022
+// speky:DDOT#T022
 func TestOpampOwnMetrics(t *testing.T) {
 	sink, sinkAddr := startMetricsSink(t)
 

@@ -6,11 +6,13 @@
 package opamp
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/open-telemetry/opamp-go/client"
@@ -24,11 +26,11 @@ import (
 
 // extension is the DDOT OpAmp extension. It wraps the opamp-go client and
 // declares additional capabilities beyond what the upstream opampextension
-// provides: ReportsHeartbeat, AcceptsOpAMPConnectionSettings, and
-// ReportsConnectionSettingsStatus.
+// provides: ReportsHeartbeat, AcceptsOpAMPConnectionSettings,
+// ReportsConnectionSettingsStatus, ReportsOwnMetrics, and AcceptsRemoteConfig.
 //
-// speky:OTELCOL#OTELCOL025 speky:OTELCOL#OTELCOL026 speky:OTELCOL#OTELCOL027
-// speky:OTELCOL#OTELCOL028 speky:OTELCOL#OTELCOL029 speky:OTELCOL#OTELCOL034
+// speky:DDOT#OTELCOL025 speky:DDOT#OTELCOL026 speky:DDOT#OTELCOL027
+// speky:DDOT#OTELCOL028 speky:DDOT#OTELCOL029 speky:DDOT#OTELCOL034
 type ddotOpampExtension struct {
 	cfg    *Config
 	set    extension.Settings
@@ -40,6 +42,13 @@ type ddotOpampExtension struct {
 
 	cancelCtx  context.CancelFunc
 	ownMetrics *ownMetricsReporter
+
+	// remoteCfg is the hot-reload provider; nil when AcceptsRemoteConfig is disabled.
+	remoteCfg *RemoteConfigProvider
+
+	// mu protects lastRemoteCfgHash.
+	mu                sync.Mutex
+	lastRemoteCfgHash []byte
 }
 
 var (
@@ -47,14 +56,21 @@ var (
 	_ componentstatus.Watcher = (*ddotOpampExtension)(nil)
 )
 
-func newExtension(set extension.Settings, cfg *Config) (*ddotOpampExtension, error) {
+func newExtension(set extension.Settings, cfg *Config, remoteCfg *RemoteConfigProvider) (*ddotOpampExtension, error) {
 	buildInfo := set.BuildInfo
+	// Make a copy so we can adjust capabilities without mutating the shared default.
+	cfgCopy := *cfg
+	if remoteCfg == nil {
+		// Cannot declare AcceptsRemoteConfig without a hot-reload provider.
+		cfgCopy.Capabilities.AcceptsRemoteConfig = false
+	}
 	return &ddotOpampExtension{
-		cfg:        cfg,
+		cfg:        &cfgCopy,
 		set:        set,
 		logger:     set.Logger,
 		statusCh:   make(chan *componentstatus.Event, 16),
 		ownMetrics: newOwnMetricsReporter(set.Logger, buildInfo.Command, buildInfo.Version),
+		remoteCfg:  remoteCfg,
 	}, nil
 }
 
@@ -210,7 +226,7 @@ func (e *ddotOpampExtension) runHealthLoop(ctx context.Context, _ component.Host
 // The heartbeat interval change is handled automatically by the opamp-go client
 // before this callback is invoked (T020).
 //
-// speky:OTELCOL#OTELCOL034
+// speky:DDOT#OTELCOL034
 func (e *ddotOpampExtension) onOpampConnectionSettings(
 	_ context.Context,
 	settings *protobufs.OpAMPConnectionSettings,
@@ -281,11 +297,70 @@ func kv(key, value string) *protobufs.KeyValue {
 
 // onMessage is the callback invoked by the opamp-go client when the server
 // sends a message that requires agent-side processing (e.g. OwnMetrics
-// connection settings).
+// connection settings, RemoteConfig).
 //
-// speky:OTELCOL#OTELCOL032
-func (e *ddotOpampExtension) onMessage(_ context.Context, msg *types.MessageData) {
+// speky:DDOT#OTELCOL031 speky:DDOT#OTELCOL032
+func (e *ddotOpampExtension) onMessage(ctx context.Context, msg *types.MessageData) {
 	if msg.OwnMetricsConnSettings != nil && e.cfg.Capabilities.ReportsOwnMetrics {
 		e.ownMetrics.applySettings(msg.OwnMetricsConnSettings)
+	}
+	if msg.RemoteConfig != nil && e.cfg.Capabilities.AcceptsRemoteConfig && e.remoteCfg != nil {
+		e.applyRemoteConfig(ctx, msg.RemoteConfig)
+	}
+}
+
+// applyRemoteConfig processes an AgentRemoteConfig pushed by the OpAMP server.
+// It extracts the YAML body from the config map, pushes it to the
+// RemoteConfigProvider (triggering a collector hot-reload), and reports the
+// resulting status back to the server.  Identical successive pushes (same
+// hash) are acknowledged as APPLIED without restarting the pipeline.
+//
+// speky:DDOT#OTELCOL031
+func (e *ddotOpampExtension) applyRemoteConfig(ctx context.Context, rc *protobufs.AgentRemoteConfig) {
+	hash := rc.ConfigHash
+
+	// Idempotent: if the server resends the same config, re-report APPLIED
+	// without restarting the pipeline.
+	e.mu.Lock()
+	sameHash := bytes.Equal(hash, e.lastRemoteCfgHash)
+	e.mu.Unlock()
+	if sameHash {
+		if err := e.client.SetRemoteConfigStatus(&protobufs.RemoteConfigStatus{
+			LastRemoteConfigHash: hash,
+			Status:               protobufs.RemoteConfigStatuses_RemoteConfigStatuses_APPLIED,
+		}); err != nil {
+			e.logger.Warn("Could not send RemoteConfigStatus (idempotent)", zap.Error(err))
+		}
+		return
+	}
+
+	// Extract the YAML body from the first entry in the config map.
+	var yamlContent []byte
+	if rc.Config != nil {
+		for _, v := range rc.Config.ConfigMap {
+			if v != nil {
+				yamlContent = v.Body
+				break
+			}
+		}
+	}
+
+	// Push to the provider, which signals the collector to reload.
+	e.remoteCfg.Push(yamlContent)
+
+	e.mu.Lock()
+	e.lastRemoteCfgHash = hash
+	e.mu.Unlock()
+
+	if err := e.client.SetRemoteConfigStatus(&protobufs.RemoteConfigStatus{
+		LastRemoteConfigHash: hash,
+		Status:               protobufs.RemoteConfigStatuses_RemoteConfigStatuses_APPLIED,
+	}); err != nil {
+		e.logger.Warn("Could not send RemoteConfigStatus", zap.Error(err))
+	}
+
+	// Ask the client to send an updated EffectiveConfig after the reload.
+	if err := e.client.UpdateEffectiveConfig(ctx); err != nil {
+		e.logger.Warn("Could not update effective config after remote config apply", zap.Error(err))
 	}
 }

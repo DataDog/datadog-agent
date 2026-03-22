@@ -66,6 +66,11 @@ type Capabilities struct {
 	// ReportsOwnMetrics enables forwarding the agent's internal metrics to an
 	// OTLP endpoint specified by the OpAMP server via OwnMetrics ConnectionSettings.
 	ReportsOwnMetrics bool `mapstructure:"reports_own_metrics"`
+
+	// AcceptsRemoteConfig enables the agent to receive and apply YAML config
+	// pushed by the OpAMP server, triggering a hot reload of the OTel pipeline.
+	// Requires a RemoteConfigProvider to be wired via NewFactoryWithRemoteConfig.
+	AcceptsRemoteConfig bool `mapstructure:"accepts_remote_config"`
 }
 
 func (caps Capabilities) toAgentCapabilities() uint64 {
@@ -78,6 +83,8 @@ func (caps Capabilities) toAgentCapabilities() uint64 {
 		reportsHeartbeat                uint64 = 8192
 		reportsConnectionSettingsStatus uint64 = 32768
 		reportsOwnMetrics               uint64 = 64
+		acceptsRemoteConfig             uint64 = 2
+		reportsRemoteConfig             uint64 = 4096
 	)
 
 	result := reportsStatus
@@ -101,6 +108,11 @@ func (caps Capabilities) toAgentCapabilities() uint64 {
 	}
 	if caps.ReportsOwnMetrics {
 		result |= reportsOwnMetrics
+	}
+	if caps.AcceptsRemoteConfig {
+		// ReportsRemoteConfig must be paired with AcceptsRemoteConfig: the
+		// opamp-go client requires it before accepting SetRemoteConfigStatus calls.
+		result |= acceptsRemoteConfig | reportsRemoteConfig
 	}
 	return result
 }

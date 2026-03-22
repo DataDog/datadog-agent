@@ -423,6 +423,7 @@ use_repo(
     "io_opentelemetry_go_ebpf_profiler",
     "io_opentelemetry_go_otel",
     "io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetricgrpc",
+    "io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetrichttp",
     "io_opentelemetry_go_otel_exporters_otlp_otlptrace",
     "io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc",
     "io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracehttp",
