@@ -42,7 +42,7 @@ const (
 	// Default allowed paths for restricted shell
 	defaultLogPath       = "/var/log"
 	defaultProcPath      = "/proc"
-	defaultEtcPath = "/etc"
+	defaultEtcOsReleasePath = "/etc/os-release"
 
 	containerizedPathPrefix = "/host"
 )
