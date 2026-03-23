@@ -602,11 +602,18 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Converts a Datadog metric name to a Prometheus metric name for quicker matching. Prometheus metrics
-	// (from the "telemetry" package) must be declared without setting Options.NoDoubleUnderscoreSep to true,
-	// ensuring the full metric name includes double underscores ("__"); otherwise, matching will fail.
-	promName := fmt.Sprintf("%s__%s", names[0], names[1])
-	p.metricsMap[promName] = m
+	// Converts a Datadog metric name to a Prometheus metric name for quicker matching.
+	// Register both double-underscore ("__") and single-underscore ("_") forms so that
+	// metrics declared with or without Options.NoDoubleUnderscoreSep are matched.
+	//
+	// NOTE: if two different COAT config entries produce the same single-underscore key
+	// (e.g. "foo_bar.baz" and "foo.bar_baz" both collapse to "foo_bar_baz"), the second
+	// entry silently overwrites the first. This can only happen when a subsystem name
+	// itself contains underscores, so avoid that when naming new metrics.
+	promNameDouble := fmt.Sprintf("%s__%s", names[0], names[1])
+	promNameSingle := fmt.Sprintf("%s_%s", names[0], names[1])
+	p.metricsMap[promNameDouble] = m
+	p.metricsMap[promNameSingle] = m
 
 	// Compile aggregate tags (optional)
 	if len(m.AggregateTags) == 0 {
