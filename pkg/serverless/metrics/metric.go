@@ -116,6 +116,7 @@ func (c *ServerlessMetricAgent) Stop() {
 }
 
 // AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
+// This method should be removed in a future major serverless-init release.
 func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, 0, c.tags, extraTags...)
 }
