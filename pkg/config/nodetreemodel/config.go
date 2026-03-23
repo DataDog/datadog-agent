@@ -486,7 +486,8 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	log.Warnf("config key %v is unknown", key)
 }
 
-func (c *ntmConfig) mergeAllLayers() error {
+// mergeLayers merges all config layers in priority order. Layers passed as exclude are skipped.
+func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
 	treeList := []*nodeImpl{
 		c.defaults,
 		c.unknown,
@@ -502,13 +503,23 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	merged := newInnerNode(nil)
 	for _, tree := range treeList {
+		if slices.Contains(exclude, tree) {
+			continue
+		}
 		next, err := merged.Merge(tree)
 		if err != nil {
-			return err
+			return merged, err
 		}
 		merged = next
 	}
+	return merged, nil
+}
 
+func (c *ntmConfig) mergeAllLayers() error {
+	merged, err := c.mergeLayers()
+	if err != nil {
+		return err
+	}
 	c.root = merged
 	return nil
 }
@@ -949,29 +960,10 @@ func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} 
 
 // mergeWithoutSecrets returns a merged tree of all layers except the secrets layer.
 func (c *ntmConfig) mergeWithoutSecrets() *nodeImpl {
-	treeList := []*nodeImpl{
-		c.defaults,
-		c.unknown,
-		c.file,
-		c.envs,
-		c.fleetPolicies,
-		// secrets layer excluded
-		c.runtime,
-		c.localConfigProcess,
-		c.remoteConfig,
-		c.cli,
+	merged, err := c.mergeLayers(c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without secrets: %s", err)
 	}
-
-	merged := newInnerNode(nil)
-	for _, tree := range treeList {
-		next, err := merged.Merge(tree)
-		if err != nil {
-			log.Errorf("error merging config layers without secrets: %s", err)
-			return merged
-		}
-		merged = next
-	}
-
 	return merged
 }
 
