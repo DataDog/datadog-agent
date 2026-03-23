@@ -8,15 +8,18 @@ package processimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -27,6 +30,7 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
+	Hostname  hostnameinterface.Component
 	Telemetry telemetry.Component
 }
 
@@ -54,6 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 		ipc:               reqs.IPC,
 		cfg:               reqs.Config,
+		hostname:          reqs.Hostname,
 		telemetry:         reqs.Telemetry,
 		remoteAgentServer: remoteAgentServer,
 	}
@@ -72,6 +77,7 @@ type remoteagentImpl struct {
 	log       log.Component
 	ipc       ipc.Component
 	cfg       config.Component
+	hostname  hostnameinterface.Component
 	telemetry telemetry.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
@@ -95,7 +101,17 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 	}, nil
 }
 
-// GetStatusDetails returns the status details of the process agent
+// GetStatusDetails returns the status details of the process agent.
+// The process agent fully owns its status representation
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	return helper.DefaultStatusResponse(), nil
+	st := processStatus.GetInProcessStatus(r.cfg, r.hostname)
+	statusBytes, err := json.Marshal(st)
+	if err != nil {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{
+			Fields: map[string]string{"status": string(statusBytes)},
+		},
+	}, nil
 }

@@ -7,31 +7,21 @@
 package statusimpl
 
 import (
-	"context"
 	"embed"
 	"encoding/json"
 	"io"
-	"runtime"
-	"time"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type dependencies struct {
 	fx.In
 
-	Config   config.Component
-	Hostname hostnameinterface.Component
-	RAR      remoteagentregistry.Component `optional:"true"`
+	RAR remoteagentregistry.Component `optional:"true"`
 }
 
 type provides struct {
@@ -47,17 +37,13 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	config   config.Component
-	hostname hostnameinterface.Component
-	rar      remoteagentregistry.Component
+	rar remoteagentregistry.Component
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:   deps.Config,
-			hostname: deps.Hostname,
-			rar:      deps.RAR,
+			rar: deps.RAR,
 		}),
 	}
 }
@@ -85,49 +71,24 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// populateStatus receives the pre-built status from the process agent via RAR.
 func (s statusProvider) populateStatus() map[string]interface{} {
-	result := make(map[string]interface{})
-
 	if s.rar != nil {
 		agentStatus, ok := s.rar.GetStatusByFlavor("process_agent")
 		if ok {
 			if agentStatus.FailureReason != "" {
-				result["error"] = agentStatus.FailureReason
-				return result
+				return map[string]interface{}{"error": agentStatus.FailureReason}
 			}
-
-			var expvarsMap processStatus.ExpvarsMap
-			if raw, ok := agentStatus.MainSection["process_agent"]; ok {
-				_ = json.Unmarshal([]byte(raw), &expvarsMap)
+			if raw, ok := agentStatus.MainSection["status"]; ok {
+				var result map[string]interface{}
+				if err := json.Unmarshal([]byte(raw), &result); err == nil {
+					return result
+				}
 			}
-
-			core := processStatus.CoreStatus{
-				AgentVersion: version.AgentVersion,
-				GoVersion:    runtime.Version(),
-				Arch:         runtime.GOARCH,
-				Config:       processStatus.ConfigStatus{LogLevel: s.config.GetString("log_level")},
-				Metadata:     *hostMetadataUtils.GetFromCache(context.Background(), s.config, s.hostname),
-			}
-			st := processStatus.Status{
-				Date:    float64(time.Now().UnixNano()),
-				Core:    core,
-				Expvars: processStatus.ProcessExpvars{ExpvarsMap: expvarsMap},
-			}
-
-			bytes, err := json.Marshal(st)
-			if err != nil {
-				result["error"] = err.Error()
-				return result
-			}
-			if err := json.Unmarshal(bytes, &result); err != nil {
-				result["error"] = err.Error()
-			}
-			return result
 		}
 	}
 
-	result["error"] = "not running or unreachable"
-	return result
+	return map[string]interface{}{"error": "not running or unreachable"}
 }
 
 // JSON populates the status map

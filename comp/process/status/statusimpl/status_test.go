@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarmock "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/mock"
 )
@@ -25,12 +23,15 @@ import (
 //go:embed fixtures
 var fixturesTemplates embed.FS
 
+// makeProcessAgentRAR builds a mock RAR that returns a pre-built status JSON
+// (as the process agent's GetStatusDetails now produces).
 func makeProcessAgentRAR(t *testing.T) *rarmock.Component {
-	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
-	require.NoError(t, err)
+	t.Helper()
 
-	var full map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(jsonBytes, &full))
+	// Read the fixture which represents the full pre-built Status struct
+	// that the process agent would return via RAR.
+	statusBytes, err := fixturesTemplates.ReadFile("fixtures/process_status.json")
+	require.NoError(t, err)
 
 	return &rarmock.Component{
 		Statuses: []remoteagentregistry.StatusData{
@@ -41,7 +42,7 @@ func makeProcessAgentRAR(t *testing.T) *rarmock.Component {
 					LastSeen:    time.Now(),
 				},
 				MainSection: remoteagentregistry.StatusSection{
-					"process_agent": string(full["process_agent"]),
+					"status": string(statusBytes),
 				},
 			},
 		},
@@ -49,12 +50,8 @@ func makeProcessAgentRAR(t *testing.T) *rarmock.Component {
 }
 
 func TestStatus(t *testing.T) {
-	configComponent := config.NewMock(t)
-
 	headerProvider := statusProvider{
-		config:   configComponent,
-		hostname: hostnameimpl.NewHostnameService(),
-		rar:      makeProcessAgentRAR(t),
+		rar: makeProcessAgentRAR(t),
 	}
 
 	tests := []struct {
@@ -101,8 +98,6 @@ func TestStatusError(t *testing.T) {
 	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
 	require.NoError(t, err)
 
-	configComponent := config.NewMock(t)
-
 	rar := &rarmock.Component{
 		Statuses: []remoteagentregistry.StatusData{
 			{
@@ -116,8 +111,7 @@ func TestStatusError(t *testing.T) {
 	}
 
 	headerProvider := statusProvider{
-		config: configComponent,
-		rar:    rar,
+		rar: rar,
 	}
 
 	tests := []struct {
@@ -153,4 +147,40 @@ func TestStatusError(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+func TestPopulateStatusNilRAR(t *testing.T) {
+	p := statusProvider{rar: nil}
+	result := p.populateStatus()
+	assert.Equal(t, "not running or unreachable", result["error"])
+}
+
+func TestPopulateStatusWrongFlavor(t *testing.T) {
+	p := statusProvider{rar: &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "trace_agent", LastSeen: time.Now()}},
+		},
+	}}
+	result := p.populateStatus()
+	assert.Equal(t, "not running or unreachable", result["error"])
+}
+
+func TestPopulateStatusValidJSON(t *testing.T) {
+	status := map[string]interface{}{
+		"date": 1234567890.0,
+		"core": map[string]interface{}{"version": "7.78.0"},
+	}
+	statusBytes, _ := json.Marshal(status)
+
+	p := statusProvider{rar: &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{
+				RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "process_agent", LastSeen: time.Now()},
+				MainSection:     remoteagentregistry.StatusSection{"status": string(statusBytes)},
+			},
+		},
+	}}
+	result := p.populateStatus()
+	assert.NotEmpty(t, result["core"])
+	assert.Empty(t, result["error"])
 }

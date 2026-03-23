@@ -9,6 +9,7 @@ package status
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"io"
 	"net/http"
 	"runtime"
@@ -139,6 +140,22 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 
 	err = json.Unmarshal(body, &s)
 	return
+}
+
+// GetInProcessStatus returns a Status object by reading expvars directly from the
+// current process, without making an HTTP call. This is used by the RAR gRPC adapter
+// so the process agent fully owns its status representation.
+func GetInProcessStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) *Status {
+	core := getCoreStatus(coreConfig, hostname)
+	var expvarsMap ExpvarsMap
+	if v := expvar.Get("process_agent"); v != nil {
+		json.Unmarshal([]byte(v.String()), &expvarsMap) //nolint:errcheck
+	}
+	return &Status{
+		Date:    float64(time.Now().UnixNano()),
+		Core:    core,
+		Expvars: ProcessExpvars{ExpvarsMap: expvarsMap},
+	}
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
