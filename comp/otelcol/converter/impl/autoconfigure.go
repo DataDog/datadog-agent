@@ -7,6 +7,7 @@
 package converterimpl
 
 import (
+	"context"
 	"slices"
 	"strings"
 
@@ -28,7 +29,7 @@ type component struct {
 }
 
 // Applies selected feature changes
-func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
+func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	var enabledFeatures []string
 	// If not specified, assume all features are enabled (ocb tests will not have coreConfig)
 	if c.coreConfig != nil {
@@ -55,12 +56,20 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 			if c.coreConfig.GetBool("otelcollector.gateway.mode") {
 				deploymentType = "gateway"
 			}
+			resolvedHostname := ""
+			if c.hostname != nil {
+				if hostname, err := c.hostname.Get(ctx); err == nil {
+					resolvedHostname = hostname
+				}
+			}
 			extension.Config = map[string]any{
 				"api": map[string]any{
 					"key":  c.coreConfig.GetString("api_key"),
 					"site": site,
 				},
-				"deployment_type": deploymentType,
+				"deployment_type":     deploymentType,
+				"hostname":            resolvedHostname,
+				"installation_method": c.coreConfig.GetString("otelcollector.installation_method"),
 			}
 		}
 		addComponentToConfig(conf, extension)

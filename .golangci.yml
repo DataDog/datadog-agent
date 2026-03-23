@@ -113,6 +113,8 @@ linters:
             - "!**/comp/core/autodiscovery/providers/utils_test.go"
             - "!**/comp/core/autodiscovery/providers/zookeeper.go"
             - "!**/comp/core/autodiscovery/providers/zookeeper_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_crd.go"
+            - "!**/comp/core/autodiscovery/providers/kube_crd_nop.go"
             - "!**/comp/core/config/config.go"
             - "!**/comp/core/config/params.go"
             - "!**/comp/core/config/setup.go"
@@ -349,6 +351,10 @@ linters:
   exclusions:
     generated: lax
     rules:
+    - linters:
+      - staticcheck
+      path: pkg/clusteragent/admission/mutate/cwsinstrumentation/
+      text: "SA1019: slices"
     # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - path: (.+)\.go$
       text: Error return value of `io.WriteString` is not checked

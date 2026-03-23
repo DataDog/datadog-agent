@@ -22,12 +22,12 @@ jobs:
         policy: self.assign-issue.label-issue
 
     - name: Checkout repository
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         token: ${{ steps.octo-sts.outputs.token }}
 
     - name: Download artifacts from prepare workflow
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: triage-data
         github-token: ${{ steps.octo-sts.outputs.token }}
@@ -35,7 +35,7 @@ jobs:
 
     - name: Intelligent Issue Triage
       id: claude
-      uses: anthropics/claude-code-action@26ec041249acb0a944c0a47b6c0c13f05dbc5b44 # v1.0.70
+      uses: anthropics/claude-code-action@df37d2f0760a4b5683a6e617c9325bc1a36443f6 # v1.0.75
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         claude_args : --allowedTools "Read,Write"
@@ -69,7 +69,7 @@ jobs:
           1. Perform thorough analysis using available tools
           2. Select exactly one team label. If uncertain, use `team/agent-devx`
           3. Generate explanatory comment of the choice you did
-          4. Retrieve the slack channel associated to the selected team in the tasks/libs/pipeline/github_slack_map.yaml
+          4. Retrieve the slack channel associated to the selected team in tasks/libs/pipeline/github_slack_map.yaml
           5. Write TEAM, SLACK, CONFIDENCE and EXPLANATION in a local file claude.txt for the next step
 
           **IMPORTANT:**
@@ -137,7 +137,7 @@ jobs:
               echo "team=unknown" >> $GITHUB_OUTPUT
             fi
             SLACK=$(grep SLACK claude.txt | cut -d ':' -f2)
-            if grep -q "$SLACK" tasks/libs/pipeline/github_slack_map.yaml || grep -q "$SLACK" tasks/libs/pipeline/github_slack_review_map.yaml; then
+            if grep -q "$SLACK" tasks/libs/pipeline/github_slack_map.yaml; then
               # We validate the slack channel against the github_slack_map.yaml file
               echo "slack=$SLACK" >> $GITHUB_OUTPUT
             else
@@ -166,7 +166,7 @@ jobs:
         fi
 
     - name: Add team label to issue
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       env:
         ISSUE_NUMBER: ${{ steps.extract-info.outputs.issue_number }}
         TEAM: ${{ steps.extract-info.outputs.team }}
@@ -190,7 +190,7 @@ jobs:
       run: npm install @slack/web-api
 
     - name: Send Slack Message
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       env:
         SLACK_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         TEAM: ${{ steps.extract-info.outputs.team }}
