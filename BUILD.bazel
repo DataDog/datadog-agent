@@ -203,6 +203,7 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/scrubber
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/slices
+# gazelle:exclude pkg/util/startstop
 # gazelle:exclude pkg/util/stat
 # gazelle:exclude pkg/util/strings
 # gazelle:exclude pkg/util/subscriptions
