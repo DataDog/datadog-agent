@@ -6,8 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
-
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,7 +55,6 @@ func (h *telemetryHandler) handleTelemetry(events []observerdef.ObserverTelemetr
 		if event.Metric != nil {
 			gauge, isGauge := h.telemetryGauges[event.Metric.GetName()]
 			if isGauge {
-				fmt.Printf("Sending telemetry: %v\n", event.Metric.GetName())
 				gauge.Set(event.Metric.GetValue(), event.Metric.GetRawTags()...)
 				continue
 			}

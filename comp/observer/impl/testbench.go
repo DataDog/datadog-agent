@@ -721,8 +721,6 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 
 			if !tb.telemetryHandler.isMetricRegistered(metric.name) {
 				fmt.Printf("ERROR: [observer] metric %s is not registered\n", metric.name)
-			} else {
-				fmt.Printf("metric %s is registered\n", metric.name)
 			}
 		}
 
@@ -866,9 +864,9 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
 	for i := range anomalies {
 		a := &anomalies[i]
+		// This comes from the telemetry
 		if a.SourceSeriesID == "" && a.Source.Name != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
+			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", a.Source.String()+":avg", nil))
 		}
 	}
 	return anomalies
