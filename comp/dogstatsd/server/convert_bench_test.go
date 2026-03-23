@@ -67,7 +67,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 					continue
 				}
 
-				benchSamples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
+				benchSamples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil, nil)
 			}
 		})
 	}

@@ -58,7 +58,7 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 		_ = enrichMetricSample(dest, parsed, origin, processID, "", enrichConfig{
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			serverlessMode:            serverlessMode,
-		}, &filter)
+		}, &filter, nil)
 	})
 }
 

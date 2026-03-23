@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -133,7 +134,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher, tagFilterList filterlist.TagMatcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -151,6 +152,19 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	}
 
 	mtype := enrichMetricType(ddSample.metricType)
+
+	if mtype == metrics.DistributionType && tagFilterList != nil {
+		if keepTag, strip := tagFilterList.ShouldStripTags(metricName); strip {
+			n := 0
+			for _, tag := range tags {
+				if keepTag(tag) {
+					tags[n] = tag
+					n++
+				}
+			}
+			tags = tags[:n]
+		}
+	}
 
 	// if 'ddSample.values' contains values we're enriching a multi-value
 	// dogstatsd message and will create a MetricSample per value. If not
