@@ -74,6 +74,7 @@ from tasks.system_probe import (
     NPM_TAG,
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
+    bazel_build_ebpf,
     build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
@@ -558,7 +559,7 @@ def config_ssh_key(ctx: Context):
 
         info("[+] KMT needs this SSH key to be loaded in AWS so that it can be used to access the instances")
         info(
-            "[+] If you haven't loaded it yet, go to https://dtdg.co/aws-sso-prod -> DataDog Sandbox -> EC2 -> Network & Security -> Key Pairs"
+            "[+] If you haven't loaded it yet, go to https://dtdg.co/aws-sso-prod -> Agent Sandbox -> EC2 -> Network & Security -> Key Pairs"
         )
         aws_key_name = ask(
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
@@ -1045,8 +1046,11 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 
 def build_object_files(ctx, fp, arch: Arch):
-    setup_runtime_clang(ctx)
-    info(f"[+] Generating eBPF object files... {fp}")
+    info("[+] Building eBPF object files via Bazel...")
+    build_dir = get_ebpf_build_dir(arch)
+    bazel_build_ebpf(ctx, arch, str(build_dir), strip=False)
+
+    info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
     ninja_generate(ctx, fp, arch=arch)
     ctx.run(f"ninja -d explain -f {fp}")
 

@@ -1,0 +1,33 @@
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+# There is a cron job that watches for changes to the header for the file.
+# It alerts on the team-agent-build slack channel. When we get the message,
+# update cacert.pem and the alert. There should be no need to rush a new
+# Agent release. New keys are generally phased in, so an old root cert
+# still works for a long period before its replacement is needed.
+# https://app.datadoghq.com/synthetics/details/pya-ptn-xnv
+# When you update this, you probably have to update the alert.
+# https://app.datadoghq.com/synthetics/edit/pya-ptn-xnv?from_details=true
+version = "2026-03-19"
+
+sha = "b6e66569cc3d438dd5abe514d0df50005d570bfc96c14dca8f768d020cb96171"
+
+# TODO(ABLD-169).  This is a mess. We pick up the file from curl.se, with a license from the upstream source.
+
+http_file(
+    name = "cacert_pem",
+    downloaded_file_path = "cacert.pem",
+    sha256 = sha,
+    urls = [
+        "https://curl.se/ca/cacert-{version}.pem".format(version = version),
+    ],
+)
+
+http_file(
+    name = "cacert_license",
+    downloaded_file_path = "MPL-2.0.txt",
+    sha256 = "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+    urls = [
+        "https://www.mozilla.org/media/MPL/2.0/index.815ca599c9df.txt",
+    ],
+)

@@ -59,6 +59,10 @@
       - E2E_MSI_TEST: TestInstallFail
       - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
+      - E2E_MSI_TEST: TestInstallWithAutologger
+      - E2E_MSI_TEST: TestInstallWithoutAutologger
+      - E2E_MSI_TEST: TestInstallWithAutologgerRollback
+      - E2E_MSI_TEST: TestInstallWithoutAutologgerRollback
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
@@ -137,7 +141,9 @@ new-e2e-windows-ddot-package-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - deploy_ddot_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_windows
   before_script:
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
@@ -260,3 +266,5 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithJava$"
       - EXTRA_PARAMS: --run "TestInjectorStats/TestQueryStatsViaSystemProbe$"
       - EXTRA_PARAMS: --run "TestInjectorStats/TestQueryStatsAfterInjection$"
+      - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptStartsSystemProbe$"
+      - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestStandaloneInstallDoesNotStartSystemProbe$"

@@ -12,7 +12,6 @@
 package model
 
 import (
-	"net"
 	"net/netip"
 	"runtime"
 	"time"
@@ -373,6 +372,8 @@ type Process struct {
 	ForkTime time.Time `field:"fork_time,opts:getters_only"`
 	ExitTime time.Time `field:"exit_time,opts:getters_only"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+
+	ForkFlags uint64 `field:"-"`
 
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
@@ -933,14 +934,6 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
-}
-
-// SnapshottedBoundSocket represents a snapshotted bound socket
-type SnapshottedBoundSocket struct {
-	IP       net.IP
-	Port     uint16
-	Family   uint16
-	Protocol uint16
 }
 
 // RawPacketEvent represents a packet event

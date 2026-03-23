@@ -1,10 +1,11 @@
 ## Based on https://docs.docker.com/language/golang/build-images/
 # syntax=docker/dockerfile:1
-ARG BASE_IMAGE_REGISTRY=docker.io
-ARG GO_VERSION=1.25.7
+ARG GO_BASE_IMAGE_REGISTRY=docker.io
+ARG ALPINE_BASE_IMAGE_REGISTRY=docker.io
+ARG GO_VERSION=1.26.1
 
 ## Build
-FROM ${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
+FROM ${GO_BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
@@ -35,7 +36,7 @@ ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM ${BASE_IMAGE_REGISTRY}/library/alpine:3.21.3
+FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.23.3
 
 RUN apk add curl
 

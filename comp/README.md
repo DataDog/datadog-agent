@@ -246,6 +246,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 
 
+### [comp/dogstatsd/http](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/http)
+
+Package http defines dogstatsd http server component
+
 ### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
 
 Package pidmap implements a component for tracking pid and containerID relations
@@ -677,8 +681,7 @@ Package compression provides compression for trace payloads
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
-Package config implements a component to handle trace-agent configuration.  This
-component temporarily wraps pkg/trace/config.
+Package config implements a component to handle trace-agent configuration.
 
 ### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
 

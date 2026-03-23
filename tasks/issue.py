@@ -5,8 +5,8 @@ from collections import defaultdict
 
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.owners.parsing import search_owners
+from tasks.libs.ciproviders.github_api import GithubAPI, get_pr_size
+from tasks.libs.owners.parsing import read_owners, search_owners
 from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
     GITHUB_SLACK_REVIEW_MAP,
@@ -31,18 +31,17 @@ def ask_reviews(_, pr_id, action, team_slugs):
         print("No requested teams provided, skipping.")
         return
 
-    cleaned = []
+    requested = []
     for slug in team_slugs:
         slug = (slug or "").strip()
         slug = slug.removeprefix("@datadog/").removeprefix("@DataDog/")  # tolerate callers passing full team handles
         if slug:
-            cleaned.append(slug)
-    if not cleaned:
+            requested.append(slug)
+    if not requested:
         print("No requested teams provided, skipping.")
         return
 
-    reviewers = [f"@datadog/{slug}" for slug in cleaned]
-    print(f"Reviewers: {reviewers}")
+    print(f"Requested reviewers: {requested}")
 
     from slack_sdk import WebClient
 
@@ -50,35 +49,56 @@ def ask_reviews(_, pr_id, action, team_slugs):
     emojis = client.emoji_list()
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
 
+    # Compute per-team file counts and PR size
+    file_counts = _get_team_file_counts(pr)
+    size = get_pr_size(pr)
+    max_files = max(file_counts.values()) if file_counts else 0
+
+    actor = pr.user.name or pr.user.login
+    stop_updating = ""
+    if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
+        "chore(deps): update integrations-core"
+    ):
+        stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
+
     channels = defaultdict(list)
-    for reviewer in reviewers:
+    for slug in requested:
+        reviewer = f"@datadog/{slug}"
         channel = next(
             (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
             DEFAULT_SLACK_CHANNEL,
         )
-        channels[channel].append(reviewer)
+        channels[channel].append(slug)
 
-    actor = pr.user.name or pr.user.login
-    for channel, reviewers in channels.items():
-        stop_updating = ""
-        if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
-            "chore(deps): update integrations-core"
-        ):
-            stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
-        message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
+    for channel, slugs in channels.items():
         if channel == DEFAULT_SLACK_CHANNEL:
-            missing = ", ".join(reviewers)
+            missing_teams = ", ".join(f"@datadog/{s}" for s in slugs)
             message = (
                 f'Hello :{random.choice(waves)}:!\n'
-                f'A review channel is missing for {missing}, can you please ask them to update '
-                '`github_slack_review_map.yaml` and transfer them this review '
+                f'A review channel is missing for {missing_teams}, can you please ask them to update '
+                '`github_slack_map.yaml` and transfer them this review '
                 f'<{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             )
+        else:
+            team_lines = []
+            for slug in slugs:
+                nb_files = file_counts.get(slug, 0)
+                role = "primary" if (max_files > 0 and nb_files == max_files) else "secondary"
+                team_lines.append(f'{slug} has {nb_files} file(s) to review, as a {role} reviewer.')
+            team_info = '\n'.join(team_lines)
+            message = (
+                f'Hello :{random.choice(waves)}:!\n'
+                f'*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\n'
+                f'This is a `{size}` PR.\n'
+                f'{team_info}\n'
+                f'{stop_updating}Could you please have a look? Thanks in advance!\n'
+            )
+
         try:
             client.chat_postMessage(channel=channel, text=message)
         except Exception as e:
-            message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
-            client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
+            error_message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
+            client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=error_message)
 
 
 def _is_revert(pr) -> bool:
@@ -90,6 +110,18 @@ def _is_revert(pr) -> bool:
     if re.match(r"^Revert \"(.*)\"\n\nThis reverts commit (\w+).", commits[0].commit.message):
         return True
     return False
+
+
+def _get_team_file_counts(pr, owners_file='.github/CODEOWNERS'):
+    """Return a dict mapping each team slug to the number of PR files it owns."""
+    owners = read_owners(owners_file)
+    counts = defaultdict(int)
+    for f in pr.get_files():
+        file_owners = owners.of(f.filename)
+        for _, owner_handle in file_owners:
+            normalized = owner_handle.casefold().removeprefix("@datadog/")
+            counts[normalized] += 1
+    return counts
 
 
 @task
@@ -117,13 +149,14 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
         return
 
     folder = ""
-    if pr.title.startswith("Bump the "):
-        match = re.match(r"^Bump the (\S+) group (.*$)", pr.title)
+    title = pr.title.removeprefix("build(deps): ")
+    if title.lower().startswith("bump the "):
+        match = re.match(r"^[Bb]ump the (\S+) group (.*$)", title)
         if match.group(2).startswith("in"):
             match_folder = re.match(r"^in (\S+).*$", match.group(2))
             folder = match_folder.group(1).removeprefix("/")
     else:
-        match = re.match(r"^Bump (\S+) from (\S+) to (\S+)( in .*)?$", pr.title)
+        match = re.match(r"^[Bb]ump (\S+) from (\S+) to (\S+)( in .*)?$", title)
         if match.group(4):
             match_folder = re.match(r"^ in (\S+).*$", match.group(4))
             folder = match_folder.group(1).removeprefix("/")
