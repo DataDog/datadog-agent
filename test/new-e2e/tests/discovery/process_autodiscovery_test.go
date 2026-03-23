@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -47,7 +48,10 @@ func TestProcessAutodiscoverySuite(t *testing.T) {
 		agentparams.WithIntegration("nginx.d", nginxProcessAutodiscoveryConfigStr),
 	}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithAgentOptions(agentParams...),
+			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.Ubuntu2204ServiceDiscovery)),
+		))),
 	}
 	e2e.Run(t, &processAutodiscoverySuite{}, options...)
 }
@@ -56,17 +60,9 @@ func (s *processAutodiscoverySuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	// Install Redis - it starts automatically and binds to localhost:6379 by default
-	_, err := s.Env().RemoteHost.Execute("sudo apt-get update && sudo apt-get install -y redis-server")
-	require.NoError(s.T(), err, "failed to install redis-server")
-
-	// Verify Redis is running
+	// Verify Redis is running (pre-installed in AMI, starts on boot)
 	output := s.Env().RemoteHost.MustExecute("redis-cli ping")
 	require.Contains(s.T(), output, "PONG", "Redis server should be running")
-
-	// Install nginx
-	_, err = s.Env().RemoteHost.Execute("sudo apt-get install -y nginx")
-	require.NoError(s.T(), err, "failed to install nginx")
 
 	// Configure nginx with multiple workers and stub_status on port 81
 	nginxConf := `worker_processes 4;
