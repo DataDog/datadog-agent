@@ -13,3 +13,4 @@ telemetry.checks: '*'
 cloud_provider_metadata: []
 
 dogstatsd_socket: '/tmp/dsd.socket'
+dogstatsd_origin_detection: true

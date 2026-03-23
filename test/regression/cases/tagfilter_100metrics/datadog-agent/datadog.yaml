@@ -13,6 +13,8 @@ telemetry.checks: '*'
 cloud_provider_metadata: []
 
 dogstatsd_socket: '/tmp/dsd.socket'
+dogstatsd_origin_detection: true
+
 metric_tag_filterlist:
 - metric_name: metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00
   action: include
