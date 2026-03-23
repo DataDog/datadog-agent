@@ -2,7 +2,7 @@
 
 ## Status
 
-**Fix did not resolve customer issue.** Custom image `datadog/agent-dev:disable-tls-fallback-7-76-full` (disabling `ssl_ctx_by_pid_tgid` fallback) was verified in local reproduction (0% misattribution) but **customer still sees misattribution after deploying on 2026-03-17**. The `ssl_ctx_by_pid_tgid` fallback is a real bug that causes misattribution in local testing, but it is **not the only cause** of the customer's issue — there is at least one additional mechanism.
+**Root cause identified: not an agent/eBPF bug.** ProcQ analysis (2026-03-23) confirms the agent correctly tags the misattributed endpoints as `service:dmt-apiexporter` through the entire pipeline (`network_raw` → `network_connections`). The misattribution to `blackbox-exporter` occurs **downstream in the backend** (NSX/service resolution pipeline or customer Service Naming Rules). The two eBPF fixes shipped (Go-TLS race, ssl_ctx_by_pid_tgid fallback) are valid bug fixes but unrelated to this customer's issue.
 
 ## Customer Environment
 
@@ -402,23 +402,76 @@ The `ssl_ctx_race_test/` directory (cherry-picked from `usm-gotls-misattribution
 
 The `ssl_ctx_by_pid_tgid` fallback mechanism is a confirmed bug that causes misattribution in local reproduction (single-threaded proxy + system-probe restart), but the customer's misattribution has **at least one additional cause** beyond this fallback. This mirrors the earlier go-tls race fix attempt — each fix addresses a real bug but doesn't fully explain the customer's symptoms.
 
-Possible additional mechanisms to investigate:
-- Misattribution unrelated to TLS context (e.g., at the service name resolution layer, not the connection tracking layer)
-- Connection tuple collisions or reuse in long-lived proxy connections
-- Race conditions in the normal (non-fallback) `ssl_sock_by_ctx` path
-- Backend-side normalization or Service Naming Rules incorrectly grouping endpoints
+## ProcQ Analysis: Agent Data Is Correct (2026-03-23)
+
+### Approach
+
+Queried ProcQ-UI (internal Kafka inspection tool) for the customer's actual agent payloads to determine whether the misattribution originates in the agent/eBPF layer or downstream in the backend pipeline.
+
+- **Datacenter**: US5
+- **Org ID**: 1300014336
+- **Topics queried**: `network_raw` (agent-side data) and `network_connections` (after network-resolver processing)
+
+### Reported Erroneous Endpoint
+
+Customer reported `get_/redfish/v1/systems/_/processors/` appearing under `blackbox-exporter` service on host `gke-mlb-sre-shared-c-mlb-sre-shared-c-d92e0a8b-kszi.c.mlb-sre-shared-b967.internal`.
+
+### Findings from `network_raw` (Agent Payloads)
+
+The `/redfish/v1/Systems/*/Processors/` endpoint is sent by **two PIDs** on the host:
+
+| | PID 81796 | PID 81573 |
+|--|-----------|-----------|
+| **Container ID** | `6ffd28014c3f...` | `9d00e4995096...` |
+| **Pod** | `dmt-apiexporter-npd-54c48f6b7f-xf5d9` | `dmt-apiexporter-npd-54c48f6b7f-6wwxs` |
+| **Process cmdline** | `dmt serve --passfile /device-metric-tool/secrets/auths.yaml --noAuth` | same |
+| **Image** | `artifacts.mlbinfra.net/docker/o11y/dmt-apiexporter:2.1.16` | same |
+| **conn_tags** | `env:npd service:dmt-apiexporter version:2.1.16` | same |
+| **TLS** | Go-TLS (`tls.library:go`) | same |
+| **Direction** | outgoing | outgoing |
+| **HTTP entries** | 833 | 728 |
+
+Both processes are **`dmt-apiexporter`** pods making outgoing Go-TLS HTTPS requests to external IPs (10.113.x.x:443) to query Redfish hardware management endpoints. The agent correctly identifies the service as `dmt-apiexporter` via conn_tags.
+
+**No blackbox-exporter PID makes `/redfish` requests on this host.**
+
+### Findings from `network_connections` (After Network-Resolver)
+
+The `network_connections` topic (post network-resolver processing) confirms the same data with full container tag resolution:
+
+```
+conn_tags:     [env:npd service:dmt-apiexporter version:2.1.16 ...]
+container_tags:[service:dmt-apiexporter kube_deployment:dmt-apiexporter-npd
+                kube_service:dmt-apiexporter-npd kube_namespace:o11y-device-metric-tool-apiexporter-npd
+                pod_name:dmt-apiexporter-npd-54c48f6b7f-xf5d9
+                image_name:artifacts.mlbinfra.net/docker/o11y/dmt-apiexporter ...]
+```
+
+**Every layer of the pipeline — conn_tags, container_tags, pod name, image name — correctly identifies the service as `dmt-apiexporter`.** There is zero mention of `blackbox-exporter` in the agent data.
+
+### Additional Finding: blackbox-exporter on a Different Host
+
+On a separate host (`gke-...-66b0e97b-l1h5`), we found PID 824987 making outgoing HTTP requests to the same endpoint paths the customer reported as misattributed (`/elemental/alerts`, `/elemental/channelstatus`, `/v1/btc/pasithea_image_url_json`, etc.). This PID has **no conn_tags** (no service tag from the agent), runs in container `c2aac4e4f4cf...`, and appears to be the actual `blackbox-exporter` process (making probe/monitoring HTTP requests to many backends).
+
+### Conclusion
+
+**The customer's misattribution is NOT in the agent or eBPF layer.** The agent correctly identifies the processes, connections, and service names all the way through the `network_connections` Kafka topic. The misattribution from `dmt-apiexporter` → `blackbox-exporter` is happening **downstream** in the backend pipeline — either in the NSX (network-stats-extractor) service resolution, or via customer-configured Service Naming Rules.
+
+The two eBPF fixes we shipped (Go-TLS race, ssl_ctx_by_pid_tgid fallback) address real bugs but are unrelated to this customer's issue.
 
 ## Next Steps
 
-1. **Investigate additional misattribution mechanisms**: The fallback fix is necessary but not sufficient. Need to identify what else causes the customer's symptoms. Key question: is the remaining misattribution in the eBPF/connection tracking layer or in the service name resolution pipeline?
+1. **Investigate backend service resolution**: The misattribution happens after `network_connections`. Check the NSX pipeline — specifically `FindLocalUSMInfo()` and `resolveServiceInfo()` in `inventory.go` — to see how `dmt-apiexporter` could be remapped to `blackbox-exporter`.
 
-2. **Get more diagnostic data from customer**: Ask the customer to capture `/debug/http_monitoring` output after observing misattribution — this would show whether the misattributed entries have `StaticTags != 0` (TLS tagging issue) or `StaticTags == 0` (service name resolution issue).
+2. **Check customer's Service Naming Rules**: The customer may have org-level rules that rewrite service names. Query the org's naming rules config.
 
-3. **Proper fix for the fallback bug**: The fallback disable fix is still a valid improvement that should be upstreamed, even though it doesn't fully resolve this customer's issue.
+3. **Investigate blackbox-exporter's missing service tag**: On the first host queried, PID 824987 (actual blackbox-exporter) has **no conn_tags** — no `service:` tag at all. This means the backend must infer the service from container/host tags. If the inference is wrong or ambiguous, it could explain why endpoints are appearing under `blackbox-exporter`.
+
+4. **Proper fix for the fallback bug**: The `ssl_ctx_by_pid_tgid` fallback disable fix is still a valid improvement that should be upstreamed, even though it's unrelated to this customer's issue.
 
 ## Open Questions
 
-- Is the customer's remaining misattribution caused by TLS context misassociation (StaticTags issue) or by service name resolution (process_context tags)?
-- What specific endpoint/service pair is `partlow` being misattributed to?
-- What is the customer's agent restart/deployment cadence?
-- Does the customer observe misattribution concentrated around specific time windows (which would correlate with agent restarts)?
+- What Service Naming Rules does this customer org have configured?
+- How does the NSX resolve the service when conn_tags say `service:dmt-apiexporter` but the endpoint shows under `blackbox-exporter`?
+- Why does blackbox-exporter (PID 824987) have no `service:` conn_tag? Is process service inference failing for this Go binary?
+- Could the backend be merging client-side (blackbox-exporter probing endpoints) and server-side (dmt-apiexporter serving endpoints) observations incorrectly?
