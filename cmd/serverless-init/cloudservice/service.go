@@ -6,6 +6,8 @@
 package cloudservice
 
 import (
+	"maps"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -98,10 +100,8 @@ func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMet
 		"local": tags["local"],
 	}
 
-	usageTags := map[string]string{
-		"local":    tags["local"],
-		"instance": "test-instance",
-	}
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = "test-instance"
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }

@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
@@ -126,13 +127,8 @@ func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricT
 		"service_name":  tags["service_name"],
 	}
 
-	usageTags := map[string]string{
-		"instance":     tags["container_id"],
-		"location":     tags["location"],
-		"origin":       tags["origin"],
-		"project_id":   tags["project_id"],
-		"service_name": tags["service_name"],
-	}
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tags["container_id"]
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }

@@ -63,13 +63,8 @@ func (a *AppService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetri
 		"subscription_id": tags["aas.subscription.id"],
 	}
 
-	usageTags := map[string]string{
-		"name":            tags["app_name"],
-		"instance":        tags["aas.environment.instance_name"],
-		"origin":          tags["origin"],
-		"resource_group":  tags["aas.resource.group"],
-		"subscription_id": tags["aas.subscription.id"],
-	}
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tags["aas.environment.instance_name"]
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
