@@ -253,14 +253,10 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 }
 
 func InstallKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	kindArch := vm.OS.Descriptor().Architecture
-	if kindArch == os.AMD64Arch {
-		kindArch = "amd64"
-	}
 	return vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("kind-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(`curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/%s/kind-linux-%s" && sudo install kind /usr/local/bin/kind`, kindVersion, kindArch),
+			Create: pulumi.Sprintf(`sudo ln -sf /usr/local/bin/kind-%s /usr/local/bin/kind`, kindVersion),
 		},
 		opts...,
 	)
