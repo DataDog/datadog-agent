@@ -81,7 +81,7 @@ type samplerEntry struct {
 	credits    float64   // remaining log allowance; decremented on each emitted log
 	lastSeen   time.Time // used for credit refill
 	matchCount int64     // total number of times this pattern has matched; drives sort order
-	sampled    int64     // number of times this pattern has been emitted
+	sampled    int64     // number of dropped matches since the last emitted log
 }
 
 // AdaptiveSampler rate-limits logs by structural pattern using per-pattern credit allowances.
@@ -133,7 +133,6 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		allow := e.credits >= 1.0
 		if allow {
 			e.credits--
-			e.sampled++
 		}
 
 		// Bubble the matched entry toward the front to maintain descending order.
@@ -143,11 +142,15 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
+			if e.sampled > 0 {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
+			}
+			e.sampled = 0
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
+		e.sampled++
 		return nil
 	}
 
@@ -163,7 +166,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
-		sampled:    1,
+		sampled:    0,
 	})
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
