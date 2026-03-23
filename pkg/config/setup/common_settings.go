@@ -1028,6 +1028,21 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+
+	// Integration security
+
+	// When enabled, integrations will ignore configuration parameters that refer to file paths
+	// Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
+	config.BindEnvAndSetDefault("integration_ignore_untrusted_file_params", false)
+
+	// Allowlisted file paths for untrusted providers (empty = allow all).
+	config.BindEnvAndSetDefault("integration_file_paths_allowlist", []string{})
+
+	// Trusted config providers (others are untrusted). Defaults: file, remote-config.
+	config.BindEnvAndSetDefault("integration_trusted_providers", []string{"file", "remote-config"})
+
+	// Integrations excluded from these restrictions.
+	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 }
 
 func agent(config pkgconfigmodel.Setup) {

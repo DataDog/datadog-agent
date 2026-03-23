@@ -22,7 +22,7 @@ type TestCheck struct {
 	stub.StubCheck
 }
 
-func (c *TestCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, _ integration.Data, _ string) error {
+func (c *TestCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, _ integration.Data, _ string, _ string) error {
 	if string(data) == "err" {
 		return errors.New("testError")
 	}

@@ -704,6 +704,10 @@ func processRegularField(field *ast.Field, module *common.Module, astFiles *AstF
 		return
 	}
 
+	if shouldSkipCopy(field) {
+		return
+	}
+
 	fullName := buildFullFieldName(fieldBasename, prefix)
 	fieldInfo, _, unqualifiedType := prepareFieldInfo(field, fieldBasename, prefix, module, astFiles)
 	if fieldInfo == nil {
@@ -766,6 +770,14 @@ func stripPackageQualifier(typeName string) string {
 // shouldSkipInterface checks if a type should be skipped (interfaces)
 func shouldSkipInterface(astFiles *AstFiles, typeName string) bool {
 	return typeName == "FieldHandlers" || isInterfaceType(astFiles, typeName)
+}
+
+// shouldSkipCopy checks if a field is tagged with `copy:"-"` to exclude it from deep copy generation.
+func shouldSkipCopy(field *ast.Field) bool {
+	if field.Tag == nil {
+		return false
+	}
+	return strings.Contains(field.Tag.Value, `copy:"-"`)
 }
 
 // qualifyFieldType adds appropriate package qualification to a field's type

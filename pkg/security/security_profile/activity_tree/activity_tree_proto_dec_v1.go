@@ -132,10 +132,10 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 
 	mp := model.Process{
 		PIDContext: model.PIDContext{
-			Pid: p.Pid,
-			Tid: p.Tid,
+			Pid:  p.Pid,
+			Tid:  p.Tid,
+			PPid: p.Ppid,
 		},
-		PPid:       p.Ppid,
 		Cookie:     p.Cookie64,
 		IsThread:   p.IsThread,
 		IsExecExec: p.IsExecChild,

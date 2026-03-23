@@ -147,9 +147,9 @@ func createConfigSchema() ([]byte, error) {
 }
 
 // Configure accepts configuration
-func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	w.BuildID(integrationConfigDigest, data, initConfig)
-	err := w.CommonConfigure(senderManager, initConfig, data, source)
+	err := w.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
