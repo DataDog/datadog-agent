@@ -389,6 +389,13 @@
   review:
     name: '#universal-service-monitoring'
     id: 'C01R6Q0HQDD'
+'@datadog/q-branch':
+  notification:
+    name: '#agent-q-branch'
+    id: 'C09UDTU0H18'
+  review:
+    name: '#agent-q-branch'
+    id: 'C09UDTU0H18'
 '@datadog/windows-products':
   notification:
     name: '#windows-products-ops'

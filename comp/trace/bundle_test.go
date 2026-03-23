@@ -25,7 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
@@ -44,7 +45,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		core.Bundle(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		statsd.Module(),
+		statsdFx.Module(),
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
@@ -79,7 +80,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
-		statsd.MockModule(),
+		statsdimpl.MockModule(),
 		zstdfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),

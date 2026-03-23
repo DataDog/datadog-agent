@@ -100,6 +100,20 @@ func TestConfigAppKey(t *testing.T) {
 		`   app_key:   '************************************bbbb'   `)
 }
 
+func TestConfigPrefixedAppKey(t *testing.T) {
+	// Identifiable app key format: ddapp_<random28>_<checksum5> (40 chars total)
+	// Last 4 chars of the checksum are preserved in output
+	assertClean(t,
+		`ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`************************************bcde`)
+	assertClean(t,
+		`app_key: ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`app_key: ************************************bcde`)
+	assertClean(t,
+		`config with ddapp_AAAAAAAAAAAAAAAAAAAAAAAAAAAA_aBCDE in the middle`,
+		`config with ************************************BCDE in the middle`)
+}
+
 func TestConfigRCAppKey(t *testing.T) {
 	assertClean(t,
 		`key: "DDRCM_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCDE"`,

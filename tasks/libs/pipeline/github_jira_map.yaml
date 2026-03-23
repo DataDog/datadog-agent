@@ -54,3 +54,4 @@
 '@datadog/synthetics-executing': SYNORG
 '@datadog/agent-health': AHEALTH
 '@datadog/profiling-full-host': 'PROF'
+'@datadog/q-branch': DEFAULT_JIRA_PROJECT

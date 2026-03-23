@@ -207,8 +207,14 @@ else
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
 
-  # Create the tray icon app launchctl service
+  # Tray app: headless by default (WiFi IPC only). install_mac_os.sh may remove --headless afterward
+  # if DD_GUI_APP_MENU_ENABLED is set (postinst does not see that env var from the installer).
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+
+  sed -i '' '/<\/array>/i\
+            <string>--headless<\/string>
+' "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
   # Load the GUI LaunchAgent
@@ -219,6 +225,9 @@ else
   echo "=========================================="
   echo "Datadog Agent GUI"
   echo "=========================================="
+  echo "The menu bar icon is hidden by default (headless GUI for WiFi metrics)."
+  echo "When installing via install_mac_os.sh, set DD_GUI_APP_MENU_ENABLED=1 (or true, yes, on) to show it."
+  echo ""
   echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
   echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
   echo ""
