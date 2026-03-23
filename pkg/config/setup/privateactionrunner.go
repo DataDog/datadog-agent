@@ -36,13 +36,13 @@ const (
 
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
+	PARRestrictedShellProcPath     = "private_action_runner.restricted_shell_proc_path"
 )
 
 const (
 	// Default allowed paths for restricted shell
 	defaultLogPath       = "/var/log"
-	defaultProcPath      = "/proc"
-	defaultEtcOsReleasePath = "/etc/os-release"
+	defaultOsReleasePath = "/etc/os-release"
 
 	containerizedPathPrefix = "/host"
 )
@@ -79,13 +79,20 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	defaultPaths := []string{defaultLogPath, defaultProcPath, defaultEtcPath}
+	var logPath string
+	var procPath string
+	var osReleasePath string
 	if env.IsContainerized() {
-		for i, p := range defaultPaths {
-			defaultPaths[i] = containerizedPathPrefix + p
-		}
+		logPath = containerizedPathPrefix + defaultLogPath
+		procPath = containerizedPathPrefix + procPath
+		osReleasePath = containerizedPathPrefix + osReleasePath
+	} else {
+		logPath = defaultLogPath
+		procPath = procPath
+		osReleasePath = osReleasePath
 	}
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{logPath, osReleasePath})
+	config.BindEnvAndSetDefault(PARRestrictedShellProcPath, procPath)
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil

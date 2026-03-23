@@ -13,10 +13,10 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-func NewRshellBundle(allowedPaths []string) types.Bundle {
+func NewRshellBundle(allowedPaths []string, procPath string) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand":     NewRunCommandHandler(allowedPaths),
+			"runCommand":     NewRunCommandHandler(allowedPaths, procPath),
 			"testConnection": NewTestConnectionHandler(),
 		},
 	}

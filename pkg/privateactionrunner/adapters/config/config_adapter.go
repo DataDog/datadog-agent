@@ -24,6 +24,7 @@ type Config struct {
 	Allowlist          []string
 	AllowIMDSEndpoint  bool
 	RShellAllowedPaths []string
+	RShellProcPath     string
 	DDHost             string
 	DDApiHost          string
 	Modes              []modes.Mode

@@ -25,12 +25,14 @@ import (
 // RunCommandHandler implements the runCommand action.
 type RunCommandHandler struct {
 	allowedPaths []string
+	procPath     string
 }
 
 // NewRunCommandHandler creates a new RunCommandHandler.
-func NewRunCommandHandler(allowedPaths []string) *RunCommandHandler {
+func NewRunCommandHandler(allowedPaths []string, procPath string) *RunCommandHandler {
 	return &RunCommandHandler{
 		allowedPaths: allowedPaths,
+		procPath:     procPath,
 	}
 }
 
@@ -85,11 +87,15 @@ func (h *RunCommandHandler) Run(
 	if len(inputs.AllowedCommands) > 0 {
 		cmdOpt = interp.AllowedCommands(inputs.AllowedCommands)
 	}
-	runner, err := interp.New(
+	opts := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.AllowedPaths(validPaths),
 		cmdOpt,
-	)
+	}
+	if h.procPath != "" {
+		opts = append(opts, interp.ProcPath(h.procPath))
+	}
+	runner, err := interp.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
