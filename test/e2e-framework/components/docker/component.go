@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -164,17 +163,14 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 func (d *Manager) install() (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
-	dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
-	if err != nil {
-		return nil, err
-	}
 
 	// Patch ip range that docker uses to create its bridge networks
 	// This is to avoid conflicts with other IP ranges used internally
+	// Docker itself must be pre-baked in the AMI (see e.g. Ubuntu2204Docker).
 	daemonPatch, err := d.Host.OS.Runner().Command(d.namer.ResourceName("daemon-patch"), &command.Args{
 		Create: pulumi.Sprintf("sudo mkdir -p /etc/docker && echo '{\"bip\": \"192.168.16.1/24\", \"default-address-pools\":[{\"base\":\"192.168.32.0/24\", \"size\":24}], \"max-download-attempts\": 10}' | sudo tee /etc/docker/daemon.json"),
 		Sudo:   true,
-	}, utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
