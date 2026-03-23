@@ -40,7 +40,7 @@ Autonomously scans a Jira board backlog for eligible tickets and implements fixe
 
 For each eligible ticket (up to `--max-cards`), the skill:
 
-1. Queries the board backlog for unassigned `To Do` tickets with no parent issue
+1. Queries the board backlog for unassigned tickets in the initial status (first entry of `jira_statuses` in `.ddqa/config.toml`) with no parent issue
 2. Evaluates each ticket for feasibility — skips vague, docs-only, or already-fixed issues
 3. Claims the ticket (assigns to you)
 4. Implements the fix, runs lint and tests, creates a single commit
@@ -53,7 +53,7 @@ Progress is tracked locally in `AUTO_JIRA.md` (gitignored, never committed).
 
 A ticket is eligible only if ALL of the following are true:
 
-- Status is `To Do`
+- Status is the first entry of `jira_statuses` for the team in `.ddqa/config.toml` (typically `To Do`)
 - Assignee is empty
 - No parent issue
 - Created before `--before-date`

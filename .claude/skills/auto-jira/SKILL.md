@@ -137,7 +137,7 @@ Local checks catch problems before CI. Do not skip or work around them:
 ## Ticket Selection Criteria
 
 **DO work on tickets that:**
-- Status is `To Do`
+- Status is the first entry of `jira_statuses` for the team in `.ddqa/config.toml` (typically `To Do`)
 - Assignee is empty
 - No parent issue (epics as parents are okay; sub-tasks with a parent ticket are not)
 - Created before `<BEFORE_DATE>`

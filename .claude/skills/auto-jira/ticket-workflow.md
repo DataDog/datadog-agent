@@ -8,6 +8,15 @@ Guide for selecting, claiming, and managing Jira tickets for autonomous work.
 
 ## Querying the Backlog
 
+**First, look up the initial status for this board from `.ddqa/config.toml`:**
+
+```bash
+# Find the team section whose jira_project matches <BOARD>, then read jira_statuses[0]
+# Example: for BOARD=NPM the initial status is "Backlog", not "To Do"
+```
+
+Read `.ddqa/config.toml`, find the `[teams."..."]` block where `jira_project = "<BOARD>"`, and use the first element of its `jira_statuses` array as `<INITIAL_STATUS>`.
+
 Use `mcp__atlassian__searchJiraIssuesUsingJql` with:
 - `cloudId`: `datadoghq.atlassian.net`
 - `fields`: `["summary", "description", "status", "assignee", "labels", "issuetype", "created", "priority", "parent"]`
@@ -17,7 +26,7 @@ Use `mcp__atlassian__searchJiraIssuesUsingJql` with:
 
 ```
 project = <BOARD>
-  AND status = "To Do"
+  AND status = "<INITIAL_STATUS>"
   AND assignee is EMPTY
   AND "Parent" is EMPTY
   AND created <= "<BEFORE_DATE>"
