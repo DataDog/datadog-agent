@@ -41,7 +41,6 @@ def get_aws_vault_env(ctx, account: str):
     return env
 
 
-
 @contextmanager
 def dd_auth_api_app_keys(ctx, domain: str):
     """

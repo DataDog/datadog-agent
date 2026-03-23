@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 # Run with:
 # dda inv --dep "datadog-api-client>=2.52.0" --dep "pydantic>=2.0" --dep "pyyaml>=6.0" --dep "tabulate>=0.9.0"
-
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -58,7 +58,6 @@ def validate_metrics(ctx, spec=None, architectures=None, lookback_seconds=3600, 
         except Exception as e:
             org_errors.append(f"{org_name}: {e}")
             print(f"[ERROR] {org_name} failed: {e}")
-
 
     if results:
         render_results(results)

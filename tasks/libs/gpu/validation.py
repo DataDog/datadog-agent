@@ -51,9 +51,9 @@ def resolve_spec_paths(spec: str | None, architectures: str | None) -> tuple[str
     return spec_path, architectures_path
 
 
-def load_yaml_model(path: str, model_cls: "type[BaseModel]") -> Any:
-    from pydantic import ValidationError
+def load_yaml_model(path: str, model_cls: type[BaseModel]) -> Any:
     import yaml
+    from pydantic import ValidationError
 
     with open(path) as f:
         raw = yaml.safe_load(f)
@@ -95,7 +95,9 @@ def _build_expected_tags_by_metric(spec_model: Spec, expected_metrics_map: dict[
     expected_tags_by_metric: dict[str, set[str]] = {}
     for metric_name in expected_metrics_map:
         relative_name = metric_name.removeprefix(f"{spec_model.metric_prefix}.")
-        expected_tags_by_metric[metric_name] = get_expected_tags_for_metric(spec_model, spec_model.metrics[relative_name])
+        expected_tags_by_metric[metric_name] = get_expected_tags_for_metric(
+            spec_model, spec_model.metrics[relative_name]
+        )
     return expected_tags_by_metric
 
 
@@ -108,7 +110,7 @@ def determine_result_state(result: GPUConfigValidationResult) -> GPUConfigValida
 
 
 def validate_gpu_config(
-    metrics_api_v2: "MetricsApiV2",
+    metrics_api_v2: MetricsApiV2,
     spec_model: Spec,
     gpu_config: GPUConfig,
     from_ts: int,
