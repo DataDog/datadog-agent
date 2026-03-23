@@ -35,6 +35,14 @@ const (
 	OpcodeProcessGoSwissMapGroups
 	OpcodeChasePointers
 	OpcodePrepareEventRoot
+	// Condition expression ops.
+	OpcodeExprPushOffset
+	OpcodeExprLoadLiteral
+	OpcodeExprReadString
+	OpcodeExprCmpEqBase
+	OpcodeExprCmpEqString
+	OpcodeConditionCheck
+	OpcodeConditionBegin
 )
 
 //revive:enable:exported

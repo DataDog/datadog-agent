@@ -183,6 +183,51 @@ func makeInstruction(op Op) codeFragment {
 			bytes:  bytes,
 		}
 
+	case ExprPushOffsetOp:
+		return staticInstruction{
+			opcode: OpcodeExprPushOffset,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ByteSize),
+		}
+
+	case ExprLoadLiteralOp:
+		bytes := make([]byte, 0, 2+len(op.Data))
+		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.Data)))
+		bytes = append(bytes, op.Data...)
+		return staticInstruction{
+			opcode: OpcodeExprLoadLiteral,
+			bytes:  bytes,
+		}
+
+	case ExprReadStringOp:
+		return staticInstruction{
+			opcode: OpcodeExprReadString,
+			bytes:  binary.LittleEndian.AppendUint16(nil, op.MaxLen),
+		}
+
+	case ExprCmpEqBaseOp:
+		return staticInstruction{
+			opcode: OpcodeExprCmpEqBase,
+			bytes:  []byte{op.ByteSize},
+		}
+
+	case ExprCmpEqStringOp:
+		return staticInstruction{
+			opcode: OpcodeExprCmpEqString,
+			bytes:  []byte{},
+		}
+
+	case ConditionBeginOp:
+		return staticInstruction{
+			opcode: OpcodeConditionBegin,
+			bytes:  []byte{},
+		}
+
+	case ConditionCheckOp:
+		return staticInstruction{
+			opcode: OpcodeConditionCheck,
+			bytes:  []byte{},
+		}
+
 	default:
 		panic(fmt.Sprintf("unsupported op: %T", op))
 	}

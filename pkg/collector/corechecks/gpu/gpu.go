@@ -412,7 +412,12 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	}
 
 	metricName := gpuMetricsNs + metric.Name
-	allTags := append(append(deviceTags, metricTags...), metric.Tags...)
+	// Build into a fresh slice so we do not append into deviceTags' backing
+	// array and leak tags across metrics for the same device.
+	allTags := make([]string, 0, len(deviceTags)+len(metricTags)+len(metric.Tags))
+	allTags = append(allTags, deviceTags...)
+	allTags = append(allTags, metricTags...)
+	allTags = append(allTags, metric.Tags...)
 
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
