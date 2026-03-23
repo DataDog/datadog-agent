@@ -76,7 +76,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key9")},
 		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "api_key10")},
 		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "api_key11")},
-		"https://app.xxxx99.ddog-gov.mil": {utils.NewAPIKeys("path", "api_key11")},
+		"https://app.xxxx99.ddog-gov.mil": {utils.NewAPIKeys("path", "api_key12")},
 	}
 
 	expectedMap := map[string][]string{
