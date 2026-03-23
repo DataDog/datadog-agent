@@ -761,8 +761,6 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 	return uint8(offset), nil
 }
 
-func nilPieceOp(piece ir.Piece) bool { return piece.Op == nil }
-
 // hasDuplicateInterfacePieces returns true if an interface type has both
 // pieces claiming the same register. Interface types have two distinct
 // pointers (type/itab and data) that can never have the same value, so
@@ -799,15 +797,14 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			return ops, nil
 		}
 
-		// Check if the matching location list is unavailable (partially or
-		// completely). If so, by breaking here we'll make sure we don't mark
-		// the variable as available.
+		// Check if the matching location list is unavailable. If so, by
+		// breaking here we'll make sure we don't mark the variable as
+		// available.
 		//
 		// Also check for duplicate interface pieces where both claim the same
 		// register (seen on ARM64 with go1.26rc1). Interface types have two
 		// distinct pointers that can never share a register.
 		if len(loclist.Pieces) == 0 ||
-			slices.ContainsFunc(loclist.Pieces, nilPieceOp) ||
 			hasDuplicateInterfacePieces(op.Variable.Type, loclist.Pieces) {
 			break
 		}
@@ -817,6 +814,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			return nil, err
 		}
 		layoutIdx := 0
+		unavailable := false
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
 				return nil, fmt.Errorf(
@@ -832,6 +830,22 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
+
+			// If this piece is unavailable (nil Op), only bail out if it
+			// overlaps with the requested byte range. This avoids
+			// rejecting narrowed field captures (e.g. foo.bar) when an
+			// unrelated field in the same parent struct is unavailable.
+			if piece.Op == nil {
+				pieceEnd := paddedOffset + piece.Size
+				if op.Offset < pieceEnd && paddedOffset < op.Offset+op.ByteSize {
+					// Overlaps with requested range — variable is
+					// partially unavailable, treat as unavailable.
+					unavailable = true
+					break
+				}
+				continue
+			}
+
 			switch p := piece.Op.(type) {
 			case ir.Register:
 				// Register pieces are small and map to individual layout
@@ -872,7 +886,10 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 				)
 			}
 		}
-		return ops, nil
+		if !unavailable {
+			return ops, nil
+		}
+		break
 	}
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
