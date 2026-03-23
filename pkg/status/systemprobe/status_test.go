@@ -43,7 +43,7 @@ func TestPopulateStatus(t *testing.T) {
 					Statuses: []remoteagentregistry.StatusData{
 						{
 							RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "system_probe", LastSeen: time.Now()},
-							MainSection:     remoteagentregistry.StatusSection{"modules": makeModuleStatsJSON(t)},
+							MainSection:     remoteagentregistry.StatusSection{"status": makeModuleStatsJSON(t)},
 						},
 					},
 				},
@@ -71,6 +71,24 @@ func TestPopulateStatus(t *testing.T) {
 				val, ok := stats["systemProbeStats"].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "connection refused", val["Errors"])
+			},
+		},
+		{
+			name: "missing status key reports error",
+			provider: Provider{
+				RAR: &rarmock.Component{
+					Statuses: []remoteagentregistry.StatusData{
+						{
+							RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "system_probe", LastSeen: time.Now()},
+							MainSection:     remoteagentregistry.StatusSection{},
+						},
+					},
+				},
+			},
+			assertStats: func(t *testing.T, stats map[string]interface{}) {
+				val, ok := stats["systemProbeStats"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "no status data available from system-probe", val["Errors"])
 			},
 		},
 		{
@@ -115,7 +133,7 @@ func TestJSON(t *testing.T) {
 				Statuses: []remoteagentregistry.StatusData{
 					{
 						RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "system_probe", LastSeen: time.Now()},
-						MainSection:     remoteagentregistry.StatusSection{"modules": makeModuleStatsJSON(t)},
+						MainSection:     remoteagentregistry.StatusSection{"status": makeModuleStatsJSON(t)},
 					},
 				},
 			},
@@ -148,7 +166,7 @@ func TestText(t *testing.T) {
 				Statuses: []remoteagentregistry.StatusData{
 					{
 						RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "system_probe", LastSeen: time.Now()},
-						MainSection:     remoteagentregistry.StatusSection{"modules": makeModuleStatsJSON(t)},
+						MainSection:     remoteagentregistry.StatusSection{"status": makeModuleStatsJSON(t)},
 					},
 				},
 			},

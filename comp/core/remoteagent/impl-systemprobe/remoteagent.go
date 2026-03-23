@@ -8,6 +8,7 @@ package systemprobeimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -19,6 +20,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -121,7 +123,18 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 	}, nil
 }
 
-// GetStatusDetails returns the status details of system-probe
+// GetStatusDetails returns the status details of system-probe.
+// System-probe fully owns its status representation by calling module.GetStats()
+// directly, rather than reading expvars.
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	return helper.DefaultStatusResponse(), nil
+	stats := module.GetStats()
+	statusBytes, err := json.Marshal(stats)
+	if err != nil {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{
+			Fields: map[string]string{"status": string(statusBytes)},
+		},
+	}, nil
 }

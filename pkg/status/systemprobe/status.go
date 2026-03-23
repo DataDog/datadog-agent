@@ -102,6 +102,9 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// populateStatus receives the pre-built status from system-probe via RAR.
+// System-probe fully owns its status representation; this consumer simply
+// deserializes and passes it through.
 func (p Provider) populateStatus(stats map[string]interface{}) {
 	if p.RAR != nil {
 		agentStatus, ok := p.RAR.GetStatusByFlavor("system_probe")
@@ -112,14 +115,15 @@ func (p Provider) populateStatus(stats map[string]interface{}) {
 				}
 				return
 			}
-			// The system-probe publishes module stats under the "modules" expvar key,
-			// which is the same data previously served at /debug/stats.
-			if raw, ok := agentStatus.MainSection["modules"]; ok {
+			if raw, ok := agentStatus.MainSection["status"]; ok {
 				var moduleStats map[string]interface{}
 				if err := json.Unmarshal([]byte(raw), &moduleStats); err == nil {
 					stats["systemProbeStats"] = moduleStats
 					return
 				}
+			}
+			stats["systemProbeStats"] = map[string]interface{}{
+				"Errors": "no status data available from system-probe",
 			}
 			return
 		}
