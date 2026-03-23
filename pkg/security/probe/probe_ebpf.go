@@ -119,14 +119,15 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event          *model.Event
-	dnsLayer       *layers.DNS
-	monitors       *EBPFMonitors
-	profileManager securityprofile.ProfileManager
-	fieldHandlers  *EBPFFieldHandlers
-	eventPool      *ddsync.TypedPool[model.Event]
-	variableStore  *eval.VariableStore
-	numCPU         int
+	event           *model.Event
+	dnsLayer        *layers.DNS
+	monitors        *EBPFMonitors
+	profileManager  securityprofile.ProfileManager
+	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	variableStore   *eval.VariableStore
+	variableStoreMu sync.RWMutex
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -993,6 +994,8 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 
 // evalOpts returns the eval options containing the current variable store
 func (p *EBPFProbe) evalOpts() *eval.Opts {
+	p.variableStoreMu.RLock()
+	defer p.variableStoreMu.RUnlock()
 	return &eval.Opts{VariableStore: p.variableStore}
 }
 
@@ -1083,9 +1086,23 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
 			event.Error = model.ErrNoProcessContext
-		} else if _, err := entry.HasValidLineage(); err != nil {
-			event.Error = &model.ErrProcessBrokenLineage{Err: err}
-			p.Resolvers.ProcessResolver.CountBrokenLineage()
+		} else {
+			// If the kernel reports a different ppid than the one in our
+			// cache, the process was reparented (e.g. subreaper). Update
+			// the cache tree immediately using the authoritative kernel value.
+			if event.PIDContext.PPid != 0 {
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
+			}
+
+			// Attempt to repair the lineage of processes that were orphaned
+			// during subreaper reparenting (the exit tracepoint may fire
+			// before the kernel has completed forget_original_parent).
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, newEntryCb)
+
+			if _, err := entry.HasValidLineage(); err != nil {
+				event.Error = &model.ErrProcessBrokenLineage{Err: err}
+				p.Resolvers.ProcessResolver.CountBrokenLineage()
+			}
 		}
 	}
 
@@ -1162,6 +1179,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 					return
 				}
 			}
+
+			p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(entry, metrics.ReparentCallpathRelatedEvent, nil)
 
 			relatedEvents = append(relatedEvents, relatedEvent)
 		}
@@ -2503,7 +2522,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
+	p.variableStoreMu.Unlock()
 
 	p.HandleRemediationStatus(rs)
 }
@@ -3274,6 +3295,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
