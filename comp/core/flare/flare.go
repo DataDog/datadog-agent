@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -263,15 +264,14 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 }
 
 func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duration) {
-	timer := time.NewTimer(providerTimeout)
-	defer timer.Stop()
-
 	for _, p := range f.providers {
 		timeout := max(providerTimeout, p.Timeout(fb))
-		timer.Reset(timeout)
 		providerName := runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name()
 		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
 		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		fb.SetProviderContext(ctx)
 
 		// Buffered so the goroutine can send even if we already left via timeout.
 		done := make(chan struct{}, 1)
@@ -292,13 +292,14 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 
 		select {
 		case <-done:
-			if !timer.Stop() {
-				<-timer.C
-			}
-		case <-timer.C:
+			cancel()
+		case <-ctx.Done():
 			err := f.log.Warnf("flare provider '%s' timedout after %s", providerName, timeout)
 			_ = fb.Logf("%s", err.Error())
+			cancel()
 		}
+
+		fb.SetProviderContext(context.Background())
 	}
 
 	f.log.Info("All flare providers have been run, creating archive...")

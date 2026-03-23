@@ -141,6 +141,9 @@ type builder struct {
 
 	// nonScrubbedFiles tracks files that were added without scrubbing
 	nonScrubbedFiles map[string]bool
+
+	flareProviderMu  sync.Mutex
+	flareProviderCtx context.Context
 }
 
 func getArchiveName() string {
@@ -468,4 +471,21 @@ func (fb *builder) RegisterDirPerm(path string) {
 
 func (fb *builder) IsLocal() bool {
 	return fb.isLocal
+}
+
+// SetProviderContext implements flarebuilder.FlareBuilder.
+func (fb *builder) SetProviderContext(ctx context.Context) {
+	fb.flareProviderMu.Lock()
+	defer fb.flareProviderMu.Unlock()
+	fb.flareProviderCtx = ctx
+}
+
+// ProviderContext implements flarebuilder.FlareBuilder.
+func (fb *builder) ProviderContext() context.Context {
+	fb.flareProviderMu.Lock()
+	defer fb.flareProviderMu.Unlock()
+	if fb.flareProviderCtx == nil {
+		return context.Background()
+	}
+	return fb.flareProviderCtx
 }

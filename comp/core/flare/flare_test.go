@@ -148,9 +148,10 @@ func TestRunProviders(t *testing.T) {
 	var secondDone atomic.Bool
 
 	flare := getFlare(t, nil)
-	// We overrides the providers list as the default implemementation add ExtraFlareProviders and more. Those
-	// providers continue to run after the timeout and will access the config after the current test cleanup. This
-	// will cause those providers to use the non-mocked config.
+	// We override the providers list as the default implementation adds ExtraFlareProviders and more. Those
+	// extra providers would continue after the timeout and could access config after test cleanup.
+	// Note: the callback goroutine may still run past the timeout (e.g. time.Sleep); Windows subprocesses
+	// started with CommandContext(fb.ProviderContext(), ...) are cancelled when the provider context times out.
 	flare.providers = []*types.FlareFiller{
 		types.NewFiller(func(_ types.FlareBuilder) error {
 			firstStarted <- struct{}{}

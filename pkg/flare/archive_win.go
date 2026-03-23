@@ -37,6 +37,22 @@ var (
 	execTimeout = 30 * time.Second
 )
 
+// commandContextForFlare returns a context for subprocesses during flare collection. It respects the
+// per-provider deadline from the flare orchestrator when set on fb, so subprocesses are stopped when
+// the provider times out even if execTimeout is longer.
+func commandContextForFlare(fb flaretypes.FlareBuilder, perCommandTimeout time.Duration) (context.Context, context.CancelFunc) {
+	type withProviderContext interface {
+		ProviderContext() context.Context
+	}
+	base := context.Background()
+	if w, ok := fb.(withProviderContext); ok {
+		if c := w.ProviderContext(); c != nil {
+			base = c
+		}
+	}
+	return context.WithTimeout(base, perCommandTimeout)
+}
+
 const (
 	evtExportLogChannelPath uint32 = 0x1
 )
@@ -81,7 +97,7 @@ func getCounterStrings(fb flaretypes.FlareBuilder) error {
 }
 
 func getTypeperfData(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	cancelctx, cancelfunc := commandContextForFlare(fb, execTimeout)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "typeperf", "-qx")
@@ -97,7 +113,7 @@ func getTypeperfData(fb flaretypes.FlareBuilder) error {
 }
 
 func getLodctrOutput(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	cancelctx, cancelfunc := commandContextForFlare(fb, execTimeout)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "lodctr.exe", "/q")
@@ -219,7 +235,9 @@ func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 
 	// reg.exe is built in Windows utility which will be always present
 	// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg
-	cmd := exec.Command("reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
+	regCtx, regCancel := commandContextForFlare(fb, execTimeout)
+	defer regCancel()
+	cmd := exec.CommandContext(regCtx, "reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -241,7 +259,7 @@ func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 }
 
 func getEventLogConfig(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	cancelctx, cancelfunc := commandContextForFlare(fb, execTimeout)
 	defer cancelfunc()
 
 	var out bytes.Buffer
@@ -281,7 +299,7 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 // This helps diagnose IIS-related issues by showing the distribution of web applications
 // across application pools.
 func getIISData(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	cancelctx, cancelfunc := commandContextForFlare(fb, execTimeout)
 	defer cancelfunc()
 
 	// PowerShell command to get web applications grouped by application pool
