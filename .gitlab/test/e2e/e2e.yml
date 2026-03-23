@@ -1073,6 +1073,14 @@ new-e2e-ssi-openshift:
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
 
+new-e2e-ssi-aks:
+  extends: .new-e2e_ssi
+  variables:
+    E2E_PROVISIONER: aks
+    E2E_STACK_NAME_SUFFIX: aks
+    # Image volume is not supported on AKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/tests
