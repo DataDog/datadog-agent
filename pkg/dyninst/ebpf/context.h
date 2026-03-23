@@ -75,6 +75,13 @@ typedef struct stack_machine {
   // Address of the root structure, for evaluating type expressions.
   uint64_t root_addr;
 
+  // Set to true by ConditionCheck when the condition is false.
+  bool condition_failed;
+  // Set to true by ConditionBegin, cleared by ConditionCheck. If a condition
+  // exits early (e.g. nil pointer dereference), this flag remains set to
+  // signal that the condition could not be fully evaluated.
+  bool condition_eval_error;
+
   // Temporary data, stored here to save on stack space.
   uint64_t value_0;
   resolved_go_any_type_t resolved_0, resolved_1;
@@ -98,6 +105,8 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   }
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
+  stack_machine->condition_failed = false;
+  stack_machine->condition_eval_error = false;
   chased_pointers_trie_init(&stack_machine->chased);
   chased_slices_init(&stack_machine->chased_slices);
   stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
