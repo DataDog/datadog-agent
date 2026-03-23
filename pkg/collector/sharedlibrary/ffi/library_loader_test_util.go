@@ -3,15 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build sharedlibrarycheck && test
+//go:build sharedlibrarycheck
 
 package ffi
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+)
 
 /*
 #cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
-void noop_run(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {
+void noop_check_run(const char *init_config, const char *instance_config, const char *enrichment, const callback_t *callback, void *ctx, const char **error) {
 	// do nothing
 }
 
@@ -20,7 +24,7 @@ const char *noop_version(const char **error) {
 	return NULL;
 }
 
-const library_t noop_library = { NULL, noop_run, noop_version };
+const library_t noop_library = { NULL, noop_check_run, noop_version };
 
 const library_t *get_noop_library(void) {
 	return &noop_library;
@@ -42,7 +46,7 @@ func (*NoopSharedLibraryLoader) Close(_ *Library) error {
 }
 
 // Run does nothing
-func (*NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string) error {
+func (*NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string, _ string, _ sender.SenderManager) error {
 	return nil
 }
 
@@ -59,7 +63,11 @@ func (l *NoopSharedLibraryLoader) ComputeLibraryPath(_ string) string {
 // GetNoopLibrary returns a library with pointers to noop functions
 func GetNoopLibrary() *Library {
 	cLib := C.get_noop_library()
-	return (*Library)(cLib)
+	return &Library{
+		handle:   cLib.handle,
+		checkRun: cLib.check_run,
+		version:  cLib.version,
+	}
 }
 
 func NewLibraryWithNullSymbols() *Library {

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 func TestOpen_NonExistentFile(t *testing.T) {
@@ -22,8 +24,9 @@ func TestOpen_NonExistentFile(t *testing.T) {
 
 func TestRun_NullLibraryPointer(t *testing.T) {
 	loader := NewSharedLibraryLoader(t.TempDir())
+	senderManager := aggregator.NewNoOpSenderManager()
 
-	err := loader.Run(nil, "", "", "")
+	err := loader.Run(nil, "", "", "", "{}", senderManager)
 	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
 
 	_, err = loader.Version(nil)
@@ -35,11 +38,12 @@ func TestRun_NullLibraryPointer(t *testing.T) {
 
 func TestRun_LibraryWithNullSymbols(t *testing.T) {
 	loader := NewSharedLibraryLoader(t.TempDir())
+	senderManager := aggregator.NewNoOpSenderManager()
 
 	lib := NewLibraryWithNullSymbols()
 
-	err := loader.Run(lib, "", "", "")
-	assert.EqualError(t, err, "Failed to run check: pointer to 'Run' symbol of the shared library is NULL")
+	err := loader.Run(lib, "", "", "", "{}", senderManager)
+	assert.EqualError(t, err, "Failed to run check: pointer to 'check_run' symbol of the shared library is NULL")
 
 	_, err = loader.Version(lib)
 	assert.EqualError(t, err, "Failed to get version: pointer to 'Version' symbol of the shared library is NULL")

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 )
 
@@ -52,7 +53,15 @@ func TestCancelCheck(t *testing.T) {
 func newFakeCheck(senderManager sender.SenderManager) (*Check, error) {
 	sharedLibraryLoader := ffi.NewSharedLibraryLoader("fake/library/folder/path")
 
-	c, err := newCheck(senderManager, "fake_check", sharedLibraryLoader, ffi.GetNoopLibrary())
+	provider, err := enrichment.NewStaticProvider(enrichment.EnrichmentData{
+		Hostname:     "test-host",
+		AgentVersion: "7.50.0",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := newCheck(senderManager, "fake_check", sharedLibraryLoader, ffi.GetNoopLibrary(), provider)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

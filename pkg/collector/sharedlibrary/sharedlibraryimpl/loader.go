@@ -16,6 +16,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -25,12 +26,14 @@ const CheckLoaderName string = "sharedlibrary"
 
 // CheckLoader is a specific loader for checks living in this package
 type CheckLoader struct {
-	loader ffi.LibraryLoader
+	loader             ffi.LibraryLoader
+	enrichmentProvider enrichment.Provider
 }
 
-func newCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader) (*CheckLoader, error) {
+func newCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader, enrichmentProvider enrichment.Provider) (*CheckLoader, error) {
 	return &CheckLoader{
-		loader: loader,
+		loader:             loader,
+		enrichmentProvider: enrichmentProvider,
 	}, nil
 }
 
@@ -56,7 +59,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	}
 
 	// Create the check
-	c, err := newCheck(senderManager, config.Name, sl.loader, lib)
+	c, err := newCheck(senderManager, config.Name, sl.loader, lib, sl.enrichmentProvider)
 	if err != nil {
 		return c, err
 	}

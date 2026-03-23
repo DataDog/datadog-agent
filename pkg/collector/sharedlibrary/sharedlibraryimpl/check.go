@@ -19,32 +19,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Check is the definition of shared library checks
 type Check struct {
-	senderManager  sender.SenderManager
-	id             checkid.ID
-	version        string
-	interval       time.Duration
-	name           string
-	libraryLoader  ffi.LibraryLoader // FFI handler
-	lib            *ffi.Library      // handle of the associated shared library and pointers to its symbols
-	source         string
-	initConfig     string // json string of check init config
-	instanceConfig string // json string of specific instance config
-	cancelled      bool
+	senderManager      sender.SenderManager
+	id                 checkid.ID
+	version            string
+	interval           time.Duration
+	name               string
+	libraryLoader      ffi.LibraryLoader // FFI handler
+	lib                *ffi.Library      // handle of the associated shared library and pointers to its symbols
+	enrichmentProvider enrichment.Provider
+	source             string
+	initConfig         string // json string of check init config
+	instanceConfig     string // json string of specific instance config
+	cancelled          bool
 }
 
-func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib *ffi.Library) (*Check, error) {
+func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib *ffi.Library, enrichmentProvider enrichment.Provider) (*Check, error) {
 	check := &Check{
-		senderManager: senderManager,
-		interval:      defaults.DefaultCheckInterval,
-		name:          name,
-		libraryLoader: libraryLoader,
-		lib:           lib,
+		senderManager:      senderManager,
+		interval:           defaults.DefaultCheckInterval,
+		name:               name,
+		libraryLoader:      libraryLoader,
+		lib:                lib,
+		enrichmentProvider: enrichmentProvider,
 	}
 
 	return check, nil
@@ -63,7 +66,8 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// run the check through the library loader
-	err := c.libraryLoader.Run(c.lib, string(c.id), c.initConfig, c.instanceConfig)
+	enrichmentYAML := c.enrichmentProvider.GetEnrichmentYAML()
+	err := c.libraryLoader.Run(c.lib, string(c.id), c.initConfig, c.instanceConfig, enrichmentYAML, c.senderManager)
 	if err != nil {
 		return fmt.Errorf("Run failed: %w", err)
 	}

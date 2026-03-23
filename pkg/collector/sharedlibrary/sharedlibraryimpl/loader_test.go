@@ -20,9 +20,20 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+func newTestEnrichmentProvider(t *testing.T) enrichment.Provider {
+	t.Helper()
+	provider, err := enrichment.NewStaticProvider(enrichment.EnrichmentData{
+		Hostname:     "test-host",
+		AgentVersion: "7.50.0",
+	})
+	require.NoError(t, err)
+	return provider
+}
 
 func TestLoad_FakeCheck(t *testing.T) {
 	conf := integration.Config{
@@ -37,7 +48,7 @@ func TestLoad_FakeCheck(t *testing.T) {
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	sharedLibraryLoader := &ffi.NoopSharedLibraryLoader{}
 
-	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader, newTestEnrichmentProvider(t))
 	require.NoError(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -63,7 +74,7 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	sharedLibraryLoader := ffi.NewSharedLibraryLoader("/library/folder/path/")
 
-	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader, newTestEnrichmentProvider(t))
 	require.NoError(t, err)
 
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)
