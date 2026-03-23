@@ -35,23 +35,23 @@ type packageTestsWithSkippedFlavors struct {
 
 var (
 	amd64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2404,
+		e2eos.Ubuntu2404Docker,
 		e2eos.AmazonLinux2,
-		e2eos.Debian12,
-		e2eos.RedHat9,
+		e2eos.Debian12Docker,
+		e2eos.RedHat9Docker,
 		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
-		e2eos.Suse15,
+		e2eos.Suse154Docker,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2404,
+		e2eos.Ubuntu2404Docker,
 		e2eos.AmazonLinux2,
-		e2eos.Suse15,
+		e2eos.Suse154Docker,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9Docker, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
 		{t: testUpgradeScenario},
 	}
 )
@@ -170,17 +170,6 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
-	s.updatePythonOnSuse()
-}
-
-func (s *packageBaseSuite) updatePythonOnSuse() {
-	// Suse15 comes with Python3.6 by default which is too old for injection
-	if s.os.Flavor != e2eos.Suse {
-		return
-	}
-	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
-	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
-	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
@@ -310,7 +299,7 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	pathPrefix := ""
 	switch flavor.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
+		// ansible is pre-baked in Docker AMIs (Ubuntu2404Docker, Debian12Docker)
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 	case e2eos.CentOS:
@@ -319,11 +308,13 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
 		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
 		pathPrefix = "/home/centos/.local/bin/"
-	case e2eos.AmazonLinux, e2eos.RedHat:
+	case e2eos.AmazonLinux:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip && yes | pip3 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
+	case e2eos.RedHat:
+		// ansible is pre-baked globally (via sudo pip3) in RedHat9Docker
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
+		// ansible is pre-baked globally (via sudo pip3) in Suse154Docker
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx && python3 -m pipx ensurepath")
 		pathPrefix = "/usr/bin/"
