@@ -1800,7 +1800,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
-                                                    onJumpToSeries(`parquet/_virtual.log.log_pattern_extractor.${p.hash}.count`);
+                                                    onJumpToSeries(`log_pattern_extractor/log.log_pattern_extractor.${p.hash}.count`);
                                                   }}
                                                   className="text-xs px-2.5 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                                                   title="Open this series in the Time Series tab"
