@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [features]
 default = []
-spring = ["dep:zip", "dep:walkdir"]
+spring = ["dep:zip", "dep:walkdir", "dep:yaml-rust2"]
 jee = ["dep:zip", "dep:quick-xml", "dep:walkdir"]
 
 [lib]
@@ -46,7 +46,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
 uzers.workspace = true
 walkdir = { workspace = true, optional = true }
-yaml-rust2.workspace = true
+yaml-rust2 = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 
 [dev-dependencies]
