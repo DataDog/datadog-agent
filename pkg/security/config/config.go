@@ -283,10 +283,15 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
 
-	// OpenSamplingEnabled defines if the kernel-side open event sampling logic should be enabled
-	OpenSamplingEnabled bool
-	// OpenSamplingRate defines the max number of sampled open events per second (0 = unlimited)
-	OpenSamplingRate int
+	// Per-type event sampling config
+	EventSamplingOpenEnabled    bool
+	EventSamplingOpenRate       int
+	EventSamplingConnectEnabled bool
+	EventSamplingConnectRate    int
+	EventSamplingBindEnabled    bool
+	EventSamplingBindRate       int
+	EventSamplingDNSEnabled     bool
+	EventSamplingDNSRate        int
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -351,6 +356,10 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
+	// SBOMResolverEnrichmentTicker defines the ticker for enriching SBOMs with runtime usage information
+	SBOMResolverEnrichmentTicker time.Duration
+	// SBOMResolverGeneratePolicies defines if the SBOM resolver should generate runtime security policies based on the computed SBOMs
+	SBOMResolverGeneratePolicies bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -579,7 +588,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverEnrichmentTicker:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_ticker"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
+		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -598,9 +609,15 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
-		// open sampling
-		OpenSamplingEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.open_sampling.enabled"),
-		OpenSamplingRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.open_sampling.rate"),
+		// event sampling (per-type)
+		EventSamplingOpenEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingConnectEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingBindEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingDNSEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
+		EventSamplingDNSRate:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -677,7 +694,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
 	if rsConfig.SecurityProfileV2Enabled {
-		rsConfig.OpenSamplingEnabled = true
+		rsConfig.EventSamplingOpenEnabled = true
+		rsConfig.EventSamplingConnectEnabled = true
+		rsConfig.EventSamplingBindEnabled = true
+		rsConfig.EventSamplingDNSEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

@@ -2434,3 +2434,38 @@ probes:
             ref: "x"
     sampling:
       snapshotsPerSecond: 100
+  - id: testCaptureExprLineCond
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    when:
+      dsl: "x == 3"
+      json: {eq: [{"ref": "x"}, 3]}
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureTenStringsMethodEntryCond
+    type: LOG_PROBE
+    where:
+      methodName: main.testTenStrings
+    captureSnapshot: false
+    when:
+      dsl: "x.tenth == \"ten\""
+      json: {eq: [{"getmember": [{"ref": "x"}, "tenth"]}, "ten"]}
+    sampling:
+      snapshotsPerSecond: 100
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"

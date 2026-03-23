@@ -39,7 +39,7 @@
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
-/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/agent-onboarding
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
 
 /*.md                                   @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery
@@ -96,7 +96,6 @@
 /.gitlab/.pre/deps_fetch/*                                @DataDog/agent-devx
 /.gitlab/test/e2e/*                                       @DataDog/agent-devx
 /.gitlab/deploy/e2e_testing_deploy/*                        @DataDog/agent-devx
-/.gitlab/test/e2e_install_packages/*                      @DataDog/agent-onboarding
 /.gitlab/test/e2e_pre_test/*                              @DataDog/agent-devx
 /.gitlab/test/kernel_matrix_testing/*                     @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/build/lint/*                                      @DataDog/agent-devx
@@ -110,7 +109,8 @@
 /.gitlab/build/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml     @DataDog/agent-build
-/.gitlab/test/install_script_testing/install_script_testing.yml          @DataDog/agent-build @DataDog/agent-onboarding
+/.gitlab/test/functional_test/files_inventory_check.yml   @DataDog/agent-build
+/.gitlab/test/install_script_testing/install_script_testing.yml          @DataDog/agent-build
 /.gitlab/test/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/test/integration_test/linux.yml                  @DataDog/agent-devx
 /.gitlab/test/integration_test/otel.yml                   @DataDog/agent-devx @DataDog/opentelemetry-agent
@@ -148,7 +148,7 @@
 
 /.gitlab/.pre/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 
-/.gitlab/windows/test/e2e_install_packages/windows.yml   @DataDog/agent-onboarding @DataDog/windows-products
+/.gitlab/windows/test/e2e_install_packages/windows.yml   @DataDog/windows-products
 
 /.gitlab/.pre/common/                                     @DataDog/agent-devx
 
@@ -232,7 +232,7 @@
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
-/cmd/agent/install*.sh                  @DataDog/agent-onboarding @DataDog/agent-build
+/cmd/agent/install*.sh                  @DataDog/agent-build
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
@@ -531,7 +531,7 @@
 /pkg/config/setup/system_probe_usm*.go          @DataDog/universal-service-monitoring @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/sdlc-security
+/pkg/config/remote/meta/                @DataDog/remote-config
 /pkg/containerlifecycle/                @DataDog/container-integrations
 /pkg/diagnose/                          @DataDog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
@@ -541,7 +541,6 @@
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dyninst/                           @DataDog/debugger-go
 /pkg/flare/                             @DataDog/agent-configuration
-/pkg/flare/clusteragent/manifests.go    @DataDog/agent-onboarding @DataDog/agent-configuration
 /pkg/flare/*_win.go                     @DataDog/windows-products @DataDog/agent-configuration
 /pkg/flare/*_windows.go                 @DataDog/windows-products @DataDog/agent-configuration
 /pkg/flare/*_windows_test.go            @DataDog/windows-products @DataDog/agent-configuration
@@ -557,6 +556,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/ddagent/networkpath  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
+/pkg/proto/datadog/dogstatsdhttp        @DataDog/agent-metric-pipelines
 /pkg/proto/datadog/kubemetadata         @DataDog/container-platform
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
@@ -615,6 +615,7 @@
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
+/pkg/logonduration                      @DataDog/windows-products
 /pkg/logs/                              @DataDog/agent-log-pipelines
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
@@ -738,6 +739,7 @@
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/quality_gates.py                 @DataDog/agent-build
 /tasks/static_quality_gates/            @DataDog/agent-build
+/tasks/files_inventory.py               @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
@@ -795,7 +797,7 @@
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/system-probe/config/vmconfig-security-agent.json @DataDog/ebpf-platform @DataDog/agent-security
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
-/test/new-e2e/tests/agent-platform            @DataDog/agent-onboarding @DataDog/agent-devx
+/test/new-e2e/tests/agent-platform            @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
@@ -813,7 +815,7 @@
 /test/new-e2e/tests/agent-subcommands/secret      @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/status      @DataDog/agent-configuration
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
-/test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration 
+/test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
@@ -848,6 +850,7 @@
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows         @DataDog/windows-products @DataDog/fleet
 /test/new-e2e/tests/gpu                       @DataDog/ebpf-platform
+/test/new-e2e/tests/usm                       @DataDog/universal-service-monitoring
 /test/new-e2e/examples/ecs_test.go           @DataDog/ecs-experiences
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
@@ -892,4 +895,4 @@
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
-/q_branch/                               @scottopell @val06
+/q_branch/                               @DataDog/q-branch

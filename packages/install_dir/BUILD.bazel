@@ -7,11 +7,11 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "embedded",
     srcs = [
-        "//deps/gstatus:bin_files",
-        # have to include this explicitly because it is not hooked up with package_metadata
-        "//deps/gstatus:license_file",
         "//packages/install_dir/embedded:all_files",
-    ],
+    ] + select({
+        "@platforms//os:linux": ["//deps/gstatus:all_files"],
+        "//conditions:default": [],
+    }),
 )
 
 # This is a placeholder for an eventual group containg (the future) top level binaries
@@ -37,10 +37,7 @@ filegroup(
         "//packages/agent:linux_heroku": [
             "@curl//:all_files",
         ],
-        "//conditions:default": [
-            # This will become "//deps/openscap:all_deps" in the future
-            "@popt",
-        ],
+        "//conditions:default": [],
     }),
 )
 

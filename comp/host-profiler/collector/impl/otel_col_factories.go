@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
@@ -49,6 +50,7 @@ type ExtraFactories interface {
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
 	GetLoggingOptions() []zap.Option
+	GetAgentConfig() config.Component
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -102,6 +104,11 @@ func (e extraFactoriesWithAgentCore) GetReceivers() []receiver.Factory {
 	return nil
 }
 
+// GetAgentConfig returns the Agent Core configuration when the Agent Core is available
+func (e extraFactoriesWithAgentCore) GetAgentConfig() config.Component {
+	return e.config
+}
+
 // GetExtensions returns the extensions for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
@@ -120,9 +127,7 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 
 // GetConverters returns the converters for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
-	return []confmap.ConverterFactory{
-		converters.NewFactoryWithAgent(e.config),
-	}
+	return []confmap.ConverterFactory{}
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is not available.
@@ -147,9 +152,16 @@ func (e extraFactoriesWithoutAgentCore) GetReceivers() []receiver.Factory {
 	}
 }
 
-// GetExtensions returns the extensions for the collector when the Agent Core is not available.
+// GetAgentConfig always returns nil in Standalone mode as the Core Agent is not available
+func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
+	return nil
+}
+
+// GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
-	return []extension.Factory{}
+	return []extension.Factory{
+		healthcheckextension.NewFactory(),
+	}
 }
 
 // GetProcessors returns the processors for the collector when the Agent Core is not available.
