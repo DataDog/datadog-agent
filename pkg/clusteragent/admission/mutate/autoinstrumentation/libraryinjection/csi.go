@@ -8,12 +8,8 @@
 package libraryinjection
 
 import (
-	"slices"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CSI driver constants.
@@ -54,22 +50,8 @@ func NewCSIProvider(cfg LibraryInjectionConfig) *CSIProvider {
 	}
 }
 
-// registryAllowed checks if a registry is permitted by the allow list.
-// An empty allow list permits all registries.
-func (p *CSIProvider) registryAllowed(registry string) bool {
-	if len(p.cfg.RegistryAllowList) == 0 {
-		return true
-	}
-	return slices.Contains(p.cfg.RegistryAllowList, registry)
-}
-
 // InjectInjector mutates the pod to add the APM injector using CSI volumes.
 func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
-	if !p.registryAllowed(cfg.Package.Registry) {
-		log.Warnf("Skipping CSI injector injection: registry %q is not in the allow list", cfg.Package.Registry)
-		return MutationResult{Status: MutationStatusSkipped}
-	}
-
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// CSI volume for the injector image contents
@@ -120,11 +102,6 @@ func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) Mutati
 
 // InjectLibrary mutates the pod to add a language-specific tracing library using CSI volumes.
 func (p *CSIProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
-	if !p.registryAllowed(cfg.Package.Registry) {
-		log.Warnf("Skipping CSI library injection for %s: registry %q is not in the allow list", cfg.Language, cfg.Package.Registry)
-		return MutationResult{Status: MutationStatusSkipped}
-	}
-
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// CSI volume for the library (uses DatadogLibrary type to mount OCI image contents)

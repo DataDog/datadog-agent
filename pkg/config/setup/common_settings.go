@@ -664,8 +664,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.csi_registry_allow_list", []string{})                                     // restricts which registries can be used for CSI-based library injection
-	config.ParseEnvAsStringSlice("admission_controller.auto_instrumentation.csi_registry_allow_list", func(s string) []string {
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry_allow_list", []string{})                                // restricts which registries can be used for library injection
+	config.ParseEnvAsStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list", func(s string) []string {
 		var result []string
 		for _, r := range strings.Split(s, ",") {
 			r = strings.TrimSpace(r)

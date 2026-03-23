@@ -46,8 +46,8 @@ type staticConfig struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
-	// registryAllowList restricts which registries can be used for CSI-based library injection.
-	// When non-empty, CSI volumes will only be added for libraries from these registries.
+	// registryAllowList restricts which registries can be used for library injection.
+	// When non-empty, libraries from registries not in this list will not be injected.
 	// An empty list allows all registries (default).
 	registryAllowList []string
 
@@ -131,7 +131,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
-	registryAllowList := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.csi_registry_allow_list")
+	registryAllowList := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
