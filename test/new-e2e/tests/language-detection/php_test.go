@@ -6,19 +6,10 @@
 package languagedetection
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/stretchr/testify/require"
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
-
-func (s *languageDetectionSuite) installPHP() {
-	s.Env().RemoteHost.MustExecute("sudo apt-get -y install php")
-	phpVersion := s.Env().RemoteHost.MustExecute("php -v")
-	require.True(s.T(), strings.HasPrefix(phpVersion, "PHP"))
-}
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
