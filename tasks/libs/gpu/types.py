@@ -12,7 +12,6 @@ class Support(BaseModel):
     model_config = ConfigDict(extra="forbid")
     unsupported_architectures: list[str] = Field(default_factory=list)
     device_modes: dict[str, bool] = Field(default_factory=dict)
-    process_data: bool = False
 
     @field_validator("device_modes")
     @classmethod
@@ -33,7 +32,6 @@ class Metric(BaseModel):
     custom_tags: list[str] = Field(default_factory=list)
     support: Support = Field(default_factory=Support)
     deprecated: bool = False
-    replaced_by: str = ""
 
 
 class Tagset(BaseModel):
