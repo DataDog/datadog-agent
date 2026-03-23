@@ -303,6 +303,28 @@ func TestResolvePartialFailure(t *testing.T) {
 	assert.NotEmpty(t, resolver.unresolvedSecrets)
 }
 
+func TestResolveExtraSecretBackendsDefault(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	// No secret_backend_type set; use extra_secret_backends["default"] instead.
+	resolver.backendConfigs = map[string]interface{}{
+		"default": map[string]interface{}{
+			"type":   "file.yaml",
+			"config": map[string]interface{}{"file_path": "/tmp/secrets.yaml"},
+		},
+	}
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		return []byte(`{"pass1":{"value":"resolved_value"}}`), nil
+	}
+
+	conf := []byte("password: ENC[pass1]\n")
+	resolvedConf, err := resolver.Resolve(conf, "test", "", "", false)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(resolvedConf), "resolved_value")
+}
+
 func TestResolveDoestSendDuplicates(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)

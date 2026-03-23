@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package sgcbackend contains e2e tests for secret management
+// Package sgcbackend contains e2e tests for secret-generic-connector multi-backend scenarios.
 package sgcbackend
 
 import (
 	_ "embed"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -17,11 +18,25 @@ import (
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
+//go:embed fixtures/secrets.yaml
+var embeddedSecretFileYAML string
+
 //go:embed fixtures/secrets.json
 var embeddedSecretFileJSON string
+
+type linuxRuntimeSecretSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+func TestSGCMultiBackendLinuxSuite(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+}
 
 // TestMultiBackend verifies that extra_secret_backends routes handles to the correct
 // backend when multiple backends are configured simultaneously.

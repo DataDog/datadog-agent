@@ -190,12 +190,28 @@ func splitSecretHandle(handle string) (backendID, secretKey string) {
 }
 
 // resolveBackendConfig returns the type, config, and timeout for a named backend.
-// An empty backendID or the literal "default" refers to the default backend
-// (secret_backend_type / secret_backend_config), so ENC[default::key] and ENC[key]
-// are equivalent. The timeout falls back to the global r.backendTimeout if not set.
+// An empty backendID or the literal "default" refers to the default backend.
+// The default backend is resolved in order:
+//  1. secret_backend_type / secret_backend_config
+//  2. extra_secret_backends["default"] (alternative declaration of the default backend)
+//
+// This means ENC[secret], ENC[default::secret] all route to the same backend.
+// The timeout falls back to the global r.backendTimeout if not set.
 func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[string]interface{}, int, error) {
 	if backendID == "" || backendID == "default" {
-		return r.backendType, r.backendConfig, r.backendTimeout, nil
+		// Prefer the global secret_backend_type / secret_backend_config.
+		if r.backendType != "" {
+			return r.backendType, r.backendConfig, r.backendTimeout, nil
+		}
+		// Allow extra_secret_backends["default"] as an alternative way to declare
+		// the default backend, so users can consolidate all backend config in one place.
+		if _, ok := r.backendConfigs["default"]; ok {
+			backendID = "default"
+			// fall through to the named-backend lookup below
+		} else {
+			// No named default configured; use global (e.g. secret_backend_command only).
+			return r.backendType, r.backendConfig, r.backendTimeout, nil
+		}
 	}
 	raw, ok := r.backendConfigs[backendID]
 	if !ok {

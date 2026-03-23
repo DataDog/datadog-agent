@@ -289,6 +289,11 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.backendCommand != "" && r.backendType != "" {
 		log.Warnf("Both secret_backend_command and secret_backend_type are set. secret_backend_command takes precedence; secret_backend_type is ignored. To use native backend (aws.secrets, hashicorp.vault, etc.), remove secret_backend_command from datadog.yaml. Docs: %s", secretsManagementDocsURL)
 	}
+	if r.backendType != "" {
+		if _, hasDefault := r.backendConfigs["default"]; hasDefault {
+			log.Warnf("Both 'secret_backend_type' and 'extra_secret_backends.default' are set; 'secret_backend_type' takes precedence and 'extra_secret_backends.default' will be ignored")
+		}
+	}
 	// use the embedded connector if a backend type or named backends are configured and no explicit command is set
 	if (r.backendType != "" || len(r.backendConfigs) > 0) && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
