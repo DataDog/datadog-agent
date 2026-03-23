@@ -43,7 +43,7 @@ func (p *fakeProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilter
 	return policies, errs
 }
 
-func (p *fakeProvider) SetOnNewPoliciesReadyCb(_ func()) {}
+func (p *fakeProvider) SetOnNewPoliciesReadyCb(_ func(silent bool)) {}
 
 func (p *fakeProvider) Start() {}
 

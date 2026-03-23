@@ -229,3 +229,14 @@ func TestFromDDConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
+}

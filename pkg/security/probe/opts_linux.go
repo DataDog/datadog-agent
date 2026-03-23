@@ -9,6 +9,7 @@
 package probe
 
 import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -33,6 +34,8 @@ type Opts struct {
 	EBPFLessEnabled bool
 	// DNSPort allows to change the DNS port where the events are captured from
 	DNSPort uint16
+	// WorkloadMeta is the workload meta client
+	WorkloadMeta workloadmeta.Component
 }
 
 func (o *Opts) normalize() {
