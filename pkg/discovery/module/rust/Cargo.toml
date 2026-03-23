@@ -52,6 +52,7 @@ zip = { workspace = true, optional = true }
 [dev-dependencies]
 dircpy.workspace = true
 walkdir.workspace = true
+yaml-rust2.workspace = true
 memmap2.workspace = true
 nix.workspace = true
 scopeguard.workspace = true
