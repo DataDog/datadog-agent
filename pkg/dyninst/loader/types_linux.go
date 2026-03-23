@@ -27,7 +27,8 @@ type probeParams struct {
 	Kind                  int8
 	Top_pc_offset         int8
 	No_return_reason      int8
-	X__padding            [3]int8
+	Throttle_mode         int8
+	X__padding            [2]int8
 }
 type throttlerParams struct {
 	Ns     uint64
@@ -87,6 +88,20 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x15
 	case compiler.OpcodePrepareEventRoot:
 		return 0x16
+	case compiler.OpcodeExprPushOffset:
+		return 0x17
+	case compiler.OpcodeExprLoadLiteral:
+		return 0x18
+	case compiler.OpcodeExprReadString:
+		return 0x19
+	case compiler.OpcodeExprCmpEqBase:
+		return 0x1a
+	case compiler.OpcodeExprCmpEqString:
+		return 0x1b
+	case compiler.OpcodeConditionCheck:
+		return 0x1c
+	case compiler.OpcodeConditionBegin:
+		return 0x1d
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
