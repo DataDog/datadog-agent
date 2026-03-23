@@ -71,14 +71,14 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 # (switch from deprecated rules_proto to protobuf module)
 git_override(
     module_name = "gazelle",
-    commit = "a3e63b06e1e5c4c7a7849874fadf7ccda8868870",  # master as of Feb 26, 2026
+    commit = "4a7caee10fbd2da9bb059f3ce7c2cac8d0050e53",  # master as of Feb 26, 2026
     remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
 )
 
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "9ca4797bbca6f785febcff7bc1508c83110a5de8",  # main as of Feb 11, 2026
+    commit = "e7fb6ab0b4380ba16607152b0bef3e09ff66d8ab",  # main as of Feb 11, 2026
     remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 

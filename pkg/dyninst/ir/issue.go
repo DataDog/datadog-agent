@@ -37,6 +37,13 @@ const (
 	// IssueKindDisassemblyFailed is an issue that was encountered while
 	// disassembling an instruction.
 	IssueKindDisassemblyFailed
+	// IssueKindConditionVariableUnavailable is an issue that was encountered
+	// when the variable referenced in a condition expression is not available.
+	IssueKindConditionVariableUnavailable
+	// IssueKindConditionExpressionUnresolvable is an issue that was
+	// encountered when the condition expression's type chain could not be
+	// fully resolved (e.g., unresolved pointee types, missing struct fields).
+	IssueKindConditionExpressionUnresolvable
 )
 
 // Issue is an issue that was encountered while processing a probe.

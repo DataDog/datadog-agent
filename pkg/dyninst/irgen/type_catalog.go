@@ -31,6 +31,7 @@ func (a *idAllocator[I]) next() I {
 
 type typeCatalog struct {
 	ptrSize              uint8
+	boolType             ir.TypeID
 	dwarf                *dwarf.Data
 	idAlloc              idAllocator[ir.TypeID]
 	typesByDwarfType     map[dwarf.Offset]ir.TypeID
@@ -229,6 +230,10 @@ func (c *typeCatalog) buildType(
 			int(size), encoding, goAttrs.GoKind,
 		); err != nil {
 			return nil, fmt.Errorf("invalid encoding: %w", err)
+		}
+		// Store the bool type ID if we find it. It's useful later.
+		if goAttrs.GoKind == reflect.Bool && common.Name == "bool" {
+			c.boolType = id
 		}
 		return &ir.BaseType{
 			TypeCommon:       common,

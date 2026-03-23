@@ -135,6 +135,9 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 		}
 		return gotIssues
 	}
+	for _, issue := range irWithDefaultLimits.Issues {
+		t.Logf("issue %s: %s: %s", issue.ProbeDefinition.GetID(), issue.Issue.Kind.String(), issue.Issue.Message)
+	}
 	require.Equal(t, expectedIssues, computeGotIssues(irWithDefaultLimits))
 
 	{

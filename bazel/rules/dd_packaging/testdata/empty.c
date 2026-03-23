@@ -1,0 +1,1 @@
+/* empty translation unit used by test targets that need a C source file */
