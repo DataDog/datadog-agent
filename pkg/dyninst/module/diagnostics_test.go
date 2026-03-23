@@ -8,6 +8,7 @@
 package module
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -285,6 +286,14 @@ func (p testProbeDefinition) GetTemplate() ir.TemplateDefinition {
 
 func (p testProbeDefinition) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
 	return nil
+}
+
+func (p testProbeDefinition) GetWhen() json.RawMessage {
+	return nil
+}
+
+func (p testProbeDefinition) GetWhenDSL() string {
+	return ""
 }
 
 var _ ir.ProbeDefinition = testProbeDefinition{}

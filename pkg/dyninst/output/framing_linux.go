@@ -11,7 +11,8 @@ type EventHeader struct {
 	Probe_id                  uint32
 	Stack_byte_len            uint16
 	Event_pairing_expectation uint8
-	X__padding                [5]int8
+	Condition_eval_error      uint8
+	X__padding                [4]int8
 	Stack_hash                uint64
 	Ktime_ns                  uint64
 }

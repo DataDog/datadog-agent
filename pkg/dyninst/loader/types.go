@@ -77,6 +77,20 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_CHASE_POINTERS
 	case compiler.OpcodePrepareEventRoot:
 		return C.SM_OP_PREPARE_EVENT_ROOT
+	case compiler.OpcodeExprPushOffset:
+		return C.SM_OP_EXPR_PUSH_OFFSET
+	case compiler.OpcodeExprLoadLiteral:
+		return C.SM_OP_EXPR_LOAD_LITERAL
+	case compiler.OpcodeExprReadString:
+		return C.SM_OP_EXPR_READ_STRING
+	case compiler.OpcodeExprCmpEqBase:
+		return C.SM_OP_EXPR_CMP_EQ_BASE
+	case compiler.OpcodeExprCmpEqString:
+		return C.SM_OP_EXPR_CMP_EQ_STRING
+	case compiler.OpcodeConditionCheck:
+		return C.SM_OP_CONDITION_CHECK
+	case compiler.OpcodeConditionBegin:
+		return C.SM_OP_CONDITION_BEGIN
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

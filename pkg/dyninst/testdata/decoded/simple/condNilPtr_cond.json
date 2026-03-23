@@ -1,0 +1,64 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condNilPtrStruct",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condNilPtr_cond",
+          "location": {
+            "method": "main.condNilPtrStruct"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "condNilPtr match"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condNilPtrStruct",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condNilPtr_cond",
+          "location": {
+            "method": "main.condNilPtrStruct"
+          }
+        }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "x.I32 == 300",
+          "message": "error evaluating condition"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "condNilPtr nilptr"
+  }
+]

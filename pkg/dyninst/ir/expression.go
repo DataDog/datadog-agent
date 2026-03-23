@@ -52,4 +52,49 @@ type DereferenceOp struct {
 
 func (*DereferenceOp) irOp() {}
 
-// TODO: Define expressions as needed for probe generation.
+// ExprPushOffsetOp pushes the current scratch offset onto the data stack
+// and advances the offset by ByteSize bytes.
+type ExprPushOffsetOp struct {
+	ByteSize uint32
+}
+
+func (*ExprPushOffsetOp) irOp() {}
+
+// ExprLoadLiteralOp writes literal bytes from the compiled bytecode into
+// scratch at the current offset.
+type ExprLoadLiteralOp struct {
+	Data []byte
+}
+
+func (*ExprLoadLiteralOp) irOp() {}
+
+// ExprReadStringOp materializes a Go string from its header (ptr+len) already
+// in scratch at the current offset. It pushes the offset onto the data stack,
+// overwrites the header with [u32 len][bytes...], and advances the offset.
+type ExprReadStringOp struct {
+	MaxLen uint16
+}
+
+func (*ExprReadStringOp) irOp() {}
+
+// ExprCmpEqBaseOp pops the LHS offset from the data stack, compares ByteSize
+// bytes at LHS vs RHS (current offset), and writes a bool result (0 or 1) at
+// the current offset.
+type ExprCmpEqBaseOp struct {
+	ByteSize uint8
+}
+
+func (*ExprCmpEqBaseOp) irOp() {}
+
+// ExprCmpEqStringOp pops the LHS offset from the data stack and compares two
+// length-prefixed strings ([u32 len][bytes...]). Writes a bool result at the
+// current offset.
+type ExprCmpEqStringOp struct{}
+
+func (*ExprCmpEqStringOp) irOp() {}
+
+// ConditionCheckOp reads a uint8 bool result at the current offset. If false
+// (0), it sets the condition_failed flag and aborts the stack machine.
+type ConditionCheckOp struct{}
+
+func (*ConditionCheckOp) irOp() {}

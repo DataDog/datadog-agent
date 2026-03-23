@@ -85,6 +85,7 @@ var noMatchingEventLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 var eventPairingBufferFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 var eventPairingCallMapFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 var eventPairingCallCountExceededLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingConditionFailedLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	defer func() {
@@ -187,6 +188,21 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			"maximum call count exceeded",
 		)
 		entryEvent = msgEvent
+	case output.EventPairingExpectationConditionFailed:
+		entryMsg, ok := s.tree.popMatchingEvent(eventKey{
+			goid:           evHeader.Goid,
+			stackByteDepth: evHeader.Stack_byte_depth,
+			probeID:        evHeader.Probe_id,
+		})
+		if ok {
+			entryMsg.Release()
+		}
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingConditionFailed,
+			eventPairingConditionFailedLogLimiter,
+			"return condition failed",
+		)
+		return nil
 	case output.EventPairingExpectationNone,
 		output.EventPairingExpectationNoneInlined,
 		output.EventPairingExpectationNoneNoBody:

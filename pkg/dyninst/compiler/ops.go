@@ -161,4 +161,38 @@ type PrepareEventRootOp struct {
 	EventRootType *ir.EventRootType
 }
 
+// Condition expression ops.
+
+type ExprPushOffsetOp struct {
+	baseOp
+	ByteSize uint32
+}
+
+type ExprLoadLiteralOp struct {
+	baseOp
+	Data []byte
+}
+
+type ExprReadStringOp struct {
+	baseOp
+	MaxLen uint16
+}
+
+type ExprCmpEqBaseOp struct {
+	baseOp
+	ByteSize uint8
+}
+
+type ExprCmpEqStringOp struct {
+	baseOp
+}
+
+type ConditionBeginOp struct {
+	baseOp
+}
+
+type ConditionCheckOp struct {
+	baseOp
+}
+
 //revive:enable:exported
