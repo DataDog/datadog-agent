@@ -58,7 +58,7 @@
     when: always
     paths:
       - $TEST_OUTPUT_FILE.json
-      - $TEST_OUTPUT_FILE_unified.json
+      - ${TEST_OUTPUT_FILE}_unified.json
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
