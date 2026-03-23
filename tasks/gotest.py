@@ -244,7 +244,7 @@ def process_test_result(
 
     if success:
         print(color_message("All tests passed", "green"))
-        _generate_unified_output(ctx, test_result, flavor, tw=None, test_system=test_system)
+        _generate_unified_output(ctx, test_result, flavor, test_system=test_system)
         return True
 
     if test_washer or running_in_ci():
