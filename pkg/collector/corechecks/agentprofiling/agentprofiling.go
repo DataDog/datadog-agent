@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -105,8 +105,8 @@ func (c *Config) Parse(data []byte) error {
 }
 
 // Configure configures the agentprofiling check
-func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	err := m.CommonConfigure(senderManager, initConfig, config, source)
+func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	err := m.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

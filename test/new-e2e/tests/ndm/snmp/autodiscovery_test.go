@@ -64,6 +64,7 @@ network_devices:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 2*time.Minute, 10*time.Second)
 }
@@ -98,6 +99,7 @@ network_devices:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 2*time.Minute, 10*time.Second)
 

@@ -12,6 +12,10 @@ func TestCgoAlignment_ConnTuple(t *testing.T) {
 	ebpftest.TestCgoAlignment[ConnTuple](t)
 }
 
+func TestCgoAlignment_TCPEventStats(t *testing.T) {
+	ebpftest.TestCgoAlignment[TCPEventStats](t)
+}
+
 func TestCgoAlignment_TCPStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[TCPStats](t)
 }

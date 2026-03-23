@@ -1,0 +1,14 @@
+# gazelle:ignore
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "c_types_linux.go",
+    "c_types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "c_types_godefs",
+    src = "c_types.go",
+    hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
+)

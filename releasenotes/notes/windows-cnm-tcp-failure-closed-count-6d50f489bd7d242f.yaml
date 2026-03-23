@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue on Windows where Cloud Network Monitoring reported TCP
+    failure rates greater than 100%. The Windows kernel driver can report a
+    TCP failure (reset, timeout, or refused connection) without also setting
+    the flow-closed flag. The agent now correctly marks any connection with a
+    TCP failure as closed.

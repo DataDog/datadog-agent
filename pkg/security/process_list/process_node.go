@@ -146,7 +146,7 @@ func (pn *ProcessNode) UnlinkChild(owner Owner, child *ProcessNode) bool {
 	return removed
 }
 
-// Walk walks the process node and childs recursively
+// Walk walks the process node and children recursively
 func (pn *ProcessNode) Walk(f func(node *ProcessNode) (stop bool)) (stop bool) {
 	pn.Lock()
 	defer pn.Unlock()

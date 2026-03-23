@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -28,6 +29,7 @@ import (
 	cmLock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) *coordinationv1.Lease {
@@ -299,169 +301,284 @@ func TestSubscribe(t *testing.T) {
 
 func TestGetLeaderIPFollower_ConfigMap(t *testing.T) {
 	const leaseName = "datadog-leader-election"
-	const endpointsName = "datadog-cluster-agent"
+	const serviceName = "datadog-cluster-agent"
 
-	client := fake.NewSimpleClientset()
-
-	le := &LeaderEngine{
-		ctx:             context.Background(),
-		HolderIdentity:  "foo",
-		LeaseName:       leaseName,
-		ServiceName:     endpointsName,
-		LeaderNamespace: "default",
-		LeaseDuration:   120 * time.Second,
-		coreClient:      client.CoreV1(),
-		coordClient:     client.CoordinationV1(),
-		leaderMetric:    &dummyGauge{},
-		lockType:        cmLock.ConfigMapsResourceLock,
-	}
-
-	// Create leader-election configmap with current node as follower
-	electionCM := makeLeaderCM(leaseName, "default", "bar", 120)
-	_, err := client.CoreV1().ConfigMaps("default").Create(context.TODO(), electionCM, metav1.CreateOptions{})
-	require.NoError(t, err)
-
-	// Create endpoints
-	endpoints := &v1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      endpointsName,
-			Namespace: "default",
+	testCases := []struct {
+		name              string
+		useEndpointSlices bool
+		setupEndpoints    func(*testing.T, *fake.Clientset, string)
+		removeLeader      func(*testing.T, *fake.Clientset, string)
+	}{
+		{
+			name:              "with Endpoints",
+			useEndpointSlices: false,
+			setupEndpoints: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				endpoints := &v1.Endpoints{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      serviceName,
+						Namespace: "default",
+					},
+					Subsets: []v1.EndpointSubset{
+						{
+							Addresses: []v1.EndpointAddress{
+								{
+									IP:        "1.1.1.1",
+									TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "foo"},
+								},
+								{
+									IP:        "1.1.1.2",
+									TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "bar"},
+								},
+							},
+						},
+					},
+				}
+				_, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
+				require.NoError(t, err)
+			},
+			removeLeader: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				storedEndpoints, err := client.CoreV1().Endpoints("default").Get(context.TODO(), serviceName, metav1.GetOptions{})
+				require.NoError(t, err)
+				storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
+				_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
+				require.NoError(t, err)
+			},
 		},
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: []v1.EndpointAddress{
-					{
-						IP: "1.1.1.1",
-						TargetRef: &v1.ObjectReference{
-							Kind:      "pod",
-							Namespace: "default",
-							Name:      "foo",
+		{
+			name:              "with EndpointSlices",
+			useEndpointSlices: true,
+			setupEndpoints: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				nodeName := "test-node"
+				endpointSlice := &discv1.EndpointSlice{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      serviceName + "-abc123",
+						Namespace: "default",
+						Labels:    map[string]string{apiserver.KubernetesServiceNameLabel: serviceName},
+					},
+					Endpoints: []discv1.Endpoint{
+						{
+							Addresses: []string{"1.1.1.1"},
+							TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "foo"},
+							NodeName:  &nodeName,
+						},
+						{
+							Addresses: []string{"1.1.1.2"},
+							TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "bar"},
+							NodeName:  &nodeName,
 						},
 					},
-					{
-						IP: "1.1.1.2",
-						TargetRef: &v1.ObjectReference{
-							Kind:      "pod",
-							Namespace: "default",
-							Name:      "bar",
-						},
-					},
-				},
+				}
+				_, err := client.DiscoveryV1().EndpointSlices("default").Create(context.TODO(), endpointSlice, metav1.CreateOptions{})
+				require.NoError(t, err)
+			},
+			removeLeader: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				storedSlice, err := client.DiscoveryV1().EndpointSlices("default").Get(context.TODO(), serviceName+"-abc123", metav1.GetOptions{})
+				require.NoError(t, err)
+				storedSlice.Endpoints = storedSlice.Endpoints[0:1]
+				_, err = client.DiscoveryV1().EndpointSlices("default").Update(context.TODO(), storedSlice, metav1.UpdateOptions{})
+				require.NoError(t, err)
 			},
 		},
 	}
-	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
-	require.NoError(t, err)
 
-	// Run leader election
-	le.leaderElector, err = le.newElection()
-	require.NoError(t, err)
-	err = le.EnsureLeaderElectionRuns()
-	require.NoError(t, err)
-	cm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Contains(t, cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewClientset()
 
-	// We should be follower, and GetLeaderIP should return bar's IP
-	require.False(t, le.IsLeader())
-	ip, err := le.GetLeaderIP()
-	assert.NoError(t, err)
-	assert.Equal(t, "1.1.1.2", ip)
+			if tc.useEndpointSlices {
+				cache.Cache.Set("useEndpointSlices", true, time.Hour)
+				defer cache.Cache.Delete("useEndpointSlices")
+			}
 
-	// Remove bar from endpoints and clear cache
-	cache.Cache.Delete("ip://bar")
-	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
-	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
-	require.NoError(t, err)
+			le := &LeaderEngine{
+				ctx:             context.Background(),
+				HolderIdentity:  "foo",
+				LeaseName:       leaseName,
+				ServiceName:     serviceName,
+				LeaderNamespace: "default",
+				LeaseDuration:   120 * time.Second,
+				coreClient:      client.CoreV1(),
+				coordClient:     client.CoordinationV1(),
+				discoveryClient: client.DiscoveryV1(),
+				leaderMetric:    &dummyGauge{},
+				lockType:        cmLock.ConfigMapsResourceLock,
+			}
 
-	// GetLeaderIP will "gracefully" error out
-	ip, err = le.GetLeaderIP()
-	assert.Equal(t, "", ip)
-	assert.True(t, dderrors.IsNotFound(err))
+			// Create leader-election configmap with current node as follower
+			electionCM := makeLeaderCM(leaseName, "default", "bar", 120)
+			_, err := client.CoreV1().ConfigMaps("default").Create(context.TODO(), electionCM, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			tc.setupEndpoints(t, client, serviceName)
+
+			// Run leader election
+			le.leaderElector, err = le.newElection()
+			require.NoError(t, err)
+			err = le.EnsureLeaderElectionRuns()
+			require.NoError(t, err)
+			cm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Contains(t, cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
+
+			// We should be follower, and GetLeaderIP should return bar's IP
+			require.False(t, le.IsLeader())
+			ip, err := le.GetLeaderIP()
+			assert.NoError(t, err)
+			assert.Equal(t, "1.1.1.2", ip, "GetLeaderIP should return same result for both APIs")
+
+			// Remove bar from endpoints/endpointslice and clear cache
+			cache.Cache.Delete("ip://bar")
+			tc.removeLeader(t, client, serviceName)
+
+			// GetLeaderIP will "gracefully" error out
+			// Same behavior expected for both APIs
+			ip, err = le.GetLeaderIP()
+			assert.Equal(t, "", ip, "GetLeaderIP should return empty when leader not found")
+			assert.True(t, dderrors.IsNotFound(err), "GetLeaderIP should return NotFound error")
+		})
+	}
 }
 
 func TestGetLeaderIPFollower_Lease(t *testing.T) {
 	const leaseName = "datadog-leader-election"
-	const endpointsName = "datadog-cluster-agent"
+	const serviceName = "datadog-cluster-agent"
 
-	client := fake.NewSimpleClientset()
-
-	le := &LeaderEngine{
-		ctx:             context.Background(),
-		HolderIdentity:  "foo",
-		LeaseName:       leaseName,
-		ServiceName:     endpointsName,
-		LeaderNamespace: "default",
-		LeaseDuration:   120 * time.Second,
-		coreClient:      client.CoreV1(),
-		coordClient:     client.CoordinationV1(),
-		leaderMetric:    &dummyGauge{},
-		lockType:        rl.LeasesResourceLock,
-	}
-
-	// Create leader-election configmap with current node as follower
-	electionCM := makeLeaderLease(leaseName, "default", "bar", 120)
-	_, err := client.CoordinationV1().Leases("default").Create(context.TODO(), electionCM, metav1.CreateOptions{})
-	require.NoError(t, err)
-
-	// Create endpoints
-	endpoints := &v1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      endpointsName,
-			Namespace: "default",
+	testCases := []struct {
+		name              string
+		useEndpointSlices bool
+		setupEndpoints    func(*testing.T, *fake.Clientset, string)
+		removeLeader      func(*testing.T, *fake.Clientset, string)
+	}{
+		{
+			name:              "with Endpoints",
+			useEndpointSlices: false,
+			setupEndpoints: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				endpoints := &v1.Endpoints{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      serviceName,
+						Namespace: "default",
+					},
+					Subsets: []v1.EndpointSubset{
+						{
+							Addresses: []v1.EndpointAddress{
+								{
+									IP:        "1.1.1.1",
+									TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "foo"},
+								},
+								{
+									IP:        "1.1.1.2",
+									TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "bar"},
+								},
+							},
+						},
+					},
+				}
+				_, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
+				require.NoError(t, err)
+			},
+			removeLeader: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				storedEndpoints, err := client.CoreV1().Endpoints("default").Get(context.TODO(), serviceName, metav1.GetOptions{})
+				require.NoError(t, err)
+				storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
+				_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
+				require.NoError(t, err)
+			},
 		},
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: []v1.EndpointAddress{
-					{
-						IP: "1.1.1.1",
-						TargetRef: &v1.ObjectReference{
-							Kind:      "pod",
-							Namespace: "default",
-							Name:      "foo",
+		{
+			name:              "with EndpointSlices",
+			useEndpointSlices: true,
+			setupEndpoints: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				nodeName := "test-node"
+				endpointSlice := &discv1.EndpointSlice{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      serviceName + "-abc123",
+						Namespace: "default",
+						Labels:    map[string]string{apiserver.KubernetesServiceNameLabel: serviceName},
+					},
+					Endpoints: []discv1.Endpoint{
+						{
+							Addresses: []string{"1.1.1.1"},
+							TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "foo"},
+							NodeName:  &nodeName,
+						},
+						{
+							Addresses: []string{"1.1.1.2"},
+							TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "default", Name: "bar"},
+							NodeName:  &nodeName,
 						},
 					},
-					{
-						IP: "1.1.1.2",
-						TargetRef: &v1.ObjectReference{
-							Kind:      "pod",
-							Namespace: "default",
-							Name:      "bar",
-						},
-					},
-				},
+				}
+				_, err := client.DiscoveryV1().EndpointSlices("default").Create(context.TODO(), endpointSlice, metav1.CreateOptions{})
+				require.NoError(t, err)
+			},
+			removeLeader: func(t *testing.T, client *fake.Clientset, serviceName string) {
+				storedSlice, err := client.DiscoveryV1().EndpointSlices("default").Get(context.TODO(), serviceName+"-abc123", metav1.GetOptions{})
+				require.NoError(t, err)
+				storedSlice.Endpoints = storedSlice.Endpoints[0:1]
+				_, err = client.DiscoveryV1().EndpointSlices("default").Update(context.TODO(), storedSlice, metav1.UpdateOptions{})
+				require.NoError(t, err)
 			},
 		},
 	}
-	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
-	require.NoError(t, err)
 
-	// Run leader election
-	le.leaderElector, err = le.newElection()
-	require.NoError(t, err)
-	err = le.EnsureLeaderElectionRuns()
-	require.NoError(t, err)
-	lease, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, lease.Spec.LeaseTransitions)
-	require.Equal(t, int32(1), *lease.Spec.LeaseTransitions)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewClientset()
 
-	// We should be follower, and GetLeaderIP should return bar's IP
-	require.False(t, le.IsLeader())
-	ip, err := le.GetLeaderIP()
-	assert.NoError(t, err)
-	assert.Equal(t, "1.1.1.2", ip)
+			// Set up config for EndpointSlices if needed
+			if tc.useEndpointSlices {
+				cache.Cache.Set("useEndpointSlices", true, time.Hour)
+				defer cache.Cache.Delete("useEndpointSlices")
+			}
 
-	// Remove bar from endpoints and clear the cache
-	cache.Cache.Delete("ip://bar")
-	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
-	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
-	require.NoError(t, err)
+			le := &LeaderEngine{
+				ctx:             context.Background(),
+				HolderIdentity:  "foo",
+				LeaseName:       leaseName,
+				ServiceName:     serviceName,
+				LeaderNamespace: "default",
+				LeaseDuration:   120 * time.Second,
+				coreClient:      client.CoreV1(),
+				coordClient:     client.CoordinationV1(),
+				discoveryClient: client.DiscoveryV1(),
+				leaderMetric:    &dummyGauge{},
+				lockType:        rl.LeasesResourceLock,
+			}
 
-	// GetLeaderIP will "gracefully" error out
-	ip, err = le.GetLeaderIP()
-	assert.Equal(t, "", ip)
-	assert.True(t, dderrors.IsNotFound(err))
+			// Create leader-election lease with current node as follower
+			electionLease := makeLeaderLease(leaseName, "default", "bar", 120)
+			_, err := client.CoordinationV1().Leases("default").Create(context.TODO(), electionLease, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			tc.setupEndpoints(t, client, serviceName)
+
+			// Run leader election
+			le.leaderElector, err = le.newElection()
+			require.NoError(t, err)
+			err = le.EnsureLeaderElectionRuns()
+			require.NoError(t, err)
+			lease, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.NotNil(t, lease.Spec.LeaseTransitions)
+			require.Equal(t, int32(1), *lease.Spec.LeaseTransitions)
+
+			// We should be follower, and GetLeaderIP should return bar's IP
+			require.False(t, le.IsLeader())
+			ip, err := le.GetLeaderIP()
+			assert.NoError(t, err)
+			assert.Equal(t, "1.1.1.2", ip, "GetLeaderIP should return same result for both APIs")
+
+			// Remove bar from endpoints/endpointslice and clear cache
+			cache.Cache.Delete("ip://bar")
+			tc.removeLeader(t, client, serviceName)
+
+			// GetLeaderIP will "gracefully" error out
+			// Same behavior expected for both APIs
+			ip, err = le.GetLeaderIP()
+			assert.Equal(t, "", ip, "GetLeaderIP should return empty when leader not found")
+			assert.True(t, dderrors.IsNotFound(err), "GetLeaderIP should return NotFound error")
+		})
+	}
 }
 
 type dummyGauge struct{}

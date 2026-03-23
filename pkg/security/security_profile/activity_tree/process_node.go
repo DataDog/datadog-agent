@@ -58,9 +58,9 @@ type ProcessNode struct {
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
 	if resolvers != nil {
-		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0)
 		if entry.ProcessContext.HasInterpreter() {
-			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent, 0)
 		}
 	}
 	node := &ProcessNode{
@@ -119,7 +119,7 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	builder.WriteString("</FONT></TD></TR>")
 
 	if len(pn.Process.FileEvent.PkgName) != 0 {
-		builder.WriteString("<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>")
+		builder.WriteString("<TR><TD>Package</TD><TD>" + pn.Process.FileEvent.PkgName + ":" + pn.Process.FileEvent.PkgVersion + "</TD></TR>")
 	}
 	// add hashes
 	if len(pn.Process.FileEvent.Hashes) > 0 {
@@ -483,7 +483,7 @@ func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 // also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
 	if !pn.HasImageTag(imageTag) {
-		return false // this node don't have the tag, and all his childs/files/dns/etc shouldn't have neither
+		return false // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
 	}
 	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTag)
 	if IsNodeEmpty {

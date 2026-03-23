@@ -71,6 +71,48 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
+// TestUpgradeAgentPackageOCIBootstrap tests the upgrade workflow using the OCI bootstrap path.
+// It uses InstallerBootstrapMode=OCI to force the OCI path, ensuring the test fails if the
+// installer layer is missing from the OCI package.
+//
+// This test validates that:
+// 1. The current pipeline OCI package contains the installer layer
+// 2. The OCI bootstrap code path extracts and uses the installer correctly
+//
+// If this test fails, check that the OCI package build includes --installer flag.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageOCIBootstrap() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.setInstallerBootstrapMode("OCI")
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
+// TestUpgradeAgentPackageMSIBootstrap tests the upgrade workflow using the MSI fallback bootstrap path.
+// It uses InstallerBootstrapMode=MSI to force the MSI path, validating backward compatibility
+// with older OCI packages (< 7.70) that don't have a dedicated installer layer.
+//
+// IMPORTANT: Do not remove this test without ensuring backward compatibility is still tested.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageMSIBootstrap() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.setInstallerBootstrapMode("MSI")
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
 // and custom paths maintains those paths when remotely upgraded
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
@@ -88,6 +130,55 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
+// TestUpgradeAgentPackageFromExeWithAltDir tests that an Agent installed with the .exe
+// and custom paths maintains those paths when remotely upgraded
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	// TODO: build into AgentVersionManager?
+	url := fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", s.StableAgentVersion().PackageVersion())
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+	output, err := installExe.Run(
+		installerwindows.WithInstallerURL(url),
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_PROJECTLOCATION":          altInstallPath,
+			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
+			// TODO: these need to be overridden here so they're not overridden by installer.InstallScriptEnv
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "",
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        s.StableAgentVersion().OCIPackage().Registry,
+		}),
+		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
@@ -351,28 +442,7 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
 	// Act
-	s.WaitForDaemonToStop(func() {
-		_, err := s.StartExperimentCurrentVersion()
-		s.Require().NoError(err, "daemon should stop cleanly")
-		// This returns while the upgrade is still running, so we need to wait for the service to stop
-		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
-		// the service could stop and then restart before we check the status again.
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(100))
-
-	// wait for upgrade to restart the service
-	// this is racy, we'll either catch the new service running briefly before MSI rollback
-	// triggers, or we'll catch the previous service running after MSI rollback completes
-	// The next set of checks quiesce the race.
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
-
-	// Now that the service is running, we know that the stable version has been removed,
-	// so we can wait for the stable version to be placed on disk once again via MSI rollback
-	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
-	s.Require().NoError(err)
-	// and wait again to ensure the stable service is running
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.waitForExperimentMSIRollback()
 
 	// Assert
 
@@ -599,6 +669,16 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	s.Require().NoError(err)
 }
 
+// setInstallerBootstrapMode sets the InstallerBootstrapMode registry key.
+// - "OCI" forces the OCI bootstrap path, fails if installer layer is missing
+// - "MSI" forces the MSI fallback path
+// - "" (empty) uses default behavior (try OCI, fallback to MSI)
+func (s *testAgentUpgradeSuite) setInstallerBootstrapMode(mode string) {
+	err := windowscommon.SetTypedRegistryValue(s.Env().RemoteHost,
+		`HKLM:\SOFTWARE\Datadog\Datadog Agent`, "InstallerBootstrapMode", mode, "String")
+	s.Require().NoError(err)
+}
+
 func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
 	termValue := 0
 	if terminatePolicy {
@@ -616,7 +696,7 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
-	s.InstallWithXperf(options...)
+	s.InstallWithDiagnostics(options...)
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
@@ -635,7 +715,7 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
-	s.InstallWithXperf(options...)
+	s.InstallWithDiagnostics(options...)
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
@@ -725,6 +805,11 @@ type testAgentUpgradeFromGASuite struct {
 
 // TestAgentUpgradesFromGA tests that we can upgrade from GA release (7.65.0) to current
 //
+// NOTE: This test exercises the MSI fallback bootstrap path because the 7.65.x installer
+// does not support extracting from the OCI installer layer - it only has the MSI admin install
+// extraction flow. The dedicated test for validating the MSI fallback path with the current
+// installer is TestUpgradeAgentPackageMSIBootstrap.
+//
 // It embeds testAgentUpgradeSuite so it can run any of the upgrade tests.
 func TestAgentUpgradesFromGA(t *testing.T) {
 	s := &testAgentUpgradeFromGASuite{}
@@ -795,6 +880,34 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")
 
 	return agent, nil
+}
+
+// waitForExperimentMSIRollback starts an experiment and waits for the MSI to roll back
+// and the stable version to be restored. It handles the race conditions inherent in
+// MSI rollback by waiting for the service to restart and the stable version to appear on disk.
+func (s *testAgentUpgradeSuite) waitForExperimentMSIRollback() {
+	s.WaitForDaemonToStop(func() {
+		_, err := s.StartExperimentCurrentVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
+		// This returns while the upgrade is still running, so we need to wait for the service to stop
+		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
+		// the service could stop and then restart before we check the status again.
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(100))
+
+	// wait for upgrade to restart the service
+	// this is racy, we'll either catch the new service running briefly before MSI rollback
+	// triggers, or we'll catch the previous service running after MSI rollback completes
+	// The next set of checks quiesce the race.
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Now that the service is running, we know that the stable version has been removed,
+	// so we can wait for the stable version to be placed on disk once again via MSI rollback
+	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+	// and wait again to ensure the stable service is running
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
 }
 
 // setExperimentMSIArgs stores a list of MSI options for the installer to provide to the MSI when starting an experiment.

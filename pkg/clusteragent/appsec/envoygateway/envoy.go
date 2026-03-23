@@ -41,6 +41,8 @@ var (
 	crdGVR       = schema.GroupVersionResource{Resource: "customresourcedefinitions", Group: "apiextensions.k8s.io", Version: "v1"}
 )
 
+var _ appsecconfig.InjectionPattern = (*envoyGatewayInjectionPattern)(nil)
+
 type envoyGatewayInjectionPattern struct {
 	client dynamic.Interface
 	logger log.Component
@@ -50,7 +52,17 @@ type envoyGatewayInjectionPattern struct {
 	grantManager
 }
 
+func (e *envoyGatewayInjectionPattern) Mode() appsecconfig.InjectionMode {
+	// TODO: work on sidecar mode for envoy gateway
+	return appsecconfig.InjectionModeExternal
+}
+
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
+	// Check if the processor service name is configured (required for envoy-gateway)
+	if e.config.Processor.ServiceName == "" {
+		return stdErrors.New("processor service name is required for envoy-gateway proxy type but is not configured")
+	}
+
 	gvrToName := func(gvr schema.GroupVersionResource) string {
 		return gvr.Resource + "." + gvr.Group
 	}
@@ -62,7 +74,7 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: error getting EnvoyExtensionPolicy", err)
 	}
 
 	// Check if the Gateway CRDs is present
@@ -72,7 +84,7 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: error getting Gateway", err)
 	}
 
 	// Check if the ReferenceGrant CRD is present
@@ -81,7 +93,11 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 		return fmt.Errorf("%w: ReferenceGrant CRD not found, is the Gateway API installed in the cluster? Cannot enable appsec proxy injection for envoy-gateway", err)
 	}
 
-	return err
+	if err != nil {
+		return fmt.Errorf("%w: error getting ReferenceGrant", err)
+	}
+
+	return nil
 }
 
 func (e *envoyGatewayInjectionPattern) Resource() schema.GroupVersionResource {

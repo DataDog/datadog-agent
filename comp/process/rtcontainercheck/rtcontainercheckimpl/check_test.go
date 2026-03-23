@@ -13,10 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -28,14 +30,18 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 	tests := []struct {
 		name             string
 		configs          map[string]interface{}
+		sysProbeConfigs  map[string]interface{}
 		containerizedEnv bool
 		flavor           string
 		enabled          bool
 	}{
 		{
 			// the container collection is enabled by default in containerized environments
-			name:             "empty config - container collection is enabled",
-			configs:          nil,
+			name:    "empty config - container collection is enabled",
+			configs: nil,
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			containerizedEnv: true,
 			enabled:          true,
 		},
@@ -53,6 +59,9 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
 			},
 			containerizedEnv: true,
 			enabled:          true,
@@ -86,28 +95,41 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			enabled:          false,
 		},
 		{
-			name: "check is disabled in the process-agent as run in core agent is enabled",
+			name: "check in the process-agent depends on platform",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
-				"process_config.run_in_core_agent.enabled":    true,
 			},
 
 			containerizedEnv: true,
 			flavor:           flavor.ProcessAgent,
-			enabled:          false,
+			// On Linux, process checks run in core agent so this is disabled in process-agent.
+			// On other platforms, the check runs in the process-agent.
+			enabled: !coreagent.ProcessChecksRunInCoreAgent(),
 		},
 		{
-			name: "check is enabled in the core agent as run in core agent is enabled",
+			name: "check is enabled in the core agent on linux",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
-				"process_config.run_in_core_agent.enabled":    true,
 			},
-
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			containerizedEnv: true,
 			flavor:           flavor.DefaultAgent,
 			enabled:          true,
+		},
+		{
+			name: "service discovery disables the real-time container check",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled":   false,
+				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			enabled: false,
 		},
 	}
 
@@ -126,6 +148,8 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			c := fxutil.Test[rtcontainercheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
+				sysprobeconfigimpl.MockModule(),
+				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}

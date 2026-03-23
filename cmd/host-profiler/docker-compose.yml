@@ -7,6 +7,7 @@ services:
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
+      DD_TAGS: ${DD_TAGS:-${WORKSPACE_NAME:+workspace:${WORKSPACE_NAME}}}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc/:/host/proc/:ro
@@ -25,6 +26,7 @@ services:
         GID: ${GID}
     privileged: true
     pid: "host"
+    cgroup: "host"
     # host-profiler needs to share agent's loopback
     network_mode: "service:datadog-agent"
     environment:
@@ -37,8 +39,6 @@ services:
     secrets:
       - dd-api-key
       - dd-app-key
-    entrypoint: ['/app/tools/host-profiler/entrypoint.sh']
-    command: ['/app/tools/host-profiler/launch.sh']
 
 volumes:
   agent-ipc:

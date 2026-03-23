@@ -8,6 +8,8 @@ package remotehostnameimpl
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -80,7 +82,10 @@ func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
 }
 
 func (r *remotehostimpl) GetSafe(ctx context.Context) string {
-	h, _ := r.Get(ctx)
+	h, err := r.Get(ctx)
+	if err != nil {
+		return "unknown host"
+	}
 	return h
 }
 
@@ -98,8 +103,13 @@ func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface
 // getHostnameWithContext attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context.
 func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, error) {
+	ipcPort, err := strconv.Atoi(pkgconfigsetup.GetIPCPort())
+	if err != nil || ipcPort <= 0 {
+		return "", fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", pkgconfigsetup.GetIPCPort())
+	}
+
 	var hostname string
-	err := retry.Do(func() error {
+	err = retry.Do(func() error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 

@@ -1,0 +1,15 @@
+version: '3'
+name: bio-leak-test
+services:
+  bio-leak:
+    image: registry.ddbuild.io/images/gcc-libssl-dev:latest
+    volumes:
+      - ${TESTDIR}:/src:z
+    network_mode: host
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        make -C /src clean all &&
+        echo "ready" &&
+        /src/bio_leak ${HOST} ${PORT} ${NUM_ENTRIES}
+

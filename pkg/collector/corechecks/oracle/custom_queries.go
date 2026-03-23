@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,11 +26,12 @@ type metricRow struct {
 	tags   []string
 }
 
-func concatenateTypeError(_ error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
-	return fmt.Errorf(
+func concatenateTypeError(input error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
+	newErr := fmt.Errorf(
 		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %w`,
 		prefix, expectedType, column, value, reflect.TypeOf(value), query, err,
 	)
+	return errors.Join(input, newErr)
 }
 
 func concatenateError(input error, new string) error {
@@ -57,10 +59,6 @@ func (c *Check) CustomQueries() error {
 	}
 
 	var metricRows []metricRow
-	sender, err := c.GetSender()
-	if err != nil {
-		return fmt.Errorf("failed to get sender for custom queries %w", err)
-	}
 	var allErrors error
 	var customQueries []config.CustomQuery
 
@@ -81,6 +79,7 @@ func (c *Check) CustomQueries() error {
 	}
 
 	for _, q := range customQueries {
+		metricRows = metricRows[:0]
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
 
@@ -94,7 +93,7 @@ func (c *Check) CustomQueries() error {
 			if pdb == "" {
 				pdb = "cdb$root"
 			}
-			_, err := c.dbCustomQueries.Exec("alter session set container = " + pdb)
+			_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
 			if err != nil {
 				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
@@ -121,8 +120,10 @@ func (c *Check) CustomQueries() error {
 				errInQuery = true
 				break
 			}
-			if len(cols) > len(q.Columns) {
-				allErrors = concatenateError(allErrors, fmt.Sprintf("Not enough column mappings for the custom query %s %s", metricPrefix, err))
+			if len(cols) != len(q.Columns) {
+				allErrors = concatenateError(allErrors, fmt.Sprintf(
+					"column count mismatch for custom query %s: query returned %d columns but %d mappings configured",
+					metricPrefix, len(cols), len(q.Columns)))
 				errInQuery = true
 				break
 			}
@@ -134,6 +135,13 @@ func (c *Check) CustomQueries() error {
 					}
 				} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
 					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
+					if v == nil {
+						allErrors = concatenateError(allErrors, fmt.Sprintf(
+							"NULL value for metric column %s in custom query %s, skipping row",
+							q.Columns[i].Name, metricPrefix))
+						errInQuery = true
+						break
+					}
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
@@ -188,7 +196,7 @@ func (c *Check) CustomQueries() error {
 			log.Debugf("%s send metric %+v", c.logPrompt, m)
 			sendMetric(c, m.method, m.name, m.value, m.tags)
 		}
-		sender.Commit()
+		commit(c)
 	}
 	return allErrors
 }

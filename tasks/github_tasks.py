@@ -72,6 +72,22 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
 
 
 @task
+def is_pr_ready(ctx, git_ref: str):
+    """Exit with code 0 if the PR for the given branch exists and is ready (not draft), 1 otherwise."""
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+    prs = list(github.get_pr_for_branch(git_ref))
+    if not prs:
+        print(color_message(f"No open PR found for branch {git_ref!r}", "yellow"))
+        raise Exit(code=1)
+    if prs[0].draft:
+        print(color_message(f"PR for branch {git_ref!r} is a draft", "yellow"))
+        raise Exit(code=1)
+    print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
+
+
+@task
 def update_windows_runner_version(
     ctx,
     new_version=None,
@@ -154,7 +170,13 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:
+    """Returns a list of teams that are responsible for changed files
+
+    :param changed_files: list of changed files
+    :param owners_file: path to the CODEOWNERS file
+    :param best_teams_only: if True, returns only the teams with the most changed files
+    """
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -167,9 +189,9 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
         return []
 
     _, best_count = team_count[0]
-    best_teams = [team.casefold() for (team, count) in team_count if count == best_count]
-
-    return best_teams
+    if best_teams_only:
+        return [team.casefold() for (team, count) in team_count if count == best_count]
+    return [team.casefold() for (team, _) in team_count]
 
 
 def _get_team_labels():
@@ -194,24 +216,16 @@ def assign_team_label(_, pr_id=-1):
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
-    # Fetch the team first, and early return if no team is found
-    teams = _get_teams(gh.get_pr_files(pr_id))
+    # Fetch all teams first, and early return if no team is found
+    teams = _get_teams(gh.get_pr_files(pr_id), best_teams_only=False)
     if teams == []:
         print('No team found')
         return
 
-    # Check for 'team/' labels
-    labels = gh.get_pr_labels(pr_id)
-    has_team = False
-    for label in labels:
-        if label.startswith('team/'):
-            if label != 'team/triage':
-                has_team = True
-            else:
-                _remove_pr_label(gh, pr_id, 'team/triage')
+    # Remove 'team/triage' label if it exists
+    if 'team/triage' in gh.get_pr_labels(pr_id):
+        _remove_pr_label(gh, pr_id, 'team/triage')
 
-    if has_team:
-        return
     _assign_pr_team_labels(gh, pr_id, teams)
 
 
@@ -471,10 +485,12 @@ tags: {tags}''')
     print(f"Event sent to Datadog for PR #{pr.number}")
 
 
-def extract_test_qa_description(pr_body: str) -> str:
+def extract_test_qa_description(pr_body: str | None) -> str:
     """
     Extract the test/QA description section from the PR body
     """
+    if not pr_body:
+        return ''
     # Extract the test/QA description section from the PR body
     # Based on PULL_REQUEST_TEMPLATE.md
     pr_body_lines = pr_body.splitlines()
@@ -525,7 +541,7 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
     files = gh.get_pr_files(pr_id)
     if "comp/core/agenttelemetry/impl/config.go" in files:
         if "need-change/agenttelemetry-governance" not in labels:
-            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, pleas follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, please follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
             raise Exit(message, code=1)
         else:
             print(

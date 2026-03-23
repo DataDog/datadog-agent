@@ -75,6 +75,12 @@ var LegacyMetadataConfig = profiledefinition.MetadataConfig{
 					Format: "mac_address",
 				},
 			},
+			"type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.2.2.1.3",
+					Name: "ifType",
+				},
+			},
 		},
 		IDTags: profiledefinition.MetricTagConfigList{
 			{

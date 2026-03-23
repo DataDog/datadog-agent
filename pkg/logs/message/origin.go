@@ -43,6 +43,10 @@ func (o *Origin) Tags(processingTags []string) []string {
 
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
+	if o == nil || o.LogSource == nil {
+		return []byte{}
+	}
+
 	var tagsPayload []byte
 
 	source := o.Source()
@@ -80,6 +84,9 @@ func (o *Origin) TagsToString(processingTags []string) string {
 }
 
 func (o *Origin) tagsToStringArray(processingTags []string) []string {
+	if o == nil || o.LogSource == nil {
+		return processingTags
+	}
 	sourceCategory := o.LogSource.Config.SourceCategory
 	configTags := o.LogSource.Config.Tags
 
@@ -116,6 +123,9 @@ func (o *Origin) SetSource(source string) {
 // Source returns the source of the configuration if set or the source of the message,
 // if none are defined, returns an empty string by default.
 func (o *Origin) Source() string {
+	if o == nil || o.LogSource == nil {
+		return ""
+	}
 	if o.LogSource.Config.Source != "" {
 		return o.LogSource.Config.Source
 	}
@@ -130,6 +140,9 @@ func (o *Origin) SetService(service string) {
 // Service returns the service of the configuration if set or the service of the message,
 // if none are defined, returns an empty string by default.
 func (o *Origin) Service() string {
+	if o == nil || o.LogSource == nil {
+		return ""
+	}
 	if o.LogSource.Config.Service != "" {
 		return o.LogSource.Config.Service
 	}

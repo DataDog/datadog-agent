@@ -171,7 +171,7 @@ variables:
   SLACK_AGENT: slack-agent-ci  # agent-devx
   # End vault variables
 
-  DD_PKG_VERSION: "0.6.0-beta.4"
+  DD_PKG_VERSION: "latest"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2

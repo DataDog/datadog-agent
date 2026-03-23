@@ -18,11 +18,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/google"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
 type testDownloadServer struct {
@@ -102,6 +103,23 @@ func TestDownloadLayout(t *testing.T) {
 	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
+}
+
+func TestDownloadConfigLayer(t *testing.T) {
+	s := newTestDownloadServer(t)
+	d := s.Downloader()
+
+	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
+	tmpDir := t.TempDir()
+	err = downloadedPackage.ExtractLayers(DatadogPackageExtensionLayerMediaType, tmpDir, LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: "simple-extension"})
+	assert.NoError(t, err)
+
+	extensionsFS := s.ExtensionsFS(fixtures.FixtureSimpleV1WithExtension)
+	fixtures.AssertEqualFS(t, extensionsFS["simple-v1-extension"], os.DirFS(tmpDir))
 }
 
 func TestDownloadInvalidHash(t *testing.T) {
@@ -265,6 +283,62 @@ func TestIsStreamResetError(t *testing.T) {
 			assert.Equal(t, tc.expected, isStreamResetError(tc.err))
 		})
 	}
+}
+
+func TestWithRegistryOverride(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:            "original.registry.com",
+		RegistryAuthOverride:        "docker",
+		RegistryUsername:            "origuser",
+		RegistryPassword:            "origpass",
+		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.io"},
+		RegistryAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+		Site:                        "datadoghq.com",
+	}
+	client := http.DefaultClient
+	d := NewDownloader(original, client)
+
+	overridden := d.WithRegistryOverride("custom.registry.com", "password", "newuser", "newpass")
+
+	// Overridden downloader has new values
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "password", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "newuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "newpass", overridden.env.RegistryPassword)
+
+	// Image-scoped override maps are preserved (env vars take precedence)
+	assert.Equal(t, map[string]string{"agent-package": "image-scoped.io"}, overridden.env.RegistryOverrideByImage)
+	assert.Equal(t, map[string]string{"agent-package": "gcr"}, overridden.env.RegistryAuthOverrideByImage)
+
+	// Original is unchanged
+	assert.Equal(t, "original.registry.com", d.env.RegistryOverride)
+	assert.Equal(t, "docker", d.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", d.env.RegistryUsername)
+	assert.Equal(t, "origpass", d.env.RegistryPassword)
+
+	// Shares same HTTP client
+	assert.Same(t, d.client, overridden.client)
+
+	// Non-registry fields are preserved
+	assert.Equal(t, "datadoghq.com", overridden.env.Site)
+}
+
+func TestWithRegistryOverridePartial(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:     "original.registry.com",
+		RegistryAuthOverride: "docker",
+		RegistryUsername:     "origuser",
+		RegistryPassword:     "origpass",
+	}
+	d := NewDownloader(original, http.DefaultClient)
+
+	// Only override URL, leave auth/username/password empty
+	overridden := d.WithRegistryOverride("custom.registry.com", "", "", "")
+
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "docker", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "origpass", overridden.env.RegistryPassword)
 }
 
 func TestGetRefAndKeychains(t *testing.T) {
