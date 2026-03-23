@@ -78,7 +78,7 @@ git_override(
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "9ca4797bbca6f785febcff7bc1508c83110a5de8",  # main as of Feb 11, 2026
+    commit = "e7fb6ab0b4380ba16607152b0bef3e09ff66d8ab",  # main as of Feb 11, 2026
     remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 
