@@ -257,7 +257,7 @@ register_toolchains("@pythons_hub//:all")
 ## Rust dependencies ##
 #######################
 
-bazel_dep(name = "rules_rust", version = "0.68.1")
+bazel_dep(name = "rules_rust", version = "0.69.0")
 bazel_dep(name = "rules_rust_prost", version = "0.68.1")
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
