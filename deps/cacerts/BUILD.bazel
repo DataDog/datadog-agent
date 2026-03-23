@@ -83,7 +83,10 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0644",
     ),
-    prefix = "embedded/ssl/certs",
+    prefix = select({
+        "@platforms//os:windows": "embedded3/ssl/certs",
+        "//conditions:default": "embedded/ssl/certs",
+    }),
 )
 
 # most systems can symlink to the real file
@@ -104,6 +107,9 @@ pkg_files(
         mode = "0644",
     ),
     prefix = "embedded3/ssl",
+    renames = {
+        "cacert.pem": "cert.pem",
+    },
 )
 
 pkg_filegroup(

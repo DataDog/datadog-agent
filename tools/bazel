@@ -32,14 +32,16 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
 fi
 
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
-if [[ $# -gt 0 && -n "${CI:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
+if [[ $# -gt 0 && -n "${CI:-}" ]]; then
   args=()
   cmd=
   for arg in "$@"; do
     args+=("$arg")
     if [[ -z "$cmd" && "$arg" != -* ]]; then
       cmd=$arg
-      args+=(--config=ci)
+      [ -z "${GITHUB_ACTIONS:-}" ] && args+=(--config=ci)
+      # https://github.com/bazelbuild/bazel/issues/26384
+      [ "${XDG_CACHE_HOME:-}" = "$(dirname "$(dirname "$0")")/.cache" ] && args+=(--repo_contents_cache=)
     fi
   done
   set -- "${args[@]}"

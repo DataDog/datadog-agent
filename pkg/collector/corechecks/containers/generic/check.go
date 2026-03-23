@@ -62,8 +62,8 @@ func Factory(wmeta workloadmeta.Component, filterStore workloadfilter.Component,
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, initConfig, config, source)
+func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	err := c.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}
