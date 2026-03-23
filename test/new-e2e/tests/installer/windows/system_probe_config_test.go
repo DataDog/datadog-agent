@@ -17,13 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testSystemProbeConfig struct {
-	baseSuite
+	BaseSuite
 }
 
 // TestSystemProbeConfig tests that system-probe is enabled when apm-inject
@@ -44,7 +43,7 @@ func (s *testSystemProbeConfig) AfterTest(suiteName, testName string) {
 
 func (s *testSystemProbeConfig) TestInstallScriptStartsSystemProbe() {
 	output, err := s.InstallScript().Run(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
 			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
