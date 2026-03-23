@@ -961,33 +961,6 @@ func TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough(t *testing.T) {
 	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()), "eviction must proceed when under the fallback threshold")
 }
 
-// TestSyncInternal_InPlace_NoFallback_WhenDelayZero verifies that RolloutFallbackDelay=0
-// (disabled) never triggers the rollout fallback, even for a long-stuck pod.
-func TestSyncInternal_InPlace_NoFallback_WhenDelayZero(t *testing.T) {
-	now := time.Now()
-	f := newVerticalControllerFixture(t, now)
-	k8sClient := f.attachK8sClient()
-	interceptEvictions(k8sClient)
-
-	workloadPatched := false
-	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		workloadPatched = true
-		return true, &unstructured.Unstructured{}, nil
-	})
-
-	stuckSince := now.Add(-24 * time.Hour)
-	pods := []*workloadmeta.KubernetesPod{
-		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
-			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
-	}
-	dpa := makeDPAWithFallbackDelay("default", "ai", 0) // disabled
-
-	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
-	assert.NoError(t, err)
-	assert.False(t, workloadPatched, "rollout fallback must not trigger when RolloutFallbackDelay is 0")
-	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
-}
-
 // TestSyncInternal_TriggerRolloutStrategy_UsesRolloutPath verifies that when
 // ApplyPolicy.Update.Strategy is TriggerRollout, syncInternal patches the workload
 // (rollout path) rather than individual pods.
@@ -1120,27 +1093,23 @@ func TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath(t *testing.T) 
 	assert.True(t, workloadPatched, "Config disabled + Strategy: Auto must still use rollout path")
 }
 
-// TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath verifies that with the
-// config flag enabled but no ApplyPolicy on the DPA, the rollout path is still used.
-func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath(t *testing.T) {
+// TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath verifies that with the
+// config flag enabled and no ApplyPolicy on the DPA, in-place is used (Auto strategy is assumed).
+func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
 	f := newVerticalControllerFixture(t, time.Now())
-	f.createTarget("default", "d1", kubernetes.DeploymentKind)
 
 	workloadPatched := false
 	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		workloadPatched = true
-		return true, &unstructured.Unstructured{Object: map[string]any{
-			"metadata": map[string]any{"name": "d1", "namespace": "default"},
-		}}, nil
+		return true, &unstructured.Unstructured{}, nil
 	})
 
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
 	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
 
-	// Config enabled but no ApplyPolicy -> rollout.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "ai",
@@ -1152,15 +1121,15 @@ func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesRolloutPath(t *testing.T)
 	}).Build()
 
 	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
-	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
+	pods := []*workloadmeta.KubernetesPod{pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
 		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
-		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		pods, map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
-	assert.True(t, workloadPatched, "Config enabled but no ApplyPolicy must use rollout path")
+	assert.False(t, workloadPatched, "Config enabled + nil ApplyPolicy must use in-place path")
 }
 
 // TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath verifies that in-place scaling

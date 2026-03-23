@@ -332,22 +332,6 @@ func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInterna
 	return nil
 }
 
-// shouldEvictDeferred reports whether a pod in PodResizePending/Deferred state should be
-// evicted because it has waited longer than ResizePendingPeriod.
-func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
-	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
-		return false
-	}
-	period := podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod
-	if period <= 0 {
-		return false
-	}
-	if podAutoscaler.Status.Vertical == nil || podAutoscaler.Status.Vertical.LastAction == nil {
-		return false
-	}
-	return now.Sub(podAutoscaler.Status.Vertical.LastAction.Time.Time) > time.Duration(period)*time.Second
-}
-
 // triggerRollout patches the target workload's pod template to trigger a rollout.
 // This is shared logic used by all workload types that support vertical scaling.
 func (u *verticalController) triggerRollout(

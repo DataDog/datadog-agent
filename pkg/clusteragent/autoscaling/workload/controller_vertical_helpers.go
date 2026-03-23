@@ -31,6 +31,12 @@ const (
 	// for StatefulSets and DaemonSets. This is managed by Kubernetes itself and changes whenever
 	// any part of the pod template changes.
 	controllerRevisionHashLabel = "controller-revision-hash"
+
+	// defaultResizePendingPeriod is the default delay for the resize pending period in seconds
+	defaultResizePendingPeriod int32 = 600
+
+	// defaultRolloutFallbackDelay is the default delay for the rollout fallback in seconds
+	defaultRolloutFallbackDelay int32 = 1200
 )
 
 const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
@@ -483,6 +489,21 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 	return modified
 }
 
+// shouldEvictDeferred returns true if the time since the last action is greater than the resize pending period, false otherwise
+func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
+	var period = defaultResizePendingPeriod
+	// If the DPA has a configured resize pending period, use that instead of the default
+	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod > 0 {
+		period = podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod
+	}
+
+	if podAutoscaler.Status.Vertical == nil || podAutoscaler.Status.Vertical.LastAction == nil {
+		return false
+	}
+
+	return now.Sub(podAutoscaler.Status.Vertical.LastAction.Time.Time) > time.Duration(period)*time.Second
+}
+
 // shouldFallbackToRollout returns true if a rollout should be triggered instead
 // of continuing to attempt in-place resizing
 func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time, patchForbidden bool) bool {
@@ -490,13 +511,12 @@ func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.D
 		return true
 	}
 
-	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
-		return false
+	var delay = defaultRolloutFallbackDelay
+	// If the DPA has a configured rollout fallback delay, use that instead of the default
+	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay > 0 {
+		delay = podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
 	}
-	delay := podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
-	if delay <= 0 {
-		return false
-	}
+
 	threshold := time.Duration(delay) * time.Second
 	for _, cp := range toEvict {
 		if !cp.lastTransitionTime.IsZero() && now.Sub(cp.lastTransitionTime) > threshold {
@@ -507,20 +527,19 @@ func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.D
 }
 
 // isRolloutRequired checks if a rollout is required for the podAutoscaler.
-// In-place scaling requires both the global config flag
-// (autoscaling.workload.in_place_vertical_scaling.enabled) AND an explicit
-// ApplyPolicy.Update.Strategy of "Auto" on the DPA. All other cases use rollout.
+// A rollout is required when:
+//
+//	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
+//	b) The DPA explicitly sets Strategy: TriggerRollout
 func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
-
 	spec := autoscalerInternal.Spec()
 	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
-		return true
+		return false
 	}
-
-	return spec.ApplyPolicy.Update.Strategy != datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy
+	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime
