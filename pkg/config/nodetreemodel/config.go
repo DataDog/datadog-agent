@@ -975,33 +975,6 @@ func (c *ntmConfig) mergeWithoutSecrets() *nodeImpl {
 	return merged
 }
 
-// GetSecretSettingPaths returns the flattened key paths that exist in the secrets layer.
-func (c *ntmConfig) GetSecretSettingPaths() []string {
-	c.RLock()
-	defer c.RUnlock()
-
-	var keys []string
-	collectFlattenedKeysFromNode(c.secrets, "", &keys)
-	return keys
-}
-
-// collectFlattenedKeysFromNode recursively walks a node tree and collects flattened dotted key paths
-// for all leaf nodes.
-func collectFlattenedKeysFromNode(node *nodeImpl, prefix string, keys *[]string) {
-	for _, name := range node.ChildrenKeys() {
-		child, err := node.GetChild(name)
-		if err != nil {
-			continue
-		}
-		fullKey := joinKey(prefix, name)
-		if child.IsLeafNode() {
-			*keys = append(*keys, fullKey)
-		} else if child.IsInnerNode() {
-			collectFlattenedKeysFromNode(child, fullKey, keys)
-		}
-	}
-}
-
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.maybeRebuild()
