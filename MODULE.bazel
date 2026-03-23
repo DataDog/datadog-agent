@@ -49,7 +49,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gazelle", version = "0.47.0")
 bazel_dep(name = "libarchive", version = "3.8.1")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "protobuf", version = "29.1")
+bazel_dep(name = "protobuf", version = "29.5")
 single_version_override(
     module_name = "protobuf",
     patch_strip = 1,
