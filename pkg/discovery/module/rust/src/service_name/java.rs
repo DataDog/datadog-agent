@@ -43,11 +43,11 @@ fn trim_colon_right(s: &str) -> &str {
 }
 
 /// Extracts the Java service name from the command line
-#[allow(unused_variables)]
 pub fn extract_name(
     cmdline: &crate::procfs::Cmdline,
     ctx: &mut DetectionContext,
 ) -> Option<ServiceNameMetadata> {
+    _ = &ctx; // ctx is only used when spring/jee features are enabled
     // First pass: Look for -Ddd.service= system property (highest priority)
     let mut args_iter = cmdline.args();
     args_iter.next()?; // Skip the java executable

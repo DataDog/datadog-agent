@@ -21,7 +21,7 @@ use zip::ZipArchive;
 /// Root.FS than Dir.FS since it prevents escapes via symbolic links too.
 pub struct SubDirFs {
     dir: Dir,
-    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
+    #[cfg(any(feature = "spring", feature = "jee"))]
     root_path: PathBuf,
 }
 
@@ -132,13 +132,16 @@ impl<'a> UnverifiedZipFile<'a> {
 impl SubDirFs {
     /// Creates a new SubDirFs rooted at the specified path
     pub fn new<P: AsRef<Path>>(root: P) -> io::Result<Self> {
-        let root_path = root.as_ref().to_path_buf();
         let dir = Dir::open_ambient_dir(root.as_ref(), cap_std::ambient_authority())?;
-        Ok(Self { dir, root_path })
+        Ok(Self {
+            dir,
+            #[cfg(any(feature = "spring", feature = "jee"))]
+            root_path: root.as_ref().to_path_buf(),
+        })
     }
 
     /// Creates a new SubDirFs rooted at the specified path relative to the current root.
-    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
+    #[cfg(any(feature = "spring", feature = "jee"))]
     pub fn sub<P: AsRef<Path>>(&self, path: P) -> io::Result<Self> {
         let fixed = fix_path(&path);
         let sub_path = self.root_path.join(fixed);
@@ -210,7 +213,7 @@ impl SubDirFs {
     /// Returns None if the path is not within the SubDirFs root.
     ///
     /// This is useful when working with walkdir entries from `walker()`.
-    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
+    #[cfg(any(feature = "spring", feature = "jee"))]
     pub fn make_relative(&self, path: &Path) -> Option<String> {
         let relative = path.strip_prefix(&self.root_path).ok()?;
         Some(if relative.as_os_str().is_empty() {
