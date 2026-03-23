@@ -139,19 +139,11 @@ func testInitFromBinariesInSubprocess(t *testing.T) {
 // mockProbe implements ir.ProbeDefinition for testing issue tag functions.
 type mockProbe struct {
 	tags []string
+	ir.ProbeDefinition
 }
 
-func (m *mockProbe) GetID() string                        { return "test" }
-func (m *mockProbe) GetVersion() int                      { return 0 }
-func (m *mockProbe) GetTags() []string                    { return m.tags }
-func (m *mockProbe) GetKind() ir.ProbeKind                { return ir.ProbeKindLog }
-func (m *mockProbe) GetWhere() ir.Where                   { return nil }
-func (m *mockProbe) GetCaptureConfig() ir.CaptureConfig   { return nil }
-func (m *mockProbe) GetThrottleConfig() ir.ThrottleConfig { return nil }
-func (m *mockProbe) GetTemplate() ir.TemplateDefinition   { return nil }
-func (m *mockProbe) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
-	return nil
-}
+func (m *mockProbe) GetID() string     { return "test" }
+func (m *mockProbe) GetTags() []string { return m.tags }
 
 func TestIsIntegrationConfigSkipped(t *testing.T) {
 	cases := []struct {
