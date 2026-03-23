@@ -16,7 +16,6 @@ use std::sync::{LazyLock, Mutex};
 use anyhow::Result;
 use elf::abi::{PF_W, PF_X, PT_LOAD};
 use elf::endian::AnyEndian;
-use log::info;
 use lru::LruCache;
 use memchr::memmem;
 use serde::{Deserialize, Serialize};
@@ -25,12 +24,10 @@ use crate::procfs::{Cmdline, Exe, fd::OpenFilesInfo};
 
 const BINARY_CACHE_SIZE: usize = 1000;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
-    #[default]
-    Unknown,
-    #[serde(rename = "jvm")]
+    #[serde(rename = "jvm", alias = "java")]
     Java,
     NodeJS,
     Python,
@@ -43,9 +40,25 @@ pub enum Language {
 }
 
 impl Language {
+    /// Convert a tracer_language string from tracer metadata to a Language.
+    /// Returns None for unrecognized strings so the caller can fall back to
+    /// other detection methods.
+    pub fn from_tracer_str(s: &str) -> Option<Self> {
+        match s {
+            "jvm" | "java" => Some(Self::Java),
+            "nodejs" => Some(Self::NodeJS),
+            "python" => Some(Self::Python),
+            "ruby" => Some(Self::Ruby),
+            "dotnet" => Some(Self::DotNet),
+            "go" => Some(Self::Go),
+            "cpp" => Some(Self::CPlusPlus),
+            "php" => Some(Self::PHP),
+            _ => None,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unknown => "unknown",
             Self::Java => "jvm",
             Self::NodeJS => "nodejs",
             Self::Python => "python",
@@ -57,31 +70,34 @@ impl Language {
         }
     }
 
-    pub fn detect(pid: i32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
-        info!("detect: exe={exe:?} cmdline={cmdline:?}");
+    pub fn detect(
+        pid: i32,
+        exe: &Exe,
+        cmdline: &Cmdline,
+        open_files_info: &OpenFilesInfo,
+    ) -> Option<Self> {
         if let Some(lang) = Self::from_basename(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_cmdline(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_exe(exe) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_binary(pid, open_files_info) {
-            return lang;
+            return Some(lang);
         }
 
-        Self::Unknown
+        None
     }
 
     fn from_basename(cmdline: &Cmdline) -> Option<Self> {
         let mut args = cmdline.args();
         let exe = Path::new(args.next()?).file_name()?;
-        info!("from_basename: exe from args: {exe:?}");
 
         if is_jruby(exe, cmdline) {
             return Some(Self::Ruby);
@@ -99,7 +115,6 @@ impl Language {
     }
 
     fn from_command(comm: &str) -> Option<Self> {
-        info!("from_command: {comm}");
         match comm {
             "py" | "python" => return Some(Self::Python),
             "java" => return Some(Self::Java),
@@ -111,20 +126,16 @@ impl Language {
         }
 
         if comm.starts_with("python") {
-            info!("from_command: {comm} -> python");
             return Some(Self::Python);
         }
         if comm.starts_with("java") && comm != "javac" {
-            info!("from_command: {comm} -> java");
             return Some(Self::Java);
         }
 
         if is_ruby_prefix(comm) {
-            info!("from_command: {comm} -> ruby");
             return Some(Self::Ruby);
         }
         if is_php_prefix(comm) {
-            info!("from_command: {comm} -> php");
             return Some(Self::PHP);
         }
 
@@ -201,8 +212,8 @@ impl Language {
         const BUILD_INFO_SIZE: usize = 32;
         const BUILD_INFO_ALIGN: usize = 16;
 
-        let exe = Exe::get(pid).ok()?;
-        let mut elf_file = File::open(&exe.0).ok()?;
+        let exe_path = crate::procfs::root_path().join(pid.to_string()).join("exe");
+        let mut elf_file = File::open(&exe_path).ok()?;
         let mut elf = elf::ElfStream::<AnyEndian, _>::open_stream(&mut elf_file).ok()?;
 
         // First, try to find .go.buildinfo section.
@@ -222,7 +233,7 @@ impl Language {
         let read_size = std::cmp::min(data_phdr.p_filesz as usize, ELF_READ_LIMIT);
 
         // Reopen file for manual read (elf consumes the original file)
-        let mut file = File::open(&exe.0).ok()?;
+        let mut file = File::open(&exe_path).ok()?;
         file.seek(SeekFrom::Start(data_phdr.p_offset)).ok()?;
         file.read_exact(segment_buffer.get_mut(..read_size)?).ok()?;
 

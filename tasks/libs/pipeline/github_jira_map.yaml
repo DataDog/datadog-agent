@@ -11,7 +11,7 @@
 '@datadog/core-authn': AUTHN
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
-'@datadog/ndm-core': NDMC
+'@datadog/network-device-monitoring-core': NDMC
 '@datadog/ndm-integrations': NDINT
 '@datadog/container-experiences': CXP
 '@datadog/ecs-experiences': EXP
@@ -53,3 +53,4 @@
 '@datadog/synthetics-executing': SYNORG
 '@datadog/agent-health': AHEALTH
 '@datadog/profiling-full-host': 'PROF'
+'@datadog/q-branch': DEFAULT_JIRA_PROJECT

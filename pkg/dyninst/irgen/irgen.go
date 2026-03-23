@@ -25,6 +25,7 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +40,6 @@ import (
 	"strings"
 	"time"
 
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/time/rate"
@@ -150,9 +150,9 @@ func generateIR(
 		switch r := r.(type) {
 		case nil:
 		case error:
-			retErr = pkgerrors.Wrap(r, "GenerateIR: panic")
+			retErr = fmt.Errorf("GenerateIR: panic: %w", r)
 		default:
-			retErr = pkgerrors.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
+			retErr = fmt.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 
@@ -481,11 +481,32 @@ type analyzedExpression struct {
 	captureExprName string
 }
 
+// analyzedCondition represents a single condition clause that has been
+// parsed and matched to a variable. For simple conditions (eq), there
+// is one of these. Future compound conditions (and/or) will decompose
+// into multiple clauses, potentially targeting different events.
+type analyzedCondition struct {
+	expr         exprlang.Expr
+	rootVariable *ir.Variable
+	eventKind    ir.EventKind
+}
+
 // analyzedProbe holds all analyzed expressions for a single probe.
 type analyzedProbe struct {
 	probe       *ir.Probe
 	expressions []analyzedExpression
 	template    *ir.Template
+
+	// Condition clauses, one per leaf equality in the condition tree.
+	// For simple eq conditions, len == 0 or 1.
+	// For future compound conditions, may have multiple entries
+	// potentially targeting different event kinds.
+	condition *analyzedCondition
+
+	// conditionIssue is set when condition analysis fails (parse error,
+	// unsupported expression type, variable not found, etc.). Reported as
+	// a probe issue by populateProbeExpressions.
+	conditionIssue ir.Issue
 
 	// Budget for type exploration.
 	budget uint32
@@ -558,6 +579,12 @@ func analyzeAllProbes(
 		haveEntry := slices.ContainsFunc(probe.Events, isKind(ir.EventKindEntry))
 		haveReturn := slices.ContainsFunc(probe.Events, isKind(ir.EventKindReturn))
 
+		// isFloatType returns true if the variable has a float32 or float64 type.
+		isFloatType := func(v *ir.Variable) bool {
+			k, ok := v.Type.GetGoKind()
+			return ok && (k == reflect.Float32 || k == reflect.Float64)
+		}
+
 		// Check variable availability at injection points.
 		variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
 			locIdx := 0
@@ -572,6 +599,26 @@ func analyzeAllProbes(
 				}
 			}
 			return false
+		}
+
+		// floatIsRegisterOnly returns true if a float variable's locations
+		// at the given injection points consist exclusively of register pieces.
+		// Such variables cannot be read by the eBPF runtime.
+		floatIsRegisterOnly := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
+			locIdx := 0
+			for _, ip := range ips {
+				for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
+					locIdx++
+				}
+				if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
+					for _, piece := range v.Locations[locIdx].Pieces {
+						if _, isReg := piece.Op.(ir.Register); !isReg {
+							return false
+						}
+					}
+				}
+			}
+			return true
 		}
 
 		// Build segment references for matching.
@@ -591,6 +638,15 @@ func analyzeAllProbes(
 			}
 		}
 
+		// Extract entry injection points for float register checks.
+		var entryIPs []ir.InjectionPoint
+		for _, ev := range probe.Events {
+			if ev.Kind == ir.EventKindEntry {
+				entryIPs = ev.InjectionPoints
+				break
+			}
+		}
+
 		// Process each variable.
 		for _, v := range probe.Subprogram.Variables {
 			var evKind ir.EventKind
@@ -599,6 +655,9 @@ func analyzeAllProbes(
 			switch {
 			case haveEntry && v.Role == ir.VariableRoleParameter:
 				// The entry event for a method probe.
+				if isFloatType(v) && floatIsRegisterOnly(entryIPs, v) {
+					continue
+				}
 				evKind = ir.EventKindEntry
 				exprKind = ir.RootExpressionKindArgument
 
@@ -616,6 +675,9 @@ func analyzeAllProbes(
 				// The line-probe case.
 				ips := probe.Events[0].InjectionPoints
 				if !variableIsAvailable(ips, v) {
+					continue
+				}
+				if isFloatType(v) && floatIsRegisterOnly(ips, v) {
 					continue
 				}
 				// TODO: the exprKind should be argument for available arguments.
@@ -692,6 +754,9 @@ func analyzeAllProbes(
 			var evKind ir.EventKind
 			switch {
 			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
+					continue
+				}
 				evKind = ir.EventKindEntry
 			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
 				evKind = ir.EventKindReturn
@@ -699,6 +764,9 @@ func analyzeAllProbes(
 				evKind = ir.EventKindReturn
 			case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
 				if !variableIsAvailable(probe.Events[0].InjectionPoints, rootVar) {
+					continue
+				}
+				if isFloatType(rootVar) && floatIsRegisterOnly(probe.Events[0].InjectionPoints, rootVar) {
 					continue
 				}
 				evKind = ir.EventKindLine
@@ -716,6 +784,84 @@ func analyzeAllProbes(
 			})
 			addRoot(rootVar.Type.GetID(), budget)
 		}
+
+		// conditionEventKind determines which event kind a condition variable belongs
+		// to, using the same variable-role-to-event mapping as expression analysis.
+		conditionEventKind := func(
+			rootVar *ir.Variable,
+		) (ir.EventKind, bool) {
+			events := probe.Events
+			switch {
+			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
+					return 0, false
+				}
+				return ir.EventKindEntry, true
+			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
+				return ir.EventKindReturn, true
+			case haveReturn && rootVar.Role == ir.VariableRoleLocal:
+				return ir.EventKindReturn, true
+			case len(events) == 1 && events[0].Kind == ir.EventKindLine:
+				if !variableIsAvailable(events[0].InjectionPoints, rootVar) {
+					return 0, false
+				}
+				if isFloatType(rootVar) && floatIsRegisterOnly(events[0].InjectionPoints, rootVar) {
+					return 0, false
+				}
+				return ir.EventKindLine, true
+			default:
+				return 0, false
+			}
+		}
+
+		// Analyze condition expression.
+		ap.condition, ap.conditionIssue = func() (*analyzedCondition, ir.Issue) {
+			whenJSON := probe.ProbeDefinition.GetWhen()
+			if len(whenJSON) == 0 {
+				return nil, ir.Issue{}
+			}
+			condExpr, err := exprlang.Parse(whenJSON)
+			if err != nil {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("failed to parse condition: %v", err),
+				}
+			}
+			eqExpr, ok := condExpr.(*exprlang.EqExpr)
+			if !ok {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
+				}
+			}
+			rootVarName, ok := extractRootVariableName(eqExpr.Left)
+			if !ok {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: "failed to extract root variable from condition",
+				}
+			}
+			rootVar := varByName[rootVarName]
+			if rootVar == nil {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: fmt.Sprintf("condition variable %q not found", rootVarName),
+				}
+			}
+			evKind, ok := conditionEventKind(rootVar)
+			if !ok {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
+				}
+			}
+			addRoot(rootVar.Type.GetID(), budget)
+			return &analyzedCondition{
+				expr:         condExpr,
+				rootVariable: rootVar,
+				eventKind:    evKind,
+			}, ir.Issue{}
+		}()
 
 		// Mark unmatched segments as invalid.
 		for name, segs := range segmentRefs {
@@ -3017,6 +3163,26 @@ func exploreTypesForExpressions(
 				expr.rootVariable = nil
 			}
 		}
+
+		// Validate condition types.
+		if cond := ap.condition; cond != nil {
+			eqExpr, ok := cond.expr.(*exprlang.EqExpr)
+			if !ok {
+				ap.conditionIssue = ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("unsupported condition expression type: %T", cond.expr),
+				}
+				ap.condition = nil
+			} else if _, err := exploreExpressionTypes(
+				eqExpr.Left, cond.rootVariable.Type, tc, "",
+			); err != nil {
+				ap.conditionIssue = ir.Issue{
+					Kind:    ir.IssueKindConditionExpressionUnresolvable,
+					Message: fmt.Sprintf("condition type exploration failed: %v", err),
+				}
+				ap.condition = nil
+			}
+		}
 	}
 }
 
@@ -3204,6 +3370,19 @@ func exploreExpressionTypes(
 		}
 
 		return curType, nil
+	case *exprlang.EqExpr:
+		// Resolve the left and right expressions.
+		_, err := exploreExpressionTypes(e.Left, currentType, tc, exprPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := e.Right.(*exprlang.LiteralExpr); !ok {
+			return nil, fmt.Errorf("right expression is not a literal: %T", e.Right)
+		}
+		if tc.boolType == 0 {
+			return nil, errors.New("bool type not found")
+		}
+		return tc.typesByID[tc.boolType], nil
 
 	default:
 		// Unknown expression type - nothing to explore.
@@ -3274,6 +3453,8 @@ func resolveExpression(
 				}
 
 				// Check for unresolved pointee.
+				// TODO: Is this possible? It shouldn't be if we explored the
+				// expression correctly.
 				if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
 					return ir.Expression{}, fmt.Errorf(
 						"cannot resolve expression: pointee type %q not explored",
@@ -3352,6 +3533,7 @@ func resolveExpression(
 		}
 
 		// Final dereference if result is a pointer.
+		// TODO: should this deal with multiple levels of pointers like ***int?
 		if ptrType, ok := currentType.(*ir.PointerType); ok {
 			// Check for void pointer.
 			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
@@ -3397,6 +3579,297 @@ func resolveExpression(
 	}
 }
 
+// coerceLiteral encodes a literal value into bytes matching the target type's
+// kind and size. It handles coercion between JSON literal types (int64, float64,
+// string, bool) and Go variable types, including string-to-numeric parsing for
+// values that exceed JSON's float64 precision (>2^53) or need hex/octal/binary
+// notation.
+func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte, error) {
+	litData := make([]byte, byteSize)
+
+	// Helper to determine if a kind is unsigned integer.
+	isUnsigned := func(k reflect.Kind) bool {
+		switch k {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			return true
+		default:
+			return false
+		}
+	}
+
+	// Helper to determine if a kind is any integer (signed or unsigned).
+	isInteger := func(k reflect.Kind) bool {
+		switch k {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			return true
+		default:
+			return false
+		}
+	}
+
+	// Helper to determine if a kind is a float.
+	isFloat := func(k reflect.Kind) bool {
+		return k == reflect.Float32 || k == reflect.Float64
+	}
+
+	// encodeInt encodes an int64 into litData at the given byte size.
+	encodeInt := func(v int64) {
+		switch byteSize {
+		case 1:
+			litData[0] = byte(v)
+		case 2:
+			binary.LittleEndian.PutUint16(litData, uint16(v))
+		case 4:
+			binary.LittleEndian.PutUint32(litData, uint32(v))
+		case 8:
+			binary.LittleEndian.PutUint64(litData, uint64(v))
+		}
+	}
+
+	// encodeUint encodes a uint64 into litData at the given byte size.
+	encodeUint := func(v uint64) {
+		switch byteSize {
+		case 1:
+			litData[0] = byte(v)
+		case 2:
+			binary.LittleEndian.PutUint16(litData, uint16(v))
+		case 4:
+			binary.LittleEndian.PutUint32(litData, uint32(v))
+		case 8:
+			binary.LittleEndian.PutUint64(litData, v)
+		}
+	}
+
+	// encodeFloat encodes a float64 into litData at the given byte size.
+	encodeFloat := func(v float64) error {
+		switch byteSize {
+		case 4:
+			binary.LittleEndian.PutUint32(litData, math.Float32bits(float32(v)))
+		case 8:
+			binary.LittleEndian.PutUint64(litData, math.Float64bits(v))
+		default:
+			return fmt.Errorf("condition: float with unsupported size %d", byteSize)
+		}
+		return nil
+	}
+
+	bitSize := int(byteSize * 8)
+
+	// checkInt validates that v fits in the target integer and encodes it.
+	checkInt := func(v int64) error {
+		if isUnsigned(targetKind) {
+			if v < 0 || (bitSize < 64 && uint64(v) >= 1<<bitSize) {
+				return fmt.Errorf(
+					"condition: literal %d out of range for %v (%d-bit)",
+					v, targetKind, bitSize,
+				)
+			}
+			encodeUint(uint64(v))
+		} else {
+			minVal := -(int64(1) << (bitSize - 1))
+			maxVal := int64(1)<<(bitSize-1) - 1
+			if v < minVal || v > maxVal {
+				return fmt.Errorf(
+					"condition: literal %d out of range for %v (%d-bit)",
+					v, targetKind, bitSize,
+				)
+			}
+			encodeInt(v)
+		}
+		return nil
+	}
+
+	switch v := value.(type) {
+	case int64:
+		switch {
+		case isInteger(targetKind):
+			if err := checkInt(v); err != nil {
+				return nil, err
+			}
+		case isFloat(targetKind):
+			return litData, encodeFloat(float64(v))
+		default:
+			return nil, fmt.Errorf(
+				"condition: int64 literal incompatible with target kind %v",
+				targetKind,
+			)
+		}
+
+	case float64:
+		switch {
+		case isFloat(targetKind):
+			return litData, encodeFloat(v)
+		case isInteger(targetKind):
+			if v != math.Trunc(v) {
+				return nil, fmt.Errorf(
+					"condition: non-integer float64 %v cannot be coerced to %v",
+					v, targetKind,
+				)
+			}
+			if err := checkInt(int64(v)); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf(
+				"condition: float64 literal incompatible with target kind %v",
+				targetKind,
+			)
+		}
+
+	case bool:
+		if v {
+			litData[0] = 1
+		}
+
+	case string:
+		// String-to-numeric coercion: parse the string as a number.
+		// Base 0 gives hex (0xff), octal (0o77), binary (0b1010) for free.
+		switch {
+		case isUnsigned(targetKind):
+			u, err := strconv.ParseUint(v, 0, bitSize)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"condition: string %q cannot be parsed as %v: %w",
+					v, targetKind, err,
+				)
+			}
+			encodeUint(u)
+		case isInteger(targetKind):
+			i, err := strconv.ParseInt(v, 0, bitSize)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"condition: string %q cannot be parsed as %v: %w",
+					v, targetKind, err,
+				)
+			}
+			encodeInt(i)
+		case isFloat(targetKind):
+			f, err := strconv.ParseFloat(v, bitSize)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"condition: string %q cannot be parsed as %v: %w",
+					v, targetKind, err,
+				)
+			}
+			return litData, encodeFloat(f)
+		default:
+			return nil, fmt.Errorf(
+				"condition: string literal incompatible with target kind %v", targetKind,
+			)
+		}
+
+	default:
+		return nil, fmt.Errorf(
+			"condition: unsupported literal type %T for base type comparison", value,
+		)
+	}
+
+	return litData, nil
+}
+
+// resolveCondition resolves a condition expression AST into an IR Expression
+// that evaluates to bool. Only eq comparisons with literal values are supported.
+func resolveCondition(
+	condExpr exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	eqExpr, ok := condExpr.(*exprlang.EqExpr)
+	if !ok {
+		return nil, fmt.Errorf("unsupported condition expression type: %T", condExpr)
+	}
+
+	// Resolve the LHS operand (must be a variable reference).
+	lhsExpr, err := resolveExpression(eqExpr.Left, rootVar, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
+	}
+
+	// Get the RHS literal.
+	litExpr, ok := eqExpr.Right.(*exprlang.LiteralExpr)
+	if !ok {
+		return nil, fmt.Errorf(
+			"unsupported condition RHS type: %T (only literals are supported)",
+			eqExpr.Right,
+		)
+	}
+
+	lhsType := lhsExpr.Type
+	ops := lhsExpr.Operations
+
+	// Check if LHS is a string type.
+	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
+		// String equality comparison.
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"condition: string variable compared with non-string literal %T",
+				litExpr.Value,
+			)
+		}
+		if len(litStr) > ir.MaxStringLiteralLength {
+			return nil, fmt.Errorf(
+				"condition: string literal too long (%d bytes, max %d)",
+				len(litStr), ir.MaxStringLiteralLength,
+			)
+		}
+
+		// Read the string content from userspace.
+		ops = append(ops, &ir.ExprReadStringOp{MaxLen: ir.MaxStringLiteralLength})
+
+		// Load the literal as [u32 len][bytes...].
+		litData := make([]byte, 4+len(litStr))
+		binary.LittleEndian.PutUint32(litData[:4], uint32(len(litStr)))
+		copy(litData[4:], litStr)
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare strings.
+		ops = append(ops, &ir.ExprCmpEqStringOp{})
+	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
+		// Base type equality comparison.
+		byteSize := baseType.GetByteSize()
+		if byteSize > 8 {
+			return nil, fmt.Errorf(
+				"condition: base type too large for comparison (%d bytes)",
+				byteSize,
+			)
+		}
+
+		// Push LHS offset and advance.
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
+
+		// Determine target kind for coercion.
+		targetKind := reflect.Invalid
+		if goKind, ok := baseType.GetGoKind(); ok {
+			targetKind = goKind
+		}
+
+		// Encode the literal value with type coercion.
+		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare base values.
+		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+	} else {
+		return nil, fmt.Errorf(
+			"condition: unsupported LHS type %T for equality comparison",
+			lhsType,
+		)
+	}
+
+	// Check the result.
+	ops = append(ops, &ir.ConditionCheckOp{})
+
+	return &ir.Expression{
+		Type:       lhsType,
+		Operations: ops,
+	}, nil
+}
+
 func populateProbeEventsExpressions(
 	probes []*ir.Probe,
 	analyzedProbes []analyzedProbe,
@@ -3421,7 +3894,25 @@ func populateProbeExpressions(
 	ap *analyzedProbe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
+	// Report condition analysis failures recorded during analyzeAllProbes
+	// or exploreTypesForExpressions.
+	if !ap.conditionIssue.IsNone() {
+		return ap.conditionIssue
+	}
+
 	for _, event := range probe.Events {
+		// Resolve condition for the matching event only.
+		if cond := ap.condition; cond != nil && cond.eventKind == event.Kind {
+			resolved, err := resolveCondition(cond.expr, cond.rootVariable, typeCatalog)
+			if err != nil {
+				return ir.Issue{
+					Kind:    ir.IssueKindConditionExpressionUnresolvable,
+					Message: fmt.Sprintf("failed to resolve condition: %v", err),
+				}
+			}
+			event.Condition = resolved
+		}
+
 		issue := populateEventExpressions(probe, event, ap, typeCatalog)
 		if !issue.IsNone() {
 			return issue

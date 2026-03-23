@@ -95,7 +95,7 @@ var (
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
-		{Path: "embedded/bin/sd-agent", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
@@ -270,6 +270,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
 	}
+	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
+		log.Warnf("failed to install extensions: %s", err)
+	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -320,7 +323,11 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to uninstall filesystem: %s", err)
 		}
 	case true:
-		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
+		storagePath := ctx.PackagePath
+		if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
+			storagePath = paths.RootTmpDir
+		}
+		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, storagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -349,7 +356,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
-	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
+	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RootTmpDir); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 	if err := saveAgentExtensions(ctx, false); err != nil {

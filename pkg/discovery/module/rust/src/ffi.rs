@@ -17,6 +17,7 @@
 use std::ffi::c_char;
 use std::ptr;
 
+use crate::language::Language;
 use crate::params::Params;
 use crate::services::{self, Service, ServicesResponse};
 use crate::tracer_metadata::TracerMetadata;
@@ -67,6 +68,9 @@ pub struct dd_tracer_metadata {
     pub service_name: dd_str,
     pub service_env: dd_str,
     pub service_version: dd_str,
+    pub process_tags: dd_str,
+    pub container_id: dd_str,
+    pub logs_collected: bool,
 }
 
 #[repr(C)]
@@ -88,7 +92,6 @@ pub struct dd_service {
     pub log_files: dd_strs,
     pub apm_instrumentation: bool,
     pub language: dd_str,
-    pub service_type: dd_str,
 }
 
 #[repr(C)]
@@ -146,6 +149,15 @@ impl From<Option<String>> for dd_str {
     }
 }
 
+impl From<Option<Language>> for dd_str {
+    fn from(opt: Option<Language>) -> Self {
+        match opt {
+            Some(lang) => dd_str::from_str(lang.as_str()),
+            None => dd_str::NULL,
+        }
+    }
+}
+
 impl From<Vec<String>> for dd_strs {
     fn from(v: Vec<String>) -> Self {
         if v.is_empty() {
@@ -196,12 +208,15 @@ impl From<TracerMetadata> for dd_tracer_metadata {
         Self {
             schema_version: tm.schema_version,
             runtime_id: dd_str::from(tm.runtime_id),
-            tracer_language: dd_str::from_str(tm.tracer_language.as_str()),
+            tracer_language: dd_str::from(tm.tracer_language),
             tracer_version: dd_str::from(tm.tracer_version),
             hostname: dd_str::from(tm.hostname),
             service_name: dd_str::from(tm.service_name),
             service_env: dd_str::from(tm.service_env),
             service_version: dd_str::from(tm.service_version),
+            process_tags: dd_str::from(tm.process_tags),
+            container_id: dd_str::from(tm.container_id),
+            logs_collected: tm.logs_collected,
         }
     }
 }
@@ -235,8 +250,7 @@ impl From<Service> for dd_service {
             udp_ports: vec_u16_to_slice(svc.udp_ports),
             log_files: dd_strs::from(svc.log_files),
             apm_instrumentation: svc.apm_instrumentation,
-            language: dd_str::from_str(svc.language.as_str()),
-            service_type: dd_str::from(svc.service_type),
+            language: dd_str::from(svc.language),
         }
     }
 }
@@ -401,7 +415,6 @@ unsafe fn free_dd_service(service: &dd_service) {
         log_files,
         apm_instrumentation: _,
         language,
-        service_type,
     } = service;
     // SAFETY: Caller guarantees pointers are from `Box::into_raw` or NULL.
     unsafe {
@@ -414,7 +427,6 @@ unsafe fn free_dd_service(service: &dd_service) {
         free_dd_u16_slice(udp_ports);
         free_dd_strs(log_files);
         free_dd_str(language);
-        free_dd_str(service_type);
     }
 }
 
@@ -518,6 +530,9 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
         service_name,
         service_env,
         service_version,
+        process_tags,
+        container_id,
+        logs_collected: _,
     } = metadata;
     // SAFETY: Caller guarantees valid heap pointers or NULL.
     unsafe {
@@ -528,6 +543,8 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
         free_dd_str(service_name);
         free_dd_str(service_env);
         free_dd_str(service_version);
+        free_dd_str(process_tags);
+        free_dd_str(container_id);
     }
 }
 
@@ -582,14 +599,19 @@ mod tests {
                 generated_name_source: Some(ServiceNameSource::CommandLine),
                 additional_generated_names: vec!["alt1".to_string(), "alt2".to_string()],
                 tracer_metadata: vec![TracerMetadata {
-                    schema_version: 1,
+                    schema_version: 2,
                     runtime_id: Some("runtime123".to_string()),
-                    tracer_language: Language::Python,
+                    tracer_language: "python".to_string(),
                     tracer_version: "1.0.0".to_string(),
                     hostname: "localhost".to_string(),
                     service_name: Some("my-service".to_string()),
                     service_env: Some("prod".to_string()),
                     service_version: Some("2.0.0".to_string()),
+                    process_tags: Some(
+                        "entrypoint.name:myapp,entrypoint.type:executable".to_string(),
+                    ),
+                    container_id: Some("abc123-container-id".to_string()),
+                    logs_collected: true,
                 }],
                 ust: UST {
                     service: Some("ust-service".to_string()),
@@ -600,8 +622,7 @@ mod tests {
                 udp_ports: Some(vec![9000]),
                 log_files: vec!["/var/log/app.log".to_string()],
                 apm_instrumentation: true,
-                language: Language::Python,
-                service_type: "web_service".to_string(),
+                language: Some(Language::Python),
             }],
             injected_pids: vec![5678, 9012],
             gpu_pids: vec![1111, 2222],
@@ -626,10 +647,6 @@ mod tests {
         );
         assert_eq!(service.apm_instrumentation, true);
         assert_eq!(unsafe { dd_str_to_str(&service.language) }, "python");
-        assert_eq!(
-            unsafe { dd_str_to_str(&service.service_type) },
-            "web_service"
-        );
 
         // Verify additional_generated_names
         assert!(!service.additional_generated_names.data.is_null());
@@ -647,12 +664,28 @@ mod tests {
         assert!(!service.tracer_metadata.data.is_null());
         assert_eq!(service.tracer_metadata.len, 1);
         let metadata = unsafe { &*service.tracer_metadata.data };
-        assert_eq!(metadata.schema_version, 1);
+        assert_eq!(metadata.schema_version, 2);
         assert_eq!(unsafe { dd_str_to_str(&metadata.runtime_id) }, "runtime123");
         assert_eq!(
             unsafe { dd_str_to_str(&metadata.tracer_language) },
             "python"
         );
+        assert_eq!(unsafe { dd_str_to_str(&metadata.hostname) }, "localhost");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.service_name) },
+            "my-service"
+        );
+        assert_eq!(unsafe { dd_str_to_str(&metadata.service_env) }, "prod");
+        assert_eq!(unsafe { dd_str_to_str(&metadata.service_version) }, "2.0.0");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.process_tags) },
+            "entrypoint.name:myapp,entrypoint.type:executable"
+        );
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.container_id) },
+            "abc123-container-id"
+        );
+        assert_eq!(metadata.logs_collected, true);
 
         // Verify UST
         assert_eq!(
@@ -718,8 +751,7 @@ mod tests {
                 udp_ports: Some(vec![]),
                 log_files: vec![],
                 apm_instrumentation: false,
-                language: Language::Unknown,
-                service_type: "unknown".to_string(),
+                language: None,
             }],
             injected_pids: vec![],
             gpu_pids: vec![],

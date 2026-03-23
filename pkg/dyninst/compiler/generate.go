@@ -9,12 +9,12 @@ package compiler
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -77,7 +77,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
 	for idx, probe := range program.Probes {
+		// Determine which event kind has a condition (if any).
+		var conditionEventKind ir.EventKind
 		for _, event := range probe.Events {
+			if event.Condition != nil {
+				conditionEventKind = event.Kind
+				break
+			}
+		}
+		for _, event := range probe.Events {
+			throttleMode := computeThrottleMode(event, conditionEventKind)
 			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
 					injectionPoint,
@@ -86,6 +95,8 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 					uint32(idx),
 					event.Type,
 					event.Kind,
+					event.Condition,
+					throttleMode,
 				)
 				if err != nil {
 					return Program{}, err
@@ -151,6 +162,36 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	}, nil
 }
 
+// computeThrottleMode determines the throttle mode for an event based on
+// whether this event or its sibling has a condition.
+//
+// Note importantly at time of writing only one event can have a condition!
+func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
+	hasCond := event.Condition != nil
+	isReturn := event.Kind == ir.EventKindReturn
+
+	if hasCond {
+		// This event has a condition: throttle after condition check.
+		// Note: if we later support compound conditions where the entry and
+		// return both have conditions, we will need to adjust this to only
+		// throttle the return.
+		return ThrottleAfterCondCheck
+	}
+	if conditionEventKind != 0 && conditionEventKind != event.Kind {
+		// Sibling event has a condition: skip throttling for this event.
+		// For entry with conditional return: don't throttle entry so the return
+		// condition can evaluate.
+		// For return with conditional entry: unconditional returns never throttle.
+		return ThrottleNone
+	}
+	if isReturn {
+		// Unconditional return without sibling condition: never throttle.
+		return ThrottleNone
+	}
+	// Default: throttle at start.
+	return ThrottleAtStart
+}
+
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
@@ -161,6 +202,8 @@ func (g *generator) addEventHandler(
 	probeID uint32,
 	rootType *ir.EventRootType,
 	eventKind ir.EventKind,
+	condition *ir.Expression,
+	throttleMode ThrottleMode,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
@@ -172,11 +215,25 @@ func (g *generator) addEventHandler(
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
 		NoReturnReason:      injectionPoint.NoReturnReason,
 		TopPCOffset:         injectionPoint.TopPCOffset,
+		ThrottleMode:        throttleMode,
 		ProbeID:             probeID,
 		EventKind:           eventKind,
 		EventRootType:       rootType,
 	}
-	ops := make([]Op, 0, 2+len(rootType.Expressions))
+	ops := make([]Op, 0, 3+len(rootType.Expressions))
+
+	// If there's a condition, insert the condition check before
+	// PrepareEventRoot so that non-matching events are skipped entirely.
+	if condition != nil {
+		condFunctionID, err := g.addConditionHandler(injectionPoint.PC, rootType, condition)
+		if err != nil {
+			return err
+		}
+		ops = append(ops, CallOp{
+			FunctionID: condFunctionID,
+		})
+	}
+
 	ops = append(ops, PrepareEventRootOp{
 		EventRootType: rootType,
 	})
@@ -191,6 +248,61 @@ func (g *generator) addEventHandler(
 	}
 	ops = append(ops, ReturnOp{})
 	return g.addFunction(id, ops)
+}
+
+// Generates a function that evaluates a condition expression. If the condition
+// evaluates to false, the stack machine sets condition_failed and aborts.
+func (g *generator) addConditionHandler(
+	injectionPC uint64,
+	rootType *ir.EventRootType,
+	condition *ir.Expression,
+) (FunctionID, error) {
+	id := ProcessCondition{
+		EventRootType: rootType,
+		InjectionPC:   injectionPC,
+	}
+	ops := make([]Op, 0, 5+len(condition.Operations))
+	ops = append(ops, ConditionBeginOp{})
+	ops = append(ops, ExprPrepareOp{})
+
+	for _, op := range condition.Operations {
+		switch op := op.(type) {
+		case *ir.LocationOp:
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			if err != nil {
+				logLocationIssue(
+					"error encoding location op for condition: %v", err,
+				)
+				opsAfter = append(ops, ReturnOp{})
+			}
+			ops = opsAfter
+		case *ir.DereferenceOp:
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias: op.Bias,
+				Len:  op.ByteSize,
+			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpEqBaseOp:
+			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
+		case *ir.ExprCmpEqStringOp:
+			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ConditionCheckOp:
+			ops = append(ops, ConditionCheckOp{})
+		default:
+			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
+		}
+	}
+	ops = append(ops, ReturnOp{})
+	err := g.addFunction(id, ops)
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }
 
 var encodeLocationLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
@@ -271,7 +383,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 
 func (g *generator) addFunction(id FunctionID, ops []Op) error {
 	if _, ok := g.functionReg[id]; ok {
-		return errors.Errorf("internal: function `%s` already exists", id)
+		return fmt.Errorf("internal: function `%s` already exists", id)
 	}
 	if _, ok := ops[len(ops)-1].(ReturnOp); !ok {
 		return errors.New("internal: last op must be a return")
@@ -608,15 +720,15 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 
 		// Types that should never be stored in registers nor stack.
 		case *ir.EventRootType:
-			err = errors.Errorf("internal: unexpected EventRootType: %#v", t)
+			err = fmt.Errorf("internal: unexpected EventRootType: %#v", t)
 		case *ir.GoSliceDataType:
-			err = errors.Errorf("internal: unexpected GoSliceDataType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoSliceDataType: %#v", t)
 		case *ir.GoStringDataType:
-			err = errors.Errorf("internal: unexpected GoStringDataType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoStringDataType: %#v", t)
 		case *ir.GoSwissMapGroupsType:
-			err = errors.Errorf("internal: unexpected GoSwissMapGroupsType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoSwissMapGroupsType: %#v", t)
 		case *ir.GoSwissMapHeaderType:
-			err = errors.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Type for layout: %#v", t))
 		}
@@ -635,7 +747,7 @@ func offsetOf(fields []ir.Field, name string) (uint32, error) {
 			return field.Offset, nil
 		}
 	}
-	return 0, errors.Errorf("internal: field `%s` not found", name)
+	return 0, fmt.Errorf("internal: field `%s` not found", name)
 }
 
 func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
@@ -644,7 +756,7 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 		return 0, err
 	}
 	if offset > math.MaxUint8 {
-		return 0, errors.Errorf("offset of %s overflows uint8: %d", name, offset)
+		return 0, fmt.Errorf("offset of %s overflows uint8: %d", name, offset)
 	}
 	return uint8(offset), nil
 }
@@ -680,18 +792,25 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		}
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
-				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
+				return nil, fmt.Errorf(
+					"mismatch between loclist pieces and type memory layout for %s: %s",
+					op.Variable.Name, op.Variable.Type.GetName(),
+				)
 			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
-			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
+			for nextLayoutIdx < len(layoutPieces) &&
+				layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
 				nextLayoutIdx++
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
-			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				switch p := piece.Op.(type) {
-				case ir.Register:
+			switch p := piece.Op.(type) {
+			case ir.Register:
+				// Register pieces are small and map to individual layout
+				// pieces. Check whether this piece's padded position falls
+				// within the requested range.
+				if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
 					if piece.Size > 8 {
 						return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
 					}
@@ -700,15 +819,26 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						Size:         uint8(piece.Size),
 						OutputOffset: paddedOffset - op.Offset,
 					})
-				case ir.Cfa:
-					ops = append(ops, ExprDereferenceCfaOp{
-						Offset:       p.CfaOffset,
-						Len:          piece.Size,
-						OutputOffset: paddedOffset - op.Offset,
-					})
-				case ir.Addr:
-					return nil, errUnsupportedAddrLocationOp
 				}
+			case ir.Cfa:
+				// CFA pieces represent contiguous memory on the stack that
+				// already has correct padding. Compute the overlap between
+				// this piece's range and the requested range, then read just
+				// that portion.
+				pieceEnd := paddedOffset + piece.Size
+				reqEnd := op.Offset + op.ByteSize
+				overlapStart := max(op.Offset, paddedOffset)
+				overlapEnd := min(reqEnd, pieceEnd)
+				if overlapStart < overlapEnd {
+					cfaOff := p.CfaOffset + int32(overlapStart-paddedOffset)
+					ops = append(ops, ExprDereferenceCfaOp{
+						Offset:       cfaOff,
+						Len:          overlapEnd - overlapStart,
+						OutputOffset: overlapStart - op.Offset,
+					})
+				}
+			case ir.Addr:
+				return nil, errUnsupportedAddrLocationOp
 			}
 		}
 		return ops, nil

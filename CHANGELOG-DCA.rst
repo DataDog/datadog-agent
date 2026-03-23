@@ -2,6 +2,58 @@
 Release Notes
 =============
 
+.. _Release Notes_7.77.0:
+
+7.77.0
+======
+
+.. _Release Notes_7.77.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-18
+Pinned to datadog-agent v7.77.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7770>`_.
+
+
+.. _Release Notes_7.77.0_New Features:
+
+New Features
+------------
+
+- Add APM tracing instrumentation to the Datadog Cluster Agent for improved observability
+  and debugging in production environments. When enabled, the Cluster Agent emits APM traces
+  for cluster check dispatching and rebalancing operations, surfacing patch failures and
+  rebalancing decisions as span tags. 
+
+
+.. _Release Notes_7.77.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Reduce admission controller downtime during certificate rotation.
+
+- Add the ability to collect NodeClasses EKS Auto Mode custom resources (``eks.amazonaws.com`` API group) by default.
+
+- Experimental: Adds support for collecting force-deleted pods in the orchestrator check using
+  ``orchestrator_explorer.terminated_pods_improved.enabled``.
+
+
+.. _Release Notes_7.76.3:
+
+7.76.3
+======
+
+.. _Release Notes_7.76.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-09
+Pinned to datadog-agent v7.76.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7763>`_.
+
+
 .. _Release Notes_7.76.2:
 
 7.76.2

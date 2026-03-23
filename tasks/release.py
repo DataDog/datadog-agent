@@ -124,7 +124,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
         for module in modules.values():
-            for dependency in module.dependencies:
+            for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
                 if (
                     agent_version.startswith('6')
@@ -856,9 +856,14 @@ def create_release_branches(
         with open(".gitlab-ci.yml") as f:
             content = f.read()
         with open(".gitlab-ci.yml", "w") as f:
-            f.write(
-                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            updated_content = content.replace(
+                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
             )
+            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
+            updated_content = updated_content.replace(
+                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
+            )
+            f.write(updated_content)
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml")

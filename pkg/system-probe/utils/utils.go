@@ -7,8 +7,10 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,7 +48,7 @@ func GetPrettyPrintFromQueryParams(req *http.Request) FormatOptions {
 }
 
 // WriteAsJSON marshals the give data argument into JSON and writes it to the `http.ResponseWriter`
-func WriteAsJSON(w http.ResponseWriter, data interface{}, outputOptions FormatOptions) {
+func WriteAsJSON(req *http.Request, w http.ResponseWriter, data any, outputOptions FormatOptions) {
 	encoder := json.NewEncoder(w)
 	//nolint:staticcheck // S1002: explicit comparison preferred for readability
 	if outputOptions == PrettyPrint {
@@ -54,8 +56,10 @@ func WriteAsJSON(w http.ResponseWriter, data interface{}, outputOptions FormatOp
 	}
 	err := encoder.Encode(data)
 	if err != nil {
-		log.Errorf("unable to marshal data into JSON: %s", err)
-		w.WriteHeader(500)
+		if !errors.Is(err, syscall.EPIPE) {
+			log.Errorf("unable to marshal data into JSON for %s: %s", req.URL.RequestURI(), err)
+			w.WriteHeader(500)
+		}
 		return
 	}
 }
