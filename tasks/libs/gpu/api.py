@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import  Any
-
-from tasks.libs.gpu.types import GPUConfig
+from typing import Any
 
 from datadog_api_client.v2.api.metrics_api import MetricsApi as MetricsApiV2
 from datadog_api_client.v2.model.metrics_scalar_query import MetricsScalarQuery
 
+from tasks.libs.gpu.types import GPUConfig
 
 NULLISH_GROUP_VALUES = {"", "none", "null", "n/a"}
 
@@ -39,7 +38,7 @@ def normalize_device_mode(slicing_mode: str | None, virtualization_mode: str | N
     return "physical"
 
 
-def _build_scalar_query(name: str, query: str) -> 'MetricsScalarQuery':
+def _build_scalar_query(name: str, query: str) -> MetricsScalarQuery:
     from datadog_api_client.v2.model.metrics_aggregator import MetricsAggregator
     from datadog_api_client.v2.model.metrics_data_source import MetricsDataSource
     from datadog_api_client.v2.model.metrics_scalar_query import MetricsScalarQuery
@@ -52,7 +51,7 @@ def _build_scalar_query(name: str, query: str) -> 'MetricsScalarQuery':
     )
 
 
-def _run_scalar_queries(api: "MetricsApiV2", queries: list[Any], from_ts: int, to_ts: int) -> ScalarColumns:
+def _run_scalar_queries(api: MetricsApiV2, queries: list[Any], from_ts: int, to_ts: int) -> ScalarColumns:
     from datadog_api_client.v2.model.scalar_formula_query_request import ScalarFormulaQueryRequest
     from datadog_api_client.v2.model.scalar_formula_request import ScalarFormulaRequest
     from datadog_api_client.v2.model.scalar_formula_request_attributes import ScalarFormulaRequestAttributes
@@ -87,11 +86,11 @@ def _split_scalar_columns(columns: list[Any]) -> ScalarColumns:
     return ScalarColumns(group=group_columns, number=number_columns)
 
 
-def query_scalar_data(api: "MetricsApiV2", query: str, from_ts: int, to_ts: int) -> ScalarColumns:
+def query_scalar_data(api: MetricsApiV2, query: str, from_ts: int, to_ts: int) -> ScalarColumns:
     return _run_scalar_queries(api, [_build_scalar_query("q0", query)], from_ts, to_ts)
 
 
-def query_device_count(api: "MetricsApiV2", gpu_config: GPUConfig, from_ts: int, to_ts: int) -> int:
+def query_device_count(api: MetricsApiV2, gpu_config: GPUConfig, from_ts: int, to_ts: int) -> int:
     columns = query_scalar_data(
         api,
         f"avg:gpu.device.total{{{gpu_config.to_tag_filter()}}} by {{gpu_uuid}}",
@@ -102,7 +101,7 @@ def query_device_count(api: "MetricsApiV2", gpu_config: GPUConfig, from_ts: int,
     return sum(1 for value in values if value is not None and value > 0)
 
 
-def discover_live_gpu_configs(api: "MetricsApiV2", from_ts: int, to_ts: int) -> set[tuple[str, str]]:
+def discover_live_gpu_configs(api: MetricsApiV2, from_ts: int, to_ts: int) -> set[tuple[str, str]]:
     columns = query_scalar_data(
         api,
         "avg:gpu.device.total{*} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}",
@@ -132,7 +131,7 @@ def discover_live_gpu_configs(api: "MetricsApiV2", from_ts: int, to_ts: int) -> 
 
 
 def query_expected_metrics_presence_for_gpu_config(
-    api: "MetricsApiV2",
+    api: MetricsApiV2,
     metric_names: list[str],
     expected_tags_by_metric: dict[str, set[str]],
     gpu_config_query_filter: str,
@@ -184,7 +183,7 @@ def query_expected_metrics_presence_for_gpu_config(
 
 
 def list_observed_gpu_metrics_for_gpu_config(
-    api: "MetricsApiV2", gpu_config: GPUConfig, lookback: int, metric_prefix: str
+    api: MetricsApiV2, gpu_config: GPUConfig, lookback: int, metric_prefix: str
 ) -> set[str]:
     metrics: set[str] = set()
     filter_expr = gpu_config.to_filter_expression()

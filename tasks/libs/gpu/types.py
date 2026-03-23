@@ -21,8 +21,7 @@ class Support(BaseModel):
         invalid_modes = sorted(set(value.keys()) - allowed_modes)
         if invalid_modes:
             raise ValueError(
-                f"invalid device modes: {', '.join(invalid_modes)} "
-                f"(expected {', '.join(sorted(allowed_modes))})"
+                f"invalid device modes: {', '.join(invalid_modes)} " f"(expected {', '.join(sorted(allowed_modes))})"
             )
         return value
 
@@ -122,7 +121,7 @@ class GPUConfigValidationResult:
             len(self.missing_metrics) + len(self.unknown_metrics) + len(self.tag_failures) > 0
         )
 
-    def update(self, other: "GPUConfigValidationResult") -> None:
+    def update(self, other: GPUConfigValidationResult) -> None:
         status_precedence = {
             GPUConfigValidationState.FAIL: 0,
             GPUConfigValidationState.OK: 1,
@@ -152,7 +151,7 @@ class ValidationResults:
     architectures_count: int
     failing_count: int
 
-    def update(self, other: "ValidationResults") -> None:
+    def update(self, other: ValidationResults) -> None:
         self.metrics_count = max(self.metrics_count, other.metrics_count)
         self.architectures_count = max(self.architectures_count, other.architectures_count)
         self.failing_count += other.failing_count
