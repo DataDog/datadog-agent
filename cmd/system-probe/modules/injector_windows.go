@@ -13,6 +13,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -20,7 +22,6 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -34,8 +35,7 @@ var _ module.Module = &injectorModule{}
 
 // Injector Factory
 var Injector = &module.Factory{
-	Name:             config.InjectorModule,
-	ConfigNamespaces: []string{},
+	Name: config.InjectorModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating Windows Injector module")
 
