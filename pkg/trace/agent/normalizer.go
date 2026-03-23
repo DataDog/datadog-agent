@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
@@ -30,15 +31,13 @@ const (
 	// tagSamplingPriority specifies the sampling priority of the trace.
 	// DEPRECATED: Priority is now specified as a TraceChunk field.
 	tagSamplingPriority = "_sampling_priority_v1"
-	// peerServiceKey is the key for the peer.service meta field.
-	peerServiceKey = "peer.service"
-	// baseServiceKey is the key for the _dd.base_service meta field.
-	baseServiceKey = "_dd.base_service"
 )
 
 var (
 	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
+	// normalizerRegistry is the semantic registry used for tag lookups in span normalization.
+	normalizerRegistry = semantics.DefaultRegistry()
 )
 
 // normalizeService handles service normalization for both pb.Span and idx.InternalSpan
@@ -227,12 +226,12 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
-	if pSvc, ok := s.Meta[peerServiceKey]; ok {
-		s.Meta[peerServiceKey] = a.normalizePeerService(ts, pSvc)
+	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
+	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
+		s.Meta[string(semantics.ConceptPeerService)] = a.normalizePeerService(ts, pSvc)
 	}
-
-	if bSvc, ok := s.Meta[baseServiceKey]; ok {
-		s.Meta[baseServiceKey] = a.normalizeBaseService(ts, bSvc)
+	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
+		s.Meta[string(semantics.ConceptDDBaseService)] = a.normalizeBaseService(ts, bSvc)
 	}
 
 	if a.conf.HasFeature("component2name") {
@@ -286,12 +285,12 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	svc, _ := a.normalizeService(ts, s.Service(), ts.Lang)
 	s.SetService(svc)
 
-	if pSvc, ok := s.GetAttributeAsString(peerServiceKey); ok {
-		s.SetStringAttribute(peerServiceKey, a.normalizePeerService(ts, pSvc))
+	spanAccessorV1 := semantics.NewDDSpanAccessorV1(s)
+	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
+		s.SetStringAttribute(string(semantics.ConceptPeerService), a.normalizePeerService(ts, pSvc))
 	}
-
-	if bSvc, ok := s.GetAttributeAsString(baseServiceKey); ok {
-		s.SetStringAttribute(baseServiceKey, a.normalizeBaseService(ts, bSvc))
+	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
+		s.SetStringAttribute(string(semantics.ConceptDDBaseService), a.normalizeBaseService(ts, bSvc))
 	}
 
 	if a.conf.HasFeature("component2name") {
