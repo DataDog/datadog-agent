@@ -48,7 +48,7 @@ Provide a PackageVariablesInfo which can be used for substitutions into output f
 The three things you are likely to use:
 - version: A suitable version that includes the pipeline id.
 - arch: A deb/rpm conformant architecture string based on the target platform.
-- product_name"] = ctx.attr.product_name
+- product_name = ctx.attr.product_name
 
 And other thing which might be useful:
 - base_branch: Agent base branch from release.json.
