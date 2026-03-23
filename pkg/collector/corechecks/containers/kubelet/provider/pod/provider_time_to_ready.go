@@ -23,10 +23,9 @@ import (
 )
 
 const (
-	// maxTimeToReady is the maximum duration we consider valid for a pod to
-	// go from scheduled to ready. Anything beyond this is likely bad data
-	// from a readiness probe re-transition rather than the initial startup.
-	maxTimeToReady = 1 * time.Hour
+	// maxStartupDuration is the maximum duration we consider valid for a pod to
+	// go from scheduled to ready or running.
+	maxStartupDuration = 1 * time.Hour
 
 	// defaultFailureThreshold is the Kubernetes default for
 	// readinessProbe.failureThreshold when not explicitly configured.
@@ -126,7 +125,7 @@ func podHasTooManyReadinessFailures(pod *workloadmeta.KubernetesPod, failures re
 			}
 		}
 
-		if failureCount > threshold {
+		if failureCount >= threshold {
 			return true
 		}
 	}
@@ -141,13 +140,14 @@ type podStartupTimings struct {
 }
 
 // computePodStartupTimings extracts time_to_ready and time_to_running from the
-// pod's conditions and container statuses, applying all heuristic validation.
+// pod's conditions and container statuses, applying some heuristic validation.
 //
 // Heuristics:
-//   - Requires a PodScheduled condition with a valid LastTransitionTime.
-//   - Any container restart (regular or init) makes all timings unreliable.
-//   - Readiness probe failures above the threshold make time_to_ready unreliable
-//   - Durations that are negative or exceed maxTimeToReady are discarded.
+//  1. Any container restart (regular or init) makes all timings unreliable.
+//  2. Requires a PodScheduled condition with a valid LastTransitionTime.
+//  3. Ready LastTransitionTime must be after PodScheduled LastTransitionTime.
+//  4. For each container, total number of failed readiness probes must be less than failureThreshold
+//  5. Durations cannot be negative or exceed maxStartupDuration.
 //
 // The "running" definition mirrors the kubelet's HasAnyActiveRegularContainerStarted:
 // at least one regular (non-init) container has started.
@@ -177,17 +177,15 @@ func computePodStartupTimings(pod *workloadmeta.KubernetesPod, podReadinessFailu
 
 	var timings podStartupTimings
 
-	// time_to_ready: only trust if readiness probes haven't failed too many
-	// times, otherwise LastTransitionTime may reflect a re-ready cycle.
-	if !podReadinessFailure && !readyTime.IsZero() {
+	// Calculate time_to_ready if we satisfy all heuristics
+	if !podReadinessFailure && readyTime.After(scheduledTime) {
 		d := readyTime.Sub(scheduledTime)
-		if d > 0 && d <= maxTimeToReady {
+		if d > 0 && d <= maxStartupDuration {
 			timings.timeToReady = d
 		}
 	}
 
-	// time_to_running: earliest regular container StartedAt is not affected
-	// by readiness probes
+	// Calculate time_to_running if any container is running and we satisfy all heuristics
 	var earliestRunningTime time.Time
 	for _, cs := range pod.ContainerStatuses {
 		if cs.State.Running == nil || cs.State.Running.StartedAt.IsZero() {
@@ -198,11 +196,9 @@ func computePodStartupTimings(pod *workloadmeta.KubernetesPod, podReadinessFailu
 		}
 	}
 
-	// time_to_running: earliest regular container StartedAt is not affected
-	// by readiness probes
 	if !earliestRunningTime.IsZero() {
 		d := earliestRunningTime.Sub(scheduledTime)
-		if d > 0 && d <= maxTimeToReady {
+		if d > 0 && d <= maxStartupDuration {
 			timings.timeToRunning = d
 		}
 	}
@@ -230,15 +226,11 @@ func anyContainerRestarted(pod *workloadmeta.KubernetesPod) bool {
 	return false
 }
 
-// generatePodStartupMetrics emits kubernetes.pod.creation_time_to_ready and
-// kubernetes.pod.creation_time_to_running as gauges for pods
+// generatePodStartupMetrics emits kubernetes.pod.scheduled_time_to_ready and
+// kubernetes.pod.scheduled_time_to_running as gauges for pods
 func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.KubernetesPod, failures readinessFailureCounts) {
 	// consider only pods that are currently Ready and Running
-	if pod.Phase != podPhaseRunning || !pod.Ready {
-		return
-	}
-
-	if pod.CreationTimestamp.IsZero() || pod.ID == "" {
+	if pod.ID == "" || pod.Phase != podPhaseRunning || !pod.Ready {
 		return
 	}
 
@@ -253,10 +245,10 @@ func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	if timings.timeToReady > 0 {
-		s.Gauge(common.KubeletMetricsPrefix+"pod.creation_time_to_ready", timings.timeToReady.Seconds(), "", tagList)
+		s.Gauge(common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", timings.timeToReady.Seconds(), "", tagList)
 	}
 
 	if timings.timeToRunning > 0 {
-		s.Gauge(common.KubeletMetricsPrefix+"pod.creation_time_to_running", timings.timeToRunning.Seconds(), "", tagList)
+		s.Gauge(common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", timings.timeToRunning.Seconds(), "", tagList)
 	}
 }
