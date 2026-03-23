@@ -46,7 +46,7 @@ func netflowDockerProvisioner() provisioners.Provisioner {
 			return err
 		}
 
-		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.AmazonLinuxECSDefault))
+		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.Ubuntu2204Docker))
 		if err != nil {
 			return err
 		}

@@ -56,8 +56,7 @@ func vmPlusDockerEnvProvisioner() provisioners.PulumiEnvRunFunc[vmPlusDockerEnv]
 			return err
 		}
 
-		// First we create a remote host with Amazon Linux ECS, that comes with Docker pre-installed
-		remoteHost, err := ec2.NewVM(awsEnv, "main", ec2.WithOS(os.AmazonLinuxECSDefault))
+		remoteHost, err := ec2.NewVM(awsEnv, "main", ec2.WithOS(os.Ubuntu2204Docker))
 		if err != nil {
 			return err
 		}

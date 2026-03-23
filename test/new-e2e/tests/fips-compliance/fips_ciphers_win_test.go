@@ -159,7 +159,7 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 }
 
 func linuxDockerVMProvisioner(ctx *pulumi.Context, awsEnv aws.Environment, env *multiVMEnv) error {
-	linuxDockerVM, err := ec2.NewVM(awsEnv, "LinuxDockerVM", ec2.WithOS(infraos.UbuntuDefault))
+	linuxDockerVM, err := ec2.NewVM(awsEnv, "LinuxDockerVM", ec2.WithOS(infraos.Ubuntu2204Docker))
 	if err != nil {
 		return err
 	}
