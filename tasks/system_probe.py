@@ -1148,18 +1148,16 @@ _BAZEL_CGO_GODEFS_WIN_TARGETS = [
 
 
 def _bazel_verify_cgo_godefs(ctx: Context, targets: list[str], has_test_files: bool = True) -> None:
-    """Build cgo_godefs targets and verify committed files are up to date.
+    """Verify committed cgo godefs files are up to date.
 
-    Runs ``bazel build`` for the _gen targets, then ``bazel test`` on the
-    write_source_file diff tests.  Raises Exit if any committed file is stale.
+    Runs ``bazel test`` on the write_source_file diff tests (which also
+    builds the _gen targets as dependencies).  Raises Exit if any committed
+    file is stale.
 
     Args:
         has_test_files: If True (Linux), each target also produces a _test.go
             file with a corresponding _test_file_test diff test.
     """
-    print(f"Building {len(targets)} cgo godefs Bazel targets...")
-    bazel(ctx, "build", *targets)
-
     godefs_test_targets = []
     for target in targets:
         label_path, name = target.lstrip("/").rsplit(":", 1)
@@ -1202,12 +1200,9 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
     ebpf_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(inplace_targets.keys())
-    all_targets = ebpf_targets + _BAZEL_CGO_GODEFS_TARGETS
 
-    print(
-        f"Building {len(all_targets)} Bazel targets ({len(ebpf_targets)} eBPF + {len(_BAZEL_CGO_GODEFS_TARGETS)} cgo godefs)..."
-    )
-    bazel(ctx, "build", *all_targets)
+    print(f"Building {len(ebpf_targets)} eBPF Bazel targets...")
+    bazel(ctx, "build", *ebpf_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
