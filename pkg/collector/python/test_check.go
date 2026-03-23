@@ -115,16 +115,18 @@ const char *get_check_init_config = NULL;
 const char *get_check_instance = NULL;
 const char *get_check_check_id = NULL;
 const char *get_check_check_name = NULL;
+const char *get_check_provider = NULL;
 rtloader_pyobject_t *get_check_check = NULL;
 
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
-const char *check_id, const char *check_name, rtloader_pyobject_t **check) {
+const char *check_id, const char *check_name, const char *provider, rtloader_pyobject_t **check) {
 
 	get_check_py_class = py_class;
 	get_check_init_config = strdup(init_config);
 	get_check_instance = strdup(instance);
 	get_check_check_id = strdup(check_id);
 	get_check_check_name = strdup(check_name);
+	get_check_provider = strdup(provider);
 	*check = get_check_check;
 
 	get_check_calls++;
@@ -141,11 +143,12 @@ const char *get_check_deprecated_instance = NULL;
 const char *get_check_deprecated_check_id = NULL;
 const char *get_check_deprecated_check_name = NULL;
 const char *get_check_deprecated_agent_config = NULL;
+const char *get_check_deprecated_provider = NULL;
 rtloader_pyobject_t *get_check_deprecated_check = NULL;
 
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
 const char *instance, const char *agent_config, const char *check_id, const char *check_name,
-rtloader_pyobject_t **check) {
+const char *provider, rtloader_pyobject_t **check) {
 
 	get_check_deprecated_py_class = py_class;
 	get_check_deprecated_init_config = strdup(init_config);
@@ -153,6 +156,7 @@ rtloader_pyobject_t **check) {
 	get_check_deprecated_check_id = strdup(check_id);
 	get_check_deprecated_check_name = strdup(check_name);
 	get_check_deprecated_agent_config = strdup(agent_config);
+	get_check_deprecated_provider = strdup(provider);
 	*check = get_check_deprecated_check;
 
 	get_check_deprecated_calls++;
@@ -181,6 +185,7 @@ void reset_check_mock() {
 	get_check_instance = NULL;
 	get_check_check_id = NULL;
 	get_check_check_name = NULL;
+	get_check_provider = NULL;
 	get_check_check = NULL;
 	cancel_check_calls = 0;
 	cancel_check_instance = NULL;
@@ -193,6 +198,7 @@ void reset_check_mock() {
 	get_check_deprecated_check_id = NULL;
 	get_check_deprecated_check_name = NULL;
 	get_check_deprecated_agent_config = NULL;
+	get_check_deprecated_provider = NULL;
 	get_check_deprecated_check = NULL;
 
 	get_check_diagnoses_return = NULL;
@@ -549,7 +555,7 @@ func testConfigure(t *testing.T) {
 
 	C.get_check_return = 1
 	C.get_check_check = newMockPyObjectPtr()
-	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test", "provider")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -557,6 +563,7 @@ func testConfigure(t *testing.T) {
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
+	assert.Equal(t, "provider", C.GoString(C.get_check_provider))
 	assert.Equal(t, C.get_check_check, c.instance)
 
 	assert.Nil(t, C.get_check_deprecated_py_class)
@@ -565,6 +572,7 @@ func testConfigure(t *testing.T) {
 	assert.Nil(t, C.get_check_deprecated_check_id)
 	assert.Nil(t, C.get_check_deprecated_check_name)
 	assert.Nil(t, C.get_check_deprecated_agent_config)
+	assert.Nil(t, C.get_check_deprecated_provider)
 	assert.Nil(t, C.get_check_deprecated_check)
 }
 
@@ -584,7 +592,7 @@ func testConfigureDeprecated(t *testing.T) {
 	C.get_check_return = 0
 	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
-	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test", "provider")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -592,6 +600,7 @@ func testConfigureDeprecated(t *testing.T) {
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
+	assert.Equal(t, "provider", C.GoString(C.get_check_provider))
 	assert.Nil(t, C.get_check_check)
 
 	assert.Equal(t, c.class, C.get_check_deprecated_py_class)
@@ -601,6 +610,7 @@ func testConfigureDeprecated(t *testing.T) {
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_deprecated_check_name))
 	require.NotNil(t, C.get_check_deprecated_agent_config)
 	assert.NotEqual(t, "", C.GoString(C.get_check_deprecated_agent_config))
+	assert.Equal(t, "provider", C.GoString(C.get_check_deprecated_provider))
 	assert.Equal(t, c.instance, C.get_check_deprecated_check)
 }
 
