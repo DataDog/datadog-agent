@@ -625,6 +625,7 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 			}
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
+			defer c.cleanup()
 			actualInterval := c.collector.processCollectionIntervalConfig()
 			assert.Equal(t, tc.expectedInterval, actualInterval)
 		})

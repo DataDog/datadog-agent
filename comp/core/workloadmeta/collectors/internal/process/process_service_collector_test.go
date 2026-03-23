@@ -47,6 +47,7 @@ var baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2
 
 func TestFilterPidsToRequest(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
+	defer c.cleanup()
 
 	// Set up test time using baseTime
 	c.mockClock.Set(baseTime)
@@ -691,6 +692,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
 
 	c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
+	defer c.cleanup()
 	ctx := t.Context()
 
 	// Set initial state: process entity in the store, SD was tracking a service,
