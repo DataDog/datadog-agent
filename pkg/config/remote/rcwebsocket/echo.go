@@ -9,6 +9,8 @@ package rcwebsocket
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -38,16 +40,27 @@ const messageTimeout = 5 * time.Minute
 func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
 	log.Debug("starting remote config websocket echo test")
 
-	n, err := runEchoLoop(ctx, client)
-	if err != nil {
-		log.Debugf("failed to run websocket echo test: %s (%d data frames exchanged)", err, n)
+	reconnections := uint(0)
+	for {
+		n, err := runEchoLoop(ctx, client, reconnections)
+		if err == nil {
+			log.Debugf("remote config websocket test complete (%d data frames exchanged)", n)
+			return
+		}
+		if ctx.Err() != nil {
+			log.Debugf("remote config websocket test aborted: %s (%d data frames exchanged)", err, n)
+			return
+		}
+		log.Debugf("websocket echo test disconnected (reconnections=%d): %s (%d data frames exchanged)", reconnections, err, n)
+		reconnections++
 	}
-
-	log.Debugf("remote config websocket test complete (%d data frames exchanged)", n)
 }
 
-func runEchoLoop(ctx context.Context, client *api.HTTPClient) (uint, error) {
-	conn, err := client.NewWebSocket(ctx, "/api/v0.2/echo-test")
+func runEchoLoop(ctx context.Context, client *api.HTTPClient, reconnections uint) (uint, error) {
+	extraHeaders := http.Header{
+		"X-Echo-Reconnections": []string{strconv.FormatUint(uint64(reconnections), 10)},
+	}
+	conn, err := client.NewWebSocket(ctx, "/api/v0.2/echo-test", extraHeaders)
 	if err != nil {
 		return 0, err
 	}
