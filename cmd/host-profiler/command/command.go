@@ -48,6 +48,7 @@ func MakeRootCommand() *cobra.Command {
 	// Add --agent-config as an alias for --core-config
 	hostProfiler.PersistentFlags().StringVar(&globalParams.CoreConfPath, "agent-config", "", "alias for --core-config")
 
+	// hostProfiler is a shallow copy of runCmds[0] so normalizeCoreConfig also applies to runCmds[0] subcommand below.
 	hostProfiler.Flags().SetNormalizeFunc(normalizeCoreConfig)
 	hostProfiler.AddCommand(runCmds[0])
 	hostProfiler.AddCommand(version.MakeCommand("Host profiler"))
