@@ -47,16 +47,9 @@ func preInstallDatadogAgentDDOT(ctx HookContext) error {
 
 // postInstallDatadogAgentDdot performs post-installation steps for the DDOT package on Windows
 func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
-	// 1) Write otel-config.yaml with API key/site substitutions
+	// 1) Write otel-config.yaml with API key/site substitutions (also grants ddagentuser ACE on Windows)
 	if err = writeOTelConfigWindows(ctx); err != nil {
 		return fmt.Errorf("could not write otel-config.yaml: %w", err)
-	}
-	// Grant ddagentuser write access to otel-config.yaml so the service can
-	// update the agent extension config with DD_API_KEY, installation_method, etc.
-	// On Linux the dd-agent user already has 640 mode access; on Windows an
-	// explicit ACE is required.
-	if err = grantDDAgentUserFileAccess(filepath.Join(paths.DatadogDataDir, "otel-config.yaml")); err != nil {
-		return fmt.Errorf("failed to grant access to otel-config.yaml: %w", err)
 	}
 	// 2) Enable otelcollector in datadog.yaml
 	if err = enableOtelCollectorConfigWindows(ctx); err != nil {
@@ -138,6 +131,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
 		}
 		otelConfigPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
+		// Ignore errors if the file doesn't exist (e.g. was never written or already removed).
 		if _, err := os.Stat(otelConfigPath); err == nil {
 			if err := removeDDAgentUserFileAccess(otelConfigPath); err != nil {
 				log.Warnf("failed to remove access from otel-config.yaml: %v", err)
@@ -164,7 +158,13 @@ func writeOTelConfigWindows(ctx HookContext) error {
 		}
 	}
 	out := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	return writeOTelConfigCommon(ctx, ddYaml, cfgTemplate, out, true, 0o600)
+	if err := writeOTelConfigCommon(ctx, ddYaml, cfgTemplate, out, true, 0o600); err != nil {
+		return err
+	}
+	// Grant ddagentuser write access so the service can update the config with
+	// DD_API_KEY, installation_method, etc. On Linux the dd-agent user already
+	// has 640 mode access; on Windows an explicit ACE is required.
+	return grantDDAgentUserFileAccess(out)
 }
 
 // enableOtelCollectorConfigWindows adds otelcollector.enabled and agent_ipc defaults to datadog.yaml
@@ -416,15 +416,9 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	}
 	extensionPath := filepath.Join(packagePath, "ext", ctx.Extension)
 
+	// Write otel-config.yaml (also grants ddagentuser ACE on Windows)
 	if err := writeOTelConfigWindowsExtension(ctx, extensionPath); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
-	}
-	// Grant ddagentuser write access to otel-config.yaml so the service can
-	// update the agent extension config with DD_API_KEY, installation_method, etc.
-	// On Linux the dd-agent user already has 640 mode access; on Windows an
-	// explicit ACE is required.
-	if err := grantDDAgentUserFileAccess(filepath.Join(paths.DatadogDataDir, "otel-config.yaml")); err != nil {
-		return fmt.Errorf("failed to grant access to otel-config.yaml: %w", err)
 	}
 
 	if err := enableOtelCollectorConfigWindows(ctx); err != nil {
@@ -454,6 +448,7 @@ func preRemoveDDOTExtension(_ HookContext) error {
 		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
 	}
 	otelConfigPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
+	// Ignore errors if the file doesn't exist (e.g. was never written or already removed).
 	if _, err := os.Stat(otelConfigPath); err == nil {
 		if err := removeDDAgentUserFileAccess(otelConfigPath); err != nil {
 			log.Warnf("failed to remove ddagentuser access from otel-config.yaml: %v", err)
@@ -467,7 +462,13 @@ func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) erro
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	templatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
 	outPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
+	if err := writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640); err != nil {
+		return err
+	}
+	// Grant ddagentuser write access so the service can update the config with
+	// DD_API_KEY, installation_method, etc. On Linux the dd-agent user already
+	// has 640 mode access; on Windows an explicit ACE is required.
+	return grantDDAgentUserFileAccess(outPath)
 }
 
 // ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension
