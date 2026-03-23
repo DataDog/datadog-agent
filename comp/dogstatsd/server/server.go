@@ -580,7 +580,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
+		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList(), s.filterList.GetTagFilterList())
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}

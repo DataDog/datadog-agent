@@ -43,7 +43,7 @@ type worker struct {
 	tagFilterList       filterlist.TagMatcher
 }
 
-func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
+func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -60,6 +60,7 @@ func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Compon
 		FilterListUpdate:    make(chan utilstrings.Matcher),
 		filterList:          filterList,
 		TagFilterListUpdate: make(chan filterlist.TagMatcher),
+		tagFilterList:       tagFilterList,
 	}
 }
 
