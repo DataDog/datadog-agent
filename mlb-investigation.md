@@ -2,7 +2,7 @@
 
 ## Status
 
-**Investigation ongoing.** ProcQ analysis (2026-03-23) shows the agent correctly tags outgoing `/redfish/v1/` connections as `service:dmt-apiexporter`. However, the erroneous `universal.http.server.hits{service:blackbox-exporter}` metric uses a path (`/redfish/v1/systems/_/processors/`) that only appears on **outgoing** connections in agent data — no matching **incoming** connection was found. ProcQ data is incomplete (~51 of ~2,880 expected messages due to partition limitations). The source of the misattribution remains unclear — it could be in missing agent data, backend metric generation from outgoing connections, or service name resolution.
+**Investigation ongoing — new hypothesis: Go-TLS client through shared ingress.** ProcQ analysis (2026-03-23) found that Go clients (grafana-server, blackbox-exporter) make persistent Go-TLS connections to an HAProxy ingress (`10.140.128.110:443`), which routes requests to different backend services based on path. USM captures all HTTP paths on these Go-TLS connections and attributes them to the **client process** (e.g., grafana-server). This causes backend-specific endpoints like `/redfish/v1/Systems/*/Processors/` to appear under `grafana-server` or `blackbox-exporter` instead of `dmt-apiexporter`. Our previous reproduction used a **Python** client (native OpenSSL), not a **Go** client (Go-TLS hooks) — the Go-TLS code path was never tested in this scenario. Next step: reproduce with a Go TLS client through a TLS-terminating proxy.
 
 ## Customer Environment
 
@@ -466,21 +466,85 @@ The incoming redfish connections disappearing between `network_raw` and `network
 - Whether the backend generates `universal.http.server.hits` from outgoing connections when the remote side is unmonitored
 - How the service name `blackbox-exporter` gets assigned — nothing in the agent data references it
 
+## Key Finding: Go-TLS Clients Through Shared Ingress (2026-03-23)
+
+### Discovery
+
+While investigating the `blackbox-exporter` misattribution, we found a separate but related issue on a different host (`gke-...-3047a82f-w7zo`):
+
+`universal.http.client.hits{service:grafana-server, resource_name:get_/redfish/v1/systems/_/processors/}` — 1 hit at Mar 23 13:10 UTC.
+
+ProcQ data for this host (within Kafka retention) revealed:
+
+**PID 1002531** (grafana-server, pod `o11y-grafana-okta-prod-o11y-grafana-55bbc7dd97-xlb6v`) makes a persistent **Go-TLS** connection to **`10.140.128.110:443`** (the HAProxy ingress). On this single connection (same source port 58638), USM captures HTTP requests to many different backend paths:
+
+```
+pid=1002531 10.140.9.125:58638 -> 10.140.128.110:443  path=/redfish/v1/Systems/System.Embedded.1/Processors/CPU.Socket.2
+pid=1002531 10.140.9.125:58638 -> 10.140.128.110:443  path=/redfish/v1/Systems/System.Embedded.1/Memory/DIMM.Socket.B3
+pid=1002531 10.140.9.125:58638 -> 10.140.128.110:443  path=/api/v1/query_range
+pid=1002531 10.140.9.125:56250 -> 10.140.128.110:443  path=/v1/btc/pasithea_image_url_json
+```
+
+All tagged: `conn_tags=[service:grafana-server]`, `container_tags=[service:grafana-server, kube_deployment:o11y-grafana-okta-prod-o11y-grafana]`
+
+This data is present in **both** `network_raw` and `network_connections` — it's the agent attributing these paths to grafana-server.
+
+### Why This Is Suspicious
+
+Grafana making `/redfish/v1/Systems/*/Processors/` or `/v1/btc/pasithea_image_url_json` requests makes no sense. These are dmt-apiexporter endpoints. The most likely explanation:
+
+**`10.140.128.110:443` is the HAProxy ingress.** Grafana connects to the ingress via Go-TLS, and the ingress routes different paths to different backend services. USM hooks the Go-TLS connection on the grafana process and sees ALL the HTTP traffic on it — but it can't know that different paths are routed to different backends behind the proxy. It attributes everything to `grafana-server`.
+
+This same pattern explains the `blackbox-exporter` misattribution — blackbox-exporter also connects through the ingress, and any backend endpoint it reaches through the ingress gets attributed to `blackbox-exporter`.
+
+### Why Our Previous Reproduction Didn't Catch This
+
+Our local reproduction used:
+- **Python** client → HAProxy → plaintext backends
+- This tests the **native TLS (OpenSSL)** code path
+- The misattribution we found and fixed (`ssl_ctx_by_pid_tgid` fallback) was a native TLS issue
+
+The customer's actual issue involves:
+- **Go** clients → HAProxy ingress (Go-TLS) → backends
+- This uses the **Go-TLS** code path (different eBPF hooks: `go-tls-conn.h`)
+- The misattribution is a Go client seeing HTTP data from a shared proxy connection
+
+### Connection to Previous Go-TLS Fix Attempt
+
+The first fix attempt (Go-TLS memory reuse race, `usm-gotls-misattribution-fix`) addressed `tls.Conn` pointer reuse in `conn_tup_by_go_tls_conn`. That fix was deployed and didn't resolve the issue. However, the Go-TLS code path is still involved — the issue may not be pointer reuse but rather how Go-TLS connections through a shared ingress are handled. The Go-TLS hooks attribute all decrypted HTTP traffic on a connection to the process that owns it, which is correct when there's a direct connection, but wrong when a proxy multiplexes traffic from different backends.
+
 ## Next Steps
 
-1. **Determine how `universal.http.server.hits` is generated for outgoing connections**: The erroneous metric has a `/redfish/v1/` path that only exists on outgoing connections in agent data. Does the backend/NSX generate `server.hits` from outgoing connections when the remote side is unmonitored? If so, how does it determine the service name?
+### 1. Reproduce with Go-TLS Client Through Ingress Proxy
 
-2. **Investigate the missing incoming connections in `network_connections`**: The incoming `/redfish/` connections exist in `network_raw` but disappear in `network_connections`. Understanding why could explain the data flow.
+Build a new reproduction on the Vagrant VM that matches the customer's actual setup:
 
-3. **Get more ProcQ data**: ProcQ only returned 51 out of ~2,880 expected messages due to partition scheme limitations. Try different partition schemes or query by IP instead of hostname to get more complete data, especially around the Mar 22 17:40 UTC timeframe.
+**Components** (all Docker containers on a shared network):
+- **HAProxy ingress** (172.30.0.10) — TLS termination on :8443, path-based routing to backends
+- **backend-dmt** (172.30.0.20) — simple HTTP server on :8080, serves `/redfish/*` endpoints
+- **backend-prometheus** (172.30.0.30) — simple HTTP server on :9090, serves `/api/v1/*` endpoints
+- **backend-blackbox** (172.30.0.40) — simple HTTP server on :9116, serves `/elemental/*` endpoints
+- **Go TLS client** (172.30.0.50) — compiled Go binary making persistent HTTPS keep-alive requests to HAProxy:8443, cycling through paths for all backends on the same connection
 
-4. **Check customer's Service Naming Rules**: The customer may have org-level rules that could affect service resolution.
+**Key difference from previous reproduction**: The client is a Go binary (so Go-TLS eBPF hooks attach to it), and it sends requests for different backend services through the same TLS connection to the proxy.
 
-5. **Proper fix for the fallback bug**: The `ssl_ctx_by_pid_tgid` fallback disable fix is still a valid improvement that should be upstreamed, regardless of this customer's issue.
+**What to check**:
+1. Does USM attribute `/redfish/*` paths to the Go client's service, or to `backend-dmt`?
+2. Does `/debug/http_monitoring` show the Go client's PID for all paths?
+3. How does this interact with the Go-TLS `conn_tup_by_go_tls_conn` map?
+
+### 2. Investigate Go-TLS Connection Tracking for Proxy Scenarios
+
+If the reproduction confirms the issue, investigate how Go-TLS hooks could distinguish between direct connections and connections through a shared ingress. The HTTP Host header or SNI might provide hints, but the eBPF hooks may not have access to these.
+
+### 3. Upstream the Native TLS Fallback Fix
+
+The `ssl_ctx_by_pid_tgid` fallback disable fix is a valid improvement that should be upstreamed regardless of this customer's issue. Branch: `SUSM-146/disable-tls-fallback-7.76`.
 
 ## Open Questions
 
-- Does the backend generate `universal.http.server.hits` from outgoing connections when the remote side has no agent? If so, how does it determine the service for the "server" side?
-- Why do incoming `/redfish/` connections from `network_raw` not appear in `network_connections`?
-- How does `blackbox-exporter` get assigned as the service name when nothing in the agent data references it?
-- Is there an incoming `/redfish/v1/` connection in the ~95% of messages we couldn't retrieve from ProcQ?
+- Does the Go-TLS code path attribute all HTTP traffic on a connection to the owning process, even when the connection goes through a proxy? (Likely yes — needs reproduction to confirm)
+- Is `10.140.128.110` the HAProxy ingress IP? Can we confirm from the customer?
+- Does the same issue occur with the native OpenSSL path for non-Go clients connecting through the ingress?
+- Why did the Go-TLS memory reuse fix not help? Was it addressing the wrong mechanism, or is there a compounding issue?
+- How does the backend generate `universal.http.server.hits` for these outgoing Go-TLS connections through the proxy?
