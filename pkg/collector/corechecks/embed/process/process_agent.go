@@ -51,6 +51,7 @@ type ProcessAgentCheck struct {
 	stop           chan struct{}
 	stopDone       chan struct{}
 	source         string
+	provider       string
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
@@ -69,6 +70,11 @@ func (c *ProcessAgentCheck) Version() string {
 // ConfigSource displays the command's source
 func (c *ProcessAgentCheck) ConfigSource() string {
 	return c.source
+}
+
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *ProcessAgentCheck) ConfigProvider() string {
+	return c.provider
 }
 
 // Loader returns the check loader
@@ -162,7 +168,7 @@ func (c *ProcessAgentCheck) run() error {
 // Configure the ProcessAgentCheck
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
 	if enabled := pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled"); !enabled {
@@ -199,6 +205,7 @@ func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint
 	}
 
 	c.source = source
+	c.provider = provider
 	c.telemetry = utils.IsCheckTelemetryEnabled("process_agent", pkgconfigsetup.Datadog())
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)

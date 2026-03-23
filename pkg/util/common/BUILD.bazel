@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "common.go",
+        "context.go",
+        "math.go",
+        "slice.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/common",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["common_test.go"],
+    embed = [":common"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

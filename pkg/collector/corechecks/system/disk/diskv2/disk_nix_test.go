@@ -480,7 +480,7 @@ excluded_filesystems:
   - tmpfs(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, initConfig, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, initConfig, nil, "test", "")
 
 	assert.NotNil(t, err)
 }

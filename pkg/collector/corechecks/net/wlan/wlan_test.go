@@ -41,7 +41,7 @@ func TestWLANOK(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -68,7 +68,7 @@ func TestWLANGetInfoError(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -94,7 +94,7 @@ func TestWLANErrorStoppedSender(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 
 	senderManager.Stop(false)
@@ -130,7 +130,7 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -167,7 +167,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -205,7 +205,7 @@ func TestWLANEmptyHardwareAddress(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 
@@ -242,7 +242,7 @@ func TestWLANChannelSwapEventsBasic(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -318,7 +318,7 @@ func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -389,7 +389,7 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -460,7 +460,7 @@ func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -533,7 +533,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -617,7 +617,7 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 	wlanCheck := new(WLANCheck)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -783,7 +783,7 @@ func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -818,7 +818,7 @@ func TestWLANNoiseValidDisabled(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -853,7 +853,7 @@ func TestWLANNoiseValidEnabled(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -886,7 +886,7 @@ func TestWLANReceiveRateValidDisabled(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
@@ -921,7 +921,7 @@ func TestWLANReceiveRateValid(t *testing.T) {
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()

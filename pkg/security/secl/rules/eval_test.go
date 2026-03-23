@@ -33,9 +33,9 @@ func TestIteratorCache(t *testing.T) {
 			ProcessContext: model.ProcessContext{
 				Process: model.Process{
 					PIDContext: model.PIDContext{
-						Pid: 111,
+						Pid:  111,
+						PPid: 111,
 					},
-					PPid: 111,
 				},
 			},
 		},
