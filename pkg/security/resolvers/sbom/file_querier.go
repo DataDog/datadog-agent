@@ -107,8 +107,7 @@ func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
 		return pkg
 	}
 
-	if !strings.HasPrefix(path, "/usr") {
-		// TODO do something smarter here, like indexing the /usr/ directory and all its subdirectories
+	if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
 		if result := fq.queryHashWithNegativeCache(murmur3.StringSum64("/usr/" + path)); result != nil {
 			return result
 		}
