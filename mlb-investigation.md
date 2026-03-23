@@ -2,7 +2,7 @@
 
 ## Status
 
-**Root cause identified: not an agent/eBPF bug.** ProcQ analysis (2026-03-23) confirms the agent correctly tags the misattributed endpoints as `service:dmt-apiexporter` through the entire pipeline (`network_raw` → `network_connections`). The misattribution to `blackbox-exporter` occurs **downstream in the backend** (NSX/service resolution pipeline or customer Service Naming Rules). The two eBPF fixes shipped (Go-TLS race, ssl_ctx_by_pid_tgid fallback) are valid bug fixes but unrelated to this customer's issue.
+**Investigation ongoing.** ProcQ analysis (2026-03-23) shows the agent correctly tags outgoing `/redfish/v1/` connections as `service:dmt-apiexporter`. However, the erroneous `universal.http.server.hits{service:blackbox-exporter}` metric uses a path (`/redfish/v1/systems/_/processors/`) that only appears on **outgoing** connections in agent data — no matching **incoming** connection was found. ProcQ data is incomplete (~51 of ~2,880 expected messages due to partition limitations). The source of the misattribution remains unclear — it could be in missing agent data, backend metric generation from outgoing connections, or service name resolution.
 
 ## Customer Environment
 
@@ -418,7 +418,19 @@ Customer reported `get_/redfish/v1/systems/_/processors/` appearing under `black
 
 ### Findings from `network_raw` (Agent Payloads)
 
-The `/redfish/v1/Systems/*/Processors/` endpoint is sent by **two PIDs** on the host:
+The `dmt-apiexporter` pods (PIDs 81796, 81573) on this host handle redfish traffic in **two directions**:
+
+**Outgoing connections** (dmt-apiexporter → hardware BMCs):
+- Go-TLS connections to external IPs (10.113.x.x:443)
+- Long paths: `/redfish/v1/Systems/1/Processors/1`, `/redfish/v1/Systems/System.Embedded.1/Processors/CPU.Socket.1`, etc.
+- conn_tags: `env:npd service:dmt-apiexporter version:2.1.16`, `tls.library:go`
+- ~3,800 entries in 51 messages
+
+**Incoming connections** (clients → dmt-apiexporter:8080):
+- Plaintext HTTP on port 8080 from clients (10.140.16.70, 10.140.17.203 — likely blackbox-exporter probing dmt-apiexporter)
+- Short paths: `/redfish/processor`, `/redfish/power`, `/redfish/thermal`, `/redfish_dell/memory`, etc.
+- **No conn_tags** (no `service:` tag from the agent on incoming connections)
+- ~746 entries in 51 messages
 
 | | PID 81796 | PID 81573 |
 |--|-----------|-----------|
@@ -426,52 +438,49 @@ The `/redfish/v1/Systems/*/Processors/` endpoint is sent by **two PIDs** on the 
 | **Pod** | `dmt-apiexporter-npd-54c48f6b7f-xf5d9` | `dmt-apiexporter-npd-54c48f6b7f-6wwxs` |
 | **Process cmdline** | `dmt serve --passfile /device-metric-tool/secrets/auths.yaml --noAuth` | same |
 | **Image** | `artifacts.mlbinfra.net/docker/o11y/dmt-apiexporter:2.1.16` | same |
-| **conn_tags** | `env:npd service:dmt-apiexporter version:2.1.16` | same |
-| **TLS** | Go-TLS (`tls.library:go`) | same |
-| **Direction** | outgoing | outgoing |
-| **HTTP entries** | 833 | 728 |
 
-Both processes are **`dmt-apiexporter`** pods making outgoing Go-TLS HTTPS requests to external IPs (10.113.x.x:443) to query Redfish hardware management endpoints. The agent correctly identifies the service as `dmt-apiexporter` via conn_tags.
+**Key observation**: The erroneous metric is `universal.http.server.hits{service:blackbox-exporter, resource_name:get_/redfish/v1/systems/_/processors/}` — a **server-side** metric with a **long** `/redfish/v1/` path. But in the agent data, `/redfish/v1/` paths only appear on **outgoing** connections (dmt-apiexporter calling BMCs). The incoming connections (which generate `server.hits`) only have **short** paths (`/redfish/processor`). We found **zero** incoming connections with `/redfish/v1/` paths across 51 messages.
 
-**No blackbox-exporter PID makes `/redfish` requests on this host.**
+### Data Completeness Limitation
+
+ProcQ returned only **51 messages** out of ~2,880 expected (agent sends ~1 message/30s). The `partition_scheme: "guess"` only finds a subset of Kafka partitions for this host. The exact moment of the 1 erroneous hit (Mar 22 17:40 UTC) may be in the ~95% of messages we couldn't retrieve.
 
 ### Findings from `network_connections` (After Network-Resolver)
 
-The `network_connections` topic (post network-resolver processing) confirms the same data with full container tag resolution:
+The `network_connections` topic (post network-resolver, 350 messages) shows:
+- **Outgoing** `/redfish/v1/` connections: present, correctly tagged `service:dmt-apiexporter` with full container tags
+- **Incoming** `/redfish/` connections: **not present** (they exist in `network_raw` but are absent from `network_connections`)
 
-```
-conn_tags:     [env:npd service:dmt-apiexporter version:2.1.16 ...]
-container_tags:[service:dmt-apiexporter kube_deployment:dmt-apiexporter-npd
-                kube_service:dmt-apiexporter-npd kube_namespace:o11y-device-metric-tool-apiexporter-npd
-                pod_name:dmt-apiexporter-npd-54c48f6b7f-xf5d9
-                image_name:artifacts.mlbinfra.net/docker/o11y/dmt-apiexporter ...]
-```
+The incoming redfish connections disappearing between `network_raw` and `network_connections` is notable — the network-resolver may be dropping or transforming them.
 
-**Every layer of the pipeline — conn_tags, container_tags, pod name, image name — correctly identifies the service as `dmt-apiexporter`.** There is zero mention of `blackbox-exporter` in the agent data.
+### What We Know
 
-### Additional Finding: blackbox-exporter on a Different Host
+1. The agent correctly tags outgoing `/redfish/v1/` connections as `service:dmt-apiexporter`
+2. The incoming `/redfish/` connections to dmt-apiexporter:8080 have **no service tag** from the agent
+3. We cannot find an incoming `/redfish/v1/` connection in the data we have — either it's in the missing messages, or the backend is generating the `server.hits` metric from outgoing data
+4. There is no `blackbox-exporter` process making `/redfish/v1/` requests on this host
 
-On a separate host (`gke-...-66b0e97b-l1h5`), we found PID 824987 making outgoing HTTP requests to the same endpoint paths the customer reported as misattributed (`/elemental/alerts`, `/elemental/channelstatus`, `/v1/btc/pasithea_image_url_json`, etc.). This PID has **no conn_tags** (no service tag from the agent), runs in container `c2aac4e4f4cf...`, and appears to be the actual `blackbox-exporter` process (making probe/monitoring HTTP requests to many backends).
+### What We Don't Know
 
-### Conclusion
-
-**The customer's misattribution is NOT in the agent or eBPF layer.** The agent correctly identifies the processes, connections, and service names all the way through the `network_connections` Kafka topic. The misattribution from `dmt-apiexporter` → `blackbox-exporter` is happening **downstream** in the backend pipeline — either in the NSX (network-stats-extractor) service resolution, or via customer-configured Service Naming Rules.
-
-The two eBPF fixes we shipped (Go-TLS race, ssl_ctx_by_pid_tgid fallback) address real bugs but are unrelated to this customer's issue.
+- What the agent payload looked like at the exact moment (Mar 22 17:40 UTC) of the erroneous hit — ProcQ can't retrieve data for that time range
+- Whether the backend generates `universal.http.server.hits` from outgoing connections when the remote side is unmonitored
+- How the service name `blackbox-exporter` gets assigned — nothing in the agent data references it
 
 ## Next Steps
 
-1. **Investigate backend service resolution**: The misattribution happens after `network_connections`. Check the NSX pipeline — specifically `FindLocalUSMInfo()` and `resolveServiceInfo()` in `inventory.go` — to see how `dmt-apiexporter` could be remapped to `blackbox-exporter`.
+1. **Determine how `universal.http.server.hits` is generated for outgoing connections**: The erroneous metric has a `/redfish/v1/` path that only exists on outgoing connections in agent data. Does the backend/NSX generate `server.hits` from outgoing connections when the remote side is unmonitored? If so, how does it determine the service name?
 
-2. **Check customer's Service Naming Rules**: The customer may have org-level rules that rewrite service names. Query the org's naming rules config.
+2. **Investigate the missing incoming connections in `network_connections`**: The incoming `/redfish/` connections exist in `network_raw` but disappear in `network_connections`. Understanding why could explain the data flow.
 
-3. **Investigate blackbox-exporter's missing service tag**: On the first host queried, PID 824987 (actual blackbox-exporter) has **no conn_tags** — no `service:` tag at all. This means the backend must infer the service from container/host tags. If the inference is wrong or ambiguous, it could explain why endpoints are appearing under `blackbox-exporter`.
+3. **Get more ProcQ data**: ProcQ only returned 51 out of ~2,880 expected messages due to partition scheme limitations. Try different partition schemes or query by IP instead of hostname to get more complete data, especially around the Mar 22 17:40 UTC timeframe.
 
-4. **Proper fix for the fallback bug**: The `ssl_ctx_by_pid_tgid` fallback disable fix is still a valid improvement that should be upstreamed, even though it's unrelated to this customer's issue.
+4. **Check customer's Service Naming Rules**: The customer may have org-level rules that could affect service resolution.
+
+5. **Proper fix for the fallback bug**: The `ssl_ctx_by_pid_tgid` fallback disable fix is still a valid improvement that should be upstreamed, regardless of this customer's issue.
 
 ## Open Questions
 
-- What Service Naming Rules does this customer org have configured?
-- How does the NSX resolve the service when conn_tags say `service:dmt-apiexporter` but the endpoint shows under `blackbox-exporter`?
-- Why does blackbox-exporter (PID 824987) have no `service:` conn_tag? Is process service inference failing for this Go binary?
-- Could the backend be merging client-side (blackbox-exporter probing endpoints) and server-side (dmt-apiexporter serving endpoints) observations incorrectly?
+- Does the backend generate `universal.http.server.hits` from outgoing connections when the remote side has no agent? If so, how does it determine the service for the "server" side?
+- Why do incoming `/redfish/` connections from `network_raw` not appear in `network_connections`?
+- How does `blackbox-exporter` get assigned as the service name when nothing in the agent data references it?
+- Is there an incoming `/redfish/v1/` connection in the ~95% of messages we couldn't retrieve from ProcQ?
