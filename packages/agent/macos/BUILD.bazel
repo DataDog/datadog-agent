@@ -1,0 +1,28 @@
+"""Agent package components specific to macOS."""
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+_agent_components = [
+    "@curl//:curl_pkg",
+    # These are temporarily included as agent components until we also collect
+    # dependencies from rules_foreign_cc based libraries.
+    # Once we automatically collect python's dependencies, these should go away.
+    "@bzip2//:bz2_pkg",
+    "@sqlite3//:sqlite3_pkg",
+    "@xz//:lzma_pkg",
+]
+
+dd_collect_dependencies(
+    name = "_collected_deps",
+    srcs = _agent_components,
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "collected_deps_embedded",
+    srcs = [":_collected_deps"],
+    prefix = "embedded",
+)

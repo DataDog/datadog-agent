@@ -49,6 +49,11 @@ pkg_filegroup(
             "//packages/windows:all_files",
         ],
         "//conditions:default": [],
+    }) + select({
+        "@platforms//os:macos": [
+            "//packages/agent/macos:collected_deps_embedded",
+        ],
+        "//conditions:default": [],
     }),
 )
 
