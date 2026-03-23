@@ -170,7 +170,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/otel
 # gazelle:exclude pkg/util/pdhutil
 # gazelle:exclude pkg/util/podman
-# gazelle:exclude pkg/util/pointer
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
