@@ -640,11 +640,11 @@ type explicitAccessW struct {
 	trustee              trusteeW
 }
 
-// AddExplicitAccessToFile adds an explicit Allow ACE for the given SID on a file.
-// Existing ACEs (both explicit and inherited) are preserved.
-//
-// https://learn.microsoft.com/en-us/windows/win32/secauthz/modifying-the-acls-of-an-object-in-c--
-func AddExplicitAccessToFile(filePath string, sid *windows.SID, accessPermissions uint32) error {
+// applyFileACE reads the current DACL of filePath, merges ea into it via
+// SetEntriesInAcl, and writes the result back. sid must be the SID embedded in
+// ea.trustee.ptstrName; it is pinned here to prevent GC movement during the
+// syscall.
+func applyFileACE(filePath string, sid *windows.SID, ea explicitAccessW) error {
 	sd, err := windows.GetNamedSecurityInfo(filePath, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
 	if err != nil {
 		return fmt.Errorf("GetNamedSecurityInfo(%s): %w", filePath, err)
@@ -658,14 +658,8 @@ func AddExplicitAccessToFile(filePath string, sid *windows.SID, accessPermission
 	pinner.Pin(sid)
 	defer pinner.Unpin()
 
-	ea := explicitAccessW{
-		grfAccessPermissions: accessPermissions,
-		grfAccessMode:        accessModeGrant,
-		trustee: trusteeW{
-			trusteeForm: trusteeIsSID,
-			ptstrName:   uintptr(unsafe.Pointer(sid)),
-		},
-	}
+	ea.trustee.ptstrName = uintptr(unsafe.Pointer(sid))
+
 	var newDACL *windows.ACL
 	ret, _, _ := procSetEntriesInACLW.Call(
 		1,
@@ -678,6 +672,8 @@ func AddExplicitAccessToFile(filePath string, sid *windows.SID, accessPermission
 	}
 	defer windows.LocalFree(windows.Handle(unsafe.Pointer(newDACL)))
 
+	// DACL_SECURITY_INFORMATION without SE_DACL_PROTECTED keeps the rest of
+	// the DACL (owner, group, SACL, and inherited ACEs) unchanged.
 	return windows.SetNamedSecurityInfo(
 		filePath,
 		windows.SE_FILE_OBJECT,
@@ -688,52 +684,34 @@ func AddExplicitAccessToFile(filePath string, sid *windows.SID, accessPermission
 	)
 }
 
+// AddExplicitAccessToFile adds an explicit Allow ACE for the given SID on a file.
+// Existing ACEs (both explicit and inherited) are preserved.
+//
+// https://learn.microsoft.com/en-us/windows/win32/secauthz/modifying-the-acls-of-an-object-in-c--
+func AddExplicitAccessToFile(filePath string, sid *windows.SID, accessPermissions uint32) error {
+	ea := explicitAccessW{
+		grfAccessPermissions: accessPermissions,
+		grfAccessMode:        accessModeGrant,
+		trustee: trusteeW{
+			trusteeForm: trusteeIsSID,
+		},
+	}
+	return applyFileACE(filePath, sid, ea)
+}
+
 // RevokeExplicitAccessFromFile removes all explicit ACEs for the given SID
 // from a file. Other ACEs (both explicit for other SIDs and inherited) are
 // preserved.
 //
 // https://learn.microsoft.com/en-us/windows/win32/secauthz/modifying-the-acls-of-an-object-in-c--
 func RevokeExplicitAccessFromFile(filePath string, sid *windows.SID) error {
-	sd, err := windows.GetNamedSecurityInfo(filePath, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
-	if err != nil {
-		return fmt.Errorf("GetNamedSecurityInfo(%s): %w", filePath, err)
-	}
-	oldDACL, _, err := sd.DACL()
-	if err != nil {
-		return fmt.Errorf("failed to get existing DACL for %s: %w", filePath, err)
-	}
-
-	var pinner runtime.Pinner
-	pinner.Pin(sid)
-	defer pinner.Unpin()
-
 	ea := explicitAccessW{
 		grfAccessMode: accessModeRevoke,
 		trustee: trusteeW{
 			trusteeForm: trusteeIsSID,
-			ptstrName:   uintptr(unsafe.Pointer(sid)),
 		},
 	}
-	var newDACL *windows.ACL
-	ret, _, _ := procSetEntriesInACLW.Call(
-		1,
-		uintptr(unsafe.Pointer(&ea)),
-		uintptr(unsafe.Pointer(oldDACL)),
-		uintptr(unsafe.Pointer(&newDACL)),
-	)
-	if ret != 0 {
-		return fmt.Errorf("SetEntriesInAcl: %w", syscall.Errno(ret))
-	}
-	defer windows.LocalFree(windows.Handle(unsafe.Pointer(newDACL)))
-
-	return windows.SetNamedSecurityInfo(
-		filePath,
-		windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION,
-		nil, nil,
-		newDACL,
-		nil,
-	)
+	return applyFileACE(filePath, sid, ea)
 }
 
 // GetAdminInstallerBinaryPath returns the path to the datadog-installer executable
