@@ -151,6 +151,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg)
 		if err != nil {
+			p.logger.Errorf("Self-enrollment failed: %v", err)
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
 		p.coreConfig.Set(parPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
@@ -185,8 +186,10 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
 	// but allow Stop() to cancel as well.
 	ctx, p.cancelStart = context.WithCancel(ctx)
+	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
+		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
 	p.logger.Info("Private action runner starting")
