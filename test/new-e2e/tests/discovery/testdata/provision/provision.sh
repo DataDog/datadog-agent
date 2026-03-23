@@ -53,42 +53,11 @@ WantedBy=multi-user.target
 EOM
 }
 
-apt-get update
-apt-get install -y \
-        ca-certificates \
-        curl \
-        gnupg \
-        python3 \
-        python3-pip \
-
-
-# Install Python deps
-pip install ddtrace
-
-# Install Node
-if [ ! -d "${HOME}/.nvm" ]; then
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
-fi
-
 export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 source "${NVM_DIR}/nvm.sh"
-# Retry a few times since occasional failures have been seen
-nvm install 20 || nvm install 20 || nvm install 20
 
-npm install json-server || npm install json-server
 npm install /home/ubuntu/e2e-test/node/instrumented
-
-# Install Ruby
-## Packages
-apt-get install -y \
-        ruby \
-        ruby-dev \
-        sqlite3 \
-        pkg-config \
-        libyaml-dev \
-
-gem install rails -v 7.1.5.1
 
 ## Create new Rails project
 pushd /home/ubuntu
