@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, LogEntry, LogsSummary, Correlation,
-  CompressedGroup, ComponentDataResponse, CorrelatorStats, ReplayProgress, ScoreResponse
+  CompressedGroup, ComponentDataResponse, CorrelatorStats, ReplayProgress, ReportEvent, ScoreResponse
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -18,6 +18,7 @@ export interface ObserverState {
   logsSummary: LogsSummary | null;
   logAnomalies: LogAnomaly[];
   correlations: Correlation[];
+  reports: ReportEvent[];
   componentData: Map<string, ComponentDataResponse>;
   compressedGroups: CompressedGroup[];
   correlatorStats: CorrelatorStats | null;
@@ -45,6 +46,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [logsSummary, setLogsSummary] = useState<LogsSummary | null>(null);
   const [logAnomalies, setLogAnomalies] = useState<LogAnomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
+  const [reports, setReports] = useState<ReportEvent[]>([]);
   const [componentData, setComponentData] = useState<Map<string, ComponentDataResponse>>(new Map());
   const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
@@ -78,13 +80,14 @@ export function useObserver(): [ObserverState, ObserverActions] {
     try {
       const [
         componentsData, anomaliesData, logsSummaryData, logAnomaliesData,
-        correlationsData, compressedGroupsData, statsData, seriesData, scoreData
+        correlationsData, reportsData, compressedGroupsData, statsData, seriesData, scoreData
       ] = await Promise.all([
         api.getComponents(),
         api.getAnomalies(),
         api.getLogsSummary(),
         api.getLogAnomalies(),
         api.getCorrelations(),
+        api.getReports(),
         api.getCompressedCorrelations(),
         api.getStats(),
         api.getSeries(),
@@ -110,6 +113,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setLogsSummary(logsSummaryData);
       setLogAnomalies(logAnomaliesData);
       setCorrelations(correlationsData);
+      setReports(reportsData);
       setCompressedGroups(compressedGroupsData);
       setComponentData(new Map(componentDataResults));
       setCorrelatorStats(statsData);
@@ -209,6 +213,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
     setConnectionState('loading');
     setActiveScenario(name);
     setSeries([]);
+    setReports([]);
     setScoreResponse(null);
     setLoadProgress(null);
     setError(null);
@@ -252,6 +257,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       logsSummary,
       logAnomalies,
       correlations,
+      reports,
       componentData,
       compressedGroups,
       correlatorStats,

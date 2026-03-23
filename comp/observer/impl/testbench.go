@@ -112,6 +112,9 @@ type TestBench struct {
 	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
+	// Events captured during replay (mirrors what EventReporter would send in live mode).
+	reportedEvents []ReportedEvent
+
 	// Cached compressed correlations (expensive to recompute)
 	compCorrCache      []CompressedGroup
 	compCorrThreshold  float64
@@ -629,6 +632,15 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Reset ALL components (not just enabled) so disabled ones clear stale state
 	tb.resetAllState()
 
+	// Register a replay reporter before the run so it captures events exactly as
+	// EventReporter would in live mode: one event per pattern appearance, with
+	// patterns eligible to re-fire after going inactive.
+	replay := &replayReporter{}
+	unsub := tb.engine.Subscribe(&reporterEventSink{
+		reporters: []observerdef.Reporter{replay},
+		state:     tb.engine.StateView(),
+	})
+
 	// Feed raw logs through the engine's IngestLog path so that extractors,
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
@@ -648,6 +660,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// The engine's captureRawAnomaly deduplicates anomalies internally,
 	// so stateView.Anomalies() returns a clean deduplicated set.
 	result := tb.engine.ReplayStoredData()
+	unsub()
 
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
@@ -672,6 +685,9 @@ func (tb *TestBench) rerunDetectorsLocked() {
 
 	// Invalidate compressed correlations cache
 	tb.corrGeneration++
+
+	// Publish the ordered event log captured during replay.
+	tb.reportedEvents = replay.events
 
 	// Mark scenario ready now that all analysis is complete
 	tb.ready = true
@@ -1398,6 +1414,18 @@ func (tb *TestBench) GetRawLogs() []observerdef.LogView {
 	defer tb.mu.RUnlock()
 
 	return tb.rawLogs
+}
+
+// GetReportedEvents returns the events that would have been sent to the Datadog
+// backend, derived from the current correlation history (same source as
+// GetCorrelations / headless anomaly_periods). Recomputed on each call so it
+// stays aligned with CorrelationHistory(), which may merge accumulated and
+// active correlator state after replay.
+func (tb *TestBench) GetReportedEvents() []ReportedEvent {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	return tb.reportedEvents
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.
