@@ -133,17 +133,6 @@ my-scenarios/
       "period_start": 1708201234,
       "period_end": 1708201500
     }
-  ],
-  "reports": [
-    {
-      "pattern": "cluster_1708201234",
-      "title": "Correlated anomalies at 1708201234",
-      "message": "...",
-      "tags": ["source:agent-q-branch-observer", "pattern:cluster_1708201234"],
-      "firstSeen": 1708201234,
-      "lastUpdated": 1708201500,
-      "formattedTime": "2024-02-17T12:00:34Z"
-    }
   ]
 }
 ```
