@@ -6,7 +6,6 @@
 package cloudservice
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -60,7 +59,7 @@ type CloudService interface {
 	Init(ctx *TracingContext) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, runErr error)
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error)
 
 	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
 	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
@@ -132,11 +131,7 @@ func (l *LocalService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
-	if collector != nil {
-		collector.Stop()
-	}
-
+func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())

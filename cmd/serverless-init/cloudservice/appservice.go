@@ -10,7 +10,6 @@ import (
 	"maps"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -105,11 +104,7 @@ func (a *AppService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
-	if collector != nil {
-		collector.Stop()
-	}
-
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(appServicePrefixLegacy+".enhanced.shutdown", 1.0, a.GetSource())

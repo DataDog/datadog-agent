@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -146,11 +145,7 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, runErr error) {
-	if collector != nil {
-		collector.Stop()
-	}
-
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
 	if enhancedMetricsEnabled {
 		durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 		duration := float64(time.Since(c.startTime).Milliseconds())

@@ -11,7 +11,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -200,11 +199,7 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
-	if collector != nil {
-		collector.Stop()
-	}
-
+func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())

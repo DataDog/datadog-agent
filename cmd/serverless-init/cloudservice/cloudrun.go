@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -184,11 +183,7 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
-	if collector != nil {
-		collector.Stop()
-	}
-
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(cloudRunPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
