@@ -187,6 +187,24 @@ rust_test(
     ],
 )
 
+# Unit tests without optional features (tests the production code path)
+rust_test(
+    name = "dd_discovery_nofeatures_test",
+    crate = ":dd_discovery",
+    # No crate_features — matches production build
+    data = [":testdata"],
+    edition = "2024",
+    deps = [
+        "@crates//:dircpy",
+        "@crates//:memmap2",
+        "@crates//:scopeguard",
+        "@crates//:tempfile",
+        "@crates//:temp-env",
+        # walkdir is needed by test_utils (dev-dependency)
+        "@crates//:walkdir",
+    ],
+)
+
 # Integration tests
 rust_test(
     name = "pid_integration_test",
