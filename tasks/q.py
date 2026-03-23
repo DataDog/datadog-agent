@@ -408,6 +408,7 @@ def launch_testbench(
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",
+    verbose: bool = False,
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -420,6 +421,8 @@ def launch_testbench(
         print("Building observer-testbench...")
         build_testbench(ctx)
 
+    verbose_flag = "--verbose" if verbose else ""
+
     if headless_scenario:
         if not headless_output:
             headless_output = f"/tmp/observer-testbench-headless-{headless_scenario}.json"
@@ -427,12 +430,12 @@ def launch_testbench(
             f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
         ctx.run(
-            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output}"
+            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {verbose_flag}"
         )
     else:
         print("Launching observer-testbench backend and UI, use ^C to exit")
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd  & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd {verbose_flag} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
         )
 
 

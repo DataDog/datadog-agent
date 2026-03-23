@@ -24,12 +24,6 @@ function getAggregationType(name: string): AggregationType | null {
   return match ? (match[1] as AggregationType) : null;
 }
 
-/** Log-derived (extractor) metrics; falls back to legacy `_virtual.` name prefix. */
-function seriesIsVirtual(s: SeriesInfo): boolean {
-  if (typeof s.virtual === 'boolean') return s.virtual;
-  return getBaseMetricName(s.name).startsWith('_virtual.');
-}
-
 function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
@@ -81,11 +75,13 @@ export function MetricsView({
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
   const [tagFilterInput, setTagFilterInput] = useState('');
 
-  // Parse a virtual series group key and return its log pattern hash, or null.
-  // Group keys for pattern series look like: "parquet/_virtual.log.log_pattern_extractor.<hash>.count"
+  // Parse a pattern metric group key and return its log pattern hash, or null.
+  // Current: "log_pattern_extractor/log.log_pattern_extractor.<hash>.count"
+  // Legacy:  "parquet/_virtual.log.log_pattern_extractor.<hash>.count"
   const getPatternHash = (groupKey: string): string | null => {
-    const match = groupKey.match(/\/_virtual\.log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
-    return match ? match[1] : null;
+    let m = groupKey.match(/^log_pattern_extractor\/log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
+    if (m) return m[1];
+    return null;
   };
 
   // Fill the bucket grid: snap stored timestamps to slots and emit 0 for missing ones.
@@ -237,7 +233,7 @@ export function MetricsView({
           namespace: s.namespace,
           baseName,
           members: [],
-          virtual: seriesIsVirtual(s),
+          virtual: s.virtual === true,
         });
       }
       groups.get(key)!.members.push(s);

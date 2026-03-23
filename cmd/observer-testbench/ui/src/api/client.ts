@@ -70,7 +70,7 @@ export interface SeriesInfo {
   name: string;
   tags: string[];
   pointCount: number;
-  /** True when the series is produced by a log/metric extractor (formerly _virtual.* names). */
+  /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
 }
 
@@ -185,6 +185,17 @@ export interface Correlation {
   lastUpdated: number;
 }
 
+/** Datadog-style incident event (mirrors headless JSON `reports` entries). */
+export interface ReportEvent {
+  pattern: string;
+  title: string;
+  message: string;
+  tags: string[];
+  firstSeen: number;
+  lastUpdated: number;
+  formattedTime: string;
+}
+
 // Lead-Lag edge represents temporal causality between sources
 export interface LeadLagEdge {
   leader: SeriesID;
@@ -244,6 +255,27 @@ export interface ReplayProgress {
 // Stats response from correlators
 export interface CorrelatorStats {
   [key: string]: Record<string, unknown>;
+}
+
+export interface ScoreResult {
+  f1: number;
+  precision: number;
+  recall: number;
+  tp: number;
+  fp: number;
+  fn: number;
+  num_predictions: number;
+  num_ground_truths: number;
+  num_filtered_warmup: number;
+  num_filtered_cascading: number;
+  num_baseline_fps: number;
+  sigma: number;
+}
+
+export interface ScoreResponse {
+  available: boolean;
+  reason?: string;
+  score?: ScoreResult;
 }
 
 class ApiClient {
@@ -340,6 +372,10 @@ class ApiClient {
     return this.fetch('/correlations');
   }
 
+  async getReports(): Promise<ReportEvent[]> {
+    return this.fetch('/reports');
+  }
+
   async getComponentData(name: string): Promise<ComponentDataResponse> {
     return this.fetch(`/components/${encodeURIComponent(name)}/data`);
   }
@@ -360,6 +396,10 @@ class ApiClient {
 
   async getStats(): Promise<CorrelatorStats> {
     return this.fetch('/stats');
+  }
+
+  async getScore(): Promise<ScoreResponse> {
+    return this.fetch('/score');
   }
 
 }

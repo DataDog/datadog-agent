@@ -208,6 +208,7 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 	fmt.Println("  GET  /api/series/{ns}/{name}              - Get series data")
 	fmt.Println("  GET  /api/anomalies                       - Get anomalies")
 	fmt.Println("  GET  /api/correlations                    - Get correlations")
+	fmt.Println("  GET  /api/reports                         - Get Datadog-style report events")
 	fmt.Println("  GET  /api/components/{name}/data           - Get component data")
 	fmt.Println("  GET  /api/stats                           - Correlator stats")
 	fmt.Println()

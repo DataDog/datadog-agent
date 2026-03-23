@@ -21,6 +21,13 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// ScoreResponse is the JSON payload for GET /api/score.
+type ScoreResponse struct {
+	Available bool         `json:"available"`
+	Reason    string       `json:"reason,omitempty"`
+	Score     *ScoreResult `json:"score,omitempty"`
+}
+
 // TestBenchAPI handles HTTP API requests for the test bench.
 type TestBenchAPI struct {
 	tb     *TestBench
@@ -52,9 +59,11 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
 	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
+	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
+	mux.HandleFunc("/api/score", api.cors(api.handleScore))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
 
@@ -1115,6 +1124,15 @@ func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, stats)
 }
 
+// handleReports returns the events that would have been sent to the Datadog backend.
+func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
+	events := api.tb.GetReportedEvents()
+	if events == nil {
+		events = []ReportedEvent{}
+	}
+	api.writeJSON(w, events)
+}
+
 // handleComponentAction handles /api/components/{name}/{action} (toggle, data).
 func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/components/")
@@ -1171,6 +1189,16 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 		}
 	}
 	api.writeJSON(w, groups)
+}
+
+// handleScore returns the Gaussian F1 score for the current analysis against episode.json.
+func (api *TestBenchAPI) handleScore(w http.ResponseWriter, _ *http.Request) {
+	result, err := api.tb.ScoreCurrentAnalysis(30.0)
+	if err != nil {
+		api.writeJSON(w, ScoreResponse{Available: false, Reason: err.Error()})
+		return
+	}
+	api.writeJSON(w, ScoreResponse{Available: true, Score: result})
 }
 
 // writeJSON writes a JSON response.
