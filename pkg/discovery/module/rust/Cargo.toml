@@ -7,8 +7,8 @@ rust-version.workspace = true
 
 [features]
 default = []
-spring = ["dep:zip"]
-jee = ["dep:zip", "dep:quick-xml"]
+spring = ["dep:zip", "dep:walkdir"]
+jee = ["dep:zip", "dep:quick-xml", "dep:walkdir"]
 
 [lib]
 name = "dd_discovery"
@@ -45,12 +45,13 @@ dd-agent-log.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
 uzers.workspace = true
-walkdir.workspace = true
+walkdir = { workspace = true, optional = true }
 yaml-rust2.workspace = true
 zip = { workspace = true, optional = true }
 
 [dev-dependencies]
 dircpy.workspace = true
+walkdir.workspace = true
 memmap2.workspace = true
 nix.workspace = true
 scopeguard.workspace = true

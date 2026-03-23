@@ -6,6 +6,7 @@
 use cap_std::fs::Dir;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+#[cfg(any(feature = "spring", feature = "jee"))]
 use walkdir::WalkDir;
 #[cfg(any(feature = "spring", feature = "jee"))]
 use zip::ZipArchive;
@@ -196,7 +197,7 @@ impl SubDirFs {
     ///
     /// Use `make_relative()` to convert the absolute paths from walkdir entries
     /// back to paths relative to SubDirFs root.
-    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
+    #[cfg(any(feature = "spring", feature = "jee"))]
     pub fn walker(&self, start_path: &str) -> WalkDir {
         let full_path = self.root_path.join(fix_path(&start_path));
         WalkDir::new(full_path)

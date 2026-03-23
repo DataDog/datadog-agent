@@ -43,7 +43,6 @@ rust_library(
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:walkdir",
         "@crates//:yaml-rust2",
     ],
 )
@@ -86,7 +85,6 @@ rust_static_library(
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:walkdir",
         "@crates//:yaml-rust2",
     ],
 )
@@ -185,6 +183,7 @@ rust_test(
         "@crates//:temp-env",
         # Optional deps needed when spring/jee features are enabled
         "@crates//:quick-xml",
+        "@crates//:walkdir",
         "@crates//:zip",
     ],
 )
