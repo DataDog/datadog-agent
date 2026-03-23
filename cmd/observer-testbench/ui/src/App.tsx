@@ -4,7 +4,7 @@ import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
-import type { EpisodeInfo } from './api/client';
+import type { EpisodeInfo, ScoreResult } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports';
@@ -114,7 +114,7 @@ function formatTime(isoString: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
+function EpisodeInfoPanel({ info, score }: { info: EpisodeInfo; score?: ScoreResult | null }) {
   const [expanded, setExpanded] = useState(false);
 
   const phases: { key: string; phase: typeof info.baseline }[] = [
@@ -125,8 +125,8 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
   ].filter(p => p.phase != null);
 
   return (
-    <div className="bg-slate-800/60 border-b border-slate-700 px-4 py-2">
-      <div className="flex items-start gap-4 flex-wrap">
+    <div className="bg-slate-800/60 border-b border-slate-700 px-4 py-2 flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-4 flex-wrap flex-1 min-w-0">
         {/* Episode identity */}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs font-mono text-slate-400">Episode</span>
@@ -160,6 +160,9 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
           </button>
         </div>
 
+        {/* Score — before phase badges */}
+        {score && <ScoreDisplay score={score} />}
+
         {/* Phase timeline */}
         {phases.length > 0 && (
           <div className="flex items-center gap-1 shrink-0">
@@ -178,6 +181,32 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
             })}
           </div>
         )}
+
+      </div>
+    </div>
+  );
+}
+
+function f1Color(f1: number): string {
+  if (f1 >= 0.7) return 'text-green-400';
+  if (f1 >= 0.4) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
+function ScoreDisplay({ score }: { score: ScoreResult }) {
+  return (
+    <div className="flex items-center gap-3 bg-slate-700/50 rounded px-3 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">F1</span>
+        <span className={`text-sm font-bold font-mono ${f1Color(score.f1)}`}>{score.f1.toFixed(3)}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">P</span>
+        <span className="text-sm font-mono text-slate-200">{score.precision.toFixed(3)}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">R</span>
+        <span className="text-sm font-mono text-slate-200">{score.recall.toFixed(3)}</span>
       </div>
     </div>
   );
@@ -519,7 +548,7 @@ function App() {
       )}
 
       {/* Episode info panel (shown when episode.json is present) */}
-      {episodeInfo && <EpisodeInfoPanel info={episodeInfo} />}
+      {episodeInfo && <EpisodeInfoPanel info={episodeInfo} score={state.scoreResponse?.available ? state.scoreResponse.score : null} />}
 
       <div className="flex-1 flex relative min-h-0">
         {/* Resize handle */}

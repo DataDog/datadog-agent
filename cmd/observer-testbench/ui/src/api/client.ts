@@ -70,7 +70,7 @@ export interface SeriesInfo {
   name: string;
   tags: string[];
   pointCount: number;
-  /** True when the series is produced by a log/metric extractor (formerly _virtual.* names). */
+  /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
 }
 
@@ -257,6 +257,27 @@ export interface CorrelatorStats {
   [key: string]: Record<string, unknown>;
 }
 
+export interface ScoreResult {
+  f1: number;
+  precision: number;
+  recall: number;
+  tp: number;
+  fp: number;
+  fn: number;
+  num_predictions: number;
+  num_ground_truths: number;
+  num_filtered_warmup: number;
+  num_filtered_cascading: number;
+  num_baseline_fps: number;
+  sigma: number;
+}
+
+export interface ScoreResponse {
+  available: boolean;
+  reason?: string;
+  score?: ScoreResult;
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -375,6 +396,10 @@ class ApiClient {
 
   async getStats(): Promise<CorrelatorStats> {
     return this.fetch('/stats');
+  }
+
+  async getScore(): Promise<ScoreResponse> {
+    return this.fetch('/score');
   }
 
 }

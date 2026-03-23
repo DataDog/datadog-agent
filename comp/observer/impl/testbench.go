@@ -1051,6 +1051,61 @@ func (tb *TestBench) IsCorrelatorsProcessing() bool {
 	return false
 }
 
+// ScoreCurrentAnalysis scores the loaded scenario's correlations against episode.json ground truth.
+// Returns an error if ground truth is unavailable (missing episode.json or disruption.start).
+func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	if tb.episodeInfo == nil {
+		return nil, errors.New("no episode info available")
+	}
+	if tb.episodeInfo.Disruption == nil || tb.episodeInfo.Disruption.Start == "" {
+		return nil, errors.New("episode info missing disruption.start")
+	}
+
+	dt, err := time.Parse(time.RFC3339, tb.episodeInfo.Disruption.Start)
+	if err != nil {
+		return nil, fmt.Errorf("parsing disruption.start: %w", err)
+	}
+	groundTruth := []int64{dt.Unix()}
+
+	var baselineStart int64
+	if tb.episodeInfo.Baseline != nil && tb.episodeInfo.Baseline.Start != "" {
+		if bt, err := time.Parse(time.RFC3339, tb.episodeInfo.Baseline.Start); err == nil {
+			baselineStart = bt.Unix()
+		}
+	}
+
+	correlations := tb.engine.StateView().CorrelationHistory()
+	var predictions []int64
+	var numFilteredWarmup int
+	for _, c := range correlations {
+		if baselineStart > 0 && c.FirstSeen < baselineStart {
+			numFilteredWarmup++
+			continue
+		}
+		predictions = append(predictions, c.FirstSeen)
+	}
+
+	minGT := groundTruth[0]
+	var numBaselineFPs int
+	for _, p := range predictions {
+		if p < minGT {
+			numBaselineFPs++
+		}
+	}
+
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  predictions,
+		GroundTruthTimestamps: groundTruth,
+		Sigma:                 sigma,
+	})
+	result.NumFilteredWarmup = numFilteredWarmup
+	result.NumBaselineFPs = numBaselineFPs
+	return &result, nil
+}
+
 // RunHeadless runs a scenario synchronously without the HTTP server and writes output.
 // If verbose is true, the output file includes full correlation detail (title, members, anomalies).
 // If verbose is false, correlations include only the anomalous time span.
@@ -1308,12 +1363,12 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 	result := make([]LogPatternInfo, 0, len(clusters))
 	for _, cluster := range clusters {
 		hash := fmt.Sprintf("%x", cluster.ID+1)
-		// Engine stores extractor metrics with the "_virtual." prefix (see engine.IngestLog).
-		metricName := fmt.Sprintf("_virtual.log.%s.%s.count", extractor.Name(), hash)
+		// Must match LogPatternExtractor.ProcessLog metric names (namespace = extractor name).
+		metricName := fmt.Sprintf("log.%s.%s.count", extractor.Name(), hash)
 
 		seriesIDs := []string{}
 		if storage != nil {
-			for _, m := range storage.ListSeriesMetadata("parquet") {
+			for _, m := range storage.ListSeriesMetadata(extractor.Name()) {
 				if m.Name == metricName {
 					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Handle))+":count")
 				}
