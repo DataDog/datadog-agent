@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -30,7 +31,10 @@ func TestEC2VMDirectSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner(
 		"hostHttpbin",
-		hostDockerHttpbinEnvProvisioner(ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPMDirect))),
+		hostDockerHttpbinEnvProvisioner(
+			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPMDirect)),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.Ubuntu2204Docker)),
+		),
 		nil,
 	))}
 
@@ -45,7 +49,6 @@ func (v *ec2VMDirectSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
 	v.Env().RemoteHost.Reconnect()
 

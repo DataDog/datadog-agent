@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
@@ -41,6 +42,7 @@ func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostN
 
 		opts := []ec2docker.Option{
 			ec2docker.WithAgentOptions(systemProbeConfigNPMEnv()...),
+			ec2docker.WithEC2VMOptions(ec2.WithOS(os.Ubuntu2204Docker)),
 		}
 		params := ec2docker.GetParams(opts...)
 		ec2docker.Run(ctx, awsEnv, &env.DockerHost, params)
@@ -91,8 +93,6 @@ func (v *ec2VMContainerizedSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
-
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
 
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:" + apps.Version)
