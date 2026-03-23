@@ -120,7 +120,7 @@
 /.gitlab/build/source_test/golang_deps_diff.yml            @DataDog/agent-runtimes
 /.gitlab/build/source_test/*                               @DataDog/agent-devx
 /.gitlab/build/source_test/linux.yml                       @DataDog/agent-devx
-/.gitlab/build/source_test/macos.yml                       @DataDog/agent-devx
+/.gitlab/build/source_test/macos.yml                       @DataDog/agent-devx @DataDog/windows-products
 /.gitlab/build/source_test/notify.yml                      @DataDog/agent-devx
 /.gitlab/build/source_test/slack.yml                       @DataDog/agent-devx
 /.gitlab/build/source_test/tooling_unit_tests.yml          @DataDog/agent-devx
@@ -313,6 +313,8 @@
 /packages/                              @DataDog/agent-build
 /packages/debian/                       @DataDog/agent-build @DataDog/fleet
 /packages/redhat/                       @DataDog/agent-build @DataDog/fleet
+/packages/macos                         @DataDog/agent-build @DataDog/windows-products
+/packages/windows                       @DataDog/agent-build @DataDog/windows-products
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
@@ -714,6 +716,7 @@
 /rtloader/                              @DataDog/agent-runtimes
 
 /tasks/                                 @DataDog/agent-devx
+/tasks/macos.py                         @DataDog/windows-products
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
 /tasks/loader.py                        @DataDog/agent-runtimes
@@ -724,6 +727,7 @@
 /tasks/unit_tests/update_go_tests.py    @DataDog/agent-runtimes
 /tasks/unit_tests/python_version_tests.py @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
+/tasks/unit_tests/macos_tests.py        @DataDog/windows-products
 /tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
@@ -799,6 +803,7 @@
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
+/test/new-e2e/tests/agent-platform/macos      @DataDog/windows-products
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-health              @DataDog/agent-health
