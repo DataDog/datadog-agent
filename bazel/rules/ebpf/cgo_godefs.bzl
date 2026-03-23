@@ -68,7 +68,6 @@ def _cgo_godefs_impl(ctx):
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
-    # On Linux, CC=clang is needed because the default gcc may not be available.
     # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
     # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
     # the old ninja behavior.
