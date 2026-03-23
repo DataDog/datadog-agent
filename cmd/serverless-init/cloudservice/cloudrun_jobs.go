@@ -42,8 +42,6 @@ const (
 	taskIndexTag     = "task_index"
 	taskAttemptTag   = "task_attempt"
 	taskCountTag     = "task_count" // not really high cardinality, but not necessary for metrics
-
-	cloudRunJobsUsageMetricName = ""
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
@@ -116,7 +114,7 @@ func (c *CloudRunJobs) GetMetricPrefix() string {
 }
 
 func (c *CloudRunJobs) GetUsageMetricName() string {
-	return cloudRunJobsUsageMetricName
+	return ""
 }
 
 // GetOrigin returns the `origin` attribute type for the given cloud service.
