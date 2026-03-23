@@ -122,7 +122,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/atomicstats
 # gazelle:exclude pkg/util/aws
 # gazelle:exclude pkg/util/aws/creds
-# gazelle:exclude pkg/util/backoff
 # gazelle:exclude pkg/util/cache
 # gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cgroups
