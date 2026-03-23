@@ -10,7 +10,6 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -26,8 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -152,10 +149,8 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 type APIServer struct {
 	api.UnimplementedSecurityModuleEventServer
 	api.UnimplementedSecurityModuleCmdServer
-	sbomapi.UnimplementedSBOMCollectorServer
 	events             chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
-	sboms              chan *sbom.ScanResult
 	expiredEventsLock  sync.RWMutex
 	expiredEvents      map[rules.RuleID]*atomic.Int64
 	expiredDumps       *atomic.Int64
@@ -632,7 +627,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 		return nil, errors.New("no rule engine")
 	}
 
-	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(true); err != nil {
+	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(); err != nil {
 		return nil, err
 	}
 
@@ -664,57 +659,6 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 
 	return &api.GetRuleSetReportMessage{
 		RuleSetReportMessage: transform.FromFilterReportToProtoRuleSetReportMessage(report),
-	}, nil
-}
-
-type policyDump struct {
-	Name         string                   `json:"name"`
-	Source       string                   `json:"source"`
-	Version      string                   `json:"version,omitempty"`
-	InternalType string                   `json:"internal_type,omitempty"`
-	Macros       []*rules.MacroDefinition `json:"macros,omitempty"`
-	Rules        []*rules.RuleDefinition  `json:"rules,omitempty"`
-}
-
-// GetLoadedPolicies returns the currently loaded policies as JSON
-func (a *APIServer) GetLoadedPolicies(_ context.Context, params *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error) {
-	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
-		return nil, errors.New("no rule engine")
-	}
-
-	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
-	if ruleSet == nil {
-		return nil, errors.New("failed to get loaded rule set")
-	}
-
-	var dumps []policyDump
-	for _, policy := range ruleSet.GetPolicies() {
-		if policy.Info.IsInternal && !params.IncludeBundled {
-			continue
-		}
-
-		dump := policyDump{
-			Name:         policy.Info.Name,
-			Source:       policy.Info.Source,
-			Version:      policy.Info.Version,
-			InternalType: string(policy.Info.InternalType),
-		}
-
-		if policy.Def != nil {
-			dump.Macros = append(dump.Macros, policy.Def.Macros...)
-			dump.Rules = append(dump.Rules, policy.Def.Rules...)
-		}
-
-		dumps = append(dumps, dump)
-	}
-
-	content, err := json.MarshalIndent(dumps, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal policies: %w", err)
-	}
-
-	return &api.GetLoadedPoliciesMessage{
-		Policies: string(content),
 	}, nil
 }
 
@@ -839,7 +783,6 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	as := &APIServer{
 		events:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		sboms:           make(chan *sbom.ScanResult, 100),
 		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:    atomic.NewInt64(0),
 		statsdClient:    client,
@@ -866,7 +809,6 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	as.collectOSReleaseData()
-	as.collectSBOMS()
 
 	if as.msgSender == nil {
 		if cfg.SendPayloadsFromSystemProbe {

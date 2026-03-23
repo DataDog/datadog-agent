@@ -62,7 +62,7 @@ func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, 
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func(silent bool)) {
+func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func()) {
 }
 
 // Type return the type of this policy provider

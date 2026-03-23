@@ -45,15 +45,14 @@ func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles) fileQuerier {
 	files := make([]uint64, 0, fileCount)
 	pkgs := make([]*sbomtypes.Package, 0, pkgCount)
 
-	for i := range report {
-		// IMPORTANT: Store pointer to Package field in the original slice, not a copy
-		// This ensures LastAccess updates are reflected in the stored packages
-		pkgs = append(pkgs, &report[i].Package)
+	for _, resultPkg := range report {
+		pkg := resultPkg.Package // copy to not bring the whole installed files slice
+		pkgs = append(pkgs, &pkg)
 
-		files = append(files, uint64(len(report[i].InstalledFiles)))
+		files = append(files, uint64(len(resultPkg.InstalledFiles)))
 
-		for _, file := range report[i].InstalledFiles {
-			seclog.Tracef("indexing %s as %+v", file, report[i].Package)
+		for _, file := range resultPkg.InstalledFiles {
+			seclog.Tracef("indexing %s as %+v", file, pkg)
 
 			hash := murmur3.StringSum64(file)
 			files = append(files, hash)

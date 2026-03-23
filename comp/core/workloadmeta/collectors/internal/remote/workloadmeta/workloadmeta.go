@@ -9,12 +9,10 @@ package workloadmeta
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -43,7 +41,6 @@ const (
 // types to protobuf and vice versa.
 var supportedKinds = []workloadmeta.Kind{
 	workloadmeta.KindContainer,
-	workloadmeta.KindContainerImageMetadata,
 	workloadmeta.KindKubernetesPod,
 	workloadmeta.KindECSTask,
 	workloadmeta.KindProcess,
@@ -94,7 +91,6 @@ func (s *stream) Recv() (interface{}, error) {
 
 type streamHandler struct {
 	port   int
-	ipc    ipc.Component
 	filter *workloadmeta.Filter
 	model.Config
 }
@@ -110,7 +106,6 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			StreamHandler: &streamHandler{
 				filter: deps.Params.Filter,
-				ipc:    deps.IPC,
 				Config: pkgconfigsetup.Datadog(),
 			},
 			Catalog: workloadmeta.Remote,
@@ -135,15 +130,6 @@ func (s *streamHandler) Port() int {
 	}
 	// for tests
 	return s.port
-}
-
-func (s *streamHandler) Address() string {
-	return fmt.Sprintf(":%d", s.Port())
-}
-
-func (s *streamHandler) Credentials() credentials.TransportCredentials {
-	creds := credentials.NewTLS(s.ipc.GetTLSClientConfig())
-	return creds
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {

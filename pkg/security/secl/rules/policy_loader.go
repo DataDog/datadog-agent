@@ -33,21 +33,14 @@ type PolicyLoaderOpts struct {
 	DisableEnforcement bool
 }
 
-// PolicyReloadNotification contains information about a policy reload event
-type PolicyReloadNotification struct {
-	Silent bool // If true, skip reporting heartbeat events
-}
-
 // PolicyLoader defines a policy loader
 type PolicyLoader struct {
 	sync.RWMutex
 
 	Providers []PolicyProvider
 
-	listeners     []chan PolicyReloadNotification
-	debouncer     *debouncer.Debouncer
-	pendingSilent bool
-	silentLock    sync.Mutex
+	listeners []chan struct{}
+	debouncer *debouncer.Debouncer
 }
 
 // LoadPolicies gathers the policies in the correct precedence order and ensuring there's only 1 default policy.
@@ -112,24 +105,16 @@ func removeReplacedPolicies(policies []*Policy) []*Policy {
 }
 
 // NewPolicyReady returns chan to listen new policy ready event
-func (p *PolicyLoader) NewPolicyReady() <-chan PolicyReloadNotification {
+func (p *PolicyLoader) NewPolicyReady() <-chan struct{} {
 	p.Lock()
 	defer p.Unlock()
 
-	ch := make(chan PolicyReloadNotification)
+	ch := make(chan struct{})
 	p.listeners = append(p.listeners, ch)
 	return ch
 }
 
-func (p *PolicyLoader) onNewPoliciesReady(silent bool) {
-	p.silentLock.Lock()
-	// If we already have a pending silent notification, keep it
-	// If this is a silent notification, mark it
-	if silent {
-		p.pendingSilent = true
-	}
-	p.silentLock.Unlock()
-
+func (p *PolicyLoader) onNewPoliciesReady() {
 	p.debouncer.Call()
 }
 
@@ -137,19 +122,10 @@ func (p *PolicyLoader) notifyListeners() {
 	p.RLock()
 	defer p.RUnlock()
 
-	p.silentLock.Lock()
-	silent := p.pendingSilent
-	p.pendingSilent = false
-	p.silentLock.Unlock()
-
-	notification := PolicyReloadNotification{
-		Silent: silent,
-	}
-
 	// TODO(safchain) debounce
 	for _, ch := range p.listeners {
 		select {
-		case ch <- notification:
+		case ch <- struct{}{}:
 		default:
 		}
 	}

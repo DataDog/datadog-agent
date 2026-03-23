@@ -14,8 +14,6 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 )
 
 func TestSnapshotMemoryMappedFiles(t *testing.T) {
@@ -34,7 +32,6 @@ func TestSnapshotMemoryMappedFiles(t *testing.T) {
 		t.Fatal("nil smaps")
 	}
 
-	seenPaths := make(map[string]struct{})
 	var gopsutilFiles []string
 	for _, smap := range *smapsPtr {
 		if len(gopsutilFiles) == MaxMmapedFiles {
@@ -46,10 +43,6 @@ func TestSnapshotMemoryMappedFiles(t *testing.T) {
 		if smap.Path[0] == '[' {
 			continue
 		}
-		if _, seen := seenPaths[smap.Path]; seen {
-			continue
-		}
-		seenPaths[smap.Path] = struct{}{}
 		gopsutilFiles = append(gopsutilFiles, smap.Path)
 	}
 
@@ -91,18 +84,18 @@ func TestExtractPathFromMapsLine(t *testing.T) {
 			name: "anonymous",
 			line: "7398749de000-739874a00000 rw-p 00000000 00:00 0",
 			path: "",
-			ok:   true,
+			ok:   false,
 		},
 	}
 
 	for _, entry := range entries {
 		t.Run(entry.name, func(t *testing.T) {
-			mapsEntry, ok := procfs.ParseMapsLine([]byte(entry.line))
+			path, ok := extractPathFromMapsLine([]byte(entry.line))
 			if ok != entry.ok {
 				t.Errorf("expected ok=%t, got %t", entry.ok, ok)
 			}
-			if mapsEntry.Pathname != entry.path {
-				t.Errorf("expected %s, got %s", entry.path, mapsEntry.Pathname)
+			if string(path) != entry.path {
+				t.Errorf("expected %s, got %s", entry.path, path)
 			}
 		})
 	}

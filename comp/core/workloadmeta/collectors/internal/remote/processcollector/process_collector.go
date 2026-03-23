@@ -12,13 +12,11 @@ package processcollector
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -77,7 +75,6 @@ func (s *stream) Recv() (interface{}, error) {
 
 type streamHandler struct {
 	port int
-	ipc  ipc.Component
 	model.Reader
 }
 
@@ -125,7 +122,7 @@ func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{ipc: ipc, Reader: pkgconfigsetup.Datadog()},
+			StreamHandler: &streamHandler{Reader: pkgconfigsetup.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
 			IPC:           ipc,
 		},
@@ -150,10 +147,6 @@ func (s *streamHandler) Port() int {
 	return s.port
 }
 
-func (s *streamHandler) Address() string {
-	return fmt.Sprintf(":%d", s.Port())
-}
-
 func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
@@ -165,11 +158,6 @@ func (s *streamHandler) IsEnabled() bool {
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	log.Debug("creating grpc client")
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
-}
-
-func (s *streamHandler) Credentials() credentials.TransportCredentials {
-	creds := credentials.NewTLS(s.ipc.GetTLSClientConfig())
-	return creds
 }
 
 func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
@@ -244,6 +232,7 @@ func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmet
 			processEntity.ContainerID = ctrIDFromProvider
 		}
 
+		event.Entity = processEntity
 		collectorEvents[idx] = event
 	}
 }
