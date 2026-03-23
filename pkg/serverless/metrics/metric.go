@@ -130,7 +130,7 @@ func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float6
 	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.enhancedUsageMetricTags, extraTags...)
 }
 
-// Add records a distribution metric sample using the agent's extra tags plus any
+// sendMetricSample records a distribution metric sample using the agent's extra tags plus any
 // optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, metricsType metrics.MetricType, timestamp float64, tags []string, extraTags ...string) {
 	if c.Demux == nil {
