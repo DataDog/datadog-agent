@@ -46,23 +46,23 @@ func testCorrelation() observerdef.ActiveCorrelation {
 		Pattern: "cluster_1000",
 		Title:   "Correlated anomalies at 1000",
 		Members: []observerdef.SeriesDescriptor{
-			{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
-			{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
+			{Namespace: "parquet", Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
+			{Namespace: "parquet", Name: "mem.used", Aggregate: observerdef.AggregateAverage},
 		},
 		FirstSeen:   1000,
 		LastUpdated: 1500,
 		Anomalies: []observerdef.Anomaly{
 			{
 				Timestamp:    1000,
-				Source:       observerdef.SeriesDescriptor{Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
-	
+				Source:       observerdef.SeriesDescriptor{Namespace: "parquet", Name: "cpu.user", Aggregate: observerdef.AggregateAverage},
+				SourceRef:    &observerdef.QueryHandle{Ref: 0, Aggregate: observerdef.AggregateAverage},
 				DetectorName: "cusum",
 				Description:  "CUSUM detected shift in cpu.user:avg",
 			},
 			{
 				Timestamp:    1200,
-				Source:       observerdef.SeriesDescriptor{Name: "mem.used", Aggregate: observerdef.AggregateAverage},
-	
+				Source:       observerdef.SeriesDescriptor{Namespace: "parquet", Name: "mem.used", Aggregate: observerdef.AggregateAverage},
+				SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 				DetectorName: "cusum",
 				Description:  "CUSUM detected shift in mem.used:avg",
 			},
@@ -179,7 +179,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	require.Len(t, corr.Anomalies, 2)
 	assert.Equal(t, int64(1000), corr.Anomalies[0].Timestamp)
 	assert.Equal(t, "cpu.user:avg", corr.Anomalies[0].Source)
-	assert.Equal(t, "cpu.user:avg", corr.Anomalies[0].SourceSeriesID)
+	assert.Equal(t, "0:avg", corr.Anomalies[0].SourceSeriesID)
 	assert.Equal(t, "cusum", corr.Anomalies[0].Detector)
 
 	assert.Equal(t, int64(1200), corr.Anomalies[1].Timestamp)

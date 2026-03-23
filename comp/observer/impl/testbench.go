@@ -985,11 +985,42 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 				continue
 			}
 			memberSet[srcKey] = true
+
+			// Use SourceRef to get the actual stored series identity when available.
+			if a.SourceRef != nil {
+				meta := storage.GetSeriesMeta(a.SourceRef.Ref)
+				if meta != nil {
+					aggStr := observerdef.AggregateString(a.SourceRef.Aggregate)
+					members = append(members, seriesCompact{
+						Namespace: meta.Namespace,
+						Name:      meta.Name + ":" + aggStr,
+						Tags:      meta.Tags,
+					})
+					continue
+				}
+			}
+
+			// Fallback for cross-namespace detectors (e.g. RRCF): remap to the
+			// telemetry naming convention so CompactSeriesID can resolve it.
+			ns := a.Source.Namespace
 			aggStr := observerdef.AggregateString(a.Source.Aggregate)
+			name := a.Source.Name + ":" + aggStr
+			tags := a.Source.Tags
+
+			if a.DetectorName != "" && a.Source.Name != "" {
+				telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+				telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+				if storage.CompactSeriesID(telemetryKey) != telemetryKey {
+					ns = "telemetry"
+					name = telemetryName + ":avg"
+					tags = nil
+				}
+			}
+
 			members = append(members, seriesCompact{
-				Namespace: a.Source.Namespace,
-				Name:      a.Source.Name + ":" + aggStr,
-				Tags:      a.Source.Tags,
+				Namespace: ns,
+				Name:      name,
+				Tags:      tags,
 			})
 		}
 

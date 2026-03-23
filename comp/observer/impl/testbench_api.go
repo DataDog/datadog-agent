@@ -768,11 +768,31 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
+	storage := api.tb.getStorage()
+
+	// resolveCompactID maps an anomaly to the compact numeric ID format
+	// ("42:avg") used by /api/series. Uses SourceRef when available (per-series
+	// detectors), falls back to telemetry remapping for cross-namespace
+	// detectors (e.g. RRCF), then Key() as a stable fallback.
+	resolveCompactID := func(a observerdef.Anomaly) string {
+		if a.SourceRef != nil {
+			return a.SourceRef.CompactID()
+		}
+		// Fallback for cross-namespace detectors (e.g. RRCF)
+		if storage != nil && a.DetectorName != "" && a.Source.Name != "" {
+			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+			telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+			if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
+				return compactID
+			}
+		}
+		return a.Source.Key()
+	}
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    a.Source.DisplayName(),
+			SourceSeriesID:    resolveCompactID(a),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
@@ -1037,6 +1057,8 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 		LastUpdated     int64           `json:"lastUpdated"`
 	}
 
+	storage := api.tb.getStorage()
+
 	response := make([]correlationResponse, len(correlations))
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
@@ -1054,10 +1076,40 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				Tags:        tags,
 			}
 		}
-		// Build member series IDs with tags for unique identification across tag variants.
+
+		// Build ref lookup from anomalies on this correlation.
+		refByKey := make(map[string]*observerdef.QueryHandle)
+		for _, a := range c.Anomalies {
+			if a.SourceRef != nil {
+				refByKey[a.Source.Key()] = a.SourceRef
+			}
+		}
+
+		// Build member series IDs as compact numeric IDs ("42:avg") matching /api/series format.
 		memberIDs := make([]string, len(c.Members))
 		for k, m := range c.Members {
-			memberIDs[k] = m.DisplayName()
+			if ref, ok := refByKey[m.Key()]; ok {
+				memberIDs[k] = ref.CompactID()
+			} else {
+				// Fallback for cross-namespace detectors (e.g. RRCF)
+				resolved := false
+				if storage != nil {
+					for _, a := range c.Anomalies {
+						if a.Source.Key() == m.Key() && a.DetectorName != "" {
+							telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+							telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+							if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
+								memberIDs[k] = compactID
+								resolved = true
+							}
+							break
+						}
+					}
+				}
+				if !resolved {
+					memberIDs[k] = m.Key()
+				}
+			}
 		}
 		// Build metric names (name:agg only, no tags) for display.
 		metricNames := make([]string, len(c.Members))

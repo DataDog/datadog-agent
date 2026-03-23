@@ -505,6 +505,23 @@ func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
 	return s.seriesIDStats[ref]
 }
 
+// GetSeriesMeta returns the metadata for a series by its numeric ref.
+// Returns nil if the ref is out of range.
+func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.SeriesMeta {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ss := s.resolveByID(ref)
+	if ss == nil {
+		return nil
+	}
+	return &observer.SeriesMeta{
+		Ref:       ref,
+		Namespace: ss.Namespace,
+		Name:      ss.Name,
+		Tags:      ss.Tags,
+	}
+}
+
 // seriesMeta is lightweight series metadata including point count,
 // used for API listing without materializing point data.
 type seriesMeta struct {

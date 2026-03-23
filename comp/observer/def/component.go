@@ -12,6 +12,7 @@ package observer
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -324,6 +325,19 @@ func (sd SeriesDescriptor) Key() string {
 // the ref remains stable for the lifetime of the storage instance.
 type SeriesRef int
 
+// QueryHandle pairs a storage series ref with its aggregate, providing
+// enough information to produce the compact ID ("42:avg") that the API
+// uses as a join key across endpoints.
+type QueryHandle struct {
+	Ref       SeriesRef
+	Aggregate Aggregate
+}
+
+// CompactID returns the compact series identifier (e.g. "42:avg").
+func (q QueryHandle) CompactID() string {
+	return strconv.Itoa(int(q.Ref)) + ":" + AggregateString(q.Aggregate)
+}
+
 // AnomalyType distinguishes the source type of an anomaly.
 type AnomalyType string
 
@@ -343,6 +357,10 @@ type Anomaly struct {
 	Type AnomalyType
 	// Source is the fully resolved series identity (namespace, name, tags, aggregate).
 	Source SeriesDescriptor
+	// SourceRef is the storage handle for this anomaly's series, enabling
+	// direct compact ID lookups without string-key reconstruction. Nil for
+	// anomalies without a storage-backed series (e.g. log anomalies, RRCF).
+	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
 	Title        string
