@@ -27,32 +27,34 @@ const (
 
 // Scheduler schedules eligible pods onto spot instances.
 type Scheduler struct {
-	config     Config
-	clock      clock.WithTicker
-	wlm        workloadmeta.Component
-	evictor    podEvictor
-	isLeader   func() bool
-	tracker    *podTracker
-	subscribed chan struct{}
+	config        Config
+	clock         clock.WithTicker
+	wlm           workloadmeta.Component
+	evictor       podEvictor
+	fallbackStore fallbackStore
+	isLeader      func() bool
+	tracker       *podTracker
+	subscribed    chan struct{}
 
 	mu                sync.RWMutex
 	spotDisabledUntil time.Time
 }
 
 // NewScheduler creates a new spot Scheduler.
-func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client kubernetes.Interface, isLeader func() bool) *Scheduler {
-	return newScheduler(cfg, clk, wlm, newKubePodEvictor(client), isLeader)
+func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client kubernetes.Interface, namespace string, isLeader func() bool) *Scheduler {
+	return newScheduler(cfg, clk, wlm, newKubePodEvictor(client), newConfigMapFallbackStore(client, namespace), isLeader)
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, e podEvictor, isLeader func() bool) *Scheduler {
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, store fallbackStore, isLeader func() bool) *Scheduler {
 	return &Scheduler{
-		config:     cfg,
-		clock:      clk,
-		wlm:        wlm,
-		evictor:    e,
-		isLeader:   isLeader,
-		tracker:    newPodTracker(clk),
-		subscribed: make(chan struct{}),
+		config:        cfg,
+		clock:         clk,
+		wlm:           wlm,
+		evictor:       evictor,
+		fallbackStore: store,
+		isLeader:      isLeader,
+		tracker:       newPodTracker(clk),
+		subscribed:    make(chan struct{}),
 	}
 }
 
@@ -110,6 +112,8 @@ func (s *Scheduler) checkOnDemandFallback(ctx context.Context) {
 		case now := <-ticker.C():
 			if s.isLeader() {
 				s.checkOnDemandFallbackOnce(ctx, now)
+			} else {
+				s.syncOnDemandFallbackState(ctx)
 			}
 		}
 	}
@@ -217,7 +221,7 @@ func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 		return
 	}
 
-	disabledUntil, updated := s.disableSpotScheduling(now)
+	disabledUntil, updated := s.disableSpotScheduling(ctx, now)
 	if updated {
 		log.Infof("Disabling spot scheduling until %v", disabledUntil)
 	}
@@ -232,6 +236,27 @@ func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 	}
 }
 
+// syncFallbackState reads the disabled-until timestamp from the store and updates in-memory state.
+func (s *Scheduler) syncOnDemandFallbackState(ctx context.Context) {
+	until, err := s.fallbackStore.read(ctx)
+	if err != nil {
+		log.Errorf("Failed to sync spot fallback state: %v", err)
+		return
+	}
+
+	updated := false
+	s.mu.Lock()
+	if !until.IsZero() && until.After(s.spotDisabledUntil) {
+		s.spotDisabledUntil = until
+		updated = true
+	}
+	s.mu.Unlock()
+
+	if updated {
+		log.Infof("Spot scheduling disabled until %v", until)
+	}
+}
+
 func (s *Scheduler) isSpotSchedulingDisabled() (time.Time, bool) {
 	s.mu.RLock()
 	spotDisabledUntil := s.spotDisabledUntil
@@ -240,7 +265,7 @@ func (s *Scheduler) isSpotSchedulingDisabled() (time.Time, bool) {
 	return spotDisabledUntil, s.clock.Now().Before(spotDisabledUntil)
 }
 
-// reEnableSpotScheduling enables spot scheduling it was disabled and can be re-enabled and
+// reEnableSpotScheduling enables spot scheduling if it was disabled and can be re-enabled and
 // returns true if scheduling was re-enabled.
 func (s *Scheduler) reEnableSpotScheduling(now time.Time) bool {
 	s.mu.Lock()
@@ -253,23 +278,28 @@ func (s *Scheduler) reEnableSpotScheduling(now time.Time) bool {
 	return reEnabled
 }
 
-// disableSpotScheduling disables spot scheduling if it is not disabled yet and
-// returns timestamp until scheduling is disabled and a boolean signaling if it was just disabled.
-func (s *Scheduler) disableSpotScheduling(now time.Time) (time.Time, bool) {
+// disableSpotScheduling disables spot scheduling if it is not disabled yet, persists the timestamp
+// to the store, and returns timestamp until scheduling is disabled and a boolean signaling if it was just disabled.
+func (s *Scheduler) disableSpotScheduling(ctx context.Context, now time.Time) (time.Time, bool) {
 	disabledUntil := now.Add(s.config.DisabledInterval)
-	disabledUntilUpdated := false
+	updated := false
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if now.Before(s.spotDisabledUntil) {
 		// already disabled
 		disabledUntil = s.spotDisabledUntil
 	} else {
 		s.spotDisabledUntil = disabledUntil
-		disabledUntilUpdated = true
+		updated = true
 	}
-	return disabledUntil, disabledUntilUpdated
+	s.mu.Unlock()
+
+	if updated {
+		if err := s.fallbackStore.store(ctx, disabledUntil); err != nil {
+			log.Errorf("Failed to persist spot fallback state: %v", err)
+		}
+	}
+	return disabledUntil, updated
 }
 
 // readConfig reads spot configuration from pod annotations, falling back to s.config defaults.

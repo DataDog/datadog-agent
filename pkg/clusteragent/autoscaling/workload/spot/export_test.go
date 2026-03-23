@@ -24,7 +24,7 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	evictorFunc := podEvictorFunc(func(_ context.Context, namespace, name string) error {
 		return evictPod(namespace, name)
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, isLeader)
+	return newScheduler(config, clk, wlm, evictorFunc, noopFallbackStore{}, isLeader)
 }
 
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given owner.
@@ -59,3 +59,10 @@ type podEvictorFunc func(ctx context.Context, namespace, name string) error
 func (f podEvictorFunc) evictPod(ctx context.Context, namespace, name string) error {
 	return f(ctx, namespace, name)
 }
+
+// noopFallbackStore is a test-only fallbackStore.
+type noopFallbackStore struct{}
+
+func (noopFallbackStore) store(context.Context, time.Time) error { return nil }
+
+func (noopFallbackStore) read(context.Context) (time.Time, error) { return time.Time{}, nil }

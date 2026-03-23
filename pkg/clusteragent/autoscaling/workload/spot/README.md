@@ -47,6 +47,7 @@ Cluster Agent re-enables spot scheduling after the spot disabled interval elapse
 
 ### TODO
 
+- [ ] Fallback ConfigMap RBAC
 - [ ] Move spot configuration to the Deployment/StatefulSet annotations
 - [ ] Add StatefulSet tests
 - [ ] Implement Argo Rollout support

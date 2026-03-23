@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,7 +66,11 @@ func StartWorkloadAutoscaling(
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 	var spotScheduler *spot.Scheduler
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.spot.enabled") {
-		spotScheduler = spot.NewScheduler(spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm, apiCl.Cl, isLeaderFunc)
+		spotScheduler = spot.NewScheduler(
+			spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm,
+			apiCl.Cl,
+			namespace.GetResourcesNamespace(),
+			isLeaderFunc)
 	}
 	podHandler := workload.NewPodHandler(podPatcher, spotScheduler)
 
