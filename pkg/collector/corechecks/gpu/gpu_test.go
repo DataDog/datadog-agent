@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -452,6 +453,43 @@ func mockMatchesTags(expectedTags []string) interface{} {
 	})
 }
 
+func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	check := &Check{}
+	deviceTags := make([]string, 1, 4)
+	deviceTags[0] = "gpu_uuid:gpu-1"
+
+	firstMetric := &nvidia.Metric{
+		Name:  "utilization",
+		Value: 1,
+		Type:  ddmetrics.GaugeType,
+		Tags:  []string{"source:first"},
+	}
+	secondMetric := &nvidia.Metric{
+		Name:  "utilization",
+		Value: 2,
+		Type:  ddmetrics.GaugeType,
+		Tags:  []string{"source:second"},
+	}
+
+	now := time.Now()
+	require.NoError(t, check.emitSingleMetric(firstMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSingleMetric(secondMetric, mockSender, now, nil, deviceTags))
+
+	require.Len(t, mockSender.Mock.Calls, 2)
+
+	firstTags, ok := mockSender.Mock.Calls[0].Arguments.Get(3).([]string)
+	require.True(t, ok)
+	secondTags, ok := mockSender.Mock.Calls[1].Arguments.Get(3).([]string)
+	require.True(t, ok)
+
+	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:first"}, firstTags)
+	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:second"}, secondTags)
+	require.Equal(t, []string{"gpu_uuid:gpu-1"}, deviceTags)
+}
+
 func TestTagsChangeBetweenRuns(t *testing.T) {
 	// Create a mock sender
 	mockSender := mocksender.NewMockSender("gpu")
@@ -847,6 +885,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
+	// required to emit gpu.devices.unhealthy metric
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 	archFile, err := gpuspec.LoadArchitecturesSpec()
