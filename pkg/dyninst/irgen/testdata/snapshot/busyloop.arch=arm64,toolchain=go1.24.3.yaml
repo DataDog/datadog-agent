@@ -1370,7 +1370,7 @@ Types:
       GoKind: 26
 MaxTypeID: 111
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x191360", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x1912e0", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
