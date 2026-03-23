@@ -42,21 +42,33 @@ const (
 )
 
 const (
-	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService         = "gcr."
-	cloudRunFunction        = "gcrfx."
-	revisionName            = "revision_name"
-	serviceName             = "service_name"
-	configName              = "configuration_name"
-	containerID             = "container_id"
-	location                = "location"
-	projectID               = "project_id"
-	resourceName            = "resource_name"
-	functionTarget          = "build_function_target"
-	functionSignature       = "function_signature_type"
+	// Cloud Run metrics prefixes and names
 	cloudRunPrefix          = "gcp.run.container"
 	cloudRunPrefixLegacy    = "gcp.run"
 	cloudRunUsageMetricName = "instance"
+)
+
+const (
+	// Cloud Run common tags
+	revisionName = "revision_name"
+	serviceName  = "service_name"
+	configName   = "configuration_name"
+	containerID  = "container_id"
+	location     = "location"
+	projectID    = "project_id"
+	resourceName = "resource_name"
+)
+
+const (
+	// Cloud Run Service tags
+	cloudRunService = "gcr."
+)
+
+const (
+	// Cloud Run Function tags
+	cloudRunFunction  = "gcrfx."
+	functionTarget    = "build_function_target"
+	functionSignature = "function_signature_type"
 )
 
 var metadataHelperFunc = GetMetaData
