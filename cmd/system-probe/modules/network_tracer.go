@@ -33,9 +33,6 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
-
-var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
-
 const maxConntrackDumpSize = 3000
 
 func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {

@@ -9,6 +9,7 @@
 package probe
 
 import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -26,6 +27,9 @@ type Opts struct {
 
 	// Tagger will override the default one. Mainly here for tests.
 	Tagger tags.Tagger
+
+	// WorkloadMeta is the workload meta client
+	WorkloadMeta workloadmeta.Component
 
 	// this option for test purposes only; should never be true in main code
 	disableProcmon bool
