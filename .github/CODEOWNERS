@@ -109,6 +109,7 @@
 /.gitlab/build/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml     @DataDog/agent-build
+/.gitlab/test/functional_test/files_inventory_check.yml   @DataDog/agent-build
 /.gitlab/test/install_script_testing/install_script_testing.yml          @DataDog/agent-build
 /.gitlab/test/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/test/integration_test/linux.yml                  @DataDog/agent-devx
@@ -738,6 +739,7 @@
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/quality_gates.py                 @DataDog/agent-build
 /tasks/static_quality_gates/            @DataDog/agent-build
+/tasks/files_inventory.py               @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
@@ -893,4 +895,4 @@
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
-/q_branch/                               @scottopell @lukesteensen
+/q_branch/                               @DataDog/q-branch
