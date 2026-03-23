@@ -8,14 +8,6 @@ package nvidia
 // defaultGpuOperatorVersion is the default version of the Nvidia GPU operator to install
 const defaultGpuOperatorVersion = "v24.9.2"
 
-// defaultNvkindVersion is the default version of the nvkind utility to install
-// Must be a valid reference for the github.com/NVIDIA/nvkind repository
-const defaultNvkindVersion = "eeeb9ca30763177fbe7b4d10fb6b7e21725e2295"
-
-// defaultHostGoVersion is the default version of Go to install in the host. This version
-// must be compatible with the nvkind utility
-const defaultHostGoVersion = "1.23"
-
 // defaultKindNodeImage is the default image to use for the kind nodes.
 const defaultKindNodeImage = "kindest/node"
 
@@ -32,12 +24,6 @@ type KindClusterOptions struct {
 
 	// gpuOperatorVersion is the version of the Nvidia GPU operator to install
 	gpuOperatorVersion string
-
-	// nvkindVersion is the version of the nvkind utility to install
-	nvkindVersion string
-
-	// hostGoVersion is the version of Go to install in the host
-	hostGoVersion string
 
 	// kindImage is the image to use for the kind nodes
 	kindImage string
@@ -63,20 +49,6 @@ func WithGPUOperatorVersion(version string) KindClusterOption {
 	}
 }
 
-// WithNvkindVersion sets the version of the nvkind utility to install
-func WithNvkindVersion(version string) KindClusterOption {
-	return func(o *KindClusterOptions) {
-		o.nvkindVersion = version
-	}
-}
-
-// WithHostGoVersion sets the version of Go to install in the host
-func WithHostGoVersion(version string) KindClusterOption {
-	return func(o *KindClusterOptions) {
-		o.hostGoVersion = version
-	}
-}
-
 // WithKindImage sets the image to use for the kind nodes. The version used by this image will
 // be the one defined by kubernetes.GetKindVersionConfig based on the kubernetes version used.
 func WithKindImage(image string) KindClusterOption {
@@ -97,8 +69,6 @@ func WithCudaSanityCheckImage(image string) KindClusterOption {
 func NewKindClusterOptions(opts ...KindClusterOption) *KindClusterOptions {
 	o := &KindClusterOptions{
 		gpuOperatorVersion:   defaultGpuOperatorVersion,
-		nvkindVersion:        defaultNvkindVersion,
-		hostGoVersion:        defaultHostGoVersion,
 		kindImage:            defaultKindNodeImage,
 		cudaSanityCheckImage: defaultCudaSanityCheckImage,
 	}
