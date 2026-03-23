@@ -17,10 +17,6 @@ const (
 	// RRCF detector
 	telemetryRRCFScore     = "observer.rrcf.score"
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
-
-	// Log extractor
-	// TODO(celian): how to handle counters? We should have a unified interface between observer / internal telemetry
-	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
 )
 
 // This is used to:
@@ -46,12 +42,6 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
 	)
-	gauges[telemetryLogPatternExtractorPatternCount] = telemetryComp.NewGauge(
-		"observer",
-		telemetryLogPatternExtractorPatternCount,
-		[]string{"detector"},
-		"Log pattern extractor pattern count",
-	)
 
 	return &telemetryHandler{
 		telemetryGauges: gauges,
@@ -68,7 +58,7 @@ func (h *telemetryHandler) handleTelemetry(events []observerdef.ObserverTelemetr
 			gauge, isGauge := h.telemetryGauges[event.Metric.GetName()]
 			if isGauge {
 				fmt.Printf("Sending telemetry: %v\n", event.Metric.GetName())
-				gauge.Set(event.Metric.GetValue(), append(event.Metric.GetRawTags(), "detector:"+event.DetectorName)...)
+				gauge.Set(event.Metric.GetValue(), event.Metric.GetRawTags()...)
 				continue
 			}
 
