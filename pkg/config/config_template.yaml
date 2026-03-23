@@ -758,9 +758,9 @@ api_key:
 #     # URL endpoint for the Observability Pipelines Worker to send traces to
 #
 #     url: "http://127.0.0.1:8080"
-{{ end -}}
+{{- end -}}
 
-{{if .Agent}}
+{{- if .Agent -}}
 ############################
 ## Advanced Configuration ##
 ############################
@@ -912,9 +912,9 @@ api_key:
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-{{- end }}
+{{- end -}}
 
-{{ if .Agent -}}
+{{- if .Agent -}}
 ## @param secret_backend_type - string - optional - default: ""
 ## @env DD_SECRET_BACKEND_TYPE - string - optional - default: ""
 ## `secret_backend_type` is the type of backend where secrets are stored.
@@ -1069,10 +1069,9 @@ api_key:
 #
 #   log_file: <TRAY_LOG_FILE_PATH>
 {{- end -}}
-{{ end -}}
+{{- end -}}
 
-{{- if .LogsAgent }}
-
+{{- if .LogsAgent -}}
 ##################################
 ## Log collection Configuration ##
 ##################################
@@ -1266,9 +1265,9 @@ api_key:
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #
 #     streamlogs_log_file: <path_to_streamlogs_log_file>
-{{ end -}}
+{{- end -}}
 
-{{ if .TraceAgent }}
+{{- if .TraceAgent -}}
 ####################################
 ## Trace Collection Configuration ##
 ####################################
@@ -2673,9 +2672,9 @@ api_key:
 ## set in the check templates. If that is the case, force custom jars here.
 #
 # jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
-{{ end -}}
+{{- end -}}
 
-{{ if .Logging }}
+{{- if .Logging -}}
 ###########################
 ## Logging Configuration ##
 ###########################
@@ -3833,9 +3832,9 @@ api_key:
 #
 # kubernetes_ad_tags_disabled:
 #   - kube_service
-{{- end }}
+{{- end -}}
 
-{{ if .CoreAgent -}}
+{{- if .CoreAgent -}}
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
@@ -3864,9 +3863,9 @@ api_key:
 #   # Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 #
 #   version: 1
+{{- end -}}
 
-{{ end -}}
-{{ if .CloudFoundry -}}
+{{- if .CloudFoundry -}}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
 #######################################################
@@ -4951,35 +4950,4 @@ api_key:
 #
 #   actions_allowlist:
 #     - com.datadoghq.script.runPredefinedScript
-{{ end -}}
-{{- if .SecurityAgent }}
-
-####################################
-## Runtime Security configuration ##
-####################################
-
-## @param runtime_security_config - custom object - optional
-#
-# runtime_security_config:
-
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_RUNTIME_SECURITY_CONFIG_ENABLED - boolean - optional - default: false
-#   # Set to true to enable Cloud Workload Security (CWS).
-#
-#   enabled: false
-
-{{ if (eq .OS "windows") -}}
-#   # @param socket - string - optional - default: "localhost:3335"
-#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: "localhost:3335"
-#   # The local address and port where the security runtime module is accessed
-#
-#   socket: "localhost:3335"
-{{- else -}}
-#   # @param socket - string - optional - default: "/opt/datadog-agent/run/runtime-security.sock"
-#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: "/opt/datadog-agent/run/runtime-security.sock"
-#   # The full path to the location of the unix socket where security runtime module is accessed.
-#
-#   socket: "/opt/datadog-agent/run/runtime-security.sock"
-{{ end }}
-
 {{ end -}}
