@@ -152,7 +152,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		var argoOpts []argorollouts.Option
 		// argo-rollouts chart >= 2.40.8 uses x-kubernetes-validations in CRDs,
 		// which requires K8s >= 1.25. Pin to last compatible version for older clusters.
-		kubeVer, err := semver.NewVersion(awsEnv.KubernetesVersion())
+		kubeVer, err := semver.NewVersion(utils.ParseKubernetesVersion(awsEnv.KubernetesVersion()))
 		if err == nil && kubeVer.LessThan(semver.MustParse("1.25.0")) {
 			argoOpts = append(argoOpts, argorollouts.WithVersion("2.40.7"))
 		}
