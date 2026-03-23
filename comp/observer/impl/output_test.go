@@ -166,6 +166,8 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	corr := output.AnomalyPeriods[0]
 	assert.Equal(t, "cluster_1000", corr.Pattern)
 	assert.Equal(t, "Correlated anomalies at 1000", corr.Title)
+	assert.NotEmpty(t, corr.Message)
+	assert.Equal(t, []string{"source:agent-q-branch-observer", "pattern:cluster_1000"}, corr.Tags)
 	assert.Equal(t, int64(1000), corr.PeriodStart)
 	assert.Equal(t, int64(1500), corr.PeriodEnd)
 	assert.Equal(t, []string{"parquet|cpu.user:avg|host:a", "parquet|mem.used:avg|host:a"}, corr.MemberSeries)

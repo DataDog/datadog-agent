@@ -33,12 +33,14 @@ type ObserverMetadata struct {
 
 // ObserverCorrelation is one correlation cluster.
 // Always includes the time span (pattern, period_start, period_end).
-// Verbose mode adds title, member_series, and nested anomalies.
+// Verbose mode adds title, message, tags, member_series, and nested anomalies.
 type ObserverCorrelation struct {
 	Pattern      string            `json:"pattern"`
 	PeriodStart  int64             `json:"period_start"`
 	PeriodEnd    int64             `json:"period_end"`
 	Title        string            `json:"title,omitempty"`
+	Message      string            `json:"message,omitempty"`
+	Tags         []string          `json:"tags,omitempty"`
 	MemberSeries []string          `json:"member_series,omitempty"`
 	Anomalies    []ObserverAnomaly `json:"anomalies,omitempty"`
 }
@@ -97,6 +99,8 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
+			oc.Message = correlationMessage(corr)
+			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.MemberSeriesIDs))
 			for j, sid := range corr.MemberSeriesIDs {
 				oc.MemberSeries[j] = string(sid)
