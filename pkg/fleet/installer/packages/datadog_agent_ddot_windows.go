@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -217,6 +218,9 @@ func ensureDDOTService() error {
 		}
 		// Best-effort: align service DACL to allow the core Agent user to control OTEL service
 		configureDDOTServicePermissions(s)
+		if err := setDDOTServiceEnvVars(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -236,6 +240,9 @@ func ensureDDOTService() error {
 	}
 	// Best-effort: align service DACL to allow the core Agent user to control OTEL service
 	configureDDOTServicePermissions(s)
+	if err := setDDOTServiceEnvVars(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -348,6 +355,20 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 		log.Warnf("DDOT: failed to set service DACL for %q: %v", s.Name, err)
 		return
 	}
+}
+
+// setDDOTServiceEnvVars writes the DDOT service environment variables to the registry.
+func setDDOTServiceEnvVars() error {
+	key, err := registry.OpenKey(
+		registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\`+otelServiceName,
+		registry.SET_VALUE,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to open service registry key: %w", err)
+	}
+	defer key.Close()
+	return key.SetStringsValue("Environment", []string{"DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal"})
 }
 
 // stopServiceIfExists stops the service if it exists
@@ -508,6 +529,9 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 			return err
 		}
 		configureDDOTServicePermissions(s)
+		if err := setDDOTServiceEnvVars(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -525,5 +549,8 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 		return err
 	}
 	configureDDOTServicePermissions(s)
+	if err := setDDOTServiceEnvVars(); err != nil {
+		return err
+	}
 	return nil
 }
