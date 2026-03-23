@@ -329,6 +329,32 @@ func CleanInfoExtraLines(info string) string {
 	return indentedEmptyLines.ReplaceAllString(info, "\n")
 }
 
+// GetInProcessStatus returns the trace agent's status by reading the targeted
+// expvars directly from the current process. This is used by the RAR gRPC adapter
+// so the trace agent fully owns its status representation.
+//
+// The expvars are the canonical source — they wrap the tracker's internal state
+// (receiver stats, writer info, watchdog, etc.) via the publish* functions
+// registered in initInfo().
+func GetInProcessStatus() map[string]interface{} {
+	keys := []string{
+		"pid", "uptime", "version", "memstats",
+		"receiver", "trace_writer", "stats_writer",
+		"ratebyservice", "ratebyservice_filtered",
+		"watchdog", "config",
+	}
+	status := make(map[string]interface{}, len(keys))
+	for _, k := range keys {
+		if v := expvar.Get(k); v != nil {
+			var parsed interface{}
+			if err := json.Unmarshal([]byte(v.String()), &parsed); err == nil {
+				status[k] = parsed
+			}
+		}
+	}
+	return status
+}
+
 func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	publishVersion := func() interface{} {
 		return struct {

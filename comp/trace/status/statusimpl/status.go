@@ -71,6 +71,9 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// populateStatus receives the pre-built status from the trace agent via RAR.
+// The trace agent fully owns its status representation; this consumer simply
+// deserializes and passes it through.
 func (s statusProvider) populateStatus() map[string]interface{} {
 	if s.RAR != nil {
 		agentStatus, ok := s.RAR.GetStatusByFlavor("trace_agent")
@@ -78,16 +81,12 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 			if agentStatus.FailureReason != "" {
 				return map[string]interface{}{"error": agentStatus.FailureReason}
 			}
-			result := make(map[string]interface{}, len(agentStatus.MainSection))
-			for k, v := range agentStatus.MainSection {
-				var parsed interface{}
-				if err := json.Unmarshal([]byte(v), &parsed); err == nil {
-					result[k] = parsed
-				} else {
-					result[k] = v
+			if raw, ok := agentStatus.MainSection["status"]; ok {
+				var result map[string]interface{}
+				if err := json.Unmarshal([]byte(raw), &result); err == nil {
+					return result
 				}
 			}
-			return result
 		}
 	}
 

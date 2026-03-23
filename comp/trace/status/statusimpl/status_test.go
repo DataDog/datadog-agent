@@ -38,14 +38,15 @@ func TestPopulateStatus(t *testing.T) {
 				Statuses: []remoteagentregistry.StatusData{
 					{
 						RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "trace_agent", LastSeen: time.Now()},
-						// expvar values are JSON strings (as returned by expvar.Value.String())
-						MainSection: remoteagentregistry.StatusSection{"pid": "12345", "uptime": "60"},
+						// The trace agent marshals its entire status into a single "status" key.
+						MainSection: remoteagentregistry.StatusSection{"status": `{"pid":"12345","uptime":60}`},
 					},
 				},
 			}},
 			assert: func(t *testing.T, r map[string]interface{}) {
 				assert.Empty(t, r["error"])
-				assert.Equal(t, float64(12345), r["pid"])
+				assert.Equal(t, "12345", r["pid"])
+				assert.Equal(t, float64(60), r["uptime"])
 			},
 		},
 		{
@@ -95,7 +96,7 @@ func TestJSON(t *testing.T) {
 			Statuses: []remoteagentregistry.StatusData{
 				{
 					RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "trace_agent", LastSeen: time.Now()},
-					MainSection:     remoteagentregistry.StatusSection{"pid": "12345"},
+					MainSection:     remoteagentregistry.StatusSection{"status": `{"pid":"12345"}`},
 				},
 			},
 		}}

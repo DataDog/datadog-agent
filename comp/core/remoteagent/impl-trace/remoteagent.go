@@ -8,6 +8,7 @@ package traceimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -73,7 +75,18 @@ type remoteagentImpl struct {
 	pbcore.UnimplementedStatusProviderServer
 }
 
-// GetStatusDetails returns the status details of the trace agent
+// GetStatusDetails returns the status details of the trace agent.
+// The trace agent fully owns its status representation — the core agent
+// simply deserializes and displays whatever is returned here.
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	return helper.DefaultStatusResponse(), nil
+	st := info.GetInProcessStatus()
+	statusBytes, err := json.Marshal(st)
+	if err != nil {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{
+			Fields: map[string]string{"status": string(statusBytes)},
+		},
+	}, nil
 }
