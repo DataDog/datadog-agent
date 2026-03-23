@@ -161,10 +161,11 @@ func TestShouldTriggerRollout_AlreadyTriggered(t *testing.T) {
 	}
 	podsPerRecommendationID := map[string]int32{"old-rec": 1, recommendationID: 0}
 
-	// Last action was for THIS recommendation
+	// Last action was a rollout for THIS recommendation
 	lastAction := &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 		Time:    metav1.NewTime(time.Now().Add(-1 * time.Minute)),
 		Version: recommendationID,
+		Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 	}
 
 	decision := shouldTriggerRollout(
