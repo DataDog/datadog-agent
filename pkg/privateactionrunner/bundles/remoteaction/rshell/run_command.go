@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -69,6 +70,16 @@ func (h *RunCommandHandler) Run(
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
 
+	validPaths := make([]string, 0, len(h.allowedPaths))
+	for _, p := range h.allowedPaths {
+		info, err := os.Stat(p)
+		if err == nil && info.IsDir() {
+			validPaths = append(validPaths, p)
+		} else {
+			log.Debugf("rshell: skipping allowed path %q (not found or not a directory)", p)
+		}
+	}
+
 	var stdout, stderr bytes.Buffer
 	cmdOpt := interp.AllowAllCommands()
 	if len(inputs.AllowedCommands) > 0 {
@@ -76,7 +87,7 @@ func (h *RunCommandHandler) Run(
 	}
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
-		interp.AllowedPaths(h.allowedPaths),
+		interp.AllowedPaths(validPaths),
 		cmdOpt,
 	)
 	if err != nil {
