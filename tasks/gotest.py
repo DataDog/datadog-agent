@@ -203,7 +203,7 @@ def sanitize_env_vars():
 
 
 def _generate_unified_output(
-    ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None, test_system: str = "unit"
+    ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None = None, test_system: str = "unit"
 ) -> None:
     """Generate a UTOF JSON file alongside the test output JSON."""
     if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
