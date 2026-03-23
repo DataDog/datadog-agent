@@ -28,6 +28,12 @@ type TracingContext struct {
 	SpanTags   map[string]string
 }
 
+// EnhancedMetricTags holds base tags and high-cardinality tags for enhanced metrics.
+type EnhancedMetricTags struct {
+	Base  map[string]string
+	Usage map[string]string
+}
+
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
 	// GetTags returns a map of tags for a given cloud service. These tags are then attached to
@@ -35,7 +41,7 @@ type CloudService interface {
 	GetTags() map[string]string
 
 	// GetEnhancedMetricTags returns base tags and high cardinality tags for a given cloud service.
-	GetEnhancedMetricTags(map[string]string) (map[string]string, map[string]string)
+	GetEnhancedMetricTags(map[string]string) EnhancedMetricTags
 
 	// GetDefaultLogsSource returns the value that will be used for the logs source
 	// if `DD_SOURCE` is not set by the user.
@@ -87,7 +93,7 @@ func (l *LocalService) GetTags() map[string]string {
 }
 
 // GetEnhancedMetricTags is a default implementation that returns an empty tag set
-func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"local": tags["local"],
 	}
@@ -97,7 +103,7 @@ func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string
 		"instance": "test-instance",
 	}
 
-	return baseTags, usageTags
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 // GetDefaultLogsSource is a default implementation that returns an empty logs source

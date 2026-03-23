@@ -117,7 +117,7 @@ func (c *CloudRun) GetTags() map[string]string {
 	return tags
 }
 
-func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"location":      tags["location"],
 		"origin":        tags["origin"],
@@ -134,7 +134,7 @@ func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]str
 		"service_name": tags["service_name"],
 	}
 
-	return baseTags, usageTags
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {

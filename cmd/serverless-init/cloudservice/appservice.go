@@ -54,7 +54,7 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
-func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+func (a *AppService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"name":            tags["app_name"],
 		"origin":          tags["origin"],
@@ -71,7 +71,7 @@ func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]s
 		"subscription_id": tags["aas.subscription.id"],
 	}
 
-	return baseTags, usageTags
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set

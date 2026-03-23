@@ -44,7 +44,9 @@ func TestTagsSetup(t *testing.T) {
 
 	baseTags := serverlessTag.MapToArray(serverlessInitTag.GetBaseTagsMap())
 	cloudServiceTags := cloudService.GetTags()
-	cloudServiceEnhancedMetricTags, cloudServiceEnhancedUsageMetricTags := cloudService.GetEnhancedMetricTags(cloudServiceTags)
+	enhancedFromCloudService := cloudService.GetEnhancedMetricTags(cloudServiceTags)
+	cloudServiceEnhancedMetricTags := enhancedFromCloudService.Base
+	cloudServiceEnhancedUsageMetricTags := enhancedFromCloudService.Usage
 
 	versionTag := "_dd.datadog_init_version:xxx"
 	enhancedMetricVersionTags := []string{"datadog_init_version:xxx", "sidecar:false"}

@@ -91,7 +91,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	return tags
 }
 
-func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"location":   tags["location"],
 		"project_id": tags["project_id"],
@@ -101,7 +101,7 @@ func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) (map[string
 
 	usageTags := map[string]string{}
 
-	return baseTags, usageTags
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set

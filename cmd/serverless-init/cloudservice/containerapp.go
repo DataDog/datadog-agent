@@ -123,7 +123,7 @@ func (c *ContainerApp) GetTags() map[string]string {
 	return tags
 }
 
-func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"name":            tags["app_name"],
 		"origin":          tags["origin"],
@@ -141,7 +141,7 @@ func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string
 		"replica":         tags["replica_name"],
 	}
 
-	return baseTags, usageTags
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set

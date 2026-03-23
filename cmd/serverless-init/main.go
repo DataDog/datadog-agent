@@ -198,16 +198,16 @@ func configureTags(cloudService cloudservice.CloudService) ([]string, map[string
 
 	serverlessInitTag.SetVersionMode(tags, modeConf.TagVersionMode)
 
-	enhancedMetricTagsBase, enhancedUsageMetricTags := cloudService.GetEnhancedMetricTags(cloudTags)
-	enhancedMetricTags := serverlessTag.MergeWithOverwrite(baseTags, configuredTagsMap, enhancedMetricTagsBase)
+	enhancedMetricTagSets := cloudService.GetEnhancedMetricTags(cloudTags)
+	enhancedMetricTags := serverlessTag.MergeWithOverwrite(baseTags, configuredTagsMap, enhancedMetricTagSets.Base)
 
 	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 
-	serverlessInitTag.SetVersionMode(enhancedUsageMetricTags, modeConf.TagVersionModeEnhancedMetrics)
-	serverlessInitTag.SetSidecarModeTag(enhancedUsageMetricTags, modeConf.SidecarMode)
+	serverlessInitTag.SetVersionMode(enhancedMetricTagSets.Usage, modeConf.TagVersionModeEnhancedMetrics)
+	serverlessInitTag.SetSidecarModeTag(enhancedMetricTagSets.Usage, modeConf.SidecarMode)
 
-	return configuredTags, tags, enhancedMetricTags, enhancedUsageMetricTags
+	return configuredTags, tags, enhancedMetricTags, enhancedMetricTagSets.Usage
 }
 
 var serverlessProfileTags = []string{
