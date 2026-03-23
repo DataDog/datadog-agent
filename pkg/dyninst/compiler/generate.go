@@ -778,6 +778,7 @@ func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
 
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
+outer:
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
 			continue
@@ -814,7 +815,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			return nil, err
 		}
 		layoutIdx := 0
-		unavailable := false
+		origLen := len(ops)
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
 				return nil, fmt.Errorf(
@@ -831,22 +832,20 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
 
-			// If this piece is unavailable (nil Op), only bail out if it
-			// overlaps with the requested byte range. This avoids
-			// rejecting narrowed field captures (e.g. foo.bar) when an
-			// unrelated field in the same parent struct is unavailable.
-			if piece.Op == nil {
+			switch p := piece.Op.(type) {
+			case nil:
+				// If this piece is unavailable, only bail out if it
+				// overlaps with the requested byte range. This avoids
+				// rejecting narrowed field captures (e.g. foo.bar) when an
+				// unrelated field in the same parent struct is unavailable.
 				pieceEnd := paddedOffset + piece.Size
 				if op.Offset < pieceEnd && paddedOffset < op.Offset+op.ByteSize {
 					// Overlaps with requested range — variable is
 					// partially unavailable, treat as unavailable.
-					unavailable = true
-					break
+					// Discard any ops emitted for earlier pieces.
+					ops = ops[:origLen]
+					break outer
 				}
-				continue
-			}
-
-			switch p := piece.Op.(type) {
 			case ir.Register:
 				// Register pieces are small and map to individual layout
 				// pieces. Check whether this piece's padded position falls
@@ -886,10 +885,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 				)
 			}
 		}
-		if !unavailable {
-			return ops, nil
-		}
-		break
+		return ops, nil
 	}
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
