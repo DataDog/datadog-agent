@@ -5,19 +5,26 @@
 
 //go:build test
 
-package statsd
+// Package statsdimpl implements the statsd component.
+package statsdimpl
 
 import (
 	"go.uber.org/fx"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// Mock interface for testing.
+type Mock interface {
+	statsd.Component
+}
+
 // MockModule defines the fx options for the mock component.
-// Injecting MockModule will provide the hostname 'my-hostname';
-// override this with fx.Replace(statsd.MockClient(client)).
+// Injecting MockModule will provide a NoOpClient by default;
+// override this with fx.Replace(fx.Annotate(client, fx.As(new(MockClient)))).
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
@@ -40,12 +47,12 @@ func (m *mockService) Create(_ ...ddgostatsd.Option) (ddgostatsd.ClientInterface
 	return m.client, nil
 }
 
-// GetForAddr returns a pre-configured statsd -client that defaults to `addr` if no env var is set
+// CreateForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
 func (m *mockService) CreateForAddr(_ string, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
 
-// GetForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
+// CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
 func (m *mockService) CreateForHostPort(_ string, _ int, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
@@ -56,7 +63,7 @@ var _ Mock = (*mockService)(nil)
 // Usage: fx.Replace(fx.Annotate(client, fx.As(new(MockClient)))
 type MockClient ddgostatsd.ClientInterface
 
-func newMock(client MockClient) (Component, Mock) {
+func newMock(client MockClient) (statsd.Component, Mock) {
 	mock := &mockService{client}
 	return mock, mock
 }

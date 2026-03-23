@@ -28,8 +28,6 @@ import (
 
 func init() { registerModule(ComplianceModule) }
 
-var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
-
 // ComplianceModule is a system-probe module that exposes an HTTP api to
 // perform compliance checks that require more privileges than security-agent
 // can offer.
@@ -37,9 +35,8 @@ var complianceConfigNamespaces = []string{"compliance_config", "runtime_security
 // For instance, being able to run cross-container checks at runtime by directly
 // accessing the /proc/<pid>/root mount point.
 var ComplianceModule = &module.Factory{
-	Name:             config.ComplianceModule,
-	ConfigNamespaces: complianceConfigNamespaces,
-	Fn:               newComplianceModule,
+	Name: config.ComplianceModule,
+	Fn:   newComplianceModule,
 	NeedsEBPF: func() bool {
 		return false
 	},
