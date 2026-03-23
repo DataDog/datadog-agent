@@ -36,6 +36,15 @@ type EnhancedMetricTags struct {
 	Usage map[string]string
 }
 
+// CloudRunType identifies the GCP Cloud Run variant.
+type CloudRunType int
+
+const (
+	CloudRunService CloudRunType = iota
+	CloudRunFunction
+	CloudRunJob
+)
+
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
 	// GetTags returns a map of tags for a given cloud service. These tags are then attached to

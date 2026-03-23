@@ -58,7 +58,7 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id": "test_container",
 			"location":     "test_region",

@@ -99,7 +99,7 @@ func TestGetMetaDataComplete(t *testing.T) {
 		"gcr.project_id":   "superprojectid",
 	}
 
-	metadata := GetMetaData(testConfig, true)
+	metadata := GetMetaData(testConfig, CloudRunService)
 	assert.Equal(t, expected, metadata)
 }
 
@@ -133,14 +133,14 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 		"project_id":       "superprojectid",
 	}
 
-	metadata := GetMetaData(testConfig, true)
+	metadata := GetMetaData(testConfig, CloudRunService)
 	assert.Equal(t, expected, metadata)
 }
 
 func TestGetCloudRunTags(t *testing.T) {
 	service := &CloudRun{spanNamespace: cloudRunService}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id":     "test_container",
 			"location":         "test_region",
@@ -169,7 +169,7 @@ func TestGetCloudRunTags(t *testing.T) {
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRun{spanNamespace: cloudRunService}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id":     "test_container",
 			"location":         "test_region",
@@ -205,7 +205,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRun{spanNamespace: cloudRunFunction}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id":       "test_container",
 			"location":           "test_region",

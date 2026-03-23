@@ -89,7 +89,13 @@ type CloudRun struct {
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
 	isCloudRun := c.spanNamespace == cloudRunService
-	tags := metadataHelperFunc(GetDefaultConfig(), isCloudRun)
+	var cloudRunType CloudRunType
+	if isCloudRun {
+		cloudRunType = CloudRunService
+	} else {
+		cloudRunType = CloudRunFunction
+	}
+	tags := metadataHelperFunc(GetDefaultConfig(), cloudRunType)
 	tags["origin"] = CloudRunOrigin
 	tags["_dd.origin"] = CloudRunOrigin
 
@@ -256,7 +262,7 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 }
 
 // GetMetaData returns the container's metadata
-func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
+func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string {
 	type keyVal struct {
 		key, val string
 	}
@@ -269,12 +275,16 @@ func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
 	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
-		if isCloudRunJob() {
+		if cloudRunType == CloudRunJob {
 			metaChan <- keyVal{cloudRunJobNamespace + baseKey, val}
-		} else if isCloudRun {
+		} else if cloudRunType == CloudRunService {
 			metaChan <- keyVal{cloudRunService + baseKey, val}
-		} else {
+		} else if cloudRunType == CloudRunFunction {
 			metaChan <- keyVal{cloudRunFunction + baseKey, val}
+		} else {
+			err := fmt.Errorf("unexpected cloudRunType for GCP metadata: %d", cloudRunType)
+			log.Error(err.Error())
+			panic(err)
 		}
 	}
 
