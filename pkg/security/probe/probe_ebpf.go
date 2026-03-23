@@ -119,14 +119,15 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event          *model.Event
-	dnsLayer       *layers.DNS
-	monitors       *EBPFMonitors
-	profileManager securityprofile.ProfileManager
-	fieldHandlers  *EBPFFieldHandlers
-	eventPool      *ddsync.TypedPool[model.Event]
-	variableStore  *eval.VariableStore
-	numCPU         int
+	event           *model.Event
+	dnsLayer        *layers.DNS
+	monitors        *EBPFMonitors
+	profileManager  securityprofile.ProfileManager
+	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	variableStore   *eval.VariableStore
+	variableStoreMu sync.RWMutex
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -993,6 +994,8 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 
 // evalOpts returns the eval options containing the current variable store
 func (p *EBPFProbe) evalOpts() *eval.Opts {
+	p.variableStoreMu.RLock()
+	defer p.variableStoreMu.RUnlock()
 	return &eval.Opts{VariableStore: p.variableStore}
 }
 
@@ -2503,7 +2506,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
+	p.variableStoreMu.Unlock()
 
 	p.HandleRemediationStatus(rs)
 }
