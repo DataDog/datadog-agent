@@ -37,7 +37,6 @@ rust_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
@@ -46,7 +45,6 @@ rust_library(
         "@crates//:uzers",
         "@crates//:walkdir",
         "@crates//:yaml-rust2",
-        "@crates//:zip",
     ],
 )
 
@@ -82,7 +80,6 @@ rust_static_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
@@ -91,7 +88,6 @@ rust_static_library(
         "@crates//:uzers",
         "@crates//:walkdir",
         "@crates//:yaml-rust2",
-        "@crates//:zip",
     ],
 )
 
@@ -173,6 +169,10 @@ filegroup(
 rust_test(
     name = "dd_discovery_test",
     crate = ":dd_discovery",
+    crate_features = [
+        "spring",
+        "jee",
+    ],
     # Make test data available to tests
     data = [":testdata"],
     edition = "2024",
@@ -183,6 +183,9 @@ rust_test(
         "@crates//:scopeguard",
         "@crates//:tempfile",
         "@crates//:temp-env",
+        # Optional deps needed when spring/jee features are enabled
+        "@crates//:quick-xml",
+        "@crates//:zip",
     ],
 )
 

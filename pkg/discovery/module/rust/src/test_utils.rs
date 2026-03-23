@@ -51,6 +51,7 @@ impl AsRef<Path> for TestDataFs {
 }
 
 impl TestDataFs {
+    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
     pub fn new_empty() -> Self {
         let temp_dir = TempDir::new().unwrap();
         let subdirfs = SubDirFs::new(temp_dir.path()).unwrap();

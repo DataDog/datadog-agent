@@ -7,6 +7,7 @@ use cap_std::fs::Dir;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+#[cfg(any(feature = "spring", feature = "jee"))]
 use zip::ZipArchive;
 
 /// SubDirFs is like a standard filesystem, except that it allows
@@ -19,6 +20,7 @@ use zip::ZipArchive;
 /// Root.FS than Dir.FS since it prevents escapes via symbolic links too.
 pub struct SubDirFs {
     dir: Dir,
+    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
     root_path: PathBuf,
 }
 
@@ -56,6 +58,7 @@ impl UnverifiedFile {
         size_verified_reader(&self.0, max_size)
     }
 
+    #[cfg(any(feature = "spring", feature = "jee"))]
     pub fn verify_zip(
         self,
     ) -> Result<UnverifiedZipArchive<cap_std::fs::File>, zip::result::ZipError> {
@@ -63,6 +66,7 @@ impl UnverifiedFile {
     }
 }
 
+#[cfg(any(feature = "spring", feature = "jee"))]
 /// UnverifiedZipArchive is a wrapper around ZipArchive that prevents reading
 /// ZIP entry contents until size verification has been performed via the verify() method
 /// on individual entries. This ensures compile-time enforcement of size verification
@@ -72,6 +76,7 @@ impl UnverifiedFile {
 /// then call .verify(max_size) on it.
 pub struct UnverifiedZipArchive<R>(ZipArchive<R>);
 
+#[cfg(any(feature = "spring", feature = "jee"))]
 impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
     /// Gets a ZIP entry by index, returning an UnverifiedZipFile.
     /// To read the entry contents, call .verify(max_size) on the returned file.
@@ -101,6 +106,7 @@ impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
     }
 }
 
+#[cfg(any(feature = "spring", feature = "jee"))]
 /// UnverifiedZipFile is a wrapper around zip::read::ZipFile that prevents reading
 /// the file contents until size verification has been performed via the verify() method.
 /// This ensures compile-time enforcement of size verification for ZIP entry reads.
@@ -108,6 +114,7 @@ impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
 /// Metadata access (name, size) is allowed without verification.
 pub struct UnverifiedZipFile<'a>(zip::read::ZipFile<'a>);
 
+#[cfg(any(feature = "spring", feature = "jee"))]
 impl<'a> UnverifiedZipFile<'a> {
     /// Verifies the ZIP entry and returns a reader that can be used to read the contents.
     pub fn verify(self, max_size: Option<u64>) -> io::Result<impl Read + 'a> {
@@ -130,6 +137,7 @@ impl SubDirFs {
     }
 
     /// Creates a new SubDirFs rooted at the specified path relative to the current root.
+    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
     pub fn sub<P: AsRef<Path>>(&self, path: P) -> io::Result<Self> {
         let fixed = fix_path(&path);
         let sub_path = self.root_path.join(fixed);
@@ -188,6 +196,7 @@ impl SubDirFs {
     ///
     /// Use `make_relative()` to convert the absolute paths from walkdir entries
     /// back to paths relative to SubDirFs root.
+    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
     pub fn walker(&self, start_path: &str) -> WalkDir {
         let full_path = self.root_path.join(fix_path(&start_path));
         WalkDir::new(full_path)
@@ -200,6 +209,7 @@ impl SubDirFs {
     /// Returns None if the path is not within the SubDirFs root.
     ///
     /// This is useful when working with walkdir entries from `walker()`.
+    #[cfg_attr(not(any(feature = "spring", feature = "jee")), allow(dead_code))]
     pub fn make_relative(&self, path: &Path) -> Option<String> {
         let relative = path.strip_prefix(&self.root_path).ok()?;
         Some(if relative.as_os_str().is_empty() {
@@ -210,6 +220,7 @@ impl SubDirFs {
     }
 }
 
+#[cfg(any(feature = "spring", feature = "jee"))]
 // We don't verify the size of the zip archive, the sizes of individual entries
 // are verified when we read them via the type system enforcement.
 fn verified_zip_archive(
@@ -226,6 +237,7 @@ fn verified_zip_archive(
     Ok(UnverifiedZipArchive(ZipArchive::new(file.0)?))
 }
 
+#[cfg(any(feature = "spring", feature = "jee"))]
 /// Returns a reader for a ZIP entry after verifying the size doesn't exceed max_size.
 fn size_verified_zip_reader<'a>(
     zip_file: zip::read::ZipFile<'a>,
@@ -287,6 +299,7 @@ pub fn size_verified_reader(
 mod tests {
     use super::*;
     use crate::test_utils::TestDataFs;
+    #[cfg(any(feature = "spring", feature = "jee"))]
     use std::io::Write;
 
     #[test]
@@ -551,6 +564,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "spring", feature = "jee"))]
     fn test_unverified_zip_archive_enforcement() {
         // Create a test ZIP archive
         let mut buf = Vec::new();
@@ -613,6 +627,7 @@ mod tests {
     }
 
     // Helper function for test_unverified_zip_archive_enforcement
+    #[cfg(any(feature = "spring", feature = "jee"))]
     fn create_test_zip_data() -> Vec<u8> {
         let mut buf = Vec::new();
         {
