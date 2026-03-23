@@ -37,6 +37,16 @@ if [ -n "$DD_REPO_URL" ]; then
     dmg_base_url=$DD_REPO_URL
 fi
 
+# Optional: path to a local DMG file to use instead of downloading
+local_dmg_path=
+if [ -n "$DD_DMG_PATH" ]; then
+    local_dmg_path="$DD_DMG_PATH"
+    if [ ! -f "$local_dmg_path" ]; then
+        printf "${RED}DD_DMG_PATH is set but file does not exist: %s${NC}\\n" "$local_dmg_path"
+        exit 1
+    fi
+fi
+
 # Root user detection
 if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
@@ -185,19 +195,21 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-# Determine agent flavor to install
-if [ -z "$agent_dist_channel" ]; then
-    dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
-else
-    dmg_url_prefix="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}"
-fi
+# Determine agent flavor to install (skipped when using a local DMG)
+if [ -z "$local_dmg_path" ]; then
+    if [ -z "$agent_dist_channel" ]; then
+        dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
+    else
+        dmg_url_prefix="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}"
+    fi
 
-dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if available
-if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
-    dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
-    if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
-        printf "${RED}Rosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license${NC}\n"
-        exit 1
+    dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if available
+    if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
+        dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
+        if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
+            printf "${RED}Rosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license${NC}\n"
+            exit 1
+        fi
     fi
 fi
 
@@ -215,11 +227,16 @@ $sudo_cmd chmod 700 "$install_staging_dir"
 $sudo_cmd chmod 600 "$install_env_file"
 
 # Download and install
-printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
-prepare_dmg_file $dmg_file
-if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
-    printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
-    exit 1;
+if [ -n "$local_dmg_path" ]; then
+    printf "${BLUE}\n* Using local DMG: %s\n${NC}" "$local_dmg_path"
+    dmg_file="$local_dmg_path"
+else
+    printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
+    prepare_dmg_file $dmg_file
+    if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
+        printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
+        exit 1;
+    fi
 fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
