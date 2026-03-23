@@ -111,8 +111,8 @@ type LibraryInjectionConfig struct {
 	// InjectionType identifies the type of injection, e.g. "single step" or "lib injection" (for metrics).
 	InjectionType string
 
-	// RegistryAllowList is an optional list of allowed container registries for CSI-based injection.
-	// When non-empty and using CSI injection mode, only libraries from these registries will be injected.
+	// RegistryAllowList is an optional list of allowed container registries for library injection.
+	// When non-empty, only libraries from these registries will be injected.
 	// An empty list allows all registries (default).
 	RegistryAllowList []string
 }

@@ -9,6 +9,7 @@ package libraryinjection
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -28,6 +29,15 @@ import (
 //
 // Returns an error if the injection fails.
 func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
+	// Check the registry allow list before any injection. All images use the same registry,
+	// so checking the injector registry is sufficient.
+	if len(cfg.RegistryAllowList) > 0 && !slices.Contains(cfg.RegistryAllowList, cfg.Injector.Package.Registry) {
+		msg := fmt.Sprintf("registry %q is not in the allow list", cfg.Injector.Package.Registry)
+		log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), msg)
+		annotation.Set(pod, annotation.InjectionError, msg)
+		return nil
+	}
+
 	// Select the provider based on the injection mode (annotation or default)
 	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode))
 	provider := factory.GetProviderForPod(pod, cfg)
