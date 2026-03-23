@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/mux"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -30,6 +31,7 @@ type server struct {
 func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[ipc.Component]) (*server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", handler)
+	coverage.SetupCoverageHandler(r)
 
 	s := &http.Server{
 		Addr:    endpoint,

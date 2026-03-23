@@ -215,6 +215,11 @@ func (e *Kubernetes) getAgentCoverageCommands(podType podType) []CoverageTargetS
 				CoverageCommand: []string{"system-probe.exe", "coverage", "generate"},
 				Required:        false,
 			},
+			{
+				AgentName:       "otel-agent",
+				CoverageCommand: []string{"otel-agent.exe", "coverage"},
+				Required:        false,
+			},
 		}
 	} else if podType == podTypeClusterAgent {
 		return []CoverageTargetSpec{
@@ -249,6 +254,11 @@ func (e *Kubernetes) getAgentCoverageCommands(podType podType) []CoverageTargetS
 		{
 			AgentName:       "system-probe",
 			CoverageCommand: []string{"system-probe", "coverage", "generate"},
+			Required:        false,
+		},
+		{
+			AgentName:       "otel-agent",
+			CoverageCommand: []string{"otel-agent", "coverage"},
 			Required:        false,
 		},
 	}
