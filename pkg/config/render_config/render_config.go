@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/pmezard/go-difflib/difflib"
 	"gopkg.in/yaml.v3"
 )
 
@@ -106,8 +107,7 @@ func mkContext(buildType string, osName string) context {
 	// security-agent and system-probe use their own templating file, they only require OS
 	case "security-agent":
 		return context{
-			OS:            osName,
-			SecurityAgent: true,
+			OS: osName,
 		}
 	case "system-probe":
 		return context{
@@ -145,15 +145,15 @@ func renderAll(destFolder string, tplFolder string) {
 		"dca":            "config_template.yaml",
 		"dcacf":          "config_template.yaml",
 		"system-probe":   "system-probe_template.yaml",
-		"security-agent": "config_template.yaml",
+		"security-agent": "security-agent_template.yaml",
 	} {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			fmt.Println("Successfully wrote", destFile)
 			if err := lint(destFile); err != nil {
 				panic(err)
 			}
-			fmt.Println("Successfully wrote", destFile)
 		}
 	}
 }
@@ -206,7 +206,7 @@ func lint(destFile string) error {
 		// if there are no nodes then all comments are removed, so this
 		// allows us to make a comparison even for files which only have comments,
 		// such as system-probe.yaml.
-		normalized = append(normalized, []byte("lint_testing: true # ignore me\n")...)
+		normalized = append(normalized, []byte("\nlint_testing: true # ignore me\n")...)
 		if err := yaml.Unmarshal(normalized, &root); err != nil {
 			return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
 		}
