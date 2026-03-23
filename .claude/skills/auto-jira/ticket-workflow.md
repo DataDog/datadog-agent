@@ -17,6 +17,8 @@ Guide for selecting, claiming, and managing Jira tickets for autonomous work.
 
 Read `.ddqa/config.toml`, find the `[teams."..."]` block where `jira_project = "<BOARD>"`, and use the first element of its `jira_statuses` array as `<INITIAL_STATUS>`.
 
+If the board is not found in `.ddqa/config.toml`, default to `"To Do"` and log a warning in `AUTO_JIRA.md`.
+
 Use `mcp__atlassian__searchJiraIssuesUsingJql` with:
 - `cloudId`: `datadoghq.atlassian.net`
 - `fields`: `["summary", "description", "status", "assignee", "labels", "issuetype", "created", "priority", "parent"]`
