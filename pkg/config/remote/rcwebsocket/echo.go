@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -59,6 +60,7 @@ func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
 func runEchoLoop(ctx context.Context, client *api.HTTPClient, reconnections uint) (uint, error) {
 	extraHeaders := http.Header{
 		"X-Echo-Reconnections": []string{strconv.FormatUint(uint64(reconnections), 10)},
+		"X-Agent-UUID":         []string{uuid.GetUUID()},
 	}
 	conn, err := client.NewWebSocket(ctx, "/api/v0.2/echo-test", extraHeaders)
 	if err != nil {
