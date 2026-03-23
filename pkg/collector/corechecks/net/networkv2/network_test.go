@@ -1285,7 +1285,7 @@ func TestConfigurationCombineConnectionStatesFalse(t *testing.T) {
 collect_connection_state: true
 combine_connection_states: false
 `)
-	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
@@ -2894,7 +2894,7 @@ collect_connection_state: true
 combine_connection_states: false
 `)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)
 
@@ -2967,7 +2967,7 @@ collect_connection_state: true
 combine_connection_states: false
 `)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

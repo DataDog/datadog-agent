@@ -681,7 +681,7 @@ combine_connection_states: false
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)
 
