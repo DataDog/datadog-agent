@@ -57,4 +57,3 @@ func MakeRootCommand() *cobra.Command {
 
 	return &hostProfiler
 }
-
