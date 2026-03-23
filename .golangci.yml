@@ -113,6 +113,8 @@ linters:
             - "!**/comp/core/autodiscovery/providers/utils_test.go"
             - "!**/comp/core/autodiscovery/providers/zookeeper.go"
             - "!**/comp/core/autodiscovery/providers/zookeeper_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_crd.go"
+            - "!**/comp/core/autodiscovery/providers/kube_crd_nop.go"
             - "!**/comp/core/config/config.go"
             - "!**/comp/core/config/params.go"
             - "!**/comp/core/config/setup.go"
@@ -177,12 +179,12 @@ linters:
             - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient_test.go"
             - "!**/comp/systray/systray/impl/doflare.go"
             - "!**/comp/trace/agent/impl/run.go"
-            - "!**/comp/trace/config/config.go"
-            - "!**/comp/trace/config/config_nix.go"
-            - "!**/comp/trace/config/config_test.go"
-            - "!**/comp/trace/config/hostname.go"
-            - "!**/comp/trace/config/remote.go"
-            - "!**/comp/trace/config/setup.go"
+            - "!**/comp/trace/config/impl/config.go"
+            - "!**/comp/trace/config/impl/config_nix.go"
+            - "!**/comp/trace/config/impl/config_test.go"
+            - "!**/comp/trace/config/impl/hostname.go"
+            - "!**/comp/trace/config/impl/remote.go"
+            - "!**/comp/trace/config/impl/setup.go"
           deny:
             - pkg: "github.com/DataDog/datadog-agent/pkg/config/setup"
               desc: "github.com/DataDog/datadog-agent/pkg/config/setup should not be used inside comp folder. Use the config component instead, by declaring it as part of your component's dependencies."
@@ -349,6 +351,10 @@ linters:
   exclusions:
     generated: lax
     rules:
+    - linters:
+      - staticcheck
+      path: pkg/clusteragent/admission/mutate/cwsinstrumentation/
+      text: "SA1019: slices"
     # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - path: (.+)\.go$
       text: Error return value of `io.WriteString` is not checked

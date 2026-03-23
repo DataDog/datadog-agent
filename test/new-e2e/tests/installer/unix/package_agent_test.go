@@ -142,7 +142,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Unordered(host.SystemdEvents().
 			Started(agentUnitXP).
 			Started(traceUnitXP).
-			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
@@ -156,7 +155,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
@@ -203,7 +201,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Unordered(host.SystemdEvents().
 			Started(agentUnitXP).
 			Started(traceUnitXP).
-			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
@@ -221,7 +218,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
@@ -259,7 +255,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Unordered(host.SystemdEvents().
 				Started(agentUnitXP).
 				Started(traceUnitXP).
-				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnitXP),
 			).
 
@@ -273,7 +268,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)
@@ -299,7 +293,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		)
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(traceUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(securityUnitXP))
-		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible))
 
 		// stop experiment
 		timestamp = s.host.LastJournaldTimestamp()
@@ -316,7 +309,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)
@@ -511,7 +503,8 @@ func (s *packageAgentSuite) TestInstallFips() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit, probeUnit)
 
-	// Important: the installer daemon shouldn't start if FIPS is enabled. Remote Config will be disabled and the unit will exit with code 255.
+	// Remote Config is disabled by default for FIPS/FED agents, so the RC client fails to init and the unit exits with code 255.
+	// If remote_configuration.enabled is explicitly set to true, the daemon would start normally.
 	s.host.WaitForUnitExited(s.T(), 255, installerUnit)
 
 	state := s.host.State()

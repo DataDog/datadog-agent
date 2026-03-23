@@ -11,7 +11,10 @@ rtloader_test_go_library(
     clinkopts = [],  # keep: ignore cgo directives
     importpath = "github.com/DataDog/datadog-agent/rtloader/test/common",
     visibility = ["//visibility:public"],
-    deps = ["//rtloader/test/helpers"],
+    deps = [
+        "//rtloader/test/helpers",
+        "@rules_go//go/runfiles",
+    ],
 )
 
 rtloader_go_test(

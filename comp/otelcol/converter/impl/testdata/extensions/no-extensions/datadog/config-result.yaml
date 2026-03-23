@@ -14,6 +14,8 @@ extensions:
       key: ggggg77777
       site: "datadoghq.com"
     deployment_type: daemonset
+    hostname: test-host
+    installation_method: "bare-metal"
 
 service:
   extensions:
