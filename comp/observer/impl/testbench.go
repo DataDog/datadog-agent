@@ -1347,12 +1347,12 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 	result := make([]LogPatternInfo, 0, len(clusters))
 	for _, cluster := range clusters {
 		hash := fmt.Sprintf("%x", cluster.ID+1)
-		// Engine stores extractor metrics with the "_virtual." prefix (see engine.IngestLog).
-		metricName := fmt.Sprintf("_virtual.log.%s.%s.count", extractor.Name(), hash)
+		// Must match LogPatternExtractor.ProcessLog metric names (namespace = extractor name).
+		metricName := fmt.Sprintf("log.%s.%s.count", extractor.Name(), hash)
 
 		seriesIDs := []string{}
 		if storage != nil {
-			for _, m := range storage.ListSeriesMetadata("parquet") {
+			for _, m := range storage.ListSeriesMetadata(extractor.Name()) {
 				if m.Name == metricName {
 					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Handle))+":count")
 				}
