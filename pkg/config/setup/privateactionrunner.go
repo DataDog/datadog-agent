@@ -8,6 +8,7 @@ package setup
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -35,6 +36,15 @@ const (
 
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
+)
+
+const (
+	// Default allowed paths for restricted shell
+	defaultLogPath       = "/var/log"
+	defaultProcPath      = "/proc"
+	defaultOSReleasePath = "/etc/os-release"
+
+	containerizedPathPrefix = "/host"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -69,12 +79,17 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{"/var/log"})
+	defaultPaths := []string{defaultLogPath, defaultProcPath, defaultOSReleasePath}
+	if env.IsContainerized() {
+		for i, p := range defaultPaths {
+			defaultPaths[i] = containerizedPathPrefix + p
+		}
+	}
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil
 		}
 		return strings.Split(s, ",")
 	})
-
 }
