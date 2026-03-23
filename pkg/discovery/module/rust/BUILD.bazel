@@ -166,6 +166,7 @@ rust_test(
     name = "dd_discovery_test",
     crate = ":dd_discovery",
     crate_features = [
+        "java-archives",
         "spring",
         "jee",
     ],

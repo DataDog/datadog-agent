@@ -51,7 +51,7 @@ impl AsRef<Path> for TestDataFs {
 }
 
 impl TestDataFs {
-    #[cfg(any(feature = "spring", feature = "jee"))]
+    #[cfg(feature = "java-archives")]
     pub fn new_empty() -> Self {
         let temp_dir = TempDir::new().unwrap();
         let subdirfs = SubDirFs::new(temp_dir.path()).unwrap();

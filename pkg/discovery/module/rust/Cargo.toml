@@ -7,8 +7,9 @@ rust-version.workspace = true
 
 [features]
 default = []
-spring = ["dep:zip", "dep:walkdir", "dep:yaml-rust2"]
-jee = ["dep:zip", "dep:quick-xml", "dep:walkdir"]
+java-archives = ["dep:zip", "dep:walkdir"]
+spring = ["java-archives", "dep:yaml-rust2"]
+jee = ["java-archives", "dep:quick-xml"]
 
 [lib]
 name = "dd_discovery"

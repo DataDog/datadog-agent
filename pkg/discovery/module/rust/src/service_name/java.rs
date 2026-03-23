@@ -171,7 +171,7 @@ mod tests {
     use crate::cmdline;
     use crate::fs::SubDirFs;
     use crate::procfs::Cmdline;
-    #[cfg(any(feature = "spring", feature = "jee"))]
+    #[cfg(feature = "java-archives")]
     use crate::test_utils::TestDataFs;
     use std::collections::HashMap;
 
