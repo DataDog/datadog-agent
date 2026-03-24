@@ -100,6 +100,65 @@ fn decompose_joined_inner<const N: usize>(
     }
 }
 
+/// Decompose a FlatBuffers tag vector directly into interners, avoiding
+/// intermediate String allocations. Used by LogsWriter where tags are
+/// decomposed on every row (no context_key indirection).
+///
+/// `reserved_interners` must have exactly `N` elements, matching `reserved_keys`.
+/// Returns the overflow string (pipe-joined non-reserved tags).
+pub fn decompose_tags_into_interners(
+    tags: Option<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&str>>>,
+    reserved_keys: &[&str],
+    reserved_interners: &mut [&mut super::intern::StringInterner],
+    overflow_interner: &mut super::intern::StringInterner,
+) {
+    debug_assert_eq!(reserved_keys.len(), reserved_interners.len());
+
+    if let Some(tl) = tags {
+        // Track which reserved keys were found so we can intern "" for the rest.
+        let n = reserved_keys.len();
+        let mut found = vec![false; n];
+        let mut overflow_parts: Vec<&str> = Vec::new();
+
+        for j in 0..tl.len() {
+            let tag = tl.get(j);
+            if let Some(colon) = tag.find(':') {
+                let key = &tag[..colon];
+                let value = &tag[colon + 1..];
+                if let Some(idx) = reserved_keys.iter().position(|&k| k == key) {
+                    reserved_interners[idx].intern(value);
+                    found[idx] = true;
+                    continue;
+                }
+            }
+            overflow_parts.push(tag);
+        }
+
+        // Intern "" for any reserved keys not found in this row.
+        for (idx, was_found) in found.iter().enumerate() {
+            if !was_found {
+                reserved_interners[idx].intern("");
+            }
+        }
+
+        // Build overflow: join and intern.
+        if overflow_parts.is_empty() {
+            overflow_interner.intern("");
+        } else {
+            // We need a temporary String for the join, but it's one allocation
+            // per row instead of N+1 (DecomposedTags was 4 Strings + 1 join).
+            let joined = overflow_parts.join("|");
+            overflow_interner.intern_owned(joined);
+        }
+    } else {
+        // No tags at all — intern "" for everything.
+        for interner in reserved_interners.iter_mut() {
+            interner.intern("");
+        }
+        overflow_interner.intern("");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -35,7 +35,7 @@ pub struct MetricsWriter {
     tag_env: StringInterner,
     tag_version: StringInterner,
     tag_team: StringInterner,
-    tags_overflow: Vec<String>,
+    tags_overflow: StringInterner,
     sources: StringInterner,
 
     // Plain columnar buffers.
@@ -74,7 +74,7 @@ impl MetricsWriter {
             tag_env: StringInterner::with_capacity(flush_rows),
             tag_version: StringInterner::with_capacity(flush_rows),
             tag_team: StringInterner::with_capacity(flush_rows),
-            tags_overflow: Vec::with_capacity(flush_rows),
+            tags_overflow: StringInterner::with_capacity(flush_rows),
             sources: StringInterner::with_capacity(flush_rows),
 
             values: Vec::with_capacity(flush_rows),
@@ -124,7 +124,7 @@ impl MetricsWriter {
                     self.tag_env.intern(&dtags.reserved[4]);
                     self.tag_version.intern(&dtags.reserved[5]);
                     self.tag_team.intern(&dtags.reserved[6]);
-                    self.tags_overflow.push(dtags.overflow.clone());
+                    self.tags_overflow.intern(&dtags.overflow);
                 } else {
                     if ckey != 0 {
                         self.unresolved_count += 1;
@@ -137,7 +137,7 @@ impl MetricsWriter {
                     self.tag_env.intern("");
                     self.tag_version.intern("");
                     self.tag_team.intern("");
-                    self.tags_overflow.push(String::new());
+                    self.tags_overflow.intern("");
                 }
 
                 self.sources.intern(s.source().unwrap_or(""));
@@ -187,7 +187,7 @@ impl MetricsWriter {
         let (env_vals, env_codes) = self.tag_env.take();
         let (version_vals, version_codes) = self.tag_version.take();
         let (team_vals, team_codes) = self.tag_team.take();
-        let tags_overflow = std::mem::take(&mut self.tags_overflow);
+        let (overflow_vals, overflow_codes) = self.tags_overflow.take();
         let (source_vals, source_codes) = self.sources.take();
         let values = std::mem::take(&mut self.values);
         let timestamps = std::mem::take(&mut self.timestamps);
@@ -219,13 +219,8 @@ impl MetricsWriter {
         let env_array = build_dict(env_vals, env_codes, "tag_env")?;
         let version_array = build_dict(version_vals, version_codes, "tag_version")?;
         let team_array = build_dict(team_vals, team_codes, "tag_team")?;
+        let overflow_array = build_dict(overflow_vals, overflow_codes, "tags_overflow")?;
         let source_array = build_dict(source_vals, source_codes, "source")?;
-
-        // Build overflow VarBinArray (sorted).
-        let sorted_overflow: Vec<Vec<u8>> = order
-            .iter()
-            .map(|&i| tags_overflow[i].as_bytes().to_vec())
-            .collect();
 
         let st = StructArray::try_new(
             FieldNames::from(METRIC_FIELD_NAMES),
@@ -238,7 +233,7 @@ impl MetricsWriter {
                 env_array.into_array(),
                 version_array.into_array(),
                 team_array.into_array(),
-                VarBinArray::from(sorted_overflow).into_array(),
+                overflow_array.into_array(),
                 order
                     .iter()
                     .map(|&i| values[i])
@@ -337,7 +332,7 @@ mod tests {
             w.tag_env.intern("prod");
             w.tag_version.intern("");
             w.tag_team.intern("");
-            w.tags_overflow.push(String::new());
+            w.tags_overflow.intern("");
             w.sources.intern("test");
             w.values.push(i as f64);
             w.timestamps.push(1000);
@@ -368,7 +363,7 @@ mod tests {
         w.tag_env.intern("prod");
         w.tag_version.intern("");
         w.tag_team.intern("");
-        w.tags_overflow.push("custom:foo".to_string());
+        w.tags_overflow.intern("custom:foo");
         w.sources.intern("src1");
         w.values.push(42.0);
         w.timestamps.push(999);
@@ -399,7 +394,7 @@ mod tests {
             w.tag_env.intern("prod");
             w.tag_version.intern("");
             w.tag_team.intern("");
-            w.tags_overflow.push(String::new());
+            w.tags_overflow.intern("");
             w.sources.intern("agent");
             w.values.push(i as f64);
             w.timestamps.push(i as i64);
@@ -452,7 +447,7 @@ mod tests {
             w.tag_env.intern(&reserved[4]);
             w.tag_version.intern(&reserved[5]);
             w.tag_team.intern(&reserved[6]);
-            w.tags_overflow.push(overflow);
+            w.tags_overflow.intern(&overflow);
             w.sources.intern("agent");
             w.values.push(1.0);
             w.timestamps.push(1000);
@@ -472,7 +467,7 @@ mod tests {
             w.tag_env.intern(&reserved[4]);
             w.tag_version.intern(&reserved[5]);
             w.tag_team.intern(&reserved[6]);
-            w.tags_overflow.push(overflow);
+            w.tags_overflow.intern(&overflow);
             w.sources.intern("agent");
             w.values.push(2.0);
             w.timestamps.push(2000);
