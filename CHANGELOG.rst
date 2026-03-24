@@ -2,6 +2,43 @@
 Release Notes
 =============
 
+.. _Release Notes_7.77.1:
+
+7.77.1
+======
+
+.. _Release Notes_7.77.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-24
+
+- Please refer to the `7.77.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7771>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.77.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.8``.
+
+
+.. _Release Notes_7.77.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a bug introduced in 7.77.0 that prevents system-probe from starting on Fargate environments when Workload Protection is enabled
+
+- Fixed a command injection vulnerability in the Private Action Runner's inline
+  PowerShell script execution. Parameter values are now assigned as PowerShell
+  single-quoted string literals in a preamble instead of being substituted
+  directly into the script body, preventing arbitrary code execution via
+  crafted parameter inputs.
+
+
 .. _Release Notes_7.77.0:
 
 7.77.0

@@ -65,6 +65,7 @@ run_binary(
             "libffi_win_dir",
             "openssl-bin_win_dir",
             "tcltk_win_dir",
+            "@python_3_12//:python3",
             "@visual_studio//:msbuild",
         ]
     ),
@@ -84,6 +85,7 @@ run_binary(
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @visual_studio//:msbuild)",
+        "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
     },
     outs = [
         "build/{}".format(file)

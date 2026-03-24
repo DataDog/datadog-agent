@@ -294,9 +294,9 @@ func TestDeviceDeduper_AddPendingDevice(t *testing.T) {
 			BootTimeMs:  now,
 			SysObjectID: "1.3.6.1.4.1.9.1.1",
 		},
-		AuthIndex:  0,
-		WriteCache: true,
-		IP:         "192.168.1.2",
+		AuthIndex:      0,
+		AddedFromCache: false,
+		IP:             "192.168.1.2",
 	}
 
 	pendingDevice2 := PendingDevice{
@@ -312,9 +312,9 @@ func TestDeviceDeduper_AddPendingDevice(t *testing.T) {
 			BootTimeMs:  now,
 			SysObjectID: "1.3.6.1.4.1.9.1.2",
 		},
-		AuthIndex:  0,
-		WriteCache: true,
-		IP:         "192.168.1.3",
+		AuthIndex:      0,
+		AddedFromCache: false,
+		IP:             "192.168.1.3",
 	}
 
 	deduper.AddPendingDevice(pendingDevice1)
@@ -337,9 +337,9 @@ func TestDeviceDeduper_AddPendingDevice(t *testing.T) {
 			BootTimeMs:  now,
 			SysObjectID: "1.3.6.1.4.1.9.1.1",
 		},
-		AuthIndex:  0,
-		WriteCache: true,
-		IP:         "192.168.1.1",
+		AuthIndex:      0,
+		AddedFromCache: false,
+		IP:             "192.168.1.1",
 	}
 
 	deduper.AddPendingDevice(pendingDevice3)
@@ -363,9 +363,9 @@ func TestDeviceDeduper_AddPendingDevice(t *testing.T) {
 			BootTimeMs:  now,
 			SysObjectID: "1.3.6.1.4.1.9.1.2",
 		},
-		AuthIndex:  0,
-		WriteCache: true,
-		IP:         "192.168.1.4",
+		AuthIndex:      0,
+		AddedFromCache: false,
+		IP:             "192.168.1.4",
 	}
 
 	deduper.AddPendingDevice(pendingDevice4)
@@ -405,10 +405,10 @@ func TestDeviceDeduper_GetDedupedDevices(t *testing.T) {
 				{Community: "public"},
 			},
 		},
-		Info:       device1,
-		AuthIndex:  0,
-		WriteCache: true,
-		IP:         "192.168.1.1",
+		Info:           device1,
+		AuthIndex:      0,
+		AddedFromCache: false,
+		IP:             "192.168.1.1",
 	}
 
 	pendingDevice2 := PendingDevice{
@@ -418,10 +418,10 @@ func TestDeviceDeduper_GetDedupedDevices(t *testing.T) {
 				{Community: "public"},
 			},
 		},
-		Info:       device2,
-		AuthIndex:  0,
-		WriteCache: true,
-		IP:         "192.168.1.3",
+		Info:           device2,
+		AuthIndex:      0,
+		AddedFromCache: false,
+		IP:             "192.168.1.3",
 	}
 
 	deduper.AddPendingDevice(pendingDevice1)
