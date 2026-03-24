@@ -2,7 +2,7 @@
 
 ## Status
 
-**Investigation ongoing — new hypothesis: Go-TLS client through shared ingress.** ProcQ analysis (2026-03-23) found that Go clients (grafana-server, blackbox-exporter) make persistent Go-TLS connections to an HAProxy ingress (`10.140.128.110:443`), which routes requests to different backend services based on path. USM captures all HTTP paths on these Go-TLS connections and attributes them to the **client process** (e.g., grafana-server). This causes backend-specific endpoints like `/redfish/v1/Systems/*/Processors/` to appear under `grafana-server` or `blackbox-exporter` instead of `dmt-apiexporter`. Our previous reproduction used a **Python** client (native OpenSSL), not a **Go** client (Go-TLS hooks) — the Go-TLS code path was never tested in this scenario. Next step: reproduce with a Go TLS client through a TLS-terminating proxy.
+**Investigation paused (2026-03-23).** Unable to reproduce internally. The issue is extremely rare (~0.01% of traffic, single-digit erroneous hits per day across 600k+ correct hits) and non-deterministic. Datadog UI metrics analysis confirmed the misattribution pattern: dmt-apiexporter's `/redfish/v1/` Go-TLS client traffic leaks at very low rates onto unrelated services co-located on the same host (grafana-server, ember, gke-metrics-agent, metrics-server, blackbox-exporter). The Go-TLS shared ingress hypothesis was ruled out by local reproduction. Multiple eBPF-layer mechanisms were investigated as potential root causes (connection tuple map collisions, PID/fd reuse, stale map entries, normalize_tuple heuristics, incomplete transaction joining, process cache PID reuse) but none could be confirmed without observing the actual event. Customer has been informed; ticket will be closed unless frequency increases or new patterns emerge.
 
 ## Customer Environment
 
@@ -208,6 +208,8 @@ Currently `bpf_map_update_with_telemetry` only tracks map update **errors**, not
 
 All reproduction files are in `pkg/network/usm/testdata/haproxy_tls_leak/`:
 
+### Native TLS Reproduction (Python client)
+
 | File | Description |
 |------|-------------|
 | `docker-compose.yml` | HAProxy + 2 nginx backends + Python traffic generator |
@@ -219,6 +221,18 @@ All reproduction files are in `pkg/network/usm/testdata/haproxy_tls_leak/`:
 | `persistent-client.py` | Python HTTP/1.1 keep-alive client (4 persistent connections) |
 | `analyze.py` | Categorizes `/debug/http_monitoring` entries into TLS frontend, correct plaintext, and misattributed |
 | `setup.sh` | Generates TLS certs and starts containers |
+
+### Go-TLS Reproduction (Go client)
+
+| File | Description |
+|------|-------------|
+| `docker-compose-gotls.yml` | Go TLS client + HAProxy + 4 nginx backends |
+| `haproxy-gotls.cfg` | HAProxy with `/redfish/v1/`, `/api/v1/`, `/elemental/` routing |
+| `go-tls-client/` | Go binary (Dockerfile, main.go, go.mod) |
+| `nginx-dmt.conf` | DMT backend serving `/redfish/v1/` paths on :8080 |
+| `nginx-prometheus.conf` | Prometheus backend serving `/api/v1/` paths on :9090 |
+| `analyze-gotls.py` | Analyzes Go-TLS proxy misattribution in debug output |
+| `setup-gotls.sh` | Setup script for Go-TLS reproduction |
 
 The `ssl_ctx_race_test/` directory (cherry-picked from `usm-gotls-misattribution-fix`) contains earlier investigation files for the `ssl_ctx_by_pid_tgid` write-path race.
 
@@ -368,27 +382,20 @@ SCRIPT_TO_RUN=.run/build.sh BUILD_COMMAND=dda\ inv\ system-probe.build /bin/bash
 
 This handles SSH connection, environment variable forwarding, and uses `bash --login` for proper PATH setup (Go, clang, etc.). Direct SSH commands (`ssh vagrant@... 'dda inv system-probe.build'`) fail because the `cgo -godefs` step requires `clang` in PATH, which is only set up in login shells.
 
+### Running Agent Components on VM
+
+From the VM (`ssh vagrant@10.211.55.3`), in `/git/datadog-agent`:
+```bash
+sudo ./bin/system-probe/system-probe -c ./dev/dist/datadog.yaml
+sudo ./bin/agent/agent run -c ./dev/dist/datadog.yaml
+sudo ./bin/process-agent/process-agent --cfgpath ./bin/agent/dist/datadog.yaml --sysprobe-config ./dev/dist/datadog.yaml
+```
+
+Config at `./dev/dist/datadog.yaml` sends to dddev (US1) with hostname `usm-test-daniel`, env `daniel-env`.
+
 ### eBPF Object Caching Warning
 
 The build system (Ninja) tracks file timestamps, not content. When switching branches, eBPF objects may not be recompiled if timestamps haven't changed. For accurate testing across branches, ensure a clean eBPF build (e.g., remove cached `.o` files under the build directory).
-
-## Reproduction Files
-
-All reproduction files are in `pkg/network/usm/testdata/haproxy_tls_leak/`:
-
-| File | Description |
-|------|-------------|
-| `docker-compose.yml` | HAProxy + 2 nginx backends + Python traffic generator |
-| `docker-compose-nginx.yml` | Nginx TLS proxy variant (same backends + traffic gen) |
-| `haproxy.cfg` | HAProxy TLS termination with path-based routing |
-| `nginx-tls-proxy.conf` | Nginx TLS termination config |
-| `nginx-api.conf` | API backend (`/v1/btc/...`, `/v1/nfl/...`, `/conviva/...`, etc.) |
-| `nginx-blackbox.conf` | Blackbox backend (`/elemental/...`, `/probe`, `/metrics`) |
-| `persistent-client.py` | Python HTTP/1.1 keep-alive client (4 persistent connections) |
-| `analyze.py` | Categorizes `/debug/http_monitoring` entries into TLS frontend, correct plaintext, and misattributed |
-| `setup.sh` | Generates TLS certs and starts containers |
-
-The `ssl_ctx_race_test/` directory (cherry-picked from `usm-gotls-misattribution-fix`) contains earlier investigation files for the `ssl_ctx_by_pid_tgid` write-path race.
 
 ## Customer Deployment of Custom Image
 
@@ -457,13 +464,12 @@ The incoming redfish connections disappearing between `network_raw` and `network
 
 1. The agent correctly tags outgoing `/redfish/v1/` connections as `service:dmt-apiexporter`
 2. The incoming `/redfish/` connections to dmt-apiexporter:8080 have **no service tag** from the agent
-3. We cannot find an incoming `/redfish/v1/` connection in the data we have — either it's in the missing messages, or the backend is generating the `server.hits` metric from outgoing data
+3. We cannot find an incoming `/redfish/v1/` connection in the data we have — it may be in the ~95% of missing messages
 4. There is no `blackbox-exporter` process making `/redfish/v1/` requests on this host
 
 ### What We Don't Know
 
 - What the agent payload looked like at the exact moment (Mar 22 17:40 UTC) of the erroneous hit — ProcQ can't retrieve data for that time range
-- Whether the backend generates `universal.http.server.hits` from outgoing connections when the remote side is unmonitored
 - How the service name `blackbox-exporter` gets assigned — nothing in the agent data references it
 
 ## Key Finding: Go-TLS Clients Through Shared Ingress (2026-03-23)
@@ -489,62 +495,137 @@ All tagged: `conn_tags=[service:grafana-server]`, `container_tags=[service:grafa
 
 This data is present in **both** `network_raw` and `network_connections` — it's the agent attributing these paths to grafana-server.
 
-### Why This Is Suspicious
+### Analysis
 
-Grafana making `/redfish/v1/Systems/*/Processors/` or `/v1/btc/pasithea_image_url_json` requests makes no sense. These are dmt-apiexporter endpoints. The most likely explanation:
+Grafana making `/redfish/v1/Systems/*/Processors/` or `/v1/btc/pasithea_image_url_json` requests seemed implausible. The initial hypothesis was that `10.140.128.110:443` is an HAProxy ingress and that USM was misattributing all traffic on a shared proxy connection to the client process. However, this was **ruled out** by the Go-TLS local reproduction (see below) and Datadog UI analysis — the issue is not specific to proxy connections. See "Datadog UI Metrics Analysis" section for the actual pattern.
 
-**`10.140.128.110:443` is the HAProxy ingress.** Grafana connects to the ingress via Go-TLS, and the ingress routes different paths to different backend services. USM hooks the Go-TLS connection on the grafana process and sees ALL the HTTP traffic on it — but it can't know that different paths are routed to different backends behind the proxy. It attributes everything to `grafana-server`.
+## Go-TLS Local Reproduction (2026-03-23)
 
-This same pattern explains the `blackbox-exporter` misattribution — blackbox-exporter also connects through the ingress, and any backend endpoint it reaches through the ingress gets attributed to `blackbox-exporter`.
+### Setup
 
-### Why Our Previous Reproduction Didn't Catch This
+Built a Go-TLS client reproduction on Vagrant VM:
+- **HAProxy** (172.30.0.10): TLS termination on :8443, path-based routing
+- **4 nginx backends**: backend-api (:80), backend-dmt (:8080), backend-blackbox (:80), backend-prometheus (:9090)
+- **Go TLS client** (172.30.0.50): Go binary making persistent HTTPS keep-alive requests through HAProxy, cycling through paths for all backends
 
-Our local reproduction used:
-- **Python** client → HAProxy → plaintext backends
-- This tests the **native TLS (OpenSSL)** code path
-- The misattribution we found and fixed (`ssl_ctx_by_pid_tgid` fallback) was a native TLS issue
+Files: `docker-compose-gotls.yml`, `haproxy-gotls.cfg`, `go-tls-client/`, `nginx-dmt.conf`, `nginx-prometheus.conf`, `analyze-gotls.py`, `setup-gotls.sh`.
 
-The customer's actual issue involves:
-- **Go** clients → HAProxy ingress (Go-TLS) → backends
-- This uses the **Go-TLS** code path (different eBPF hooks: `go-tls-conn.h`)
-- The misattribution is a Go client seeing HTTP data from a shared proxy connection
+### `/debug/http_monitoring` Results
 
-### Connection to Previous Go-TLS Fix Attempt
+155 entries total, 6 connection patterns:
 
-The first fix attempt (Go-TLS memory reuse race, `usm-gotls-misattribution-fix`) addressed `tls.Conn` pointer reuse in `conn_tup_by_go_tls_conn`. That fix was deployed and didn't resolve the issue. However, the Go-TLS code path is still involved — the issue may not be pointer reuse but rather how Go-TLS connections through a shared ingress are handled. The Go-TLS hooks attribute all decrypted HTTP traffic on a connection to the process that owns it, which is correct when there's a direct connection, but wrong when a proxy multiplexes traffic from different backends.
+| Pattern | Entries | Tags | Notes |
+|---------|---------|------|-------|
+| Go client → HAProxy:8443 | 16 | Go (0x04) | All 16 paths — **correct client-side view** |
+| HAProxy → backend-api:80 | 18 | none | Correct |
+| HAProxy → backend-dmt:8080 | 45 | none | Correct |
+| HAProxy → backend-blackbox:80 | 45 | none | Correct |
+| HAProxy → backend-prometheus:9090 | 15 | none | Correct |
+| HAProxy → backend-prometheus:9090 | 16 | OpenSSL (0x02) | Native TLS fallback bug (unrelated) |
+
+The Go-TLS client-side entries correctly show all paths attributed to the Go client. USM correctly reports what the client is doing — no misattribution.
+
+### Datadog UI Results
+
+Ran system-probe + agent + process-agent with `dev/dist/datadog.yaml` (hostname `usm-test-daniel`, dddev).
+
+**server.hits**: `service:haproxy` and `service:nginx`. Correct — no cross-service misattribution.
+
+**client.hits**: `service:go-tls-client`, `service:haproxy`, `service:haproxy_tls_leak-go-tls-client` (docker-derived name for same container). Correct.
+
+### Conclusion
+
+The Go-TLS shared ingress hypothesis is **ruled out**. USM correctly reports client-side traffic through a proxy — the client genuinely sends all those requests. The misattribution in the customer's environment has a different cause.
+
+## Datadog UI Metrics Analysis (2026-03-23)
+
+Queried the customer's production metrics in the Datadog UI using `pup`.
+
+### dmt-apiexporter — The Source of Redfish Traffic
+
+**client.hits** (outgoing Go-TLS to BMCs): `/redfish/v1/systems/_/processors/` — **629k hits**, `/redfish/v1/systems/_/memory/` — **2,318k hits**, plus many other paths. All correctly tagged `service:dmt-apiexporter`.
+
+**server.hits** (incoming plaintext): `/redfish/processor`, `/redfish/power`, `/redfish_dell/memory`, etc. — short paths, 60-125k hits each. **No `/redfish/v1/` long paths on the server side.**
+
+### Redfish Traffic Leaking to Other Services
+
+`universal.http.client.hits{resource_name:*redfish/v1*}` by service:
+
+| Service | Hits | Expected? |
+|---------|------|-----------|
+| dmt-apiexporter | 4,489 | YES |
+| grafana-server | 22 | NO |
+| ember | 7.6 | NO |
+| gke-metrics-agent | 7.5 | NO |
+| metrics-server | 2 | NO |
+
+`universal.http.server.hits{service:blackbox-exporter,resource_name:*redfish*}`:
+- `/redfish/v1/systems/_/processors/` — 1 hit (host `d92e0a8b-kszi`)
+- `/redfish/v1/systems/` — 1 hit (host `3047a82f-w7zo`)
+
+blackbox-exporter normally serves `/probe` (3.16M hits) and `/config` (7.8k hits). It should never serve `/redfish/v1/` paths.
+
+### Key Pattern
+
+- Erroneous hits always occur on **hosts where dmt-apiexporter also runs**
+- grafana-server erroneous hits: hosts `66b0e97b-l1h5` and `3047a82f-w7zo`
+- ember erroneous hits: hosts `66b0e97b-l1h5` and `3047a82f-w7zo`
+- blackbox-exporter erroneous hits: hosts `d92e0a8b-kszi` and `3047a82f-w7zo`
+- The erroneous data covers the **full spread** of dmt-apiexporter's redfish paths
+- Volume is extremely low (~single-digit hits/day per service) vs hundreds of thousands of correct hits
+
+### Conclusion
+
+This is a **local eBPF connection tuple mix-up on the same node**. Occasionally, an HTTP request belonging to dmt-apiexporter's Go-TLS connection gets associated with another process's connection on the same host. It affects multiple unrelated services, ruling out any proxy-specific or service-specific mechanism.
 
 ## Next Steps
 
-### 1. Reproduce with Go-TLS Client Through Ingress Proxy
+1. **Investigate how Go-TLS connection tuples can get mixed up between processes on the same node.** The `conn_tup_by_go_tls_conn` map is keyed by `void*` (tls.Conn pointer) without PID — need to determine if this allows cross-process collisions.
 
-Build a new reproduction on the Vagrant VM that matches the customer's actual setup:
-
-**Components** (all Docker containers on a shared network):
-- **HAProxy ingress** (172.30.0.10) — TLS termination on :8443, path-based routing to backends
-- **backend-dmt** (172.30.0.20) — simple HTTP server on :8080, serves `/redfish/*` endpoints
-- **backend-prometheus** (172.30.0.30) — simple HTTP server on :9090, serves `/api/v1/*` endpoints
-- **backend-blackbox** (172.30.0.40) — simple HTTP server on :9116, serves `/elemental/*` endpoints
-- **Go TLS client** (172.30.0.50) — compiled Go binary making persistent HTTPS keep-alive requests to HAProxy:8443, cycling through paths for all backends on the same connection
-
-**Key difference from previous reproduction**: The client is a Go binary (so Go-TLS eBPF hooks attach to it), and it sends requests for different backend services through the same TLS connection to the proxy.
-
-**What to check**:
-1. Does USM attribute `/redfish/*` paths to the Go client's service, or to `backend-dmt`?
-2. Does `/debug/http_monitoring` show the Go client's PID for all paths?
-3. How does this interact with the Go-TLS `conn_tup_by_go_tls_conn` map?
-
-### 2. Investigate Go-TLS Connection Tracking for Proxy Scenarios
-
-If the reproduction confirms the issue, investigate how Go-TLS hooks could distinguish between direct connections and connections through a shared ingress. The HTTP Host header or SNI might provide hints, but the eBPF hooks may not have access to these.
-
-### 3. Upstream the Native TLS Fallback Fix
-
-The `ssl_ctx_by_pid_tgid` fallback disable fix is a valid improvement that should be upstreamed regardless of this customer's issue. Branch: `SUSM-146/disable-tls-fallback-7.76`.
+2. **Upstream the native TLS fallback fix.** The `ssl_ctx_by_pid_tgid` fallback disable is a valid improvement regardless of this customer. PRs: #47330, #47332.
 
 ## Open Questions
 
-- Does the Go-TLS code path attribute all HTTP traffic on a connection to the owning process, even when the connection goes through a proxy? (Likely yes — needs reproduction to confirm)
-- Is `10.140.128.110` the HAProxy ingress IP? Can we confirm from the customer?
-- Does the same issue occur with the native OpenSSL path for non-Go clients connecting through the ingress?
-- Why did the Go-TLS memory reuse fix not help? Was it addressing the wrong mechanism, or is there a compounding issue?
-- How does the backend generate `universal.http.server.hits` for these outgoing Go-TLS connections through the proxy?
+- Is the `conn_tup_by_go_tls_conn` map shared across all processes? (BPF hash maps are global, but need to confirm no PID-scoping elsewhere in the lookup path.)
+- How often do Go processes on the same node have `tls.Conn` objects at the same virtual address? Is the collision rate consistent with the ~0.01% error rate observed?
+- Could the `tuple_by_pid_fd` map (which does include PID in the key) also have collision issues — e.g., PID reuse after container restarts?
+- What exactly does the composite key fix (`usm-gotls-misattribution-fix`) protect against vs not protect against in cross-process scenarios?
+
+## Investigated Potential Root Causes (2026-03-23)
+
+Code analysis of the eBPF and userspace pipeline identified multiple mechanisms that could theoretically cause cross-process misattribution. None could be confirmed as the root cause without observing an actual misattribution event:
+
+### eBPF Layer
+
+1. **`conn_tup_by_go_tls_conn` map key collision** — Map is keyed by `void*` (tls.Conn pointer) without PID. Cross-process collision would require same virtual address in different address spaces. The composite key fix (`usm-gotls-misattribution-fix`) added `conn_fd_ptr` but didn't help. Collision probability too low to explain the rate.
+
+2. **`sockfd_lookup_light` stale entry optimization** — The kprobe exits early if `{pid, fd}` already exists in `tuple_by_pid_fd`, skipping updates for reused fds. A TODO in the code acknowledges this reduces accuracy for processes with fd churn.
+
+3. **`tuple_by_pid_fd` / `pid_fd_by_tuple` stale entries after container restart** — No TTL on entries. If containers are killed without graceful shutdown, `tcp_close` cleanup may not fire. PID reuse on container restart could hit stale entries.
+
+4. **`normalize_tuple()` port heuristic** — Uses ephemeral port ranges to determine client/server direction. Edge cases with dual-ephemeral ports or non-standard port usage could cause inconsistent normalization. PID is explicitly set to 0 in `tls_process()` for protocol stack keying.
+
+### Userspace Layer
+
+5. **HTTP stats key drops PID** — `http.Key` (used in `statkeeper.go`) contains only the 4-tuple (src/dst IP:port), not PID. PID is lost at `model_linux.go:ConnTuple()` (line 43-52). Two processes reusing the same ephemeral port could have their stats merged.
+
+6. **Incomplete transaction joining** — `incomplete_stats.go` joins request/response pairs using only source IP + source port, ignoring destination. Port reuse could cross-pair transactions from different processes.
+
+7. **Process cache `closest()` function** — `process_cache.go` matches connections to processes by closest start time ≤ connection timestamp, but doesn't verify the process was still alive. PID reuse could match to the wrong process.
+
+8. **Connection rollup** — `connection_rollup.go` aggregates connections by IP pair, losing process distinction when multiple processes use the same IP pair.
+
+### Planned Diagnostic (Not Deployed)
+
+A watchdog module was designed to capture eBPF map state when misattribution occurs:
+- Log every `/redfish/v1/` HTTP event with PID, tuple, path, TLS tags
+- Periodic snapshots of `tuple_by_pid_fd`, `pid_fd_by_tuple`, `conn_tup_by_go_tls_conn` maps
+- Persistent JSONL file for offline analysis
+
+This was not deployed because the investigation was paused before implementation was complete.
+
+## Support Communication (2026-03-23)
+
+**2026-03-23**: Communicated to support (Traeger Meyer) that the investigation is paused due to inability to reproduce. The issue is extremely rare and non-deterministic. Customer has been informed. Ticket to be closed unless frequency increases or new patterns emerge.
+
+**Support response**: Acknowledged, message shared with customer. Will close out unless customer has additional questions.
