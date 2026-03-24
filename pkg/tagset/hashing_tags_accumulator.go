@@ -72,13 +72,12 @@ func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
 		h.data = append(h.data, src.data...)
 		h.hash = append(h.hash, src.hash...)
 	} else {
-		for idx := range h.data {
+		for idx := range src.data {
 			if h.IncludeTag(src.data[idx]) {
 				h.data = append(h.data, src.data[idx])
 				h.hash = append(h.hash, src.hash[idx])
 			}
 		}
-
 	}
 }
 

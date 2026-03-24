@@ -8,12 +8,13 @@
 package filterlistimpl
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/twmb/murmur3"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/zeebo/xxh3"
 )
 
 func TestNewTagMatcher(t *testing.T) {
@@ -32,9 +33,12 @@ func TestNewTagMatcher(t *testing.T) {
 		},
 	}, logmock.New(t))
 
+	metric1Tags := []uint64{xxh3.HashString("env"), xxh3.HashString("host")}
+	slices.Sort(metric1Tags)
+
 	assert.NotNil(t, matcher)
 	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
+		tags:   metric1Tags,
 		action: exclude,
 	})
 
@@ -44,7 +48,7 @@ func TestNewTagMatcher(t *testing.T) {
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("pod")},
+		tags:   []uint64{xxh3.HashString("pod")},
 		action: exclude,
 	})
 }
