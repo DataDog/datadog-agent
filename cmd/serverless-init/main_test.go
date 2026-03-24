@@ -40,7 +40,7 @@ func TestTagsSetup(t *testing.T) {
 	t.Setenv("DD_VERSION", "1.0.0")
 
 	cloudService := &cloudservice.LocalService{}
-	configuredTags, metricTags, enhancedMetricTags, enhancedUsageMetricTags := configureTags(cloudService)
+	tagConfig := configureTags(cloudService)
 
 	baseTags := serverlessTag.MapToArray(serverlessInitTag.GetBaseTagsMap())
 	cloudServiceTags := cloudService.GetTags()
@@ -51,9 +51,9 @@ func TestTagsSetup(t *testing.T) {
 	versionTag := "_dd.datadog_init_version:xxx"
 	enhancedMetricVersionTags := []string{"datadog_init_version:xxx", "sidecar:false"}
 
-	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceTags), []string{versionTag}), serverlessTag.MapToArray(metricTags))
-	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(enhancedMetricTags))
-	assert.ElementsMatch(t, slices.Concat(serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(enhancedUsageMetricTags))
+	assert.ElementsMatch(t, slices.Concat(tagConfig.ConfiguredTags, baseTags, serverlessTag.MapToArray(cloudServiceTags), []string{versionTag}), serverlessTag.MapToArray(tagConfig.Tags))
+	assert.ElementsMatch(t, slices.Concat(tagConfig.ConfiguredTags, baseTags, serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(tagConfig.EnhancedMetricTags))
+	assert.ElementsMatch(t, slices.Concat(serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(tagConfig.EnhancedUsageMetricTags))
 }
 
 func TestFxApp(t *testing.T) {

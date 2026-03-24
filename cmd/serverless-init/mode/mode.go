@@ -18,8 +18,8 @@ import (
 type Conf struct {
 	LoggerName                    string
 	Runner                        func(logConfig *serverlessLog.Config) error
-	TagVersionMode                string // tag name used for mode in all telemetry
-	TagVersionModeEnhancedMetrics string // tag name used for mode in enhanced metrics
+	TagVersionMode                string // tag name used for mode on dogstatsd metrics, legacy enhanced metrics, logs, and traces
+	TagVersionModeEnhancedMetrics string // tag name used for mode on enhanced metrics
 	SidecarMode                   bool
 	EnvDefaults                   map[string]string
 }

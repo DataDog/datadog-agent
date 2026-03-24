@@ -133,7 +133,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
-	configuredTags, tags, enhancedMetricTags, enhancedUsageMetricTags := configureTags(cloudService)
+	tagConfig := configureTags(cloudService)
 
 	defaultSource := cloudService.GetDefaultLogsSource()
 	agentLogConfig := serverlessInitLog.CreateConfig(defaultSource)
@@ -151,10 +151,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
 
-	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
-	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger, origin)
+	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
+	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
@@ -164,7 +164,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	// TODO check for errors and exit
 	_ = cloudService.Init(tracingCtx)
 
-	metricAgent := setupMetricAgent(tags, enhancedMetricTags, enhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
+	metricAgent := setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
 	if enhancedMetricsEnabled {
@@ -187,7 +187,18 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
 }
 
-func configureTags(cloudService cloudservice.CloudService) ([]string, map[string]string, map[string]string, map[string]string) {
+// tagConfiguration holds the various tag sets for telemetry.
+type tagConfiguration struct {
+	ConfiguredTags []string // tags derived from DD_TAGS and DD_EXTRA_TAGS
+
+	// tags derived from DD_TAGS and DD_EXTRA_TAGS, service, env, version, and tags derived from cloud service.
+	// for use on dogstatsd metrics, legacy enhanced metrics, logs, and traces.
+	Tags                    map[string]string
+	EnhancedMetricTags      map[string]string // subset of tags derived from cloud service for enhanced metrics.
+	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag.
+}
+
+func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 	configuredTagsMap := serverlessTag.ArrayToMap(configuredTags)
 
@@ -207,7 +218,12 @@ func configureTags(cloudService cloudservice.CloudService) ([]string, map[string
 	serverlessInitTag.SetVersionMode(enhancedMetricTagSets.Usage, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTagSets.Usage, modeConf.SidecarMode)
 
-	return configuredTags, tags, enhancedMetricTags, enhancedMetricTagSets.Usage
+	return tagConfiguration{
+		ConfiguredTags:          configuredTags,
+		Tags:                    tags,
+		EnhancedMetricTags:      enhancedMetricTags,
+		EnhancedUsageMetricTags: enhancedMetricTagSets.Usage,
+	}
 }
 
 var serverlessProfileTags = []string{
