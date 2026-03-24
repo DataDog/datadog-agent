@@ -4,6 +4,8 @@ exporters:
     otlphttp:
         headers:
             dd-api-key: test-api-key
+            dd-evp-origin: full-host-profiler
+            dd-evp-origin-version: 7.0.0-test
 processors:
     resource/dd-profiler-internal-metadata:
         attributes:

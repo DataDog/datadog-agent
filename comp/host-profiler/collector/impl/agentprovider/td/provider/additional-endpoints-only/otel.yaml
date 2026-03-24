@@ -2,6 +2,8 @@ exporters:
     otlphttp/datadoghq.eu_0:
         headers:
             dd-api-key: eu_key_1
+            dd-evp-origin: full-host-profiler
+            dd-evp-origin-version: 7.0.0-test
         metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
 extensions:

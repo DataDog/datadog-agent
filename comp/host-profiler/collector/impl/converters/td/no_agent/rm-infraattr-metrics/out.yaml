@@ -2,6 +2,8 @@ exporters:
     otlphttp:
         headers:
             dd-api-key: test-key
+            dd-evp-origin: full-host-profiler
+            dd-evp-origin-version: 7.0.0-test
 processors:
     batch:
         timeout: 10s
