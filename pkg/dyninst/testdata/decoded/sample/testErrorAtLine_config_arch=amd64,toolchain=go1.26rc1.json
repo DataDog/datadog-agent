@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testLongFunctionWithChangingState",
+      "method": "main.testErrorAtLine",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testLongFunctionWithChangingState",
+            "function": "main.testErrorAtLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 237
+            "lineNumber": 108
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 313
+            "lineNumber": 296
           },
           {
             "function": "main.main",
@@ -42,28 +42,39 @@
           }
         ],
         "probe": {
-          "id": "testLongFunctionWithChangingStateLineB",
+          "id": "testErrorAtLine",
           "location": {
-            "method": "main.testLongFunctionWithChangingState",
+            "method": "main.testErrorAtLine",
             "file": "complex.go",
-            "line": 237
+            "line": 108
           }
         },
         "captures": {
           "lines": {
-            "237": {
+            "108": {
               "locals": {
-                "s": {
+                "~r0": {
                   "type": "int",
-                  "value": "58"
+                  "notCapturedReason": "unavailable"
                 },
-                "aPerArch": {
+                "x": {
                   "type": "int",
-                  "value": "[per-arch-value]"
+                  "notCapturedReason": "unavailable"
                 },
-                "b": {
-                  "type": "int",
-                  "value": "89"
+                "err": {
+                  "type": "error",
+                  "fields": {
+                    "data": {
+                      "type": "*errors.errorString",
+                      "address": "[addr]",
+                      "fields": {
+                        "s": {
+                          "type": "string",
+                          "value": "test error"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -73,6 +84,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "testLongFunctionWithChangingState"
+    "message": "x={unavailable}, err={s: test error}"
   }
 ]
