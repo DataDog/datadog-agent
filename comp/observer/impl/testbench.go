@@ -20,6 +20,7 @@ import (
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -127,6 +128,9 @@ type TestBench struct {
 
 	// API server
 	api *TestBenchAPI
+
+	// This is not directly used, it's mostly to ensure that telemetry metrics are registered in the telemetry handler
+	telemetryHandler *telemetryHandler
 }
 
 // ScenarioInfo describes an available scenario.
@@ -200,6 +204,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sse:                    hub,
 		sseStop:                stop,
+		telemetryHandler:       newTelemetryHandler(noopsimpl.GetCompatComponent()),
 	}
 
 	// Heartbeat goroutine — lets SSE clients detect stale connections.
@@ -712,7 +717,11 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.engine.Storage().Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.engine.Storage().Add("telemetry", metric.name, metric.value, metric.timestamp, metric.tags)
+
+			if !tb.telemetryHandler.isMetricRegistered(metric.name) {
+				fmt.Printf("ERROR: [observer] metric %s is not registered\n", metric.name)
+			}
 		}
 
 		if telemetryEvent.Log != nil {
@@ -855,9 +864,9 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
 	for i := range anomalies {
 		a := &anomalies[i]
+		// This comes from the telemetry
 		if a.SourceSeriesID == "" && a.Source.Name != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
+			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", a.Source.String()+":avg", nil))
 		}
 	}
 	return anomalies
