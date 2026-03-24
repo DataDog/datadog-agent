@@ -561,7 +561,7 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 // enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
 func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
 	if err != nil {
-		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID(), err)
 		return
 	}
 	if len(ctags) == 0 {
