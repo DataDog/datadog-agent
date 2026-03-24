@@ -37,6 +37,7 @@ def _foreign_cc_shared_wrapper_impl(ctx):
     ])
 
     return [
+        DefaultInfo(files = shared_libs),
         CcInfo(
             compilation_context = cc_info.compilation_context,
             linking_context = cc_common.create_linking_context(
