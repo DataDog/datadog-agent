@@ -18,6 +18,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/datadog-agent/pkg/snmp/devicededuper"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
@@ -541,6 +542,60 @@ func TestSubnetIndex(t *testing.T) {
 	for i, subnet := range subnets {
 		assert.Equal(t, i, subnet.index)
 	}
+}
+
+func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{
+		map[string]interface{}{
+			"network":   "192.168.0.0/30",
+			"community": "public",
+		},
+	})
+
+	listener, err := NewSNMPListener(ServiceListernerDeps{})
+	assert.NoError(t, err)
+	l := listener.(*SNMPListener)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.newService = newSvc
+	l.delService = delSvc
+
+	_, ipNet, err := net.ParseCIDR("192.168.0.0/30")
+	assert.NoError(t, err)
+
+	subnet := &snmpSubnet{
+		adIdentifier: "snmp",
+		config:       l.config.Configs[0],
+		network:      *ipNet,
+		cacheKey:     "snmp:test123",
+		devices:      map[string]deviceCache{},
+	}
+
+	deviceInfo := devicededuper.DeviceInfo{
+		Name:        "router-1",
+		Description: "Test Router",
+		BootTimeMs:  1000000,
+		SysObjectID: "1.3.6.1.4.1.9.1.1",
+	}
+
+	// Simulate loading 192.168.0.1 from cache — should register immediately
+	entityID1 := subnet.config.Digest("192.168.0.1")
+	l.createService(entityID1, subnet, "192.168.0.1", deviceInfo, 0, 0, true)
+
+	assert.Equal(t, 1, len(newSvc))
+	svc := (<-newSvc).(*SNMPService)
+	assert.Equal(t, "192.168.0.1", svc.deviceIP)
+	assert.False(t, svc.pending)
+
+	// Simulate scan discovering 192.168.0.2 — same physical device, should NOT register
+	entityID2 := subnet.config.Digest("192.168.0.2")
+	l.createService(entityID2, subnet, "192.168.0.2", deviceInfo, 0, 0, false)
+
+	assert.Equal(t, 0, len(newSvc), "second IP for same device should not be registered")
 }
 
 func TestBuildCacheKey(t *testing.T) {

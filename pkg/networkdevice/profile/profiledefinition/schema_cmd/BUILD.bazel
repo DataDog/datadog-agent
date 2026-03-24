@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "schema_cmd_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema_cmd",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/networkdevice/profile/profiledefinition/schema"],
+)
+
+go_binary(
+    name = "schema_cmd",
+    embed = [":schema_cmd_lib"],
+    visibility = ["//visibility:public"],
+)

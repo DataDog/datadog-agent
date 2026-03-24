@@ -7,6 +7,10 @@ static_quality_gates:
     - !reference [.on_main_or_release_branch]
     - !reference [.on_mergequeue]
     - !reference [.on_dev_branches_with_artifact_changes]
+    - changes:
+        paths:
+          - test/static/static_quality_gates.yml
+        compare_to: $COMPARE_TO_BRANCH
     - when: manual
       allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64

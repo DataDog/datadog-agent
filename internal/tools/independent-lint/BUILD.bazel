@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "independent-lint_lib",
+    srcs = ["independent.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/independent-lint",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@org_golang_x_mod//modfile",
+        "@org_golang_x_mod//module",
+    ],
+)
+
+go_binary(
+    name = "independent-lint",
+    embed = [":independent-lint_lib"],
+    visibility = ["//:__subpackages__"],
+)
