@@ -317,45 +317,98 @@ Queried `network_raw-main` on `kafka-networks-main-9429` via ProcQ-UI API. Used 
 
 The `network_raw → universal.http` pipeline is **lossless** (1=1 on userpool2, procq matches metric). The loss occurs between the Istio sidecar and the agent's eBPF capture:
 
-- **Capture rate: ~4-8%** (1-2 out of 26 on userpool1, 1 out of 3 on userpool2)
-- Istio uprobes ARE functional on these hosts (other services captured fine with `tls.library:istio`)
-- The few hits that ARE captured lack `tls.library:istio` tags (`TagsIdx: -1` or `TagsIdx: 0`), suggesting they may be captured via a **different mechanism** than the istio uprobes (possibly plaintext socket filter on the envoy→app localhost leg, or the `ssl_ctx_by_pid_tgid` fallback)
+- **Capture rate: ~33%** (1 out of 3 on userpool2 in 10-min window)
+- Istio uprobes ARE functional on these hosts (other services captured with `tls.library:istio`)
+- The few hits that ARE captured for `npbcollateralevaluation` in procq lack `tls.library:istio` tags (`TagsIdx: -1` or `TagsIdx: 0`), suggesting they may be captured via a **different mechanism** than the istio uprobes (possibly plaintext socket filter on the envoy→app localhost leg, or the `ssl_ctx_by_pid_tgid` fallback)
+- However, the USM metric query (see below) DOES show 1 hit with `tls.library:istio` for this service — so the uprobe path works at least sometimes
 - This is consistent with the earlier UAT cluster findings (4/4 capture but low overall rate)
+
+---
+
+## USM Metric Analysis (2026-03-24, same 10-min window on userpool2)
+
+### Per-service `universal.http.server.hits` with `tls.library:istio` tag
+
+Query: `sum:universal.http.server.hits{kube_cluster_name:aks-cus-gen-prod-002,host:aks-userpool2-97713605-vmss000008-aks-cus-gen-prod-002,tls.library:istio}.as_count()`
+
+| Service | SUM (10min) | AVG | MIN | MAX |
+|---------|-------------|-----|-----|-----|
+| `cashserv-dblogrestsvc` | 1,642 | 78.19 | 47 | 108 |
+| `onekyc8687-workflowauditapi` | 466 | 22.19 | 15 | 32 |
+| `fndocs-ceapi` | 454 | 21.62 | 2 | 49 |
+| `onekyc8687-authentication` | 178 | 8.48 | 3 | 14 |
+| `crmshared-aptpub` | 135 | 6.43 | 1 | 16 |
+| `cashmidd-rmrksapp` | 124 | 5.90 | 2 | 14 |
+| `onekyc8687-workflowrouter` | 72 | 3.79 | 1 | 9 |
+| `epm-app` | 5 | 2.50 | 2 | 3 |
+| `wmdsde-docexprnc2` | 5 | 1.00 | 1 | 1 |
+| `wmdsde-docexprnc` | 4 | 1.00 | 1 | 1 |
+| **`lendsvcs-npbcollateralevaluation`** | **1** | 1.00 | 1 | 1 |
+| `crmshared-aptsch` | 1 | 1.00 | 1 | 1 |
+| `cashmidd-hgcusenq` | 1 | 1.00 | 1 | 1 |
+
+### Key observations
+
+- The Istio uprobe path IS working on this host — multiple services have hundreds/thousands of hits tagged `tls.library:istio`
+- `npbcollateralevaluation` does get 1 hit with `tls.library:istio`, confirming the uprobe fires at least sometimes
+- **We have NOT verified** whether the high-volume services also undercount vs their Istio logs — the issue may not be specific to `npbcollateralevaluation` but could affect all services to varying degrees. Low-volume services make the discrepancy more visible.
+- Several other services also show very low hit counts (1 hit each: `crmshared-aptsch`, `cashmidd-hgcusenq`) — unclear if these are also undercounting
+
+### Istio access log details for `npbcollateralevaluation` (3 requests in 10-min window)
+
+All 3 requests are `POST /usb/CollateralEvaluation/v5`, protocol HTTP/1.1, response 200.
+
+| # | Time (UTC) | Client IP | Duration (ms) | Upstream host |
+|---|------------|-----------|---------------|---------------|
+| 1 | 16:53:28 | 100.65.246.110 | 1563 | 100.66.128.101:8080 |
+| 2 | 16:54:43 | 100.65.246.57 | 408 | 100.66.128.101:8080 |
+| 3 | 16:56:38 | 100.65.246.72 | 1394 | 100.66.128.101:8080 |
+
+- All 3 come from **different client IPs** (different source pods/envoy sidecars)
+- Each would require a separate mTLS connection/handshake
+- Upstream cluster is `inbound|8080||` — standard Istio inbound routing
+- User-Agent: `Apache-HttpClient/5.5.1 (Java/17.0.18)` — Java service calling in
+- Note: `cashmidd-rmrksapp` (124 USM hits with `tls.library:istio`) has NO Istio access logs visible — possibly logging is not enabled for all services/namespaces, making Istio log comparison unreliable for some services
 
 ### Updated Hypothesis
 
-The Istio uprobes are **not capturing the mTLS-decrypted HTTP traffic for this specific service's inbound connections** on most requests. The sporadic hits that do appear lack istio TLS tags, suggesting they're being captured by a different code path (possibly the plaintext HTTP socket filter on the localhost envoy→app connection, not the istio uprobe path).
+The eBPF capture undercount is confirmed, but the scope is unclear:
 
-Possible root causes:
-1. **Pre-existing TLS connections**: If the TLS connections were established before system-probe started (or before the envoy binary was hooked), the `ssl_sock_by_ctx` map won't have entries for these SSL contexts. The `ssl_ctx_by_pid_tgid` fallback (active on 7.73.x) may intermittently pick up some, but not reliably.
-2. **Envoy connection pooling**: Envoy may reuse long-lived HTTP/1.1 connections to this backend. If the initial TLS handshake was missed, all subsequent requests on that connection are invisible to the istio uprobes.
-3. **Multiple envoy worker threads**: With pid_tgid-based fallback, if multiple threads handle connections, the mapping may be unreliable.
+1. **It may be systemic** — affecting all services on the host, not just `npbcollateralevaluation`. High-volume services may also undercount but it's less noticeable proportionally. We need to compare Istio logs vs USM metrics for a high-volume service to confirm.
+2. **It may be specific to low-frequency traffic patterns** — services with infrequent requests may hit eBPF map eviction, flush timing, or connection tracking edge cases that high-frequency services avoid.
+3. **The `tls.library:istio` tag presence** on the 1 captured USM hit confirms the uprobe path does fire for this service, ruling out a total uprobe hooking failure.
 
 ---
 
 ## Open Questions / Next Steps
 
-1. **Why do captured hits lack `tls.library:istio` tags?**
-   - Are these hits from the plaintext localhost leg (envoy→app on port 8080)?
-   - Or from the `ssl_ctx_by_pid_tgid` fallback that doesn't set TLS tags?
-   - Check the connection tuples (IPs/ports) of the captured hits to determine which leg they're from
+1. **Compare Istio logs vs USM metrics for a high-volume service**
+   - Pick a service like `cashserv-dblogrestsvc` (1,642 USM hits in 10min) and compare against its Istio sidecar logs
+   - If Istio logs also show significantly more, the issue is systemic (not service-specific)
+   - If they match, the issue is specific to low-volume traffic patterns
+   - Note: Istio access logging may not be enabled for all services (e.g., `cashmidd-rmrksapp` has USM hits but no visible Istio logs)
 
-2. **Verify envoy connection reuse patterns**
-   - Does envoy use long-lived connections to `npbcollateralevaluation`?
-   - How often are new TLS connections established vs reused?
-   - If connections are long-lived, system-probe would miss them unless it was running when the handshake occurred
+2. **Investigate eBPF map eviction and flush timing**
+   - Check `http_in_flight` map TTL and cleaner interval — could slow requests (1.5s) be evicted before response arrives?
+   - 5,170 entries cleaned from `http_in_flight` in the flare — is this normal or excessive?
+   - Check if low-frequency connections get cleaned from connection tracking maps
 
-3. **Test the `ssl_ctx_by_pid_tgid` fallback disable (SUSM-146)**
+3. **Why do captured hits in procq lack `tls.library:istio` tags while the USM metric shows the tag?**
+   - The procq hits have `TagsIdx: -1` (no TLS tags) but USM metric shows `tls.library:istio`
+   - These may be different hits (procq captured a socket-filter hit, metric captured an uprobe hit)
+   - Or tags may be resolved differently at different pipeline stages
+
+4. **Verify envoy connection reuse patterns**
+   - Even though 3 different client IPs, check if envoy reuses TLS sessions (session tickets/resumption)
+   - Check envoy connection pool settings for inbound listener
+
+5. **Test the `ssl_ctx_by_pid_tgid` fallback disable (SUSM-146)**
    - The fallback was disabled on main (commit `c21d3170fa`) but is active on 7.73.x
-   - Would disabling it make things worse (losing the few hits we do get) or trigger a different code path?
+   - Would disabling it make things worse or trigger a different code path?
 
-4. **Investigate whether upgrading to a newer agent version helps**
+6. **Investigate whether upgrading to a newer agent version helps**
    - Main branch has SUSM-146 changes — does this affect capture rate?
    - Are there other istio-related fixes post-7.73.0?
-
-5. **Verify the scope of the customer's comparison**
-   - Are the Istio logs scoped to the same node/pod as the USM metric?
-   - Could the historical 32K logs include traffic from multiple replicas across nodes?
 
 ---
 
