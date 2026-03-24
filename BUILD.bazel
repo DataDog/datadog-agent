@@ -22,7 +22,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/basic
 # gazelle:exclude pkg/config/create
 # gazelle:exclude pkg/config/env
 # gazelle:exclude pkg/config/fetcher
@@ -31,7 +30,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/config/helper
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/config/mock
-# gazelle:exclude pkg/config/model
 # gazelle:exclude pkg/config/nodetreemodel
 # gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings

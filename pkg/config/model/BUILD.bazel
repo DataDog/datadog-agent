@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "model",
+    srcs = [
+        "config_overrides.go",
+        "doc.go",
+        "stringify.go",
+        "types.go",
+        "warnings.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/model",
+    visibility = ["//visibility:public"],
+)
