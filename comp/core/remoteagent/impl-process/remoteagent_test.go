@@ -40,12 +40,19 @@ func TestGetStatusDetails(t *testing.T) {
 	require.NotNil(t, resp.MainSection)
 	require.Contains(t, resp.MainSection.Fields, "status")
 
-	// Verify the "status" field contains a valid processStatus.Status JSON.
 	var st processStatus.Status
-	err = json.Unmarshal([]byte(resp.MainSection.Fields["status"]), &st)
-	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(resp.MainSection.Fields["status"]), &st))
+
 	assert.NotZero(t, st.Date)
-	// Pid is read directly from os.Getpid(), not from expvar.
+
+	// core section populated
+	assert.NotEmpty(t, st.Core.AgentVersion)
+	assert.NotEmpty(t, st.Core.GoVersion)
+	assert.NotEmpty(t, st.Core.Arch)
+
+	// Pid comes from os.Getpid() directly not from expvar
 	assert.Equal(t, os.Getpid(), st.Expvars.ExpvarsMap.Pid)
-	assert.GreaterOrEqual(t, st.Expvars.ExpvarsMap.Uptime, 0)
+
+	// nonzero mem stats
+	assert.Greater(t, st.Expvars.ExpvarsMap.MemStats.Alloc, uint64(0))
 }
