@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package viperconfig
+package buildschema
 
 import (
 	"fmt"
@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-func (c *safeConfig) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
+func (b *builder) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
 	parts := strings.Split(name, ".")
 
-	curr := c.Schema
+	curr := b.Schema
 	if len(parts) > 1 {
 		for i := 0; i < len(parts)-1; i++ {
 			p := curr["properties"]

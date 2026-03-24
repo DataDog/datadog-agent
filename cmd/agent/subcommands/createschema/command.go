@@ -7,6 +7,7 @@
 package createschema
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/buildschema"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -52,12 +54,26 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(cliParams *cliParams) error {
-	data, err := yaml.Marshal(pkgconfigsetup.Datadog().GetSchema())
+	// NOTE: Actual schema builder is done from an init() method in
+	// the package pkg/config/setup. The code in pkg/config/create selects
+	// the schemaBuilder when running this subcommand.
+	ddcfg := pkgconfigsetup.Datadog()
+	coreBuilder, ok := ddcfg.(buildschema.SchemaBuilder)
+	if !ok {
+		return errors.New("cannot use createschema without SchemaBuilder")
+	}
+	ddcfg = pkgconfigsetup.SystemProbe()
+	sysProbeBuilder, ok := ddcfg.(buildschema.SchemaBuilder)
+	if !ok {
+		return errors.New("cannot use createschema without SchemaBuilder")
+	}
+
+	data, err := yaml.Marshal(coreBuilder.GetSchema())
 	if err == nil {
 		os.WriteFile("core_schema.yaml", data, 0644)
 		fmt.Printf("Wrote core_schema.yaml\n")
 	}
-	data, err = yaml.Marshal(pkgconfigsetup.SystemProbe().GetSchema())
+	data, err = yaml.Marshal(sysProbeBuilder.GetSchema())
 	if err == nil {
 		os.WriteFile("system-probe_schema.yaml", data, 0644)
 		fmt.Printf("Wrote system-probe_schema.yaml\n")
