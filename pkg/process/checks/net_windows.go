@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -63,6 +64,21 @@ func fetchIISTagsCache(client *http.Client) map[string][]string {
 // fetchProcessCacheTags retrieves process cache tags from system-probe's /process_cache_tags endpoint.
 func fetchProcessCacheTags(client *http.Client) map[uint32][]string {
 	return fetchFromSystemProbe[map[uint32][]string](client, "/process_cache_tags")
+}
+
+// fetchRemoteServiceData fetches IIS tags, process cache tags, and the listening
+// port-to-PID map concurrently, as each involves an I/O operation.
+func fetchRemoteServiceData(client *http.Client) (map[string][]string, map[uint32][]string, map[int32]int32) {
+	var iisTags map[string][]string
+	var procCacheTags map[uint32][]string
+	var portToPID map[int32]int32
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); iisTags = fetchIISTagsCache(client) }()
+	go func() { defer wg.Done(); procCacheTags = fetchProcessCacheTags(client) }()
+	go func() { defer wg.Done(); portToPID = getListeningPortToPIDMap() }()
+	wg.Wait()
+	return iisTags, procCacheTags, portToPID
 }
 
 // getRemoteProcessTags returns process tags for a remote PID using the system-probe process cache.

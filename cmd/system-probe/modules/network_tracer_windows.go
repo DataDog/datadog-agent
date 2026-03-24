@@ -8,10 +8,12 @@
 package modules
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -32,8 +34,14 @@ var NetworkTracer = &module.Factory{
 }
 
 func logIISSiteTimeouts() {
-	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
-		`Import-Module WebAdministration; Get-ChildItem IIS:\Sites | Select-Object name, @{n="ConnectionTimeout";e={$_.limits.connectionTimeout}} | Format-Table -AutoSize | Out-String`).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command",
+		`Import-Module WebAdministration; Get-ChildItem IIS:\Sites | Select-Object name, @{n="ConnectionTimeout";e={$_.limits.connectionTimeout}} | Format-Table -AutoSize | Out-String`)
+	// Prevent a console window flash when system-probe is run interactively during development.
+	// No effect in production where the service runs in session 0.
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000} // CREATE_NO_WINDOW
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Debugf("failed to query IIS site timeouts: %v", err)
 		return
