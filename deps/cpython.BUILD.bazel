@@ -465,6 +465,7 @@ pkg_filegroup(
         "@platforms//os:windows": "embedded3",
         "//conditions:default": "embedded",
     }),
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(

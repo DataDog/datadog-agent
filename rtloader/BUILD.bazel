@@ -258,6 +258,42 @@ pkg_install(
     srcs = [":all_files"],
 )
 
+# Dev-only: installs rtloader + the full Python environment (CPython + deps) in one shot.
+# Used by the invoke tasks instead of separate per-dependency bazel run calls.
+pkg_filegroup(
+    name = "rtloader_files_embedded",
+    srcs = [":all_files"],
+    prefix = "embedded",
+)
+
+# OpenSSL shared libs only — exclude headers to avoid conflict with CPython's include/.
+pkg_filegroup(
+    name = "openssl_libs_embedded",
+    srcs = [
+        "@openssl//:libssl_with_symlink",
+        "@openssl//:libcrypto_with_symlink",
+    ],
+    prefix = "embedded",
+)
+
+pkg_filegroup(
+    name = "python_env_files",
+    srcs = [
+        ":rtloader_files_embedded",
+        ":openssl_libs_embedded",
+        "@bzip2//:all_files",
+        "@sqlite3//:all_files",
+        "@xz//:all_files",
+        "@zlib//:all_files",
+        "@cpython//:all_files",
+    ],
+)
+
+pkg_install(
+    name = "install_python_env",
+    srcs = [":python_env_files"],
+)
+
 # Temporary install target meant as a way to integrate with non-bazelified Agent build
 pkg_install(
     name = "install_static",
