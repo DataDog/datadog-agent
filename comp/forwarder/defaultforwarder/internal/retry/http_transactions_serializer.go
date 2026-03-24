@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -106,7 +105,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
 		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
 		Domain:      "",
-		Endpoint:    &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
+		Endpoint:    &EndpointProto{Route: []byte(endpoint.Route), Name: endpoint.Name},
 		Headers:     s.toHeaderProto(transaction.Headers),
 		Payload:     payload,
 		ErrorCount:  int64(transaction.ErrorCount),
@@ -191,7 +190,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			continue
 		}
 
-		route := stripPlaceholders(string(e.Route))
+		route := string(e.Route)
 		headers := s.fromHeaderProto(tr.Headers)
 		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
 		domain := s.resolver.Resolve(endpoint)
@@ -216,25 +215,6 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 	return httpTransactions, errorCount, nil
 }
 
-// replaceAPIKeys iterates backward through our list of replacer, returns when
-// one of them is able to replace the key.
-// Needs to iterate backwards to ensure the latest version of the replacers takes
-// priority.
-func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) []byte {
-	s.placeholderMutex.RLock()
-	defer s.placeholderMutex.RUnlock()
-
-	for replacer := len(s.apiKeyToPlaceholder) - 1; replacer >= 0; replacer-- {
-		replaced := s.apiKeyToPlaceholder[replacer].Replace(str)
-		if str != replaced {
-			return []byte(replaced)
-		}
-	}
-
-	return []byte(str)
-
-}
-
 // extractPlaceholderIndex finds the first \xfeAPI_KEY\xfeN\xfe token in str and returns
 // the integer index N. Returns (0, false) when no token is present.
 func extractPlaceholderIndex(str string) (int, bool) {
@@ -254,33 +234,13 @@ func extractPlaceholderIndex(str string) (int, bool) {
 	return n, true
 }
 
-// stripPlaceholders removes all \xfeAPI_KEY\xfeN\xfe tokens from str.
-func stripPlaceholders(str string) string {
-	for {
-		idx := strings.Index(str, placeHolderPrefix)
-		if idx == -1 {
-			break
-		}
-		rest := str[idx+len(placeHolderPrefix):]
-		end := strings.Index(rest, squareChar)
-		if end == -1 {
-			break
-		}
-		str = str[:idx] + rest[end+len(squareChar):]
-	}
-	return str
-}
-
 // apiKeyIndexFromProto extracts the APIKeyIndex for proto versions 1 and 2 by scanning the
 // stored header values and route bytes for a \xfeAPI_KEY\xfeN\xfe placeholder and returning
 // the resolved index N. For V1, N is a position in the alphabetically sorted key list and is
 // converted to the current unsorted position. For V2, N is returned directly.
 //
-// Headers are scanned before the route because each transaction may carry the same route
-// placeholder (serialized with the config's primary key) while the per-transaction key
-// lives in an application header value.
+// Any header with the placeholder is removed.
 func (s *HTTPTransactionsSerializer) apiKeyIndexFromProto(tr *HttpTransactionProto, protoVersion int32) (int, error) {
-	// Scan header values first.
 	index := -1
 	for headerKey, headerValues := range tr.Headers {
 		for _, v := range headerValues.Values {
@@ -290,10 +250,12 @@ func (s *HTTPTransactionsSerializer) apiKeyIndexFromProto(tr *HttpTransactionPro
 				// after finding a key in the (should not happen) case that there
 				// are multiple API key headers.
 				delete(tr.Headers, headerKey)
-				var err error
-				index, err = s.resolvePlaceholderIndex(placeholderIdx, protoVersion)
-				if err != nil {
-					return -1, err
+				if index > -1 {
+					var err error
+					index, err = s.resolvePlaceholderIndex(placeholderIdx, protoVersion)
+					if err != nil {
+						return -1, err
+					}
 				}
 			}
 		}
@@ -352,7 +314,7 @@ func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*He
 	for key, headerValuesProto := range headersProto {
 		var headerValues []string
 		for _, v := range headerValuesProto.Values {
-			headerValues = append(headerValues, stripPlaceholders(string(v)))
+			headerValues = append(headerValues, string(v))
 		}
 		headers[key] = headerValues
 	}
@@ -386,11 +348,14 @@ func fromTransactionDestinationProto(destination TransactionDestinationProto) (t
 func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
-		// Don't include the api key header.
+		// (Safety) Don't include the api key header, it shouldn't be there, but just in case...
 		if key != "DD-Api-Key" {
 			// Convert strings to bytes after replacing API keys
-			headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
-			headersProto[key] = &headerValuesProto
+			protoValues := make([][]byte, 0, len(headerValues))
+			for _, header := range headerValues {
+				protoValues = append(protoValues, []byte(header))
+			}
+			headersProto[key] = &HeaderValuesProto{Values: protoValues}
 		}
 	}
 	return headersProto

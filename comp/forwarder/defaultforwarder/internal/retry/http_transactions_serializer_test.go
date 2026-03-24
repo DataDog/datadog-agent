@@ -446,16 +446,6 @@ func TestExtractPlaceholderIndex(t *testing.T) {
 	}
 }
 
-// TestStripPlaceholders verifies that all placeholder tokens are removed from a string.
-func TestStripPlaceholders(t *testing.T) {
-	ph0 := fmt.Sprintf(placeHolderFormat, 0)
-	ph1 := fmt.Sprintf(placeHolderFormat, 1)
-	assert.Equal(t, "", stripPlaceholders(ph0))
-	assert.Equal(t, "route", stripPlaceholders("route"+ph0))
-	assert.Equal(t, "route", stripPlaceholders("route"+ph0+ph1))
-	assert.Equal(t, "plain", stripPlaceholders("plain"))
-}
-
 // TestV2IndexExtraction verifies that a V2 transaction round-trips with the correct
 // APIKeyIndex derived from the embedded placeholder rather than a restored key value.
 func TestV2IndexExtraction(t *testing.T) {
