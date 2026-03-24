@@ -538,7 +538,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				continue
 			}
 
-			for idx, _ := range dr.GetAuthorizers() {
+			for idx := range dr.GetAuthorizers() {
 				t := transaction.NewHTTPTransaction()
 				t.Domain = drDomain
 				t.Endpoint = endpoint

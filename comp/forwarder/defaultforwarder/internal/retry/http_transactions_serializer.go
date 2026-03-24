@@ -6,10 +6,10 @@
 package retry
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -157,32 +157,32 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 	var httpTransactions []transaction.Transaction
 	errorCount := 0
 	for _, tr := range collection.Values {
-		var route string
-		var proto http.Header
 		var destination transaction.Destination
 		e := tr.Endpoint
 
 		priority, err := fromTransactionPriorityProto(tr.Priority)
-		if err == nil {
-			route, err = s.restoreAPIKeys(string(e.Route), collection.Version)
-		}
 
 		var resolverAuth transaction.Authorizer
 		var apiKeyIndex int
 
 		if err == nil {
-			proto, err = s.fromHeaderProto(tr.Headers, collection.Version)
-		}
-
-		if err == nil {
 			destination, err = fromTransactionDestinationProto(tr.Destination)
 		}
 
-		if err == nil && collection.Version >= 3 {
-			// Version 3+ stores the API key index so Authorize() can set DD-Api-Key
-			// at send time rather than embedding the key in the serialized headers.
-			resolverAuth = s.resolver
-			apiKeyIndex = int(tr.APIKeyIndex)
+		if err == nil {
+			if collection.Version >= 3 {
+				// Version 3+ stores the API key index directly in the proto field.
+				resolverAuth = s.resolver
+				apiKeyIndex = int(tr.APIKeyIndex)
+			} else {
+				// Versions 1 and 2 embedded the API key as a placeholder token
+				// (\xfeAPI_KEY\xfeN\xfe) in the route and/or header values. Extract the
+				// index N instead of substituting back the actual key string.
+				apiKeyIndex, err = s.apiKeyIndexFromProto(tr, collection.Version)
+				if err == nil {
+					resolverAuth = s.resolver
+				}
+			}
 		}
 
 		if err != nil {
@@ -191,13 +191,15 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			continue
 		}
 
+		route := stripPlaceholders(string(e.Route))
+		headers := s.fromHeaderProto(tr.Headers)
 		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
 		domain := s.resolver.Resolve(endpoint)
 
 		tr := transaction.HTTPTransaction{
 			Domain:         domain,
 			Endpoint:       endpoint,
-			Headers:        proto,
+			Headers:        headers,
 			Payload:        transaction.NewBytesPayload(tr.Payload, int(tr.GetPointCount())),
 			ErrorCount:     int(tr.ErrorCount),
 			CreatedAt:      time.Unix(tr.CreatedAt, 0),
@@ -233,40 +235,128 @@ func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) []byte {
 
 }
 
-func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string, protoVersion int32) (string, error) {
-	var newStr string
-	if protoVersion == 1 {
-		// Handle transactions serialized in a prior version
-		newStr = s.placeholderToAPIKeyV1.Replace(str)
-		if newStr != str {
-			tlmV1TransactionsDeserialized.Inc()
-		}
-	} else {
-		s.placeholderMutex.RLock()
-		newStr = s.placeholderToAPIKey.Replace(str)
-		s.placeholderMutex.RUnlock()
+// extractPlaceholderIndex finds the first \xfeAPI_KEY\xfeN\xfe token in str and returns
+// the integer index N. Returns (0, false) when no token is present.
+func extractPlaceholderIndex(str string) (int, bool) {
+	idx := strings.Index(str, placeHolderPrefix)
+	if idx == -1 {
+		return 0, false
 	}
-
-	if strings.Contains(newStr, placeHolderPrefix) {
-		return "", errors.New("cannot restore the transaction as an API Key is missing")
+	rest := str[idx+len(placeHolderPrefix):]
+	end := strings.Index(rest, squareChar)
+	if end == -1 {
+		return 0, false
 	}
-	return newStr, nil
+	n, err := strconv.Atoi(rest[:end])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
-func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto, protoVersion int32) (http.Header, error) {
+// stripPlaceholders removes all \xfeAPI_KEY\xfeN\xfe tokens from str.
+func stripPlaceholders(str string) string {
+	for {
+		idx := strings.Index(str, placeHolderPrefix)
+		if idx == -1 {
+			break
+		}
+		rest := str[idx+len(placeHolderPrefix):]
+		end := strings.Index(rest, squareChar)
+		if end == -1 {
+			break
+		}
+		str = str[:idx] + rest[end+len(squareChar):]
+	}
+	return str
+}
+
+// apiKeyIndexFromProto extracts the APIKeyIndex for proto versions 1 and 2 by scanning the
+// stored header values and route bytes for a \xfeAPI_KEY\xfeN\xfe placeholder and returning
+// the resolved index N. For V1, N is a position in the alphabetically sorted key list and is
+// converted to the current unsorted position. For V2, N is returned directly.
+//
+// Headers are scanned before the route because each transaction may carry the same route
+// placeholder (serialized with the config's primary key) while the per-transaction key
+// lives in an application header value.
+func (s *HTTPTransactionsSerializer) apiKeyIndexFromProto(tr *HttpTransactionProto, protoVersion int32) (int, error) {
+	// Scan header values first.
+	index := -1
+	for headerKey, headerValues := range tr.Headers {
+		for _, v := range headerValues.Values {
+			if placeholderIdx, found := extractPlaceholderIndex(string(v)); found {
+				// The header should not exist in the transaction after we have
+				// extracted the API key. We continue scanning through the headers
+				// after finding a key in the (should not happen) case that there
+				// are multiple API key headers.
+				delete(tr.Headers, headerKey)
+				var err error
+				index, err = s.resolvePlaceholderIndex(placeholderIdx, protoVersion)
+				if err != nil {
+					return -1, err
+				}
+			}
+		}
+	}
+
+	if index != -1 {
+		return index, nil
+	}
+
+	// Fall back to the route.
+	if placeholderIdx, found := extractPlaceholderIndex(string(tr.Endpoint.Route)); found {
+		return s.resolvePlaceholderIndex(placeholderIdx, protoVersion)
+	}
+
+	// No placeholder found; the transaction had no API key embedded (e.g. a local-domain transaction).
+	return 0, nil
+}
+
+// resolvePlaceholderIndex converts a raw placeholder index to the current APIKeyIndex,
+// accounting for V1's sorted-key ordering.
+func (s *HTTPTransactionsSerializer) resolvePlaceholderIndex(placeholderIdx int, protoVersion int32) (int, error) {
+	if protoVersion == 1 {
+		return s.v1SortedIndexToCurrent(placeholderIdx)
+	}
+	return placeholderIdx, nil
+}
+
+// v1SortedIndexToCurrent maps a V1 sorted-order placeholder index to the index of the
+// corresponding key in the resolver's current (unsorted) deduped key list.
+func (s *HTTPTransactionsSerializer) v1SortedIndexToCurrent(sortedIdx int) (int, error) {
+	dedupedKeys := s.resolver.GetAPIKeys()
+	keys := make([]string, len(dedupedKeys))
+	copy(keys, dedupedKeys)
+	sort.Strings(keys)
+
+	if sortedIdx >= len(keys) {
+		return 0, fmt.Errorf("V1 placeholder index %d out of range (have %d keys)", sortedIdx, len(keys))
+	}
+	targetKey := keys[sortedIdx]
+
+	for i, k := range dedupedKeys {
+		if k == targetKey {
+			if sortedIdx != i {
+				tlmV1TransactionsDeserialized.Inc()
+			}
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("V1 key at sorted index %d (%q) not found in current key list", sortedIdx, targetKey)
+}
+
+// fromHeaderProto converts serialized header proto to http.Header, stripping any API key
+// placeholders that may be present in old (pre-V3) serialized data.
+func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto) http.Header {
 	headers := make(http.Header)
 	for key, headerValuesProto := range headersProto {
 		var headerValues []string
 		for _, v := range headerValuesProto.Values {
-			value, err := s.restoreAPIKeys(string(v), protoVersion)
-			if err != nil {
-				return nil, err
-			}
-			headerValues = append(headerValues, value)
+			headerValues = append(headerValues, stripPlaceholders(string(v)))
 		}
 		headers[key] = headerValues
 	}
-	return headers, nil
+	return headers
 }
 
 func fromTransactionPriorityProto(priority TransactionPriorityProto) (transaction.Priority, error) {

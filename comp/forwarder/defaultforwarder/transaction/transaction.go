@@ -461,14 +461,13 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 			transactionsErrors.Add(1)
 			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
 			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
-		} else {
-			log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
-			TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-			TransactionsDropped.Add(1)
-			TlmTxDropped.Inc(t.Domain, transactionEndpointName)
-			return resp.StatusCode, body, nil
 		}
 
+		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
+		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+		TransactionsDropped.Add(1)
+		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
