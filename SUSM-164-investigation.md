@@ -277,27 +277,85 @@ This mechanism was disabled in commit `c21d3170fa` (SUSM-146) to fix endpoint mi
 
 ---
 
+## Live ProcQ Analysis (2026-03-24, aks-cus-gen-prod-002 prod cluster)
+
+### Methodology
+
+Queried `network_raw-main` on `kafka-networks-main-9429` via ProcQ-UI API. Used `/ready` endpoint to poll for completion before downloading, ensuring full Kafka partition coverage.
+
+### Host: `aks-userpool2-97713605-vmss000008-aks-cus-gen-prod-002`
+
+10-minute window, 1000 messages requested, `/ready` confirmed at 20.8% partition scan (found all host messages).
+
+| Source | Hits for `POST /usb/CollateralEvaluation/v5` |
+|--------|----------------------------------------------|
+| Istio sidecar logs | 3 |
+| `network_raw-main` (procq) | **1** |
+| `universal.http.server.hits` metric | **1** |
+
+- **208 messages** from this host in the 10-minute window (full coverage confirmed by `/ready`)
+- The 1 captured hit has `TagsIdx: -1` (no connection-level TLS tags), while surrounding istio-captured connections have `TagsIdx: 6` with `[tls.library:istio tls.version:tls_1.3]`
+- Other istio-captured endpoints on this host work fine: `/publishlogevent/...`, `/underwriting/...`, `/clasdblogrestservice/...`, `/usb/v1/adminappointments` — all with proper `tls.library:istio` tags
+
+### Host: `aks-userpool1-24720288-vmss00000x-aks-cus-gen-prod-002`
+
+1-hour window, 1000 messages.
+
+| Source | Hits for `POST /usb/CollateralEvaluation/v5` |
+|--------|----------------------------------------------|
+| Istio sidecar logs | 26 |
+| `network_raw-main` (procq) | **1** (found in 40 messages) |
+| `universal.http.server.hits` metric | **2** |
+
+- **133 istio-tagged connections** with HTTP data present on this host — uprobes are working
+- Other `/usb/` paths ARE captured (`/usbf/v1/retrieve`, `/usb/v1/status`)
+- Health checks for the `npbcollateralevaluation` pod captured normally (`/app-health/.../readyz`, `/livez`)
+- The `npbcollateralevaluation` pod's container tags present in connection metadata (pod is known to the agent)
+- The 1 captured hit for `/usb/CollateralEvaluation/v5` also has `TagsIdx: 0` (no TLS connection tags)
+
+### Key Finding: Loss is at the eBPF/Agent Level
+
+The `network_raw → universal.http` pipeline is **lossless** (1=1 on userpool2, procq matches metric). The loss occurs between the Istio sidecar and the agent's eBPF capture:
+
+- **Capture rate: ~4-8%** (1-2 out of 26 on userpool1, 1 out of 3 on userpool2)
+- Istio uprobes ARE functional on these hosts (other services captured fine with `tls.library:istio`)
+- The few hits that ARE captured lack `tls.library:istio` tags (`TagsIdx: -1` or `TagsIdx: 0`), suggesting they may be captured via a **different mechanism** than the istio uprobes (possibly plaintext socket filter on the envoy→app localhost leg, or the `ssl_ctx_by_pid_tgid` fallback)
+- This is consistent with the earlier UAT cluster findings (4/4 capture but low overall rate)
+
+### Updated Hypothesis
+
+The Istio uprobes are **not capturing the mTLS-decrypted HTTP traffic for this specific service's inbound connections** on most requests. The sporadic hits that do appear lack istio TLS tags, suggesting they're being captured by a different code path (possibly the plaintext HTTP socket filter on the localhost envoy→app connection, not the istio uprobe path).
+
+Possible root causes:
+1. **Pre-existing TLS connections**: If the TLS connections were established before system-probe started (or before the envoy binary was hooked), the `ssl_sock_by_ctx` map won't have entries for these SSL contexts. The `ssl_ctx_by_pid_tgid` fallback (active on 7.73.x) may intermittently pick up some, but not reliably.
+2. **Envoy connection pooling**: Envoy may reuse long-lived HTTP/1.1 connections to this backend. If the initial TLS handshake was missed, all subsequent requests on that connection are invisible to the istio uprobes.
+3. **Multiple envoy worker threads**: With pid_tgid-based fallback, if multiple threads handle connections, the mapping may be unreliable.
+
+---
+
 ## Open Questions / Next Steps
 
-1. **Why does the backend metric show ~1 hit when the intake dump has 4?**
-   - Is the network-resolver failing to attribute connections on port 15006?
-   - Does the port mismatch (15006 vs original 8080) cause the resolver to drop or misattribute stats?
-   - Are stats being deduplicated or merged incorrectly?
+1. **Why do captured hits lack `tls.library:istio` tags?**
+   - Are these hits from the plaintext localhost leg (envoy→app on port 8080)?
+   - Or from the `ssl_ctx_by_pid_tgid` fallback that doesn't set TLS tags?
+   - Check the connection tuples (IPs/ports) of the captured hits to determine which leg they're from
 
-2. **Is the historical discrepancy (171 vs 32K over 3 days) the same issue or different?**
-   - The current snapshot shows 4/4 capture rate at the eBPF level
-   - Need to verify whether the eBPF capture rate was also ~100% during the historical period, or if there was genuine eBPF-level loss
-   - The 32K Istio log count might include traffic from multiple pods/replicas while the USM metric might be scoped to a single node
+2. **Verify envoy connection reuse patterns**
+   - Does envoy use long-lived connections to `npbcollateralevaluation`?
+   - How often are new TLS connections established vs reused?
+   - If connections are long-lived, system-probe would miss them unless it was running when the handshake occurred
 
-3. **Investigate the network-resolver attribution for Istio port 15006 connections**
-   - How does the resolver handle iptables REDIRECT (original port 8080 → 15006)?
-   - Does it use conntrack to resolve the original destination?
-   - What happens when the resolver can't map port 15006 back to the service?
+3. **Test the `ssl_ctx_by_pid_tgid` fallback disable (SUSM-146)**
+   - The fallback was disabled on main (commit `c21d3170fa`) but is active on 7.73.x
+   - Would disabling it make things worse (losing the few hits we do get) or trigger a different code path?
 
-4. **Verify the scope of the customer's comparison**
+4. **Investigate whether upgrading to a newer agent version helps**
+   - Main branch has SUSM-146 changes — does this affect capture rate?
+   - Are there other istio-related fixes post-7.73.0?
+
+5. **Verify the scope of the customer's comparison**
    - Are the Istio logs scoped to the same node/pod as the USM metric?
-   - Could the 32K logs include traffic from multiple replicas across nodes?
-   - What is the exact USM metric query the customer/SE is using?
+   - Could the historical 32K logs include traffic from multiple replicas across nodes?
 
 ---
 
@@ -307,4 +365,8 @@ This mechanism was disabled in commit `c21d3170fa` (SUSM-146) to fix endpoint mi
 - Backend dump (gen-obc-k8-uat2): `~/Downloads/dump_1773588474`
 - Backend dump (aks-cus-gen-prod-002): `~/Downloads/dump_1773587778`
 - Backend dump (small): `~/Downloads/dump_1773587746`
-- Analyzer tool: `/Users/daniel.lavie/go/src/github.com/DataDog/dd-go/networks/decode/dump/analyzer/main.go` (modified for this investigation)
+- Analyzer tool: `/Users/daniel.lavie/go/src/github.com/DataDog/dd-go/networks/decode/dump/analyzer/main.go`
+- ProcQ dumps (2026-03-24):
+  - userpool2 10min: `/tmp/procq_userpool2_10k.bin` (208 messages, 2.2MB)
+  - userpool1 1hr: `/tmp/procq_wait.bin` (40 messages, 436K)
+  - Org-wide 1hr: `/tmp/procq_dump_10k_org.bin` (6570 messages, 81MB)
