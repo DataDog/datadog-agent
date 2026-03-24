@@ -21,6 +21,13 @@ package_name_variables(
     product_name = "datadog-agent",
 )
 
+package_name_selector = {
+    "//packages/agent:linux_default": "datadog-agent",
+    "//packages/agent:linux_fips": "datadog-fips-agent",
+    "//packages/agent:linux_heroku": "datadog-heroku-agent",
+    "//conditions:default": "datadog-agent",
+}
+
 # This is everything in the distro. All the things that were explicit
 # in datadog-agent-dependencies.rb should show up here.
 pkg_filegroup(
@@ -117,7 +124,7 @@ pkg_deb(
     # vendor = "Datadog <package@datadoghq.com>",
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
-    package = "datadog-agent",
+    package = select(package_name_selector),
     package_file_name = "{product_name}_{version}-1_{arch_deb}.deb",
     package_variables = ":variables",
     postinst = "//omnibus:package-scripts/agent-deb/postinst",
@@ -137,7 +144,7 @@ pkg_deb(
 
 pkg_rpm(
     name = "rpm",
-    package_name = "datadog-agent",
+    package_name = select(package_name_selector),
     srcs = [":whole_distro"],
     # glibc-common < 2.17 conflict applies to RHEL-based distros only;
     # TODO: use select() when a RHEL vs SUSE constraint is defined.
