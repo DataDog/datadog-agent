@@ -9,7 +9,7 @@
 ## Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
 ## Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
 #
-api_key:
+# api_key:
 
 ## @param app_key - string - optional - default: ""
 ## @env DD_APP_KEY - string - optional - default: ""

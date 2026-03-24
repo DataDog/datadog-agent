@@ -56,11 +56,6 @@ core_defaults = {
         "other": "/var/lib/kubelet/device-plugins",
         },
 
-    "process_config.run_in_core_agent.enabled": {
-        "linux": True,
-        "other": False,
-        },
-
     "logs_config.run_path": "${run_path}",
     "run_path": "${run_path}",
 
@@ -174,7 +169,7 @@ system_probe_extra_tags = {
 core_extra_env = {
     "proxy.https": "@env DD_PROXY_HTTPS - string - optional - default: \"\"",
     "proxy.http": "@env DD_PROXY_HTTP - string - optional - default: \"\"",
-    "proxy.no_proxy": "@env DD_PROXY_NO_PROXY - space separated list of strings - optional - default: []",
+    "proxy.no_proxy": "@env DD_PROXY_NO_PROXY - space-separated list of strings - optional - default: []",
 }
 
 def fix_defaults(core_schema, sysprobe_schema):
