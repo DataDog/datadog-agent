@@ -139,7 +139,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 			entityID := subnet.config.Digest(deviceIP.String())
 			deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[0], subnet.config.Port, deviceIP.String())
 
-			l.createService(entityID, subnet, deviceIP.String(), deviceInfo, 0, 0, false)
+			l.createService(entityID, subnet, deviceIP.String(), deviceInfo, 0, 0, true)
 		}
 		return
 	}
@@ -154,7 +154,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		entityID := subnet.config.Digest(device.IP.String())
 		deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
 
-		l.createService(entityID, subnet, device.IP.String(), deviceInfo, device.AuthIndex, device.Failures, false)
+		l.createService(entityID, subnet, device.IP.String(), deviceInfo, device.AuthIndex, device.Failures, true)
 	}
 }
 
@@ -214,7 +214,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		}
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
-		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, true)
+		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, false)
 
 		break
 	}
@@ -460,7 +460,7 @@ func (l *SNMPListener) createService(
 	deviceInfo devicededuper.DeviceInfo,
 	authIndex int,
 	deviceFailures int,
-	writeCache bool,
+	addedFromCache bool,
 ) {
 	l.Lock()
 	defer l.Unlock()
@@ -498,17 +498,21 @@ func (l *SNMPListener) createService(
 	l.services[entityID] = &svc
 
 	pendingDevice := devicededuper.PendingDevice{
-		Config:     config,
-		Info:       deviceInfo,
-		AuthIndex:  authIndex,
-		WriteCache: writeCache,
-		IP:         deviceIP,
-		Failures:   deviceFailures,
+		Config:         config,
+		Info:           deviceInfo,
+		AuthIndex:      authIndex,
+		AddedFromCache: addedFromCache,
+		IP:             deviceIP,
+		Failures:       deviceFailures,
 	}
 
 	if deviceInfo == (devicededuper.DeviceInfo{}) {
 		l.registerService(pendingDevice)
 		return
+	}
+
+	if addedFromCache {
+		l.registerService(pendingDevice)
 	}
 
 	l.deviceDeduper.AddPendingDevice(pendingDevice)
@@ -537,7 +541,7 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 		AuthIndex: pendingDevice.AuthIndex,
 		Failures:  pendingDevice.Failures,
 	}
-	if pendingDevice.WriteCache {
+	if !pendingDevice.AddedFromCache {
 		l.writeCache(svc.subnet)
 	}
 	l.newService <- svc

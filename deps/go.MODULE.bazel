@@ -346,6 +346,7 @@ use_repo(
     "com_github_prometheus_common",
     "com_github_prometheus_community_pro_bing",
     "com_github_prometheus_procfs",
+    "com_github_prometheus_prometheus",
     "com_github_protonmail_go_crypto",
     "com_github_qri_io_jsonpointer",
     "com_github_redis_go_redis_v9",
