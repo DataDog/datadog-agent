@@ -313,19 +313,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		allTelemetry = append(allTelemetry, result.Telemetry...)
 	}
 
-	// Accumulate correlations BEFORE advancing so that freshly-created
-	// clusters are captured in the durable history. Batch detectors
-	// (ScanWelch, ScanMW) produce anomalies with historical changepoint
-	// timestamps that may be evicted by the subsequent Advance call.
-	// Accumulating first ensures the EventReporter and testbench output
-	// can see them regardless of eviction.
-	for _, correlator := range correlators {
-		e.accumulateCorrelations(correlator.ActiveCorrelations())
-	}
-
-	// Now advance correlators (evicts stale clusters for memory management).
+	// Advance correlators (eviction, window finalization), then accumulate
+	// whatever survived into the durable history.
 	for _, correlator := range correlators {
 		correlator.Advance(upTo)
+		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
