@@ -26,7 +26,7 @@ type TestConnectionInputs struct {
 
 type TestConnectionOutputs struct {
 	Success   bool      `json:"success"`
-	AgentInfo AgentInfo `json:"version"`
+	AgentInfo AgentInfo `json:"agentInfo"`
 }
 
 type AgentInfo struct {
@@ -37,7 +37,7 @@ func (h *TestConnectionHandler) Run(
 	ctx context.Context,
 	task *types.Task,
 	credentials *privateconnection.PrivateCredentials,
-) (interface{}, error) {
+) (any, error) {
 	return &TestConnectionOutputs{
 		Success: true,
 		AgentInfo: AgentInfo{
