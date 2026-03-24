@@ -77,42 +77,25 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
-// InstallDocker installs Docker on the host if it is not already installed.
+// InstallDocker resets Docker to a clean state. Docker is expected to be
+// pre-baked in the AMI; no runtime installation is performed.
 func (h *Host) InstallDocker() {
-	defer func() {
-		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
-		// It will:
-		// - 1. Stop docker (if it's running)
-		// - 2. Reset failed status
-		// - 3. Remove the network directory to avoid network collision
-		// - 4. Start docker again
-		_, _ = h.remote.Execute("sudo systemctl stop docker")
-		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
-		if err != nil {
-			h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
-		}
-		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
-		if err != nil {
-			h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
-		}
-		_, err = h.remote.Execute("sudo systemctl start docker")
-		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
-	}()
-	if _, err := h.remote.Execute("command -v docker"); err == nil {
-		return
+	// Restart docker from a clean state to avoid issues between tests:
+	// 1. Stop docker (if it's running)
+	// 2. Reset failed status
+	// 3. Remove the network directory to avoid network collision
+	// 4. Start docker again
+	_, _ = h.remote.Execute("sudo systemctl stop docker")
+	_, err := h.remote.Execute("sudo systemctl reset-failed docker")
+	if err != nil {
+		h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
 	}
-
-	switch h.pkgManager {
-	case "apt":
-		h.remote.MustExecute("sudo apt-get update -qq")
-		h.remote.MustExecute("sudo apt-get install -y docker.io")
-	case "yum":
-		h.remote.MustExecute("sudo yum install -y docker")
-	case "zypper":
-		h.remote.MustExecute("sudo zypper install -y docker")
-	default:
-		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
+	_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+	if err != nil {
+		h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
 	}
+	_, err = h.remote.Execute("sudo systemctl start docker")
+	require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
