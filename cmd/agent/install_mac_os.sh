@@ -65,14 +65,11 @@ if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
 fi
 
-# Per-user install only: show the menu bar icon. Unset/false keeps headless GUI (postinst adds
-# --headless; this script removes it from the plist and reloads launchd when enabled).
-# Truthy: 1, true, yes, on (case-insensitive).
+# Per-user install only: show the menu bar icon. Defaults to false (headless GUI).
+# Set DD_GUI_APP_MENU_ENABLED=true to remove --headless from the plist and show the menu bar icon.
 gui_app_menu_enabled=false
-if [ -n "$DD_GUI_APP_MENU_ENABLED" ]; then
-    case "$(printf '%s' "$DD_GUI_APP_MENU_ENABLED" | tr '[:upper:]' '[:lower:]')" in
-        1|true|yes|on) gui_app_menu_enabled=true ;;
-    esac
+if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
+    gui_app_menu_enabled=true
 fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
@@ -673,41 +670,20 @@ else
     printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
 fi
 
-# Per-user GUI: postinst always installs --headless; optionally strip it and reload launchd here
+# Per-user GUI: plist has --headless by default; optionally strip it and reload launchd here
 user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
 if [ "$systemdaemon_install" = false ] && [ "$gui_app_menu_enabled" = true ] && [ -f "$user_gui_plist" ]; then
-    printf "${BLUE}\n    - Enabling menu bar GUI (DD_GUI_APP_MENU_ENABLED)...\n${NC}"
+    printf "${BLUE}\n    - Enabling menu bar GUI (DD_GUI_APP_MENU_ENABLED=true)...\n${NC}"
     $sudo_cmd sed -i '' '/<string>--headless<\/string>/d' "$user_gui_plist"
+    # Restart the GUI so it picks up the updated plist without --headless
     $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
-
-    # Wait for the headless GUI process to stop before loading menu-bar mode.
-    # This avoids a race where a still-running instance causes the relaunched app to self-exit.
-    max_wait=100  # 100 * 0.1s = 10 seconds
+    # Wait for the old process to fully exit before loading the new configuration
     count=0
-    while [ $count -lt $max_wait ]; do
-        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
-            break
-        fi
-        sleep 0.1
+    while pgrep -U "$user_uid" -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1 && [ $count -lt 20 ]; do
+        sleep 0.5
         count=$((count + 1))
     done
-
-    if [ $count -ge $max_wait ]; then
-        printf "${YELLOW}    Warning: GUI process still running after 10s, sending TERM and kickstarting job${NC}\n"
-
-        # Target only the current user's GUI process.
-        stale_gui_pid=$(pgrep -U "$user_uid" -f "Datadog Agent.app/Contents/MacOS/gui" | head -n 1)
-        if [ -n "$stale_gui_pid" ]; then
-            kill -TERM "$stale_gui_pid" 2>/dev/null || true
-        fi
-
-        # Ensure job is loaded, then kickstart to relaunch in menu-bar mode.
-        $cmd_launchctl load -w "$user_gui_plist" 2>/dev/null || true
-        $cmd_launchctl kickstart -k "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || \
-            $cmd_launchctl kickstart "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
-    else
-        $cmd_launchctl load -w "$user_gui_plist"
-    fi
+    $cmd_launchctl load -w "$user_gui_plist"
 fi
 
 # Per-user: GUI is started by postinst (headless) or by launchctl load above (menu bar); no open needed
