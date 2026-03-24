@@ -753,3 +753,51 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	err = lifecycle2.Stop(context.Background())
 	require.NoError(t, err)
 }
+
+// TestNoopPersistence verifies that noopPersistence discards writes and returns no state.
+func TestNoopPersistence(t *testing.T) {
+	p := &noopPersistence{}
+
+	// save must succeed silently
+	err := p.save(&PersistedState{})
+	require.NoError(t, err)
+
+	// load must return (nil, nil) — no prior state, no error
+	state, err := p.load()
+	require.NoError(t, err)
+	assert.Nil(t, state)
+}
+
+// TestNewComponentUsesNoopPersistenceOnKubernetes verifies that when KUBERNETES_SERVICE_PORT
+// is set, NewComponent selects the noopPersistence backend.
+func TestNewComponentUsesNoopPersistenceOnKubernetes(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+	reqs := testRequiresWithRunPath(t, newMockLifecycle(), t.TempDir())
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok)
+
+	_, isNoop := impl.persistence.(*noopPersistence)
+	assert.True(t, isNoop, "expected noopPersistence when running on Kubernetes")
+}
+
+// TestNewComponentUsesDiskPersistenceOffKubernetes verifies that outside Kubernetes,
+// NewComponent selects the diskPersistence backend.
+func TestNewComponentUsesDiskPersistenceOffKubernetes(t *testing.T) {
+	// Ensure K8s env vars are unset for this test
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	t.Setenv("KUBERNETES", "")
+
+	reqs := testRequiresWithRunPath(t, newMockLifecycle(), t.TempDir())
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok)
+
+	_, isDisk := impl.persistence.(*diskPersistence)
+	assert.True(t, isDisk, "expected diskPersistence when not running on Kubernetes")
+}

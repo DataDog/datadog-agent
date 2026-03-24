@@ -217,6 +217,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Select persistence backend: noop on Kubernetes (emptyDir makes disk persistence meaningless),
 	// disk-based elsewhere so issues survive agent restarts.
+	// NOTE: IsKubernetes() is a heuristic (KUBERNETES_SERVICE_PORT env var). Operators who mount
+	// run_path as a hostPath volume and want persistence should be able to opt in via Helm chart
+	// config once that follow-up is implemented.
 	var persistence issuesPersistence
 	if configenv.IsKubernetes() {
 		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled (ephemeral storage)")
@@ -604,6 +607,12 @@ func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
 
 // loadFromDisk loads persisted issues via the persistence backend
 func (h *healthPlatformImpl) loadFromDisk() error {
+	// Skip entirely when the backend doesn't store state (e.g. noopPersistence on Kubernetes).
+	// Calling load() would return (nil, nil) and emit a misleading "starting fresh" log.
+	if _, isNoop := h.persistence.(*noopPersistence); isNoop {
+		return nil
+	}
+
 	state, err := h.persistence.load()
 	if err != nil {
 		return err
