@@ -23,6 +23,9 @@ import (
 // messageTimeout interval or the test times out.
 const messageTimeout = 5 * time.Minute
 
+// Max retry backoff for reconnect attempts after a non-fatal error
+const reconnectMaxDelay = 5 * time.Minute
+
 // RunEchoTest connects to the echo test endpoint ("/api/v0.2/echo-test") in the
 // Remote Config backend, upgrades the HTTP request to a WebSocket connection,
 // and exchanges a series of data frames to measure connectivity, delivery and
@@ -42,6 +45,7 @@ func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
 	log.Debug("starting remote config websocket echo test")
 
 	reconnections := uint(0)
+	delay := 1 * time.Minute // start delay at 1 min
 	for {
 		n, err := runEchoLoop(ctx, client, reconnections)
 		if err == nil {
@@ -52,8 +56,21 @@ func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
 			log.Debugf("remote config websocket test aborted: %s (%d data frames exchanged)", err, n)
 			return
 		}
-		log.Debugf("websocket echo test disconnected (reconnections=%d): %s (%d data frames exchanged)", reconnections, err, n)
 		reconnections++
+		delay += 1 * time.Minute
+		if delay > reconnectMaxDelay {
+			log.Debugf("remote config websocket test failed after 5 reconnections", err, n)
+			return
+		}
+		log.Debugf("websocket echo test disconnected (reconnections=%d), retrying in %s: %s (%d data frames exchanged)", reconnections, delay, err, n)
+
+		// Check for test aborts during test
+		select {
+		case <-ctx.Done():
+			log.Debugf("remote config websocket test aborted during retry backoff")
+			return
+		case <-time.After(delay):
+		}
 	}
 }
 
