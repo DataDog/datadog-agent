@@ -170,6 +170,25 @@ func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelat
 }
 func (c *resettableCorrelator) Reset() { c.resetCount++ }
 
+type emitOnSeriesDetector struct {
+	name string
+}
+
+func (d *emitOnSeriesDetector) Name() string { return d.name }
+
+func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.DetectionResult {
+	if len(series.Points) == 0 {
+		return observerdef.DetectionResult{}
+	}
+	return observerdef.DetectionResult{
+		Anomalies: []observerdef.Anomaly{{
+			Title:       "detected",
+			Description: "detected from series",
+			Timestamp:   series.Points[len(series.Points)-1].Timestamp,
+		}},
+	}
+}
+
 func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 	e := newEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
@@ -336,6 +355,40 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
 	assert.Contains(t, anomaly.Context.Pattern, "*")
 	assert.NotContains(t, anomaly.Context.Example, "456")
+}
+
+func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.T) {
+	extractor := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+	detector := newSeriesDetectorAdapter(&emitOnSeriesDetector{name: "test_series_detector"}, []observerdef.Aggregate{observerdef.AggregateCount})
+	e := newEngine(engineConfig{
+		storage:          newTimeSeriesStorage(),
+		extractors:       []observerdef.LogMetricsExtractor{extractor},
+		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
+		detectors:        []observerdef.Detector{detector},
+	})
+
+	e.IngestLog("source-a", &logObs{
+		content:     []byte("GET /users/123 returned 500"),
+		tags:        []string{"service:api"},
+		timestampMs: 1_000,
+	})
+
+	result := e.Advance(1)
+	require.Len(t, result.anomalies, 1)
+
+	anomaly := result.anomalies[0]
+	assert.Equal(t, "log_metrics_extractor", anomaly.Source.Namespace)
+	assert.Equal(t, observerdef.AggregateCount, anomaly.Source.Aggregate)
+	assert.Contains(t, anomaly.Source.Name, "log.pattern.")
+	assert.Contains(t, anomaly.Source.Tags, "observer_source:source-a")
+	assert.Contains(t, anomaly.Source.Tags, "service:api")
+	require.NotNil(t, anomaly.SourceRef)
+	assert.Equal(t, observerdef.AggregateCount, anomaly.SourceRef.Aggregate)
+
+	require.NotNil(t, anomaly.Context)
+	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
+	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
+	assert.Equal(t, logSignature([]byte("GET /users/123 returned 500"), extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
 }
 
 func containsTag(tags []string, want string) bool {
