@@ -524,6 +524,10 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			return e.Ref, true
 		case *exprlang.GetMemberExpr:
 			expr = e.Base
+		case *exprlang.LenExpr:
+			expr = e.Operand
+		case *exprlang.IsEmptyExpr:
+			expr = e.Operand
 		default:
 			return "", false
 		}
@@ -827,14 +831,19 @@ func analyzeAllProbes(
 					Message: fmt.Sprintf("failed to parse condition: %v", err),
 				}
 			}
-			eqExpr, ok := condExpr.(*exprlang.EqExpr)
-			if !ok {
+			var rootExpr exprlang.Expr
+			switch ce := condExpr.(type) {
+			case *exprlang.EqExpr:
+				rootExpr = ce.Left
+			case *exprlang.IsEmptyExpr:
+				rootExpr = ce.Operand
+			default:
 				return nil, ir.Issue{
 					Kind:    ir.IssueKindUnsupportedFeature,
 					Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
 				}
 			}
-			rootVarName, ok := extractRootVariableName(eqExpr.Left)
+			rootVarName, ok := extractRootVariableName(rootExpr)
 			if !ok {
 				return nil, ir.Issue{
 					Kind:    ir.IssueKindUnsupportedFeature,
@@ -914,6 +923,8 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 						continue
 					}
 				case *exprlang.GetMemberExpr:
+				case *exprlang.LenExpr:
+				case *exprlang.IsEmptyExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -3166,21 +3177,29 @@ func exploreTypesForExpressions(
 
 		// Validate condition types.
 		if cond := ap.condition; cond != nil {
-			eqExpr, ok := cond.expr.(*exprlang.EqExpr)
-			if !ok {
+			var condExploreExpr exprlang.Expr
+			switch ce := cond.expr.(type) {
+			case *exprlang.EqExpr:
+				condExploreExpr = ce.Left
+			case *exprlang.IsEmptyExpr:
+				condExploreExpr = ce.Operand
+			default:
 				ap.conditionIssue = ir.Issue{
 					Kind:    ir.IssueKindUnsupportedFeature,
 					Message: fmt.Sprintf("unsupported condition expression type: %T", cond.expr),
 				}
 				ap.condition = nil
-			} else if _, err := exploreExpressionTypes(
-				eqExpr.Left, cond.rootVariable.Type, tc, "",
-			); err != nil {
-				ap.conditionIssue = ir.Issue{
-					Kind:    ir.IssueKindConditionExpressionUnresolvable,
-					Message: fmt.Sprintf("condition type exploration failed: %v", err),
+			}
+			if condExploreExpr != nil {
+				if _, err := exploreExpressionTypes(
+					condExploreExpr, cond.rootVariable.Type, tc, "",
+				); err != nil {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: fmt.Sprintf("condition type exploration failed: %v", err),
+					}
+					ap.condition = nil
 				}
-				ap.condition = nil
 			}
 		}
 	}
@@ -3370,6 +3389,12 @@ func exploreExpressionTypes(
 		}
 
 		return curType, nil
+	case *exprlang.LenExpr:
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+
+	case *exprlang.IsEmptyExpr:
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+
 	case *exprlang.EqExpr:
 		// Resolve the left and right expressions.
 		_, err := exploreExpressionTypes(e.Left, currentType, tc, exprPath)
@@ -3387,6 +3412,81 @@ func exploreExpressionTypes(
 	default:
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
+	}
+}
+
+// exploreLenExprTypes explores types for a len/isEmpty operand, resolving
+// through pointers and validating the collection type has a length field.
+func exploreLenExprTypes(
+	operand exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	// Explore the operand to resolve its type.
+	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Look up the canonical type from the catalog (may have been promoted
+	// from StructureType to GoStringHeaderType etc. by completeGoTypes).
+	resolvedType = tc.typesByID[resolvedType.GetID()]
+
+	// If result is a pointer, dereference to get the collection type.
+	if ptrType, ok := resolvedType.(*ir.PointerType); ok {
+		pointee := ptrType.Pointee
+		pointee = tc.typesByID[pointee.GetID()]
+		if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+			newT, err := tc.addType(ppt.offset)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve pointee for len: %w", err)
+			}
+			resolvedType = newT
+		} else {
+			resolvedType = pointee
+		}
+	}
+
+	// Get the struct and field for the length.
+	structType, fieldName, err := lenFieldInfo(resolvedType)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := field(tc, structType, fieldName)
+	if err != nil {
+		return nil, fmt.Errorf("len field lookup failed: %w", err)
+	}
+	return f.Type, nil
+}
+
+// lenFieldInfo maps a collection type to the struct and field name containing
+// its length.
+func lenFieldInfo(typ ir.Type) (*ir.StructureType, string, error) {
+	switch t := typ.(type) {
+	case *ir.GoStringHeaderType:
+		return t.StructureType, "len", nil
+	case *ir.GoSliceHeaderType:
+		return t.StructureType, "len", nil
+	case *ir.GoHMapHeaderType:
+		return t.StructureType, "count", nil
+	case *ir.GoSwissMapHeaderType:
+		return t.StructureType, "used", nil
+	default:
+		var kindString string
+		if kind, ok := typ.GetGoKind(); ok {
+			kindString = kind.String()
+		} else {
+			// It's not clear how one could get here, but just in case
+			// we'll state the name of internal ir type. It might help
+			// debug the situation.
+			kindString = reflect.TypeOf(typ).Name()
+		}
+		return nil, "", fmt.Errorf(
+			"len/isEmpty not supported on type %q (%s)",
+			typ.GetName(), kindString,
+		)
 	}
 }
 
@@ -3572,11 +3672,79 @@ func resolveExpression(
 			Operations: operations,
 		}, nil
 
+	case *exprlang.LenExpr:
+		return resolveLenExpression(e.Operand, rootVar, tc)
+
+	case *exprlang.IsEmptyExpr:
+		return resolveLenExpression(e.Operand, rootVar, tc)
+
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// resolveLenExpression resolves a len/isEmpty operand to an IR expression
+// that reads the length field from the collection header.
+func resolveLenExpression(
+	operand exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Resolve the operand expression.
+	baseExpr, err := resolveExpression(operand, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve len operand: %w", err)
+	}
+
+	currentType := tc.typesByID[baseExpr.Type.GetID()]
+	operations := baseExpr.Operations
+
+	// If the resolved type is a pointer to a collection, dereference it.
+	if _, ok := currentType.(*ir.PointerType); ok {
+		pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("failed to resolve pointee for len: %w", err)
+		}
+
+		pointeeSize := pointee.GetByteSize()
+		operations = append(operations, &ir.DereferenceOp{
+			Bias:     0,
+			ByteSize: pointeeSize,
+		})
+		currentType = tc.typesByID[pointee.GetID()]
+	}
+
+	// Look up the length field info.
+	structType, fieldName, err := lenFieldInfo(currentType)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+
+	f, err := field(tc, structType, fieldName)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("len field %q not found: %w", fieldName, err)
+	}
+
+	// Adjust the operations to read just the length field.
+	// This follows the same pattern as GetMemberExpr field access.
+	if len(operations) >= 1 {
+		lastOp := operations[len(operations)-1]
+		switch op := lastOp.(type) {
+		case *ir.LocationOp:
+			op.Offset += f.Offset
+			op.ByteSize = f.Type.GetByteSize()
+		case *ir.DereferenceOp:
+			op.Bias += f.Offset
+			op.ByteSize = f.Type.GetByteSize()
+		}
+	}
+
+	return ir.Expression{
+		Type:       f.Type,
+		Operations: operations,
+	}, nil
 }
 
 // coerceLiteral encodes a literal value into bytes matching the target type's
@@ -3775,6 +3943,11 @@ func resolveCondition(
 	rootVar *ir.Variable,
 	tc *typeCatalog,
 ) (*ir.Expression, error) {
+	// Handle isEmpty as a standalone condition: semantically len(x) == 0.
+	if ie, ok := condExpr.(*exprlang.IsEmptyExpr); ok {
+		return resolveIsEmptyCondition(ie, rootVar, tc)
+	}
+
 	eqExpr, ok := condExpr.(*exprlang.EqExpr)
 	if !ok {
 		return nil, fmt.Errorf("unsupported condition expression type: %T", condExpr)
@@ -3866,6 +4039,45 @@ func resolveCondition(
 
 	return &ir.Expression{
 		Type:       lhsType,
+		Operations: ops,
+	}, nil
+}
+
+// resolveIsEmptyCondition resolves an isEmpty condition: semantically len(x) == 0.
+func resolveIsEmptyCondition(
+	ie *exprlang.IsEmptyExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	// Resolve the operand to get the length value.
+	lenExpr, err := resolveLenExpression(ie.Operand, rootVar, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
+	}
+
+	baseType, ok := lenExpr.Type.(*ir.BaseType)
+	if !ok {
+		return nil, fmt.Errorf("isEmpty: resolved len type is %T, expected BaseType", lenExpr.Type)
+	}
+
+	byteSize := baseType.GetByteSize()
+	ops := lenExpr.Operations
+
+	// Push offset for the length value.
+	ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
+
+	// Load literal zero of the same size.
+	litData := make([]byte, byteSize)
+	ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+	// Compare: len == 0.
+	ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+
+	// Check the result.
+	ops = append(ops, &ir.ConditionCheckOp{})
+
+	return &ir.Expression{
+		Type:       lenExpr.Type,
 		Operations: ops,
 	}, nil
 }

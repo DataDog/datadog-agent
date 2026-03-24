@@ -999,3 +999,390 @@ probes:
     snapshotsPerSecond: 10
   tags:
     - "issue:ConditionExpressionUnresolvable"
+
+# ==========================================================================
+# len/isEmpty tests
+# ==========================================================================
+
+# --- lenString: len in template ---
+- id: lenString_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  template: "len={len(s)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "s"}}
+      dsl: "len(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: len as capture expression ---
+- id: lenString_len_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  captureExpressions:
+    - name: "s_len"
+      expr:
+        dsl: "len(s)"
+        json: {len: {ref: "s"}}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: len inside eq condition ---
+- id: lenString_len_eq_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  when:
+    dsl: "len(s) == 5"
+    json: {eq: [{len: {ref: "s"}}, 5]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: isEmpty as standalone condition ---
+- id: lenString_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  when:
+    dsl: "isEmpty(s)"
+    json: {isEmpty: {ref: "s"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: unconditional control probe ---
+- id: lenString_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenString
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: len in template ---
+- id: lenSlice_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  template: "len={len(s)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "s"}}
+      dsl: "len(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: unconditional control probe ---
+- id: lenSlice_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenSlice
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: len in template ---
+- id: lenMap_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  template: "len={len(m)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "m"}}
+      dsl: "len(m)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: unconditional control probe ---
+- id: lenMap_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenMap
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenPtrString: len with pointer auto-dereference ---
+- id: lenPtrString_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrString
+  template: "len={len(s)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "s"}}
+      dsl: "len(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenPtrString: unconditional control probe ---
+- id: lenPtrString_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenPtrString
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# len/isEmpty on struct fields (getmember + len)
+# ==========================================================================
+
+# len of struct string field: x.S
+- id: lenStruct_field_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.S)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "S"]}}
+      dsl: "len(x.S)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct slice field: x.Items
+- id: lenStruct_field_slice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.Items)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Items"]}}
+      dsl: "len(x.Items)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct map field: x.Dict
+- id: lenStruct_field_map
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.Dict)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Dict"]}}
+      dsl: "len(x.Dict)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty of struct string field as condition
+- id: lenStruct_isEmpty_string_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  when:
+    dsl: "isEmpty(x.S)"
+    json: {isEmpty: {getmember: [{ref: "x"}, "S"]}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct pointer-to-string field: x.PtrStr (pointer auto-deref on leaf)
+- id: lenStruct_field_ptrstr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.PtrStr)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "PtrStr"]}}
+      dsl: "len(x.PtrStr)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct pointer-to-slice field: x.PtrSlice (pointer auto-deref on leaf)
+- id: lenStruct_field_ptrslice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.PtrSlice)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "PtrSlice"]}}
+      dsl: "len(x.PtrSlice)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# unconditional control probe for lenStructFields
+- id: lenStructFields_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenStructFields
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# len/isEmpty on pointer-to-struct fields (deref struct ptr, then field, then len)
+# ==========================================================================
+
+# len of ptr-struct string field: x.S
+- id: lenPtrStruct_field_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  template: "len={len(x.S)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "S"]}}
+      dsl: "len(x.S)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of ptr-struct slice field: x.Items
+- id: lenPtrStruct_field_slice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  template: "len={len(x.Items)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Items"]}}
+      dsl: "len(x.Items)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of ptr-struct map field: x.Dict
+- id: lenPtrStruct_field_map
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  template: "len={len(x.Dict)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Dict"]}}
+      dsl: "len(x.Dict)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# unconditional control probe for lenPtrStructFields
+- id: lenPtrStructFields_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenPtrStructFields
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# len/isEmpty error cases: unsupported types
+# ==========================================================================
+
+# len on int (base type — should fail)
+- id: lenErr_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrInt
+  template: "len={len(x)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "x"}}
+      dsl: "len(x)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty on int as condition (base type — should fail)
+- id: lenErr_int_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrInt
+  when:
+    dsl: "isEmpty(x)"
+    json: {isEmpty: {ref: "x"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# len on struct (structure type — should fail)
+- id: lenErr_struct
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrStruct
+  template: "len={len(x)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "x"}}
+      dsl: "len(x)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty on struct as condition (structure type — should fail)
+- id: lenErr_struct_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrStruct
+  when:
+    dsl: "isEmpty(x)"
+    json: {isEmpty: {ref: "x"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# unconditional control probe for lenErrInt
+- id: lenErrInt_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenErrInt
+  sampling:
+    snapshotsPerSecond: 10
+
+# unconditional control probe for lenErrStruct
+- id: lenErrStruct_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenErrStruct
+  sampling:
+    snapshotsPerSecond: 10
