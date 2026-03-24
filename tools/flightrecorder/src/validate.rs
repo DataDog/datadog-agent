@@ -26,7 +26,7 @@ struct Args {
     /// Output machine-readable JSON
     #[arg(long)]
     json: bool,
-    /// Only validate metric files (metrics-*.vortex)
+    /// Only validate metric files (flush-metrics-*.vortex and metrics-*.vortex)
     #[arg(long, default_value = "true")]
     metrics_only: bool,
 }
@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
                 && (!args.metrics_only
                     || p.file_name()
                         .and_then(|n| n.to_str())
-                        .is_some_and(|n| n.starts_with("metrics-")))
+                        .is_some_and(|n| n.starts_with("metrics-") || n.starts_with("flush-metrics-")))
         })
         .collect();
     entries.sort();
@@ -159,13 +159,21 @@ async fn validate_file(
     let st = canonical.into_struct();
     let n = st.len();
 
-    // Read name and tags directly from inline columns.
+    // Read name and reserved tag columns for context key construction.
     let names = extract_column_strings(&st, "name", n)?;
-    let tags = extract_column_strings(&st, "tags", n)?;
+    let tag_host = extract_column_strings(&st, "tag_host", n)?;
+    let tag_env = extract_column_strings(&st, "tag_env", n)?;
+    let tag_service = extract_column_strings(&st, "tag_service", n)?;
+    let tags_overflow = extract_column_strings(&st, "tags_overflow", n)?;
     let sources = extract_column_strings(&st, "source", n)?;
 
     for i in 0..n {
-        let key = (names[i].clone(), tags[i].clone());
+        // Build a context key from name + key reserved tags + overflow.
+        let tags_key = format!(
+            "{}|{}|{}|{}",
+            tag_host[i], tag_env[i], tag_service[i], tags_overflow[i]
+        );
+        let key = (names[i].clone(), tags_key);
         contexts.insert(key.clone());
         *context_counts.entry(key).or_insert(0) += 1;
         *source_counts.entry(sources[i].clone()).or_insert(0) += 1;
