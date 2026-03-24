@@ -854,7 +854,7 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 		return r.hostSBOM
 	}
 
-	sbom, _ := r.sboms.Get(id)
+	sbom, _ := r.sboms.Peek(id)
 	return sbom
 }
 
