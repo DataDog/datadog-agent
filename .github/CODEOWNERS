@@ -65,7 +65,8 @@
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
-/.github/dependabot.yaml                             @DataDog/agent-devx
+# Removed temporarily
+# /.github/dependabot.yaml                             @DataDog/agent-devx
 /.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security @DataDog/agent-devx
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration @DataDog/agent-devx
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes @DataDog/agent-devx

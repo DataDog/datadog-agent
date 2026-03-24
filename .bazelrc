@@ -41,6 +41,9 @@ common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
+# rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
+# that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
+common:windows --enable_runfiles
 # Neither repo_env nor shell_executable affect action keys. It can be both an advantage and a disadvantage.
 # For instance, if we need to have some special behavior in bash we can add it, however, in some cases
 # it may lead to cache poisoning.
