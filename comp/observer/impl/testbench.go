@@ -981,7 +981,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 		var members []seriesCompact
 		for _, a := range corr.Anomalies {
 			srcKey := a.Source.Key()
-			if srcKey == "" || memberSet[srcKey] {
+			if memberSet[srcKey] {
 				continue
 			}
 			memberSet[srcKey] = true

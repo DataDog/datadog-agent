@@ -167,23 +167,20 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	// Same metric name, different tags = different Source descriptors
 	// Both should be separate members in the cluster
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.SeriesDescriptor{Name: "metric.a"},
-
-		Title:      "Anomaly from host A",
-		Timestamp:  100,
+		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: []string{"host:A"}},
+		Title:     "Anomaly from host A",
+		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:     observer.SeriesDescriptor{Name: "metric.a"},
-
-		Title:      "Anomaly from host B",
-		Timestamp:  102,
+		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: []string{"host:B"}},
+		Title:     "Anomaly from host B",
+		Timestamp: 102,
 	})
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	// Same Source descriptor (both have same name, no tags) = 1 unique member
-	assert.Len(t, correlations[0].Members, 1)
+	assert.Len(t, correlations[0].Members, 2)
 }
 
 func TestTimeClusterCorrelator_Eviction(t *testing.T) {
