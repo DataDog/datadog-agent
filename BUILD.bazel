@@ -4,6 +4,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("//bazel:gazelle_defs.bzl", "ALL_BUILD_TAGS")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -242,6 +243,7 @@ package(default_visibility = ["//visibility:public"])
 gazelle(
     name = "gazelle",
     args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    build_tags = ALL_BUILD_TAGS,
     gazelle = ":gazelle_binary",
 )
 
