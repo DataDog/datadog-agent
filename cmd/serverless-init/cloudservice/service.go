@@ -178,7 +178,6 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		if isCloudRunFunction() {
-			log.Debug("cloud run namespace SET TO: " + cloudRunFunction)
 			return &CloudRun{spanNamespace: cloudRunFunction}
 		}
 		return &CloudRun{spanNamespace: cloudRunService}
