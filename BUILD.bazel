@@ -106,7 +106,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/proto
 # gazelle:exclude pkg/redact
-# gazelle:exclude pkg/remoteconfig
 # gazelle:exclude pkg/runtime
 # gazelle:exclude pkg/sbom
 # gazelle:exclude pkg/security
@@ -148,7 +147,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/aws
 # gazelle:exclude pkg/util/aws/creds
 # gazelle:exclude pkg/util/backoff
-# gazelle:exclude pkg/util/buf
 # gazelle:exclude pkg/util/cache
 # gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cgroups
@@ -167,7 +165,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
-# gazelle:exclude pkg/util/executable
 # gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/filesystem
 # gazelle:exclude pkg/util/flavor
@@ -194,7 +191,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
-# gazelle:exclude pkg/util/option
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/otel
 # gazelle:exclude pkg/util/pdhutil
@@ -210,10 +206,8 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/scrubber
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/slices
-# gazelle:exclude pkg/util/sort
 # gazelle:exclude pkg/util/startstop
 # gazelle:exclude pkg/util/stat
-# gazelle:exclude pkg/util/statstracker
 # gazelle:exclude pkg/util/strings
 # gazelle:exclude pkg/util/subscriptions
 # gazelle:exclude pkg/util/sync
@@ -223,7 +217,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
-# gazelle:exclude pkg/util/utilizationtracker
 # gazelle:exclude pkg/util/uuid
 # gazelle:exclude pkg/util/winutil
 # gazelle:exclude pkg/util/workqueue
