@@ -115,6 +115,42 @@ func TestGetServerlessFlareEndpoint(t *testing.T) {
 		// Don't change custom domain
 		assert.Equal(t, "https://datadog.random.com/api/ui/support/serverless/flare", testURL.String())
 	})
+
+	t.Run("ddog-gov.com without subdomain", func(t *testing.T) {
+		site := "ddog-gov.com"
+		testURL, err := url.Parse(site)
+		assert.Nil(t, err)
+
+		getServerlessFlareEndpoint(testURL, agentVersion)
+		assert.Equal(t, "https://7-50-0-flare.ddog-gov.com/api/ui/support/serverless/flare", testURL.String())
+	})
+
+	t.Run("ddog-gov.com with subdomain", func(t *testing.T) {
+		site := "https://app.ddog-gov.com/test"
+		testURL, err := url.Parse(site)
+		assert.Nil(t, err)
+
+		getServerlessFlareEndpoint(testURL, agentVersion)
+		assert.Equal(t, "https://7-50-0-flare.ddog-gov.com/api/ui/support/serverless/flare", testURL.String())
+	})
+
+	t.Run("ddog-gov.mil without subdomain", func(t *testing.T) {
+		site := "ddog-gov.mil"
+		testURL, err := url.Parse(site)
+		assert.Nil(t, err)
+
+		getServerlessFlareEndpoint(testURL, agentVersion)
+		assert.Equal(t, "https://7-50-0-flare.ddog-gov.mil/api/ui/support/serverless/flare", testURL.String())
+	})
+
+	t.Run("ddog-gov.mil with subdomain", func(t *testing.T) {
+		site := "https://app.ddog-gov.mil/test"
+		testURL, err := url.Parse(site)
+		assert.Nil(t, err)
+
+		getServerlessFlareEndpoint(testURL, agentVersion)
+		assert.Equal(t, "https://7-50-0-flare.ddog-gov.mil/api/ui/support/serverless/flare", testURL.String())
+	})
 }
 
 func TestTracerFlareProxyHandler(t *testing.T) {

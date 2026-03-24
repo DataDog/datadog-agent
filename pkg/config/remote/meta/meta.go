@@ -51,6 +51,11 @@ func NewEmbeddedRoot(embeddedRoot []byte) EmbeddedRoot {
 	}
 }
 
+func isGovSite(site string) bool {
+	return site == "ddog-gov.com" || site == "ddog-gov.mil" ||
+		strings.HasSuffix(site, ".ddog-gov.com") || strings.HasSuffix(site, ".ddog-gov.mil")
+}
+
 // RootsDirector returns all the roots of the director repo
 func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 	if directorRootOverride != "" {
@@ -59,7 +64,7 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 
 	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootDirector)
-	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
+	} else if isGovSite(site) {
 		return NewEmbeddedRoot(govRootDirector)
 	}
 	return NewEmbeddedRoot(prodRootDirector)
@@ -74,7 +79,7 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 
 	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootConfig)
-	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
+	} else if isGovSite(site) {
 		return NewEmbeddedRoot(govRootConfig)
 	}
 	return NewEmbeddedRoot(prodRootConfig)

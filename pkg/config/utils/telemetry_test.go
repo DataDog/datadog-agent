@@ -55,4 +55,9 @@ func TestIsCheckTelemetryEnabled(t *testing.T) {
 	mockConfig.SetWithoutSource("agent_telemetry.enabled", true)
 	mockConfig.SetWithoutSource("site", "xx.ddog-gov.com")
 	assert.False(IsAgentTelemetryEnabled(mockConfig))
+
+	mockConfig.SetWithoutSource("agent_telemetry.enabled", true)
+	mockConfig.SetWithoutSource("site", "xx.ddog-gov.mil")
+	assert.False(IsAgentTelemetryEnabled(mockConfig))
+
 }

@@ -144,6 +144,13 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 			},
 		},
 		{
+			name:     "gov via mil site and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "ddog-gov.mil")
+			},
+		},
+		{
 			name:     "gov via fips.enabled and explicitly enabled",
 			expected: true,
 			setConfig: func(m model.BuildableConfig) {
@@ -183,6 +190,13 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 			},
 		},
 		{
+			name:     "gov via long mil site and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "xxxx99.ddog-gov.mil")
+			},
+		},
+		{
 			name:     "gov via long site and explicitly enabled",
 			expected: true,
 			setConfig: func(m model.BuildableConfig) {
@@ -195,6 +209,14 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
 				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
+				m.SetWithoutSource("remote_configuration.enabled", false)
+			},
+		},
+		{
+			name:     "gov via long mil site and explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "xxxx99.ddog-gov.mil")
 				m.SetWithoutSource("remote_configuration.enabled", false)
 			},
 		},
