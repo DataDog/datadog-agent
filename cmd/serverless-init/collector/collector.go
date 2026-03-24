@@ -263,24 +263,28 @@ func computeCPULimit(stats *cgroups.CPUStats, hostCPUCount int) *float64 {
 // calculateCPUUsage calculates the CPU usage rate in nanoseconds per second (nanocores)
 // Returns NaN if first run or invalid data
 func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
-	log.Debugf("calculateCPUUsage: currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
+	log.Debugf("currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
 		currentTotal, previousTotal, currentTime, previousTime)
 
 	if currentTotal == math.NaN() || previousTotal == math.NaN() {
+		log.Debugf("currentTotal or previousTotal is NaN")
 		return math.NaN()
 	}
 
 	if previousTime.IsZero() {
+		log.Debugf("previousTime is zero")
 		return math.NaN()
 	}
 
 	timeDiff := currentTime.Sub(previousTime).Seconds()
 	if timeDiff <= 0 {
+		log.Debugf("timeDiff is less than or equal to zero")
 		return math.NaN()
 	}
 
 	valueDiff := currentTotal - previousTotal
 	if valueDiff <= 0 {
+		log.Debugf("valueDiff is less than or equal to zero")
 		return math.NaN()
 	}
 
