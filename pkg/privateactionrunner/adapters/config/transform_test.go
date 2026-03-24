@@ -136,6 +136,11 @@ func TestGetDatadogHost(t *testing.T) {
 			expected: "api.ddog-gov.com",
 		},
 		{
+			name:     "handles gov cloud mil site",
+			endpoint: "https://api.ddog-gov.mil.",
+			expected: "api.ddog-gov.mil",
+		},
+		{
 			name:     "handles custom domain",
 			endpoint: "https://custom.endpoint.example.com.",
 			expected: "custom.endpoint.example.com",

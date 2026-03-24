@@ -26,6 +26,6 @@ def bazel(ctx: Context, *args: str, capture_output: bool = False, sudo: bool = F
         (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(("bazel", *args)),
         echo=True,
         in_stream=False,
-        **({"hide": "out"} if capture_output else {"pty": sys.stdout.isatty()}),  # type: ignore[dict-item]
+        **({"hide": "out"} if capture_output else {"pty": sys.stdout.isatty() and sys.platform != "win32"}),  # type: ignore[dict-item]
     )
     return result.stdout if capture_output else None

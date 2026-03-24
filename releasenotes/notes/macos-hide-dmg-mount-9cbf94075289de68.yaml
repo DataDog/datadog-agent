@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Install Agent on MacOS in quiet mode to improve user experience.
+    Hide DMG mount in MacOS agent installation process.
