@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -213,7 +213,7 @@ func (s *testInjectorStats) enableInjectorTelemetry() {
 
 	// Explicitly enable injector telemetry.
 	// If /telemetry supports uncompressed output, make sure to also enable
-	// RAR with remote_agent_registry.enabled = true.
+	// RAR with remote_agent.registry.enabled = true.
 	config["injector"] = map[string]interface{}{
 		"enable_telemetry": true,
 	}

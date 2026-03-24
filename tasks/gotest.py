@@ -21,6 +21,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -45,10 +46,8 @@ from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
-# TODO(OTAGENT-857): revert after bumping to otel v0.146.0
-# Check against mainline OTel go version instead of the pinned OCB version
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
 
 
@@ -203,16 +202,49 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
+def _generate_unified_output(
+    ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None = None, test_system: str = "unit"
+) -> None:
+    """Generate a UTOF JSON file alongside the test output JSON."""
+    if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
+        return
+
+    try:
+        from tasks.libs.testing.utof import format_report
+        from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
+
+        result_json = ResultJson.from_file(test_result.result_json_path)
+        metadata = generate_metadata(ctx, test_system=test_system, flavor=flavor.name)
+        utof = convert_unit_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
+        utof_path = test_result.result_json_path.replace('.json', '_unified.json')
+        utof.write_json(utof_path)
+        print(f"Unified test output written to {utof_path}")
+        with gitlab_section("Unified test report", collapsed=False):
+            print(format_report(utof))
+    except Exception:
+        import traceback
+
+        print(f"Warning: Failed to generate unified test output:\n{traceback.format_exc()}")
+
+
 def process_test_result(
-    test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
+    ctx,
+    test_result: TestResult,
+    junit_tar: str,
+    junit_files: list[str],
+    flavor: AgentFlavor,
+    test_washer: bool,
+    test_system: str = "unit",
 ) -> bool:
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
+    tw = None
 
     if success:
         print(color_message("All tests passed", "green"))
+        _generate_unified_output(ctx, test_result, flavor, test_system=test_system)
         return True
 
     if test_washer or running_in_ci():
@@ -228,8 +260,10 @@ def process_test_result(
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
             )
+            _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
             return True
 
+    _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
     return False
 
 
@@ -406,7 +440,7 @@ def test(
             # print("\n--- Top 15 packages sorted by run time:")
             test_profiler.print_sorted(15)
 
-        success = process_test_result(test_result, junit_tar, [result_junit], flavor, test_washer)
+        success = process_test_result(ctx, test_result, junit_tar, [result_junit], flavor, test_washer)
         if not success:
             raise Exit(code=1)
 

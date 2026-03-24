@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -337,4 +338,44 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
+}
+
+func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
+	// Verify that ToStringMapRaw preserves ExpandedValue types in standalone mode
+	configData := confMap{
+		"service": confMap{
+			"pipelines": confMap{
+				"profiles": confMap{
+					"receivers":  []any{"hostprofiler"},
+					"processors": []any{},
+					"exporters":  []any{"otlphttp"},
+				},
+			},
+		},
+		"exporters": confMap{
+			"otlphttp": confMap{
+				"headers": confMap{
+					"dd-api-key": xconfmap.ExpandedValue{Value: 6.7, Original: "6.7"},
+				},
+			},
+		},
+		"receivers": confMap{
+			"hostprofiler": confMap{
+				"symbol_uploader": confMap{
+					"enabled": false,
+				},
+			},
+		},
+	}
+
+	conf := confmap.NewFromStringMap(configData)
+	err := newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}).Convert(t.Context(), conf)
+	require.NoError(t, err)
+
+	convertedMap := xconfmap.ToStringMapRaw(conf)
+	headers, _ := Get[confMap](convertedMap, "exporters::otlphttp::headers")
+	expandedVal, ok := headers["dd-api-key"].(xconfmap.ExpandedValue)
+	require.True(t, ok, "dd-api-key should still be an ExpandedValue, got type: %T", headers["dd-api-key"])
+	require.Equal(t, 6.7, expandedVal.Value)
+	require.Equal(t, "6.7", expandedVal.Original)
 }

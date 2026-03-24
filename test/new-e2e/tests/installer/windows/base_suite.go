@@ -198,10 +198,10 @@ func (s *BaseSuite) createStableAgent() {
 	}
 	// else, use the defaults (last stable release)
 
-	agentVersion := "7.75.0"
-	agentVersionPackage := "7.75.0-1"
+	agentVersion := "7.77.0"
+	agentVersionPackage := "7.77.0-1"
 	agentRegistry := consts.StableS3OCIRegistry
-	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
+	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.77.0.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -248,7 +248,7 @@ func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
 
 	// Agent version
 	version := os.Getenv(versionVar)
-	s.Require().NotEmpty(versionVar, "%s is required but not set", versionVar)
+	s.Require().NotEmpty(version, "%s is required but not set", versionVar)
 
 	// Package version
 	versionPackage := os.Getenv(versionPackageVar)

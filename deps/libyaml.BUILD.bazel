@@ -1,6 +1,7 @@
 """BUILD file for libyaml."""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -68,6 +69,7 @@ pkg_filegroup(
         ":headers",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

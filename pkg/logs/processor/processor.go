@@ -248,7 +248,11 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	// Use the internal scrubbing implementation of the Agent
 	// ---------------------------
 
-	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+	var extraRules []*config.ProcessingRule
+	if msg.Origin != nil && msg.Origin.LogSource != nil {
+		extraRules = msg.Origin.LogSource.Config.ProcessingRules
+	}
+	rules := append(p.processingRules, extraRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:

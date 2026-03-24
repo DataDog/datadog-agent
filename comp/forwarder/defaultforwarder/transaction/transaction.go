@@ -456,10 +456,10 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	} else if resp.StatusCode == 403 {
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
 		if secrets != nil {
-			_, _ = secrets.Refresh(false)
+			secrets.Refresh()
 			t.ErrorCount++
 			transactionsErrors.Add(1)
-			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
+			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "403")
 			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
 		}
 

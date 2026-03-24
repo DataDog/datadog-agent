@@ -397,6 +397,33 @@ func (c *ControllerV1beta1) generateTemplates() {
 			),
 		)
 	}
+
+	if c.config.probeEnabled && len(mutatingWebhooks) > 0 {
+		probeEndpoint := *mutatingWebhooks[0].ClientConfig.Service.Path
+		mutatingWebhooks = append(mutatingWebhooks, c.getMutatingWebhookSkeleton(
+			"probe",
+			probeEndpoint,
+			[]admiv1beta1.OperationType{admiv1beta1.Create},
+			map[string][]string{"": {"configmaps"}},
+			&metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{c.config.getServiceNs()},
+					},
+				},
+			},
+			&metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					common.ProbeLabelKey: "true",
+				},
+			},
+			nil,
+			0,
+		))
+	}
+
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 

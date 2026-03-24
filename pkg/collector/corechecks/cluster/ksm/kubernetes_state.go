@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
@@ -290,11 +290,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = pkgconfigsetup.Datadog()
 
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

@@ -7,7 +7,7 @@ clusterAgent:
 datadog-csi-driver:
   image:
     repository: "gcr.io/datadoghq/csi-driver"
-    tag: "main"
+    tag: "1.2.0"
 
 datadog:
   csi:

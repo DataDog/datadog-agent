@@ -8,6 +8,8 @@ require (
 	go.uber.org/fx v1.24.0
 )
 
+require gopkg.in/yaml.v3 v3.0.1 // indirect
+
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
@@ -20,8 +22,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -107,6 +108,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../pkg/config/remote
+	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig

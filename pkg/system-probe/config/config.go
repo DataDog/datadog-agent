@@ -44,6 +44,7 @@ const (
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
+	LogonDurationModule          types.ModuleName = "logon_duration"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -188,6 +189,9 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[NoisyNeighborModule] = struct{}{}
 	}
+	if runtime.GOOS == "darwin" && cfg.GetBool(logonDurationNS("enabled")) {
+		c.EnabledModules[LogonDurationModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
@@ -199,6 +203,8 @@ func load() (*types.Config, error) {
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
+	}
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
 		}

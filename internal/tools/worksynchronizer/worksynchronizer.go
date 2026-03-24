@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func parseWorkfile(path string) (*modfile.WorkFile, error) {

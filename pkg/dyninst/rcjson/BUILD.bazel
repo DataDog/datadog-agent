@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_library(
+    name = "rcjson",
+    srcs = [
+        "doc.go",
+        "type.go",
+        "type_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/rcjson",
+    visibility = ["//visibility:public"],
+)
+
+go_stringer(
+    name = "type_string",
+    src = "type.go",
+    build_tags = ["linux_bpf"],
+    linecomment = True,
+    output = "type_string.go",
+    types = ["Type"],
+)

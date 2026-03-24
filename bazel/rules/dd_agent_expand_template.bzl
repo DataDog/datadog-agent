@@ -1,5 +1,6 @@
 """dd_agent_expand_template. Expand a template, splicing in agent specific flags."""
 
+load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo")
@@ -50,6 +51,14 @@ def _dd_agent_expand_template_impl(ctx):
     # to show compliation mode. This mostly shows the technique.
     subs["{TARGET_CPU}"] = ctx.var["TARGET_CPU"]
     subs["{COMPILATION_MODE}"] = ctx.var["COMPILATION_MODE"]
+
+    # The environment variable is PACKAGE_VERSION but the omnibus scripts
+    # use build_version. Let's unify that in the future. For now, it is not
+    # clear which direction we should move towards.
+    subs["{build_version}"] = env_vars.PACKAGE_VERSION or "_build_version_unset_"
+
+    # TODO(https://datadoghq.atlassian.net/browse/ABLD-378): Make this dynmamic.
+    subs["{year}"] = "2026"
 
     ctx.actions.expand_template(
         template = ctx.file.template,

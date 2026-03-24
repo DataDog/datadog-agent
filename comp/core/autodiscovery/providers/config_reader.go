@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
 	cache "github.com/patrickmn/go-cache"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type configFormat struct {
@@ -327,7 +327,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	entry.name = integrationName
 
 	if ext != ".yaml" && ext != ".yml" {
-		log.Tracef("Skipping file: %s", absPath)
+		log.Tracef("Skipping non-YAML file: %s", absPath)
 		entry.err = errors.New("Invalid config file extension")
 		return entry, integrationErrors
 	}
@@ -336,7 +336,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	entry.conf, entry.cfgFormat, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
 		if err.Error() == emptyFileError {
-			log.Infof("skipping empty file: %s", absPath)
+			log.Debugf("skipping empty file: %s", absPath)
 			entry.err = errors.New("empty file")
 			return entry, integrationErrors
 		}

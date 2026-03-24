@@ -17,23 +17,14 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
 func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
-}
-
-// NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
-	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
-		return newConverterWithAgent(settings, c)
-	}
-
-	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
 }
 
 type confMap = map[string]any
@@ -221,6 +212,9 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
 		slog.Debug("converting value to string", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		config[key] = fmt.Sprintf("%v", v)
+		return true
+	case xconfmap.ExpandedValue:
+		// ExpandedValues should not be altered at conversion stage
 		return true
 	default:
 		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))

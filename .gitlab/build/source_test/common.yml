@@ -8,6 +8,6 @@
   - dda inv -- -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .unit_test_base:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   variables:
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml

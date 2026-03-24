@@ -28,7 +28,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	yamlk8s "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"

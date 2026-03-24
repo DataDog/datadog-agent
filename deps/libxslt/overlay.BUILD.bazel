@@ -23,6 +23,7 @@ copy_file(
         "@@//:linux_arm64": "config-linux-arm64.h",
     }),
     out = "config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 expand_template(
@@ -211,6 +212,7 @@ pkg_filegroup(
         ":xslt_lib_files",
         ":exslt_lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

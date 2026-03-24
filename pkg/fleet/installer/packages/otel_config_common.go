@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
@@ -94,8 +94,10 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 	if apiKey != "" {
 		content = strings.ReplaceAll(content, "${env:DD_API_KEY}", apiKey)
 	}
-	if site != "" {
-		content = strings.ReplaceAll(content, "${env:DD_SITE}", site)
+	// Set default site if unset
+	if site == "" {
+		site = "datadoghq.com"
 	}
+	content = strings.ReplaceAll(content, "${env:DD_SITE}", site)
 	return os.WriteFile(outPath, []byte(content), mode)
 }

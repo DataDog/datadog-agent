@@ -92,9 +92,13 @@ const (
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 
-	// SourceRemoteProcessCollector reprents processes entities detected
+	// SourceRemoteProcessCollector represents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceRemoteSBOMCollector represents SBOM entities computed
+	// by the RemoteSBOMCollector.
+	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
 
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
@@ -181,7 +185,6 @@ type AgentType uint8
 const (
 	NodeAgent AgentType = 1 << iota
 	ClusterAgent
-	ProcessAgent
 	Remote
 )
 
@@ -364,6 +367,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	SBOM       *SBOM
 }
 
 // String returns a string representation of ContainerState.
@@ -657,6 +661,8 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+
+	SBOM *SBOM
 }
 
 // GetID implements Entity#GetID.
@@ -1079,9 +1085,10 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type   string
-	Status string
-	Reason string
+	Type               string
+	Status             string
+	Reason             string
+	LastTransitionTime time.Time
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1567,7 +1574,31 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
-	return merge(i, otherImage)
+	// Save SBOM pointers before the generic merge to prevent mergo from
+	// concatenating the compressed Bom []byte fields across sources. Two
+	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
+	// gzip that decodes to a concatenated protobuf, which duplicates all
+	// repeated Components.  We apply our own "prefer dst if non-nil" rule
+	// instead: the remote SBOM collector (alphabetically first) always
+	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	dstSBOM := i.SBOM
+	srcSBOM := otherImage.SBOM
+
+	// Shallow-copy src with SBOM cleared so the generic merge skips it.
+	otherImageCopy := *otherImage
+	otherImageCopy.SBOM = nil
+	i.SBOM = nil
+
+	err := merge(i, &otherImageCopy)
+
+	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
+	if dstSBOM != nil {
+		i.SBOM = dstSBOM
+	} else {
+		i.SBOM = srcSBOM
+	}
+
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -1678,9 +1709,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1743,6 +1771,7 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
+	UsesGPU        bool           // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1821,7 +1850,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
@@ -2183,8 +2211,8 @@ func (crd *CRD) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (crd CRD) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(crd).(*CRD)
-	return copyCrd
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return &copyCrd
 }
 
 // String return the string representation of the given CRD entity.

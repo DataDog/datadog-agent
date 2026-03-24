@@ -260,35 +260,35 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 
 		for _, p := range ss.Points {
 			err = ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-				b := p.Sketch.Basic
 				k, n := p.Sketch.Cols()
+				bCnt, bMin, bMax, bSum, bAvg := p.Sketch.BasicStats()
 
 				err = ps.Int64(dogsketchTs, p.Ts)
 				if err != nil {
 					return err
 				}
 
-				err = ps.Int64(dogsketchCnt, b.Cnt)
+				err = ps.Int64(dogsketchCnt, bCnt)
 				if err != nil {
 					return err
 				}
 
-				err = ps.Double(dogsketchMin, b.Min)
+				err = ps.Double(dogsketchMin, bMin)
 				if err != nil {
 					return err
 				}
 
-				err = ps.Double(dogsketchMax, b.Max)
+				err = ps.Double(dogsketchMax, bMax)
 				if err != nil {
 					return err
 				}
 
-				err = ps.Double(dogsketchAvg, b.Avg)
+				err = ps.Double(dogsketchAvg, bAvg)
 				if err != nil {
 					return err
 				}
 
-				err = ps.Double(dogsketchSum, b.Sum)
+				err = ps.Double(dogsketchSum, bSum)
 				if err != nil {
 					return err
 				}

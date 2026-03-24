@@ -30,7 +30,7 @@ type Controller struct {
 	context   context.Context
 
 	// Fields available to child controllers
-	ID        string
+	ID        SenderID
 	Client    dynamic.Interface
 	Lister    cache.GenericLister
 	Workqueue workqueue.TypedRateLimitingInterface[string]
@@ -39,7 +39,7 @@ type Controller struct {
 
 // NewController returns a new workload autoscaling controller
 func NewController(
-	controllerID string,
+	controllerID SenderID,
 	processor Processor,
 	client dynamic.Interface,
 	informer dynamicinformer.DynamicSharedInformerFactory,
@@ -75,6 +75,11 @@ func NewController(
 	})
 
 	return c, nil
+}
+
+// HasSynced returns true when the underlying informer cache has been synced.
+func (c *Controller) HasSynced() bool {
+	return c.synced()
 }
 
 // Run starts the controller to handle objects
@@ -120,7 +125,7 @@ func (c *Controller) enqueue(obj interface{}) {
 	c.Workqueue.AddRateLimited(key)
 }
 
-func (c *Controller) enqueueID(id, sender string) {
+func (c *Controller) enqueueID(id string, sender SenderID) {
 	// Do not enqueue our own updates (avoid infinite loops)
 	if sender != c.ID {
 		log.Tracef("Enqueueing from observer update id: %s from sender: %s", id, sender)

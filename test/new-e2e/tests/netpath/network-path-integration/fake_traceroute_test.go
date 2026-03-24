@@ -116,9 +116,7 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		nps, err := s.Env().FakeIntake.Client().GetLatestNetpathEvents()
 		assert.NoError(c, err, "GetLatestNetpathEvents() errors")
-		if !assert.NotNil(c, nps, "GetLatestNetpathEvents() returned nil netpaths") {
-			return
-		}
+		require.NotNil(c, nps, "GetLatestNetpathEvents() returned nil netpaths")
 
 		udpPath := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 			return np.Destination.Hostname == targetIP.String() && np.Protocol == "UDP"

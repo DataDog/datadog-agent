@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -57,8 +57,8 @@ func (c *NoisyNeighborConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
-func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if err := n.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	if err := n.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 	if err := n.config.Parse(config); err != nil {

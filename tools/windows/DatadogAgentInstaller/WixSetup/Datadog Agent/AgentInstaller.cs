@@ -74,6 +74,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
+                new Property("DD_APP_KEY")
+                {
+                    AttributesDefinition = "Hidden=yes;Secure=yes"
+                },
                 new Property("DDAGENTUSER_NAME")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -148,7 +152,19 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_PRIVATE_ACTION_RUNNER_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_LOGON_DURATION_AUTOLOGGER")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -728,6 +744,10 @@ namespace WixSetup.Datadog_Agent
             appData.AddDir(new Dir(new Id("security.d"),
                        "runtime-security.d",
                        new Files($@"{EtcSource}\runtime-security.d\*.*")
+            ));
+
+            appData.AddDir(new Dir("private-action-runner",
+                       new Files($@"{EtcSource}\private-action-runner\*.*")
             ));
 
             return new Dir(new Id("%CommonAppData%"), appData)

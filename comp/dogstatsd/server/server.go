@@ -525,17 +525,12 @@ func (s *server) IsRunning() bool {
 	return s.Started
 }
 
-// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
-func (s *server) SetExtraTags(tags []string) {
-	s.extraTags = tags
-}
-
 func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
 	s.startedMtx.RLock()
 	defer s.startedMtx.RUnlock()
 
 	if !s.IsRunning() {
-		// The workers have stopped so can't receive updates.
+		// The server is not running, so workers can't receive updates.
 		return
 	}
 
@@ -571,13 +566,13 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry)
+		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
 
 	// It is important to set this up after the workers are running so they receive
-	// the initial  filterlist and any updates.
+	// any updates.
 	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
 }
 

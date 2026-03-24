@@ -18,7 +18,7 @@
           {
             "function": "main.stringSliceArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 66
+            "lineNumber": 143
           },
           {
             "function": "main.main",
@@ -66,7 +66,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]"

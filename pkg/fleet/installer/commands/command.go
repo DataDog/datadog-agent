@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -19,7 +20,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -29,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	slogHandlers "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -48,9 +52,25 @@ type cmd struct {
 	stopSigHandler context.CancelFunc
 }
 
+func setupStdoutLogger(_ *env.Env) {
+	level := "warn"
+	if envLevel, found := os.LookupEnv("DD_LOG_LEVEL"); found && envLevel != "" {
+		level = envLevel
+	}
+	formatter := func(_ context.Context, r slog.Record) string {
+		return r.Message + "\n"
+	}
+	handler := slogHandlers.NewFormat(formatter, os.Stdout)
+	loggerInterface := pkglogslog.NewWrapper(handler)
+	pkglog.SetupLogger(loggerInterface, level)
+}
+
 // newCmd creates a new command
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
+	if !env.IsFromDaemon {
+		setupStdoutLogger(env)
+	}
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	ctx, stop := context.WithCancel(ctx)

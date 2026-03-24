@@ -33,9 +33,6 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
-
-var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
-
 const maxConntrackDumpSize = 3000
 
 func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
@@ -98,7 +95,7 @@ type networkTracer struct {
 	cancelFunc   context.CancelFunc
 }
 
-func (nt *networkTracer) GetStats() map[string]interface{} {
+func (nt *networkTracer) GetStats() map[string]any {
 	stats, _ := nt.tracer.GetStats()
 	return stats
 }
@@ -171,7 +168,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -226,7 +223,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, cache, utils.CompactOutput)
+		utils.WriteAsJSON(r, w, cache, utils.CompactOutput)
 	})
 
 	registerUSMEndpoints(nt, httpMux)
