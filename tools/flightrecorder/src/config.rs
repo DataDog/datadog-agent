@@ -32,4 +32,20 @@ pub struct Config {
     /// Maximum disk usage for Vortex files in MB. 0 = unlimited (time-based only).
     #[arg(long, env = "RECORDER_MAX_DISK_MB", default_value_t = 5120)]
     pub max_disk_mb: u64,
+
+    /// Minimum files of the same type before a merge triggers.
+    #[arg(long, env = "RECORDER_MERGE_MIN_FILES", default_value_t = 5)]
+    pub merge_min_files: usize,
+
+    /// Maximum files to merge in one pass (limits peak memory).
+    #[arg(long, env = "RECORDER_MERGE_MAX_FILES", default_value_t = 10)]
+    pub merge_max_files: usize,
+
+    /// Seconds between merge passes (default 300 = 5 min).
+    #[arg(long, env = "RECORDER_MERGE_INTERVAL_SECS", default_value_t = 300)]
+    pub merge_interval_secs: u64,
+
+    /// Merge when total unmerged size per type exceeds this (MB). 0 = disabled.
+    #[arg(long, env = "RECORDER_MERGE_SIZE_THRESHOLD_MB", default_value_t = 50)]
+    pub merge_size_threshold_mb: u64,
 }

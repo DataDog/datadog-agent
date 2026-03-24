@@ -4,8 +4,11 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 mod config;
 mod framing;
 mod generated;
+mod heap_prof;
 mod janitor;
+mod merge;
 mod transport;
+mod vortex_files;
 mod writers;
 
 use std::time::Duration;
@@ -30,6 +33,8 @@ async fn main() -> Result<()> {
 
     let cfg = config::Config::parse();
 
+    heap_prof::init();
+
     info!(
         socket_path = %cfg.socket_path,
         output_dir = %cfg.output_dir,
@@ -37,6 +42,10 @@ async fn main() -> Result<()> {
         flush_interval_secs = cfg.flush_interval_secs,
         retention_hours = cfg.retention_hours,
         max_disk_mb = cfg.max_disk_mb,
+        merge_min_files = cfg.merge_min_files,
+        merge_max_files = cfg.merge_max_files,
+        merge_interval_secs = cfg.merge_interval_secs,
+        merge_size_threshold_mb = cfg.merge_size_threshold_mb,
         "flightrecorder starting"
     );
 
@@ -47,6 +56,10 @@ async fn main() -> Result<()> {
         &cfg.output_dir,
         Duration::from_secs(cfg.retention_hours * 3600),
         cfg.max_disk_mb * 1024 * 1024,
+        cfg.merge_min_files,
+        cfg.merge_max_files,
+        Duration::from_secs(cfg.merge_interval_secs),
+        cfg.merge_size_threshold_mb * 1024 * 1024,
     );
     let janitor_cancel = cancel.clone();
     let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });
@@ -62,10 +75,16 @@ async fn main() -> Result<()> {
 pub async fn run(cfg: config::Config) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
 
-    let mut metrics_writer =
-        writers::metrics::MetricsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
-    let mut logs_writer =
-        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
+    let mut metrics_writer = writers::metrics::MetricsWriter::new(
+        &cfg.output_dir,
+        cfg.flush_rows,
+        flush_interval,
+    );
+    let mut logs_writer = writers::logs::LogsWriter::new(
+        &cfg.output_dir,
+        cfg.flush_rows,
+        flush_interval,
+    );
 
     let transport = transport::UnixSocketTransport::bind(&cfg.socket_path)?;
     info!(socket = %cfg.socket_path, "listening for connections");
@@ -97,12 +116,7 @@ pub async fn run(cfg: config::Config) -> Result<()> {
 
         info!("client connected");
         // New connection — agent will re-send all context definitions.
-        if let Err(e) = metrics_writer.reset_contexts().await {
-            warn!("error resetting contexts: {}", e);
-        }
-        if let Err(e) = logs_writer.reset_contexts().await {
-            warn!("error resetting log contexts: {}", e);
-        }
+        metrics_writer.reset_context_map();
 
         // Read frames from this connection until EOF or shutdown.
         let mut reader = BufReader::new(stream);

@@ -3,6 +3,10 @@ name = "flightrecorder"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "flightrecorder"
+path = "src/lib.rs"
+
 [[bin]]
 name = "flightrecorder"
 path = "src/main.rs"
@@ -24,8 +28,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
 vortex = { version = "0.61", features = ["tokio"] }
-bloomfilter = "1"
-tikv-jemallocator = "0.6"
+tikv-jemallocator = { version = "0.6", features = ["profiling"] }
+tikv-jemalloc-ctl = "0.6"
 tokio-util = { version = "0.7", features = ["rt"] }
 
 [dev-dependencies]
@@ -43,3 +47,10 @@ harness = false
 [[bench]]
 name = "writer_bench"
 harness = false
+
+[[bench]]
+name = "compression_bench"
+harness = false
+
+[profile.release]
+debug = 1  # Line tables for jeprof symbolization

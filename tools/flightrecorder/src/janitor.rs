@@ -1,25 +1,47 @@
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
+use crate::merge;
+use crate::vortex_files;
+
 /// Periodically cleans up old `.vortex` files based on time-based retention and
-/// an optional disk usage cap.
+/// an optional disk usage cap. Also runs periodic merge/compaction passes.
 pub struct Janitor {
     output_dir: PathBuf,
     retention: Duration,
     max_disk_bytes: u64, // 0 = unlimited
     interval: Duration,
+    merge_config: merge::MergeConfig,
+    merge_interval: Duration,
 }
 
 impl Janitor {
-    pub fn new(output_dir: &str, retention: Duration, max_disk_bytes: u64) -> Self {
+    pub fn new(
+        output_dir: &str,
+        retention: Duration,
+        max_disk_bytes: u64,
+        merge_min_files: usize,
+        merge_max_files: usize,
+        merge_interval: Duration,
+        merge_size_threshold_bytes: u64,
+    ) -> Self {
+        let output_dir = PathBuf::from(output_dir);
         Self {
-            output_dir: PathBuf::from(output_dir),
+            merge_config: merge::MergeConfig {
+                output_dir: output_dir.clone(),
+                min_files_to_trigger: merge_min_files,
+                max_files_per_pass: merge_max_files,
+                size_threshold_bytes: merge_size_threshold_bytes,
+                ..Default::default()
+            },
+            output_dir,
             retention,
             max_disk_bytes,
             interval: Duration::from_secs(30),
+            merge_interval,
         }
     }
 
@@ -29,8 +51,12 @@ impl Janitor {
             retention_secs = self.retention.as_secs(),
             max_disk_bytes = self.max_disk_bytes,
             interval_secs = self.interval.as_secs(),
+            merge_interval_secs = self.merge_interval.as_secs(),
+            merge_min_files = self.merge_config.min_files_to_trigger,
+            merge_max_files = self.merge_config.max_files_per_pass,
             "janitor started"
         );
+        let mut last_merge = Instant::now();
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
@@ -40,6 +66,21 @@ impl Janitor {
                 _ = tokio::time::sleep(self.interval) => {
                     if let Err(e) = self.cleanup().await {
                         warn!("janitor cleanup error: {}", e);
+                    }
+                    // Run merge pass if enough time has elapsed.
+                    if last_merge.elapsed() >= self.merge_interval {
+                        crate::heap_prof::dump_heap_profile(&self.output_dir, "pre-merge");
+                        match merge::merge_pass(&self.merge_config).await {
+                            Ok(n) if n > 0 => {
+                                info!(merged_files = n, "merge pass complete");
+                            }
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("merge pass error: {}", e);
+                            }
+                        }
+                        crate::heap_prof::dump_heap_profile(&self.output_dir, "post-merge");
+                        last_merge = Instant::now();
                     }
                 }
             }
@@ -53,35 +94,18 @@ impl Janitor {
             .as_millis() as u64;
         let retention_ms = self.retention.as_millis() as u64;
 
+        // Clean up leftover .tmp files from interrupted merges.
+        self.cleanup_tmp_files().await;
+
         // Collect all .vortex files with their parsed timestamps and sizes.
-        let mut entries: Vec<VortexEntry> = Vec::new();
-        let mut dir = tokio::fs::read_dir(&self.output_dir).await?;
-        while let Some(entry) = dir.next_entry().await? {
-            let name = match entry.file_name().into_string() {
-                Ok(n) => n,
-                Err(_) => continue,
-            };
-            let ts = match parse_vortex_timestamp(&name) {
-                Some(t) => t,
-                None => continue,
-            };
-            let size = match entry.metadata().await {
-                Ok(m) => m.len(),
-                Err(_) => continue,
-            };
-            entries.push(VortexEntry {
-                path: entry.path(),
-                timestamp_ms: ts,
-                size,
-            });
-        }
+        let mut entries = vortex_files::scan_vortex_files(&self.output_dir).await?;
 
         // Sort oldest first.
         entries.sort_by_key(|e| e.timestamp_ms);
 
         // Pass 1: time-based retention.
         let mut deleted_time = 0u64;
-        let mut remaining: Vec<VortexEntry> = Vec::with_capacity(entries.len());
+        let mut remaining: Vec<vortex_files::VortexEntry> = Vec::with_capacity(entries.len());
         for entry in entries {
             if now_ms.saturating_sub(entry.timestamp_ms) > retention_ms {
                 if let Err(e) = tokio::fs::remove_file(&entry.path).await {
@@ -130,44 +154,32 @@ impl Janitor {
 
         Ok(())
     }
-}
 
-struct VortexEntry {
-    path: PathBuf,
-    timestamp_ms: u64,
-    size: u64,
-}
-
-/// Extracts epoch-ms timestamp from filenames like "metrics-1710938400123.vortex".
-fn parse_vortex_timestamp(filename: &str) -> Option<u64> {
-    let stem = filename.strip_suffix(".vortex")?;
-    let ts_str = stem.rsplit('-').next()?;
-    ts_str.parse().ok()
+    /// Remove any `.vortex.tmp` files left over from interrupted merge passes.
+    async fn cleanup_tmp_files(&self) {
+        let mut dir = match tokio::fs::read_dir(&self.output_dir).await {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+        while let Ok(Some(entry)) = dir.next_entry().await {
+            let name = match entry.file_name().into_string() {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+            if name.ends_with(".vortex.tmp") {
+                if let Err(e) = tokio::fs::remove_file(entry.path()).await {
+                    warn!(path = %entry.path().display(), "failed to delete tmp file: {}", e);
+                } else {
+                    info!(path = %entry.path().display(), "deleted leftover tmp file");
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_vortex_timestamp() {
-        assert_eq!(
-            parse_vortex_timestamp("metrics-1710938400123.vortex"),
-            Some(1710938400123)
-        );
-        assert_eq!(
-            parse_vortex_timestamp("logs-9999999999999.vortex"),
-            Some(9999999999999)
-        );
-        assert_eq!(
-            parse_vortex_timestamp("contexts-1000.vortex"),
-            Some(1000)
-        );
-        // Not a vortex file
-        assert_eq!(parse_vortex_timestamp("data.parquet"), None);
-        // No timestamp portion
-        assert_eq!(parse_vortex_timestamp("metrics.vortex"), None);
-    }
 
     #[tokio::test]
     async fn test_cleanup_time_retention() {
@@ -186,6 +198,10 @@ mod tests {
         let janitor = Janitor::new(
             dir.path().to_str().unwrap(),
             Duration::from_secs(3600), // 1 hour retention
+            0,
+            5,
+            10,
+            Duration::from_secs(300),
             0,
         );
         janitor.cleanup().await.unwrap();
@@ -214,6 +230,10 @@ mod tests {
             dir.path().to_str().unwrap(),
             Duration::from_secs(86400), // long retention so only cap kicks in
             200,                         // cap at 200 bytes
+            5,
+            10,
+            Duration::from_secs(300),
+            0,
         );
         janitor.cleanup().await.unwrap();
 
@@ -235,10 +255,40 @@ mod tests {
             dir.path().to_str().unwrap(),
             Duration::from_secs(0), // delete everything by time
             0,
+            5,
+            10,
+            Duration::from_secs(300),
+            0,
         );
         janitor.cleanup().await.unwrap();
 
         // Non-vortex file should still exist.
         assert!(dir.path().join("readme.txt").exists());
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_removes_tmp_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let recent_name = format!("metrics-{}.vortex", now_ms);
+        std::fs::write(dir.path().join("metrics-123.vortex.tmp"), "leftover").unwrap();
+        std::fs::write(dir.path().join(&recent_name), "keep").unwrap();
+
+        let janitor = Janitor::new(
+            dir.path().to_str().unwrap(),
+            Duration::from_secs(86400),
+            0,
+            5,
+            10,
+            Duration::from_secs(300),
+            0,
+        );
+        janitor.cleanup().await.unwrap();
+
+        assert!(!dir.path().join("metrics-123.vortex.tmp").exists());
+        assert!(dir.path().join(&recent_name).exists());
     }
 }

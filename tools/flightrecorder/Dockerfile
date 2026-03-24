@@ -19,12 +19,14 @@ COPY tools/flightrecorder/src/generated ./src/generated/
 # Pre-fetch and compile dependencies with a stub binary so the heavy dep
 # compilation is cached as a separate layer.
 RUN mkdir -p src benches \
+    && touch src/lib.rs \
     && echo 'fn main(){}' > src/main.rs \
     && echo 'fn main(){}' > src/reader.rs \
     && echo 'fn main(){}' > src/validate.rs \
     && echo 'fn main(){}' > benches/transport_bench.rs \
     && echo 'fn main(){}' > benches/framing_bench.rs \
     && echo 'fn main(){}' > benches/writer_bench.rs \
+    && echo 'fn main(){}' > benches/compression_bench.rs \
     && cargo build --release \
     && rm src/main.rs src/reader.rs src/validate.rs benches/*
 
