@@ -10,33 +10,36 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 )
 
-type imageResolveFunc func(e gcp.Environment, osInfo os.Descriptor) (string, error)
+type imageResolveFunc func(e gcp.Environment, osInfo os.Descriptor) (imageInfo, error)
 
 var imageResolvers = map[os.Flavor]imageResolveFunc{
 	os.Ubuntu: resolveUbuntuImage,
 	os.RedHat: resolveRhelImage,
 }
 
-func resolveUbuntuImage(_ gcp.Environment, osInfo os.Descriptor) (string, error) {
+func resolveUbuntuImage(_ gcp.Environment, osInfo os.Descriptor) (imageInfo, error) {
 	if osInfo.Version == "" {
 		osInfo.Version = os.UbuntuDefault.Version
 	}
 
 	switch osInfo.Version {
 	case os.Ubuntu2204.Version:
-		return "ubuntu-2204-jammy-v20240904", nil
+		return imageInfo{
+			name:                      "ubuntu-2204-jammy-v20240904",
+			disableUnattendedUpgrades: true,
+		}, nil
 	default:
-		return "", nil
+		return imageInfo{}, nil
 	}
 }
-func resolveRhelImage(_ gcp.Environment, osInfo os.Descriptor) (string, error) {
+func resolveRhelImage(_ gcp.Environment, osInfo os.Descriptor) (imageInfo, error) {
 	if osInfo.Version == "" {
 		osInfo.Version = os.RedHatDefault.Version
 	}
 	switch osInfo.Version {
 	case os.RedHat9.Version:
-		return "rhel-9-v20250611", nil
+		return imageInfo{name: "rhel-9-v20250611"}, nil
 	}
 
-	return "", nil
+	return imageInfo{}, nil
 }
