@@ -159,6 +159,57 @@ pub fn decompose_tags_into_interners(
     }
 }
 
+/// Decompose a pre-joined tag string (pipe-separated) directly into interners.
+/// Used by MetricsWriter to avoid storing DecomposedTags in the context map.
+/// The joined string is borrowed from the context map — no allocation for the
+/// reserved values (they're interned as &str slices into the joined string).
+pub fn decompose_joined_into_interners(
+    joined: &str,
+    reserved_keys: &[&str],
+    reserved_interners: &mut [&mut super::intern::StringInterner],
+    overflow_interner: &mut super::intern::StringInterner,
+) {
+    debug_assert_eq!(reserved_keys.len(), reserved_interners.len());
+
+    if joined.is_empty() {
+        for interner in reserved_interners.iter_mut() {
+            interner.intern("");
+        }
+        overflow_interner.intern("");
+        return;
+    }
+
+    let n = reserved_keys.len();
+    let mut found = vec![false; n];
+    let mut overflow_parts: Vec<&str> = Vec::new();
+
+    for tag in joined.split('|') {
+        if let Some(colon) = tag.find(':') {
+            let key = &tag[..colon];
+            let value = &tag[colon + 1..];
+            if let Some(idx) = reserved_keys.iter().position(|&k| k == key) {
+                reserved_interners[idx].intern(value);
+                found[idx] = true;
+                continue;
+            }
+        }
+        overflow_parts.push(tag);
+    }
+
+    for (idx, was_found) in found.iter().enumerate() {
+        if !was_found {
+            reserved_interners[idx].intern("");
+        }
+    }
+
+    if overflow_parts.is_empty() {
+        overflow_interner.intern("");
+    } else {
+        let joined = overflow_parts.join("|");
+        overflow_interner.intern_owned(joined);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

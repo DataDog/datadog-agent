@@ -12,7 +12,7 @@ use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
 use super::intern::StringInterner;
-use super::tags::{decompose_tags_for_metrics, DecomposedTags};
+use super::tags::{decompose_joined_into_interners, METRIC_RESERVED_KEYS};
 use crate::generated::signals_generated::signals::MetricBatch;
 
 /// Columnar accumulator for metric samples.
@@ -43,8 +43,10 @@ pub struct MetricsWriter {
     timestamps: Vec<i64>,
     sample_rates: Vec<f64>,
 
-    // Resolves context_key → (name, decomposed tags) for inline writing.
-    context_map: HashMap<u64, (String, DecomposedTags<7>)>,
+    // Resolves context_key → (name, joined_tags) for inline writing.
+    // Tags are stored as a single pipe-joined string and decomposed per sample
+    // to avoid storing 9 Strings per context (~0.5 KB → ~0.1 KB per entry).
+    context_map: HashMap<u64, (String, String)>,
 
     // Rate-limited logging for unresolved context keys.
     unresolved_count: u64,
@@ -99,7 +101,8 @@ impl MetricsWriter {
     /// Ingest a MetricBatch from FlatBuffers. Flushes automatically when thresholds are reached.
     ///
     /// Context definitions (context_key != 0, name non-empty) are stored in the
-    /// context_map with decomposed tags. All samples resolve context_key inline.
+    /// context_map as (name, joined_tags). Tags are decomposed per sample to
+    /// keep the context map lean (~0.1 KB/entry instead of ~0.5 KB).
     pub async fn push(&mut self, batch: &MetricBatch<'_>) -> Result<Option<PathBuf>> {
         if let Some(samples) = batch.samples() {
             for i in 0..samples.len() {
@@ -107,24 +110,38 @@ impl MetricsWriter {
                 let ckey = s.context_key();
                 let raw_name = s.name().unwrap_or("");
 
-                // If this is a context definition, store it with decomposed tags.
+                // If this is a context definition, store name + pipe-joined tags.
                 if ckey != 0 && !raw_name.is_empty() {
-                    let decomposed = decompose_tags_for_metrics(s.tags());
+                    let tags_joined: String = s
+                        .tags()
+                        .map(|tl| {
+                            (0..tl.len())
+                                .map(|j| tl.get(j))
+                                .collect::<Vec<_>>()
+                                .join("|")
+                        })
+                        .unwrap_or_default();
                     self.context_map
-                        .insert(ckey, (raw_name.to_string(), decomposed));
+                        .insert(ckey, (raw_name.to_string(), tags_joined));
                 }
 
-                // Resolve context_key to name + decomposed tags.
-                if let Some((name, dtags)) = self.context_map.get(&ckey) {
+                // Resolve context_key → decompose joined tags directly into interners.
+                if let Some((name, joined_tags)) = self.context_map.get(&ckey) {
                     self.names.intern(name);
-                    self.tag_host.intern(&dtags.reserved[0]);
-                    self.tag_device.intern(&dtags.reserved[1]);
-                    self.tag_source.intern(&dtags.reserved[2]);
-                    self.tag_service.intern(&dtags.reserved[3]);
-                    self.tag_env.intern(&dtags.reserved[4]);
-                    self.tag_version.intern(&dtags.reserved[5]);
-                    self.tag_team.intern(&dtags.reserved[6]);
-                    self.tags_overflow.intern(&dtags.overflow);
+                    decompose_joined_into_interners(
+                        joined_tags,
+                        METRIC_RESERVED_KEYS,
+                        &mut [
+                            &mut self.tag_host,
+                            &mut self.tag_device,
+                            &mut self.tag_source,
+                            &mut self.tag_service,
+                            &mut self.tag_env,
+                            &mut self.tag_version,
+                            &mut self.tag_team,
+                        ],
+                        &mut self.tags_overflow,
+                    );
                 } else {
                     if ckey != 0 {
                         self.unresolved_count += 1;
@@ -315,7 +332,6 @@ pub const METRIC_FIELD_NAMES: [&str; 13] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::tags::decompose_joined_tags_for_metrics;
     use tempfile::tempdir;
 
     fn make_writer(dir: &Path) -> MetricsWriter {
@@ -417,60 +433,35 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
-        // Insert context definitions with decomposed tags
-        w.context_map.insert(
-            100,
-            (
-                "cpu.user".to_string(),
-                decompose_joined_tags_for_metrics("host:a|env:prod"),
-            ),
-        );
-        w.context_map.insert(
-            200,
-            (
-                "mem.used".to_string(),
-                decompose_joined_tags_for_metrics("host:b"),
-            ),
-        );
+        // Insert context definitions as (name, joined_tags)
+        w.context_map
+            .insert(100, ("cpu.user".to_string(), "host:a|env:prod".to_string()));
+        w.context_map
+            .insert(200, ("mem.used".to_string(), "host:b".to_string()));
 
-        // Simulate rows that resolve via context_map
-        {
-            let (name, dtags) = w.context_map.get(&100).unwrap();
+        // Simulate rows that resolve via context_map + decompose per sample
+        for &ckey in &[100u64, 200] {
+            let (name, joined_tags) = w.context_map.get(&ckey).unwrap();
             let name = name.clone();
-            let reserved = dtags.reserved.clone();
-            let overflow = dtags.overflow.clone();
+            let joined_tags = joined_tags.clone();
             w.names.intern(&name);
-            w.tag_host.intern(&reserved[0]);
-            w.tag_device.intern(&reserved[1]);
-            w.tag_source.intern(&reserved[2]);
-            w.tag_service.intern(&reserved[3]);
-            w.tag_env.intern(&reserved[4]);
-            w.tag_version.intern(&reserved[5]);
-            w.tag_team.intern(&reserved[6]);
-            w.tags_overflow.intern(&overflow);
+            decompose_joined_into_interners(
+                &joined_tags,
+                METRIC_RESERVED_KEYS,
+                &mut [
+                    &mut w.tag_host,
+                    &mut w.tag_device,
+                    &mut w.tag_source,
+                    &mut w.tag_service,
+                    &mut w.tag_env,
+                    &mut w.tag_version,
+                    &mut w.tag_team,
+                ],
+                &mut w.tags_overflow,
+            );
             w.sources.intern("agent");
-            w.values.push(1.0);
-            w.timestamps.push(1000);
-            w.sample_rates.push(1.0);
-        }
-
-        {
-            let (name, dtags) = w.context_map.get(&200).unwrap();
-            let name = name.clone();
-            let reserved = dtags.reserved.clone();
-            let overflow = dtags.overflow.clone();
-            w.names.intern(&name);
-            w.tag_host.intern(&reserved[0]);
-            w.tag_device.intern(&reserved[1]);
-            w.tag_source.intern(&reserved[2]);
-            w.tag_service.intern(&reserved[3]);
-            w.tag_env.intern(&reserved[4]);
-            w.tag_version.intern(&reserved[5]);
-            w.tag_team.intern(&reserved[6]);
-            w.tags_overflow.intern(&overflow);
-            w.sources.intern("agent");
-            w.values.push(2.0);
-            w.timestamps.push(2000);
+            w.values.push(ckey as f64);
+            w.timestamps.push(ckey as i64 * 10);
             w.sample_rates.push(1.0);
         }
 
@@ -482,13 +473,8 @@ mod tests {
     async fn test_reset_context_map() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        w.context_map.insert(
-            42,
-            (
-                "cpu.system".to_string(),
-                decompose_joined_tags_for_metrics("host:x"),
-            ),
-        );
+        w.context_map
+            .insert(42, ("cpu.system".to_string(), "host:x".to_string()));
         assert_eq!(w.context_map.len(), 1);
 
         w.reset_context_map();
