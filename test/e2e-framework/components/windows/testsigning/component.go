@@ -12,10 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/powershell"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumiverse/pulumi-time/sdk/go/time"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 )
 
 // Manager contains the resources to manage Windows TestSigning

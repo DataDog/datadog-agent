@@ -216,7 +216,7 @@ while (-not $success -and $stopwatch.Elapsed -lt $timeout) {
     catch {
         Write-Host "Get-MpPreference failed on attempt $($attempt + 1): $($_.Exception.Message)"
     }
-    
+
     if (-not $success) {
         $attempt++
         Start-Sleep -Seconds 2

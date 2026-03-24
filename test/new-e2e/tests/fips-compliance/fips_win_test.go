@@ -20,7 +20,7 @@ import (
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
 
 	"testing"
 
