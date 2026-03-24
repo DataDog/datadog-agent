@@ -9,6 +9,7 @@
 package collector
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -198,36 +199,36 @@ func TestCalculateCPUUsagePreviousTotalNegativeOne(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
 
-	CPUUsage := calculateCPUUsage(5e8, -1, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(5e8, math.NaN(), currentTime, previousTime)
 
-	assert.Equal(t, float64(-1), CPUUsage)
+	assert.True(t, math.IsNaN(CPUUsage))
 }
 
 func TestCalculateCPUUsageCurrentTotalNegativeOne(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
 
-	CPUUsage := calculateCPUUsage(-1, 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(math.NaN(), 6e8, currentTime, previousTime)
 
-	assert.Equal(t, float64(-1), CPUUsage)
+	assert.True(t, math.IsNaN(CPUUsage))
 }
 
 func TestCalculateCPUUsagePreviousTimeZero(t *testing.T) {
 	previousTime := time.Time{}
 	currentTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	CPUUsage := calculateCPUUsage(-1, 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(math.NaN(), 6e8, currentTime, previousTime)
 
-	assert.Equal(t, float64(-1), CPUUsage)
+	assert.True(t, math.IsNaN(CPUUsage))
 }
 
 func TestCalculateCPUUsageCurrentTimeZero(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := time.Time{}
 
-	CPUUsage := calculateCPUUsage(-1, 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(math.NaN(), 6e8, currentTime, previousTime)
 
-	assert.Equal(t, float64(-1), CPUUsage)
+	assert.True(t, math.IsNaN(CPUUsage))
 }
 
 func TestCalculateCPUUsageValueDiffNegative(t *testing.T) {
@@ -236,7 +237,7 @@ func TestCalculateCPUUsageValueDiffNegative(t *testing.T) {
 
 	CPUUsage := calculateCPUUsage(5e8, 6e8, currentTime, previousTime)
 
-	assert.Equal(t, float64(-1), CPUUsage)
+	assert.True(t, math.IsNaN(CPUUsage))
 }
 
 func TestCalculateCPUUsageValueDiffPositive(t *testing.T) {

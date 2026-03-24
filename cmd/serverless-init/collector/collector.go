@@ -11,6 +11,7 @@ package collector
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"time"
 
@@ -61,7 +62,7 @@ type ServerlessRateStats struct {
 
 // NullServerlessRateStats can be safely used when there are no previous rate values
 var NullServerlessRateStats = ServerlessRateStats{
-	TotalCPU: -1,
+	TotalCPU: math.NaN(),
 }
 
 // Collector stores the cgroup reader used for data collection, the collection interval,
@@ -204,7 +205,7 @@ func (c *Collector) computeEnhancedMetrics(inStats *ServerlessContainerStats) Se
 	enhancedMetrics.Timestamp = float64(inStats.CollectionTime.UnixNano()) / float64(time.Second)
 
 	if inStats.CPU != nil {
-		currentTotal := statValue(inStats.CPU.Total, -1)
+		currentTotal := statValue(inStats.CPU.Total, math.NaN())
 		enhancedMetrics.CPUUsage = calculateCPUUsage(currentTotal, c.previousRateStats.TotalCPU, inStats.CollectionTime, c.previousRateStats.CollectionTime)
 
 		// Store current cpu total and collection time for next rate calculation
@@ -260,27 +261,27 @@ func computeCPULimit(stats *cgroups.CPUStats, hostCPUCount int) *float64 {
 }
 
 // calculateCPUUsage calculates the CPU usage rate in nanoseconds per second (nanocores)
-// Returns -1 if first run or invalid data
+// Returns NaN if first run or invalid data
 func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
 	log.Debugf("calculateCPUUsage: currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
 		currentTotal, previousTotal, currentTime, previousTime)
 
-	if currentTotal == -1 || previousTotal == -1 {
-		return -1
+	if currentTotal == math.NaN() || previousTotal == math.NaN() {
+		return math.NaN()
 	}
 
 	if previousTime.IsZero() {
-		return -1
+		return math.NaN()
 	}
 
 	timeDiff := currentTime.Sub(previousTime).Seconds()
 	if timeDiff <= 0 {
-		return -1
+		return math.NaN()
 	}
 
 	valueDiff := currentTotal - previousTotal
 	if valueDiff <= 0 {
-		return -1
+		return math.NaN()
 	}
 
 	usage := valueDiff / timeDiff
@@ -296,8 +297,8 @@ func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	}
 
 	// CPU usage in nanocores
-	// Skip when value is -1 since this value is used on the first collect before the rate can be computed
-	if enhancedMetrics.CPUUsage != -1 {
+	// Skip when value is NaN since this value is used on the first collect before the rate can be computed
+	if !math.IsNaN(enhancedMetrics.CPUUsage) {
 		c.metricAgent.AddEnhancedMetric(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, enhancedMetrics.Timestamp)
 	}
 
