@@ -1,8 +1,4 @@
-#!/usr/bin/env python
 import collections
-import sys
-import yaml
-from pprint import pprint
 import re
 
 
@@ -176,7 +172,6 @@ class Parser(object):
                 if len(block) == 0:
                     continue
 
-                #pprint(block)
                 if block[0].startswith("###"):
                     self.current_title = handle_header(block)
                 else:
@@ -227,16 +222,9 @@ def reorder_it(schema, currpath, trackorder):
     return schema
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("error usage")
-        sys.exit(1)
-
-    with open(sys.argv[1], "r") as f:
+def parse_template(tmpl, schema):
+    with open(tmpl, "r") as f:
         template = f.read()
-
-    with open(sys.argv[2], "r") as f:
-        schema = yaml.safe_load(f)
 
     parser = Parser()
     parser.run(template, schema["properties"])
@@ -251,5 +239,4 @@ if __name__ == "__main__":
         if n >= 10:
             break
 
-    with open(sys.argv[3], "w") as f:
-        f.write(yaml.dump(schema, sort_keys=False))
+    return schema
