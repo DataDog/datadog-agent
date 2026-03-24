@@ -46,7 +46,7 @@ func ExtractConnectionDetails(connInfo *privateactionspb.ConnectionInfo) ([]*pri
 		Body:          getHttpBody(group[http.BodyGroupName]),
 		BaseURL:       getBaseURL(group[http.BaseUrlTokenName]),
 		UrlParameters: getHttpUrlParams(group[http.UrlParametersGroupName]),
-		Testing:       getHttpTesting(group[http.TestingName]),
+		Testing:       getHttpDetailsTesting(group[http.TestingName]),
 	}
 	return tokens, details
 }
@@ -86,7 +86,7 @@ func getHttpBody(tokens []*privateactionspb.ConnectionToken) HttpDetailsBody {
 	return body
 }
 
-func getHttpTesting(tokens []*privateactionspb.ConnectionToken) *HttpDetailsTesting {
+func getHttpDetailsTesting(tokens []*privateactionspb.ConnectionToken) *HttpDetailsTesting {
 	if len(tokens) == 0 {
 		return nil
 	}
