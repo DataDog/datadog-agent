@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/powershell"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumiverse/pulumi-time/sdk/go/time"
 )
@@ -39,7 +39,7 @@ func NewTestSigning(e *config.CommonEnvironment, host *remote.Host, options ...O
 
 	if params.Enabled {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("enable-test-signing"), &command.Args{
-			Create: pulumi.String(powershell.PsHost().
+			Create: pulumi.String(client.PsHost().
 				EnableTestSigning().
 				Compile()),
 		}, params.ResourceOptions...)

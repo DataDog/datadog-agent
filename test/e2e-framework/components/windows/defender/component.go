@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/powershell"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -39,7 +39,7 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	var deps []pulumi.ResourceOption
 	cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("get-defender-status"), &command.Args{
-		Create: pulumi.String(powershell.PsHost().
+		Create: pulumi.String(client.PsHost().
 			WaitForServiceStatus("WinDefend", "Running").
 			Compile()),
 	}, deps...)
@@ -51,7 +51,7 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	// Wait for get-mppreference to succeed after WinDefend is running
 	cmd, err = host.OS.Runner().Command(manager.namer.ResourceName("wait-for-mppreference"), &command.Args{
-		Create: pulumi.String(powershell.PsHost().
+		Create: pulumi.String(client.PsHost().
 			WaitForGetMpPreference().
 			Compile()),
 	}, deps...)
@@ -63,7 +63,7 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	if params.Disabled {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("disable-defender"), &command.Args{
-			Create: pulumi.String(powershell.PsHost().
+			Create: pulumi.String(client.PsHost().
 				DisableWindowsDefender().
 				Compile()),
 		}, deps...)
@@ -76,7 +76,7 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	if params.Uninstall {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("uninstall-defender"), &command.Args{
-			Create: pulumi.String(powershell.PsHost().
+			Create: pulumi.String(client.PsHost().
 				UninstallWindowsDefender().
 				Compile()),
 		}, deps...)

@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package powershell provides
-package powershell
+package client
 
 import (
 	"fmt"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 type powerShellCommandBuilder struct {
@@ -232,7 +229,7 @@ if (-not $success -and $stopwatch.Elapsed -ge $timeout) {
 }
 
 // Execute compiles the list of PowerShell commands into one script and runs it on the given host
-func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string, error) {
+func (ps *powerShellCommandBuilder) Execute(host *Host) (string, error) {
 	return host.Execute(ps.Compile())
 }
 
