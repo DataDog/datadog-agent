@@ -56,10 +56,10 @@ core_defaults = {
         "other": "/var/lib/kubelet/device-plugins",
         },
 
-    "process_config.run_in_core_agent.enabled": {
-        "linux": True,
-        "other": False,
-        },
+    #"process_config.run_in_core_agent.enabled": {
+    #    "linux": True,
+    #    "other": False,
+    #    },
 
     "logs_config.run_path": "${run_path}",
     "run_path": "${run_path}",

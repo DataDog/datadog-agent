@@ -36,16 +36,16 @@ $> ./generate_template.py core_schema_enriched.yaml system-probe_schema_enriched
 
 ## Generating declaration of settings
 
-Currently relies on extracting info from declare_settings.go, to get (1) which function to
+Currently relies on extracting info from common_settings.go, to get (1) which function to
 output each setting to and (2) the ordering. (1) we don't need to care about (aside from
 full core-agent vs serverless) and (2) is only convenient for now because it makes diffs easier.
 
-NOTE: The order of functions in declare_settings.go doesn't match the order in which they
+NOTE: The order of functions in common_settings.go doesn't match the order in which they
 are listed up-front, so the diff is messier than it needs to be.
 
 ```
 $> python analyzer.py 
-    --source ../setup/declare_settings.go \
+    --source ../setup/common_settings.go \
     --outhints hints.json \
 ```
 

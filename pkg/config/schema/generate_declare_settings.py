@@ -113,6 +113,17 @@ def as_go_value(text):
     return text
 
 
+def get_golang_type_tag(curr):
+    tags = curr.get('tags')
+    if not tags:
+        return None
+    for t in tags:
+        (k, v) = t.split(':')
+        if k == 'golang_type':
+            return v
+    return None
+
+
 def retrieve_default_value(keypath, schema):
     curr = schema
     for k in keypath:
@@ -134,6 +145,10 @@ def retrieve_default_value(keypath, schema):
             return 'true'
         return 'false'
     elif settingType == 'number':
+        if get_golang_type_tag(curr) == 'int64':
+            return 'int64(%s)' % settingDefault
+        if get_golang_type_tag(curr) == 'float64':
+            return 'float64(%s)' % settingDefault
         durationValue = try_parse_duration(settingDefault)
         if durationValue is not None:
             return '%s' % durationValue
