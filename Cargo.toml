@@ -48,6 +48,8 @@ uzers = "0.12"
 walkdir = "2"
 yaml-rust2 = "0.9"
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
+rawzip = "0.4"
+flate2 = "1"
 
 tower = "0.4"
 uuid = { version = "1", features = ["v4"] }

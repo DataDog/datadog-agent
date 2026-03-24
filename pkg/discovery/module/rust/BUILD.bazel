@@ -43,6 +43,8 @@ rust_library(
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
+        "@crates//:rawzip",
+        "@crates//:flate2",
     ],
 )
 
@@ -84,6 +86,8 @@ rust_static_library(
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
+        "@crates//:rawzip",
+        "@crates//:flate2",
     ],
 )
 
@@ -206,6 +210,7 @@ rust_test(
         "@crates//:temp-env",
         # walkdir is needed by test_utils (dev-dependency)
         "@crates//:walkdir",
+        "@crates//:zip",
     ],
 )
 

@@ -76,7 +76,7 @@ enum DeploymentType {
 /// Abstracts over both directory-based (exploded) and ZIP-based (packaged) deployments
 enum DeploymentFs {
     Directory(SubDirFs),
-    ZipArchive(UnverifiedZipArchive<cap_std::fs::File>),
+    ZipArchive(UnverifiedZipArchive<rawzip::FileReader>),
 }
 
 impl DeploymentFs {
@@ -184,12 +184,7 @@ fn fs_from_deployment_path(fs: &SubDirFs, deployment_path: &Path) -> io::Result<
     } else if metadata.is_file() {
         // It's a file - open it as a ZIP archive
         let file = fs.open(deployment_path)?;
-        let zip = file.verify_zip().map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Failed to open ZIP archive: {}", e),
-            )
-        })?;
+        let zip = file.verify_zip()?;
         Ok(DeploymentFs::ZipArchive(zip))
     } else {
         Err(io::Error::new(

@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [features]
 default = []
-java-archives = ["dep:zip", "dep:walkdir"]
+java-archives = ["dep:walkdir"]
 spring = ["java-archives", "dep:yaml-rust2"]
 jee = ["java-archives", "dep:quick-xml"]
 
@@ -51,12 +51,14 @@ tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sig
 uzers.workspace = true
 walkdir = { workspace = true, optional = true }
 yaml-rust2 = { workspace = true, optional = true }
-zip = { workspace = true, optional = true }
+rawzip.workspace = true
+flate2.workspace = true
 
 [dev-dependencies]
 dircpy.workspace = true
 walkdir.workspace = true
 yaml-rust2.workspace = true
+zip.workspace = true
 memmap2.workspace = true
 nix.workspace = true
 scopeguard.workspace = true
