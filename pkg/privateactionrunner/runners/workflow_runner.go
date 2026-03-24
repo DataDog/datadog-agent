@@ -106,7 +106,7 @@ func (n *WorkflowRunner) RunTask(
 	if !n.config.IsActionAllowed(bundleName, actionName) {
 		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
 	}
-	if actions.IsHttpBundle(bundleName) {
+	if actions.IsHttpBundle(bundleName) && actionName != "testConnection" {
 		url, ok := task.Data.Attributes.Inputs["url"].(string)
 		if !ok {
 			return nil, util.DefaultActionError(errors.New("missing required field url"))
