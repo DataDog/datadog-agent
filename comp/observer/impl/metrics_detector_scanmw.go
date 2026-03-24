@@ -172,6 +172,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 
 			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
 			if found {
+				anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}

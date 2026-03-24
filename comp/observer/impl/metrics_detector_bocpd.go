@@ -221,6 +221,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			}
 
 			pointsSeen := false
+			prevLen := len(allAnomalies)
 			storage.ForEachPoint(meta.Ref, startTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
 				pointsSeen = true
 				anomaly := b.processPoint(state, p, series, agg)
@@ -229,6 +230,10 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				}
 				state.lastProcessedTime = p.Timestamp
 			})
+			// Set SourceRef on any anomalies produced in this iteration.
+			for k := prevLen; k < len(allAnomalies); k++ {
+				allAnomalies[k].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+			}
 
 			if !pointsSeen && mergeOccurred {
 				state.lastWriteGen = currentGen
