@@ -87,6 +87,25 @@ func detectorMAD(vals []float64, median float64, scaleToSigma bool) float64 {
 	return mad
 }
 
+// medianPointInterval computes the median gap between consecutive point
+// timestamps. Returns 0 if fewer than 2 points.
+//
+// Perf note: this is O(N log N) due to the sort. For hot paths it could be
+// replaced with O(N) mean: (last-first)/(len-1), or O(1) if the storage
+// tracks per-series intervals. N is typically 30-100 (MinPoints), so the
+// sort is negligible in practice.
+func medianPointInterval(points []observer.Point) int64 {
+	if len(points) < 2 {
+		return 0
+	}
+	intervals := make([]int64, len(points)-1)
+	for i := 1; i < len(points); i++ {
+		intervals[i-1] = points[i].Timestamp - points[i-1].Timestamp
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
+	return intervals[len(intervals)/2]
+}
+
 // rankBiserialCorrelation computes the rank-biserial correlation from a Mann-Whitney U statistic.
 // Used by ScanMW and ScanWelch for effect size verification.
 func rankBiserialCorrelation(u float64, n1, n2 int) float64 {

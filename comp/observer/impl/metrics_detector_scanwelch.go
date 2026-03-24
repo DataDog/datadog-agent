@@ -308,9 +308,10 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 		Title:          "ScanWelch changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
 			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
-		Tags:      series.Tags,
-		Timestamp: changePtTime,
-		Score:     &score,
+		Tags:                series.Tags,
+		Timestamp:           changePtTime,
+		Score:               &score,
+		SamplingIntervalSec: medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,
