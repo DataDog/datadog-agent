@@ -117,16 +117,19 @@ func (c *ServerlessMetricAgent) Stop() {
 
 // AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
 // This method should be removed in a future major serverless-init release.
+// optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, 0, c.tags, extraTags...)
 }
 
 // AddEnhancedMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics.
+// optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, timestamp, c.enhancedMetricTags, extraTags...)
 }
 
 // AddEnhancedUsageMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced usage metrics.
+// optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.enhancedUsageMetricTags, extraTags...)
 }
