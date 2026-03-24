@@ -16,7 +16,7 @@ const (
 	telemetryRRCFScore     = "observer.rrcf.score"
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
 
-	// Log pattern extractor
+	// Log pattern extractor — counter: delta (new clusters) per processed log
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
 )
 
@@ -45,11 +45,12 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
 	)
-	gauges[telemetryLogPatternExtractorPatternCount] = telemetryComp.NewGauge(
+
+	counters[telemetryLogPatternExtractorPatternCount] = telemetryComp.NewCounter(
 		"observer",
 		telemetryLogPatternExtractorPatternCount,
 		[]string{"detector"},
-		"Log pattern extractor pattern count",
+		"Log pattern extractor new clusters added per processed log",
 	)
 
 	return &telemetryHandler{
