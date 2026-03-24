@@ -24,18 +24,13 @@ impl Janitor {
         retention: Duration,
         max_disk_bytes: u64,
         merge_min_files: usize,
-        merge_max_files: usize,
         merge_interval: Duration,
-        merge_size_threshold_bytes: u64,
     ) -> Self {
         let output_dir = PathBuf::from(output_dir);
         Self {
             merge_config: merge::MergeConfig {
                 output_dir: output_dir.clone(),
                 min_files_to_trigger: merge_min_files,
-                max_files_per_pass: merge_max_files,
-                size_threshold_bytes: merge_size_threshold_bytes,
-                ..Default::default()
             },
             output_dir,
             retention,
@@ -53,7 +48,6 @@ impl Janitor {
             interval_secs = self.interval.as_secs(),
             merge_interval_secs = self.merge_interval.as_secs(),
             merge_min_files = self.merge_config.min_files_to_trigger,
-            merge_max_files = self.merge_config.max_files_per_pass,
             "janitor started"
         );
         let mut last_merge = Instant::now();
@@ -200,9 +194,7 @@ mod tests {
             Duration::from_secs(3600), // 1 hour retention
             0,
             5,
-            10,
             Duration::from_secs(300),
-            0,
         );
         janitor.cleanup().await.unwrap();
 
@@ -231,9 +223,7 @@ mod tests {
             Duration::from_secs(86400), // long retention so only cap kicks in
             200,                         // cap at 200 bytes
             5,
-            10,
             Duration::from_secs(300),
-            0,
         );
         janitor.cleanup().await.unwrap();
 
@@ -256,9 +246,7 @@ mod tests {
             Duration::from_secs(0), // delete everything by time
             0,
             5,
-            10,
             Duration::from_secs(300),
-            0,
         );
         janitor.cleanup().await.unwrap();
 
@@ -282,9 +270,7 @@ mod tests {
             Duration::from_secs(86400),
             0,
             5,
-            10,
             Duration::from_secs(300),
-            0,
         );
         janitor.cleanup().await.unwrap();
 
