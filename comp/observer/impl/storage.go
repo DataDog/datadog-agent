@@ -30,8 +30,8 @@ type timeSeriesStorage struct {
 
 	// Compact numeric IDs for O(1) lookups and API responses.
 	seriesIDs     map[string]observer.SeriesRef // internal key → numeric ref
-	seriesIDKeys  []string                         // numeric ID → internal key (index = ID)
-	seriesIDStats []*seriesStats                   // numeric ID → *seriesStats (index = ID)
+	seriesIDKeys  []string                      // numeric ID → internal key (index = ID)
+	seriesIDStats []*seriesStats                // numeric ID → *seriesStats (index = ID)
 
 	// Global generation for the series catalog; increments only when a new
 	// series key is created, not on every write to an existing series.

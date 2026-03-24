@@ -66,10 +66,10 @@ type engine struct {
 	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
 	rawAnomalyMu         sync.RWMutex
-	rawAnomalyWindow     int64                              // seconds to keep (0 = unlimited)
-	maxRawAnomalies      int                                // max count to keep (0 = unlimited)
-	currentDataTime      int64                              // latest anomaly timestamp seen
-	totalAnomalyCount    int                                // total count ever (no cap)
+	rawAnomalyWindow     int64           // seconds to keep (0 = unlimited)
+	maxRawAnomalies      int             // max count to keep (0 = unlimited)
+	currentDataTime      int64           // latest anomaly timestamp seen
+	totalAnomalyCount    int             // total count ever (no cap)
 	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
 
 	// Accumulated correlations from all advance cycles.

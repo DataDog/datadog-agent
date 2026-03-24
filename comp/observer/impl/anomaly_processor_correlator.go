@@ -231,7 +231,6 @@ func (c *CrossSignalCorrelator) getBuffer() []timestampedAnomaly {
 	return c.buffer
 }
 
-
 // ActiveCorrelations returns a copy of the currently active correlation patterns.
 func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	result := make([]observer.ActiveCorrelation, 0, len(c.activeCorrelations))

@@ -418,10 +418,10 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 
 	displayName := source.String()
 	return &observer.Anomaly{
-		Type:           observer.AnomalyTypeMetric,
-		Source:         source,
-		DetectorName:   b.Name(),
-		Title:          "BOCPD changepoint detected: " + displayName,
+		Type:         observer.AnomalyTypeMetric,
+		Source:       source,
+		DetectorName: b.Name(),
+		Title:        "BOCPD changepoint detected: " + displayName,
 		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
 			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
 		Timestamp: p.Timestamp,

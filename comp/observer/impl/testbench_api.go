@@ -1130,7 +1130,6 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 	api.writeJSON(w, response)
 }
 
-
 // handleLeadLag returns lead-lag edges.
 func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, _ *http.Request) {
 	edges, enabled := api.tb.GetLeadLagEdges()

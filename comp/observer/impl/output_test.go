@@ -217,9 +217,9 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 			LastUpdated: 200,
 			Anomalies: []observerdef.Anomaly{
 				{
-					Timestamp:    100,
-					Source:       observerdef.SeriesDescriptor{Name: "metric"},
-		
+					Timestamp: 100,
+					Source:    observerdef.SeriesDescriptor{Name: "metric"},
+
 					DetectorName: "cusum",
 				},
 			},

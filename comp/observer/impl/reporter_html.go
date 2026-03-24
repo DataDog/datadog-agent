@@ -1163,7 +1163,6 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Requ
 	}
 }
 
-
 // handleAPIRawAnomalies returns all raw anomalies from detector implementations.
 func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
