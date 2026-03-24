@@ -584,7 +584,9 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
+    success = process_test_result(
+        ctx, test_res, junit_tar, result_junits, AgentFlavor.base, test_washer, test_system="e2e"
+    )
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

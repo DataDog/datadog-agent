@@ -197,8 +197,8 @@ func (s *BaseSuite) createStableAgent() {
 		return
 	}
 	// else, use the defaults (last stable release)
-	agentVersion := "7.75.0"
-	agentVersionPackage := "7.75.0-1"
+	agentVersion := "7.77.0"
+	agentVersionPackage := "7.77.0-1"
 	// Allow override of assertion values via environment variables
 	if val := os.Getenv("STABLE_AGENT_ASSERT_VERSION"); val != "" {
 		agentVersion = val

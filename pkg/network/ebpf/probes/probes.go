@@ -165,6 +165,13 @@ const (
 	// TCPRetransmitRet traces the return value for the tcp_retransmit_skb() system call
 	TCPRetransmitRet ProbeFuncName = "kretprobe__tcp_retransmit_skb"
 
+	// TCPEnterLoss traces tcp_enter_loss() to count RTO loss events per connection.
+	TCPEnterLoss ProbeFuncName = "kprobe__tcp_enter_loss"
+	// TCPEnterRecovery traces tcp_enter_recovery() to count fast-recovery events per connection.
+	TCPEnterRecovery ProbeFuncName = "kprobe__tcp_enter_recovery"
+	// TCPSendProbe0 traces tcp_send_probe0() to count zero-window probe events per connection.
+	TCPSendProbe0 ProbeFuncName = "kprobe__tcp_send_probe0"
+
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn ProbeFuncName = "kretprobe__inet_csk_accept"
 
@@ -209,6 +216,8 @@ const (
 	TCPStatsMap BPFMapName = "tcp_stats"
 	// TCPRetransmitsMap is the map storing TCP retransmits
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
+	// TCPEventStatsMap is the map storing TCP event stats
+	TCPEventStatsMap BPFMapName = "tcp_event_stats"
 	// TCPOngoingConnectPid is the map storing ongoing TCP connection PIDs by (socket + tuple)
 	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
 	// ConnCloseEventMap is the map storing connection close events
