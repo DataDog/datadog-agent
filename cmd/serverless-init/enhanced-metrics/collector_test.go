@@ -157,6 +157,41 @@ func TestCollectorComputeEnhancedMetrics(t *testing.T) {
 	assert.Equal(t, 1e9, serverlessEnhancedMetrics.CPULimit)
 }
 
+func TestCollectorComputeEnhancedMetricsRecoversFromInvalidCPUTotal(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := t0.Add(time.Second)
+	t2 := t1.Add(time.Second)
+
+	c := &Collector{
+		previousRateStats: ServerlessRateStats{
+			TotalCPU:       pointer.Ptr(uint64(1e9)),
+			CollectionTime: t0,
+		},
+	}
+
+	// First sample is invalid due to CPU Total decreasing, usage is NaN
+	metrics1 := c.computeEnhancedMetrics(&ServerlessContainerStats{
+		CollectionTime: t1,
+		CPU: &ServerlessCPUStats{
+			Total: pointer.Ptr(uint64(1e8)),
+			Limit: pointer.Ptr(1e9),
+		},
+	})
+	assert.True(t, math.IsNaN(metrics1.CPUUsage))
+	assert.Equal(t, uint64(1e8), *c.previousRateStats.TotalCPU)
+	assert.Equal(t, t1, c.previousRateStats.CollectionTime)
+
+	// Second sample is valid, usage is computed based on the previous total from t1
+	metrics2 := c.computeEnhancedMetrics(&ServerlessContainerStats{
+		CollectionTime: t2,
+		CPU: &ServerlessCPUStats{
+			Total: pointer.Ptr(uint64(2e8)),
+			Limit: pointer.Ptr(1e9),
+		},
+	})
+	assert.Equal(t, float64(1e8), metrics2.CPUUsage)
+}
+
 func TestCPULimitSchedulerQuotaAndPeriod(t *testing.T) {
 	stats := &cgroups.Stats{
 		CPU: &cgroups.CPUStats{
