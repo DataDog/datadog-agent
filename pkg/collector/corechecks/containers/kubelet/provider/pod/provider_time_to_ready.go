@@ -84,6 +84,10 @@ func scrapeReadinessFailures(kc kubelet.KubeUtilInterface, timeout time.Duration
 			}
 			podUID := sample.Metric["pod_uid"]
 			containerName := sample.Metric["container"]
+			// Fall back to legacy label names for kubelets < 1.16
+			if containerName == "" {
+				containerName = sample.Metric["container_name"]
+			}
 			if podUID == "" || containerName == "" {
 				continue
 			}
