@@ -9,6 +9,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -192,7 +193,10 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	view := &logView{obs: l}
 	var logTelemetry []observerdef.ObserverTelemetry
 	for _, extractor := range e.extractors {
+		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
+		processingTime := time.Since(processingStartTime)
+		logTelemetry = append(logTelemetry, newTelemetryGauge(extractor.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {
 			tags := copyTags(m.Tags)
 			if !sliceContains(tags, sourceTag) {
@@ -217,7 +221,15 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		e.telemetryMu.Unlock()
 	}
 	for _, lo := range e.logObservers {
+		processingStartTime := time.Now()
 		lo.ProcessLog(view)
+		processingTime := time.Since(processingStartTime)
+		logTelemetry = append(logTelemetry, newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+		if len(logTelemetry) > 0 {
+			e.telemetryMu.Lock()
+			e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
+			e.telemetryMu.Unlock()
+		}
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
