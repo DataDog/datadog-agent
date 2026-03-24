@@ -101,8 +101,7 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 	}, nil
 }
 
-// GetStatusDetails returns the status details of the process agent.
-// The process agent fully owns its status representation
+// GetStatusDetails returns the status details of the process agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	st := processStatus.GetInProcessStatus(r.cfg, r.hostname)
 	statusBytes, err := json.Marshal(st)
