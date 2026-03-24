@@ -106,10 +106,19 @@ func (n *WorkflowRunner) RunTask(
 	if !n.config.IsActionAllowed(bundleName, actionName) {
 		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
 	}
-	if actions.IsHttpBundle(bundleName) && actionName != "testConnection" {
-		url, ok := task.Data.Attributes.Inputs["url"].(string)
-		if !ok {
-			return nil, util.DefaultActionError(errors.New("missing required field url"))
+	if actions.IsHttpBundle(bundleName) {
+		var url string
+		if actionName == "testConnection" && credential != nil {
+			url = credential.HttpDetails.BaseURL
+			if url == "" {
+				return nil, util.DefaultActionError(errors.New("missing required field url"))
+			}
+		} else {
+			var ok bool
+			url, ok = task.Data.Attributes.Inputs["url"].(string)
+			if !ok {
+				return nil, util.DefaultActionError(errors.New("missing required field url"))
+			}
 		}
 		if !n.config.IsURLInAllowlist(url) {
 			return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
