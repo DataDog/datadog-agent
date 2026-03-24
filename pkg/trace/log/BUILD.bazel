@@ -1,5 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# Here's whats broken.
+# Test code in other packages on buflogger.go. But it should not
+# be part of the public API because we don't use it in the product.
+
 go_library(
     name = "log",
     srcs = [
@@ -11,6 +15,7 @@ go_library(
     deps = ["@org_uber_go_atomic//:atomic"],
 )
 
+# Claude decided this was the solution. It doesn't work.
 # testutil provides the full package including buflogger.go (//go:build test) for
 # use by external test packages that need NewBufferLogger.
 go_library(
@@ -22,7 +27,6 @@ go_library(
         "throttled.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/log",
-    tags = ["test"],
     visibility = ["//visibility:public"],
     deps = ["@org_uber_go_atomic//:atomic"],
 )
