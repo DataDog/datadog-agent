@@ -59,7 +59,7 @@ func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
 		reconnections++
 		delay += 1 * time.Minute
 		if delay > reconnectMaxDelay {
-			log.Debugf("remote config websocket test failed after 5 reconnections", err, n)
+			log.Debug("remote config websocket test failed after 5 reconnections")
 			return
 		}
 		log.Debugf("websocket echo test disconnected (reconnections=%d), retrying in %s: %s (%d data frames exchanged)", reconnections, delay, err, n)
