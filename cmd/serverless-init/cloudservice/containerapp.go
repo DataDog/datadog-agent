@@ -52,8 +52,7 @@ const (
 	// ContainerAppOrigin origin tag value
 	ContainerAppOrigin = "containerapp"
 
-	containerAppPrefix       = "azure.app_containerapp"
-	containerAppPrefixLegacy = "azure.containerapp"
+	containerAppPrefix = "azure.app_containerapp"
 
 	containerAppUsageMetricName = "replica"
 	regionFallback              = "unknown"
@@ -197,14 +196,14 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 // Shutdown emits the shutdown metric for ContainerApp
 func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
-		metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
-		metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
+		metricAgent.AddEnhancedMetric("azure.app_containerapp.enhanced.shutdown", 1.0, c.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric("azure.containerapp.enhanced.shutdown", 1.0, c.GetSource())
 	}
 }
 
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.cold_start", 1.0, c.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric("azure.app_containerapp.enhanced.cold_start", 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric("azure.containerapp.enhanced.cold_start", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

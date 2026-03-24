@@ -148,15 +148,15 @@ func (l *LocalService) Init(_ *TracingContext) error {
 // Shutdown emits the shutdown metric for LocalService
 func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
-		metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), 0)
-		metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
+		metricAgent.AddEnhancedMetric("datadog.serverless_agent.enhanced.shutdown", 1.0, l.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric("datadog.serverless_agent.enhanced.shutdown", 1.0, l.GetSource())
 	}
 }
 
 // AddStartMetric adds the start metric for LocalService
 func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource())
+	metricAgent.AddEnhancedMetric("datadog.serverless_agent.enhanced.cold_start", 1.0, l.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric("datadog.serverless_agent.enhanced.cold_start", 1.0, l.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

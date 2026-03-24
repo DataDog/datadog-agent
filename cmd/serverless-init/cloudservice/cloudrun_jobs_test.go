@@ -121,7 +121,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
+	shutdownMetricName := "gcp.run.job.enhanced.task.ended"
 
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
@@ -148,7 +148,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
+	shutdownMetricName := "gcp.run.job.enhanced.task.ended"
 
 	jobs.Shutdown(agent, true, nil)
 
