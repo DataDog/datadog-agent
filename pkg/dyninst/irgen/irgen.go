@@ -528,6 +528,8 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			expr = e.Operand
 		case *exprlang.IsEmptyExpr:
 			expr = e.Operand
+		case *exprlang.EqExpr:
+			expr = e.Left
 		default:
 			return "", false
 		}
@@ -925,6 +927,7 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 				case *exprlang.GetMemberExpr:
 				case *exprlang.LenExpr:
 				case *exprlang.IsEmptyExpr:
+				case *exprlang.EqExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -3697,12 +3700,21 @@ func resolveExpression(
 		return resolveLenExpression(e.Operand, rootVar, tc)
 
 	case *exprlang.IsEmptyExpr:
-		// isEmpty is only supported as a standalone condition (resolved via
-		// resolveIsEmptyCondition). In expression context it would need to
-		// produce a boolean, which the eBPF stack machine cannot compute.
-		return ir.Expression{}, fmt.Errorf(
-			"isEmpty() is only supported as a condition, not as an expression",
-		)
+		return resolveIsEmptyComparison(e, rootVar, tc)
+
+	case *exprlang.EqExpr:
+		lhsExpr, err := resolveExpression(e.Left, rootVar, tc)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("failed to resolve eq LHS: %w", err)
+		}
+		litExpr, ok := e.Right.(*exprlang.LiteralExpr)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"unsupported eq RHS type: %T (only literals are supported)",
+				e.Right,
+			)
+		}
+		return resolveEqComparison(lhsExpr, litExpr, tc)
 
 	default:
 		return ir.Expression{}, fmt.Errorf(
@@ -3983,6 +3995,98 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 	return litData, nil
 }
 
+// resolveEqComparison builds comparison ops for an equality check.
+// Returns a bool-typed Expression without ConditionCheckOp.
+func resolveEqComparison(
+	lhsExpr ir.Expression,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lhsType := lhsExpr.Type
+	ops := lhsExpr.Operations
+
+	// Check if LHS is a string type.
+	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
+		// String equality comparison.
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: string variable compared with non-string literal %T",
+				litExpr.Value,
+			)
+		}
+		if len(litStr) > ir.MaxStringLiteralLength {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: string literal too long (%d bytes, max %d)",
+				len(litStr), ir.MaxStringLiteralLength,
+			)
+		}
+
+		// Read the string content from userspace.
+		ops = append(ops, &ir.ExprReadStringOp{MaxLen: ir.MaxStringLiteralLength})
+
+		// Load the literal as [u32 len][bytes...].
+		litData := make([]byte, 4+len(litStr))
+		binary.LittleEndian.PutUint32(litData[:4], uint32(len(litStr)))
+		copy(litData[4:], litStr)
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare strings.
+		ops = append(ops, &ir.ExprCmpEqStringOp{})
+	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
+		// Base type equality comparison.
+		byteSize := baseType.GetByteSize()
+		if byteSize > 8 {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: base type too large for comparison (%d bytes)",
+				byteSize,
+			)
+		}
+
+		// Push LHS offset and advance.
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
+
+		// Determine target kind for coercion.
+		targetKind := reflect.Invalid
+		if goKind, ok := baseType.GetGoKind(); ok {
+			targetKind = goKind
+		}
+
+		// Encode the literal value with type coercion.
+		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare base values.
+		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+	} else {
+		return ir.Expression{}, fmt.Errorf(
+			"eq: unsupported LHS type %T for equality comparison",
+			lhsType,
+		)
+	}
+
+	boolType := tc.typesByID[tc.boolType]
+	return ir.Expression{Type: boolType, Operations: ops}, nil
+}
+
+// resolveIsEmptyComparison resolves isEmpty(x) as len(x) == 0, returning a
+// bool-typed Expression without ConditionCheckOp.
+func resolveIsEmptyComparison(
+	ie *exprlang.IsEmptyExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lenExpr, err := resolveLenExpression(ie.Operand, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
+	}
+	zeroLit := &exprlang.LiteralExpr{Value: int64(0)}
+	return resolveEqComparison(lenExpr, zeroLit, tc)
+}
+
 // resolveCondition resolves a condition expression AST into an IR Expression
 // that evaluates to bool. Only eq comparisons with literal values are supported.
 func resolveCondition(
@@ -4015,79 +4119,12 @@ func resolveCondition(
 		)
 	}
 
-	lhsType := lhsExpr.Type
-	ops := lhsExpr.Operations
-
-	// Check if LHS is a string type.
-	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
-		// String equality comparison.
-		litStr, ok := litExpr.Value.(string)
-		if !ok {
-			return nil, fmt.Errorf(
-				"condition: string variable compared with non-string literal %T",
-				litExpr.Value,
-			)
-		}
-		if len(litStr) > ir.MaxStringLiteralLength {
-			return nil, fmt.Errorf(
-				"condition: string literal too long (%d bytes, max %d)",
-				len(litStr), ir.MaxStringLiteralLength,
-			)
-		}
-
-		// Read the string content from userspace.
-		ops = append(ops, &ir.ExprReadStringOp{MaxLen: ir.MaxStringLiteralLength})
-
-		// Load the literal as [u32 len][bytes...].
-		litData := make([]byte, 4+len(litStr))
-		binary.LittleEndian.PutUint32(litData[:4], uint32(len(litStr)))
-		copy(litData[4:], litStr)
-		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
-
-		// Compare strings.
-		ops = append(ops, &ir.ExprCmpEqStringOp{})
-	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
-		// Base type equality comparison.
-		byteSize := baseType.GetByteSize()
-		if byteSize > 8 {
-			return nil, fmt.Errorf(
-				"condition: base type too large for comparison (%d bytes)",
-				byteSize,
-			)
-		}
-
-		// Push LHS offset and advance.
-		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
-
-		// Determine target kind for coercion.
-		targetKind := reflect.Invalid
-		if goKind, ok := baseType.GetGoKind(); ok {
-			targetKind = goKind
-		}
-
-		// Encode the literal value with type coercion.
-		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
-
-		// Compare base values.
-		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
-	} else {
-		return nil, fmt.Errorf(
-			"condition: unsupported LHS type %T for equality comparison",
-			lhsType,
-		)
+	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
+	if err != nil {
+		return nil, err
 	}
-
-	// Check the result.
-	ops = append(ops, &ir.ConditionCheckOp{})
-
-	return &ir.Expression{
-		Type:       lhsType,
-		Operations: ops,
-	}, nil
+	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
+	return &expr, nil
 }
 
 // resolveIsEmptyCondition resolves an isEmpty condition: semantically len(x) == 0.
@@ -4096,37 +4133,12 @@ func resolveIsEmptyCondition(
 	rootVar *ir.Variable,
 	tc *typeCatalog,
 ) (*ir.Expression, error) {
-	// Resolve the operand to get the length value.
-	lenExpr, err := resolveLenExpression(ie.Operand, rootVar, tc)
+	expr, err := resolveIsEmptyComparison(ie, rootVar, tc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
+		return nil, err
 	}
-
-	baseType, ok := lenExpr.Type.(*ir.BaseType)
-	if !ok {
-		return nil, fmt.Errorf("isEmpty: resolved len type is %T, expected BaseType", lenExpr.Type)
-	}
-
-	byteSize := baseType.GetByteSize()
-	ops := lenExpr.Operations
-
-	// Push offset for the length value.
-	ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
-
-	// Load literal zero of the same size.
-	litData := make([]byte, byteSize)
-	ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
-
-	// Compare: len == 0.
-	ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
-
-	// Check the result.
-	ops = append(ops, &ir.ConditionCheckOp{})
-
-	return &ir.Expression{
-		Type:       lenExpr.Type,
-		Operations: ops,
-	}, nil
+	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
+	return &expr, nil
 }
 
 func populateProbeEventsExpressions(

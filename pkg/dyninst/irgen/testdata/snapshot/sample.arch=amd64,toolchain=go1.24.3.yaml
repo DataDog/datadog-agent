@@ -390,7 +390,7 @@ Probes:
             - PC: "0xcd5d6f"
               Frameless: false
           Condition:
-            Type: 7 BaseType int
+            Type: 4 BaseType bool
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 160, index: 0, name: x}
@@ -500,7 +500,7 @@ Probes:
           Type: 1536 EventRootType Probe[main.testTenStrings]
           InjectionPoints: [{PC: "0xcdbfe0", Frameless: true}]
           Condition:
-            Type: 9 GoStringHeaderType string
+            Type: 4 BaseType bool
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 157, index: 0, name: x}

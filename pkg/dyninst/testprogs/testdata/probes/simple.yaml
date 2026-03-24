@@ -1516,3 +1516,115 @@ probes:
     methodName: main.lenErrStruct
   sampling:
     snapshotsPerSecond: 10
+
+# ==========================================================================
+# eq() and isEmpty() as top-level expressions (template + capture)
+# ==========================================================================
+
+# --- isEmpty in template ---
+- id: lenString_isEmpty_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  template: "empty={isEmpty(s)}"
+  segments:
+    - str: "empty="
+    - json: {isEmpty: {ref: "s"}}
+      dsl: "isEmpty(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: lenMap_isEmpty_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  template: "empty={isEmpty(m)}"
+  segments:
+    - str: "empty="
+    - json: {isEmpty: {ref: "m"}}
+      dsl: "isEmpty(m)"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: lenSlice_isEmpty_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  template: "empty={isEmpty(s)}"
+  segments:
+    - str: "empty="
+    - json: {isEmpty: {ref: "s"}}
+      dsl: "isEmpty(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- eq in template ---
+- id: lenString_eq_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  template: "eq={len(s) == 5}"
+  segments:
+    - str: "eq="
+    - json: {eq: [{len: {ref: "s"}}, 5]}
+      dsl: "len(s) == 5"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condString_eq_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  template: "eq={x == \"hello\"}"
+  segments:
+    - str: "eq="
+    - json: {eq: [{ref: "x"}, "hello"]}
+      dsl: "x == \"hello\""
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- isEmpty as capture expression ---
+- id: lenString_isEmpty_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  captureExpressions:
+    - name: "s_isEmpty"
+      expr:
+        dsl: "isEmpty(s)"
+        json: {isEmpty: {ref: "s"}}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- eq as capture expression ---
+- id: lenString_eq_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  captureExpressions:
+    - name: "s_len_eq_5"
+      expr:
+        dsl: "len(s) == 5"
+        json: {eq: [{len: {ref: "s"}}, 5]}
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condString_eq_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  captureExpressions:
+    - name: "x_eq_hello"
+      expr:
+        dsl: "x == \"hello\""
+        json: {eq: [{ref: "x"}, "hello"]}
+  sampling:
+    snapshotsPerSecond: 10
