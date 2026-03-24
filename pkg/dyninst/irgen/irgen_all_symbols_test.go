@@ -114,47 +114,7 @@ func addLoclistSection(binPath, objcopy, tmpDir string) (modifiedBinPath string,
 }
 
 func testAllProbes(t *testing.T, binPath string) {
-	binary, err := os.Open(binPath)
-	require.NoError(t, err)
-	elf, err := safeelf.NewFile(binary)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, binary.Close()) }()
-	var probes []ir.ProbeDefinition
-	symbols, err := elf.Symbols()
-	require.NoError(t, err)
-
-	for i, s := range symbols {
-		if int(s.Section) >= len(elf.Sections) ||
-			elf.Sections[s.Section].Name != ".text" {
-			continue
-		}
-		// These automatically generated symbols cause problems.
-		if s.Name == "runtime.text" ||
-			s.Name == "runtime.etext" ||
-			s.Name == "" ||
-			strings.HasPrefix(s.Name, "go:") ||
-			strings.HasPrefix(s.Name, "type:.") ||
-			strings.HasPrefix(s.Name, "runtime.vdso") ||
-			strings.HasSuffix(s.Name, ".abi0") ||
-			strings.Contains(s.Name, "..typeAssert") ||
-			strings.Contains(s.Name, "..dict") ||
-			strings.Contains(s.Name, "..gobytes") ||
-			strings.Contains(s.Name, "..interfaceSwitch") ||
-			strings.Contains(s.Name, "go.shape") {
-			continue
-		}
-
-		// Speed things up by skipping some symbols.
-		probes = append(probes, &rcjson.SnapshotProbe{
-			LogProbeCommon: rcjson.LogProbeCommon{
-				ProbeCommon: rcjson.ProbeCommon{
-					ID:    fmt.Sprintf("probe_%d", i),
-					Where: &rcjson.Where{MethodName: s.Name},
-				},
-			},
-		})
-	}
-
+	probes := buildAllSymbolProbes(t, binPath)
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
@@ -174,6 +134,30 @@ func verifyIR(t *testing.T, p *ir.Program) {
 			varNames[v.Name] = struct{}{}
 		}
 	}
+	noBodyCount := 0
+	singleInstrCount := 0
+	for _, probe := range p.Probes {
+		for _, event := range probe.Events {
+			for _, ip := range event.InjectionPoints {
+				if ip.NoReturnReason == ir.NoReturnReasonNoBody {
+					ranges := probe.Subprogram.OutOfLinePCRanges
+					if len(ranges) > 0 {
+						size := ranges[0][1] - ranges[0][0]
+						if ip.HasAssociatedReturn == false && size <= 1 {
+							singleInstrCount++
+						} else {
+							noBodyCount++
+							t.Logf("noBody function: %s (pc=0x%x, size=%d)", probe.Subprogram.Name, ranges[0][0], size)
+						}
+					} else {
+						noBodyCount++
+						t.Logf("noBody function: %s (no out-of-line ranges)", probe.Subprogram.Name)
+					}
+				}
+			}
+		}
+	}
+	t.Logf("NoReturnReasonNoBody: %d noBody + %d singleInstr", noBodyCount, singleInstrCount)
 	kindCounts := make(map[ir.IssueKind]int)
 	defer func() {
 		for kind, count := range kindCounts {
@@ -194,14 +178,11 @@ func verifyIR(t *testing.T, p *ir.Program) {
 		kindCounts[issue.Kind]++
 		switch issue.Kind {
 		case ir.IssueKindInvalidDWARF:
-			t.Logf("%s: invalid DWARF: %s", loc, issue.Message)
+			t.Errorf("%s: invalid DWARF: %s", loc, issue.Message)
 		case ir.IssueKindDisassemblyFailed:
-			// Go 1.25+ changed DWARF location list generation, introducing DW_OP_deref
-			// and other patterns that break assumptions in pkg/dyninst/dwarf/loclist/parse.go.
-			// This causes "unsupported register size" errors (e.g., 24-byte slices or
-			// 16-byte interfaces claimed to be in a single 8-byte register) and
-			// "unconsumed op" errors when DW_OP_deref (opcode 0x6) appears.
-			// Until proper go1.25+ DWARF support is implemented, log instead of fail.
+			// Some functions contain instructions the disassembler can't
+			// decode (e.g. AVX-512, LSE atomics) or have injection PCs that
+			// don't land on instruction boundaries. Log instead of fail.
 			t.Logf("%s: disassembly failed: %s", loc, issue.Message)
 		case ir.IssueKindInvalidProbeDefinition:
 			t.Logf("%s: invalid probe definition: %s", loc, issue.Message)

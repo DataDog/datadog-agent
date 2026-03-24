@@ -1710,10 +1710,6 @@ type lineData struct {
 	// PC of prologue end or 0 if no prologue end statement is found.
 	prologueEnd uint64
 	lines       []line
-	// noLineInfo indicates this function has no DWARF line information
-	// (compiler-generated stub, assembly wrapper, etc.). This is not an
-	// error - the function is acceptable but won't have return probes.
-	noLineInfo bool
 }
 
 // collectLineData evaluates DWARF line programs to aggregate line data for given ranges.
@@ -4421,10 +4417,7 @@ func pickInjectionPoint(
 			Message: lines.err.Error(),
 		}, nil
 	}
-	// Functions without DWARF line information are acceptable,
-	// but they won't have return probes. The noLineInfo flag signals
-	// this condition to downstream code (e.g., for @duration validation).
-	hasLineInfo := !lines.noLineInfo && len(lines.lines) > 0
+	hasLineInfo := len(lines.lines) > 0
 	addr := rootRanges[0][0]
 	funcByteLen := rootRanges[0][1] - addr
 	frameless := lines.prologueEnd == 0
@@ -4858,38 +4851,43 @@ func collectLineDataForRange(
 	// TODO: Find a way to seek to the first entry in a range rather than just
 	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
-	// is experimentally observed to be left positioned at a preceding
-	// end_sequence marker. We can recover by:
-	//   1. Reading the next entry to find where the next sequence starts
-	//   2. If the next sequence is within the function range, use it
-	//   3. For sequences starting exactly at r[0] (function entry), use directly
-	//   4. For sequences starting after r[0], seek to (next_address - 1)
-	//      to land within the prior entry, which may give us coverage
+	// Workaround for holes: SeekPC fails with ErrUnknownPC when the function's
+	// start PC falls in a gap between line table sequences (common for functions
+	// at sequence boundaries). After failure, SeekPC leaves the reader past the
+	// first entry of the next sequence (see Go's debug/dwarf SeekPC impl). We
+	// try two recovery strategies:
 	//
-	// The -1 works because lineEntry.Address marks an entry's start, so
-	// (address - 1) falls within the previous entry's range, and SeekPC
-	// will position us at that entry's start (a valid instruction boundary).
+	// 1. Read the next entry (which SeekPC left us near) and use
+	//    SeekPC(addr-1) to land on the first entry of that sequence.
+	// 2. If that fails, do a full scan from the beginning of the CU's line
+	//    table. Sequences may not be in PC order, so we must scan all entries
+	//    without breaking early on out-of-range addresses.
 	if errors.Is(err, dwarf.ErrUnknownPC) {
 		nextErr := lineReader.Next(&lineEntry)
-		if nextErr == nil {
-			nextAddr := lineEntry.Address
-			// If the next sequence starts within or at the function range,
-			// we can potentially use it
-			if nextAddr < r[1] {
-				if nextAddr == r[0] {
-					// Function starts exactly at the sequence boundary - use it directly
+		if nextErr == nil && lineEntry.Address > r[0] && lineEntry.Address < r[1] {
+			lineReader.Seek(prevPos)
+			nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
+			if nextErr == nil && lineEntry.Address >= r[0] {
+				err = nil
+			}
+		}
+		if err != nil {
+			// Full scan: sequences in the line table may not be in PC order,
+			// so we scan all entries to find one in [r[0], r[1]).
+			lineReader.Reset()
+			for {
+				nextErr := lineReader.Next(&lineEntry)
+				if nextErr != nil {
+					break
+				}
+				if lineEntry.EndSequence {
+					continue
+				}
+				if lineEntry.Address >= r[0] && lineEntry.Address < r[1] {
 					err = nil
-				} else if nextAddr > r[0] {
-					// Next sequence is inside the function - try the backward seek workaround
-					lineReader.Seek(prevPos)
-					nextErr = lineReader.SeekPC(nextAddr-1, &lineEntry)
-					if nextErr == nil && lineEntry.Address >= r[0] {
-						err = nil
-					}
+					break
 				}
 			}
-			// If nextAddr >= r[1], the function has no line info - fall through to handle below
 		}
 	}
 	if err != nil {
@@ -4899,11 +4897,7 @@ func collectLineDataForRange(
 		// Restore the reader to prevPos for efficient forward seeking.
 		lineReader.Seek(prevPos)
 		if errors.Is(err, dwarf.ErrUnknownPC) {
-			// Return lineData with noLineInfo flag to indicate this function
-			// has no line information available. This allows downstream code
-			// to distinguish "no line info" from "broken DWARF" and handle
-			// appropriately (e.g., skip return probes, mark @duration as invalid).
-			return lineData{noLineInfo: true}
+			return lineData{}
 		}
 		// Other errors are genuine problems
 		return lineData{err: err}
