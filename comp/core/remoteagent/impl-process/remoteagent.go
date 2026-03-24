@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// Requires defines the dependencies for the remoteagent component#
+// Requires defines the dependencies for the remoteagent component
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Log       log.Component
