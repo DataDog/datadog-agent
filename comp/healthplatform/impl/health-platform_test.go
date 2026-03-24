@@ -587,6 +587,8 @@ func TestGetIssuesHandlerWithIssues(t *testing.T) {
 // - resolved -> new (reoccurrence)
 // - different issue ID -> new
 func TestPersistenceStateTransitions(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	t.Setenv("KUBERNETES", "")
 	tmpDir := t.TempDir()
 	lifecycle := newMockLifecycle()
 	reqs := testRequiresWithRunPath(t, lifecycle, tmpDir)
@@ -671,6 +673,8 @@ func TestPersistenceStateTransitions(t *testing.T) {
 
 // TestPersistenceAcrossRestart simulates the full restart scenario
 func TestPersistenceAcrossRestart(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	t.Setenv("KUBERNETES", "")
 	tmpDir := t.TempDir()
 
 	// === First run ===
