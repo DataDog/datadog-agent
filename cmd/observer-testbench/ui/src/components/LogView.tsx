@@ -72,19 +72,6 @@ function scoreColor(score: number): string {
   return 'text-slate-400 bg-slate-700/40';
 }
 
-function detectorBadgeColor(name: string): string {
-  const colors = [
-    'text-purple-400 bg-purple-900/40',
-    'text-blue-400 bg-blue-900/40',
-    'text-cyan-400 bg-cyan-900/40',
-    'text-teal-400 bg-teal-900/40',
-    'text-green-400 bg-green-900/40',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return colors[Math.abs(hash) % colors.length];
-}
-
 function detectorLineColor(name: string): string {
   const colors = ['#c084fc', '#60a5fa', '#22d3ee', '#2dd4bf', '#4ade80'];
   let hash = 0;
@@ -917,95 +904,6 @@ function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false, onHover
   );
 }
 
-interface LogAnomalyCardProps {
-  anomaly: LogAnomaly;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onHoverEnter?: () => void;
-  onHoverLeave?: () => void;
-}
-
-function LogAnomalyCard({ anomaly, isExpanded, onToggle, onHoverEnter, onHoverLeave }: LogAnomalyCardProps) {
-  return (
-    <div className="bg-slate-700/50 rounded overflow-hidden" onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
-      <button
-        onClick={onToggle}
-        className="w-full text-left px-4 py-3 hover:bg-slate-700/70 transition-colors"
-      >
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 text-xs text-slate-500 font-mono pt-0.5 w-20 text-right">
-            {formatTimestamp(anomaly.timestamp)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${detectorBadgeColor(anomaly.detectorName)}`}>
-                {anomaly.detectorName}
-              </span>
-              {anomaly.score !== undefined && (
-                <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${scoreColor(anomaly.score)}`}>
-                  score: {anomaly.score.toFixed(2)}
-                </span>
-              )}
-            </div>
-            <div className="text-sm text-slate-200 font-medium leading-snug">
-              {anomaly.title}
-            </div>
-            {!isExpanded && (
-              <div className="text-xs text-slate-400 mt-0.5 truncate">
-                {anomaly.description}
-              </div>
-            )}
-          </div>
-          {anomaly.tags && anomaly.tags.length > 0 && (() => {
-            const headerTags = anomaly.tags.filter((tag) =>
-              MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
-            );
-            return headerTags.length > 0 ? (
-              <div className="flex gap-1 flex-wrap flex-shrink-0">
-                {headerTags.map((tag) => (
-                  <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-600/50 text-slate-400 font-mono">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null;
-          })()}
-          <span className="text-slate-500 flex-shrink-0 text-xs">{isExpanded ? '▼' : '▶'}</span>
-        </div>
-      </button>
-
-      {isExpanded && (
-        <div className="px-4 pb-3 border-t border-slate-600/50">
-          <div className="mt-2 mb-2">
-            <div className="text-xs text-slate-400 font-medium mb-1">Log Content</div>
-            <pre className="text-xs text-slate-300 bg-slate-800/60 rounded p-2 whitespace-pre-wrap break-all font-mono leading-relaxed max-h-40 overflow-y-auto">
-              {anomaly.description}
-            </pre>
-          </div>
-          {anomaly.tags && anomaly.tags.length > 0 && (
-            <div className="mt-2">
-              <div className="text-xs text-slate-400 font-medium mb-1">Tags</div>
-              <div className="flex gap-1 flex-wrap">
-                {anomaly.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-xs px-1.5 py-0.5 rounded bg-slate-600/50 text-slate-400 font-mono"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-2 text-xs text-slate-500">
-            Source: <span className="text-slate-400">{anomaly.source}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 const LOG_PAGE_SIZE = 50;
 
 export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries, requestedPatternFilter, onRequestedPatternFilterConsumed }: LogViewProps) {
@@ -1800,7 +1698,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
-                                                    onJumpToSeries(`parquet/_virtual.log.log_pattern_extractor.${p.hash}.count`);
+                                                    onJumpToSeries(`log_pattern_extractor/log.log_pattern_extractor.${p.hash}.count`);
                                                   }}
                                                   className="text-xs px-2.5 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                                                   title="Open this series in the Time Series tab"

@@ -11,9 +11,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 type stubLogView struct {
@@ -85,6 +86,49 @@ func TestMatchesLogsQueryKind(t *testing.T) {
 	assert.False(t, matchesLogsQuery(telemetryLog, logsQuery{kind: "raw"}))
 	assert.False(t, matchesLogsQuery(rawLog, logsQuery{kind: "telemetry"}))
 	assert.True(t, matchesLogsQuery(telemetryLog, logsQuery{kind: "telemetry"}))
+}
+
+// This will verify that log pattern extractor series are marked as virtual.
+func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
+	tb, err := NewTestBench(TestBenchConfig{ScenariosDir: t.TempDir()})
+	require.NoError(t, err)
+	api := NewTestBenchAPI(tb)
+
+	_, _ = tb.engine.IngestLog("test-source", &logObs{
+		content:     []byte("GET /users/123 returned 500"),
+		tags:        []string{"service:api"},
+		timestampMs: 2_000,
+	})
+	// Non-extractor namespace — should not be tagged virtual.
+	tb.engine.IngestMetric("full", &metricObs{
+		name:      "cpu.usage",
+		value:     42,
+		timestamp: 2,
+		tags:      []string{"host:host-a"},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/series", nil)
+	api.handleSeriesList(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body []struct {
+		Namespace string `json:"namespace"`
+		Virtual   bool   `json:"virtual"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	var logPatternSeen bool
+	for _, s := range body {
+		switch s.Namespace {
+		case "log_pattern_extractor":
+			logPatternSeen = true
+			assert.True(t, s.Virtual, "log_pattern_extractor series should be virtual")
+		case "full":
+			assert.False(t, s.Virtual, "non-extractor namespace should not be virtual")
+		}
+	}
+	require.True(t, logPatternSeen, "expected at least one log_pattern_extractor series in /api/series")
 }
 
 func TestHandleNumericSeriesDataRejectsUnknownAggregation(t *testing.T) {

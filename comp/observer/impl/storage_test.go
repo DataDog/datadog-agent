@@ -212,7 +212,7 @@ func TestAggSuffix(t *testing.T) {
 	assert.Equal(t, "min", aggSuffix(AggregateMin))
 	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
-	// Test unknown aggregation type
+	// Unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 
@@ -559,4 +559,21 @@ func TestTimeBoundsSkipsNonPositivePrefixOnly(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, int64(10), minTs)
 	assert.Equal(t, int64(20), maxTs)
+}
+
+func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add(observer.TelemetryNamespace, "internal.gauge", 1, 1000, nil)
+	s.Add("work", "cpu", 2, 1000, nil)
+
+	all := s.ListSeries(observer.SeriesFilter{})
+	require.Len(t, all, 2)
+
+	workload := s.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, workload, 1)
+	assert.Equal(t, "work", workload[0].Namespace)
+
+	onlyTel := s.ListSeries(observer.SeriesFilter{Namespace: observer.TelemetryNamespace})
+	require.Len(t, onlyTel, 1)
+	assert.Equal(t, observer.TelemetryNamespace, onlyTel[0].Namespace)
 }

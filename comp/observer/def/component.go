@@ -230,13 +230,14 @@ type ProfileView interface {
 }
 
 // LogMetricsExtractor transforms observed logs into metrics.
-// Implementations should be stateless and fast since they run synchronously
-// on every observed log.
+// Implementations should be fast since they run synchronously on every observed
+// log. Extractors may keep lightweight internal state when needed for pattern
+// tracking or context enrichment.
 type LogMetricsExtractor interface {
 	// Name returns the extractor name for debugging and logging.
 	Name() string
 	// ProcessLog examines a log and returns any derived metrics.
-	ProcessLog(log LogView) []MetricOutput
+	ProcessLog(log LogView) LogMetricsExtractorOutput
 }
 
 // LogObserver is an optional interface that Detectors can implement to
@@ -250,14 +251,45 @@ type LogObserver interface {
 // The storage keeps full summaries (min/max/sum/count) so aggregation
 // is specified at read time, not write time.
 type MetricOutput struct {
-	Name  string
-	Value float64
-	Tags  []string
+	Name       string
+	Value      float64
+	Tags       []string
+	ContextKey string
+}
+
+// LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
+type LogMetricsExtractorOutput struct {
+	Metrics   []MetricOutput
+	Telemetry []ObserverTelemetry
 }
 
 // MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").
 // Multiple series can share a MetricName if they differ by tags.
 type MetricName string
+
+// AnomalySource identifies the metric that an anomaly is about using
+// structured fields rather than string concatenation.
+type AnomalySource struct {
+	// Namespace identifies the component that produced this metric
+	// (e.g. an extractor name like "log_metrics_extractor", or "dogstatsd").
+	Namespace string
+	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
+	Name string
+	// Aggregate is the aggregation applied when reading the series.
+	Aggregate Aggregate
+}
+
+// String returns a human-readable representation (e.g. "cpu.user:avg").
+// Namespace is structural and not included in the display string.
+func (s AnomalySource) String() string {
+	if s.Name == "" {
+		return ""
+	}
+	if s.Aggregate == AggregateNone {
+		return s.Name
+	}
+	return s.Name + ":" + AggregateString(s.Aggregate)
+}
 
 // SeriesID uniquely identifies a time series (namespace + name + tags).
 type SeriesID string
@@ -279,10 +311,8 @@ type Anomaly struct {
 	// Type distinguishes log-based anomalies from metric-based ones.
 	// Defaults to AnomalyTypeMetric if not set.
 	Type AnomalyType
-	// Source identifies which metric/signal or log source the anomaly is about.
-	// For metric anomalies: the metric name (e.g., "network.retransmits:avg").
-	// For log anomalies: a descriptive source identifier (e.g., "logs").
-	Source MetricName
+	// Source identifies which metric/signal the anomaly is about.
+	Source AnomalySource
 	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
 	// Empty for log anomalies.
 	SourceSeriesID SeriesID
@@ -290,9 +320,12 @@ type Anomaly struct {
 	DetectorName string
 	Title        string
 	Description  string
-	Tags         []string
-	Timestamp    int64    // when the anomaly was detected (unix seconds)
-	Score        *float64 // confidence/severity score (nil if not available)
+	// Context carries optional enrichment about the originating signal, such as
+	// a synthesized pattern and example source data.
+	Context   *MetricContext
+	Tags      []string
+	Timestamp int64    // when the anomaly was detected (unix seconds)
+	Score     *float64 // confidence/severity score (nil if not available)
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
@@ -416,11 +449,25 @@ type RawAnomalyState interface {
 	RawAnomalies() []Anomaly
 }
 
+// TelemetryNamespace is the storage namespace used for observer-internal debug
+// metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
+const TelemetryNamespace = "telemetry"
+
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)
 	NamePattern string            // prefix match (empty = any)
 	TagMatchers map[string]string // required tag key=value pairs
+	// ExcludeNamespaces skips series whose namespace is in this list. It is only
+	// applied when Namespace is empty (list-all mode). An explicit Namespace match
+	// ignores ExcludeNamespaces so callers can still list internal series when needed.
+	ExcludeNamespaces []string
+}
+
+// WorkloadSeriesFilter returns a filter for anomaly detectors: all namespaces
+// except TelemetryNamespace.
+func WorkloadSeriesFilter() SeriesFilter {
+	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace}}
 }
 
 type SeriesHandle int
@@ -438,12 +485,54 @@ type SeriesMeta struct {
 type Aggregate int
 
 const (
-	AggregateAverage Aggregate = iota
+	AggregateNone Aggregate = iota
+	AggregateAverage
 	AggregateSum
 	AggregateCount
 	AggregateMin
 	AggregateMax
 )
+
+// AggregateString returns a short string label for the aggregation type.
+func AggregateString(agg Aggregate) string {
+	switch agg {
+	case AggregateNone:
+		return "none"
+	case AggregateAverage:
+		return "avg"
+	case AggregateSum:
+		return "sum"
+	case AggregateCount:
+		return "count"
+	case AggregateMin:
+		return "min"
+	case AggregateMax:
+		return "max"
+	default:
+		return "unknown"
+	}
+}
+
+// ContextProvider resolves metric keys back to richer context about their
+// origin. Components that synthesize metrics from richer data (e.g. log
+// extractors that turn log patterns into count metrics) can implement this
+// interface so that downstream consumers (detectors, reporters) can produce
+// more descriptive anomaly reports.
+type ContextProvider interface {
+	// GetContextByKey returns contextual information for a previously emitted
+	// context key, if available.
+	GetContextByKey(key string) (MetricContext, bool)
+}
+
+// MetricContext describes the origin of a synthesized metric.
+type MetricContext struct {
+	// Pattern is the normalized pattern that generated this metric (e.g. a log signature).
+	Pattern string
+	// Example is a recent raw input that matched the pattern.
+	Example string
+	// Source identifies the originating component or data stream.
+	Source string
+}
 
 // StorageReader provides read access to time series data.
 // Detectors use this to pull whatever data they need.

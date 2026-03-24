@@ -436,14 +436,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 		})
 
 		// Emit telemetry for the CoDisp score at every scored shingle
-		telemetry = append(telemetry, observer.ObserverTelemetry{
-			DetectorName: r.Name(),
-			Metric: &metricObs{
-				name:      "score",
-				value:     score,
-				timestamp: s.endTimestamp,
-			},
-		})
+		telemetry = append(telemetry, newTelemetryGauge(r.Name(), telemetryRRCFScore, score, s.endTimestamp))
 
 		// Skip warmup phase — scores are artificial during forest filling
 		if r.totalScored <= warmup {
@@ -455,14 +448,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Emit telemetry for the dynamic threshold (only after warmup when threshold is meaningful)
 		if threshold > 0 {
-			telemetry = append(telemetry, observer.ObserverTelemetry{
-				DetectorName: r.Name(),
-				Metric: &metricObs{
-					name:      "threshold",
-					value:     threshold,
-					timestamp: s.endTimestamp,
-				},
-			})
+			telemetry = append(telemetry, newTelemetryGauge(r.Name(), telemetryRRCFThreshold, threshold, s.endTimestamp))
 		}
 
 		// Update rolling window (after computing threshold, so current score
@@ -474,7 +460,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		if r.config.ThresholdSigma > 0 && threshold > 0 && score > threshold {
 			anomaly := observer.Anomaly{
-				Source:       "score",
+				Source:       observer.AnomalySource{Namespace: "rrcf", Name: "score"},
 				DetectorName: r.Name(),
 				Title:        "RRCF multivariate anomaly",
 				Description:  fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),

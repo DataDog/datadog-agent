@@ -21,6 +21,13 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// ScoreResponse is the JSON payload for GET /api/score.
+type ScoreResponse struct {
+	Available bool         `json:"available"`
+	Reason    string       `json:"reason,omitempty"`
+	Score     *ScoreResult `json:"score,omitempty"`
+}
+
 // TestBenchAPI handles HTTP API requests for the test bench.
 type TestBenchAPI struct {
 	tb     *TestBench
@@ -52,9 +59,11 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
 	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
+	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
+	mux.HandleFunc("/api/score", api.cors(api.handleScore))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
 
@@ -435,9 +444,12 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		Name       string   `json:"name"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
+		Virtual    bool     `json:"virtual"`
 	}
 
 	var allSeries []seriesInfo
+
+	extractorNs := api.tb.extractorNamespaces()
 
 	// Get series metadata from all namespaces — no point data materialized.
 	// Use compact numeric IDs: "{numericID}:{aggSuffix}" (e.g. "42:avg").
@@ -447,12 +459,14 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
 				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
+				_, virtual := extractorNs[m.Namespace]
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
 					Tags:       m.Tags,
 					PointCount: m.PointCount,
+					Virtual:    virtual,
 				})
 			}
 		}
@@ -760,7 +774,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			sourceSeriesID = storage.CompactSeriesID(sourceSeriesID)
 		}
 		resp := anomalyResponse{
-			Source:            string(a.Source),
+			Source:            a.Source.String(),
 			SourceSeriesID:    sourceSeriesID,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
@@ -796,7 +810,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			for _, a := range anomalies {
 				if a.DetectorName == "" || a.Timestamp == 0 {
 					log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-						a.DetectorName, a.Source, a.Timestamp)
+						a.DetectorName, a.Source.String(), a.Timestamp)
 					continue
 				}
 				response = append(response, toResponse(a))
@@ -808,7 +822,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		for _, a := range anomalies {
 			if a.DetectorName == "" || a.Timestamp == 0 {
 				log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-					a.DetectorName, a.Source, a.Timestamp)
+					a.DetectorName, a.Source.String(), a.Timestamp)
 				continue
 			}
 			response = append(response, toResponse(a))
@@ -843,7 +857,7 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 	response := make([]logAnomalyResponse, 0, len(anomalies))
 	for _, a := range anomalies {
 		response = append(response, logAnomalyResponse{
-			Source:       string(a.Source),
+			Source:       a.Source.String(),
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
@@ -1036,7 +1050,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				tags = []string{}
 			}
 			anomalies[j] = anomalyOutput{
-				Source:      string(a.Source),
+				Source:      a.Source.String(),
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
@@ -1110,6 +1124,15 @@ func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, stats)
 }
 
+// handleReports returns the events that would have been sent to the Datadog backend.
+func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
+	events := api.tb.GetReportedEvents()
+	if events == nil {
+		events = []ReportedEvent{}
+	}
+	api.writeJSON(w, events)
+}
+
 // handleComponentAction handles /api/components/{name}/{action} (toggle, data).
 func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/components/")
@@ -1166,6 +1189,16 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 		}
 	}
 	api.writeJSON(w, groups)
+}
+
+// handleScore returns the Gaussian F1 score for the current analysis against episode.json.
+func (api *TestBenchAPI) handleScore(w http.ResponseWriter, _ *http.Request) {
+	result, err := api.tb.ScoreCurrentAnalysis(30.0)
+	if err != nil {
+		api.writeJSON(w, ScoreResponse{Available: false, Reason: err.Error()})
+		return
+	}
+	api.writeJSON(w, ScoreResponse{Available: true, Score: result})
 }
 
 // writeJSON writes a JSON response.

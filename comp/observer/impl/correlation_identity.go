@@ -14,10 +14,11 @@ import (
 func sortedUniqueMetricNames(anomalies []observer.Anomaly) []observer.MetricName {
 	seen := make(map[observer.MetricName]struct{})
 	for _, a := range anomalies {
-		if a.Source == "" {
+		display := observer.MetricName(a.Source.String())
+		if display == "" {
 			continue
 		}
-		seen[a.Source] = struct{}{}
+		seen[display] = struct{}{}
 	}
 	names := make([]observer.MetricName, 0, len(seen))
 	for n := range seen {

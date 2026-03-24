@@ -39,6 +39,7 @@ interface MetricGroup {
   namespace: string;
   baseName: string;
   members: SeriesInfo[];
+  virtual: boolean;
 }
 
 interface MetricsViewProps {
@@ -74,11 +75,13 @@ export function MetricsView({
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
   const [tagFilterInput, setTagFilterInput] = useState('');
 
-  // Parse a virtual series group key and return its log pattern hash, or null.
-  // Group keys for pattern series look like: "parquet/_virtual.log.log_pattern_extractor.<hash>.count"
+  // Parse a pattern metric group key and return its log pattern hash, or null.
+  // Current: "log_pattern_extractor/log.log_pattern_extractor.<hash>.count"
+  // Legacy:  "parquet/_virtual.log.log_pattern_extractor.<hash>.count"
   const getPatternHash = (groupKey: string): string | null => {
-    const match = groupKey.match(/\/_virtual\.log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
-    return match ? match[1] : null;
+    let m = groupKey.match(/^log_pattern_extractor\/log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
+    if (m) return m[1];
+    return null;
   };
 
   // Fill the bucket grid: snap stored timestamps to slots and emit 0 for missing ones.
@@ -230,6 +233,7 @@ export function MetricsView({
           namespace: s.namespace,
           baseName,
           members: [],
+          virtual: s.virtual === true,
         });
       }
       groups.get(key)!.members.push(s);
@@ -274,12 +278,18 @@ export function MetricsView({
   );
 
   const virtualGroups = useMemo(
-    () => visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')),
+    () => visibleGroups.filter((g) => g.virtual),
     [visibleGroups]
   );
 
   const displayGroups = useMemo(
-    () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
+    () =>
+      visibleGroups.map((g) => ({
+        key: g.key,
+        name: g.baseName,
+        displayName: g.baseName,
+        virtual: g.virtual,
+      })),
     [visibleGroups]
   );
 
@@ -301,7 +311,7 @@ export function MetricsView({
     if (scenarioHasSeries && allSeries.length === 0) return;
 
     const mainGroups = [...visibleGroups]
-      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'));
+      .filter((g) => g.namespace !== 'telemetry' && !g.virtual);
 
     const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
     const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
@@ -640,7 +650,7 @@ export function MetricsView({
                   const cards = Array.from(selectedGroups)
                     .filter((key) => {
                       const g = groupByKey.get(key);
-                      return g && g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.');
+                      return g && g.namespace !== 'telemetry' && !g.virtual;
                     })
                     .map((groupKey) => {
                       const dataList = groupSeriesData.get(groupKey) ?? [];
@@ -699,7 +709,7 @@ export function MetricsView({
                       {Array.from(selectedGroups)
                         .filter((key) => {
                           const g = groupByKey.get(key);
-                          return g && g.baseName.startsWith('_virtual.');
+                          return g && g.virtual;
                         })
                         .map((groupKey) => {
                           const dataList = groupSeriesData.get(groupKey) ?? [];

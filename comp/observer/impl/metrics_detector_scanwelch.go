@@ -107,7 +107,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 	gen := storage.SeriesGeneration()
 	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
+		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
 		d.cachedGen = gen
 	}
 
@@ -302,7 +302,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
-		Source:         observer.MetricName(seriesName),
+		Source:         observer.AnomalySource{Namespace: series.Namespace, Name: series.Name, Aggregate: agg},
 		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
 		DetectorName:   d.Name(),
 		Title:          "ScanWelch changepoint: " + seriesName,

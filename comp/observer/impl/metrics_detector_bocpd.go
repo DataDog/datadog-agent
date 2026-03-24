@@ -189,7 +189,7 @@ func (b *BOCPDDetector) Name() string {
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	gen := storage.SeriesGeneration()
 	if b.cachedSeries == nil || gen != b.cachedGen {
-		b.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
+		b.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
 		b.cachedGen = gen
 	}
 
@@ -394,7 +394,11 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 
 // makeAnomaly constructs an Anomaly for a new alert onset.
 func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass float64) *observer.Anomaly {
-	seriesName := series.Name + ":" + aggSuffix(agg)
+	source := observer.AnomalySource{
+		Namespace: series.Namespace,
+		Name:      series.Name,
+		Aggregate: agg,
+	}
 	deviation := (p.Value - state.baselineMean) / state.baselineStddev
 
 	triggerType := "short-run posterior mass"
@@ -406,14 +410,15 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 		triggerThreshold = b.config.CPThreshold
 	}
 
+	displayName := source.String()
 	return &observer.Anomaly{
 		Type:           observer.AnomalyTypeMetric,
-		Source:         observer.MetricName(seriesName),
-		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
+		Source:         source,
+		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, series.Name+":"+aggSuffix(agg), series.Tags)),
 		DetectorName:   b.Name(),
-		Title:          "BOCPD changepoint detected: " + seriesName,
+		Title:          "BOCPD changepoint detected: " + displayName,
 		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
-			seriesName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
+			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
 		Tags:      series.Tags,
 		Timestamp: p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
