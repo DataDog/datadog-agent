@@ -145,7 +145,6 @@ _cgo_godefs = rule(
 )
 
 _STD_LINUX_DEPS = [
-    "//pkg/network/ebpf/c:ebpf_c_network",
     "//pkg/ebpf/c:ebpf_c_headers",
 ]
 
@@ -203,9 +202,9 @@ cgo_godefs = macro(
     Runs `go tool cgo -godefs` on the source file, post-processes with genpost,
     and on Linux also generates alignment test stubs.
 
-    On Linux, standard eBPF include deps (pkg/network/ebpf/c and
-    pkg/ebpf/c) are prepended automatically. Use deps/hdrs for
-    additional headers or all headers on Windows.
+    On Linux, the base eBPF headers (pkg/ebpf/c) are prepended
+    automatically. Use deps/hdrs for additional headers
+    or all headers on Windows.
 
     The main target (`name`) verifies the generated output matches the
     committed file. Use `bazel test` to verify, `bazel run` to update.
