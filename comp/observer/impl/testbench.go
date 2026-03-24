@@ -1172,14 +1172,29 @@ func (tb *TestBench) printDetectorProcessingStats() {
 	fmt.Println("\nDetector processing times:")
 	for _, name := range names {
 		s := stats[name]
-		fmt.Printf("  %-40s  avg=%8.2fµs  median=%8.2fµs  p99=%8.2fµs  (%d calls)\n",
+		fmt.Printf("  %-40s  avg=%8.2fµs  median=%8.2fµs  p99=%8.2fµs  total=%s  (%d calls)\n",
 			name,
 			s.AvgNs/1e3,
 			s.MedianNs/1e3,
 			s.P99Ns/1e3,
+			formatTotalNs(s.TotalNs),
 			s.Count,
 		)
 	}
+}
+
+// formatTotalNs formats a total duration (nanoseconds) with auto-scaling to
+// µs, ms, or s so the column width stays compact regardless of magnitude.
+func formatTotalNs(ns float64) string {
+	us := ns / 1e3
+	if us < 1_000 {
+		return fmt.Sprintf("%8.1fµs", us)
+	}
+	ms := us / 1_000
+	if ms < 1_000 {
+		return fmt.Sprintf("%8.1fms", ms)
+	}
+	return fmt.Sprintf("%8.3fs ", ms/1_000)
 }
 
 // RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then

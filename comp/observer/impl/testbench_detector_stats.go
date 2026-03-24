@@ -20,6 +20,7 @@ type DetectorProcessingStats struct {
 	AvgNs    float64 `json:"avg_ns"`
 	MedianNs float64 `json:"median_ns"`
 	P99Ns    float64 `json:"p99_ns"`
+	TotalNs  float64 `json:"total_ns"` // sum of all individual call durations
 }
 
 // computeDetectorProcessingStats groups telemetry samples for
@@ -67,6 +68,7 @@ func statsFromSamples(name string, values []float64) DetectorProcessingStats {
 		AvgNs:    avg,
 		MedianNs: interpolatedPercentile(sorted, 50),
 		P99Ns:    interpolatedPercentile(sorted, 99),
+		TotalNs:  sum,
 	}
 }
 

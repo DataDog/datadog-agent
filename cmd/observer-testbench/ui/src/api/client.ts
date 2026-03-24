@@ -284,6 +284,7 @@ export interface DetectorProcessingStats {
   avg_ns: number;
   median_ns: number;
   p99_ns: number;
+  total_ns: number;
 }
 
 class ApiClient {

@@ -8,24 +8,41 @@ import { parseTagFilter, toggleTagInInput, matchesTagFilter } from '../filters';
 
 // ── Chart constants ────────────────────────────────────────────────────────────
 
-const MARGIN = { top: 44, right: 95, bottom: 20, left: 235 };
+// The "total" bar uses a fully independent secondary x-scale (its values can be
+// orders of magnitude larger than avg/p50/p99). A visual separator + second axis
+// makes the two scales unambiguous.
+const SEP_H = 10; // extra vertical gap between per-call rows and the total row
+const MARGIN = { top: 44, right: 95, bottom: 28, left: 235 };
 const BAR_H = 15;
 const BAR_GAP = 3;
 const GROUP_PAD = 16;
-const GROUP_INNER_H = 3 * BAR_H + 2 * BAR_GAP; // 51 px
-const GROUP_H = GROUP_INNER_H + GROUP_PAD;       // 67 px
+const GROUP_INNER_H = 4 * BAR_H + 3 * BAR_GAP + SEP_H; // 91 px
+const GROUP_H = GROUP_INNER_H + GROUP_PAD;               // 107 px
 
-const STATS: { key: 'avg' | 'p50' | 'p99'; label: string; color: string }[] = [
+// Per-call stats (share the primary top x-axis, domain in ns)
+const PER_CALL_STATS: { key: 'avg' | 'p50' | 'p99'; label: string; color: string }[] = [
   { key: 'avg', label: 'avg', color: '#60a5fa' },  // blue-400
   { key: 'p50', label: 'p50', color: '#4ade80' },  // green-400
   { key: 'p99', label: 'p99', color: '#f87171' },  // red-400
 ];
 
+const TOTAL_COLOR = '#fb923c'; // orange-400
+
+// Format µs-range values (used on the primary axis and per-call labels)
 function fmtUs(ns: number): string {
   const us = ns / 1000;
   if (us < 10) return us.toFixed(2) + 'µs';
   if (us < 100) return us.toFixed(1) + 'µs';
   return us.toFixed(0) + 'µs';
+}
+
+// Format potentially large totals with auto-scaling µs → ms → s
+function fmtTotal(ns: number): string {
+  const us = ns / 1000;
+  if (us < 1_000) return us.toFixed(1) + 'µs';
+  const ms = us / 1_000;
+  if (ms < 1_000) return ms.toFixed(1) + 'ms';
+  return (ms / 1_000).toFixed(3) + 's';
 }
 
 // ── Scenario selector (same as other views) ───────────────────────────────────
@@ -82,12 +99,18 @@ interface BenchmarkBarChartProps {
   onHover: (name: string | null) => void;
 }
 
+type StatKey = 'avg' | 'p50' | 'p99' | 'total';
+
 function BenchmarkBarChart({ stats, highlighted, onHover }: BenchmarkBarChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [activeStat, setActiveStat] = useState<StatKey | null>(null);
   const onHoverRef = useRef(onHover);
   onHoverRef.current = onHover;
+  const onStatClickRef = useRef<(key: StatKey) => void>(() => {});
+  onStatClickRef.current = (key: StatKey) =>
+    setActiveStat((prev) => (prev === key ? null : key));
 
   // Track container width via ResizeObserver
   useEffect(() => {
@@ -116,48 +139,91 @@ function BenchmarkBarChart({ stats, highlighted, onHover }: BenchmarkBarChartPro
     d3.select(svgRef.current).selectAll('*').remove();
     const svg = d3.select(svgRef.current).attr('width', width).attr('height', totalHeight);
 
-    // Legend (above the chart area, inside the left+chart space)
+    // Legend — clickable items (click to isolate a stat, click again to reset)
     const legendG = svg.append('g').attr('transform', `translate(${MARGIN.left}, 16)`);
-    STATS.forEach(({ label, color }, i) => {
-      const lx = i * 72;
-      legendG.append('rect').attr('x', lx).attr('y', 0).attr('width', 10).attr('height', 10).attr('fill', color).attr('rx', 2);
-      legendG
-        .append('text')
-        .attr('x', lx + 14)
-        .attr('y', 9)
-        .attr('fill', color)
-        .attr('font-size', '10px')
-        .attr('font-family', 'monospace')
+
+    const legendItems: { key: StatKey; label: string; color: string; x: number; baseOpacity: number }[] = [
+      { key: 'avg',   label: 'avg',   color: '#60a5fa', x: 0,   baseOpacity: 1 },
+      { key: 'p50',   label: 'p50',   color: '#4ade80', x: 72,  baseOpacity: 1 },
+      { key: 'p99',   label: 'p99',   color: '#f87171', x: 144, baseOpacity: 1 },
+      { key: 'total', label: 'total', color: TOTAL_COLOR, x: 235, baseOpacity: 0.85 },
+    ];
+
+    // Pipe separator between per-call and total
+    legendG.append('text').attr('x', 220).attr('y', 9).attr('fill', '#475569').attr('font-size', '10px').text('|');
+
+    legendItems.forEach(({ key, label, color, x, baseOpacity }) => {
+      const isSelected = activeStat === key;
+      const isDimmed = activeStat !== null && !isSelected;
+      const itemOpacity = isDimmed ? 0.25 : baseOpacity;
+
+      const itemG = legendG.append('g')
+        .attr('transform', `translate(${x}, 0)`)
+        .style('cursor', 'pointer')
+        .attr('opacity', itemOpacity)
+        .on('click', () => onStatClickRef.current(key));
+
+      itemG.append('rect')
+        .attr('x', 0).attr('y', 0).attr('width', 10).attr('height', 10)
+        .attr('fill', color).attr('rx', 2);
+
+      itemG.append('text')
+        .attr('x', 14).attr('y', 9)
+        .attr('fill', color).attr('font-size', '10px').attr('font-family', 'monospace')
         .text(label);
+
+      // Underline when selected
+      if (isSelected) {
+        const labelWidth = label.length * 7;
+        itemG.append('line')
+          .attr('x1', 14).attr('x2', 14 + labelWidth)
+          .attr('y1', 13).attr('y2', 13)
+          .attr('stroke', color).attr('stroke-width', 1.5);
+      }
     });
+
+    // "own scale" note
+    legendG.append('text').attr('x', 283).attr('y', 9).attr('fill', '#475569').attr('font-size', '9px')
+      .attr('opacity', activeStat === null || activeStat === 'total' ? 0.7 : 0.2)
+      .text('(own scale →)');
 
     const g = svg.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
 
-    const maxNs = d3.max(stats, (s) => s.p99_ns) ?? 1;
-    const xScale = d3.scaleLinear().domain([0, maxNs * 1.12]).range([0, innerWidth]);
+    // Primary scale: per-call stats (avg / p50 / p99)
+    const maxPerCallNs = d3.max(stats, (s) => s.p99_ns) ?? 1;
+    const xScale = d3.scaleLinear().domain([0, maxPerCallNs * 1.12]).range([0, innerWidth]);
 
-    // Top axis — suppress the zero tick label to avoid overlap with stat key labels
+    // Secondary scale: total — fully independent domain
+    const maxTotalNs = d3.max(stats, (s) => s.total_ns) ?? 1;
+    const xScaleTotal = d3.scaleLinear().domain([0, maxTotalNs * 1.12]).range([0, innerWidth]);
+
+    const perCallAxisOpacity = activeStat === 'total' ? 0.15 : 1;
+    const totalAxisOpacity   = activeStat !== null && activeStat !== 'total' ? 0.15 : 1;
+
+    // Top axis — per-call µs scale (suppress zero to avoid collision with "avg" label)
     g.append('g')
       .attr('transform', 'translate(0,-8)')
-      .call(
-        d3
-          .axisTop(xScale)
-          .ticks(5)
-          .tickFormat((d) => (+d === 0 ? '' : fmtUs(+d)))
-      )
+      .attr('opacity', perCallAxisOpacity)
+      .call(d3.axisTop(xScale).ticks(5).tickFormat((d) => (+d === 0 ? '' : fmtUs(+d))))
       .call((ax) => ax.select('.domain').attr('stroke', '#334155'))
       .call((ax) => ax.selectAll('text').attr('fill', '#64748b').attr('font-size', '10px'))
       .call((ax) => ax.selectAll('.tick line').attr('stroke', '#334155'));
 
-    // Grid lines
+    // Bottom axis — total scale (auto µs/ms/s), orange tint
+    g.append('g')
+      .attr('transform', `translate(0,${innerHeight + 8})`)
+      .attr('opacity', totalAxisOpacity)
+      .call(d3.axisBottom(xScaleTotal).ticks(5).tickFormat((d) => (+d === 0 ? '' : fmtTotal(+d))))
+      .call((ax) => ax.select('.domain').attr('stroke', '#334155'))
+      .call((ax) => ax.selectAll('text').attr('fill', TOTAL_COLOR).attr('font-size', '10px').attr('opacity', '0.7'))
+      .call((ax) => ax.selectAll('.tick line').attr('stroke', '#334155'));
+
+    // Primary grid lines (faint)
     xScale.ticks(5).forEach((t) => {
       g.append('line')
-        .attr('x1', xScale(t))
-        .attr('x2', xScale(t))
-        .attr('y1', 0)
-        .attr('y2', innerHeight)
-        .attr('stroke', '#1e293b')
-        .attr('stroke-width', 1);
+        .attr('x1', xScale(t)).attr('x2', xScale(t))
+        .attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', '#1e293b').attr('stroke-width', 1);
     });
 
     // Draw each detector group
@@ -174,86 +240,88 @@ function BenchmarkBarChart({ stats, highlighted, onHover }: BenchmarkBarChartPro
         .on('mouseenter', () => onHoverRef.current(stat.name))
         .on('mouseleave', () => onHoverRef.current(null));
 
-      // Transparent hit zone spanning full row (including left margin)
-      groupG
-        .append('rect')
-        .attr('x', -MARGIN.left)
-        .attr('y', -2)
+      // Transparent hit zone spanning full row (including margins)
+      groupG.append('rect')
+        .attr('x', -MARGIN.left).attr('y', -2)
         .attr('width', MARGIN.left + innerWidth + MARGIN.right)
         .attr('height', GROUP_INNER_H + 4)
         .attr('fill', 'transparent');
 
-      const vals: Record<string, number> = {
-        avg: stat.avg_ns,
-        p50: stat.median_ns,
-        p99: stat.p99_ns,
-      };
+      // ── Per-call bars (avg / p50 / p99) — primary scale ──────────────────
+      const perCallVals: Record<string, number> = { avg: stat.avg_ns, p50: stat.median_ns, p99: stat.p99_ns };
 
-      STATS.forEach(({ key, color }, si) => {
+      PER_CALL_STATS.forEach(({ key, color }, si) => {
         const barY = si * (BAR_H + BAR_GAP);
-        const val = vals[key];
+        const val = perCallVals[key];
         const barW = Math.max(0, xScale(val));
+        const statOpacity = activeStat === null || activeStat === key ? 1 : 0.07;
 
-        // Bar
-        groupG
-          .append('rect')
-          .attr('x', 0)
-          .attr('y', barY)
-          .attr('width', barW)
-          .attr('height', BAR_H)
-          .attr('fill', color)
-          .attr('rx', 2);
+        groupG.append('rect')
+          .attr('x', 0).attr('y', barY).attr('width', barW).attr('height', BAR_H)
+          .attr('fill', color).attr('rx', 2).attr('opacity', statOpacity);
 
-        // Stat key label — in the margin just before x=0
-        groupG
-          .append('text')
-          .attr('x', -10)
-          .attr('y', barY + BAR_H / 2)
-          .attr('text-anchor', 'end')
-          .attr('dominant-baseline', 'middle')
-          .attr('fill', color)
-          .attr('font-size', '9px')
-          .attr('font-family', 'monospace')
+        groupG.append('text')
+          .attr('x', -10).attr('y', barY + BAR_H / 2)
+          .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+          .attr('fill', color).attr('font-size', '9px').attr('font-family', 'monospace')
+          .attr('opacity', statOpacity)
           .text(key);
 
-        // Value label at the end of the bar
-        groupG
-          .append('text')
-          .attr('x', barW + 6)
-          .attr('y', barY + BAR_H / 2)
+        groupG.append('text')
+          .attr('x', barW + 6).attr('y', barY + BAR_H / 2)
           .attr('dominant-baseline', 'middle')
-          .attr('fill', color)
-          .attr('font-size', '10px')
-          .attr('font-family', 'monospace')
+          .attr('fill', color).attr('font-size', '10px').attr('font-family', 'monospace')
+          .attr('opacity', statOpacity)
           .text(fmtUs(val));
       });
 
-      // Detector name — right-aligned in the wide left column
-      const nameX = -60;
-      const displayName =
-        stat.name.length > 20 ? stat.name.slice(0, 19) + '…' : stat.name;
-      groupG
-        .append('text')
-        .attr('x', nameX)
-        .attr('y', GROUP_INNER_H / 2 - 7)
-        .attr('text-anchor', 'end')
+      // ── Dashed separator line before the total row ────────────────────────
+      const sepY = 3 * (BAR_H + BAR_GAP) + SEP_H / 2;
+      groupG.append('line')
+        .attr('x1', -10).attr('x2', innerWidth)
+        .attr('y1', sepY).attr('y2', sepY)
+        .attr('stroke', '#334155').attr('stroke-width', 0.5)
+        .attr('stroke-dasharray', '3,3');
+
+      // ── Total bar — secondary scale ───────────────────────────────────────
+      const totalBarY = 3 * (BAR_H + BAR_GAP) + SEP_H;
+      const totalW = Math.max(0, xScaleTotal(stat.total_ns));
+      const totalStatOpacity = activeStat === null || activeStat === 'total' ? 1 : 0.07;
+
+      groupG.append('rect')
+        .attr('x', 0).attr('y', totalBarY).attr('width', totalW).attr('height', BAR_H)
+        .attr('fill', TOTAL_COLOR).attr('opacity', totalStatOpacity * 0.75).attr('rx', 2);
+
+      groupG.append('text')
+        .attr('x', -10).attr('y', totalBarY + BAR_H / 2)
+        .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+        .attr('fill', TOTAL_COLOR).attr('font-size', '9px').attr('font-family', 'monospace')
+        .attr('opacity', totalStatOpacity * 0.85).text('tot');
+
+      groupG.append('text')
+        .attr('x', totalW + 6).attr('y', totalBarY + BAR_H / 2)
         .attr('dominant-baseline', 'middle')
+        .attr('fill', TOTAL_COLOR).attr('font-size', '10px').attr('font-family', 'monospace')
+        .attr('opacity', totalStatOpacity * 0.85).text(fmtTotal(stat.total_ns));
+
+      // ── Detector name + call count ────────────────────────────────────────
+      const nameX = -60;
+      const displayName = stat.name.length > 20 ? stat.name.slice(0, 19) + '…' : stat.name;
+
+      groupG.append('text')
+        .attr('x', nameX).attr('y', GROUP_INNER_H / 2 - 7)
+        .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
         .attr('fill', isActive ? '#e2e8f0' : '#475569')
-        .attr('font-size', '11px')
-        .attr('font-family', 'monospace')
+        .attr('font-size', '11px').attr('font-family', 'monospace')
         .text(displayName);
 
-      groupG
-        .append('text')
-        .attr('x', nameX)
-        .attr('y', GROUP_INNER_H / 2 + 9)
-        .attr('text-anchor', 'end')
-        .attr('dominant-baseline', 'middle')
-        .attr('fill', '#475569')
-        .attr('font-size', '9px')
+      groupG.append('text')
+        .attr('x', nameX).attr('y', GROUP_INNER_H / 2 + 9)
+        .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+        .attr('fill', '#475569').attr('font-size', '9px')
         .text(`${stat.count.toLocaleString()} calls`);
     });
-  }, [stats, highlighted, containerWidth]);
+  }, [stats, highlighted, containerWidth, activeStat]);
 
   return (
     <div ref={containerRef} className="w-full">
