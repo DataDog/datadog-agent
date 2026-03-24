@@ -224,12 +224,11 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		processingStartTime := time.Now()
 		lo.ProcessLog(view)
 		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
-		if len(logTelemetry) > 0 {
-			e.telemetryMu.Lock()
-			e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
-			e.telemetryMu.Unlock()
-		}
+		gauge := newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000)
+		logTelemetry = append(logTelemetry, gauge)
+		e.telemetryMu.Lock()
+		e.accumulatedTelemetry = append(e.accumulatedTelemetry, gauge)
+		e.telemetryMu.Unlock()
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
@@ -401,11 +400,6 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.Obser
 		correlator.ProcessAnomaly(anomaly)
 		processingTime := time.Since(processingStartTime)
 		allTelemetry = append(allTelemetry, newTelemetryGauge(correlator.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
-		if len(allTelemetry) > 0 {
-			e.telemetryMu.Lock()
-			e.accumulatedTelemetry = append(e.accumulatedTelemetry, allTelemetry...)
-			e.telemetryMu.Unlock()
-		}
 	}
 
 	return allTelemetry
