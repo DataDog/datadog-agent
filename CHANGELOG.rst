@@ -30,6 +30,8 @@ Enhancement Notes
 Bug Fixes
 ---------
 
+- Fixed a bug introduced in 7.77.0 that prevents system-probe from starting on Fargate environments when Workload Protection is enabled
+
 - Fixed a command injection vulnerability in the Private Action Runner's inline
   PowerShell script execution. Parameter values are now assigned as PowerShell
   single-quoted string literals in a preamble instead of being substituted
