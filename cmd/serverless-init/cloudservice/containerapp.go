@@ -125,16 +125,16 @@ func (c *ContainerApp) GetTags() map[string]string {
 
 func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
-		"name":            tags["app_name"],
-		"origin":          tags["origin"],
-		"region":          tags["region"],
-		"resource_group":  tags["resource_group"],
-		"revisionname":    tags["revision"],
-		"subscription_id": tags["subscription_id"],
+		"name":            tagValueOrUnknown(tags["app_name"]),
+		"origin":          tagValueOrUnknown(tags["origin"]),
+		"region":          tagValueOrUnknown(tags["region"]),
+		"resource_group":  tagValueOrUnknown(tags["resource_group"]),
+		"revisionname":    tagValueOrUnknown(tags["revision"]),
+		"subscription_id": tagValueOrUnknown(tags["subscription_id"]),
 	}
 
 	usageTags := maps.Clone(baseTags)
-	usageTags["replica"] = tags["replica_name"]
+	usageTags["replica"] = tagValueOrUnknown(tags["replica_name"])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }

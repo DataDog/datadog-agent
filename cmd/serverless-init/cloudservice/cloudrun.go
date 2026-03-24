@@ -137,15 +137,15 @@ func (c *CloudRun) GetTags() map[string]string {
 
 func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
-		"location":      tags["location"],
-		"origin":        tags["origin"],
-		"project_id":    tags["project_id"],
-		"revision_name": tags["revision_name"],
-		"service_name":  tags["service_name"],
+		"location":      tagValueOrUnknown(tags["location"]),
+		"origin":        tagValueOrUnknown(tags["origin"]),
+		"project_id":    tagValueOrUnknown(tags["project_id"]),
+		"revision_name": tagValueOrUnknown(tags["revision_name"]),
+		"service_name":  tagValueOrUnknown(tags["service_name"]),
 	}
 
 	usageTags := maps.Clone(baseTags)
-	usageTags["instance"] = tags["container_id"]
+	usageTags["instance"] = tagValueOrUnknown(tags["container_id"])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }

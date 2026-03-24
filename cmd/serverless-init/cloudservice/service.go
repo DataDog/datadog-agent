@@ -114,11 +114,11 @@ func (l *LocalService) GetTags() map[string]string {
 // GetEnhancedMetricTags is a default implementation that returns an empty tag set
 func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
-		"local": tags["local"],
+		"local": tagValueOrUnknown(tags["local"]),
 	}
 
 	usageTags := maps.Clone(baseTags)
-	usageTags["instance"] = tags["instance"]
+	usageTags["instance"] = tagValueOrUnknown(tags["instance"])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
@@ -195,4 +195,11 @@ func GetCloudServiceType() CloudService {
 	}
 
 	return &LocalService{}
+}
+
+func tagValueOrUnknown(val string) string {
+	if val == "" {
+		return "unknown"
+	}
+	return val
 }

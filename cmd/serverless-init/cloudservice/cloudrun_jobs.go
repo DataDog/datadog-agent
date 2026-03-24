@@ -90,10 +90,10 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 
 func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
-		"location":   tags["location"],
-		"project_id": tags["project_id"],
-		"job_name":   tags["job_name"],
-		"origin":     tags["origin"],
+		"job_name":   tagValueOrUnknown(tags["job_name"]),
+		"location":   tagValueOrUnknown(tags["location"]),
+		"origin":     tagValueOrUnknown(tags["origin"]),
+		"project_id": tagValueOrUnknown(tags["project_id"]),
 	}
 
 	usageTags := map[string]string{}
