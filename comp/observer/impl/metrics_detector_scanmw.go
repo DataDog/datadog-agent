@@ -118,7 +118,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 
 	gen := storage.SeriesGeneration()
 	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
+		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
 		d.cachedGen = gen
 	}
 

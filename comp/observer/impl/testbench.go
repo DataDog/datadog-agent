@@ -719,7 +719,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.engine.Storage().Add("telemetry", metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.engine.Storage().Add(observerdef.TelemetryNamespace, metric.name, metric.value, metric.timestamp, metric.tags)
 
 			if !tb.telemetryHandler.isMetricRegistered(metric.name) {
 				fmt.Printf("ERROR: [observer] metric %s is not registered\n", metric.name)
@@ -868,7 +868,7 @@ func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []
 		a := &anomalies[i]
 		// This comes from the telemetry
 		if a.SourceSeriesID == "" && a.Source.Name != "" {
-			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", a.Source.String()+":avg", nil))
+			a.SourceSeriesID = observerdef.SeriesID(seriesKey(observerdef.TelemetryNamespace, a.Source.String()+":avg", nil))
 		}
 	}
 	return anomalies

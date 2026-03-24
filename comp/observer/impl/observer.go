@@ -485,7 +485,7 @@ func (a *seriesDetectorAdapter) Reset() {
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	allSeries := storage.ListSeries(observerdef.SeriesFilter{})
+	allSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
