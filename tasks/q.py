@@ -516,7 +516,7 @@ _BENCH_FILTER = "BenchmarkDetection|BenchmarkIngestion|BenchmarkLogExtraction"
 
 
 @task
-def benchmark(ctx, bench=_BENCH_FILTER, benchtime="3s", count=1):
+def benchmark(ctx, bench=_BENCH_FILTER, benchtime="3s", count=1, only=""):
     """
     Runs the observer benchmark suite and prints a grouped summary.
 
@@ -527,12 +527,16 @@ def benchmark(ctx, bench=_BENCH_FILTER, benchtime="3s", count=1):
         bench: Benchmark filter regex (default: ingestion + detection + real-scenario families).
         benchtime: Time per benchmark (default: 3s).
         count: Number of runs per benchmark (default: 1).
+        only: Comma-separated components to enable exclusively (e.g. bocpd,time_cluster).
+              Extractors are always enabled. Default: use catalog defaults.
 
     Example:
         dda inv q.benchmark
         dda inv q.benchmark --bench BenchmarkDetection --benchtime 5s
+        dda inv q.benchmark --only bocpd,time_cluster
     """
-    cmd = f"go test -run=^$ -bench='{bench}' -benchmem -benchtime={benchtime} -count={count} ./comp/observer/impl/"
+    only_args = f" -args -only={shlex.quote(only)}" if only else ""
+    cmd = f"go test -run=^$ -bench='{bench}' -benchmem -benchtime={benchtime} -count={count} ./comp/observer/impl/{only_args}"
     print(color_message(f"\nRunning: {cmd}\n", Color.BLUE))
     result = ctx.run(cmd, warn=True)
     if result and result.failed:

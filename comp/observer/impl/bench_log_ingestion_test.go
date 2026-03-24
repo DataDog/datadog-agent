@@ -8,32 +8,10 @@ package observerimpl
 import (
 	"fmt"
 	"testing"
-
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// realExtractors returns the same extractors the live observer registers in NewComponent.
-func realExtractors() []observerdef.LogMetricsExtractor {
-	return []observerdef.LogMetricsExtractor{
-		NewLogMetricsExtractor(LogMetricsExtractorConfig{
-			MaxEvalBytes: 4096,
-			ExcludeFields: map[string]struct{}{
-				"timestamp": {},
-				"ts":        {},
-				"time":      {},
-				"pid":       {},
-				"ppid":      {},
-				"uid":       {},
-				"gid":       {},
-			},
-		}),
-		&ConnectionErrorExtractor{},
-	}
-}
-
 // BenchmarkLogExtraction_SeriesCount measures raw log ingestion cost with
-// real extractors (LogMetricsExtractor + ConnectionErrorExtractor) across
-// increasing series count.
+// the default catalog extractors across increasing series count.
 func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
@@ -50,10 +28,11 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
+				_, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
 				storage := newTimeSeriesStorage()
 				e := newEngine(engineConfig{
 					storage:    storage,
-					extractors: realExtractors(),
+					extractors: extractors,
 				})
 				b.StartTimer()
 
