@@ -102,7 +102,7 @@ pkg_rpm(
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
-    package_file_name = "{product_name}-ddot_{version}-1.{arch_rpm}.rpm",
+    package_file_name = "{product_name}-ddot-{version}-1.{arch_rpm}.rpm",
     package_variables = ":variables",
     posttrans_scriptlet_file = "//omnibus:package-scripts/ddot-rpm/posttrans",
     pre_scriptlet_file = "//omnibus:package-scripts/ddot-rpm/preinst",
