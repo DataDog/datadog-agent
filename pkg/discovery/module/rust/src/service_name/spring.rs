@@ -344,10 +344,8 @@ where
 /// Parse Start-Class from manifest file
 fn parse_start_class<R: Read>(reader: R) -> Option<String> {
     let reader = BufReader::new(reader);
-    for line in reader.lines() {
-        if let Ok(line) = line
-            && let Some(stripped) = line.strip_prefix("Start-Class: ")
-        {
+    for line in reader.lines().map_while(Result::ok) {
+        if let Some(stripped) = line.strip_prefix("Start-Class: ") {
             return Some(stripped.trim().to_string());
         }
     }

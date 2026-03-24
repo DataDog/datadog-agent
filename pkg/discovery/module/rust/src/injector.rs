@@ -19,11 +19,7 @@ fn is_injector_in_maps<T>(maps_reader: T) -> bool
 where
     T: BufRead,
 {
-    maps_reader.lines().any(|line| {
-        let Ok(line) = line else {
-            return false;
-        };
-
+    maps_reader.lines().map_while(Result::ok).any(|line| {
         let Some(filename) = line.split_whitespace().last() else {
             return false;
         };

@@ -36,7 +36,7 @@ static GPU_LIB_FINDERS: LazyLock<[Finder<'static>; 7]> = LazyLock::new(|| {
 fn check_for_gpu_libraries<R: BufRead>(reader: R) -> bool {
     reader
         .split(b'\n')
-        .filter_map(|line_result| line_result.ok())
+        .map_while(|line_result| line_result.ok())
         .any(|line| GPU_LIB_FINDERS.iter().any(|f| f.find(&line).is_some()))
 }
 

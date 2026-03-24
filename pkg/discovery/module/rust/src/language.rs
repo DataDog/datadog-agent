@@ -274,13 +274,10 @@ impl Language {
 fn has_dotnet_dll_in_maps<R: std::io::BufRead>(maps_reader: R) -> bool {
     const DOTNET_RUNTIME_DLL: &str = "/System.Runtime.dll";
 
-    maps_reader.lines().any(|line| {
-        let Ok(line) = line else {
-            return false;
-        };
-
-        line.ends_with(DOTNET_RUNTIME_DLL)
-    })
+    maps_reader
+        .lines()
+        .map_while(Result::ok)
+        .any(|line| line.ends_with(DOTNET_RUNTIME_DLL))
 }
 
 #[derive(Eq, PartialEq, Hash)]
