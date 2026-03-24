@@ -281,9 +281,7 @@ func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string
 		} else if cloudRunType == CloudRunFunction {
 			metaChan <- keyVal{cloudRunFunction + baseKey, val}
 		} else {
-			err := fmt.Errorf("unexpected cloudRunType for GCP metadata: %d", cloudRunType)
-			log.Error(err.Error())
-			panic(err)
+			panic(fmt.Errorf("unexpected cloudRunType for GCP metadata: %d", cloudRunType))
 		}
 	}
 
