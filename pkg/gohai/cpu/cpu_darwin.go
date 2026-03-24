@@ -73,6 +73,10 @@ func getCPUInfo() *Info {
 	cpuInfo.ModelName = getSysctlString("machdep.cpu.brand_string")
 
 	cpuInfo.Family = getSysctlInt32String("machdep.cpu.family")
+	// Apple Silicon: machdep.cpu.family doesn't exist; fall back to hw.cpufamily
+	if cpuInfo.Family.Error() != nil {
+		cpuInfo.Family = getSysctlInt32String("hw.cpufamily")
+	}
 	cpuInfo.Model = getSysctlInt32String("machdep.cpu.model")
 	cpuInfo.Stepping = getSysctlInt32String("machdep.cpu.stepping")
 
@@ -86,6 +90,21 @@ func getCPUInfo() *Info {
 	cpuInfo.CacheSizeL1Bytes = getSysctlUint64Int64("hw.l1dcachesize")
 	cpuInfo.CacheSizeL2Bytes = getSysctlUint64Int64("hw.l2cachesize")
 	cpuInfo.CacheSizeL3Bytes = getSysctlUint64Int64("hw.l3cachesize")
+
+	// CacheSizeKB: sum of all available cache levels in KB (mirrors Linux ARM64 behavior)
+	var totalCacheBytes uint64
+	if l1, err := cpuInfo.CacheSizeL1Bytes.Value(); err == nil {
+		totalCacheBytes += l1
+	}
+	if l2, err := cpuInfo.CacheSizeL2Bytes.Value(); err == nil {
+		totalCacheBytes += l2
+	}
+	if l3, err := cpuInfo.CacheSizeL3Bytes.Value(); err == nil {
+		totalCacheBytes += l3
+	}
+	if totalCacheBytes > 0 {
+		cpuInfo.CacheSizeKB = utils.NewValue(totalCacheBytes / 1024)
+	}
 
 	// mhz is returned in hz but stored in mhz so we use a specific cast function
 	mhzCast := func(value uint64) float64 {

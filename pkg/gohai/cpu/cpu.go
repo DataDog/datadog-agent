@@ -22,7 +22,7 @@ type Info struct {
 	CPULogicalProcessors utils.Value[uint64] `json:"cpu_logical_processors"`
 	// Mhz the frequency for the CPU (Not available on ARM)
 	Mhz utils.Value[float64] `json:"mhz"`
-	// CacheSizeKB the cache size for the CPU in KB (Linux only)
+	// CacheSizeKB the cache size for the CPU in KB (Linux and Darwin)
 	CacheSizeKB utils.Value[uint64] `json:"cache_size" unit:" KB"`
 	// Family the CPU family
 	Family utils.Value[string] `json:"family"`
