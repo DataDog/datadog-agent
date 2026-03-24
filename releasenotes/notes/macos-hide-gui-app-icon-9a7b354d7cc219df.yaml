@@ -6,10 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-security:
+enhancements:
   - |
-<<<<<<<< HEAD:releasenotes/notes/bump-cloudflare-circl-cve-73a90a28a17786c1.yaml
-    Bump github.com/cloudflare/circl to fix v1.6.3 to fix CVE-2026-1229.
-========
     Hide GUI app by default for MacOS agent per-user install.
->>>>>>>> 61713a70d82 (Hide gui app by default (#48240)):releasenotes/notes/macos-hide-gui-app-icon-9a7b354d7cc219df.yaml
