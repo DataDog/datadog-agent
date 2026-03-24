@@ -40,10 +40,15 @@ use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::Semaphore;
 
 mod cli;
 
 use cli::Args;
+
+/// We choose 2 because one is for regular agent checks and another one is for manual troubleshooting.
+/// This matches the Go system-probe's DefaultMaxConcurrentRequests.
+static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
@@ -114,7 +119,7 @@ async fn handle_services(
         }
     };
 
-    let services = get_services(params);
+    let services = tokio::task::spawn_blocking(|| get_services(params)).await?;
     debug!("Found {} services", services.services.len());
 
     Response::builder()
@@ -224,12 +229,30 @@ fn not_found() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
         .map_err(|e| anyhow!("Failed to build not found response: {}", e))
 }
 
+fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .status(StatusCode::TOO_MANY_REQUESTS)
+        .body(
+            Full::new(Bytes::from("Too many requests"))
+                .map_err(|e| match e {})
+                .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build too many requests response: {}", e))
+}
+
 async fn handle_request(
     req: Request<hyper::body::Incoming>,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
             debug!("Handling /discovery/services request");
+            let _permit = match SERVICES_SEMAPHORE.try_acquire() {
+                Ok(permit) => permit,
+                Err(_) => {
+                    warn!("rejecting request for path=/discovery/services concurrency_limit=2");
+                    return too_many_requests();
+                }
+            };
             handle_services(req).await
         }
         (&Method::GET, "/discovery/state") => handle_state().await,
@@ -313,7 +336,7 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse(env::args())?;
     dd_agent_log::init(dd_agent_log::LogConfig {
