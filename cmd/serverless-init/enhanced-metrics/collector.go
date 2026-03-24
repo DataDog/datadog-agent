@@ -214,7 +214,7 @@ func (c *Collector) computeEnhancedMetrics(inStats *ServerlessContainerStats) Se
 		c.previousRateStats.TotalCPU = currentTotal
 		c.previousRateStats.CollectionTime = inStats.CollectionTime
 
-		enhancedMetrics.CPULimit = statValue(inStats.CPU.Limit, 0)
+		enhancedMetrics.CPULimit = statValue(inStats.CPU.Limit, math.NaN())
 	}
 
 	return enhancedMetrics
@@ -312,7 +312,10 @@ func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	}
 
 	// CPU limit in nanocores
-	c.metricAgent.AddEnhancedMetric(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, enhancedMetrics.Timestamp)
+	// Skip when value is NaN as no limit is available
+	if !math.IsNaN(enhancedMetrics.CPULimit) {
+		c.metricAgent.AddEnhancedMetric(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, enhancedMetrics.Timestamp)
+	}
 }
 
 // statValue returns the value of a float64 pointer, or a default value if the pointer is nil
