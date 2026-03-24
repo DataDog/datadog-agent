@@ -24,10 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultProcPath         = "/proc"
-	containerizedPathPrefix = "/host"
-)
+const defaultProcPath = "/proc"
+
+// containerizedPathPrefix is the mount prefix for host paths in containerized
+// environments. It is a var (not const) to allow override in tests.
+var containerizedPathPrefix = "/host"
 
 // RunCommandHandler implements the runCommand action.
 type RunCommandHandler struct {

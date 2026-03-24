@@ -7,6 +7,7 @@ package com_datadoghq_remoteaction_rshell
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,6 @@ func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 }
 
 func TestResolveProcPathBareMetal(t *testing.T) {
-	// Ensure not containerized
 	t.Setenv("DOCKER_DD_AGENT", "")
 	os.Unsetenv("DOCKER_DD_AGENT")
 
@@ -45,26 +45,30 @@ func TestResolveProcPathBareMetal(t *testing.T) {
 func TestResolveProcPathContainerizedWithHostMount(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
 
-	// /host/proc won't exist in CI, so this should fall back to /proc
-	// unless running on a host where /host/proc is actually mounted
+	// Point prefix at a temp dir with a proc directory to simulate /host/proc
+	tmpDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "proc"), 0755))
+
+	original := containerizedPathPrefix
+	containerizedPathPrefix = tmpDir
+	t.Cleanup(func() { containerizedPathPrefix = original })
+
 	result := resolveProcPath()
 
-	if _, err := os.Stat("/host/proc"); err == nil {
-		assert.Equal(t, "/host/proc", result)
-	} else {
-		assert.Equal(t, "/proc", result)
-	}
+	assert.Equal(t, filepath.Join(tmpDir, "proc"), result)
 }
 
 func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
-	// Simulate containerized environment without host mounts (e.g. Fargate)
 	t.Setenv("DOCKER_DD_AGENT", "true")
 
-	// /host/proc won't exist in test environment, so should fall back
+	// Point prefix at an empty temp dir — no proc mount exists
+	tmpDir := t.TempDir()
+
+	original := containerizedPathPrefix
+	containerizedPathPrefix = tmpDir
+	t.Cleanup(func() { containerizedPathPrefix = original })
+
 	result := resolveProcPath()
 
-	// In CI/test environments, /host/proc doesn't exist, so we get /proc
-	if _, err := os.Stat("/host/proc"); os.IsNotExist(err) {
-		assert.Equal(t, "/proc", result)
-	}
+	assert.Equal(t, "/proc", result)
 }

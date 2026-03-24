@@ -43,9 +43,11 @@ const (
 	// Default allowed paths for restricted shell
 	defaultLogPath       = "/var/log"
 	defaultOsReleasePath = "/etc/os-release"
-
-	containerizedPathPrefix = "/host"
 )
+
+// containerizedPathPrefix is the mount prefix for host paths in containerized
+// environments. It is a var (not const) to allow override in tests.
+var containerizedPathPrefix = "/host"
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
