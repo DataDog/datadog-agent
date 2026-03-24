@@ -48,7 +48,7 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], libname = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     rewrite_rpath(
         name = patched_name,
@@ -57,11 +57,12 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
     )
     rule_installed_files = list(installed_files)
     packaged_lib = "{}_packaged".format(name)
+    resolved_libname = libname if libname else "lib" + input.name
     if version:
         so_symlink(
             name = packaged_lib,
             src = ":{}".format(patched_name),
-            libname = "lib" + input.name,
+            libname = resolved_libname,
             version = version,
             visibility = visibility,
         )
@@ -108,6 +109,10 @@ dd_cc_packaged = macro(
             configurable = False,
         ),
         "version": attr.string(
+            default = "",
+            configurable = False,
+        ),
+        "libname": attr.string(
             default = "",
             configurable = False,
         ),
