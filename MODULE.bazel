@@ -230,7 +230,7 @@ register_toolchains(
 visual_studio(
     name = "visual_studio",
     path_variable = "VSTUDIO_ROOT",
-    version = "17.14.36717.8",
+    version = "17.14.36717.8",  # 18.4.11612.150
 )
 
 # =========================================
