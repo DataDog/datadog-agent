@@ -266,7 +266,7 @@ func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime 
 	log.Debugf("currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
 		currentTotal, previousTotal, currentTime, previousTime)
 
-	if currentTotal == math.NaN() || previousTotal == math.NaN() {
+	if math.IsNaN(currentTotal) || math.IsNaN(previousTotal) {
 		log.Debugf("currentTotal or previousTotal is NaN")
 		return math.NaN()
 	}
