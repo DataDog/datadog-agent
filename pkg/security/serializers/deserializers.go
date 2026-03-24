@@ -67,7 +67,8 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		PIDContext: model.PIDContext{
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
-			IsKworker: ps.IsKworker,
+			IsKworker:       ps.IsKworker,
+			IsSessionLeader: ps.IsSessionLeader,
 			PPid:      getPointerValue(ps.PPid),
 		},
 	}

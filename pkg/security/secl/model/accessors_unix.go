@@ -3334,6 +3334,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.PIDContext.IsSessionLeader
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -4732,6 +4743,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.Exit.Process.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.PIDContext.IsSessionLeader
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -10843,6 +10865,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.is_session_leader":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.PIDContext.IsSessionLeader
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.PIDContext.IsSessionLeader
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -12560,6 +12609,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.PIDContext.IsSessionLeader
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -13982,6 +14042,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return false
 				}
 				return ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.PIDContext.IsSessionLeader
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17214,6 +17288,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.is_session_leader":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.PIDContext.IsSessionLeader
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.PIDContext.IsSessionLeader
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -18931,6 +19032,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.PIDContext.IsSessionLeader
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -20353,6 +20465,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return false
 				}
 				return ev.PTrace.Tracee.Parent.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.PIDContext.IsSessionLeader
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25013,6 +25139,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.is_session_leader":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.PIDContext.IsSessionLeader
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.PIDContext.IsSessionLeader
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -26730,6 +26883,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.PIDContext.IsSessionLeader
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -28152,6 +28316,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return false
 				}
 				return ev.Setrlimit.Target.Parent.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.PIDContext.IsSessionLeader
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -31906,6 +32084,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.is_session_leader":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.PIDContext.IsSessionLeader
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.PIDContext.IsSessionLeader
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -33623,6 +33828,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.PIDContext.IsSessionLeader
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -35045,6 +35261,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return false
 				}
 				return ev.Signal.Target.Parent.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.is_session_leader":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				return ev.Signal.Target.Parent.PIDContext.IsSessionLeader
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -36959,6 +37189,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.interpreter.file.user",
 		"exec.is_exec",
 		"exec.is_kworker",
+		"exec.is_session_leader",
 		"exec.is_thread",
 		"exec.mntns",
 		"exec.netns",
@@ -37072,6 +37303,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.interpreter.file.user",
 		"exit.is_exec",
 		"exit.is_kworker",
+		"exit.is_session_leader",
 		"exit.is_thread",
 		"exit.mntns",
 		"exit.netns",
@@ -37448,6 +37680,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.interpreter.file.user",
 		"process.ancestors.is_exec",
 		"process.ancestors.is_kworker",
+		"process.ancestors.is_session_leader",
 		"process.ancestors.is_thread",
 		"process.ancestors.length",
 		"process.ancestors.mntns",
@@ -37559,6 +37792,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.interpreter.file.user",
 		"process.is_exec",
 		"process.is_kworker",
+		"process.is_session_leader",
 		"process.is_thread",
 		"process.mntns",
 		"process.netns",
@@ -37651,6 +37885,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.interpreter.file.user",
 		"process.parent.is_exec",
 		"process.parent.is_kworker",
+		"process.parent.is_session_leader",
 		"process.parent.is_thread",
 		"process.parent.mntns",
 		"process.parent.netns",
@@ -37781,6 +38016,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.interpreter.file.user",
 		"ptrace.tracee.ancestors.is_exec",
 		"ptrace.tracee.ancestors.is_kworker",
+		"ptrace.tracee.ancestors.is_session_leader",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.length",
 		"ptrace.tracee.ancestors.mntns",
@@ -37892,6 +38128,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.user",
 		"ptrace.tracee.is_exec",
 		"ptrace.tracee.is_kworker",
+		"ptrace.tracee.is_session_leader",
 		"ptrace.tracee.is_thread",
 		"ptrace.tracee.mntns",
 		"ptrace.tracee.netns",
@@ -37984,6 +38221,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.interpreter.file.user",
 		"ptrace.tracee.parent.is_exec",
 		"ptrace.tracee.parent.is_kworker",
+		"ptrace.tracee.parent.is_session_leader",
 		"ptrace.tracee.parent.is_thread",
 		"ptrace.tracee.parent.mntns",
 		"ptrace.tracee.parent.netns",
@@ -38242,6 +38480,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.interpreter.file.user",
 		"setrlimit.target.ancestors.is_exec",
 		"setrlimit.target.ancestors.is_kworker",
+		"setrlimit.target.ancestors.is_session_leader",
 		"setrlimit.target.ancestors.is_thread",
 		"setrlimit.target.ancestors.length",
 		"setrlimit.target.ancestors.mntns",
@@ -38353,6 +38592,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.interpreter.file.user",
 		"setrlimit.target.is_exec",
 		"setrlimit.target.is_kworker",
+		"setrlimit.target.is_session_leader",
 		"setrlimit.target.is_thread",
 		"setrlimit.target.mntns",
 		"setrlimit.target.netns",
@@ -38445,6 +38685,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.interpreter.file.user",
 		"setrlimit.target.parent.is_exec",
 		"setrlimit.target.parent.is_kworker",
+		"setrlimit.target.parent.is_session_leader",
 		"setrlimit.target.parent.is_thread",
 		"setrlimit.target.parent.mntns",
 		"setrlimit.target.parent.netns",
@@ -38622,6 +38863,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.interpreter.file.user",
 		"signal.target.ancestors.is_exec",
 		"signal.target.ancestors.is_kworker",
+		"signal.target.ancestors.is_session_leader",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.length",
 		"signal.target.ancestors.mntns",
@@ -38733,6 +38975,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.user",
 		"signal.target.is_exec",
 		"signal.target.is_kworker",
+		"signal.target.is_session_leader",
 		"signal.target.is_thread",
 		"signal.target.mntns",
 		"signal.target.netns",
@@ -38825,6 +39068,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.interpreter.file.user",
 		"signal.target.parent.is_exec",
 		"signal.target.parent.is_kworker",
+		"signal.target.parent.is_session_leader",
 		"signal.target.parent.is_thread",
 		"signal.target.parent.mntns",
 		"signal.target.parent.netns",
@@ -39533,6 +39777,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.is_kworker":
 		return "exec", reflect.Bool, "bool", false, nil
+	case "exec.is_session_leader":
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.is_thread":
 		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.mntns":
@@ -39758,6 +40004,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.is_exec":
 		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.is_kworker":
+		return "exit", reflect.Bool, "bool", false, nil
+	case "exit.is_session_leader":
 		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.is_thread":
 		return "exit", reflect.Bool, "bool", false, nil
@@ -40511,6 +40759,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.is_kworker":
 		return "", reflect.Bool, "bool", false, nil
+	case "process.ancestors.is_session_leader":
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.is_thread":
 		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.length":
@@ -40733,6 +40983,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.is_kworker":
 		return "", reflect.Bool, "bool", false, nil
+	case "process.is_session_leader":
+		return "", reflect.Bool, "bool", false, nil
 	case "process.is_thread":
 		return "", reflect.Bool, "bool", false, nil
 	case "process.mntns":
@@ -40916,6 +41168,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.parent.is_exec":
 		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.is_kworker":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.parent.is_session_leader":
 		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.is_thread":
 		return "", reflect.Bool, "bool", false, nil
@@ -41177,6 +41431,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.ancestors.is_session_leader":
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.length":
@@ -41399,6 +41655,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.is_kworker":
 		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.is_session_leader":
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.mntns":
@@ -41582,6 +41840,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.parent.is_exec":
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.is_kworker":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.parent.is_session_leader":
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
@@ -42099,6 +42359,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.is_kworker":
 		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.ancestors.is_session_leader":
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.length":
@@ -42321,6 +42583,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.is_kworker":
 		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.is_session_leader":
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.mntns":
@@ -42504,6 +42768,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.parent.is_exec":
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.is_kworker":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.parent.is_session_leader":
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
@@ -42859,6 +43125,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.is_kworker":
 		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.ancestors.is_session_leader":
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.length":
@@ -43081,6 +43349,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.is_kworker":
 		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.is_session_leader":
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.mntns":
@@ -43264,6 +43534,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.parent.is_exec":
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.is_kworker":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.parent.is_session_leader":
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
@@ -44248,6 +44520,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("exec.is_exec", &ev.Exec.Process.IsExec, value)
 	case "exec.is_kworker":
 		return ev.setBoolFieldValue("exec.is_kworker", &ev.Exec.Process.PIDContext.IsKworker, value)
+	case "exec.is_session_leader":
+		return ev.setBoolFieldValue("exec.is_session_leader", &ev.Exec.Process.PIDContext.IsSessionLeader, value)
 	case "exec.is_thread":
 		return ev.setBoolFieldValue("exec.is_thread", &ev.Exec.Process.IsThread, value)
 	case "exec.mntns":
@@ -44589,6 +44863,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("exit.is_exec", &ev.Exit.Process.IsExec, value)
 	case "exit.is_kworker":
 		return ev.setBoolFieldValue("exit.is_kworker", &ev.Exit.Process.PIDContext.IsKworker, value)
+	case "exit.is_session_leader":
+		return ev.setBoolFieldValue("exit.is_session_leader", &ev.Exit.Process.PIDContext.IsSessionLeader, value)
 	case "exit.is_thread":
 		return ev.setBoolFieldValue("exit.is_thread", &ev.Exit.Process.IsThread, value)
 	case "exit.mntns":
@@ -45522,6 +45798,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.ancestors.is_exec", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsExec, value)
 	case "process.ancestors.is_kworker":
 		return ev.setBoolFieldValue("process.ancestors.is_kworker", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker, value)
+	case "process.ancestors.is_session_leader":
+		return ev.setBoolFieldValue("process.ancestors.is_session_leader", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsSessionLeader, value)
 	case "process.ancestors.is_thread":
 		return ev.setBoolFieldValue("process.ancestors.is_thread", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread, value)
 	case "process.ancestors.length":
@@ -45859,6 +46137,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.is_exec", &ev.BaseEvent.ProcessContext.Process.IsExec, value)
 	case "process.is_kworker":
 		return ev.setBoolFieldValue("process.is_kworker", &ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker, value)
+	case "process.is_session_leader":
+		return ev.setBoolFieldValue("process.is_session_leader", &ev.BaseEvent.ProcessContext.Process.PIDContext.IsSessionLeader, value)
 	case "process.is_thread":
 		return ev.setBoolFieldValue("process.is_thread", &ev.BaseEvent.ProcessContext.Process.IsThread, value)
 	case "process.mntns":
@@ -46153,6 +46433,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.parent.is_exec", &ev.BaseEvent.ProcessContext.Parent.IsExec, value)
 	case "process.parent.is_kworker":
 		return ev.setBoolFieldValue("process.parent.is_kworker", &ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker, value)
+	case "process.parent.is_session_leader":
+		return ev.setBoolFieldValue("process.parent.is_session_leader", &ev.BaseEvent.ProcessContext.Parent.PIDContext.IsSessionLeader, value)
 	case "process.parent.is_thread":
 		return ev.setBoolFieldValue("process.parent.is_thread", &ev.BaseEvent.ProcessContext.Parent.IsThread, value)
 	case "process.parent.mntns":
@@ -46533,6 +46815,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("ptrace.tracee.ancestors.is_exec", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsExec, value)
 	case "ptrace.tracee.ancestors.is_kworker":
 		return ev.setBoolFieldValue("ptrace.tracee.ancestors.is_kworker", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.IsKworker, value)
+	case "ptrace.tracee.ancestors.is_session_leader":
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.is_session_leader", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.IsSessionLeader, value)
 	case "ptrace.tracee.ancestors.is_thread":
 		return ev.setBoolFieldValue("ptrace.tracee.ancestors.is_thread", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsThread, value)
 	case "ptrace.tracee.ancestors.length":
@@ -46870,6 +47154,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("ptrace.tracee.is_exec", &ev.PTrace.Tracee.Process.IsExec, value)
 	case "ptrace.tracee.is_kworker":
 		return ev.setBoolFieldValue("ptrace.tracee.is_kworker", &ev.PTrace.Tracee.Process.PIDContext.IsKworker, value)
+	case "ptrace.tracee.is_session_leader":
+		return ev.setBoolFieldValue("ptrace.tracee.is_session_leader", &ev.PTrace.Tracee.Process.PIDContext.IsSessionLeader, value)
 	case "ptrace.tracee.is_thread":
 		return ev.setBoolFieldValue("ptrace.tracee.is_thread", &ev.PTrace.Tracee.Process.IsThread, value)
 	case "ptrace.tracee.mntns":
@@ -47164,6 +47450,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("ptrace.tracee.parent.is_exec", &ev.PTrace.Tracee.Parent.IsExec, value)
 	case "ptrace.tracee.parent.is_kworker":
 		return ev.setBoolFieldValue("ptrace.tracee.parent.is_kworker", &ev.PTrace.Tracee.Parent.PIDContext.IsKworker, value)
+	case "ptrace.tracee.parent.is_session_leader":
+		return ev.setBoolFieldValue("ptrace.tracee.parent.is_session_leader", &ev.PTrace.Tracee.Parent.PIDContext.IsSessionLeader, value)
 	case "ptrace.tracee.parent.is_thread":
 		return ev.setBoolFieldValue("ptrace.tracee.parent.is_thread", &ev.PTrace.Tracee.Parent.IsThread, value)
 	case "ptrace.tracee.parent.mntns":
@@ -48334,6 +48622,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.ancestors.is_kworker", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker, value)
+	case "setrlimit.target.ancestors.is_session_leader":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.is_session_leader", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.IsSessionLeader, value)
 	case "setrlimit.target.ancestors.is_thread":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49070,6 +49366,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.is_kworker", &ev.Setrlimit.Target.Process.PIDContext.IsKworker, value)
+	case "setrlimit.target.is_session_leader":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.is_session_leader", &ev.Setrlimit.Target.Process.PIDContext.IsSessionLeader, value)
 	case "setrlimit.target.is_thread":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49907,6 +50208,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.parent.is_kworker", &ev.Setrlimit.Target.Parent.PIDContext.IsKworker, value)
+	case "setrlimit.target.parent.is_session_leader":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.is_session_leader", &ev.Setrlimit.Target.Parent.PIDContext.IsSessionLeader, value)
 	case "setrlimit.target.parent.is_thread":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51105,6 +51414,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setBoolFieldValue("signal.target.ancestors.is_kworker", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker, value)
+	case "signal.target.ancestors.is_session_leader":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.is_session_leader", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.IsSessionLeader, value)
 	case "signal.target.ancestors.is_thread":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -51841,6 +52158,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("signal.target.is_kworker", &ev.Signal.Target.Process.PIDContext.IsKworker, value)
+	case "signal.target.is_session_leader":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("signal.target.is_session_leader", &ev.Signal.Target.Process.PIDContext.IsSessionLeader, value)
 	case "signal.target.is_thread":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52678,6 +53000,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("signal.target.parent.is_kworker", &ev.Signal.Target.Parent.PIDContext.IsKworker, value)
+	case "signal.target.parent.is_session_leader":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("signal.target.parent.is_session_leader", &ev.Signal.Target.Parent.PIDContext.IsSessionLeader, value)
 	case "signal.target.parent.is_thread":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

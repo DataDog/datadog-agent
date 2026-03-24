@@ -92,6 +92,10 @@ const (
 	OffsetNameTaskStructRealParent = "task_struct_real_parent_offset"
 	OffsetNameTaskStructTGID       = "task_struct_tgid_offset"
 
+	// session leader detection
+	OffsetNameTaskStructSignal    = "task_struct_signal_offset"
+	OffsetNameSignalStructPIDs    = "signal_struct_pids_offset"
+
 	// splice event
 	OffsetNamePipeInodeInfoStructBufs     = "pipe_inode_info_bufs_offset"
 	OffsetNamePipeInodeInfoStructNrbufs   = "pipe_inode_info_nrbufs_offset"    // kernels < 5.5

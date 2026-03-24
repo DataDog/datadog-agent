@@ -3272,6 +3272,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructSignal, "struct task_struct", "signal")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructPIDs, "struct signal_struct", "pids")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")

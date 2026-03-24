@@ -37,6 +37,8 @@ struct pid_cache_t {
     u64 exit_timestamp;
     u64 user_session_id;
     u64 fork_flags;
+    u32 is_session_leader;
+    u32 padding_session;
     struct credentials_t credentials;
 };
 

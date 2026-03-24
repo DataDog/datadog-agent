@@ -320,6 +320,8 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
+	// Indicates whether the process is a session leader
+	IsSessionLeader bool `json:"is_session_leader,omitempty"`
 	// Indicates whether the process entry is from a new binary execution
 	IsExec bool `json:"is_exec,omitempty"`
 	// Indicates whether the process is an exec following another exec
@@ -972,7 +974,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Envs:            envs,
 			EnvsTruncated:   envsTruncated,
 			IsThread:        ps.IsThread,
-			IsKworker:       ps.IsKworker,
+			IsKworker:        ps.IsKworker,
+		IsSessionLeader: ps.IsSessionLeader,
 			IsExec:          ps.IsExec,
 			IsExecExec:      ps.IsExecExec,
 			IsParentMissing: ps.IsParentMissing,
@@ -1029,7 +1032,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return &ProcessSerializer{
 		Pid:             ps.Pid,
 		Tid:             ps.Tid,
-		IsKworker:       ps.IsKworker,
+		IsKworker:        ps.IsKworker,
+		IsSessionLeader: ps.IsSessionLeader,
 		IsExec:          ps.IsExec,
 		IsExecExec:      ps.IsExecExec,
 		IsParentMissing: ps.IsParentMissing,

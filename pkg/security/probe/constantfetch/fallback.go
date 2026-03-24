@@ -88,6 +88,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		SizeOfInode:                           getSizeOfStructInode,
 		OffsetNameSuperBlockStructSMagic:      getSuperBlockMagicOffset,
 		OffsetNameSignalStructStructTTY:       getSignalTTYOffset,
+		OffsetNameTaskStructSignal:            getTaskStructSignalOffset,
+		OffsetNameSignalStructPIDs:            getSignalStructPIDsOffset,
 		OffsetNameTTYStructStructName:         getTTYNameOffset,
 		OffsetNameCredStructUID:               getCredsUIDOffset,
 		OffsetNameCredStructCapInheritable:    getCredCapInheritableOffset,
@@ -1114,4 +1116,18 @@ func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {
 	default:
 		return ErrorSentinel
 	}
+}
+
+// getTaskStructSignalOffset returns the offset of the signal field in task_struct
+// This is the primary path through BTF; the fallback returns ErrorSentinel
+// to signal that the offset could not be determined.
+func getTaskStructSignalOffset(_ *kernel.Version) uint64 {
+	return ErrorSentinel
+}
+
+// getSignalStructPIDsOffset returns the offset of the pids array in signal_struct
+// This is the primary path through BTF; the fallback returns ErrorSentinel
+// to signal that the offset could not be determined.
+func getSignalStructPIDsOffset(_ *kernel.Version) uint64 {
+	return ErrorSentinel
 }

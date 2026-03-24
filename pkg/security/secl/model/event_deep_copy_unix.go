@@ -187,6 +187,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied := PIDContext{}
 	copied.ExecInode = fieldToCopy.ExecInode
 	copied.IsKworker = fieldToCopy.IsKworker
+	copied.IsSessionLeader = fieldToCopy.IsSessionLeader
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS

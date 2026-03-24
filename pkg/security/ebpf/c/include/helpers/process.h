@@ -41,6 +41,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->user_session_id = src->user_session_id;
     dst->fork_timestamp = src->fork_timestamp;
     dst->fork_flags = src->fork_flags;
+    dst->is_session_leader = src->is_session_leader;
     dst->credentials = src->credentials;
 }
 
@@ -114,6 +115,9 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
 
     // copy user session id
     data->user_session_id = pid_entry->user_session_id;
+
+    // copy session leader status from cache
+    data->is_session_leader = pid_entry->is_session_leader;
 
     struct proc_cache_t *pc = get_proc_from_cookie(pid_entry->cookie);
     if (pc) {

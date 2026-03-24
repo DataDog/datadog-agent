@@ -1778,6 +1778,57 @@ func TestProcessIsThread(t *testing.T) {
 	})
 }
 
+func TestProcessIsSessionLeader(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("is_session_leader not supported in ebpfless mode")
+	}
+
+	setsidPath := which(t, "setsid")
+	sleepPath := which(t, "sleep")
+	shPath := which(t, "sh")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_session_leader",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && process.is_session_leader`, shPath),
+		},
+		{
+			ID:         "test_not_session_leader",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && !process.is_session_leader`, sleepPath),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("session-leader", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			// setsid creates a new session, making the child process a session leader
+			cmd := exec.Command(setsidPath, shPath, "-c", "true")
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_session_leader")
+			assert.True(t, event.ProcessContext.IsSessionLeader, "process should be a session leader")
+		}, "test_session_leader")
+	})
+
+	t.Run("not-session-leader", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			// A regular child process is NOT a session leader
+			cmd := exec.Command(sleepPath, "0")
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_not_session_leader")
+			assert.False(t, event.ProcessContext.IsSessionLeader, "process should not be a session leader")
+		}, "test_not_session_leader")
+	})
+}
+
 func TestProcessExit(t *testing.T) {
 	SkipIfNotAvailable(t)
 

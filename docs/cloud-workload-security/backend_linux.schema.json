@@ -1442,6 +1442,10 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_session_leader": {
+          "type": "boolean",
+          "description": "Indicates whether the process is a session leader"
+        },
         "is_exec": {
           "type": "boolean",
           "description": "Indicates whether the process entry is from a new binary execution"
@@ -1619,6 +1623,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "is_session_leader": {
+          "type": "boolean",
+          "description": "Indicates whether the process is a session leader"
         },
         "is_exec": {
           "type": "boolean",

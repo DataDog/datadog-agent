@@ -498,6 +498,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "process.ancestors.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "process.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -1053,6 +1058,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "process.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "process.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -1511,6 +1521,11 @@
           "name": "process.parent.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "process.parent.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
         },
         {
           "name": "process.parent.is_thread",
@@ -3211,6 +3226,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "exec.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "exec.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -3783,6 +3803,11 @@
           "name": "exit.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "exit.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
         },
         {
           "name": "exit.is_thread",
@@ -5783,6 +5808,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -6338,6 +6368,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "ptrace.tracee.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "ptrace.tracee.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -6796,6 +6831,11 @@
           "name": "ptrace.tracee.parent.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
         },
         {
           "name": "ptrace.tracee.parent.is_thread",
@@ -8142,6 +8182,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -8697,6 +8742,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "setrlimit.target.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "setrlimit.target.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -9155,6 +9205,11 @@
           "name": "setrlimit.target.parent.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
         },
         {
           "name": "setrlimit.target.parent.is_thread",
@@ -10078,6 +10133,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "signal.target.ancestors.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "signal.target.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -10633,6 +10693,11 @@
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
+          "name": "signal.target.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
+        },
+        {
           "name": "signal.target.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
@@ -11091,6 +11156,11 @@
           "name": "signal.target.parent.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "signal.target.parent.is_session_leader",
+          "definition": "Indicates whether the process is a session leader",
+          "property_doc_link": "common-pidcontext-is_session_leader-doc"
         },
         {
           "name": "signal.target.parent.is_thread",
@@ -13253,6 +13323,31 @@
         "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_session_leader",
+      "link": "common-pidcontext-is_session_leader-doc",
+      "type": "bool",
+      "definition": "Indicates whether the process is a session leader",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",

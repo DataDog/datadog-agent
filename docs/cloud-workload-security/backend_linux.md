@@ -1453,6 +1453,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
                 },
+                "is_session_leader": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is a session leader"
+                },
                 "is_exec": {
                     "type": "boolean",
                     "description": "Indicates whether the process entry is from a new binary execution"
@@ -1630,6 +1634,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "is_session_leader": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is a session leader"
                 },
                 "is_exec": {
                     "type": "boolean",
@@ -4648,6 +4656,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
+        "is_session_leader": {
+            "type": "boolean",
+            "description": "Indicates whether the process is a session leader"
+        },
         "is_exec": {
             "type": "boolean",
             "description": "Indicates whether the process entry is from a new binary execution"
@@ -4727,6 +4739,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `is_session_leader` | Indicates whether the process is a session leader |
 | `is_exec` | Indicates whether the process entry is from a new binary execution |
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `is_parent_missing` | Indicates whether the direct parent is missing |
@@ -4884,6 +4897,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
+        "is_session_leader": {
+            "type": "boolean",
+            "description": "Indicates whether the process is a session leader"
+        },
         "is_exec": {
             "type": "boolean",
             "description": "Indicates whether the process entry is from a new binary execution"
@@ -4978,6 +4995,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `is_session_leader` | Indicates whether the process is a session leader |
 | `is_exec` | Indicates whether the process entry is from a new binary execution |
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `is_parent_missing` | Indicates whether the direct parent is missing |

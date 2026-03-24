@@ -33,6 +33,8 @@ struct process_context_t {
     u32 ppid;
     u64 inode;
     u64 user_session_id;
+    u32 is_session_leader;
+    u32 padding_session;
 };
 
 struct ktimeval {

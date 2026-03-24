@@ -814,7 +814,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // update pid <-> cookie mapping
     if (fork_entry) {
         fork_entry->cookie = cookie;
-    } else {
+    }
+
+    if (!fork_entry) {
         struct pid_cache_t new_pid_entry = {
             .cookie = cookie,
         };
@@ -823,6 +825,26 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         if (fork_entry == NULL) {
             // should never happen, ignore
             return 0;
+        }
+    }
+
+    // compute session leader status: pid == sid (task->signal->pids[PIDTYPE_SID]->numbers[0].nr)
+    {
+        u64 signal_offset = get_task_struct_signal_offset();
+        u64 pids_offset = get_signal_struct_pids_offset();
+        if (signal_offset != 0 && pids_offset != 0) {
+            struct task_struct *cur_task = (struct task_struct *)bpf_get_current_task();
+            void *signal_ptr = NULL;
+            bpf_probe_read_kernel(&signal_ptr, sizeof(signal_ptr), (void *)cur_task + signal_offset);
+            if (signal_ptr) {
+                struct pid *sid_pid = NULL;
+                bpf_probe_read_kernel(&sid_pid, sizeof(sid_pid), signal_ptr + pids_offset + 3 * sizeof(void *));
+                if (sid_pid) {
+                    u32 sid = 0;
+                    bpf_probe_read_kernel(&sid, sizeof(sid), (void *)sid_pid + get_pid_numbers_offset());
+                    fork_entry->is_session_leader = (sid != 0 && sid == tgid) ? 1 : 0;
+                }
+            }
         }
     }
 

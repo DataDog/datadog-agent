@@ -278,6 +278,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.ancestors.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -389,6 +390,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -481,6 +483,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.parent.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -887,6 +890,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exec.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1007,6 +1011,7 @@ A process was terminated
 | [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exit.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exit.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exit.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1471,6 +1476,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.ancestors.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -1582,6 +1588,7 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1674,6 +1681,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.parent.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1974,6 +1982,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`setrlimit.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.ancestors.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`setrlimit.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`setrlimit.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -2085,6 +2094,7 @@ A setrlimit command was executed
 | [`setrlimit.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`setrlimit.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`setrlimit.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2177,6 +2187,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`setrlimit.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.parent.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`setrlimit.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2382,6 +2393,7 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.ancestors.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -2493,6 +2505,7 @@ A signal was sent
 | [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2585,6 +2598,7 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.parent.is_session_leader`](#common-pidcontext-is_session_leader-doc) | Indicates whether the process is a session leader |
 | [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -3243,6 +3257,15 @@ Definition: Whether the IP address belongs to a public network
 
 `*.is_public` has 9 possible prefixes:
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
+
+
+### `*.is_session_leader` {#common-pidcontext-is_session_leader-doc}
+Type: bool
+
+Definition: Indicates whether the process is a session leader
+
+`*.is_session_leader` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.is_thread` {#common-process-is_thread-doc}

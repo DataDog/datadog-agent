@@ -51,4 +51,15 @@ u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
     return task_struct_pid_offset;
 }
 
+u64 __attribute__((always_inline)) get_task_struct_signal_offset() {
+    u64 offset;
+    LOAD_CONSTANT("task_struct_signal_offset", offset);
+    return offset;
+}
+
+u64 __attribute__((always_inline)) get_signal_struct_pids_offset() {
+    u64 offset;
+    LOAD_CONSTANT("signal_struct_pids_offset", offset);
+    return offset;
+}
 #endif
