@@ -89,7 +89,13 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/metrics
 # gazelle:exclude pkg/network
 # gazelle:exclude pkg/networkconfigmanagement
-# gazelle:exclude pkg/networkdevice
+# gazelle:exclude pkg/networkdevice/pinger
+# gazelle:exclude pkg/networkdevice/sender
+# gazelle:exclude pkg/networkdevice/diagnoses
+# gazelle:exclude pkg/networkdevice/utils
+# gazelle:exclude pkg/networkdevice/integrations
+# gazelle:exclude pkg/networkdevice/metadata
+# gazelle:exclude pkg/networkdevice/testutils
 # gazelle:exclude pkg/networkpath
 # gazelle:exclude pkg/opentelemetry-mapping-go
 # gazelle:exclude pkg/orchestrator
@@ -156,7 +162,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
 # gazelle:exclude pkg/util/intern
-# gazelle:exclude pkg/util/json
 # gazelle:exclude pkg/util/jsonquery
 # gazelle:exclude pkg/util/kernel
 # gazelle:exclude pkg/util/ktime
@@ -177,7 +182,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/prometheus
 # gazelle:exclude pkg/util/quantile
 # gazelle:exclude pkg/util/quantile/sketchtest
 # gazelle:exclude pkg/util/retry

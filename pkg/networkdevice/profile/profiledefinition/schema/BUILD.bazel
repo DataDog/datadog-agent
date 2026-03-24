@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "schema",
+    srcs = [
+        "doc.go",
+        "generate.go",
+        "schema.go",
+    ],
+    embedsrcs = ["profile_rc_schema.json"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkdevice/profile/profiledefinition",
+        "@com_github_invopop_jsonschema//:jsonschema",
+    ],
+)
+
+go_test(
+    name = "schema_test",
+    srcs = [
+        "generate_test.go",
+        "profile_rc_schema_test.go",
+    ],
+    embed = [":schema"],
+    deps = [
+        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
