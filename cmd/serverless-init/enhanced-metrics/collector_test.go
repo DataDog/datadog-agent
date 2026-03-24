@@ -88,7 +88,7 @@ func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
 
 	serverlessContainerStats := c.convertToServerlessContainerStats(stats, collectionTime)
 
-	assert.Equal(t, 5e8, *serverlessContainerStats.CPU.Total)
+	assert.Equal(t, uint64(5e8), *serverlessContainerStats.CPU.Total)
 	assert.Equal(t, 1e9, *serverlessContainerStats.CPU.Limit)
 }
 
@@ -140,7 +140,7 @@ func TestCollectorComputeEnhancedMetrics(t *testing.T) {
 
 	c := &Collector{
 		previousRateStats: ServerlessRateStats{
-			TotalCPU:       5e8,
+			TotalCPU:       pointer.Ptr(uint64(5e8)),
 			CollectionTime: previousTime,
 		},
 	}
@@ -148,7 +148,7 @@ func TestCollectorComputeEnhancedMetrics(t *testing.T) {
 	serverlessEnhancedMetrics := c.computeEnhancedMetrics(&ServerlessContainerStats{
 		CollectionTime: currentTime,
 		CPU: &ServerlessCPUStats{
-			Total: pointer.Ptr(6e8),
+			Total: pointer.Ptr(uint64(6e8)),
 			Limit: pointer.Ptr(1e9),
 		},
 	})
@@ -199,7 +199,7 @@ func TestCalculateCPUUsagePreviousTotalNegativeOne(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
 
-	CPUUsage := calculateCPUUsage(5e8, math.NaN(), currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(pointer.Ptr(uint64(5e8)), nil, currentTime, previousTime)
 
 	assert.True(t, math.IsNaN(CPUUsage))
 }
@@ -208,7 +208,7 @@ func TestCalculateCPUUsageCurrentTotalNegativeOne(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
 
-	CPUUsage := calculateCPUUsage(math.NaN(), 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(nil, pointer.Ptr(uint64(6e8)), currentTime, previousTime)
 
 	assert.True(t, math.IsNaN(CPUUsage))
 }
@@ -217,7 +217,7 @@ func TestCalculateCPUUsagePreviousTimeZero(t *testing.T) {
 	previousTime := time.Time{}
 	currentTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	CPUUsage := calculateCPUUsage(math.NaN(), 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(nil, pointer.Ptr(uint64(6e8)), currentTime, previousTime)
 
 	assert.True(t, math.IsNaN(CPUUsage))
 }
@@ -226,7 +226,7 @@ func TestCalculateCPUUsageCurrentTimeZero(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := time.Time{}
 
-	CPUUsage := calculateCPUUsage(math.NaN(), 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(nil, pointer.Ptr(uint64(6e8)), currentTime, previousTime)
 
 	assert.True(t, math.IsNaN(CPUUsage))
 }
@@ -235,7 +235,7 @@ func TestCalculateCPUUsageValueDiffNegative(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
 
-	CPUUsage := calculateCPUUsage(5e8, 6e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(pointer.Ptr(uint64(5e8)), pointer.Ptr(uint64(6e8)), currentTime, previousTime)
 
 	assert.True(t, math.IsNaN(CPUUsage))
 }
@@ -244,7 +244,7 @@ func TestCalculateCPUUsageValueDiffPositive(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
 
-	CPUUsage := calculateCPUUsage(6e8, 5e8, currentTime, previousTime)
+	CPUUsage := calculateCPUUsage(pointer.Ptr(uint64(6e8)), pointer.Ptr(uint64(5e8)), currentTime, previousTime)
 
 	assert.Equal(t, float64(1e8), CPUUsage)
 }

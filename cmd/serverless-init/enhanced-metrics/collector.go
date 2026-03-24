@@ -37,7 +37,7 @@ type EnhancedMetricSender interface {
 
 // ServerlessCPUStats stores CPU stats for serverless environments
 type ServerlessCPUStats struct {
-	Total *float64 // Total CPU usage in nanoseconds
+	Total *uint64  // Total CPU usage in nanoseconds
 	Limit *float64 // CPU limit in nanocores
 }
 
@@ -57,12 +57,12 @@ type ServerlessEnhancedMetrics struct {
 // ServerlessRateStats stores previous stat values for rate calculation
 type ServerlessRateStats struct {
 	CollectionTime time.Time
-	TotalCPU       float64
+	TotalCPU       *uint64
 }
 
 // NullServerlessRateStats can be safely used when there are no previous rate values
 var NullServerlessRateStats = ServerlessRateStats{
-	TotalCPU: math.NaN(),
+	TotalCPU: nil,
 }
 
 // Collector stores the cgroup reader used for data collection, the collection interval,
@@ -183,12 +183,14 @@ func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats, coll
 	}
 
 	serverlessStats.CPU = &ServerlessCPUStats{}
+
 	// only set when cgroup reports CPU.Total.
-	// *float64 keeps unset distinct from 0 for usage rate calculation.
+	var total *uint64
 	if stats.CPU.Total != nil {
-		serverlessStats.CPU.Total = pointer.Ptr(float64(*stats.CPU.Total))
+		total = pointer.Ptr(*stats.CPU.Total)
 	}
 
+	serverlessStats.CPU.Total = total
 	serverlessStats.CPU.Limit = computeCPULimit(stats.CPU, systemutils.HostCPUCount())
 
 	return serverlessStats
@@ -205,7 +207,7 @@ func (c *Collector) computeEnhancedMetrics(inStats *ServerlessContainerStats) Se
 	enhancedMetrics.Timestamp = float64(inStats.CollectionTime.UnixNano()) / float64(time.Second)
 
 	if inStats.CPU != nil {
-		currentTotal := statValue(inStats.CPU.Total, math.NaN())
+		currentTotal := inStats.CPU.Total
 		enhancedMetrics.CPUUsage = calculateCPUUsage(currentTotal, c.previousRateStats.TotalCPU, inStats.CollectionTime, c.previousRateStats.CollectionTime)
 
 		// Store current cpu total and collection time for next rate calculation
@@ -262,14 +264,17 @@ func computeCPULimit(stats *cgroups.CPUStats, hostCPUCount int) *float64 {
 
 // calculateCPUUsage calculates the CPU usage rate in nanoseconds per second (nanocores)
 // Returns NaN if first run or invalid data
-func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
-	log.Debugf("currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
-		currentTotal, previousTotal, currentTime, previousTime)
+func calculateCPUUsage(currentTotal *uint64, previousTotal *uint64, currentTime time.Time, previousTime time.Time) float64 {
+	log.Debugf("currentTime=%v, previousTime=%v", currentTime, previousTime)
 
-	if math.IsNaN(currentTotal) || math.IsNaN(previousTotal) {
-		log.Debugf("currentTotal or previousTotal is NaN")
+	if currentTotal == nil || previousTotal == nil {
+		log.Debugf("currentTotal or previousTotal is nil")
 		return math.NaN()
 	}
+
+	cur := *currentTotal
+	prev := *previousTotal
+	log.Debugf("currentTotal=%d, previousTotal=%d", cur, prev)
 
 	if previousTime.IsZero() {
 		log.Debugf("previousTime is zero")
@@ -278,17 +283,17 @@ func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime 
 
 	timeDiff := currentTime.Sub(previousTime).Seconds()
 	if timeDiff <= 0 {
-		log.Debugf("timeDiff is less than or equal to zero")
+		log.Debugf("current time is less than or equal to previous time")
 		return math.NaN()
 	}
 
-	valueDiff := currentTotal - previousTotal
-	if valueDiff <= 0 {
-		log.Debugf("valueDiff is less than or equal to zero")
+	// compare before subtracting as uint64 underflows if cur < prev.
+	if cur <= prev {
+		log.Debugf("current total less than or equal to previous total")
 		return math.NaN()
 	}
 
-	usage := valueDiff / timeDiff
+	usage := float64(cur-prev) / timeDiff
 	log.Debugf("CPU usage: %.3f cores", usage/1e9)
 
 	return usage
