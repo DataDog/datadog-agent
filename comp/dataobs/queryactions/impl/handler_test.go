@@ -127,18 +127,17 @@ func TestMatchesIdentifier_RDS(t *testing.T) {
 	assert.False(t, matchesIdentifier(instance, dbID))
 }
 
-func TestExtractDBAuthFromInstanceData(t *testing.T) {
-	instanceYAML := `
-host: localhost
-port: 5432
-username: datadog
-password: secret
-dbname: testdb
-ssl_mode: require
-extra_field: should_not_appear
-`
-	auth, err := extractDBAuthFromInstanceData(integration.Data(instanceYAML))
-	require.NoError(t, err)
+func TestExtractDBAuthFromInstance(t *testing.T) {
+	instance := map[string]any{
+		"host":        "localhost",
+		"port":        5432,
+		"username":    "datadog",
+		"password":    "secret",
+		"dbname":      "testdb",
+		"ssl_mode":    "require",
+		"extra_field": "should_not_appear",
+	}
+	auth := extractDBAuthFromInstance(instance)
 
 	require.Equal(t, "localhost", auth["host"])
 	require.Equal(t, 5432, auth["port"])
@@ -150,43 +149,36 @@ extra_field: should_not_appear
 	assert.False(t, ok, "extra_field should not be in allowlist output")
 }
 
-func TestExtractDBAuthFromInstanceData_NestedMap(t *testing.T) {
-	instanceYAML := `
-host: mydb.rds.amazonaws.com
-port: 5432
-username: datadog
-password: secret
-aws:
-  instance_endpoint: my-rds-instance
-  region: us-east-1
-`
-	auth, err := extractDBAuthFromInstanceData(integration.Data(instanceYAML))
-	require.NoError(t, err)
+func TestExtractDBAuthFromInstance_NestedMap(t *testing.T) {
+	instance := map[string]any{
+		"host":     "mydb.rds.amazonaws.com",
+		"port":     5432,
+		"username": "datadog",
+		"password": "secret",
+		"aws": map[string]any{
+			"instance_endpoint": "my-rds-instance",
+			"region":            "us-east-1",
+		},
+	}
+	auth := extractDBAuthFromInstance(instance)
 
 	require.Equal(t, "mydb.rds.amazonaws.com", auth["host"])
 	awsMap, ok := auth["aws"].(map[string]any)
-	require.True(t, ok, "aws should be converted to map[string]any")
+	require.True(t, ok, "aws should be a map[string]any")
 	assert.Equal(t, "my-rds-instance", awsMap["instance_endpoint"])
 	assert.Equal(t, "us-east-1", awsMap["region"])
 }
 
-func TestExtractDBAuthFromInstanceData_InvalidYAML(t *testing.T) {
-	_, err := extractDBAuthFromInstanceData(integration.Data("not: [valid: yaml"))
-	require.Error(t, err)
-}
-
 func TestDBCredentialAllowList_ExcludesReservedKeys(t *testing.T) {
-	instanceYAML := `
-host: localhost
-port: 5432
-remote_config_id: should-not-appear
-db_type: should-not-appear
-db_identifier: should-not-appear
-queries:
-  - should-not-appear
-`
-	auth, err := extractDBAuthFromInstanceData(integration.Data(instanceYAML))
-	require.NoError(t, err)
+	instance := map[string]any{
+		"host":             "localhost",
+		"port":             5432,
+		"remote_config_id": "should-not-appear",
+		"db_type":          "should-not-appear",
+		"db_identifier":    "should-not-appear",
+		"queries":          []any{"should-not-appear"},
+	}
+	auth := extractDBAuthFromInstance(instance)
 
 	_, hasRemoteConfigID := auth["remote_config_id"]
 	assert.False(t, hasRemoteConfigID, "remote_config_id must not be in the allowlist")
@@ -244,14 +236,14 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 		NodeName: "node1",
 	}
 
-	instanceData := integration.Data(`
-host: localhost
-port: 5432
-username: datadog
-password: secret
-`)
+	pgInstance := map[string]any{
+		"host":     "localhost",
+		"port":     5432,
+		"username": "datadog",
+		"password": "secret",
+	}
 
-	checkCfg, err := c.buildCheckConfig(payload, baseCfg, instanceData, "rc-id-1")
+	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id-1")
 	require.NoError(t, err)
 
 	assert.Equal(t, "do_query_actions", checkCfg.Name)
@@ -327,9 +319,9 @@ func TestBuildCheckConfig_CustomSQLSelectFields(t *testing.T) {
 	}
 
 	baseCfg := &integration.Config{Name: "postgres"}
-	instanceData := integration.Data("host: localhost\nport: 5432\n")
+	pgInstance := map[string]any{"host": "localhost", "port": 5432}
 
-	checkCfg, err := c.buildCheckConfig(payload, baseCfg, instanceData, "rc-id-custom")
+	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id-custom")
 	require.NoError(t, err)
 
 	var instance map[string]any
@@ -365,9 +357,9 @@ func TestBuildCheckConfig_NoCustomSQLSelectFields(t *testing.T) {
 	}
 
 	baseCfg := &integration.Config{Name: "postgres"}
-	instanceData := integration.Data("host: localhost\nport: 5432\n")
+	pgInstance := map[string]any{"host": "localhost", "port": 5432}
 
-	checkCfg, err := c.buildCheckConfig(payload, baseCfg, instanceData, "rc-id")
+	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id")
 	require.NoError(t, err)
 
 	var instance map[string]any
@@ -380,15 +372,6 @@ func TestBuildCheckConfig_NoCustomSQLSelectFields(t *testing.T) {
 
 	_, hasCsf := q["custom_sql_select_fields"]
 	assert.False(t, hasCsf, "custom_sql_select_fields should be absent when nil")
-}
-
-func TestBuildCheckConfig_InvalidInstanceYAML(t *testing.T) {
-	c := &component{log: logmock.New(t)}
-	payload := &DOQueryPayload{Queries: []QuerySpec{{Query: "SELECT 1"}}}
-	baseCfg := &integration.Config{Name: "postgres"}
-
-	_, err := c.buildCheckConfig(payload, baseCfg, integration.Data("not: [valid: yaml"), "rc-id-1")
-	require.Error(t, err)
 }
 
 // --- onRCUpdate tests ---

@@ -66,7 +66,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instanceData, err := c.findPostgresConfig(&payload.DBIdentifier)
+		baseCfg, instance, err := c.findPostgresConfig(&payload.DBIdentifier)
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -79,7 +79,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			remoteConfigID = configID
 		}
 
-		checkConfig, err := c.buildCheckConfig(&payload, baseCfg, instanceData, remoteConfigID)
+		checkConfig, err := c.buildCheckConfig(&payload, baseCfg, instance, remoteConfigID)
 		if err != nil {
 			c.log.Errorf("Failed to build check config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -135,7 +135,8 @@ func (c *component) collectUnschedule(configID string, changes *integration.Conf
 }
 
 // findPostgresConfig finds a postgres config that matches the given identifier.
-func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, integration.Data, error) {
+// Returns the matching config and the already-parsed instance map to avoid re-parsing YAML in callers.
+func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
@@ -154,7 +155,7 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 			}
 
 			if matchesIdentifier(instance, dbID) {
-				return &cfg, instanceData, nil
+				return &cfg, instance, nil
 			}
 		}
 	}
@@ -182,30 +183,23 @@ func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 	return host == dbID.Host && matchesDBName(instance, dbID)
 }
 
-// extractDBAuthFromInstanceData extracts credential fields from raw instance YAML using an allowlist.
-func extractDBAuthFromInstanceData(instanceData integration.Data) (map[string]any, error) {
+// extractDBAuthFromInstance extracts credential fields from a parsed instance map using an allowlist.
+// The instance map comes from findPostgresConfig, which already parsed the YAML.
+func extractDBAuthFromInstance(instance map[string]any) map[string]any {
 	out := make(map[string]any)
-	raw := map[string]any{}
-	if err := yaml.Unmarshal(instanceData, &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse instance YAML: %w", err)
-	}
-
 	for _, k := range dbCredentialAllowList {
-		if v, ok := raw[k]; ok {
+		if v, ok := instance[k]; ok {
 			out[k] = v
 		}
 	}
-	return out, nil
+	return out
 }
 
 // buildCheckConfig creates a check config for the do_query_actions check.
 // Returns an error if auth extraction or instance YAML serialization fails;
 // callers must report ApplyStateError to RC rather than scheduling the broken config.
-func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instanceData integration.Data, remoteConfigID string) (integration.Config, error) {
-	auth, err := extractDBAuthFromInstanceData(instanceData)
-	if err != nil {
-		return integration.Config{}, fmt.Errorf("failed to extract auth from instance data: %w", err)
-	}
+func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
+	auth := extractDBAuthFromInstance(instance)
 
 	queries := make([]map[string]any, 0, len(payload.Queries))
 	for _, q := range payload.Queries {
