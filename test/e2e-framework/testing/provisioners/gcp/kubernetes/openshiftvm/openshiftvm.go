@@ -149,7 +149,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			kubernetesagentparams.WithClusterName(openshiftCluster.ClusterName),
 			kubernetesagentparams.WithNamespace("datadog"),
 			// OpenShift deployments need more time due to security context constraints and slower startup
-			kubernetesagentparams.WithTimeout(1800), // 30 minutes
+			kubernetesagentparams.WithTimeout(900), // 15 minutes
 			// Use the cluster name (DisplayName(49)) for the stackid tag instead of ctx.Stack(),
 			// because the cluster name may be truncated
 			kubernetesagentparams.WithStackIDTag(openshiftCluster.ClusterName),
@@ -284,4 +284,3 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 
 	return nil
 }
-
