@@ -10,7 +10,7 @@ package processimpl
 import (
 	"context"
 	"encoding/json"
-	"expvar"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,11 +25,6 @@ import (
 
 func TestGetStatusDetails(t *testing.T) {
 	env.SetFeatures(t)
-
-	// Populate the "process_agent" expvar map like the real process agent does.
-	m := expvar.NewMap("process_agent")
-	m.Add("pid", 12345)
-	m.Add("uptime", 100)
 
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("hostname", "test-host")
@@ -50,6 +45,7 @@ func TestGetStatusDetails(t *testing.T) {
 	err = json.Unmarshal([]byte(resp.MainSection.Fields["status"]), &st)
 	require.NoError(t, err)
 	assert.NotZero(t, st.Date)
-	assert.Equal(t, 12345, st.Expvars.ExpvarsMap.Pid)
-	assert.Equal(t, 100, st.Expvars.ExpvarsMap.Uptime)
+	// Pid is read directly from os.Getpid(), not from expvar.
+	assert.Equal(t, os.Getpid(), st.Expvars.ExpvarsMap.Pid)
+	assert.GreaterOrEqual(t, st.Expvars.ExpvarsMap.Uptime, 0)
 }

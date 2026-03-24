@@ -9,7 +9,6 @@ package status
 import (
 	"context"
 	"encoding/json"
-	"expvar"
 	"io"
 	"net/http"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	procstatus "github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -142,19 +142,42 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 	return
 }
 
-// GetInProcessStatus returns a Status object by reading expvars directly from the
-// current process, without making an HTTP call. This is used by the RAR gRPC adapter
-// so the process agent fully owns its status representation.
+// GetInProcessStatus returns a Status object by reading process agent metrics
+// directly from internal state, without going through expvar or HTTP.
+// This is used by the RAR gRPC adapter so the process agent fully owns its status.
 func GetInProcessStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) *Status {
 	core := getCoreStatus(coreConfig, hostname)
-	var expvarsMap ExpvarsMap
-	if v := expvar.Get("process_agent"); v != nil {
-		json.Unmarshal([]byte(v.String()), &expvarsMap) //nolint:errcheck
-	}
+	m := procstatus.GetMetrics()
 	return &Status{
-		Date:    float64(time.Now().UnixNano()),
-		Core:    core,
-		Expvars: ProcessExpvars{ExpvarsMap: expvarsMap},
+		Date: float64(time.Now().UnixNano()),
+		Core: core,
+		Expvars: ProcessExpvars{
+			ExpvarsMap: ExpvarsMap{
+				Pid:                             m.Pid,
+				Uptime:                          m.Uptime,
+				UptimeNano:                      float64(m.UptimeNano),
+				DockerSocket:                    m.DockerSocket,
+				LastCollectTime:                 m.LastCollectTime,
+				ProcessCount:                    int(m.ProcessCount),
+				ContainerCount:                  int(m.ContainerCount),
+				ProcessQueueSize:                int(m.ProcessQueueSize),
+				RTProcessQueueSize:              int(m.RTProcessQueueSize),
+				ConnectionsQueueSize:            int(m.ConnectionsQueueSize),
+				ProcessQueueBytes:               int(m.ProcessQueueBytes),
+				RTProcessQueueBytes:             int(m.RTProcessQueueBytes),
+				ConnectionsQueueBytes:           int(m.ConnectionsQueueBytes),
+				ContainerID:                     m.ContainerID,
+				EnabledChecks:                   m.EnabledChecks,
+				Endpoints:                       m.Endpoints,
+				DropCheckPayloads:               m.DropCheckPayloads,
+				SystemProbeProcessModuleEnabled: m.SystemProbeProcessModuleEnabled,
+				LanguageDetectionEnabled:        m.LanguageDetectionEnabled,
+				WlmExtractorCacheSize:           int(m.WlmExtractorCacheSize),
+				WlmExtractorStaleDiffs:          int(m.WlmExtractorStaleDiffs),
+				WlmExtractorDiffsDropped:        int(m.WlmExtractorDiffsDropped),
+				SubmissionErrorCount:            int(m.SubmissionErrorCount),
+			},
+		},
 	}
 }
 

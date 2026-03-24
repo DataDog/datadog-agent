@@ -10,7 +10,8 @@ package traceimpl
 import (
 	"context"
 	"encoding/json"
-	"expvar"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,10 +22,6 @@ import (
 )
 
 func TestGetStatusDetails(t *testing.T) {
-	// Publish targeted expvars that the trace agent status template needs.
-	expvar.NewString("pid").Set("99999")
-	expvar.Publish("uptime_test_trace", expvar.Func(func() interface{} { return 42 }))
-
 	impl := &remoteagentImpl{
 		cfg: config.NewMock(t),
 	}
@@ -35,15 +32,21 @@ func TestGetStatusDetails(t *testing.T) {
 	require.NotNil(t, resp.MainSection)
 	require.Contains(t, resp.MainSection.Fields, "status")
 
-	// Verify the "status" field contains valid JSON with targeted trace agent keys.
+	// Verify the "status" field is valid JSON matching StatusInfo's structure.
 	var st map[string]interface{}
 	err = json.Unmarshal([]byte(resp.MainSection.Fields["status"]), &st)
 	require.NoError(t, err)
 
-	// Should contain targeted trace agent fields.
-	assert.Contains(t, st, "pid")
+	// pid is read directly from os.Getpid(), not from expvar.
+	assert.Equal(t, strconv.Itoa(os.Getpid()), st["pid"])
 
-	// Should NOT contain unrelated expvars.
-	assert.NotContains(t, st, "uptime_test_trace")
-	assert.NotContains(t, st, "test_security_key")
+	// All StatusInfo fields are present (zero/nil values before InitInfo).
+	assert.Contains(t, st, "uptime")
+	assert.Contains(t, st, "receiver")
+	assert.Contains(t, st, "ratebyservice_filtered")
+	assert.Contains(t, st, "trace_writer")
+	assert.Contains(t, st, "stats_writer")
+	assert.Contains(t, st, "watchdog")
+	assert.Contains(t, st, "memstats")
+	assert.Contains(t, st, "version")
 }

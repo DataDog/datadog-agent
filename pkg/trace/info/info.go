@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -65,6 +66,11 @@ type tracker struct {
 	infoTmpl              *template.Template
 	notRunningTmpl        *template.Template
 	errorTmpl             *template.Template
+
+	// Stored at InitInfo time for direct access via GetInProcessStatus(), bypassing expvar.
+	agentVersion string
+	gitCommit    string
+	configJSON   string
 }
 
 const (
@@ -218,10 +224,9 @@ func InitInfo(conf *config.AgentConfig) error {
 	return err
 }
 
-// StatusInfo is what we use to parse expvar response.
-// It does not need to contain all the fields, only those we need
-// to display when called with `-info` as JSON unmarshaller will
-// automatically ignore extra fields.
+// StatusInfo is the complete status of the trace agent.
+// It is used both by the CLI info command (HTTP path) and the RAR gRPC adapter
+// (in-process path). Fields match the keys the status template expects.
 type StatusInfo struct {
 	CmdLine  []string `json:"cmdline"`
 	Pid      string   `json:"pid"`
@@ -235,8 +240,8 @@ type StatusInfo struct {
 	} `json:"version"`
 	Receiver      []TagStats         `json:"receiver"`
 	RateByService map[string]float64 `json:"ratebyservice_filtered"`
-	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
-	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
+	TraceWriter   *TraceWriterInfo   `json:"trace_writer"`
+	StatsWriter   *StatsWriterInfo   `json:"stats_writer"`
 	Watchdog      watchdog.Info      `json:"watchdog"`
 	Config        config.AgentConfig `json:"config"`
 }
@@ -329,30 +334,38 @@ func CleanInfoExtraLines(info string) string {
 	return indentedEmptyLines.ReplaceAllString(info, "\n")
 }
 
-// GetInProcessStatus returns the trace agent's status by reading the targeted
-// expvars directly from the current process. This is used by the RAR gRPC adapter
-// so the trace agent fully owns its status representation.
-//
-// The expvars are the canonical source — they wrap the tracker's internal state
-// (receiver stats, writer info, watchdog, etc.) via the publish* functions
-// registered in initInfo().
-func GetInProcessStatus() map[string]interface{} {
-	keys := []string{
-		"pid", "uptime", "version", "memstats",
-		"receiver", "trace_writer", "stats_writer",
-		"ratebyservice", "ratebyservice_filtered",
-		"watchdog", "config",
+// GetInProcessStatus returns the complete trace agent status by reading directly
+// from the tracker's internal state. Used by the RAR gRPC adapter so the trace
+// agent fully owns its status representation without going through expvar.
+func GetInProcessStatus() *StatusInfo {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+
+	ift.infoMu.RLock()
+	st := &StatusInfo{
+		CmdLine: os.Args,
+		Pid:     strconv.Itoa(os.Getpid()),
+		Uptime:  int(time.Since(ift.start) / time.Second),
+		MemStats: struct{ Alloc uint64 }{
+			Alloc: ms.Alloc,
+		},
+		Version: struct {
+			Version   string
+			GitCommit string
+		}{ift.agentVersion, ift.gitCommit},
+		Receiver:      slices.Clone(ift.receiverStats),
+		RateByService: ift.rateByServiceFiltered,
+		TraceWriter:   ift.traceWriterInfo,
+		StatsWriter:   ift.statsWriterInfo,
+		Watchdog:      ift.watchdogInfo,
 	}
-	status := make(map[string]interface{}, len(keys))
-	for _, k := range keys {
-		if v := expvar.Get(k); v != nil {
-			var parsed interface{}
-			if err := json.Unmarshal([]byte(v.String()), &parsed); err == nil {
-				status[k] = parsed
-			}
-		}
+	configJSON := ift.configJSON
+	ift.infoMu.RUnlock()
+
+	if configJSON != "" {
+		json.Unmarshal([]byte(configJSON), &st.Config) //nolint:errcheck
 	}
-	return status
+	return st
 }
 
 func initInfo(conf *config.AgentConfig, ift *tracker) error {
@@ -413,6 +426,11 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	// and avoids race issues as the source object is never used again.
 	// Config is parsed at the beginning and never changed again, anyway.
 	expvar.Publish("config", infoString(string(scrubbed)))
+
+	// Store on the tracker for direct access via GetInProcessStatus(), bypassing expvar.
+	ift.agentVersion = conf.AgentVersion
+	ift.gitCommit = conf.GitCommit
+	ift.configJSON = string(scrubbed)
 
 	ift.infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 	if err != nil {
