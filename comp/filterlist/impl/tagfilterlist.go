@@ -6,10 +6,12 @@
 package filterlistimpl
 
 import (
+	"slices"
 	"strings"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	"github.com/zeebo/xxh3"
 )
 
 // TagMatcher manages removing tags from metrics with a given name.
@@ -39,7 +41,7 @@ const (
 
 // hashedMetricTagList contains the list of tags hashed using murmur3.
 type hashedMetricTagList struct {
-	tags   map[string]struct{}
+	tags   []uint64
 	action action
 }
 
@@ -62,12 +64,15 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 	// less space and be faster to query.
 	hashed := make(map[string]hashedMetricTagList, len(metrics))
 	for k, v := range metrics {
-		tags := make(map[string]struct{}, len(v.Tags))
+		tags := make([]uint64, 0, len(v.Tags))
 		for _, tag := range v.Tags {
-			tags[tag] = struct{}{}
+			tags = append(tags, xxh3.HashString(tag))
 		}
 
+		slices.Sort(tags)
+
 		var act action
+
 		switch v.Action {
 		case "include":
 			act = include
@@ -92,7 +97,7 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 
 // tagName extracts the tag name portion from the tag.
 func tagName(tag string) string {
-	tagNamePos := strings.Index(tag, ":")
+	tagNamePos := strings.IndexByte(tag, ':')
 	if tagNamePos < 0 {
 		tagNamePos = len(tag)
 	}
@@ -110,9 +115,8 @@ func (m tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, b
 	}
 
 	keepTag := func(tag string) bool {
-		//hashedTag := xxh3.HashString(tagName(tag))
-		//return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
-		_, found := tm.tags[tagName(tag)]
+		hashedTag := xxh3.HashString(tagName(tag))
+		_, found := slices.BinarySearch(tm.tags, hashedTag)
 		return found != bool(tm.action)
 	}
 
