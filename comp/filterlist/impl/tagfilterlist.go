@@ -11,7 +11,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	"github.com/twmb/murmur3"
+	"github.com/zeebo/xxh3"
 )
 
 // TagMatcher manages removing tags from metrics with a given name.
@@ -66,8 +66,10 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 	for k, v := range metrics {
 		tags := make([]uint64, 0, len(v.Tags))
 		for _, tag := range v.Tags {
-			tags = append(tags, murmur3.StringSum64(tag))
+			tags = append(tags, xxh3.HashString(tag))
 		}
+
+		slices.Sort(tags)
 
 		var act action
 		switch v.Action {
@@ -112,8 +114,10 @@ func (m tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, b
 	}
 
 	keepTag := func(tag string) bool {
-		hashedTag := murmur3.StringSum64(tagName(tag))
-		return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
+		hashedTag := xxh3.HashString(tagName(tag))
+		//return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
+		_, found := slices.BinarySearch(tm.tags, hashedTag)
+		return found != bool(tm.action)
 	}
 
 	return keepTag, ok
