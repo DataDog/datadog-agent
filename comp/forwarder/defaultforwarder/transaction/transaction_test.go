@@ -126,8 +126,10 @@ func TestProcessHTTPError(t *testing.T) {
 
 	errorCode = http.StatusForbidden
 	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
-	assert.NoError(t, err)
-	assert.Equal(t, transaction.ErrorCount, 1)
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "API Key invalid")
+
+	assert.Equal(t, transaction.ErrorCount, 2)
 }
 
 func TestProcessCancel(t *testing.T) {
@@ -216,7 +218,7 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	log := logmock.New(t)
 
 	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
-	assert.NoError(t, err)
+	assert.NotNil(t, err)
 
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
 }

@@ -190,7 +190,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			continue
 		}
 
-		route := string(e.Route)
+		route := stripPlaceholders(string(e.Route))
 		headers := s.fromHeaderProto(tr.Headers)
 		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
 		domain := s.resolver.Resolve(endpoint)
@@ -234,6 +234,23 @@ func extractPlaceholderIndex(str string) (int, bool) {
 	return n, true
 }
 
+// stripPlaceholders removes all \xfeAPI_KEY\xfeN\xfe tokens from str.
+func stripPlaceholders(str string) string {
+	for {
+		idx := strings.Index(str, placeHolderPrefix)
+		if idx == -1 {
+			break
+		}
+		rest := str[idx+len(placeHolderPrefix):]
+		end := strings.Index(rest, squareChar)
+		if end == -1 {
+			break
+		}
+		str = str[:idx] + rest[end+len(squareChar):]
+	}
+	return str
+}
+
 // apiKeyIndexFromProto extracts the APIKeyIndex for proto versions 1 and 2 by scanning the
 // stored header values and route bytes for a \xfeAPI_KEY\xfeN\xfe placeholder and returning
 // the resolved index N. For V1, N is a position in the alphabetically sorted key list and is
@@ -250,7 +267,7 @@ func (s *HTTPTransactionsSerializer) apiKeyIndexFromProto(tr *HttpTransactionPro
 				// after finding a key in the (should not happen) case that there
 				// are multiple API key headers.
 				delete(tr.Headers, headerKey)
-				if index > -1 {
+				if index == -1 {
 					var err error
 					index, err = s.resolvePlaceholderIndex(placeholderIdx, protoVersion)
 					if err != nil {
