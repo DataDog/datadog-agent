@@ -106,6 +106,55 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		assert.Equal(t, "cid_fork", p.ContainerID.Get().(string), "container id mismatch")
 	})
 
+	t.Run("test exec process sets ExecutableName from file path", func(t *testing.T) {
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{Pid: 3344},
+						ExecTime:   now,
+					},
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+			Exec: model.ExecEvent{
+				Process: &model.Process{
+					FileEvent: model.FileEvent{
+						PathnameStr: "/usr/bin/nginx",
+					},
+				},
+			},
+		}
+		evHandler := &eventConsumerWrapper{}
+		_p := evHandler.Copy(ev)
+		require.IsType(t, &Process{}, _p)
+		p := _p.(*Process)
+		assert.Equal(t, "nginx", p.ExecutableName)
+	})
+
+	t.Run("test fork process has empty ExecutableName", func(t *testing.T) {
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ForkEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{Pid: 5566},
+						ForkTime:   now,
+					},
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+		}
+		evHandler := &eventConsumerWrapper{}
+		_p := evHandler.Copy(ev)
+		require.IsType(t, &Process{}, _p)
+		p := _p.(*Process)
+		assert.Empty(t, p.ExecutableName)
+	})
+
 	t.Run("no container context", func(t *testing.T) {
 		ev := &model.Event{BaseEvent: model.BaseEvent{}}
 		evHandler := &eventConsumerWrapper{}

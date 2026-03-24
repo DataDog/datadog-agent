@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go4.org/intern"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 func TestProcessCacheProcessEvent(t *testing.T) {
@@ -289,4 +291,53 @@ func TestProcessCacheGet(t *testing.T) {
 		})
 	}
 
+}
+
+func TestAddProcessInfoExecutableName(t *testing.T) {
+	pc, err := newProcessCache(10)
+	require.NoError(t, err)
+	t.Cleanup(pc.Stop)
+
+	tr, err := ktime.NewResolver()
+	require.NoError(t, err)
+
+	tracer := &Tracer{
+		processCache: pc,
+		timeResolver: tr,
+	}
+
+	t.Run("sets executable_name tag when ExecutableName is set", func(t *testing.T) {
+		pc.add(&events.Process{
+			Pid:            1234,
+			ExecutableName: "nginx",
+			StartTime:      0,
+		})
+
+		var c network.ConnectionStats
+		c.Pid = 1234
+		c.LastUpdateEpoch = 1 // any non-zero value resolves to a positive Unix nanosecond timestamp
+		tracer.addProcessInfo(&c)
+
+		require.Contains(t, c.Tags, intern.GetByString("executable_name:nginx"))
+	})
+
+	t.Run("no executable_name tag when ExecutableName is empty", func(t *testing.T) {
+		pc.add(&events.Process{
+			Pid:       5678,
+			StartTime: 0,
+			Tags:      []*intern.Value{intern.GetByString("service:foo")},
+		})
+
+		var c network.ConnectionStats
+		c.Pid = 5678
+		c.LastUpdateEpoch = 1
+		tracer.addProcessInfo(&c)
+
+		for _, tag := range c.Tags {
+			if tag != nil {
+				s, _ := tag.Get().(string)
+				assert.NotContains(t, s, "executable_name:")
+			}
+		}
+	})
 }
