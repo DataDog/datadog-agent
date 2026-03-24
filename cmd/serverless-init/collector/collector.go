@@ -181,6 +181,8 @@ func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *Ser
 	}
 
 	serverlessStats.CPU = &ServerlessCPUStats{}
+	// only set when cgroup reports CPU.Total.
+	// *float64 keeps unset distinct from 0 for usage rate calculation.
 	if stats.CPU.Total != nil {
 		serverlessStats.CPU.Total = pointer.Ptr(float64(*stats.CPU.Total))
 	}
