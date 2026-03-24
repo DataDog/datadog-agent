@@ -6,8 +6,8 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
+	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,6 +33,21 @@ func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 	assert.Equal(t, paths, handler.allowedPaths)
 }
 
+func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {
+	return func(path string) (os.FileInfo, error) {
+		if existing[path] {
+			return nil, nil
+		}
+		return nil, errors.New("not found")
+	}
+}
+
+func overrideStatFn(t *testing.T, fn func(string) (os.FileInfo, error)) {
+	original := statFn
+	statFn = fn
+	t.Cleanup(func() { statFn = original })
+}
+
 func TestResolveProcPathBareMetal(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "")
 	os.Unsetenv("DOCKER_DD_AGENT")
@@ -44,29 +59,16 @@ func TestResolveProcPathBareMetal(t *testing.T) {
 
 func TestResolveProcPathContainerizedWithHostMount(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
-
-	// Point prefix at a temp dir with a proc directory to simulate /host/proc
-	tmpDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "proc"), 0755))
-
-	original := containerizedPathPrefix
-	containerizedPathPrefix = tmpDir
-	t.Cleanup(func() { containerizedPathPrefix = original })
+	overrideStatFn(t, mockStatFn(map[string]bool{"/host/proc": true}))
 
 	result := resolveProcPath()
 
-	assert.Equal(t, filepath.Join(tmpDir, "proc"), result)
+	assert.Equal(t, "/host/proc", result)
 }
 
 func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
-
-	// Point prefix at an empty temp dir — no proc mount exists
-	tmpDir := t.TempDir()
-
-	original := containerizedPathPrefix
-	containerizedPathPrefix = tmpDir
-	t.Cleanup(func() { containerizedPathPrefix = original })
+	overrideStatFn(t, mockStatFn(map[string]bool{}))
 
 	result := resolveProcPath()
 

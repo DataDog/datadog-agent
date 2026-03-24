@@ -7,11 +7,22 @@ package setup
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func mockParPathExists(existing map[string]bool) func(string) bool {
+	return func(path string) bool {
+		return existing[path]
+	}
+}
+
+func overrideParPathExists(t *testing.T, fn func(string) bool) {
+	original := parPathExists
+	parPathExists = fn
+	t.Cleanup(func() { parPathExists = original })
+}
 
 func TestPrivateActionRunnerActionsAllowlistFromEnv(t *testing.T) {
 	t.Setenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST", "com.datadoghq.kubernetes.core.listPod,com.datadoghq.script.runPredefinedScript")
@@ -65,39 +76,23 @@ func TestPrivateActionRunnerAllowedPathsBareMetal(t *testing.T) {
 
 func TestPrivateActionRunnerAllowedPathsContainerizedWithHostMounts(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
-
-	// Point prefix at a temp dir with simulated host mounts
-	tmpDir := t.TempDir()
-	assert.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "var", "log"), 0755))
-	assert.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "etc"), 0755))
-	assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "etc", "os-release"), []byte(""), 0644))
-
-	original := containerizedPathPrefix
-	containerizedPathPrefix = tmpDir
-	t.Cleanup(func() { containerizedPathPrefix = original })
+	overrideParPathExists(t, mockParPathExists(map[string]bool{
+		"/host/var/log":        true,
+		"/host/etc/os-release": true,
+	}))
 
 	cfg := newTestConf(t)
 
 	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
-	assert.Equal(t, []string{
-		filepath.Join(tmpDir, "var", "log"),
-		filepath.Join(tmpDir, "etc", "os-release"),
-	}, paths)
+	assert.Equal(t, []string{"/host/var/log", "/host/etc/os-release"}, paths)
 }
 
 func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
-
-	// Point prefix at an empty temp dir — no host mounts
-	tmpDir := t.TempDir()
-
-	original := containerizedPathPrefix
-	containerizedPathPrefix = tmpDir
-	t.Cleanup(func() { containerizedPathPrefix = original })
+	overrideParPathExists(t, mockParPathExists(map[string]bool{}))
 
 	cfg := newTestConf(t)
 
-	// Without host mounts, should fall back to container paths
 	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
 	assert.Equal(t, []string{defaultLogPath, defaultOsReleasePath}, paths)
 }

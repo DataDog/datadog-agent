@@ -43,11 +43,13 @@ const (
 	// Default allowed paths for restricted shell
 	defaultLogPath       = "/var/log"
 	defaultOsReleasePath = "/etc/os-release"
+
+	containerizedPathPrefix = "/host"
 )
 
-// containerizedPathPrefix is the mount prefix for host paths in containerized
-// environments. It is a var (not const) to allow override in tests.
-var containerizedPathPrefix = "/host"
+// parPathExists is the function used to check path existence. It defaults to
+// pathExists and can be overridden in tests.
+var parPathExists = pathExists
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
@@ -88,7 +90,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		// host volumes, so fall back to container-local paths.
 		for i, v := range defaultPaths {
 			hostPath := filepath.Join(containerizedPathPrefix, v)
-			if pathExists(hostPath) {
+			if parPathExists(hostPath) {
 				defaultPaths[i] = hostPath
 			}
 		}

@@ -24,11 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultProcPath = "/proc"
+const (
+	defaultProcPath         = "/proc"
+	containerizedPathPrefix = "/host"
+)
 
-// containerizedPathPrefix is the mount prefix for host paths in containerized
-// environments. It is a var (not const) to allow override in tests.
-var containerizedPathPrefix = "/host"
+// statFn is the function used to check path existence. It defaults to os.Stat
+// and can be overridden in tests.
+var statFn = os.Stat
 
 // RunCommandHandler implements the runCommand action.
 type RunCommandHandler struct {
@@ -80,7 +83,7 @@ func (h *RunCommandHandler) Run(
 
 	validPaths := make([]string, 0, len(h.allowedPaths))
 	for _, p := range h.allowedPaths {
-		if _, err := os.Stat(p); err == nil {
+		if _, err := statFn(p); err == nil {
 			validPaths = append(validPaths, p)
 		} else {
 			log.Debugf("rshell: skipping allowed path %q (not found)", p)
@@ -128,7 +131,7 @@ func (h *RunCommandHandler) Run(
 func resolveProcPath() string {
 	if env.IsContainerized() {
 		hostProc := filepath.Join(containerizedPathPrefix, defaultProcPath)
-		if _, err := os.Stat(hostProc); err == nil {
+		if _, err := statFn(hostProc); err == nil {
 			return hostProc
 		}
 	}
