@@ -74,11 +74,10 @@ func (h *RunCommandHandler) Run(
 
 	validPaths := make([]string, 0, len(h.allowedPaths))
 	for _, p := range h.allowedPaths {
-		info, err := os.Stat(p)
-		if err == nil && info.IsDir() {
+		if _, err := os.Stat(p); err == nil {
 			validPaths = append(validPaths, p)
 		} else {
-			log.Debugf("rshell: skipping allowed path %q (not found or not a directory)", p)
+			log.Debugf("rshell: skipping allowed path %q (not found)", p)
 		}
 	}
 
