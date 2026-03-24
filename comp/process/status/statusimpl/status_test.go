@@ -23,14 +23,30 @@ import (
 //go:embed fixtures
 var fixturesTemplates embed.FS
 
-// makeProcessAgentRAR builds a mock RAR that returns a pre-built status JSON
-// (as the process agent's GetStatusDetails now produces).
+// makeProcessAgentRAR builds a mock RAR with the minimal status data needed
+// to exercise the consumer's template rendering.
 func makeProcessAgentRAR(t *testing.T) *rarmock.Component {
 	t.Helper()
 
-	// Read the fixture which represents the full pre-built Status struct
-	// that the process agent would return via RAR.
-	statusBytes, err := fixturesTemplates.ReadFile("fixtures/process_status.json")
+	status := map[string]interface{}{
+		"date": float64(time.Now().UnixNano()),
+		"core": map[string]interface{}{
+			"version":    "7.78.0",
+			"go_version": "go1.22.0",
+			"build_arch": "amd64",
+			"config":     map[string]interface{}{"log_level": "info"},
+			"metadata":   map[string]interface{}{"meta": map[string]interface{}{"hostname": "test-host"}},
+		},
+		"expvars": map[string]interface{}{
+			"process_agent": map[string]interface{}{
+				"enabled_checks": []string{"process", "rtprocess"},
+				"endpoints": map[string]interface{}{
+					"https://process.datadoghq.eu": []string{"72724"},
+				},
+			},
+		},
+	}
+	statusBytes, err := json.Marshal(status)
 	require.NoError(t, err)
 
 	return &rarmock.Component{
