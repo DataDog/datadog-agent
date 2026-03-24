@@ -1,5 +1,6 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -227,6 +228,36 @@ configure_make(
 foreign_cc_shared_wrapper(
     name = "openssl_shared",
     input = ":openssl",
+)
+
+foreign_cc_shared_wrapper(
+    name = "libssl_shared",
+    input = ":openssl",
+    lib_filter = "libssl",
+)
+
+foreign_cc_shared_wrapper(
+    name = "libcrypto_shared",
+    input = ":openssl",
+    lib_filter = "libcrypto",
+)
+
+dd_cc_packaged(
+    name = "libssl_shared_pkg",
+    input = ":libssl_shared",
+    version = OPENSSL_VERSION,
+    libname = "libssl",
+)
+
+dd_cc_packaged(
+    name = "libcrypto_shared_pkg",
+    input = ":libcrypto_shared",
+    version = OPENSSL_VERSION,
+    libname = "libcrypto",
+    installed_files = [
+        ":openssl_files",
+        ":openssl_bin_files",
+    ],
 )
 
 # The dynamic library built with configure/make. Even though the name

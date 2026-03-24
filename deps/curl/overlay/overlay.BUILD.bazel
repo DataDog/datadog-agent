@@ -99,7 +99,8 @@ cc_binary(
         # curl_pkg, so using curl_pkg here would create a dependency cycle.
         ":curl",
         "@nghttp2//:nghttp2_pkg",
-        "@openssl//:openssl_shared",
+        "@openssl//:libssl_shared_pkg",
+        "@openssl//:libcrypto_shared_pkg",
         "@zlib//:z_pkg",
     ],
     includes = [
@@ -222,7 +223,8 @@ cc_shared_library(
     name = "curl",
     dynamic_deps = [
         "@nghttp2//:nghttp2_pkg",
-        "@openssl//:openssl_shared",
+        "@openssl//:libssl_shared_pkg",
+        "@openssl//:libcrypto_shared_pkg",
         "@zlib//:z_pkg",
     ],
     visibility = ["//visibility:public"],
