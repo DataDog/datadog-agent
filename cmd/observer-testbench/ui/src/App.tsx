@@ -4,10 +4,11 @@ import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
+import { BenchmarkView } from './components/BenchmarkView';
 import type { EpisodeInfo, ScoreResult } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
-type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports';
+type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark';
 
 function ConnectionStatus({ state }: { state: string }) {
   const colors: Record<string, string> = {
@@ -417,6 +418,16 @@ function App() {
               >
                 Reports
               </button>
+              <button
+                onClick={() => setActiveTab('benchmark')}
+                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                  activeTab === 'benchmark'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Benchmark
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -609,6 +620,13 @@ function App() {
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
             phaseMarkers={phaseMarkers}
+          />
+        </div>
+        <div className={`flex-1 flex ${activeTab !== 'benchmark' ? 'hidden' : ''}`}>
+          <BenchmarkView
+            state={state}
+            actions={actions}
+            sidebarWidth={sidebarWidth}
           />
         </div>
       </div>

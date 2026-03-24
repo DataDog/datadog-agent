@@ -278,6 +278,14 @@ export interface ScoreResponse {
   score?: ScoreResult;
 }
 
+export interface DetectorProcessingStats {
+  name: string;
+  count: number;
+  avg_ns: number;
+  median_ns: number;
+  p99_ns: number;
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -400,6 +408,10 @@ class ApiClient {
 
   async getScore(): Promise<ScoreResponse> {
     return this.fetch('/score');
+  }
+
+  async getBenchmarkStats(): Promise<Record<string, DetectorProcessingStats>> {
+    return this.fetch('/benchmark');
   }
 
 }
