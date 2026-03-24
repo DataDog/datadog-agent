@@ -14,6 +14,7 @@ pub struct Janitor {
     retention: Duration,
     max_disk_bytes: u64, // 0 = unlimited
     interval: Duration,
+    merge_enabled: bool,
     merge_config: merge::MergeConfig,
     merge_interval: Duration,
 }
@@ -23,6 +24,7 @@ impl Janitor {
         output_dir: &str,
         retention: Duration,
         max_disk_bytes: u64,
+        merge_enabled: bool,
         merge_min_files: usize,
         merge_interval: Duration,
     ) -> Self {
@@ -36,6 +38,7 @@ impl Janitor {
             retention,
             max_disk_bytes,
             interval: Duration::from_secs(30),
+            merge_enabled,
             merge_interval,
         }
     }
@@ -46,6 +49,7 @@ impl Janitor {
             retention_secs = self.retention.as_secs(),
             max_disk_bytes = self.max_disk_bytes,
             interval_secs = self.interval.as_secs(),
+            merge_enabled = self.merge_enabled,
             merge_interval_secs = self.merge_interval.as_secs(),
             merge_min_files = self.merge_config.min_files_to_trigger,
             "janitor started"
@@ -61,8 +65,8 @@ impl Janitor {
                     if let Err(e) = self.cleanup().await {
                         warn!("janitor cleanup error: {}", e);
                     }
-                    // Run merge pass if enough time has elapsed.
-                    if last_merge.elapsed() >= self.merge_interval {
+                    // Run merge pass if enabled and enough time has elapsed.
+                    if self.merge_enabled && last_merge.elapsed() >= self.merge_interval {
                         crate::heap_prof::dump_heap_profile(&self.output_dir, "pre-merge");
                         match merge::merge_pass(&self.merge_config).await {
                             Ok(n) if n > 0 => {
@@ -193,6 +197,7 @@ mod tests {
             dir.path().to_str().unwrap(),
             Duration::from_secs(3600), // 1 hour retention
             0,
+            false,
             5,
             Duration::from_secs(300),
         );
@@ -222,6 +227,7 @@ mod tests {
             dir.path().to_str().unwrap(),
             Duration::from_secs(86400), // long retention so only cap kicks in
             200,                         // cap at 200 bytes
+            false,
             5,
             Duration::from_secs(300),
         );
@@ -245,6 +251,7 @@ mod tests {
             dir.path().to_str().unwrap(),
             Duration::from_secs(0), // delete everything by time
             0,
+            false,
             5,
             Duration::from_secs(300),
         );
@@ -269,6 +276,7 @@ mod tests {
             dir.path().to_str().unwrap(),
             Duration::from_secs(86400),
             0,
+            false,
             5,
             Duration::from_secs(300),
         );
