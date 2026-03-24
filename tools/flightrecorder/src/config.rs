@@ -33,6 +33,12 @@ pub struct Config {
     #[arg(long, env = "RECORDER_MAX_DISK_MB", default_value_t = 5120)]
     pub max_disk_mb: u64,
 
+    /// Enable background merge/compaction of flush files. Disabled by default
+    /// because decomposed-tag columns already produce compact DictArrays and
+    /// the merge only achieves ~22% compression at the cost of large RSS spikes.
+    #[arg(long, env = "RECORDER_MERGE_ENABLED", default_value_t = false)]
+    pub merge_enabled: bool,
+
     /// Minimum flush files of the same type before a merge triggers.
     #[arg(long, env = "RECORDER_MERGE_MIN_FILES", default_value_t = 5)]
     pub merge_min_files: usize,

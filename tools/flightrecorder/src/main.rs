@@ -54,6 +54,7 @@ async fn main() -> Result<()> {
         &cfg.output_dir,
         Duration::from_secs(cfg.retention_hours * 3600),
         cfg.max_disk_mb * 1024 * 1024,
+        cfg.merge_enabled,
         cfg.merge_min_files,
         Duration::from_secs(cfg.merge_interval_secs),
     );
