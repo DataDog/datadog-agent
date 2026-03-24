@@ -20,6 +20,7 @@ import (
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -127,6 +128,9 @@ type TestBench struct {
 
 	// API server
 	api *TestBenchAPI
+
+	// This is not directly used, it's mostly to ensure that telemetry metrics are registered in the telemetry handler
+	telemetryHandler *telemetryHandler
 }
 
 // ScenarioInfo describes an available scenario.
@@ -200,6 +204,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sse:                    hub,
 		sseStop:                stop,
+		telemetryHandler:       newTelemetryHandler(noopsimpl.GetCompatComponent()),
 	}
 
 	// Heartbeat goroutine — lets SSE clients detect stale connections.
@@ -645,6 +650,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
 	// ReplayStoredData (below) will handle scheduling after all data is loaded.
+	var ingestTelemetry []observerdef.ObserverTelemetry
 	for _, log := range tb.rawLogs {
 		obs := &logObs{
 			content:     log.GetContent(),
@@ -653,7 +659,8 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			hostname:    log.GetHostname(),
 			timestampMs: log.GetTimestampUnixMilli(),
 		}
-		tb.engine.IngestLog("parquet", obs)
+		_, tel := tb.engine.IngestLog("parquet", obs)
+		ingestTelemetry = append(ingestTelemetry, tel...)
 	}
 
 	// Replay all stored data through the scheduler policy.
@@ -664,7 +671,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
-	for _, t := range result.telemetry {
+	for _, t := range append(ingestTelemetry, result.telemetry...) {
 		detName := t.DetectorName
 		if detName == "" {
 			detName = "unknown"
@@ -712,7 +719,11 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.engine.Storage().Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.engine.Storage().Add(observerdef.TelemetryNamespace, metric.name, metric.value, metric.timestamp, metric.tags)
+
+			if !tb.telemetryHandler.isMetricRegistered(metric.name) {
+				fmt.Printf("ERROR: [observer] metric %s is not registered\n", metric.name)
+			}
 		}
 
 		if telemetryEvent.Log != nil {
@@ -855,9 +866,9 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
 	for i := range anomalies {
 		a := &anomalies[i]
+		// This comes from the telemetry
 		if a.SourceSeriesID == "" && a.Source.Name != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			a.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
+			a.SourceSeriesID = observerdef.SeriesID(seriesKey(observerdef.TelemetryNamespace, a.Source.String()+":avg", nil))
 		}
 	}
 	return anomalies

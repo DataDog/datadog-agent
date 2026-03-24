@@ -188,12 +188,13 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // IngestLog processes a log observation: runs extractors to produce virtual metrics,
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
-func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
+func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
 	sourceTag := "observer_source:" + source
 	view := &logView{obs: l}
+	var logTelemetry []observerdef.ObserverTelemetry
 	for _, extractor := range e.extractors {
-		metrics := extractor.ProcessLog(view)
-		for _, m := range metrics {
+		out := extractor.ProcessLog(view)
+		for _, m := range out.Metrics {
 			tags := copyTags(m.Tags)
 			if !sliceContains(tags, sourceTag) {
 				tags = append(tags, sourceTag)
@@ -207,6 +208,14 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 			}
 		}
+		if len(out.Telemetry) > 0 {
+			logTelemetry = append(logTelemetry, out.Telemetry...)
+		}
+	}
+	if len(logTelemetry) > 0 {
+		e.telemetryMu.Lock()
+		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
+		e.telemetryMu.Unlock()
 	}
 	for _, lo := range e.logObservers {
 		lo.ProcessLog(view)
@@ -214,7 +223,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
-	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
+	return e.scheduler.onObservation(dataTimeSec, e.schedulerState()), logTelemetry
 }
 
 func sliceContains(items []string, want string) bool {

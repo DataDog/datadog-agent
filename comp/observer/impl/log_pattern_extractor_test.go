@@ -21,10 +21,10 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	}
 
 	res := e.ProcessLog(log)
-	require.Len(t, res, 1)
-	require.NotEmpty(t, res[0].ContextKey)
+	require.Len(t, res.Metrics, 1)
+	require.NotEmpty(t, res.Metrics[0].ContextKey)
 
-	ctx, ok := e.GetContextByKey(res[0].ContextKey)
+	ctx, ok := e.GetContextByKey(res.Metrics[0].ContextKey)
 	require.True(t, ok)
 	assert.Equal(t, "log_pattern_extractor", ctx.Source)
 	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
@@ -45,14 +45,14 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 
 	resA := e.ProcessLog(logA)
 	resB := e.ProcessLog(logB)
-	require.Len(t, resA, 1)
-	require.Len(t, resB, 1)
-	require.Equal(t, resA[0].Name, resB[0].Name)
-	require.NotEqual(t, resA[0].ContextKey, resB[0].ContextKey)
+	require.Len(t, resA.Metrics, 1)
+	require.Len(t, resB.Metrics, 1)
+	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
-	ctxA, ok := e.GetContextByKey(resA[0].ContextKey)
+	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
 	require.True(t, ok)
-	ctxB, ok := e.GetContextByKey(resB[0].ContextKey)
+	ctxB, ok := e.GetContextByKey(resB.Metrics[0].ContextKey)
 	require.True(t, ok)
 
 	assert.Equal(t, "GET /users/123 returned 500", ctxA.Example)
@@ -69,13 +69,13 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 	}
 
 	res := e.ProcessLog(log)
-	require.Len(t, res, 1)
+	require.Len(t, res.Metrics, 1)
 
-	_, ok := e.GetContextByKey(res[0].ContextKey)
+	_, ok := e.GetContextByKey(res.Metrics[0].ContextKey)
 	require.True(t, ok)
 
 	e.Reset()
 
-	_, ok = e.GetContextByKey(res[0].ContextKey)
+	_, ok = e.GetContextByKey(res.Metrics[0].ContextKey)
 	assert.False(t, ok)
 }

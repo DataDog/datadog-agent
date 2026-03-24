@@ -18,6 +18,8 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,8 +32,9 @@ type Requires struct {
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
 
-	Config config.Component
-	Log    log.Component
+	Config    config.Component
+	Log       log.Component
+	Telemetry telemetry.Component
 
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
@@ -231,9 +234,15 @@ func NewComponent(deps Requires) Provides {
 		state:     eng.StateView(),
 	})
 
+	telemetryComp := deps.Telemetry
+	if telemetryComp == nil {
+		telemetryComp = noopsimpl.GetCompatComponent()
+	}
+
 	obs := &observerImpl{
-		engine: eng,
-		obsCh:  make(chan observation, 1000),
+		engine:           eng,
+		obsCh:            make(chan observation, 1000),
+		telemetryHandler: newTelemetryHandler(telemetryComp),
 	}
 
 	// Set up handle function based on recording and analysis configuration.
@@ -394,6 +403,8 @@ type observerImpl struct {
 
 	// fetcher pulls traces/profiles from remote trace-agents
 	fetcher *observerFetcher
+
+	telemetryHandler *telemetryHandler
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -404,7 +415,11 @@ func (o *observerImpl) run() {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
 		}
 		if obs.log != nil {
-			requests = append(requests, o.engine.IngestLog(obs.source, obs.log)...)
+			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
+			requests = append(requests, logRequests...)
+			if len(logTelemetry) > 0 {
+				o.telemetryHandler.handleTelemetry(logTelemetry)
+			}
 		}
 		if obs.trace != nil {
 			o.processTrace(obs.source, obs.trace)
@@ -413,7 +428,8 @@ func (o *observerImpl) run() {
 			o.processProfile(obs.source, obs.profile)
 		}
 		for _, req := range requests {
-			o.engine.advanceWithReason(req.upToSec, req.reason)
+			result := o.engine.advanceWithReason(req.upToSec, req.reason)
+			o.telemetryHandler.handleTelemetry(result.telemetry)
 		}
 	}
 }
@@ -469,7 +485,7 @@ func (a *seriesDetectorAdapter) Reset() {
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	allSeries := storage.ListSeries(observerdef.SeriesFilter{})
+	allSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry

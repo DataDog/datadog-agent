@@ -711,9 +711,18 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	defer s.mu.RUnlock()
 
 	var result []observer.SeriesMeta
+listSeriesLoop:
 	for key, stats := range s.series {
-		if filter.Namespace != "" && stats.Namespace != filter.Namespace {
-			continue
+		if filter.Namespace != "" {
+			if stats.Namespace != filter.Namespace {
+				continue
+			}
+		} else {
+			for _, ex := range filter.ExcludeNamespaces {
+				if stats.Namespace == ex {
+					continue listSeriesLoop
+				}
+			}
 		}
 		if filter.NamePattern != "" && !strings.HasPrefix(stats.Name, filter.NamePattern) {
 			continue

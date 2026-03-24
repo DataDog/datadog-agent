@@ -40,18 +40,20 @@ func (c *ConnectionErrorExtractor) Name() string {
 
 // ProcessLog checks if a log contains connection error patterns and returns a metric if so.
 // Anomaly detection is handled by metrics detection on the count aggregation of the emitted metric.
-func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
+func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := strings.ToLower(string(log.GetContent()))
 
 	for _, pattern := range connectionErrorPatterns {
 		if strings.Contains(content, pattern) {
-			return []observer.MetricOutput{{
-				Name:  "connection.errors",
-				Value: 1.0,
-				Tags:  log.GetTags(),
-			}}
+			return observer.LogMetricsExtractorOutput{
+				Metrics: []observer.MetricOutput{{
+					Name:  "connection.errors",
+					Value: 1.0,
+					Tags:  log.GetTags(),
+				}},
+			}
 		}
 	}
 
-	return nil
+	return observer.LogMetricsExtractorOutput{}
 }

@@ -79,14 +79,14 @@ func (a *LogMetricsExtractor) GetContextByKey(key string) (observer.MetricContex
 	return ctx, ok
 }
 
-func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
+func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
 	tags := log.GetTags()
 
 	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.config.MaxEvalBytes)
 	if patternSig == "" {
-		return nil
+		return observer.LogMetricsExtractorOutput{}
 	}
 
 	metricName := patternCountMetricName(patternSig)
@@ -114,7 +114,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.Metric
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return metrics
+	return observer.LogMetricsExtractorOutput{Metrics: metrics}
 }
 
 func isJSONObject(b []byte) bool {
