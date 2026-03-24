@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
 func FuzzReadConfig(f *testing.F) {
@@ -143,13 +142,8 @@ other: value`) // Null value (YAML parses as nil)
 
 		// Test error conditions don't crash
 		if err == nil {
-			// Only test additional operations if ReadConfig succeeded
-			// Test unmarshal functionality on valid configs
-			var result map[string]interface{}
-			structure.UnmarshalKey(cfg, "", &result)
-			structure.UnmarshalKey(cfg, "c", &result)
-
-			// Test settings retrieval with sequence ID
+			cfg.AllSettings()
+			cfg.Get("c")
 			_, _ = cfg.AllFlattenedSettingsWithSequenceID()
 		}
 	})
