@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"maps"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -98,8 +99,15 @@ const defaultUsageMetricName = "instance"
 
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Warnf("failed to get hostname for local usage metric instance tag: %v", err)
+		hostname = "unknown"
+	}
+
 	return map[string]string{
-		"local": "true",
+		"instance": hostname,
+		"local":    "true",
 	}
 }
 
@@ -110,7 +118,7 @@ func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMet
 	}
 
 	usageTags := maps.Clone(baseTags)
-	usageTags["instance"] = "test-instance"
+	usageTags["instance"] = tags["instance"]
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
@@ -156,7 +164,6 @@ func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 // AddStartMetric adds the start metric for LocalService
 func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric("datadog.serverless_agent.enhanced.cold_start", 1.0, l.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric("datadog.serverless_agent.enhanced.cold_start", 1.0, l.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

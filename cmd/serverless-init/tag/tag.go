@@ -34,6 +34,7 @@ var highCardinalityTags = map[string]struct{}{
 	"gcrj.task_index":     {},
 	"gcrj.task_attempt":   {},
 	"gcrj.task_count":     {},
+	"instance":            {},
 }
 
 // TagPair contains a pair of tag key and value
