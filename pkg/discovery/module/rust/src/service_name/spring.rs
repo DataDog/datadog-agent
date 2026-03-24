@@ -579,6 +579,29 @@ mod tests {
         assert_eq!(result, Some("com.example.MyApp".to_string()));
     }
 
+    /// Verify that parse_start_class terminates on I/O error.
+    #[test]
+    fn test_parse_start_class_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+
+        // No match before error — should return None, not hang.
+        let content = b"Manifest-Version: 1.0\n";
+        let reader = ErrorAfterReader::new(&content[..]);
+        assert_eq!(parse_start_class(reader), None);
+
+        // Match before error — should find it.
+        let content = b"Start-Class: com.example.MyApp\n";
+        let reader = ErrorAfterReader::new(&content[..]);
+        assert_eq!(
+            parse_start_class(reader),
+            Some("com.example.MyApp".to_string())
+        );
+
+        // Empty, immediate error.
+        let reader = ErrorAfterReader::new(&b""[..]);
+        assert_eq!(parse_start_class(reader), None);
+    }
+
     // Helper to create a Spring Boot JAR for testing
     fn create_spring_boot_jar(tmp_dir: &TempDir, name: &str) -> String {
         let jar_path = tmp_dir.path().join(name);

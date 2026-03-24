@@ -207,6 +207,28 @@ mod tests {
         assert!(test_with_mock_maps(maps_content));
     }
 
+    /// Verify that check_for_gpu_libraries terminates on I/O error instead
+    /// of spinning forever (regression test for ESRCH infinite loop).
+    #[test]
+    fn test_check_for_gpu_libraries_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+
+        // No GPU libraries before the error — should return false, not hang.
+        let content = b"7f8e4c000000-7f8e4c021000 r--p 00000000 08:01 123456 /usr/lib/libc.so.6\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!check_for_gpu_libraries(reader));
+
+        // GPU library present before error — should find it and return true.
+        let content =
+            b"7f8e4c000000-7f8e4c021000 r--p 00000000 08:01 123456 /usr/lib/libcuda.so.535\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(check_for_gpu_libraries(reader));
+
+        // Empty content, immediate error — should return false, not hang.
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
+        assert!(!check_for_gpu_libraries(reader));
+    }
+
     #[test]
     fn test_has_gpu_nvidia_libraries_other_nvidia_libs_not_detected() {
         // Test that other libnvidia-* libraries are NOT detected (only libnvidia-ml.so is)

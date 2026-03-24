@@ -276,6 +276,47 @@ mod tests {
         assert!(detect_python_from_reader(reader));
     }
 
+    /// Verify that detect_python_from_reader terminates on I/O error.
+    #[test]
+    fn test_detect_python_from_reader_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+        use std::io::BufReader;
+
+        // No match before error — should return false, not hang.
+        let content = b"7f8e4c000000-7f8e4c021000 r--p 00000000 08:01 123456 /usr/lib/libc.so.6\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!detect_python_from_reader(reader));
+
+        // Match before error — should return true.
+        let content = b"7f8e4c000000-7f8e4c021000 r--p 00000000 08:01 123456 /home/foo/site-packages/ddtrace/internal/_encoding.so\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(detect_python_from_reader(reader));
+
+        // Empty, immediate error.
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
+        assert!(!detect_python_from_reader(reader));
+    }
+
+    /// Verify that detect_dotnet_from_reader terminates on I/O error.
+    #[test]
+    fn test_detect_dotnet_from_reader_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+        use std::io::BufReader;
+
+        let content =
+            b"785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /usr/lib/libc.so.6\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!detect_dotnet_from_reader(reader));
+
+        let content =
+            b"785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/Datadog.Trace.dll\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(detect_dotnet_from_reader(reader));
+
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
+        assert!(!detect_dotnet_from_reader(reader));
+    }
+
     #[test]
     fn test_detect_dotnet_from_reader_no_env_no_maps() {
         use std::io::Cursor;

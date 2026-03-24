@@ -93,6 +93,27 @@ ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/da
         assert!(is_injector_in_maps(reader));
     }
 
+    /// Verify that is_injector_in_maps terminates on I/O error.
+    #[test]
+    fn test_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+        use std::io::BufReader;
+
+        // No match before error.
+        let content = b"aaaacd3c0000-aaaacd49e000 r-xp 00000000 00:22 25173  /usr/bin/bash\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!is_injector_in_maps(reader));
+
+        // Match before error.
+        let content = b"ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920  /opt/datadog-packages/datadog-apm-inject/1.0.0/inject/launcher.preload.so\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(is_injector_in_maps(reader));
+
+        // Empty, immediate error.
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
+        assert!(!is_injector_in_maps(reader));
+    }
+
     #[test]
     fn test_similar_but_not_matching_paths() {
         let maps = "aaaacd3c0000-aaaacd49e000 r-xp 00000000 00:22 25173                      /opt/datadog-packages/datadog-apm-inject/1.0.0/launcher.preload.so
