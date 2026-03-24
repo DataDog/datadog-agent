@@ -23,6 +23,12 @@ BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 */
 BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 
+/* Per-connection event counters for discrete TCP events (RTO timeouts, fast recovery,
+ * zero-window probes). Keyed by zero-PID conn_tuple_t because these kprobes fire in
+ * kernel context without a reliable userspace PID.
+ */
+BPF_HASH_MAP(tcp_event_stats, conn_tuple_t, tcp_event_stats_t, 0)
+
 /* Will hold the PIDs initiating TCP connections keyed by socket + tuple. PIDs have a timestamp attached so they can age out */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
 

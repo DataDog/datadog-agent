@@ -100,6 +100,20 @@ func TestConfigAppKey(t *testing.T) {
 		`   app_key:   '************************************bbbb'   `)
 }
 
+func TestConfigPrefixedAppKey(t *testing.T) {
+	// Identifiable app key format: ddapp_<random28>_<checksum5> (40 chars total)
+	// Last 4 chars of the checksum are preserved in output
+	assertClean(t,
+		`ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`************************************bcde`)
+	assertClean(t,
+		`app_key: ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`app_key: ************************************bcde`)
+	assertClean(t,
+		`config with ddapp_AAAAAAAAAAAAAAAAAAAAAAAAAAAA_aBCDE in the middle`,
+		`config with ************************************BCDE in the middle`)
+}
+
 func TestConfigRCAppKey(t *testing.T) {
 	assertClean(t,
 		`key: "DDRCM_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCDE"`,
@@ -690,6 +704,34 @@ func TestOAuthCredentials(t *testing.T) {
   consumer_secret: "********"
   token_id: "********"
   token_secret: "********"`)
+}
+
+func TestSecretBackendCredentials(t *testing.T) {
+	// Verifies that all sensitive credential keys used by secret backend integrations
+	// are scrubbed when they appear under a nested session config block.
+	assertClean(t,
+		`secret_backend_config:
+  session:
+    azure_client_secret: my-sp-secret
+    azure_client_certificate_password: my-cert-password
+    aws_secret_access_key: AKIAIOSFODNN7EXAMPLE
+    vault_secret_id: my-vault-secret-id
+    vault_password: my-vault-password
+    vault_ldap_password: my-ldap-password
+    vault_token: s.my-vault-token
+    vault_kubernetes_jwt: eyJhbGciOiJSUzI1NiJ9
+    akeyless_access_key: my-akeyless-key`,
+		`secret_backend_config:
+  session:
+    azure_client_secret: "********"
+    azure_client_certificate_password: "********"
+    aws_secret_access_key: "********"
+    vault_secret_id: "********"
+    vault_password: "********"
+    vault_ldap_password: "********"
+    vault_token: "********"
+    vault_kubernetes_jwt: "********"
+    akeyless_access_key: "********"`)
 }
 
 func TestScrubCommandsEnv(t *testing.T) {
