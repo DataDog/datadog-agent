@@ -21,5 +21,6 @@ go_test(
     name = "log_test",
     srcs = ["throttled_test.go"],
     embed = [":log"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
