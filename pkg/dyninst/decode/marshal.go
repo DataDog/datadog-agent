@@ -156,16 +156,20 @@ func (m *messageData) processJSONSegment(
 		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
-	if exprIdx >= int(presenceBitsetSize)*8 {
+	if 2*exprIdx >= int(presenceBitsetSize)*8 {
 		return errors.New("expression index out of bounds")
 	}
-	if !presenceBitSet.get(exprIdx) {
-		// Expression evaluation failed.
-		if !limits.canWrite(len(formatUnavailable)) {
+	if !presenceBitSet.get(2 * exprIdx) {
+		// Expression evaluation failed. Check if it was due to nil pointer.
+		msg := formatUnavailable
+		if presenceBitSet.get(2*exprIdx + 1) {
+			msg = formatNilDeref
+		}
+		if !limits.canWrite(len(msg)) {
 			return nil
 		}
-		result.WriteString(formatUnavailable)
-		limits.consume(len(formatUnavailable))
+		result.WriteString(msg)
+		limits.consume(len(msg))
 		return nil
 	}
 
@@ -361,14 +365,18 @@ func (ce *captureEvent) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if !presenceBitSet.get(expressionIndex) && parameterSize != 0 {
-		// Set not capture reason.
+	if !presenceBitSet.get(2*expressionIndex) && parameterSize != 0 {
+		// Set not capture reason. Distinguish nil from unavailable.
+		reason := tokenNotCapturedReasonUnavailable
+		if presenceBitSet.get(2*expressionIndex + 1) {
+			reason = tokenNotCapturedReasonNil
+		}
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
 			jsontext.String(parameterType.GetName()),
 			tokenNotCapturedReason,
-			tokenNotCapturedReasonUnavailable,
+			reason,
 			jsontext.EndObject,
 		); err != nil {
 			return err

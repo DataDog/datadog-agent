@@ -269,7 +269,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 3) // bitset: bit 0 (argument) and bit 1 (template_segment) set
+	item = append(item, 5) // bitset: bit 0 (expr 0 present) and bit 2 (expr 1 present)
 	// First expression (argument) at offset 1
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
@@ -363,7 +363,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -556,7 +556,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// Build root data item
 	rootData := make([]byte, rootLen)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -775,7 +775,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// Build root data item
 	rootData := make([]byte, rootLen)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -1009,7 +1009,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -1131,7 +1131,7 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type

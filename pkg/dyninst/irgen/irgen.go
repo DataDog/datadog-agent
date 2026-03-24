@@ -4183,7 +4183,7 @@ func populateEventExpressions(
 			Expression: resolvedExpr,
 		})
 	}
-	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+	presenceBitsetSize := uint32((2*len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
 		e.Offset = uint32(byteSize)

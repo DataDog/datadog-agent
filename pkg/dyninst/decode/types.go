@@ -43,6 +43,7 @@ const (
 const (
 	formatUnavailable     = "{unavailable}"
 	formatNil             = "nil"
+	formatNilDeref        = "{nil}"
 	formatCycle           = "{cycle}"
 	formatTruncated       = "{truncated}"
 	formatEllipsis        = "..."

@@ -53,6 +53,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len={unavailable}"
+    "message": "len={nil}"
   }
 ]

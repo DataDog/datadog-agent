@@ -12627,11 +12627,11 @@ Types:
     - __kind: EventRootType
       ID: 1343
       Name: Probe[main.testErrorAtLine]Line
-      ByteSize: 57
-      PresenceBitsetSize: 1
+      ByteSize: 58
+      PresenceBitsetSize: 2
       Expressions:
         - Name: ~r0
-          Offset: 1
+          Offset: 2
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -12641,7 +12641,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: x
-          Offset: 9
+          Offset: 10
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -12651,7 +12651,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: x
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -12661,7 +12661,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: err
-          Offset: 25
+          Offset: 26
           Kind: local
           Expression:
             Type: 14 GoInterfaceType error
@@ -12671,7 +12671,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: err
-          Offset: 41
+          Offset: 42
           Kind: template_segment
           Expression:
             Type: 14 GoInterfaceType error
@@ -13485,11 +13485,11 @@ Types:
     - __kind: EventRootType
       ID: 1484
       Name: Probe[main.testManyArgsArrayReturn]
-      ByteSize: 147
-      PresenceBitsetSize: 3
+      ByteSize: 149
+      PresenceBitsetSize: 5
       Expressions:
         - Name: a
-          Offset: 3
+          Offset: 5
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13499,7 +13499,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: a
-          Offset: 11
+          Offset: 13
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13509,7 +13509,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: b
-          Offset: 19
+          Offset: 21
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13519,7 +13519,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: b
-          Offset: 27
+          Offset: 29
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13529,7 +13529,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: c
-          Offset: 35
+          Offset: 37
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13539,7 +13539,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: c
-          Offset: 43
+          Offset: 45
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13549,7 +13549,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 51
+          Offset: 53
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13559,7 +13559,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 59
+          Offset: 61
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13569,7 +13569,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 67
+          Offset: 69
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13579,7 +13579,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 75
+          Offset: 77
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13589,7 +13589,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: f
-          Offset: 83
+          Offset: 85
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13599,7 +13599,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: f
-          Offset: 91
+          Offset: 93
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13609,7 +13609,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: g
-          Offset: 99
+          Offset: 101
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13619,7 +13619,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: g
-          Offset: 107
+          Offset: 109
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13629,7 +13629,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: h
-          Offset: 115
+          Offset: 117
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13639,7 +13639,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: h
-          Offset: 123
+          Offset: 125
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13649,7 +13649,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: i
-          Offset: 131
+          Offset: 133
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -13659,7 +13659,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: i
-          Offset: 139
+          Offset: 141
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14259,11 +14259,11 @@ Types:
     - __kind: EventRootType
       ID: 1486
       Name: Probe[main.testMixedArgsStackReturn]
-      ByteSize: 163
-      PresenceBitsetSize: 3
+      ByteSize: 165
+      PresenceBitsetSize: 5
       Expressions:
         - Name: a
-          Offset: 3
+          Offset: 5
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14273,7 +14273,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: a
-          Offset: 11
+          Offset: 13
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14283,7 +14283,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: b
-          Offset: 19
+          Offset: 21
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14293,7 +14293,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: b
-          Offset: 27
+          Offset: 29
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14303,7 +14303,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: c
-          Offset: 35
+          Offset: 37
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14313,7 +14313,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: c
-          Offset: 43
+          Offset: 45
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14323,7 +14323,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 51
+          Offset: 53
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14333,7 +14333,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 59
+          Offset: 61
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14343,7 +14343,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 67
+          Offset: 69
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14353,7 +14353,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 75
+          Offset: 77
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14363,7 +14363,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: f
-          Offset: 83
+          Offset: 85
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14373,7 +14373,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: f
-          Offset: 91
+          Offset: 93
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14383,7 +14383,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: g
-          Offset: 99
+          Offset: 101
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14393,7 +14393,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: g
-          Offset: 107
+          Offset: 109
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14403,7 +14403,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: h
-          Offset: 115
+          Offset: 117
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -14413,7 +14413,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: h
-          Offset: 123
+          Offset: 125
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14423,7 +14423,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: s
-          Offset: 131
+          Offset: 133
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -14433,7 +14433,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: s
-          Offset: 147
+          Offset: 149
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -14741,11 +14741,11 @@ Types:
     - __kind: EventRootType
       ID: 1439
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 49
-      PresenceBitsetSize: 1
+      ByteSize: 50
+      PresenceBitsetSize: 2
       Expressions:
         - Name: result
-          Offset: 1
+          Offset: 2
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14755,7 +14755,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result
-          Offset: 9
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14765,7 +14765,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14775,7 +14775,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 25
+          Offset: 26
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14785,7 +14785,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 33
+          Offset: 34
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14795,7 +14795,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 41
+          Offset: 42
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14885,11 +14885,11 @@ Types:
     - __kind: EventRootType
       ID: 1406
       Name: Probe[main.testMultipleSimpleParams]
-      ByteSize: 62
-      PresenceBitsetSize: 2
+      ByteSize: 63
+      PresenceBitsetSize: 3
       Expressions:
         - Name: a
-          Offset: 2
+          Offset: 3
           Kind: argument
           Expression:
             Type: 4 BaseType bool
@@ -14899,7 +14899,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: a
-          Offset: 3
+          Offset: 4
           Kind: template_segment
           Expression:
             Type: 4 BaseType bool
@@ -14909,7 +14909,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: b
-          Offset: 4
+          Offset: 5
           Kind: argument
           Expression:
             Type: 3 BaseType uint8
@@ -14919,7 +14919,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: b
-          Offset: 5
+          Offset: 6
           Kind: template_segment
           Expression:
             Type: 3 BaseType uint8
@@ -14929,7 +14929,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: c
-          Offset: 6
+          Offset: 7
           Kind: argument
           Expression:
             Type: 12 BaseType int32
@@ -14939,7 +14939,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: c
-          Offset: 10
+          Offset: 11
           Kind: template_segment
           Expression:
             Type: 12 BaseType int32
@@ -14949,7 +14949,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: d
-          Offset: 14
+          Offset: 15
           Kind: argument
           Expression:
             Type: 10 BaseType uint
@@ -14959,7 +14959,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 22
+          Offset: 23
           Kind: template_segment
           Expression:
             Type: 10 BaseType uint
@@ -14969,7 +14969,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 30
+          Offset: 31
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -14979,7 +14979,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: e
-          Offset: 46
+          Offset: 47
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -15250,11 +15250,11 @@ Types:
     - __kind: EventRootType
       ID: 1503
       Name: Probe[main.testNilSliceWithOtherParams]
-      ByteSize: 67
-      PresenceBitsetSize: 1
+      ByteSize: 68
+      PresenceBitsetSize: 2
       Expressions:
         - Name: a
-          Offset: 1
+          Offset: 2
           Kind: argument
           Expression:
             Type: 16 BaseType int8
@@ -15264,7 +15264,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: a
-          Offset: 2
+          Offset: 3
           Kind: template_segment
           Expression:
             Type: 16 BaseType int8
@@ -15274,7 +15274,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: s
-          Offset: 3
+          Offset: 4
           Kind: argument
           Expression:
             Type: 262 GoSliceHeaderType []bool
@@ -15284,7 +15284,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: s
-          Offset: 27
+          Offset: 28
           Kind: template_segment
           Expression:
             Type: 262 GoSliceHeaderType []bool
@@ -15294,7 +15294,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: x
-          Offset: 51
+          Offset: 52
           Kind: argument
           Expression:
             Type: 10 BaseType uint
@@ -15304,7 +15304,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: x
-          Offset: 59
+          Offset: 60
           Kind: template_segment
           Expression:
             Type: 10 BaseType uint
@@ -15620,11 +15620,11 @@ Types:
     - __kind: EventRootType
       ID: 1465
       Name: Probe[main.testReturnsBacktrackInt]Return
-      ByteSize: 82
-      PresenceBitsetSize: 2
+      ByteSize: 83
+      PresenceBitsetSize: 3
       Expressions:
         - Name: ~r0
-          Offset: 2
+          Offset: 3
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15634,7 +15634,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 10
+          Offset: 11
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15644,7 +15644,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 18
+          Offset: 19
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15654,7 +15654,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 26
+          Offset: 27
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15664,7 +15664,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 34
+          Offset: 35
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15674,7 +15674,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r5
-          Offset: 42
+          Offset: 43
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15684,7 +15684,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r6
-          Offset: 50
+          Offset: 51
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15694,7 +15694,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r7
-          Offset: 58
+          Offset: 59
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15704,7 +15704,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r8
-          Offset: 66
+          Offset: 67
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -16016,11 +16016,11 @@ Types:
     - __kind: EventRootType
       ID: 1451
       Name: Probe[main.testReturnsManyFloats]Return
-      ByteSize: 139
-      PresenceBitsetSize: 3
+      ByteSize: 141
+      PresenceBitsetSize: 5
       Expressions:
         - Name: ~r0
-          Offset: 3
+          Offset: 5
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16030,7 +16030,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 11
+          Offset: 13
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16040,7 +16040,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 19
+          Offset: 21
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16050,7 +16050,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 27
+          Offset: 29
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16060,7 +16060,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 35
+          Offset: 37
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16070,7 +16070,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r5
-          Offset: 43
+          Offset: 45
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16080,7 +16080,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r6
-          Offset: 51
+          Offset: 53
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16090,7 +16090,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r7
-          Offset: 59
+          Offset: 61
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16100,7 +16100,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r8
-          Offset: 67
+          Offset: 69
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16110,7 +16110,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r9
-          Offset: 75
+          Offset: 77
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16120,7 +16120,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r10
-          Offset: 83
+          Offset: 85
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16130,7 +16130,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r11
-          Offset: 91
+          Offset: 93
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16140,7 +16140,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r12
-          Offset: 99
+          Offset: 101
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16150,7 +16150,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r13
-          Offset: 107
+          Offset: 109
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16160,7 +16160,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r14
-          Offset: 115
+          Offset: 117
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16170,7 +16170,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: onlyOnAmd64_16
-          Offset: 123
+          Offset: 125
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16180,7 +16180,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: bothArmAndAmd64
-          Offset: 131
+          Offset: 133
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16214,11 +16214,11 @@ Types:
     - __kind: EventRootType
       ID: 1469
       Name: Probe[main.testReturnsMixed]Return
-      ByteSize: 49
-      PresenceBitsetSize: 1
+      ByteSize: 50
+      PresenceBitsetSize: 2
       Expressions:
         - Name: ~r0
-          Offset: 1
+          Offset: 2
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -16228,7 +16228,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 9
+          Offset: 10
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16238,7 +16238,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 17
+          Offset: 18
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -16248,7 +16248,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 25
+          Offset: 26
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -16258,7 +16258,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 33
+          Offset: 34
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -16321,11 +16321,11 @@ Types:
     - __kind: EventRootType
       ID: 1449
       Name: Probe[main.testReturnsPrimitives]Return
-      ByteSize: 31
-      PresenceBitsetSize: 1
+      ByteSize: 32
+      PresenceBitsetSize: 2
       Expressions:
         - Name: ~r0
-          Offset: 1
+          Offset: 2
           Kind: local
           Expression:
             Type: 16 BaseType int8
@@ -16335,7 +16335,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: ~r1
-          Offset: 2
+          Offset: 3
           Kind: local
           Expression:
             Type: 94 BaseType int16
@@ -16345,7 +16345,7 @@ Types:
                   Offset: 0
                   ByteSize: 2
         - Name: ~r2
-          Offset: 4
+          Offset: 5
           Kind: local
           Expression:
             Type: 12 BaseType int32
@@ -16355,7 +16355,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: ~r3
-          Offset: 8
+          Offset: 9
           Kind: local
           Expression:
             Type: 13 BaseType int64
@@ -16365,7 +16365,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 16
+          Offset: 17
           Kind: local
           Expression:
             Type: 3 BaseType uint8
@@ -16375,7 +16375,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: ~r5
-          Offset: 17
+          Offset: 18
           Kind: local
           Expression:
             Type: 6 BaseType uint16
@@ -16385,7 +16385,7 @@ Types:
                   Offset: 0
                   ByteSize: 2
         - Name: ~r6
-          Offset: 19
+          Offset: 20
           Kind: local
           Expression:
             Type: 2 BaseType uint32
@@ -16395,7 +16395,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: ~r7
-          Offset: 23
+          Offset: 24
           Kind: local
           Expression:
             Type: 8 BaseType uint64
@@ -17446,11 +17446,11 @@ Types:
     - __kind: EventRootType
       ID: 1508
       Name: Probe[main.testSubslices]
-      ByteSize: 145
-      PresenceBitsetSize: 1
+      ByteSize: 146
+      PresenceBitsetSize: 2
       Expressions:
         - Name: as
-          Offset: 1
+          Offset: 2
           Kind: argument
           Expression:
             Type: 255 GoSliceHeaderType []uint
@@ -17460,7 +17460,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: as
-          Offset: 25
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 255 GoSliceHeaderType []uint
@@ -17470,7 +17470,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: bs
-          Offset: 49
+          Offset: 50
           Kind: argument
           Expression:
             Type: 255 GoSliceHeaderType []uint
@@ -17480,7 +17480,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: bs
-          Offset: 73
+          Offset: 74
           Kind: template_segment
           Expression:
             Type: 255 GoSliceHeaderType []uint
@@ -17490,7 +17490,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: cs
-          Offset: 97
+          Offset: 98
           Kind: argument
           Expression:
             Type: 255 GoSliceHeaderType []uint
@@ -17500,7 +17500,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: cs
-          Offset: 121
+          Offset: 122
           Kind: template_segment
           Expression:
             Type: 255 GoSliceHeaderType []uint
@@ -17512,11 +17512,11 @@ Types:
     - __kind: EventRootType
       ID: 1524
       Name: Probe[main.testSubstrings]
-      ByteSize: 97
-      PresenceBitsetSize: 1
+      ByteSize: 98
+      PresenceBitsetSize: 2
       Expressions:
         - Name: a
-          Offset: 1
+          Offset: 2
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17526,7 +17526,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: a
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17536,7 +17536,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: b
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17546,7 +17546,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: b
-          Offset: 49
+          Offset: 50
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17556,7 +17556,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: c
-          Offset: 65
+          Offset: 66
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17566,7 +17566,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: c
-          Offset: 81
+          Offset: 82
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17733,11 +17733,11 @@ Types:
     - __kind: EventRootType
       ID: 1512
       Name: Probe[main.testThreeStrings]
-      ByteSize: 97
-      PresenceBitsetSize: 1
+      ByteSize: 98
+      PresenceBitsetSize: 2
       Expressions:
         - Name: x
-          Offset: 1
+          Offset: 2
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17747,7 +17747,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: x
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17757,7 +17757,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: y
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17767,7 +17767,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: y
-          Offset: 49
+          Offset: 50
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17777,7 +17777,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: z
-          Offset: 65
+          Offset: 66
           Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17787,7 +17787,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: z
-          Offset: 81
+          Offset: 82
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string

@@ -17,6 +17,7 @@ var (
 	tokenNotCapturedReasonCollectionSize = jsontext.String("collectionSize")
 	tokenNotCapturedReasonPruned         = jsontext.String("pruned")
 	tokenNotCapturedReasonUnavailable    = jsontext.String("unavailable")
+	tokenNotCapturedReasonNil            = jsontext.String("nil")
 	tokenNotCapturedReasonUnimplemented  = jsontext.String("unimplemented")
 	tokenNotCapturedReasonCycle          = jsontext.String("circular reference")
 	// This is used when we're missing the type information for a value
