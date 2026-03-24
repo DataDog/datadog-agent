@@ -92,11 +92,61 @@ func TestCreateProcessService(t *testing.T) {
 		},
 	}
 
+	// Worker process detection test processes
+	nginxMain := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "100"},
+		Pid:      100,
+		Ppid:     1, // Parent is init
+		Comm:     "nginx",
+		Cmdline:  []string{"/usr/sbin/nginx"},
+		Service: &workloadmeta.Service{
+			GeneratedName: "nginx",
+			TCPPorts:      []uint16{80},
+		},
+	}
+
+	nginxWorker := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "200"},
+		Pid:      200,
+		Ppid:     100, // Parent is nginxMain
+		Comm:     "nginx",
+		Cmdline:  []string{"/usr/sbin/nginx", "-g", "daemon off;"},
+		Service: &workloadmeta.Service{
+			GeneratedName: "nginx",
+			TCPPorts:      []uint16{80},
+		},
+	}
+
+	pythonParent := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "100"},
+		Pid:      100,
+		Ppid:     1, // Parent is init
+		Comm:     "python",
+		Cmdline:  []string{"/usr/bin/python", "app.py"},
+		Service: &workloadmeta.Service{
+			GeneratedName: "python",
+			TCPPorts:      []uint16{8000},
+		},
+	}
+
+	redisProcess := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "200"},
+		Pid:      200,
+		Ppid:     100, // Parent is pythonParent
+		Comm:     "redis-server",
+		Cmdline:  []string{"/usr/bin/redis-server", "--port", "6379"},
+		Service: &workloadmeta.Service{
+			GeneratedName: "redis",
+			TCPPorts:      []uint16{6379},
+		},
+	}
+
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string
 		process          *workloadmeta.Process
+		setupProcesses   []*workloadmeta.Process
 		expectedServices map[string]wlmListenerSvc
 	}{
 		{
@@ -161,11 +211,62 @@ func TestCreateProcessService(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "nginx worker with nginx parent - no service created",
+			process: nginxWorker,
+			setupProcesses: []*workloadmeta.Process{
+				nginxMain,
+			},
+			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			name:           "nginx main with init parent - service created",
+			process:        nginxMain,
+			setupProcesses: []*workloadmeta.Process{},
+			expectedServices: map[string]wlmListenerSvc{
+				"process://100": {
+					service: &ProcessService{
+						process: nginxMain,
+						hosts:   map[string]string{"host": "127.0.0.1"},
+						ports: []workloadmeta.ContainerPort{
+							{Port: 80},
+						},
+						pid:   100,
+						ready: true,
+					},
+				},
+			},
+		},
+		{
+			name:    "redis under python parent - service created",
+			process: redisProcess,
+			setupProcesses: []*workloadmeta.Process{
+				pythonParent,
+			},
+			expectedServices: map[string]wlmListenerSvc{
+				"process://200": {
+					service: &ProcessService{
+						process: redisProcess,
+						hosts:   map[string]string{"host": "127.0.0.1"},
+						ports: []workloadmeta.ContainerPort{
+							{Port: 6379},
+						},
+						pid:   200,
+						ready: true,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newProcessListener(t, taggerComponent)
+
+			// Set up parent/ancestor processes in workloadmeta
+			for _, proc := range tt.setupProcesses {
+				listener.Store().(workloadmetamock.Mock).Set(proc)
+			}
 
 			if tt.process != nil {
 				listener.Store().(workloadmetamock.Mock).Set(tt.process)
@@ -445,6 +546,153 @@ func TestCreateProcessServiceWithFilters(t *testing.T) {
 			listener.createProcessService(tt.process)
 
 			assertProcessServices(t, wlm, tt.expectedServices)
+		})
+	}
+}
+
+func TestIsMainProcessForService(t *testing.T) {
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+	listener, _ := newProcessListener(t, taggerComponent)
+	store := listener.Store().(workloadmetamock.Mock)
+
+	tests := []struct {
+		name           string
+		process        *workloadmeta.Process
+		setupProcesses []*workloadmeta.Process
+		expected       bool
+	}{
+		{
+			name: "ppid 0 - no parent",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "100"},
+				Pid:      100,
+				Ppid:     0,
+				Comm:     "nginx",
+				Service:  &workloadmeta.Service{GeneratedName: "nginx", TCPPorts: []uint16{80}},
+			},
+			expected: true,
+		},
+		{
+			name: "ppid 1 - init parent",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "100"},
+				Pid:      100,
+				Ppid:     1,
+				Comm:     "redis-server",
+				Service:  &workloadmeta.Service{GeneratedName: "redis", TCPPorts: []uint16{6379}},
+			},
+			expected: true,
+		},
+		{
+			name: "non-existent parent",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "200"},
+				Pid:      200,
+				Ppid:     999,
+				Comm:     "postgres",
+				Service:  &workloadmeta.Service{GeneratedName: "postgres", TCPPorts: []uint16{5432}},
+			},
+			expected: true,
+		},
+		{
+			name: "parent without service",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "300"},
+				Pid:      300,
+				Ppid:     200,
+				Comm:     "nginx",
+				Service:  &workloadmeta.Service{GeneratedName: "nginx", TCPPorts: []uint16{80}},
+			},
+			setupProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "200"},
+					Pid:      200,
+					Ppid:     1,
+					Comm:     "bash",
+					Service:  nil,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different GeneratedName parent - main process",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "400"},
+				Pid:      400,
+				Ppid:     300,
+				Comm:     "redis-server",
+				Service:  &workloadmeta.Service{GeneratedName: "redis", TCPPorts: []uint16{6379}},
+			},
+			setupProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "300"},
+					Pid:      300,
+					Ppid:     1,
+					Comm:     "python",
+					Service:  &workloadmeta.Service{GeneratedName: "python", TCPPorts: []uint16{8000}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "same comm different GeneratedName - different services",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "800"},
+				Pid:      800,
+				Ppid:     700,
+				Comm:     "python",
+				Service:  &workloadmeta.Service{GeneratedName: "flask", TCPPorts: []uint16{5000}},
+			},
+			setupProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "700"},
+					Pid:      700,
+					Ppid:     1,
+					Comm:     "python",
+					Service:  &workloadmeta.Service{GeneratedName: "supervisord", TCPPorts: []uint16{9001}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "same comm same GeneratedName - worker",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "900"},
+				Pid:      900,
+				Ppid:     800,
+				Comm:     "python",
+				Service:  &workloadmeta.Service{GeneratedName: "myapp", TCPPorts: []uint16{8000}},
+			},
+			setupProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "800"},
+					Pid:      800,
+					Ppid:     1,
+					Comm:     "python",
+					Service:  &workloadmeta.Service{GeneratedName: "myapp", TCPPorts: []uint16{8000}},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up parent processes if any
+			for _, proc := range tt.setupProcesses {
+				store.Set(proc)
+			}
+
+			// Call the function being tested
+			result := isMainProcessForService(tt.process, store)
+
+			// Assert the result
+			assert.Equal(t, tt.expected, result, "isMainProcessForService returned unexpected result")
+
+			// Clean up - unset all processes for next test
+			for _, proc := range tt.setupProcesses {
+				store.Unset(proc)
+			}
 		})
 	}
 }

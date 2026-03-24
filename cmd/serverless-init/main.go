@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -69,6 +71,7 @@ func main() {
 
 	err := fxutil.OneShot(
 		run,
+		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -100,19 +103,22 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
+func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer func() {
+		cloudService.Shutdown(*metricAgent, err) // submits task.ended metric
+		metricAgent.WaitForPendingSamples()      // wait for worker to consume it
+	}()
 
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -136,7 +142,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, nil)
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp, nil)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
@@ -230,8 +236,7 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldFor
 		SketchesBucketOffset: time.Second * 0,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
-	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
+	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer, serverlessTag.MapToArray(tags))
 	return metricAgent
 }
 
@@ -240,6 +245,12 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 		log.Debugf("otlp endpoint disabled")
 		return
 	}
+
+	if metricAgent == nil || metricAgent.Demux == nil {
+		log.Warn("metric agent or demux not ready, skipping OTLP agent setup")
+		return
+	}
+
 	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 }

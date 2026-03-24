@@ -84,6 +84,12 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "ContainerID")
 				return
 			}
+		case "logs_collected":
+			z.LogsCollected, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "LogsCollected")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -98,8 +104,8 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	// check for omitted fields
-	zb0001Len := uint32(10)
-	var zb0001Mask uint16 /* 10 bits */
+	zb0001Len := uint32(11)
+	var zb0001Mask uint16 /* 11 bits */
 	_ = zb0001Mask
 	if z.RuntimeID == "" {
 		zb0001Len--
@@ -124,6 +130,10 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	if z.ContainerID == "" {
 		zb0001Len--
 		zb0001Mask |= 0x200
+	}
+	if z.LogsCollected == false {
+		zb0001Len--
+		zb0001Mask |= 0x400
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -245,6 +255,18 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		}
+		if (zb0001Mask & 0x400) == 0 { // if not omitted
+			// write "logs_collected"
+			err = en.Append(0xae, 0x6c, 0x6f, 0x67, 0x73, 0x5f, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65, 0x64)
+			if err != nil {
+				return
+			}
+			err = en.WriteBool(z.LogsCollected)
+			if err != nil {
+				err = msgp.WrapError(err, "LogsCollected")
+				return
+			}
+		}
 	}
 	return
 }
@@ -253,8 +275,8 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// check for omitted fields
-	zb0001Len := uint32(10)
-	var zb0001Mask uint16 /* 10 bits */
+	zb0001Len := uint32(11)
+	var zb0001Mask uint16 /* 11 bits */
 	_ = zb0001Mask
 	if z.RuntimeID == "" {
 		zb0001Len--
@@ -279,6 +301,10 @@ func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	if z.ContainerID == "" {
 		zb0001Len--
 		zb0001Mask |= 0x200
+	}
+	if z.LogsCollected == false {
+		zb0001Len--
+		zb0001Mask |= 0x400
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -326,6 +352,11 @@ func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 			// string "container_id"
 			o = append(o, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 			o = msgp.AppendString(o, z.ContainerID)
+		}
+		if (zb0001Mask & 0x400) == 0 { // if not omitted
+			// string "logs_collected"
+			o = append(o, 0xae, 0x6c, 0x6f, 0x67, 0x73, 0x5f, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65, 0x64)
+			o = msgp.AppendBool(o, z.LogsCollected)
 		}
 	}
 	return
@@ -409,6 +440,12 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ContainerID")
 				return
 			}
+		case "logs_collected":
+			z.LogsCollected, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "LogsCollected")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -423,6 +460,6 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TracerMetadata) Msgsize() (s int) {
-	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 15 + msgp.StringPrefixSize + len(z.TracerVersion) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 13 + msgp.StringPrefixSize + len(z.ServiceName) + 12 + msgp.StringPrefixSize + len(z.ServiceEnv) + 16 + msgp.StringPrefixSize + len(z.ServiceVersion) + 13 + msgp.StringPrefixSize + len(z.ProcessTags) + 13 + msgp.StringPrefixSize + len(z.ContainerID)
+	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 15 + msgp.StringPrefixSize + len(z.TracerVersion) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 13 + msgp.StringPrefixSize + len(z.ServiceName) + 12 + msgp.StringPrefixSize + len(z.ServiceEnv) + 16 + msgp.StringPrefixSize + len(z.ServiceVersion) + 13 + msgp.StringPrefixSize + len(z.ProcessTags) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.BoolSize
 	return
 }

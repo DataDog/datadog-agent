@@ -48,6 +48,10 @@ type GlobalParams struct {
 	// configuration files, to allow overrides from the command line
 	FleetPoliciesDirPath string
 
+	// CommonRoot holds the common root path for all agent files when using the
+	// application package model (for read-only root filesystem support)
+	CommonRoot string
+
 	// NoColor is a flag to disable color output
 	NoColor bool
 }
@@ -61,6 +65,9 @@ func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	configOpts := []func(*config.Params){
 		config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
 		config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+	}
+	if globalParams.CommonRoot != "" {
+		configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
 	}
 	return core.BundleParams{
 		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
@@ -92,6 +99,8 @@ monitoring and performance data.`,
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 	_ = agentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.CommonRoot, "common-root", "", "", "enable read-only root filesystem support with optional custom root path (default: /opt/datadog-agent)")
+	agentCmd.PersistentFlags().Lookup("common-root").NoOptDefVal = "/opt/datadog-agent"
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

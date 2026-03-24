@@ -10,6 +10,7 @@ package ecs
 
 import (
 	"context"
+	"os"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -83,6 +84,14 @@ func (c *collector) setTaskCollectionParserForDaemon(version string) {
 
 	ok, err := ecsmeta.IsMetadataV4Available(util.ParseECSAgentVersion(version))
 	if err != nil {
+		// The managed instances ECS agent returns an empty version string from the v1 introspection
+		// endpoint, causing the version check to fail. Fall back to checking for the
+		// ECS_CONTAINER_METADATA_URI_V4 env var as a signal that v4 is supported
+		if _, hasV4Env := os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable); hasV4Env {
+			log.Infof("detailed task collection enabled, v4 metadata endpoint available via env var (version check unavailable): using metadata v4 endpoint")
+			c.taskCollectionParser = c.parseTasksFromV4Endpoint
+			return
+		}
 		log.Warnf("detailed task collection enabled but agent cannot determine if v4 metadata endpoint is available, using metadata v1 endpoint: %s", err.Error())
 		c.taskCollectionParser = c.parseTasksFromV1Endpoint
 		return

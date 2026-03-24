@@ -31,6 +31,7 @@ func (a *idAllocator[I]) next() I {
 
 type typeCatalog struct {
 	ptrSize              uint8
+	boolType             ir.TypeID
 	dwarf                *dwarf.Data
 	idAlloc              idAllocator[ir.TypeID]
 	typesByDwarfType     map[dwarf.Offset]ir.TypeID
@@ -130,7 +131,7 @@ func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
 
 func (c *typeCatalog) buildType(
 	id ir.TypeID, entry *dwarf.Entry, childReader *dwarf.Reader,
-) (_ ir.Type, retErr error) {
+) (ret ir.Type, retErr error) {
 	name, err := getAttr[string](entry, dwarf.AttrName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name for array type: %w", err)
@@ -147,12 +148,9 @@ func (c *typeCatalog) buildType(
 	if size < 0 {
 		return nil, fmt.Errorf("size for type %q is negative: %d", name, size)
 	}
-	if size > math.MaxUint32 {
-		return nil, fmt.Errorf("size for type %q is too large: %d", name, size)
-	}
-	if size < 0 {
-		return nil, fmt.Errorf("size for type %q is negative: %d", name, size)
-	}
+	// Truncate the size to fit in a uint32. Variables of a size greater than
+	// this will be truncated.
+	size = min(math.MaxUint32, size)
 	common := ir.TypeCommon{
 		ID:       id,
 		Name:     name,
@@ -193,12 +191,10 @@ func (c *typeCatalog) buildType(
 				if countInt64 < 0 {
 					return nil, fmt.Errorf("count for subrange type is negative: %d", countInt64)
 				}
-				if countInt64 > math.MaxUint32 {
-					return nil, fmt.Errorf(
-						"count for subrange type is too large: %d", countInt64,
-					)
-				}
-				count = uint32(countInt64)
+				// Truncate the count to fit in a uint32. Arrays of a count
+				// greater than this will be truncated (we would never be able
+				// to collect them anyway).
+				count = uint32(min(math.MaxUint32, countInt64))
 				haveCount = true
 			case 0:
 				if haveCount {
@@ -234,6 +230,10 @@ func (c *typeCatalog) buildType(
 			int(size), encoding, goAttrs.GoKind,
 		); err != nil {
 			return nil, fmt.Errorf("invalid encoding: %w", err)
+		}
+		// Store the bool type ID if we find it. It's useful later.
+		if goAttrs.GoKind == reflect.Bool && common.Name == "bool" {
+			c.boolType = id
 		}
 		return &ir.BaseType{
 			TypeCommon:       common,

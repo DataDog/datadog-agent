@@ -45,18 +45,24 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
 			os.Exit(1)
 		}
-		senders[i] = newSender(&senderConfig{
+		scfg := &senderConfig{
 			client:         cfg.NewHTTPClient(),
 			maxConns:       int(maxConns),
 			maxQueued:      qsize,
 			maxRetries:     cfg.MaxSenderRetries,
 			url:            url,
-			apiKey:         endpoint.APIKey,
 			recorder:       r,
 			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 			isMRF:          endpoint.IsMRF,
 			MRFFailoverAPM: cfg.MRFFailoverAPM,
-		}, statsd)
+		}
+		apiKeyManager := &apiKeyManager{
+			apiKey:           endpoint.APIKey,
+			refreshFn:        cfg.SecretsRefreshFn,
+			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
+		}
+
+		senders[i] = newSender(scfg, apiKeyManager, statsd)
 	}
 	return senders
 }
@@ -140,8 +146,6 @@ type senderConfig struct {
 	client *config.ResetClient
 	// url specifies the URL to send requests too.
 	url *url.URL
-	// apiKey specifies the Datadog API key to use.
-	apiKey string
 	// maxConns specifies the maximum number of allowed concurrent ougoing
 	// connections.
 	maxConns int
@@ -162,10 +166,62 @@ type senderConfig struct {
 	MRFFailoverAPM func() bool
 }
 
+// apiKeyManager handles API Key access for concurrent use
+type apiKeyManager struct {
+	sync.RWMutex
+	// apiKey specifies the Datadog API key to use.
+	apiKey string
+
+	// refreshFn triggers blocking API key refresh from the secrets backend
+	refreshFn func() (string, error)
+
+	// throttleInterval specifies minimum time between refresh calls
+	throttleInterval time.Duration
+
+	// lastRefresh tracks when the last refresh occurred
+	lastRefresh time.Time
+}
+
+func (m *apiKeyManager) Get() string {
+	m.RLock()
+	defer m.RUnlock()
+	return m.apiKey
+}
+
+func (m *apiKeyManager) Update(newKey string) {
+	m.Lock()
+	defer m.Unlock()
+	m.apiKey = newKey
+}
+
+func (m *apiKeyManager) refresh() {
+	if m.refreshFn == nil || m.throttleInterval == 0 {
+		return
+	}
+
+	m.Lock()
+	if time.Since(m.lastRefresh) < m.throttleInterval {
+		m.Unlock()
+		log.Debugf("API Key refresh throttled, last refresh was %v ago", time.Since(m.lastRefresh))
+		return
+	}
+
+	// Update the last refresh time before calling refresh to prevent concurrent calls
+	m.lastRefresh = time.Now()
+	m.Unlock()
+
+	if result, err := m.refreshFn(); err != nil {
+		log.Debugf("API Key refresh failed: %v", err)
+	} else if result != "" {
+		log.Infof("API Key refresh completed: %s", result)
+	}
+}
+
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
 // retry queue with a backoff mechanism in case of retriable errors.
 type sender struct {
-	cfg *senderConfig
+	cfg           *senderConfig
+	apiKeyManager *apiKeyManager
 
 	queue      chan *payload // payload queue
 	inflight   *atomic.Int32 // inflight payloads
@@ -178,14 +234,15 @@ type sender struct {
 }
 
 // newSender returns a new sender based on the given config cfg.
-func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
+func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.ClientInterface) *sender {
 	s := sender{
-		cfg:        cfg,
-		queue:      make(chan *payload, cfg.maxQueued),
-		inflight:   atomic.NewInt32(0),
-		maxRetries: int32(cfg.maxRetries),
-		statsd:     statsd,
-		enabled:    true,
+		cfg:           cfg,
+		apiKeyManager: apiKeyManager,
+		queue:         make(chan *payload, cfg.maxQueued),
+		inflight:      atomic.NewInt32(0),
+		maxRetries:    int32(cfg.maxRetries),
+		statsd:        statsd,
+		enabled:       true,
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -388,7 +445,7 @@ const (
 )
 
 func (s *sender) do(req *http.Request) error {
-	req.Header.Set(headerAPIKey, s.cfg.apiKey)
+	req.Header.Set(headerAPIKey, s.apiKeyManager.Get())
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
@@ -403,6 +460,11 @@ func (s *sender) do(req *http.Request) error {
 		log.Debugf("Error discarding request body: %v", err)
 	}
 	resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden {
+		log.Debugf("API Key invalid (403), triggering secret refresh")
+		s.apiKeyManager.refresh()
+	}
 
 	if isRetriable(resp.StatusCode) {
 		return &retriableError{
@@ -419,7 +481,8 @@ func (s *sender) do(req *http.Request) error {
 
 // isRetriable reports whether the give HTTP status code should be retried.
 func isRetriable(code int) bool {
-	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
+	// TODO: Double check what response codes are expected from the backend when API Key is invalid
+	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests || code == http.StatusForbidden {
 		return true
 	}
 	// 5xx errors can be retried

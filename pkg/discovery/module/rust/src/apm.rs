@@ -12,16 +12,16 @@ use crate::procfs::{self, Cmdline};
 ///
 /// This is only used if tracer metadata is not available.
 pub fn detect(
-    lang: &Language,
-    pid: u32,
+    lang: Option<&Language>,
+    pid: i32,
     cmdline: &Cmdline,
     envs: &HashMap<String, String>,
 ) -> bool {
     // Check language-specific detection
     match lang {
-        Language::Python => detect_python(pid),
-        Language::Java => detect_java(cmdline, envs),
-        Language::DotNet => detect_dotnet(pid, envs),
+        Some(Language::Python) => detect_python(pid),
+        Some(Language::Java) => detect_java(cmdline, envs),
+        Some(Language::DotNet) => detect_dotnet(pid, envs),
         _ => false,
     }
 }
@@ -30,7 +30,7 @@ pub fn detect(
 ///
 /// The Python ddtrace package includes native libraries (.so files) that appear
 /// in the process memory map when loaded.
-fn detect_python(pid: u32) -> bool {
+fn detect_python(pid: i32) -> bool {
     match procfs::maps::get_reader_for_pid(pid) {
         Ok(reader) => detect_python_from_reader(reader),
         Err(_) => false,
@@ -118,7 +118,7 @@ fn is_datadog_java_agent(s: &str) -> bool {
 /// maps file. Note that this does not work for single-file deployments.
 ///
 /// 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
-fn detect_dotnet(pid: u32, envs: &HashMap<String, String>) -> bool {
+fn detect_dotnet(pid: i32, envs: &HashMap<String, String>) -> bool {
     // Check CORECLR_ENABLE_PROFILING environment variable
     if let Some(value) = envs.get("CORECLR_ENABLE_PROFILING")
         && value == "1"
@@ -154,7 +154,7 @@ mod tests {
         let envs = HashMap::new();
 
         // Unknown language should return false
-        let result = detect(&Language::Unknown, 1, &cmdline, &envs);
+        let result = detect(None, 1, &cmdline, &envs);
         assert!(!result);
     }
 
@@ -168,7 +168,7 @@ mod tests {
         ];
         let envs = HashMap::new();
 
-        let result = detect(&Language::Java, 1, &cmdline, &envs);
+        let result = detect(Some(&Language::Java), 1, &cmdline, &envs);
         assert!(result);
     }
 
@@ -181,7 +181,7 @@ mod tests {
             "-javaagent:/opt/dd-java-agent.jar".to_string(),
         );
 
-        let result = detect(&Language::Java, 1, &cmdline, &envs);
+        let result = detect(Some(&Language::Java), 1, &cmdline, &envs);
         assert!(result);
     }
 
@@ -190,7 +190,7 @@ mod tests {
         let cmdline = cmdline!["java", "-jar", "app.jar"];
         let envs = HashMap::new();
 
-        let result = detect(&Language::Java, 1, &cmdline, &envs);
+        let result = detect(Some(&Language::Java), 1, &cmdline, &envs);
         assert!(!result);
     }
 
@@ -217,7 +217,7 @@ mod tests {
         let mut envs = HashMap::new();
         envs.insert("CORECLR_ENABLE_PROFILING".to_string(), "1".to_string());
 
-        let result = detect(&Language::DotNet, 9999999, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), 9999999, &cmdline, &envs);
         assert!(result);
     }
 
@@ -227,7 +227,7 @@ mod tests {
         let mut envs = HashMap::new();
         envs.insert("CORECLR_ENABLE_PROFILING".to_string(), "0".to_string());
 
-        let result = detect(&Language::DotNet, 9999999, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), 9999999, &cmdline, &envs);
         assert!(!result);
     }
 
@@ -237,7 +237,7 @@ mod tests {
         let envs = HashMap::new();
 
         // Should attempt to scan maps, but will fail for nonexistent PID
-        let result = detect(&Language::DotNet, 9999999, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), 9999999, &cmdline, &envs);
         assert!(!result);
     }
 
@@ -246,7 +246,7 @@ mod tests {
         // Test with nonexistent PID
         let cmdline = cmdline![];
         let envs = HashMap::new();
-        let result = detect(&Language::Python, 9999999, &cmdline, &envs);
+        let result = detect(Some(&Language::Python), 9999999, &cmdline, &envs);
         assert!(!result);
     }
 
@@ -307,7 +307,7 @@ mod tests {
         envs.insert("CORECLR_ENABLE_PROFILING".to_string(), "1".to_string());
 
         // Should return true based on env var alone (maps check would fail with nonexistent PID)
-        let result = detect(&Language::DotNet, 9999999, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), 9999999, &cmdline, &envs);
         assert!(result);
     }
 
@@ -319,7 +319,7 @@ mod tests {
 
         // Should not detect as instrumented if value is not "1"
         // (would need to scan maps, but that would fail for nonexistent PID)
-        let result = detect(&Language::DotNet, 9999999, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), 9999999, &cmdline, &envs);
         assert!(!result);
     }
 
@@ -329,12 +329,12 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
         let cmdline = cmdline![];
         let envs = HashMap::new();
 
         // Negative test: current process should NOT be detected as Python with APM initially
-        let result = detect(&Language::Python, current_pid, &cmdline, &envs);
+        let result = detect(Some(&Language::Python), current_pid, &cmdline, &envs);
         assert!(
             !result,
             "Process should not have Python APM before mmapping ddtrace library"
@@ -349,7 +349,7 @@ mod tests {
         let _mmap = unsafe { Mmap::map(&file).expect("Failed to mmap ddtrace library") };
 
         // Positive test: current process SHOULD be detected as having Python APM after mmapping
-        let result = detect(&Language::Python, current_pid, &cmdline, &envs);
+        let result = detect(Some(&Language::Python), current_pid, &cmdline, &envs);
         assert!(
             result,
             "Process should have Python APM after mmapping ddtrace library"
@@ -365,12 +365,12 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
         let cmdline = cmdline![];
         let envs = HashMap::new(); // No env vars set
 
         // Negative test: current process should NOT be detected as .NET with APM initially
-        let result = detect(&Language::DotNet, current_pid, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), current_pid, &cmdline, &envs);
         assert!(
             !result,
             "Process should not have .NET APM before mmapping Datadog.Trace.dll"
@@ -384,7 +384,7 @@ mod tests {
         let _mmap = unsafe { Mmap::map(&file).expect("Failed to mmap Datadog.Trace.dll") };
 
         // Positive test: current process SHOULD be detected as having .NET APM after mmapping
-        let result = detect(&Language::DotNet, current_pid, &cmdline, &envs);
+        let result = detect(Some(&Language::DotNet), current_pid, &cmdline, &envs);
         assert!(
             result,
             "Process should have .NET APM after mmapping Datadog.Trace.dll"

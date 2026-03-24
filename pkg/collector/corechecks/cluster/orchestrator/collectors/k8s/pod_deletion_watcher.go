@@ -92,7 +92,6 @@ func (w *PodDeletionWatcher) getInitialResourceVersion(ctx context.Context) (str
 // RetryWatcher occurs. In the later case the [errors.StatusError] object is returned.
 func (w *PodDeletionWatcher) runWatch(ctx context.Context, resourceVersion string) error {
 	watchFunc := func(options metav1.ListOptions) (watch.Interface, error) {
-		options.ResourceVersion = resourceVersion
 		return w.client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
 	}
 

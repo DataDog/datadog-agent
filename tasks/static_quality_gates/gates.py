@@ -406,32 +406,38 @@ class DockerArtifactMeasurer:
 
     def _calculate_image_disk_size(self, ctx: Context, image_url: str) -> int:
         """Calculate Docker image uncompressed size by pulling and extracting"""
-        # Pull image locally to get on disk size
-        crane_output = ctx.run(f"crane pull {image_url} output.tar", warn=True)
-        if crane_output.exited != 0:
-            raise InfraError(f"Crane pull failed to retrieve {image_url}. Retrying... (infra flake)")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_tar = os.path.join(tmpdir, "output.tar")
+            # Pull image locally to get on disk size
+            crane_output = ctx.run(f"crane pull {image_url} {output_tar}", warn=True)
+            if crane_output.exited != 0:
+                raise InfraError(f"Crane pull failed to retrieve {image_url}. Retrying... (infra flake)")
 
-        # Extract and calculate uncompressed size
-        ctx.run("tar -xf output.tar")
-        image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True).stdout.splitlines()
+            # Extract and calculate uncompressed size
+            ctx.run(f"tar -xf {output_tar} -C {tmpdir}")
+            image_content = ctx.run(
+                f"tar -tvf {output_tar} | awk -F' ' '{{print $3; print $6}}'", hide=True
+            ).stdout.splitlines()
 
-        on_disk_size = 0
-        image_tar_gz = []
+            on_disk_size = 0
+            image_tar_gz = []
 
-        for k, line in enumerate(image_content):
-            if k % 2 == 0:
-                if "tar.gz" in image_content[k + 1]:
-                    image_tar_gz.append(image_content[k + 1])
-                else:
-                    on_disk_size += int(line)
+            for k, line in enumerate(image_content):
+                if k % 2 == 0:
+                    if "tar.gz" in image_content[k + 1]:
+                        image_tar_gz.append(image_content[k + 1])
+                    else:
+                        on_disk_size += int(line)
 
-        if image_tar_gz:
-            for image in image_tar_gz:
-                on_disk_size += int(ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
-        else:
-            print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
+            if image_tar_gz:
+                for image in image_tar_gz:
+                    on_disk_size += int(
+                        ctx.run(f"tar -xf {os.path.join(tmpdir, image)} --to-stdout | wc -c", hide=True).stdout
+                    )
+            else:
+                print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
 
-        return on_disk_size
+            return on_disk_size
 
 
 class StaticQualityGate:
@@ -756,6 +762,8 @@ class GateMetricHandler:
         Args:
             ancestor: The ancestor commit SHA to compare against
         """
+        import time
+
         from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
 
         if not ancestor:
@@ -764,6 +772,17 @@ class GateMetricHandler:
 
         # Query Datadog once for all gates
         ancestor_metrics = query_gate_metrics_for_commit(ancestor)
+
+        # Retry once after delay if no metrics found (race condition with ancestor job)
+        if not ancestor_metrics:
+            print(
+                color_message(
+                    "[INFO] No ancestor metrics found, waiting 3 minutes for metrics to be available...",
+                    "blue",
+                )
+            )
+            time.sleep(180)  # 3 minutes
+            ancestor_metrics = query_gate_metrics_for_commit(ancestor)
 
         datadog_gates_found = 0
         for gate in self.metrics:

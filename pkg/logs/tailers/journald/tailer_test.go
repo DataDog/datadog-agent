@@ -275,49 +275,101 @@ func TestShouldDropEntry(t *testing.T) {
 }
 
 func TestApplicationName(t *testing.T) {
-	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeRegistry := auditorMock.NewMockAuditor()
-	tailer := NewTailer(source, nil, nil, true, fakeTagger, fakeRegistry)
+	tests := []struct {
+		name                     string
+		yaml                     string
+		expectedContainerAppName string
+	}{
+		{
+			name: "default application name not set",
+			yaml: `
+logs:
+  - type: journald
+`,
+			expectedContainerAppName: "docker",
+		},
+		{
+			name: "default application name set to empty string",
+			yaml: `
+logs:
+  - type: journald
+    default_application_name: ""
+`,
+			expectedContainerAppName: "foo",
+		},
+		{
+			name: "default application name set to podman",
+			yaml: `
+logs:
+  - type: journald
+    default_application_name: "podman"
+`,
+			expectedContainerAppName: "podman",
+		},
+	}
 
-	assert.Equal(t, "foo", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
-			},
-		}, []string{}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs, err := config.ParseYAML([]byte(tt.yaml))
+			assert.NoError(t, err)
+			assert.Len(t, configs, 1)
 
-	assert.Equal(t, "foo-user.service", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
-			},
-		}, []string{}))
+			source := sources.NewLogSource("", configs[0])
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			fakeRegistry := auditorMock.NewMockAuditor()
+			tailer := NewTailer(source, nil, nil, true, fakeTagger, fakeRegistry)
 
-	assert.Equal(t, "foo.service", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_COMM:         "foo.sh",
-			},
-		}, []string{}))
+			assert.Equal(t, "foo", tailer.getApplicationName(
+				&sdjournal.JournalEntry{
+					Fields: map[string]string{
+						sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+						sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					},
+				}, []string{}))
 
-	assert.Equal(t, "foo.sh", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_COMM: "foo.sh",
-			},
-		}, []string{}))
+			assert.Equal(t, "foo-user.service", tailer.getApplicationName(
+				&sdjournal.JournalEntry{
+					Fields: map[string]string{
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+						sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+					},
+				}, []string{}))
 
-	assert.Equal(t, "", tailer.getApplicationName(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{},
-		}, []string{}))
+			assert.Equal(t, "foo.service", tailer.getApplicationName(
+				&sdjournal.JournalEntry{
+					Fields: map[string]string{
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
+						sdjournal.SD_JOURNAL_FIELD_COMM:         "foo.sh",
+					},
+				}, []string{}))
+
+			assert.Equal(t, "foo.sh", tailer.getApplicationName(
+				&sdjournal.JournalEntry{
+					Fields: map[string]string{
+						sdjournal.SD_JOURNAL_FIELD_COMM: "foo.sh",
+					},
+				}, []string{}))
+
+			assert.Equal(t, tt.expectedContainerAppName, tailer.getApplicationName(
+				&sdjournal.JournalEntry{
+					Fields: map[string]string{
+						sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "foo-user.service",
+						sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+						sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+						containerIDKey:                               "bar",
+					},
+				}, []string{}))
+
+			assert.Equal(t, "", tailer.getApplicationName(
+				&sdjournal.JournalEntry{
+					Fields: map[string]string{},
+				}, []string{}))
+		})
+	}
 }
 
 func TestContent(t *testing.T) {

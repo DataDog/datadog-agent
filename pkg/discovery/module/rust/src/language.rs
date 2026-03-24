@@ -16,7 +16,6 @@ use std::sync::{LazyLock, Mutex};
 use anyhow::Result;
 use elf::abi::{PF_W, PF_X, PT_LOAD};
 use elf::endian::AnyEndian;
-use log::info;
 use lru::LruCache;
 use memchr::memmem;
 use serde::{Deserialize, Serialize};
@@ -25,12 +24,10 @@ use crate::procfs::{Cmdline, Exe, fd::OpenFilesInfo};
 
 const BINARY_CACHE_SIZE: usize = 1000;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
-    #[default]
-    Unknown,
-    #[serde(rename = "jvm")]
+    #[serde(rename = "jvm", alias = "java")]
     Java,
     NodeJS,
     Python,
@@ -43,31 +40,64 @@ pub enum Language {
 }
 
 impl Language {
-    pub fn detect(pid: u32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
-        info!("detect: exe={exe:?} cmdline={cmdline:?}");
+    /// Convert a tracer_language string from tracer metadata to a Language.
+    /// Returns None for unrecognized strings so the caller can fall back to
+    /// other detection methods.
+    pub fn from_tracer_str(s: &str) -> Option<Self> {
+        match s {
+            "jvm" | "java" => Some(Self::Java),
+            "nodejs" => Some(Self::NodeJS),
+            "python" => Some(Self::Python),
+            "ruby" => Some(Self::Ruby),
+            "dotnet" => Some(Self::DotNet),
+            "go" => Some(Self::Go),
+            "cpp" => Some(Self::CPlusPlus),
+            "php" => Some(Self::PHP),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Java => "jvm",
+            Self::NodeJS => "nodejs",
+            Self::Python => "python",
+            Self::Ruby => "ruby",
+            Self::DotNet => "dotnet",
+            Self::Go => "go",
+            Self::CPlusPlus => "cpp",
+            Self::PHP => "php",
+        }
+    }
+
+    pub fn detect(
+        pid: i32,
+        exe: &Exe,
+        cmdline: &Cmdline,
+        open_files_info: &OpenFilesInfo,
+    ) -> Option<Self> {
         if let Some(lang) = Self::from_basename(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_cmdline(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_exe(exe) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_binary(pid, open_files_info) {
-            return lang;
+            return Some(lang);
         }
 
-        Self::Unknown
+        None
     }
 
     fn from_basename(cmdline: &Cmdline) -> Option<Self> {
         let mut args = cmdline.args();
         let exe = Path::new(args.next()?).file_name()?;
-        info!("from_basename: exe from args: {exe:?}");
 
         if is_jruby(exe, cmdline) {
             return Some(Self::Ruby);
@@ -85,7 +115,6 @@ impl Language {
     }
 
     fn from_command(comm: &str) -> Option<Self> {
-        info!("from_command: {comm}");
         match comm {
             "py" | "python" => return Some(Self::Python),
             "java" => return Some(Self::Java),
@@ -97,20 +126,16 @@ impl Language {
         }
 
         if comm.starts_with("python") {
-            info!("from_command: {comm} -> python");
             return Some(Self::Python);
         }
         if comm.starts_with("java") && comm != "javac" {
-            info!("from_command: {comm} -> java");
             return Some(Self::Java);
         }
 
         if is_ruby_prefix(comm) {
-            info!("from_command: {comm} -> ruby");
             return Some(Self::Ruby);
         }
         if is_php_prefix(comm) {
-            info!("from_command: {comm} -> php");
             return Some(Self::PHP);
         }
 
@@ -119,7 +144,7 @@ impl Language {
 
     /// Try language detection methods that are tied to a specific binary and
     /// can be cached at a binary level.
-    fn from_binary(pid: u32, open_files_info: &OpenFilesInfo) -> Option<Self> {
+    fn from_binary(pid: i32, open_files_info: &OpenFilesInfo) -> Option<Self> {
         #[allow(clippy::unwrap_used)] // `BINARY_CACHE_SIZE` is a non-zero constant, this cannot fail
         static CACHE: LazyLock<Mutex<LruCache<BinaryID, Language>>> = LazyLock::new(|| {
             Mutex::new(LruCache::new(NonZeroUsize::new(BINARY_CACHE_SIZE).unwrap()))
@@ -180,15 +205,15 @@ impl Language {
     /// This logic is ported from the datadog-agent
     /// (`pkg/network/go/binversion`), itself imported from Go's
     /// `debug/buildinfo` standard library package.
-    fn from_go(pid: u32) -> Option<Self> {
+    fn from_go(pid: i32) -> Option<Self> {
         const ELF_READ_LIMIT: usize = 64 * 1024; // 64KiB
 
         const BUILD_INFO_MAGIC: &[u8] = b"\xff Go buildinf:";
         const BUILD_INFO_SIZE: usize = 32;
         const BUILD_INFO_ALIGN: usize = 16;
 
-        let exe = Exe::get(pid).ok()?;
-        let mut elf_file = File::open(&exe.0).ok()?;
+        let exe_path = crate::procfs::root_path().join(pid.to_string()).join("exe");
+        let mut elf_file = File::open(&exe_path).ok()?;
         let mut elf = elf::ElfStream::<AnyEndian, _>::open_stream(&mut elf_file).ok()?;
 
         // First, try to find .go.buildinfo section.
@@ -208,7 +233,7 @@ impl Language {
         let read_size = std::cmp::min(data_phdr.p_filesz as usize, ELF_READ_LIMIT);
 
         // Reopen file for manual read (elf consumes the original file)
-        let mut file = File::open(&exe.0).ok()?;
+        let mut file = File::open(&exe_path).ok()?;
         file.seek(SeekFrom::Start(data_phdr.p_offset)).ok()?;
         file.read_exact(segment_buffer.get_mut(..read_size)?).ok()?;
 
@@ -235,7 +260,7 @@ impl Language {
     /// framework-dependent), and framework-dependent single-file deployments.
     /// It does not work for self-contained single-file deployments since these
     /// do not have any DLLs in their maps file.
-    fn from_dotnet(pid: u32) -> Option<Self> {
+    fn from_dotnet(pid: i32) -> Option<Self> {
         let maps_reader = crate::procfs::maps::get_reader_for_pid(pid).ok()?;
 
         if has_dotnet_dll_in_maps(maps_reader) {
@@ -265,7 +290,7 @@ struct BinaryID {
 }
 
 impl BinaryID {
-    fn get(pid: u32) -> Result<Self> {
+    fn get(pid: i32) -> Result<Self> {
         let stat = Exe::stat(pid)?;
 
         Ok(Self {
@@ -539,7 +564,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
 
         // Negative test: current process should NOT be detected as .NET initially
         let result = Language::from_dotnet(current_pid);
@@ -587,7 +612,7 @@ mod tests {
             c.wait().ok();
         });
 
-        let pid = child.id();
+        let pid = child.id().cast_signed();
 
         // Wait for the "READY" signal from the Go process to ensure it's fully started
         let stdout = child.stdout.as_mut().expect("Failed to get stdout");
@@ -611,7 +636,7 @@ mod tests {
     #[test]
     fn test_from_go_with_non_go_binary() {
         // Test with current process (Rust binary) - should NOT be detected as Go
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
         let result = Language::from_go(current_pid);
         assert_eq!(
             result, None,
@@ -650,6 +675,7 @@ mod tests {
                 logs: vec![],
                 tracer_memfd: None,
                 memfd_path: Some(tmpfile.path().to_path_buf()),
+                has_gpu_device: false,
             };
 
             let result = Language::from_injector(&open_files_info);
@@ -681,6 +707,7 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: Some(tmpfile.path().to_path_buf()),
+            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);
@@ -696,6 +723,7 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: None,
+            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);
@@ -713,6 +741,7 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: Some(PathBuf::from("/dev/null")),
+            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);
@@ -732,6 +761,7 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: Some(PathBuf::from("/nonexistent/file/path")),
+            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);

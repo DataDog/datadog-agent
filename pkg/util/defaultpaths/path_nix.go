@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
@@ -242,4 +243,17 @@ func getInstallPathFromExecutable(start string) string {
 		currentDir = parentDir
 	}
 	return DefaultInstallPath // Fallback to the default install path
+}
+
+// GetDefaultConfPath returns the fully qualified directory path where the agent looks for the datadog.yaml config
+func GetDefaultConfPath() string {
+	return ConfPath
+}
+
+// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
+func GetEmbeddedBinPath() string {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return GetInstallPath()
+	}
+	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }

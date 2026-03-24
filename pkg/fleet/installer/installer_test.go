@@ -48,7 +48,7 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 	packages := repository.NewRepositories(rootPath, nil)
 	err := os.MkdirAll(filepath.Join(rootPath, "run"), 0755)
 	assert.NoError(t, err)
-	db, err := db.New(filepath.Join(rootPath, "packages.db"))
+	db, err := db.New(context.Background(), filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()
@@ -188,7 +188,7 @@ func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extensio
 	return nil
 }
 
-func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string, _ bool) error {
 	if h.noop {
 		return nil
 	}

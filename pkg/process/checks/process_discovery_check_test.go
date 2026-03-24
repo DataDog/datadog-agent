@@ -51,7 +51,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	maxBatchSize := 10
 	getMaxBatchSize = func(pkgconfigmodel.Reader) int { return maxBatchSize }
 
-	check := NewProcessDiscoveryCheck(configmock.New(t))
+	check := NewProcessDiscoveryCheck(configmock.New(t), configmock.NewSystemProbe(t))
 	check.Init(
 		&SysProbeConfig{},
 		&HostInfo{
@@ -181,48 +181,6 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 			rsul := pidMapToProcDiscoveries(pidMap, nil, scrubber)
 			require.Len(t, rsul, 1)
 			assert.Equal(t, testCase.expected, rsul[0].Command.Args)
-		})
-	}
-}
-
-func TestProcessDiscoveryIsEnabled(t *testing.T) {
-	tests := []struct {
-		name    string
-		configs map[string]bool
-		enabled bool
-	}{
-		{
-			name: "enabled",
-			configs: map[string]bool{
-				"process_config.process_discovery.enabled": true,
-			},
-			enabled: true,
-		},
-		{
-			name: "disabled",
-			configs: map[string]bool{
-				"process_config.process_discovery.enabled": false,
-			},
-			enabled: false,
-		},
-		{
-			name: "process collection disables the process discovery check",
-			configs: map[string]bool{
-				"process_config.process_discovery.enabled":  true,
-				"process_config.process_collection.enabled": true,
-			},
-			enabled: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			for k, v := range tc.configs {
-				cfg.SetWithoutSource(k, v)
-			}
-			check := NewProcessDiscoveryCheck(cfg)
-			assert.Equal(t, tc.enabled, check.IsEnabled())
 		})
 	}
 }

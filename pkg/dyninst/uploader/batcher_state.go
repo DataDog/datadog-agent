@@ -42,11 +42,11 @@ type batchStat struct {
 	bytes int
 }
 
-func newBatcherState(name string, cfg batcherConfig) *batcherState {
+func newBatcherState(name string, cfg batcherConfig, metrics *Metrics) *batcherState {
 	return &batcherState{
 		name:     name,
 		cfg:      cfg,
-		metrics:  &Metrics{},
+		metrics:  metrics,
 		inFlight: make(map[batchID]batchStat),
 	}
 }
@@ -118,7 +118,15 @@ func (s *batcherState) handleBatchOutcomeEvent(res sendResult, _ effects) (batch
 }
 
 func (s *batcherState) handleStopEvent(eff effects) {
+	if len(s.buffer) > 0 {
+		s.flush(eff)
+		return
+	}
 	s.clearDeadlines(eff)
+}
+
+func (s *batcherState) drainComplete() bool {
+	return len(s.inFlight) == 0
 }
 
 func (s *batcherState) flush(eff effects) {

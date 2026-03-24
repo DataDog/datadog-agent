@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -114,6 +115,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
+	// If InitOnly is set, return after creating the cluster.
+	if awsEnv.InitOnly() {
+		return nil
+	}
+
 	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 		EnableServerSideApply: pulumi.Bool(true),
 		Kubeconfig:            kindCluster.KubeConfig,
@@ -143,7 +149,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	var dependsOnArgoRollout pulumi.ResourceOption
 	if params.deployArgoRollout {
-		argoParams, err := argorollouts.NewParams()
+		var argoOpts []argorollouts.Option
+		// argo-rollouts chart >= 2.40.8 uses x-kubernetes-validations in CRDs,
+		// which requires K8s >= 1.25. Pin to last compatible version for older clusters.
+		kubeVer, err := semver.NewVersion(utils.ParseKubernetesVersion(awsEnv.KubernetesVersion()))
+		if err == nil && kubeVer.LessThan(semver.MustParse("1.25.0")) {
+			argoOpts = append(argoOpts, argorollouts.WithVersion("2.40.7"))
+		}
+		argoParams, err := argorollouts.NewParams(argoOpts...)
 		if err != nil {
 			return err
 		}
@@ -156,7 +169,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	var dependsOnDDAgent pulumi.ResourceOption
 	if len(params.agentOptions) > 0 && !params.deployOperator {
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
+		newOpts := []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(agentHelmValues),
+			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
+			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
@@ -239,7 +256,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		}
 
 		if params.deployArgoRollout {
-			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", 80, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}

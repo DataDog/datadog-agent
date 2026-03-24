@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
@@ -218,4 +219,12 @@ func GetDefaultDCALogFile() string {
 // GetDefaultLogFile returns the path to the agent log file
 func GetDefaultLogFile() string {
 	return DefaultLogFile
+}
+
+// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
+func GetEmbeddedBinPath() string {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return GetInstallPath()
+	}
+	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }

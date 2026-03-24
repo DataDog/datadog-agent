@@ -20,7 +20,8 @@
             "method": "main.stringArg"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

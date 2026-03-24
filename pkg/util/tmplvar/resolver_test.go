@@ -265,6 +265,39 @@ tags:
 	assert.Equal(t, "pod:my-pod", tags[1])
 }
 
+// TestEnvVarTemplateVarsAlwaysResolveAsStrings ensures that %%env_*%% template variables resolve to strings
+func TestEnvVarTemplateVarsAlwaysResolveAsStrings(t *testing.T) {
+	cases := []struct {
+		envValue string
+		desc     string
+	}{
+		{"123456", "all-numeric password remains a string"},
+		{"0123456", "leading-zero value is NOT silently converted to octal (42798)"},
+		{"0", "zero remains a string"},
+		{"true", "bool-looking value remains a string"},
+		{"false", "false-looking value remains a string"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Setenv("DD_TEST_PW", tc.envValue)
+			input := []byte("password: \"%%env_DD_TEST_PW%%\"\nhost: localhost\n")
+			resolver := NewTemplateResolver(YAMLParser, nil, true)
+			resolved, err := resolver.ResolveDataWithTemplateVars(input, nil)
+			require.NoError(t, err)
+
+			var result map[interface{}]interface{}
+			require.NoError(t, YAMLParser.Unmarshal(resolved, &result))
+
+			pw := result["password"]
+			assert.IsType(t, "", pw,
+				"password should be string, got %T = %v\nResolved YAML:\n%s", pw, pw, resolved)
+			assert.Equal(t, tc.envValue, pw,
+				"password must equal env var value exactly (no octal/type conversion)")
+		})
+	}
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)

@@ -6,6 +6,7 @@
 package marshal
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,7 +118,7 @@ func TestFormatProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, FormatProtocolStack(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, &model.ProtocolStack{Stack: slices.Collect(FormatProtocolStack(tt.protocol, 0))}, "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

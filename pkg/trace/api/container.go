@@ -11,14 +11,29 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 )
 
-// connContext is unimplemented for non-linux builds.
-func connContext(ctx context.Context, _ net.Conn) context.Context {
-	return ctx
+// connContext detects the connection type and stores it in the context.
+// On non-linux builds, UDS credential extraction is not performed.
+func connContext(ctx context.Context, c net.Conn) context.Context {
+	if oc, ok := c.(*onCloseConn); ok {
+		c = oc.Conn
+	}
+	switch c.(type) {
+	case *net.UnixConn:
+		return withConnectionType(ctx, ConnectionTypeUDS)
+	case *net.TCPConn:
+		return withConnectionType(ctx, ConnectionTypeTCP)
+	default:
+		if runtime.GOOS == "windows" {
+			return withConnectionType(ctx, ConnectionTypePipe)
+		}
+		return withConnectionType(ctx, ConnectionTypeUnknown)
+	}
 }
 
 // IDProvider implementations are able to look up a container ID given a ctx and http header.

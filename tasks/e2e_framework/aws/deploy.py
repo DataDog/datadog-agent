@@ -81,6 +81,29 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
+    if (
+        full_image_path is not None
+        and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
+        or cluster_agent_full_image_path is not None
+        and cluster_agent_full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
+    ):
+        flags["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+        flags["ddagent:imagePullUsername"] = "AWS"
+        flags["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password --region us-east-1", hide=True
+        ).stdout.strip()
+    elif (
+        full_image_path is not None
+        and full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
+        or cluster_agent_full_image_path is not None
+        and cluster_agent_full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
+    ):
+        flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
+        flags["ddagent:imagePullUsername"] = "AWS"
+        flags["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password --region us-east-1",
+            hide=True,
+        ).stdout.strip()
     return common_deploy(
         ctx,
         scenario_name,

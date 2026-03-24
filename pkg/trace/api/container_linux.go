@@ -34,6 +34,14 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	if oc, ok := c.(*onCloseConn); ok {
 		c = oc.Conn
 	}
+	switch c.(type) {
+	case *net.UnixConn:
+		ctx = withConnectionType(ctx, ConnectionTypeUDS)
+	case *net.TCPConn:
+		ctx = withConnectionType(ctx, ConnectionTypeTCP)
+	default:
+		ctx = withConnectionType(ctx, ConnectionTypeUnknown)
+	}
 	s, ok := c.(*net.UnixConn)
 	if !ok {
 		return ctx

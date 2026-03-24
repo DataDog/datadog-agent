@@ -28,8 +28,9 @@ import (
 	"time"
 	"unsafe"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -802,12 +803,9 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpRateLimiter":                    opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                       opts.activityDumpTagRules,
 		"ActivityDumpDuration":                       opts.activityDumpDuration,
-		"ActivityDumpLoadControllerPeriod":           opts.activityDumpLoadControllerPeriod,
-		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
-		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
 		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
@@ -819,8 +817,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
 		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
-		"EnableAutoSuppression":                      opts.enableAutoSuppression,
-		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
 		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
 		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
 		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
@@ -910,7 +906,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

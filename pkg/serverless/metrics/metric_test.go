@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,13 +42,13 @@ func TestStartDoesNotBlock(t *testing.T) {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false)
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false, nil)
 }
 
 type InvalidMetricConfigMocked struct{}
@@ -62,7 +63,7 @@ func TestStartInvalidConfig(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false)
+	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -70,7 +71,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
+func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer, _ []string) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, errors.New("error")
 }
 
@@ -80,19 +81,20 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false)
+	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
 	mockConfig.SetDefault("dogstatsd_port", listeners.RandomPortName)
 
 	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
 	require.NoError(t, err, "cannot start Demultiplexer")
+	defer demux.Stop(false)
 
-	s, err := dogstatsdServer.NewServerlessServer(demux)
+	s, err := dogstatsdServer.NewServerlessServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

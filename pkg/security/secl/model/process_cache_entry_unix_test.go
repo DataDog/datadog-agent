@@ -11,27 +11,17 @@ package model
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/stretchr/testify/assert"
 )
 
 func newPCE(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
-	pce := &ProcessCacheEntry{
-		ProcessContext: ProcessContext{
-			Process: Process{
-				PIDContext: PIDContext{
-					Pid: pid,
-				},
-
-				IsParentMissing: isParentMissing,
-			},
-			Ancestor: parent,
-		},
-	}
+	pce := &ProcessCacheEntry{}
+	pce.Pid = pid
+	pce.IsParentMissing = isParentMissing
 	if parent != nil {
 		pce.PPid = parent.Pid
+		pce.setAncestor(parent)
 	}
-
 	return pce
 }
 
@@ -71,33 +61,6 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
-	t.Run("parent-missing", func(t *testing.T) {
-		pid1 := newPCE(1, nil, false)
-		child1 := newPCE(2, pid1, true)
-		child2 := newPCE(3, child1, false)
-
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
-
-		var mn *ErrProcessMissingParentNode
-		assert.ErrorAs(t, err, &mn)
-	})
-
-	t.Run("cycle-detection", func(t *testing.T) {
-		pid1 := newPCE(2, nil, false)
-		child1 := newPCE(3, pid1, false)
-		child2 := newPCE(4, child1, false)
-
-		// create cycle
-		pid1.setAncestor(child2)
-
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
-
-		assert.ErrorIs(t, err, ErrCycleInProcessLineage)
-	})
 }
 
 func TestEntryEquals(t *testing.T) {
@@ -141,8 +104,6 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 	parent.MntNS = 1234
 	parent.NetNS = 5678
 	parent.UserSession = UserSessionContext{
-		ID:          "abc",
-		SessionType: int(usersession.UserSessionTypeSSH),
 		SSHSessionContext: SSHSessionContext{
 			SSHSessionID: 9876,
 		},
@@ -159,7 +120,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
 		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 
@@ -171,7 +132,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
 		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 
@@ -183,7 +144,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
 		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 
@@ -195,7 +156,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
 		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
-		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
 }

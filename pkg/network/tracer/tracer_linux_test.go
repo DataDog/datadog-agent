@@ -33,6 +33,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
@@ -122,9 +123,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), conns)
-		if !assert.True(ct, ok) {
-			return
-		}
+		require.True(ct, ok)
 		assert.Equal(ct, clientMessageSize, int(conn.Monotonic.SentBytes))
 		assert.Equal(ct, 0, int(conn.Monotonic.RecvBytes))
 		assert.Equal(ct, 0, int(conn.Monotonic.Retransmits))
@@ -324,9 +323,7 @@ func (s *TracerSuite) TestTCPRTT() {
 		allConnections, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
-		if !assert.True(ct, ok) {
-			return
-		}
+		require.True(ct, ok)
 
 		if cfg.EnableEbpfless {
 			timeoutUs := uint32((10 * time.Second).Microseconds())
@@ -493,18 +490,14 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_, err = c.Write([]byte("ping\n"))
-		if !assert.NoError(collect, err, "error sending data to server") {
-			return
-		}
+		require.NoError(collect, err, "error sending data to server")
 
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
 		t.Log(connections) // for debugging failures
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if !assert.True(collect, ok, "connection not found") {
-			return
-		}
+		require.True(collect, ok, "connection not found")
 		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
@@ -662,9 +655,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 			}
 			return cs.DPort == uint16(remoteAddr.Port)
 		})
-		if !assert.Len(ct, outgoing, 1) {
-			return
-		}
+		require.Len(ct, outgoing, 1)
 		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
 		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 	}, 3*time.Second, 100*time.Millisecond)
@@ -1852,6 +1843,54 @@ func isPrebuilt(cfg *config.Config) bool {
 	return true
 }
 
+// skipCOREIfBTFFieldMissing skips the test when running under CO-RE if the
+// given tcp_sock field is not present in the kernel's BTF. On kernels where
+// BTF is incomplete (e.g. Debian 10 with btfhub-provided BTF), the
+// LOAD_CONSTANT offset stays at 0 and the BPF code skips the read, so the
+// field will always be zero — testing it would be a false failure.
+func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
+	t.Helper()
+	if ebpftest.GetBuildMode() != ebpftest.CORE {
+		return
+	}
+	spec, err := ddebpf.GetKernelSpec()
+	if err != nil {
+		t.Skipf("BTF not available: %v", err)
+	}
+	var tcpSock *btf.Struct
+	if err := spec.TypeByName("tcp_sock", &tcpSock); err != nil {
+		t.Skipf("tcp_sock not found in BTF: %v", err)
+	}
+	for _, f := range fields {
+		if !btfStructHasField(tcpSock.Members, f) {
+			t.Skipf("tcp_sock.%s not found in kernel BTF — CO-RE offset unavailable", f)
+		}
+	}
+}
+
+// btfStructHasField searches for a field by name in BTF members, recursing
+// into anonymous structs/unions (matches production findFieldOffset logic).
+func btfStructHasField(members []btf.Member, name string) bool {
+	for _, m := range members {
+		if m.Name == name {
+			return true
+		}
+		if m.Name == "" {
+			var inner []btf.Member
+			switch t := m.Type.(type) {
+			case *btf.Struct:
+				inner = t.Members
+			case *btf.Union:
+				inner = t.Members
+			}
+			if btfStructHasField(inner, name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (s *TracerSuite) TestSendfileError() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
@@ -1937,7 +1976,8 @@ func (s *TracerSuite) TestShortWrite() {
 
 	sk, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
 	require.NoError(t, err)
-	defer syscall.Close(sk)
+	f := os.NewFile(uintptr(sk), "")
+	t.Cleanup(func() { f.Close() })
 
 	err = unix.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 5000)
 	require.NoError(t, err)
@@ -1973,11 +2013,17 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+			// Short write, send buffer is completely full
+			done = true
+			break
+		}
 		require.NoError(t, err)
 		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
+			// Short write, partial write
 			done = true
 			break
 		}
@@ -1985,14 +2031,12 @@ func (s *TracerSuite) TestShortWrite() {
 
 	require.True(t, done)
 
-	f := os.NewFile(uintptr(sk), "")
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
 
 	unix.Shutdown(sk, unix.SHUT_WR)
 	close(read)
-	unix.Close(sk)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
@@ -2074,10 +2118,8 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 			return true
 		})
 
-		if !assert.NoError(collect, err, "error reading from connection") ||
-			!assert.NoError(collect, readErr, "error from raw conn") {
-			return
-		}
+		require.NoError(collect, err, "error reading from connection")
+		require.NoError(collect, readErr, "error from raw conn")
 
 		read += n
 		t.Logf("read %d", read)
@@ -2145,9 +2187,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
-		if !assert.True(collect, incoming != nil && outgoing != nil) {
-			return
-		}
+		require.True(collect, incoming != nil && outgoing != nil)
 
 		m := outgoing.Monotonic
 		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
@@ -3323,9 +3363,7 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 		defer cleanup()
 
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "connection not found") {
-			return
-		}
+		require.True(ct, ok, "connection not found")
 
 		// We expect retransmits > 0
 		assert.Greater(ct, int(conn.Monotonic.Retransmits), 0, "should have retransmits")
@@ -3338,6 +3376,504 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 			"SentPackets (%d) should be >= Retransmits (%d) due to sync on close", conn.Monotonic.SentPackets, conn.Monotonic.Retransmits)
 
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPCongestionSyncOnClose validates that congestion stats are finalized
+// at close time and carried in the batch close event. The test triggers
+// reord_seen on a connection, verifies the signal is present while active,
+// then closes the connection and verifies the closed connection still reports
+// non-zero reord_seen. The close-time value comes from the embedded
+// tcp_stats_t.congestion fields finalized via finalize_congestion_stats.
+func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("reord_seen requires kernel 4.19+")
+	}
+	skipCOREIfBTFFieldMissing(t, "reord_seen")
+
+	tr := setupTracer(t, cfg)
+
+	// Set up an isolated netns with netem reordering and a discard server.
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	// Dial before netem so handshake completes cleanly.
+	c := env.dialInNs(t)
+	defer c.Close()
+
+	env.addNetem(t, "delay", "10ms", "reorder", "50%")
+
+	// Phase 1: Trigger reord_seen while connection is active.
+	// Send data in poll loop until we see reord_seen > 0.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		data := make([]byte, 64*1024)
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(data) //nolint:errcheck
+		time.Sleep(200 * time.Millisecond)
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "active connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPReordSeen, uint32(0), "reord_seen should be > 0 while active")
+	}, 30*time.Second, 500*time.Millisecond)
+
+	// Phase 2: Close the connection and verify reord_seen survives.
+	// The close event carries the finalized congestion stats embedded in
+	// tcp_stats_t. Even though the polling-path delta was already consumed
+	// above, the close-time finalization reads the tcp_sock directly and
+	// takes the max — so the close event should have the full count.
+	localAddr := c.LocalAddr()
+	remoteAddr := c.RemoteAddr()
+	c.Close()
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(localAddr, remoteAddr, conns)
+		if !assert.True(ct, ok, "closed connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Monotonic.TCPReordSeen, uint32(0),
+			"reord_seen should be > 0 on closed connection (close-time sync)")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPEventStatsSyncOnClose validates that kprobe-sourced event counters
+// (rto_count, recovery_count, probe0_count) from the tcp_event_stats BPF map
+// are correctly copied into the embedded tcp_stats_t at close time. This tests
+// a different close-time path than TestTCPCongestionSyncOnClose (which tests
+// tcp_sock field finalization via finalize_congestion_stats).
+func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	c := env.dialInNs(t)
+	defer c.Close()
+
+	// High correlated loss + delay to trigger RTO on loopback.
+	env.addNetem(t, "delay", "100ms", "loss", "30%", "50%")
+
+	// Phase 1: Wait for rto_count > 0 while connection is active.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		data := make([]byte, 64*1024)
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(data) //nolint:errcheck
+		time.Sleep(200 * time.Millisecond)
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "active connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 while active")
+	}, 30*time.Second, 500*time.Millisecond)
+
+	// Phase 2: Close and verify rto_count survives in the close event.
+	localAddr := c.LocalAddr()
+	remoteAddr := c.RemoteAddr()
+	c.Close()
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(localAddr, remoteAddr, conns)
+		if !assert.True(ct, ok, "closed connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Monotonic.TCPRTOCount, uint32(0),
+			"rto_count should be > 0 on closed connection (close-time sync)")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// netemTestEnv holds the resources for an isolated network namespace where
+// tc netem can be applied to loopback without affecting other tests.
+type netemTestEnv struct {
+	// Netns is the network namespace name.
+	Netns string
+	// NsHandle is the netns file descriptor for use with netns.WithNS.
+	NsHandle vnetns.NsHandle
+	// ServerAddr is the IP:port the server is listening on (inside the netns).
+	ServerAddr string
+}
+
+// addNetem applies a tc netem qdisc to the loopback device inside the namespace.
+func (env *netemTestEnv) addNetem(t *testing.T, args ...string) {
+	t.Helper()
+	cmd := append([]string{"ip", "netns", "exec", env.Netns, "tc", "qdisc", "add", "dev", "lo", "root", "netem"}, args...)
+	addCmd := exec.Command(cmd[0], cmd[1:]...)
+	out, err := addCmd.CombinedOutput()
+	if err != nil {
+		t.Skipf("tc qdisc add netem in netns failed: %s %v", out, err)
+	}
+	t.Cleanup(func() {
+		exec.Command("ip", "netns", "exec", env.Netns, "tc", "qdisc", "del", "dev", "lo", "root").Run() //nolint:errcheck
+	})
+}
+
+// setupNetemTestEnv creates an isolated network namespace with loopback up.
+// Both client and server run inside the namespace, so tc netem on the
+// namespace's loopback affects all traffic without impacting other tests.
+// The eBPF tracer probes are system-wide and see connections in all namespaces.
+func setupNetemTestEnv(t *testing.T, serverHandler func(net.Conn)) *netemTestEnv {
+	t.Helper()
+
+	ns := netlinktestutil.AddNS(t)
+
+	// Bring up loopback in the new namespace.
+	testutil.RunCommands(t, []string{
+		fmt.Sprintf("ip -n %s link set lo up", ns),
+	}, false)
+
+	nsHandle, err := vnetns.GetFromName(ns)
+	require.NoError(t, err)
+	t.Cleanup(func() { nsHandle.Close() })
+
+	// Start the server inside the namespace on loopback.
+	var server *tracertestutil.TCPServer
+	err = netns.WithNS(nsHandle, func() error {
+		server = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", serverHandler)
+		return server.Run()
+	})
+	require.NoError(t, err)
+	t.Cleanup(server.Shutdown)
+
+	return &netemTestEnv{
+		Netns:      ns,
+		NsHandle:   nsHandle,
+		ServerAddr: server.Address(),
+	}
+}
+
+// dialInNs creates a TCP connection to addr from inside the network namespace.
+func (env *netemTestEnv) dialInNs(t *testing.T) net.Conn {
+	t.Helper()
+	var c net.Conn
+	err := netns.WithNS(env.NsHandle, func() error {
+		var err error
+		c, err = net.DialTimeout("tcp", env.ServerAddr, 5*time.Second)
+		return err
+	})
+	require.NoError(t, err)
+	return c
+}
+
+func (s *TracerSuite) TestTCPRTOCount() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("TCP congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	// Delay + high correlated loss prevents fast SACK recovery on loopback
+	// (where RTT is ~0), forcing the RTO timer to fire.
+	runNetemCongestionTest(t, tr, []string{"delay", "100ms", "loss", "30%", "50%"}, nil,
+		func(ct *assert.CollectT, conn *network.ConnectionStats) {
+			assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 with high correlated loss")
+		})
+}
+
+// runNetemCongestionTest is a helper for TCP congestion signal tests that use
+// tc netem inside an isolated network namespace. It creates the namespace with
+// a discard server, optionally runs nsSetup (e.g. sysctl), dials a connection
+// on a clean link, then applies netem so the handshake isn't impaired.
+func runNetemCongestionTest(
+	t *testing.T,
+	tr *Tracer,
+	netemArgs []string,
+	nsSetup func(t *testing.T, env *netemTestEnv),
+	assertFn func(ct *assert.CollectT, conn *network.ConnectionStats),
+) {
+	t.Helper()
+
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	if nsSetup != nil {
+		nsSetup(t, env)
+	}
+
+	// Dial before applying netem so the TCP handshake completes on a clean link.
+	c := env.dialInNs(t)
+	defer c.Close()
+
+	env.addNetem(t, netemArgs...)
+
+	// Send data in a loop — each write triggers tcp_sendmsg which snapshots
+	// the congestion stats. Writing in the poll loop keeps the connection
+	// active so getConnections continues to return it (delta consumption).
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		data := make([]byte, 64*1024)
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(data) //nolint:errcheck
+		time.Sleep(200 * time.Millisecond)
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		assertFn(ct, conn)
+	}, 30*time.Second, 500*time.Millisecond)
+}
+
+// TestTCPRecoveryCount validates the recovery_count signal. Delay creates
+// enough in-flight packets on loopback for SACK to detect gaps; moderate loss
+// triggers fast recovery rather than full RTO timeout.
+func (s *TracerSuite) TestTCPRecoveryCount() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	runNetemCongestionTest(t, tr, []string{"delay", "50ms", "loss", "10%"}, nil,
+		func(ct *assert.CollectT, conn *network.ConnectionStats) {
+			assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0 with moderate packet loss")
+		})
+}
+
+// TestTCPReordSeen validates the reord_seen signal by introducing packet
+// reordering using tc netem inside an isolated network namespace. The client
+// sends data through the reordered loopback; the sender's TCP stack detects
+// reordering via SACK/DSACK processing and sets reord_seen.
+func (s *TracerSuite) TestTCPReordSeen() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("reord_seen requires kernel 4.19+")
+	}
+	skipCOREIfBTFFieldMissing(t, "reord_seen")
+
+	tr := setupTracer(t, cfg)
+
+	runNetemCongestionTest(t, tr, []string{"delay", "10ms", "reorder", "50%"}, nil,
+		func(ct *assert.CollectT, conn *network.ConnectionStats) {
+			assert.Greater(ct, conn.Last.TCPReordSeen, uint32(0), "reord_seen should be > 0 with tc netem reordering")
+		})
+}
+
+// TestTCPRcvOOOPack validates the rcv_ooopack signal by creating a connection
+// where the receiver sees out-of-order TCP segments. tc netem is applied to
+// loopback inside an isolated network namespace so it doesn't affect other tests.
+func (s *TracerSuite) TestTCPRcvOOOPack() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	if kv < kernel.VersionCode(5, 4, 0) {
+		t.Skip("rcv_ooopack requires kernel 5.4+")
+	}
+	skipCOREIfBTFFieldMissing(t, "rcv_ooopack")
+
+	tr := setupTracer(t, cfg)
+
+	// Server sends data continuously so the client always has segments to
+	// receive. netem reordering is probabilistic, so we need ongoing traffic
+	// to ensure enough OOO packets are observed.
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		data := make([]byte, 64*1024)
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+			}
+			c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+			if _, err := c.Write(data); err != nil {
+				return
+			}
+		}
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	// Apply reordering on loopback inside the namespace.
+	// "delay 10ms reorder 50%" sends 50% of packets immediately and delays
+	// the rest by 10ms, causing out-of-order delivery.
+	env.addNetem(t, "delay", "10ms", "reorder", "50%")
+
+	c := env.dialInNs(t)
+	defer c.Close()
+
+	// Drain and check in the poll loop — each tcp_recvmsg invocation
+	// updates the rcv_ooopack snapshot, and ongoing server writes keep
+	// producing reordered segments.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// Drain available data to trigger tcp_recvmsg snapshots.
+		c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		io.Copy(io.Discard, c) //nolint:errcheck
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPRcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
+	}, 30*time.Second, 500*time.Millisecond)
+}
+
+// TestTCPDeliveredCE validates the delivered_ce signal by enabling ECN and
+// using tc netem to mark packets with the ECN CE (Congestion Experienced) bit.
+// Also validates tcpEcnNegotiated (proto field 63).
+func (s *TracerSuite) TestTCPDeliveredCE() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("delivered_ce requires kernel 4.19+")
+	}
+	skipCOREIfBTFFieldMissing(t, "delivered_ce")
+
+	tr := setupTracer(t, cfg)
+
+	runNetemCongestionTest(t, tr, []string{"loss", "10%", "ecn"},
+		func(t *testing.T, env *netemTestEnv) {
+			// Enable ECN inside the namespace so both endpoints negotiate ECN.
+			testutil.RunCommands(t, []string{
+				fmt.Sprintf("ip netns exec %s sysctl -w net.ipv4.tcp_ecn=1", env.Netns),
+			}, false)
+		},
+		func(ct *assert.CollectT, conn *network.ConnectionStats) {
+			assert.True(ct, conn.TCPECNNegotiated, "ECN should be negotiated when tcp_ecn=1")
+			assert.Greater(ct, conn.Last.TCPDeliveredCE, uint32(0), "delivered_ce should be > 0 with tc netem ecn marking")
+		})
+}
+
+// TestTCPZeroWindowProbe validates the probe0_count signal by creating a
+// connection where the receiver stops reading, causing the receive buffer to
+// fill and the receiver to advertise window=0. The sender then sends
+// zero-window probes which are counted by the kprobe/tcp_send_probe0 handler.
+func (s *TracerSuite) TestTCPZeroWindowProbe() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	// Server accepts but never reads — receive buffer will fill up.
+	acceptCh := make(chan net.Conn, 1)
+	doneCh := make(chan struct{})
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		acceptCh <- c
+		// Block until test cleanup signals us.
+		<-doneCh
+	})
+	t.Cleanup(server.Shutdown)
+	t.Cleanup(func() { close(doneCh) })
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Wait for the server to accept so we can clamp the receive window.
+	serverConn := <-acceptCh
+	defer serverConn.Close()
+	tcpServerConn, ok := serverConn.(*net.TCPConn)
+	require.True(t, ok)
+
+	// TCP_WINDOW_CLAMP limits the advertised receive window directly,
+	// regardless of buffer size or auto-tuning. Setting it to 1 forces
+	// the receiver to quickly advertise window=0.
+	rawConn, err := tcpServerConn.SyscallConn()
+	require.NoError(t, err)
+	err = rawConn.Control(func(fd uintptr) {
+		// TCP_WINDOW_CLAMP = 10
+		if e := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, 10, 1); e != nil {
+			t.Logf("TCP_WINDOW_CLAMP setsockopt failed: %v", e)
+		}
+	})
+	require.NoError(t, err)
+
+	// Write data until the send blocks (receiver window clamped → window=0).
+	// Use a short write deadline so we don't hang forever.
+	chunk := make([]byte, 1024)
+	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	for {
+		_, err = c.Write(chunk)
+		if err != nil {
+			break // write blocked or deadline exceeded — receiver window is 0
+		}
+	}
+
+	// Poll for probe0_count > 0. Each iteration reads a small amount on
+	// the server to drain some data, then the client writes more to trigger
+	// tcp_sendmsg (keeping the connection visible across delta-consuming
+	// getConnections calls). Opening the window via server read alone is
+	// insufficient because the kernel transmits pending send-buffer data
+	// internally without a sendmsg syscall — the fentry/kprobe hook won't
+	// fire. An explicit client write ensures the hook fires.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		buf := make([]byte, 64)
+		serverConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		serverConn.Read(buf) //nolint:errcheck
+
+		// Explicit write to trigger tcp_sendmsg hook.
+		c.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+		c.Write([]byte("keepalive")) //nolint:errcheck
+		time.Sleep(500 * time.Millisecond)
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, found := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, found, "connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
+	}, 30*time.Second, 500*time.Millisecond)
 }
 
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {

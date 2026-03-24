@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -105,7 +106,7 @@ func TestLogBuffer(t *testing.T) {
 	w.Flush()
 
 	// Trace will not be logged, Error and Critical will directly be logged to Stderr
-	assert.Equal(t, strings.Count(b.String(), "foo"), 5)
+	assert.Equal(t, 5, strings.Count(b.String(), "foo"), b.String())
 }
 func TestLogBufferWithContext(t *testing.T) {
 	// reset buffer state
@@ -611,23 +612,18 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
+			levelVar := new(slog.LevelVar)
+			levelVar.Set(slog.LevelDebug)
 
-			l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
+			SetupLoggerWithLevelVar(Default(), levelVar)
 
-			SetupLogger(Default(), DebugStr)
-
-			err := ChangeLogLevel(l, tc)
+			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)
 
 			// log level should have been updated
 			level, err := GetLogLevel()
 			require.NoError(t, err)
 			assert.Equal(t, tc, level)
-
-			// inner logger should have been replaced
-			assert.Equal(t, l, logger.Load().inner)
 		})
 	}
 }

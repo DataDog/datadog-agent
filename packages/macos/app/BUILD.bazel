@@ -1,0 +1,92 @@
+"""Agent package components specific to macos.
+
+Replaces: omnibus/config/software/datadog-agent-mac-app.rb
+
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# {install_dir} is prefixed to this by the caller
+app_temp_dir = "Datadog Agent.app/Contents"
+
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "%s/Resources" % app_temp_dir,
+        # "%s/Frameworks" % app_temp_dir,
+    ],
+)
+
+dd_agent_expand_template(
+    name = "info_plist",
+    out = "%s/Info.plist" % app_temp_dir,
+    attributes = pkg_attributes(mode = "0644"),
+    substitutions = {
+        "{executable}": "gui",
+    },
+    template = "Info.plist.in",
+)
+
+pkg_files(
+    name = "resources",
+    srcs = ["Agent.icns"],
+    prefix = "%s/Resources" % app_temp_dir,
+)
+
+# TODO: Once we have built the app, we can scan for frameworks.
+# Add swift runtime libs in Frameworks (same thing a full xcode build would do for a GUI app).
+# They are needed for the gui to run on MacOS 10.14.3 and lower
+# command "$(xcrun --find swift-stdlib-tool) --copy --scan-executable \"#{app_temp_dir}/MacOS/gui\" --scan-folder \"#{app_temp_dir}/Frameworks\" --platform macosx --destination \"#{app_temp_dir}/Frameworks\" --strip-bitcode"
+
+# Launchd service definitions
+dd_agent_expand_template(
+    name = "launchd_plist_example",
+    out = "etc/com.datadoghq.agent.plist.example",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "launchd.plist.example.in",
+)
+
+dd_agent_expand_template(
+    name = "launchd_sysprobe_plist_example",
+    out = "etc/com.datadoghq.sysprobe.plist.example",
+    attributes = pkg_attributes(mode = "0644"),
+    substitutions = {
+        "{conf_dir}": "etc",
+    },
+    template = "launchd.sysprobe.plist.example.in",
+)
+
+dd_agent_expand_template(
+    name = "launchd_gui_plist_example",
+    out = "etc/com.datadoghq.gui.plist.example",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "gui.launchd.plist.example.in",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":info_plist",
+        ":launchd_gui_plist_example",
+        ":launchd_plist_example",
+        ":launchd_sysprobe_plist_example",
+        ":resources",
+    ],
+)
+
+# This target is only for the omnibus install
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)

@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    **Kubernetes pod check annotations**: Invalid JSON in pod check annotations
+    (ad.datadoghq.com/<container>.checks) now produces a clear error message
+    in the "Configuration Errors" section of ``agent status``. A new CLI command
+    ``agent validate-pod-annotation`` validates annotation JSON from a file or
+    stdin and exits with an error on invalid syntax, so you can catch mistakes
+    before applying annotations to pods.
