@@ -72,6 +72,7 @@ func TestCollectorSendsMetricsOnStartIntervalAndStop(t *testing.T) {
 }
 
 func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
+	collectionTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	mockReader := &mockCgroupReader{cgroup: &cgroups.MockCgroup{}, version: 1}
 	c := &Collector{
 		cgroupReader: mockReader,
@@ -84,13 +85,14 @@ func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
 		},
 	}
 
-	serverlessContainerStats := c.convertToServerlessContainerStats(stats)
+	serverlessContainerStats := c.convertToServerlessContainerStats(stats, collectionTime)
 
 	assert.Equal(t, 5e8, *serverlessContainerStats.CPU.Total)
 	assert.Equal(t, 1e9, *serverlessContainerStats.CPU.Limit)
 }
 
 func TestCollectorConvertToServerlessContainerStatsNilCPU(t *testing.T) {
+	collectionTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	mockReader := &mockCgroupReader{cgroup: &cgroups.MockCgroup{}, version: 1}
 	c := &Collector{cgroupReader: mockReader}
 
@@ -100,7 +102,7 @@ func TestCollectorConvertToServerlessContainerStatsNilCPU(t *testing.T) {
 		Memory: &cgroups.MemoryStats{},
 	}
 
-	serverlessContainerStats := c.convertToServerlessContainerStats(stats)
+	serverlessContainerStats := c.convertToServerlessContainerStats(stats, collectionTime)
 
 	assert.NotNil(t, serverlessContainerStats)
 	assert.Nil(t, serverlessContainerStats.CPU)

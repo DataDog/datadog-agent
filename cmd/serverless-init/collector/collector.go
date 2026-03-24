@@ -157,6 +157,7 @@ func (c *Collector) collect() {
 	}
 
 	stats := &cgroups.Stats{}
+	collectionTime := time.Now()
 	allFailed, errs := cgroups.GetStats(cgroup, stats)
 	if allFailed {
 		log.Warnf("Failed to get cgroup stats: %v", errs)
@@ -165,15 +166,15 @@ func (c *Collector) collect() {
 		log.Debugf("Incomplete cgroup stats: %v", errs)
 	}
 
-	containerStats := c.convertToServerlessContainerStats(stats)
+	containerStats := c.convertToServerlessContainerStats(stats, collectionTime)
 	enhancedMetrics := c.computeEnhancedMetrics(containerStats)
 	c.sendMetrics(enhancedMetrics)
 }
 
 // convertToServerlessContainerStats converts the cgroup stats to the ServerlessContainerStats struct
-func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *ServerlessContainerStats {
+func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats, collectionTime time.Time) *ServerlessContainerStats {
 	serverlessStats := &ServerlessContainerStats{
-		CollectionTime: time.Now(),
+		CollectionTime: collectionTime,
 	}
 
 	if stats == nil || stats.CPU == nil {
