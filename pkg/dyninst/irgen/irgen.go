@@ -3433,6 +3433,10 @@ func exploreLenExprTypes(
 	// from StructureType to GoStringHeaderType etc. by completeGoTypes).
 	resolvedType = tc.typesByID[resolvedType.GetID()]
 
+	// Unwrap GoMapType to its header type (maps are pointers to headers).
+	_, isMap := resolvedType.(*ir.GoMapType)
+	resolvedType = unwrapMapType(resolvedType, tc)
+
 	// If result is a pointer, dereference to get the collection type.
 	if ptrType, ok := resolvedType.(*ir.PointerType); ok {
 		pointee := ptrType.Pointee
@@ -3457,6 +3461,12 @@ func exploreLenExprTypes(
 	f, err := field(tc, structType, fieldName)
 	if err != nil {
 		return nil, fmt.Errorf("len field lookup failed: %w", err)
+	}
+
+	// Normalize map count types to uint64 for consistency across
+	// Go versions and architectures.
+	if isMap && tc.uint64Type != 0 {
+		return tc.typesByID[tc.uint64Type], nil
 	}
 	return f.Type, nil
 }
@@ -3488,6 +3498,17 @@ func lenFieldInfo(typ ir.Type) (*ir.StructureType, string, error) {
 			typ.GetName(), kindString,
 		)
 	}
+}
+
+// unwrapMapType returns the map's header type if typ is a GoMapType, otherwise
+// returns typ unchanged. GoMapType is an IR-level wrapper that hides the
+// pointer-to-header representation of Go maps; callers that need the header
+// (e.g. len/isEmpty) must see through it.
+func unwrapMapType(typ ir.Type, tc *typeCatalog) ir.Type {
+	if m, ok := typ.(*ir.GoMapType); ok {
+		return tc.typesByID[m.HeaderType.GetID()]
+	}
+	return typ
 }
 
 // resolveExpression resolves an expression AST to an IR Expression.
@@ -3676,7 +3697,12 @@ func resolveExpression(
 		return resolveLenExpression(e.Operand, rootVar, tc)
 
 	case *exprlang.IsEmptyExpr:
-		return resolveLenExpression(e.Operand, rootVar, tc)
+		// isEmpty is only supported as a standalone condition (resolved via
+		// resolveIsEmptyCondition). In expression context it would need to
+		// produce a boolean, which the eBPF stack machine cannot compute.
+		return ir.Expression{}, fmt.Errorf(
+			"isEmpty() is only supported as a condition, not as an expression",
+		)
 
 	default:
 		return ir.Expression{}, fmt.Errorf(
@@ -3700,6 +3726,18 @@ func resolveLenExpression(
 
 	currentType := tc.typesByID[baseExpr.Type.GetID()]
 	operations := baseExpr.Operations
+
+	// GoMapType is a pointer to a map header; unwrap and dereference.
+	isMap := false
+	if m, ok := currentType.(*ir.GoMapType); ok {
+		isMap = true
+		headerType := tc.typesByID[m.HeaderType.GetID()]
+		operations = append(operations, &ir.DereferenceOp{
+			Bias:     0,
+			ByteSize: headerType.GetByteSize(),
+		})
+		currentType = headerType
+	}
 
 	// If the resolved type is a pointer to a collection, dereference it.
 	if _, ok := currentType.(*ir.PointerType); ok {
@@ -3741,8 +3779,17 @@ func resolveLenExpression(
 		}
 	}
 
+	// Map count fields have varying types across Go versions and architectures
+	// (int vs uint64 etc.). Normalize to uint64 so that snapshots and
+	// downstream consumers see a consistent type. Note that it's only for the
+	// old hmap's that its an int and not a uint64.
+	exprType := f.Type
+	if isMap && tc.uint64Type != 0 {
+		exprType = tc.typesByID[tc.uint64Type]
+	}
+
 	return ir.Expression{
-		Type:       f.Type,
+		Type:       exprType,
 		Operations: operations,
 	}, nil
 }

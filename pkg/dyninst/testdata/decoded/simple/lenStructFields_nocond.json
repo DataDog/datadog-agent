@@ -172,7 +172,7 @@
           {
             "function": "main.lenStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 455
+            "lineNumber": 452
           },
           {
             "function": "main.main",
@@ -251,9 +251,14 @@
           }
         }
       },
-      "type": "snapshot"
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: maximum call count exceeded"
+        }
+      ]
     },
-    "timestamp": "[ts]",
-    "duration": "[duration]"
+    "timestamp": "[ts]"
   }
 ]

@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len={error: len/isEmpty not supported on type \"map[string]int\" (map)}"
+    "message": "len=3"
   },
   {
     "service": "simple",
@@ -53,6 +53,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len={error: len/isEmpty not supported on type \"map[string]int\" (map)}"
+    "message": "len={nil}"
   }
 ]

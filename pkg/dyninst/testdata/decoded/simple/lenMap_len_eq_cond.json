@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.lenPtrStructFields",
+      "method": "main.lenMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -15,9 +15,9 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "lenPtrStruct_field_map",
+          "id": "lenMap_len_eq_cond",
           "location": {
-            "method": "main.lenPtrStructFields"
+            "method": "main.lenMap"
           }
         }
       },
@@ -25,14 +25,14 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len=2"
+    "message": "tag=match"
   },
   {
     "service": "simple",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.lenPtrStructFields",
+      "method": "main.lenMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -43,16 +43,22 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "lenPtrStruct_field_map",
+          "id": "lenMap_len_eq_cond",
           "location": {
-            "method": "main.lenPtrStructFields"
+            "method": "main.lenMap"
           }
         }
       },
-      "type": "snapshot"
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "len(m) == 3",
+          "message": "nil pointer encountered evaluating condition"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len={nil}"
+    "message": "tag=miss"
   }
 ]
