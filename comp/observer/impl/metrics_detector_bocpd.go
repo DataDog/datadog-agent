@@ -189,7 +189,7 @@ func (b *BOCPDDetector) Name() string {
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	gen := storage.SeriesGeneration()
 	if b.cachedSeries == nil || gen != b.cachedGen {
-		b.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
+		b.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
 		b.cachedGen = gen
 	}
 

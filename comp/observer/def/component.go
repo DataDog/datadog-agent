@@ -449,11 +449,25 @@ type RawAnomalyState interface {
 	RawAnomalies() []Anomaly
 }
 
+// TelemetryNamespace is the storage namespace used for observer-internal debug
+// metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
+const TelemetryNamespace = "telemetry"
+
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)
 	NamePattern string            // prefix match (empty = any)
 	TagMatchers map[string]string // required tag key=value pairs
+	// ExcludeNamespaces skips series whose namespace is in this list. It is only
+	// applied when Namespace is empty (list-all mode). An explicit Namespace match
+	// ignores ExcludeNamespaces so callers can still list internal series when needed.
+	ExcludeNamespaces []string
+}
+
+// WorkloadSeriesFilter returns a filter for anomaly detectors: all namespaces
+// except TelemetryNamespace.
+func WorkloadSeriesFilter() SeriesFilter {
+	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace}}
 }
 
 type SeriesHandle int

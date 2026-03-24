@@ -107,7 +107,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 	gen := storage.SeriesGeneration()
 	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.SeriesFilter{})
+		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
 		d.cachedGen = gen
 	}
 
