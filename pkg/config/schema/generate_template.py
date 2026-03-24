@@ -41,19 +41,19 @@ custom_env_parsers = {
 "apm_config.instrumentation.disabled_namespaces": "JSON array of strings",
 "apm_config.instrumentation.lib_versions": "JSON array of strings",
 "apm_config.instrumentation.targets": "JSON array of strings",
-"apm_config.features": "coma or space separated list of strings",
-"apm_config.ignore_resources": "coma separated list of strings",
-"apm_config.filter_tags.require": "space separated list of strings or JSON array of strings",
-"apm_config.filter_tags.reject": "space separated list of strings or JSON array of strings",
-"apm_config.filter_tags_regex.require": "space separated list of strings or JSON array of strings",
-"apm_config.filter_tags_regex.reject": "space separated list of strings or JSON array of strings",
-"apm_config.obfuscation.credit_cards.keep_values": "space separated list of strings or JSON array of strings",
+"apm_config.features": "comma or space-separated list of strings",
+"apm_config.ignore_resources": "comma separated list of strings",
+"apm_config.filter_tags.require": "space-separated list of strings or JSON array of strings",
+"apm_config.filter_tags.reject": "space-separated list of strings or JSON array of strings",
+"apm_config.filter_tags_regex.require": "space-separated list of strings or JSON array of strings",
+"apm_config.filter_tags_regex.reject": "space-separated list of strings or JSON array of strings",
+"apm_config.obfuscation.credit_cards.keep_values": "space-separated list of strings or JSON array of strings",
 "apm_config.replace_tags": "JSON object of string to string",
-"apm_config.analyzed_spans": "coma separated list of key-value pairs",
+"apm_config.analyzed_spans": "comma separated list of key-value pairs",
 "apm_config.peer_tags": "JSON array of strings",
-"otelcollector.converter.features": "coma and space separated list of strings",
+"otelcollector.converter.features": "comma and space-separated list of strings",
 "dogstatsd_mapper_profiles": "JSON list of objects",
-"process_config.custom_sensitive_words": "space separated list of strings or JSON array of strings",
+"process_config.custom_sensitive_words": "space-separated list of strings or JSON array of strings",
 "service_monitoring_config.http.replace_rules": "JSON object of string to string",
 "service_monitoring_config.http_replace_rules": "JSON object of string to string",
 "network_config.http_replace_rules": "JSON object of string to string",
@@ -81,7 +81,7 @@ type_exception = {
         "apm_config.max_memory": ("integer", "integer", 500000000),
         "apm_config.max_cpu_percent": ("integer", "integer", 50),
         "apm_config.replace_tags": ("list of objects", "list of objects", None),
-        "apm_config.ignore_resources": ("list of strings", "coma separated list of strings", []),
+        "apm_config.ignore_resources": ("list of strings", "comma separated list of strings", []),
         "apm_config.log_file": ("string", "string", None),
         "apm_config.connection_limit": ("integer", "integer", 2000),
         "apm_config.peer_tags": ("list of strings", "list of strings", []),
@@ -97,10 +97,10 @@ type_exception = {
         "process_config.intervals.container_realtime": ("integer", "integer", 2),
         "process_config.intervals.process": ("integer", "integer", 10),
         "process_config.intervals.process_realtime": ("integer", "integer", 2),
-        "process_config.blacklist_patterns": ("list of strings", "space separated list of strings", []),
+        "process_config.blacklist_patterns": ("list of strings", "space-separated list of strings", []),
         "process_config.dd_agent_env": ("string", "string", ""),
         "process_config.scrub_args": ("boolean", "boolean", True),
-        "process_config.custom_sensitive_words": ("list of strings", "space separated list of strings", []),
+        "process_config.custom_sensitive_words": ("list of strings", "space-separated list of strings", []),
         "network_path.collector.filters": ("list of custom objects", "list of custom objects", None),
         "bind_host": ("string", "string", "localhost"),
         "dogstatsd_mapper_profiles": ("list of custom object", "list of custom object", None),
@@ -142,9 +142,9 @@ type_exception = {
         "reverse_dns_enrichment.rate_limiter.throttle_error_threshold": ("integer", "integer", 10),
         "reverse_dns_enrichment.rate_limiter.recovery_intervals": ("integer", "integer", 5),
         "otlp_config.receiver.protocols.grpc.endpoint": ("string", "string", "0.0.0.0:4317"),
-        "otlp_config.receiver.protocols.grpc.transport": ("string", "string", "tmp"),
+        "otlp_config.receiver.protocols.grpc.transport": ("string", "string", "tcp"),
         "otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib": ("integer", "integer", 4),
-        "otlp_config.receiver.protocols.http.endpoint": ("string", "string", "0.0.0.0:4138"),
+        "otlp_config.receiver.protocols.http.endpoint": ("string", "string", "0.0.0.0:4318"),
         "otlp_config.metrics.resource_attributes_as_tags": ("boolean", "boolean", False),
         "otlp_config.metrics.tag_cardinality": ("string", "string", "low"),
         "otlp_config.metrics.delta_ttl": ("integer", "integer", 3600),
@@ -307,11 +307,11 @@ def get_node_types_and_default(full_name, node, os_target):
 
     if node_type == "array":
         if node["items"]["type"] == "string":
-            yaml_type, env_type = "list of strings", "space separated list of strings"
+            yaml_type, env_type = "list of strings", "space-separated list of strings"
         elif node["items"]["type"] == "object":
             yaml_type, env_type = "list of object", "JSON list of object"
         elif node["items"]["type"] == "number":
-            yaml_type, env_type = "list of integers", "space separated list of integers"
+            yaml_type, env_type = "list of integers", "space-separated list of integers"
         else:
             raise(Exception(f"unknown array of type: {node["items"]["type"]}"))
     elif node_type == "number":
@@ -376,6 +376,8 @@ def get_env_lines(node, full_name, node_type, default):
 
     res = ""
     for var in env_vars:
+        if var.startswith("DD_PROCESS_AGENT_"):
+            continue
         if full_name == "api_key":
             # API key is the exception: it's the only required field
             res += f"@env {var} - {node_type} - required"
