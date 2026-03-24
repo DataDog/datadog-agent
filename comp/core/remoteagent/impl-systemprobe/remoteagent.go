@@ -123,9 +123,7 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 	}, nil
 }
 
-// GetStatusDetails returns the status details of system-probe.
-// System-probe fully owns its status representation by calling module.GetStats()
-// directly, rather than reading expvars.
+// GetStatusDetails returns the status details of system-probe
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	stats := module.GetStats()
 	statusBytes, err := json.Marshal(stats)
