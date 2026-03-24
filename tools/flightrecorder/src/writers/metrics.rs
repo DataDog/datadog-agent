@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -10,55 +11,64 @@ use vortex::file::VortexWriteOptions;
 use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
-use super::contexts::ContextsWriter;
 use super::intern::StringInterner;
 use crate::generated::signals_generated::signals::MetricBatch;
 
 /// Columnar accumulator for metric samples.
 ///
-/// Metric data points reference contexts by `context_key` (u64) only.
-/// Context definitions (name + tags) are written to separate context files
-/// via an embedded [`ContextsWriter`].
+/// Context definitions (name + tags) are resolved inline at write time using a
+/// HashMap, producing self-contained metric files with no separate context files.
 pub struct MetricsWriter {
     pub output_dir: PathBuf,
     pub flush_rows: usize,
     pub flush_interval: Duration,
     pub last_flush: Instant,
 
-    // Interned string column (dictionary-encoded on flush).
+    // Interned string columns (dictionary-encoded on flush).
+    names: StringInterner,
+    tags: StringInterner,
     sources: StringInterner,
 
     // Plain columnar buffers.
-    context_keys: Vec<u64>,
     values: Vec<f64>,
     timestamps: Vec<i64>,
     sample_rates: Vec<f64>,
 
-    // Writes context definitions to separate vortex files.
-    contexts_writer: ContextsWriter,
+    // Resolves context_key → (name, tags) for inline writing.
+    context_map: HashMap<u64, (String, String)>,
+
+    // Rate-limited logging for unresolved context keys.
+    unresolved_count: u64,
+    last_unresolved_log: Instant,
 
     write_buf: Vec<u8>,
 }
 
 impl MetricsWriter {
-    pub fn new(output_dir: impl AsRef<Path>, flush_rows: usize, flush_interval: Duration) -> Self {
+    pub fn new(
+        output_dir: impl AsRef<Path>,
+        flush_rows: usize,
+        flush_interval: Duration,
+    ) -> Self {
         let output_dir = output_dir.as_ref().to_path_buf();
         Self {
-            // Context rows are much larger than metric rows (long name/tags strings),
-            // so flush contexts in smaller batches to limit transient Vortex pipeline memory.
-            contexts_writer: ContextsWriter::new(&output_dir, flush_rows.min(2000), flush_interval),
-
             output_dir,
             flush_rows,
             flush_interval,
             last_flush: Instant::now(),
 
+            names: StringInterner::with_capacity(flush_rows),
+            tags: StringInterner::with_capacity(flush_rows),
             sources: StringInterner::with_capacity(flush_rows),
 
-            context_keys: Vec::with_capacity(flush_rows),
             values: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
             sample_rates: Vec::with_capacity(flush_rows),
+
+            context_map: HashMap::new(),
+
+            unresolved_count: 0,
+            last_unresolved_log: Instant::now(),
 
             write_buf: Vec::with_capacity(64 * 1024),
         }
@@ -72,8 +82,8 @@ impl MetricsWriter {
 
     /// Ingest a MetricBatch from FlatBuffers. Flushes automatically when thresholds are reached.
     ///
-    /// Context definitions (context_key != 0, name non-empty) are forwarded to the
-    /// embedded ContextsWriter. All samples store only the context_key in the metrics file.
+    /// Context definitions (context_key != 0, name non-empty) are stored in the
+    /// context_map. All samples resolve context_key to (name, tags) inline.
     pub async fn push(&mut self, batch: &MetricBatch<'_>) -> Result<Option<PathBuf>> {
         if let Some(samples) = batch.samples() {
             for i in 0..samples.len() {
@@ -81,7 +91,7 @@ impl MetricsWriter {
                 let ckey = s.context_key();
                 let raw_name = s.name().unwrap_or("");
 
-                // If this is a context definition, record it in the contexts writer.
+                // If this is a context definition, store it in the map.
                 if ckey != 0 && !raw_name.is_empty() {
                     let tags_joined: String = s
                         .tags()
@@ -93,10 +103,22 @@ impl MetricsWriter {
                         })
                         .unwrap_or_default();
 
-                    self.contexts_writer.try_record(ckey, raw_name, &tags_joined);
+                    self.context_map
+                        .insert(ckey, (raw_name.to_string(), tags_joined));
                 }
 
-                self.context_keys.push(ckey);
+                // Resolve context_key to name+tags.
+                let (name, tags) = if let Some((n, t)) = self.context_map.get(&ckey) {
+                    (n.as_str(), t.as_str())
+                } else {
+                    if ckey != 0 {
+                        self.unresolved_count += 1;
+                    }
+                    ("<unknown>", "")
+                };
+
+                self.names.intern(name);
+                self.tags.intern(tags);
                 self.sources.intern(s.source().unwrap_or(""));
                 self.values.push(s.value());
                 self.timestamps.push(s.timestamp_ns());
@@ -104,11 +126,16 @@ impl MetricsWriter {
             }
         }
 
-        // Flush contexts if their thresholds are reached.
-        if self.contexts_writer.should_flush() {
-            if let Err(e) = self.contexts_writer.flush().await {
-                tracing::warn!("contexts flush error: {}", e);
-            }
+        // Log unresolved context keys at most once per minute.
+        if self.unresolved_count > 0
+            && self.last_unresolved_log.elapsed() >= Duration::from_secs(60)
+        {
+            tracing::warn!(
+                count = self.unresolved_count,
+                "unresolved context_keys in the last 60s (using <unknown>)"
+            );
+            self.unresolved_count = 0;
+            self.last_unresolved_log = Instant::now();
         }
 
         if self.len() >= self.flush_rows || self.last_flush.elapsed() >= self.flush_interval {
@@ -131,15 +158,43 @@ impl MetricsWriter {
         let path = self.output_dir.join(format!("metrics-{}.vortex", ts_ms));
 
         // Take columns.
-        let context_keys = std::mem::take(&mut self.context_keys);
+        let (name_vals, name_codes) = self.names.take();
+        let (tag_vals, tag_codes) = self.tags.take();
         let (source_vals, source_codes) = self.sources.take();
         let values = std::mem::take(&mut self.values);
         let timestamps = std::mem::take(&mut self.timestamps);
         let sample_rates = std::mem::take(&mut self.sample_rates);
 
+        // Sort index by timestamp for better compression (delta encoding).
+        // Only allocates one Vec<usize> (~80 KB for 10K rows) — all columns
+        // are gathered in sorted order when building the Vortex arrays.
+        let mut order: Vec<usize> = (0..row_count).collect();
+        order.sort_unstable_by_key(|&i| timestamps[i]);
+
+        let name_array = DictArray::try_new(
+            order
+                .iter()
+                .map(|&i| name_codes[i])
+                .collect::<PrimitiveArray>()
+                .into_array(),
+            VarBinArray::from(name_vals).into_array(),
+        )
+        .context("building name DictArray")?;
+
+        let tag_array = DictArray::try_new(
+            order
+                .iter()
+                .map(|&i| tag_codes[i])
+                .collect::<PrimitiveArray>()
+                .into_array(),
+            VarBinArray::from(tag_vals).into_array(),
+        )
+        .context("building tags DictArray")?;
+
         let source_array = DictArray::try_new(
-            source_codes
-                .into_iter()
+            order
+                .iter()
+                .map(|&i| source_codes[i])
                 .collect::<PrimitiveArray>()
                 .into_array(),
             VarBinArray::from(source_vals).into_array(),
@@ -148,27 +203,29 @@ impl MetricsWriter {
 
         let st = StructArray::try_new(
             FieldNames::from([
-                "context_key",
+                "name",
+                "tags",
                 "value",
                 "timestamp_ns",
                 "sample_rate",
                 "source",
             ]),
             vec![
-                context_keys
-                    .into_iter()
+                name_array.into_array(),
+                tag_array.into_array(),
+                order
+                    .iter()
+                    .map(|&i| values[i])
                     .collect::<PrimitiveArray>()
                     .into_array(),
-                values
-                    .into_iter()
+                order
+                    .iter()
+                    .map(|&i| timestamps[i])
                     .collect::<PrimitiveArray>()
                     .into_array(),
-                timestamps
-                    .into_iter()
-                    .collect::<PrimitiveArray>()
-                    .into_array(),
-                sample_rates
-                    .into_iter()
+                order
+                    .iter()
+                    .map(|&i| sample_rates[i])
                     .collect::<PrimitiveArray>()
                     .into_array(),
                 source_array.into_array(),
@@ -201,23 +258,14 @@ impl MetricsWriter {
         Ok(path)
     }
 
-    /// Clear the context bloom filter and flush any pending context rows.
-    /// Called when a new agent connection is accepted because the agent will
-    /// re-send all context definitions.
-    pub async fn reset_contexts(&mut self) -> Result<()> {
-        if let Err(e) = self.contexts_writer.flush_if_any().await {
-            tracing::warn!("contexts flush error during reset: {}", e);
-        }
-        self.contexts_writer.reset();
-        Ok(())
+    /// Clear the context map. Called when a new agent connection is accepted
+    /// because the agent will re-send all context definitions.
+    pub fn reset_context_map(&mut self) {
+        self.context_map.clear();
     }
 
     /// Flush if any rows are buffered. Used on shutdown.
     pub async fn flush_if_any(&mut self) -> Result<Option<PathBuf>> {
-        // Flush pending contexts first.
-        if let Err(e) = self.contexts_writer.flush_if_any().await {
-            tracing::warn!("contexts flush error during metrics flush_if_any: {}", e);
-        }
         if self.len() == 0 {
             Ok(None)
         } else {
@@ -237,7 +285,8 @@ mod tests {
 
     fn add_rows(w: &mut MetricsWriter, n: usize) {
         for i in 0..n {
-            w.context_keys.push((i % 10) as u64);
+            w.names.intern("cpu.user");
+            w.tags.intern("host:a|env:prod");
             w.sources.intern("test");
             w.values.push(i as f64);
             w.timestamps.push(1000);
@@ -260,7 +309,8 @@ mod tests {
     async fn test_readback_fields() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        w.context_keys.push(42);
+        w.names.intern("cpu.user");
+        w.tags.intern("host:a");
         w.sources.intern("src1");
         w.values.push(42.0);
         w.timestamps.push(999);
@@ -283,7 +333,8 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         for i in 0..1000 {
-            w.context_keys.push((i % 5) as u64);
+            w.names.intern("cpu.user");
+            w.tags.intern("host:a|env:prod");
             w.sources.intern("agent");
             w.values.push(i as f64);
             w.timestamps.push(i as i64);
@@ -300,60 +351,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_context_definition_writes_to_contexts_file() {
+    async fn test_context_map_resolution() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
-        // Manually record a context definition
-        w.contexts_writer
-            .try_record(100, "cpu.user", "host:a|env:prod");
-        w.contexts_writer
-            .try_record(200, "mem.used", "host:b");
+        // Insert context definitions
+        w.context_map
+            .insert(100, ("cpu.user".to_string(), "host:a|env:prod".to_string()));
+        w.context_map
+            .insert(200, ("mem.used".to_string(), "host:b".to_string()));
 
-        let path = w.contexts_writer.flush().await.unwrap();
-        assert!(path.exists());
-        assert!(
-            path.file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .starts_with("contexts-")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_context_reference_does_not_write_context() {
-        let dir = tempdir().unwrap();
-        let mut w = make_writer(dir.path());
-
-        // Record a definition first
-        w.contexts_writer
-            .try_record(100, "cpu.user", "host:a");
-
-        // A reference (name empty) doesn't go through try_record
-        // Just push a sample with context_key
-        w.context_keys.push(100);
+        // Simulate rows that resolve via context_map
+        let (name, tags) = w.context_map.get(&100).unwrap().clone();
+        w.names.intern(&name);
+        w.tags.intern(&tags);
         w.sources.intern("agent");
         w.values.push(1.0);
         w.timestamps.push(1000);
         w.sample_rates.push(1.0);
 
-        // Only 1 context row (the definition), not 2
-        assert_eq!(w.contexts_writer.len(), 1);
+        let (name, tags) = w.context_map.get(&200).unwrap().clone();
+        w.names.intern(&name);
+        w.tags.intern(&tags);
+        w.sources.intern("agent");
+        w.values.push(2.0);
+        w.timestamps.push(2000);
+        w.sample_rates.push(1.0);
+
+        let path = w.flush().await.unwrap();
+        assert!(path.exists());
     }
 
     #[tokio::test]
-    async fn test_bloom_dedup_in_metrics() {
+    async fn test_reset_context_map() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
+        w.context_map
+            .insert(42, ("cpu.system".to_string(), "host:x".to_string()));
+        assert_eq!(w.context_map.len(), 1);
 
-        // Same context_key sent twice — only first should be recorded
-        assert!(w
-            .contexts_writer
-            .try_record(42, "cpu.system", "host:x"));
-        assert!(!w
-            .contexts_writer
-            .try_record(42, "cpu.system", "host:x"));
-        assert_eq!(w.contexts_writer.len(), 1);
+        w.reset_context_map();
+        assert!(w.context_map.is_empty());
     }
 }
