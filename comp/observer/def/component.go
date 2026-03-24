@@ -237,7 +237,7 @@ type LogMetricsExtractor interface {
 	// Name returns the extractor name for debugging and logging.
 	Name() string
 	// ProcessLog examines a log and returns any derived metrics.
-	ProcessLog(log LogView) []MetricOutput
+	ProcessLog(log LogView) LogMetricsExtractorOutput
 }
 
 // LogObserver is an optional interface that Detectors can implement to
@@ -255,6 +255,12 @@ type MetricOutput struct {
 	Value      float64
 	Tags       []string
 	ContextKey string
+}
+
+// LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
+type LogMetricsExtractorOutput struct {
+	Metrics   []MetricOutput
+	Telemetry []ObserverTelemetry
 }
 
 // MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").

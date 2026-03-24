@@ -10,9 +10,10 @@ import (
 	"hash/fnv"
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
@@ -29,11 +30,11 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	}
 
 	res := a.ProcessLog(log)
-	assert.Len(t, res, 3) // 2 numeric fields + pattern count
+	assert.Len(t, res.Metrics, 3) // 2 numeric fields + pattern count
 
 	// Order is map iteration dependent; just assert set membership.
 	got := map[string]observer.MetricOutput{}
-	for _, m := range res {
+	for _, m := range res.Metrics {
 		got[m.Name] = m
 	}
 
@@ -66,15 +67,15 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	}
 
 	res := a.ProcessLog(log)
-	assert.Len(t, res, 1)
-	assert.Equal(t, float64(1), res[0].Value)
-	assert.Equal(t, []string{"service:web"}, res[0].Tags)
+	assert.Len(t, res.Metrics, 1)
+	assert.Equal(t, float64(1), res.Metrics[0].Value)
+	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
 
 	// Compute expected metric name (hash of signature).
 	sig := logSignature([]byte("Request completed in 45ms"), 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res[0].Name)
+	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
@@ -90,10 +91,10 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 	}
 
 	res := a.ProcessLog(log)
-	require.Len(t, res, 2) // selected numeric field + pattern count
+	require.Len(t, res.Metrics, 2) // selected numeric field + pattern count
 
 	got := map[string]observer.MetricOutput{}
-	for _, m := range res {
+	for _, m := range res.Metrics {
 		got[m.Name] = m
 	}
 
@@ -118,12 +119,12 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	log := &mockLogView{content: input, tags: []string{"service:api"}}
 
 	res := a.ProcessLog(log)
-	require.Len(t, res, 1)
+	require.Len(t, res.Metrics, 1)
 
 	sig := logSignature(input, 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res[0].Name)
+	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
 }
 
 func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
@@ -134,10 +135,10 @@ func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	}
 
 	res := a.ProcessLog(log)
-	require.Len(t, res, 1)
-	require.NotEmpty(t, res[0].ContextKey)
+	require.Len(t, res.Metrics, 1)
+	require.NotEmpty(t, res.Metrics[0].ContextKey)
 
-	ctx, ok := a.GetContextByKey(res[0].ContextKey)
+	ctx, ok := a.GetContextByKey(res.Metrics[0].ContextKey)
 	require.True(t, ok)
 	assert.Equal(t, "log_metrics_extractor", ctx.Source)
 	assert.Equal(t, "Request completed in 45ms", ctx.Example)
@@ -156,14 +157,14 @@ func TestLogMetricsExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 
 	resA := a.ProcessLog(logA)
 	resB := a.ProcessLog(logB)
-	require.Len(t, resA, 1)
-	require.Len(t, resB, 1)
-	require.Equal(t, resA[0].Name, resB[0].Name)
-	require.NotEqual(t, resA[0].ContextKey, resB[0].ContextKey)
+	require.Len(t, resA.Metrics, 1)
+	require.Len(t, resB.Metrics, 1)
+	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
-	ctxA, ok := a.GetContextByKey(resA[0].ContextKey)
+	ctxA, ok := a.GetContextByKey(resA.Metrics[0].ContextKey)
 	require.True(t, ok)
-	ctxB, ok := a.GetContextByKey(resB[0].ContextKey)
+	ctxB, ok := a.GetContextByKey(resB.Metrics[0].ContextKey)
 	require.True(t, ok)
 
 	assert.Equal(t, "Request completed in 45ms", ctxA.Example)

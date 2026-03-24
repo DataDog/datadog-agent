@@ -112,9 +112,9 @@ Reporters query state interfaces like `Correlator` and `RawAnomalyState` to acce
 
 When a log is observed, two things happen:
 
-1. **LogMetricsExtractors** run synchronously, transforming the log into metrics:
+1. **LogMetricsExtractors** run synchronously, transforming the log into metrics (and optional telemetry for debugging):
    ```
-   ProcessLog(log LogView) → []MetricOutput
+   ProcessLog(log LogView) → LogMetricsExtractorOutput { Metrics, Telemetry }
    ```
    Each returned metric is stored under the extractor's component name as the namespace and flows through normal detection. Implementations should be stateless and fast.
 
@@ -224,14 +224,16 @@ type MyExtractor struct{}
 
 func (m *MyExtractor) Name() string { return "my_extractor" }
 
-func (m *MyExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
+func (m *MyExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
     content := string(log.GetContent())
     // Extract what you need synchronously — don't store the view
-    return []observer.MetricOutput{{
-        Name:  "my.metric",    // stored under the extractor's name as namespace
-        Value: 1,
-        Tags:  log.GetTags(),
-    }}
+    return observer.LogMetricsExtractorOutput{
+        Metrics: []observer.MetricOutput{{
+            Name:  "my.metric",    // stored under the extractor's name as namespace
+            Value: 1,
+            Tags:  log.GetTags(),
+        }},
+    }
 }
 ```
 

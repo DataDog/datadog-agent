@@ -415,7 +415,11 @@ func (o *observerImpl) run() {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
 		}
 		if obs.log != nil {
-			requests = append(requests, o.engine.IngestLog(obs.source, obs.log)...)
+			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
+			requests = append(requests, logRequests...)
+			if len(logTelemetry) > 0 {
+				o.telemetryHandler.handleTelemetry(logTelemetry)
+			}
 		}
 		if obs.trace != nil {
 			o.processTrace(obs.source, obs.trace)

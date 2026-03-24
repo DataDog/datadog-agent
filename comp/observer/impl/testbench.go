@@ -650,6 +650,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
 	// ReplayStoredData (below) will handle scheduling after all data is loaded.
+	var ingestTelemetry []observerdef.ObserverTelemetry
 	for _, log := range tb.rawLogs {
 		obs := &logObs{
 			content:     log.GetContent(),
@@ -658,7 +659,8 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			hostname:    log.GetHostname(),
 			timestampMs: log.GetTimestampUnixMilli(),
 		}
-		tb.engine.IngestLog("parquet", obs)
+		_, tel := tb.engine.IngestLog("parquet", obs)
+		ingestTelemetry = append(ingestTelemetry, tel...)
 	}
 
 	// Replay all stored data through the scheduler policy.
@@ -669,7 +671,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
-	for _, t := range result.telemetry {
+	for _, t := range append(ingestTelemetry, result.telemetry...) {
 		detName := t.DetectorName
 		if detName == "" {
 			detName = "unknown"
