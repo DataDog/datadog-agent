@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -43,6 +44,7 @@ const (
 	// Default allowed paths for restricted shell
 	defaultLogPath       = "/var/log"
 	defaultOsReleasePath = "/etc/os-release"
+	defaultProcPath      = "/proc"
 
 	containerizedPathPrefix = "/host"
 )
@@ -79,19 +81,15 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	var logPath string
-	var procPath string
-	var osReleasePath string
+	defaultPaths := []string{defaultLogPath, defaultOsReleasePath}
+	procPath := defaultProcPath
 	if env.IsContainerized() {
-		logPath = containerizedPathPrefix + defaultLogPath
-		procPath = containerizedPathPrefix + procPath
-		osReleasePath = containerizedPathPrefix + osReleasePath
-	} else {
-		logPath = defaultLogPath
-		procPath = procPath
-		osReleasePath = osReleasePath
+		procPath = filepath.Join(containerizedPathPrefix, defaultProcPath)
+		for i, v := range defaultPaths {
+			defaultPaths[i] = filepath.Join(containerizedPathPrefix, v)
+		}
 	}
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{logPath, osReleasePath})
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
 	config.BindEnvAndSetDefault(PARRestrictedShellProcPath, procPath)
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
