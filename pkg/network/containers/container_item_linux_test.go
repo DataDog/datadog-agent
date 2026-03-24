@@ -295,3 +295,24 @@ func TestReadContainerItemProcessRunningVsNotRunning(t *testing.T) {
 		})
 	}
 }
+
+// Validates the named-return + defer/recover pattern used in isProcessStillRunningImpl,
+// since we cannot reliably trigger the real gopsutil panic in a unit test.
+func TestIsProcessStillRunningImpl_PanicRecovery(t *testing.T) {
+	panicCaught := false
+
+	running, err := func() (running bool, retErr error) {
+		defer func() {
+			if r := recover(); r != nil {
+				panicCaught = true
+				running = false
+				retErr = nil
+			}
+		}()
+		panic("runtime error: slice bounds out of range [1:0]")
+	}()
+
+	require.True(t, panicCaught, "panic should have been caught by recover")
+	require.False(t, running, "should report process as not running after panic")
+	require.NoError(t, err, "should not return an error after panic recovery")
+}
