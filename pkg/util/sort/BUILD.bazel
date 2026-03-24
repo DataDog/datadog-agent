@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sort",
+    srcs = [
+        "sort.go",
+        "sort_uniq.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/sort",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "sort_test",
+    srcs = [
+        "sort_test.go",
+        "sort_uniq_test.go",
+    ],
+    embed = [":sort"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
