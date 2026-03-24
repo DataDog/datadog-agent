@@ -163,13 +163,16 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 // normalizeSpanLinks handles span links normalization for both pb.Span and idx.InternalSpan
 func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
-		if val, ok := link.Attributes["link.name"]; ok {
-			newName, err := normalizeutil.NormalizeName(val)
-			if err != nil {
-				log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
-			}
-			link.Attributes["link.name"] = newName
+		result, found := semantics.Lookup(normalizerRegistry, semantics.NewStringMapAccessor(link.Attributes), semantics.ConceptLinkName)
+		keyName := string(semantics.ConceptLinkName)
+		if found {
+			keyName = result.TagInfo.Name
 		}
+		newName, err := normalizeutil.NormalizeName(result.StringValue) // "" normalizes to DefaultSpanName
+		if err != nil {
+			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
+		}
+		link.Attributes[keyName] = newName
 	}
 }
 
@@ -201,13 +204,12 @@ func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, durat
 // normalizeSpanLinksV1 handles span links normalization for idx.InternalSpan
 func (a *Agent) normalizeSpanLinksV1(links []*idx.InternalSpanLink) {
 	for _, link := range links {
-		if val, ok := link.GetAttributeAsString("link.name"); ok {
-			newName, err := normalizeutil.NormalizeName(val)
-			if err != nil {
-				log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
-			}
-			link.SetStringAttribute("link.name", newName)
+		val, _ := link.GetAttributeAsString(string(semantics.ConceptLinkName))
+		newName, err := normalizeutil.NormalizeName(val) // val=="" normalizes to DefaultSpanName
+		if err != nil {
+			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
 		}
+		link.SetStringAttribute(string(semantics.ConceptLinkName), newName)
 	}
 }
 
@@ -235,7 +237,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v, ok := s.Meta["component"]; ok {
+		if v := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptComponent); v != "" {
 			s.Name = v
 		}
 	}
@@ -294,7 +296,7 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v, ok := s.GetAttributeAsString("component"); ok {
+		if v := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptComponent); v != "" {
 			s.SetName(v)
 		}
 	}
