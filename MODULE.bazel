@@ -339,6 +339,6 @@ include("//deps:go.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "1.24.5")
+bazel_dep(name = "apple_support", version = "2.3.0")
 
 use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")
