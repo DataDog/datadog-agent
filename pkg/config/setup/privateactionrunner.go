@@ -37,14 +37,12 @@ const (
 
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
-	PARRestrictedShellProcPath     = "private_action_runner.restricted_shell_proc_path"
 )
 
 const (
 	// Default allowed paths for restricted shell
 	defaultLogPath       = "/var/log"
 	defaultOsReleasePath = "/etc/os-release"
-	defaultProcPath      = "/proc"
 
 	containerizedPathPrefix = "/host"
 )
@@ -82,15 +80,10 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
 	defaultPaths := []string{defaultLogPath, defaultOsReleasePath}
-	procPath := defaultProcPath
 	if env.IsContainerized() {
 		// Only use /host-prefixed paths when host mounts actually exist.
 		// Serverless-containerized environments (e.g. Fargate) cannot mount
 		// host volumes, so fall back to container-local paths.
-		hostProcPath := filepath.Join(containerizedPathPrefix, defaultProcPath)
-		if pathExists(hostProcPath) {
-			procPath = hostProcPath
-		}
 		for i, v := range defaultPaths {
 			hostPath := filepath.Join(containerizedPathPrefix, v)
 			if pathExists(hostPath) {
@@ -99,7 +92,6 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		}
 	}
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
-	config.BindEnvAndSetDefault(PARRestrictedShellProcPath, procPath)
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil

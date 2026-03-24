@@ -85,7 +85,6 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		RShellAllowedPaths:        config.GetStringSlice(setup.PARRestrictedShellAllowedPaths),
-		RShellProcPath:            config.GetString(setup.PARRestrictedShellProcPath),
 		DDHost:                    ddHost,
 		DDApiHost:                 ddHost,
 		Modes:                     []modes.Mode{modes.ModePull},

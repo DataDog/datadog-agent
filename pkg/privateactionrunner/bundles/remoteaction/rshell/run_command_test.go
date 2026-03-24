@@ -15,16 +15,15 @@ import (
 func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 	paths := []string{"/var/log", "/tmp"}
 
-	handler := NewRunCommandHandler(paths, "/proc")
+	handler := NewRunCommandHandler(paths)
 
 	assert.Equal(t, paths, handler.allowedPaths)
-	assert.Equal(t, "/proc", handler.procPath)
 }
 
 func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 	paths := []string{"/var/log", "/tmp"}
 
-	bundle := NewRshellBundle(paths, "/proc")
+	bundle := NewRshellBundle(paths)
 	action := bundle.GetAction("runCommand")
 
 	handler, ok := action.(*RunCommandHandler)

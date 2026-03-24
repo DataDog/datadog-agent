@@ -11,28 +11,33 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	defaultProcPath         = "/proc"
+	containerizedPathPrefix = "/host"
+)
+
 // RunCommandHandler implements the runCommand action.
 type RunCommandHandler struct {
 	allowedPaths []string
-	procPath     string
 }
 
 // NewRunCommandHandler creates a new RunCommandHandler.
-func NewRunCommandHandler(allowedPaths []string, procPath string) *RunCommandHandler {
+func NewRunCommandHandler(allowedPaths []string) *RunCommandHandler {
 	return &RunCommandHandler{
 		allowedPaths: allowedPaths,
-		procPath:     procPath,
 	}
 }
 
@@ -91,8 +96,9 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedPaths(validPaths),
 		cmdOpt,
 	}
-	if h.procPath != "" {
-		opts = append(opts, interp.ProcPath(h.procPath))
+	procPath := resolveProcPath()
+	if procPath != defaultProcPath {
+		opts = append(opts, interp.ProcPath(procPath))
 	}
 	runner, err := interp.New(opts...)
 	if err != nil {
@@ -116,4 +122,17 @@ func (h *RunCommandHandler) Run(
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 	}, nil
+}
+
+// resolveProcPath returns the proc filesystem path appropriate for the current
+// environment. In containerized deployments with host mounts, it returns
+// /host/proc; otherwise it falls back to /proc.
+func resolveProcPath() string {
+	if env.IsContainerized() {
+		hostProc := filepath.Join(containerizedPathPrefix, defaultProcPath)
+		if _, err := os.Stat(hostProc); err == nil {
+			return hostProc
+		}
+	}
+	return defaultProcPath
 }
