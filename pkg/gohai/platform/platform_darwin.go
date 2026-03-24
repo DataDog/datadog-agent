@@ -95,6 +95,7 @@ func (platformInfo *Info) fillPlatformInfo() {
 		log.Debug("Running under Rosetta translator; overriding architecture values")
 		platformInfo.Processor = utils.NewValue("arm")
 		platformInfo.Machine = utils.NewValue("arm64")
+		platformInfo.HardwarePlatform = utils.NewValue("arm64")
 	} else if err != nil {
 		log.Debugf("Error when detecting Rosetta translator: %s", err)
 	}
