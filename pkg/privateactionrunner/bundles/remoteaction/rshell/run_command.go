@@ -94,11 +94,8 @@ func (h *RunCommandHandler) Run(
 	opts := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.AllowedPaths(validPaths),
+		interp.ProcPath(resolveProcPath()),
 		cmdOpt,
-	}
-	procPath := resolveProcPath()
-	if procPath != defaultProcPath {
-		opts = append(opts, interp.ProcPath(procPath))
 	}
 	runner, err := interp.New(opts...)
 	if err != nil {
