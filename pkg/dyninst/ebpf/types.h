@@ -3,6 +3,14 @@
 
 // Types used to program the stack machine and event processing.
 
+// Throttle mode controls when throttling is applied relative to condition evaluation.
+// To be kept in sync with the compiler.ThrottleMode constants.
+typedef enum throttle_mode {
+  THROTTLE_AT_START = 0,          // Throttle before probe_run (default for unconditional non-return probes)
+  THROTTLE_AFTER_COND_CHECK = 1,  // Throttle after condition evaluates to true
+  THROTTLE_NONE = 2,              // Never throttle (unconditional returns, entries with conditional returns)
+} throttle_mode_t;
+
 typedef struct probe_params {
   uint32_t throttler_idx;
   uint32_t stack_machine_pc;
@@ -15,7 +23,8 @@ typedef struct probe_params {
   char kind; // actually an event_kind_t
   char top_pc_offset;
   char no_return_reason;
-  char __padding[3];
+  char throttle_mode; // actually a throttle_mode_t
+  char __padding[2];
 } probe_params_t;
 
 typedef struct throttler_params {
@@ -89,6 +98,14 @@ typedef enum sm_opcode {
   // Top level ops.
   SM_OP_CHASE_POINTERS = 21,
   SM_OP_PREPARE_EVENT_ROOT = 22,
+  // Condition expression ops.
+  SM_OP_EXPR_PUSH_OFFSET = 23,
+  SM_OP_EXPR_LOAD_LITERAL = 24,
+  SM_OP_EXPR_READ_STRING = 25,
+  SM_OP_EXPR_CMP_EQ_BASE = 26,
+  SM_OP_EXPR_CMP_EQ_STRING = 27,
+  SM_OP_CONDITION_CHECK = 28,
+  SM_OP_CONDITION_BEGIN = 29,
 } sm_opcode_t;
 
 #ifdef DYNINST_DEBUG
@@ -140,6 +157,20 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "CHASE_POINTERS";
   case SM_OP_PREPARE_EVENT_ROOT:
     return "PREPARE_EVENT_ROOT";
+  case SM_OP_EXPR_PUSH_OFFSET:
+    return "EXPR_PUSH_OFFSET";
+  case SM_OP_EXPR_LOAD_LITERAL:
+    return "EXPR_LOAD_LITERAL";
+  case SM_OP_EXPR_READ_STRING:
+    return "EXPR_READ_STRING";
+  case SM_OP_EXPR_CMP_EQ_BASE:
+    return "EXPR_CMP_EQ_BASE";
+  case SM_OP_EXPR_CMP_EQ_STRING:
+    return "EXPR_CMP_EQ_STRING";
+  case SM_OP_CONDITION_CHECK:
+    return "CONDITION_CHECK";
+  case SM_OP_CONDITION_BEGIN:
+    return "CONDITION_BEGIN";
   default:
     break;
   }

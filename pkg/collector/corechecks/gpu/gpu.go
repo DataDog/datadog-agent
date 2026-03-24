@@ -120,13 +120,13 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 }
 
 // Configure parses the check configuration and init the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	// Check if GPU check is enabled (follows SBOM pattern)
 	if !pkgconfigsetup.Datadog().GetBool("gpu.enabled") {
 		return errors.New("GPU check is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 
@@ -412,7 +412,12 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	}
 
 	metricName := gpuMetricsNs + metric.Name
-	allTags := append(append(deviceTags, metricTags...), metric.Tags...)
+	// Build into a fresh slice so we do not append into deviceTags' backing
+	// array and leak tags across metrics for the same device.
+	allTags := make([]string, 0, len(deviceTags)+len(metricTags)+len(metric.Tags))
+	allTags = append(allTags, deviceTags...)
+	allTags = append(allTags, metricTags...)
+	allTags = append(allTags, metric.Tags...)
 
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
