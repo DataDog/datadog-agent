@@ -4407,7 +4407,10 @@ func disassembleAmd64Function(
 		}
 		if !frameless &&
 			instruction.Op == x86asm.POP && instruction.Args[0] == x86asm.RBP &&
-			prevInst.Op == x86asm.ADD && prevInst.Args[0] == x86asm.RSP {
+			// Sometimes we see negative subtractions instead of additions,
+			// but at the time of writing, not sure why.
+			((prevInst.Op == x86asm.ADD || prevInst.Op == x86asm.SUB) &&
+				prevInst.Args[0] == x86asm.RSP) {
 
 			epilogueStart := addr + uint64(offset) - uint64(prevInst.Len)
 			maybeRet, err := x86asm.Decode(body[offset+instruction.Len:], 64)
@@ -4438,9 +4441,9 @@ func disassembleAmd64Function(
 					}
 				}
 			}
-			offset += nopLen + instruction.Len
 			instruction = maybeRet
 			if instruction.Op == x86asm.RET && collectReturnLocations {
+				offset += nopLen + instruction.Len
 				returnLocations = append(returnLocations, ir.InjectionPoint{
 					PC:                  epilogueStart,
 					Frameless:           frameless,
