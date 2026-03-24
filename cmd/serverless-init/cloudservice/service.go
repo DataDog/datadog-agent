@@ -94,7 +94,7 @@ type CloudService interface {
 //nolint:revive // TODO(SERV) Fix revive linter
 type LocalService struct{}
 
-const defaultPrefix = "datadog.serverless_agent"
+const defaultPrefix = "datadog.serverless_agent."
 
 const localServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
 const localServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
@@ -181,9 +181,9 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		if isCloudRunFunction() {
-			return &CloudRun{spanNamespace: cloudRunFunction}
+			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
 		}
-		return &CloudRun{spanNamespace: cloudRunService}
+		return &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
 	}
 
 	if isCloudRunJob() {

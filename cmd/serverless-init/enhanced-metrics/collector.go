@@ -96,7 +96,7 @@ func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricS
 		metricSource:       metricSource,
 		cgroupReader:       cgroupReader,
 		collectionInterval: collectionInterval,
-		metricPrefix:       metricPrefix + ".enhanced.",
+		metricPrefix:       metricPrefix + "enhanced.",
 		usageMetricName:    usageMetricName,
 		previousRateStats:  NullServerlessRateStats,
 	}, nil

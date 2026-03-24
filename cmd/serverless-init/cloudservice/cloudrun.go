@@ -43,7 +43,7 @@ const (
 
 const (
 	// Cloud Run metrics prefixes and names
-	cloudRunPrefix             = "gcp.run.container"
+	cloudRunPrefix             = "gcp.run.container."
 	cloudRunShutdownMetricName = "gcp.run.container.enhanced.shutdown"
 	cloudRunStartMetricName    = "gcp.run.container.enhanced.cold_start"
 
@@ -66,14 +66,14 @@ const (
 
 const (
 	// Cloud Run Service tags
-	cloudRunService = "gcr."
+	cloudRunServiceTagPrefix = "gcr."
 )
 
 const (
 	// Cloud Run Function tags
-	cloudRunFunction  = "gcrfx."
-	functionTarget    = "build_function_target"
-	functionSignature = "function_signature_type"
+	cloudRunFunctionTagPrefix = "gcrfx."
+	functionTarget            = "build_function_target"
+	functionSignature         = "function_signature_type"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -93,7 +93,7 @@ type CloudRun struct {
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	isCloudRun := c.spanNamespace == cloudRunService
+	isCloudRun := c.spanNamespace == cloudRunServiceTagPrefix
 	var cloudRunType CloudRunType
 	if isCloudRun {
 		cloudRunType = CloudRunService
@@ -110,34 +110,34 @@ func (c *CloudRun) GetTags() map[string]string {
 	if revisionNameVal != "" {
 		tags[revisionName] = revisionNameVal
 		if isCloudRun {
-			tags[cloudRunService+revisionName] = revisionNameVal
+			tags[cloudRunServiceTagPrefix+revisionName] = revisionNameVal
 		} else {
-			tags[cloudRunFunction+revisionName] = revisionNameVal
+			tags[cloudRunFunctionTagPrefix+revisionName] = revisionNameVal
 		}
 	}
 
 	if serviceNameVal != "" {
 		tags[serviceName] = serviceNameVal
 		if isCloudRun {
-			tags[cloudRunService+serviceName] = serviceNameVal
+			tags[cloudRunServiceTagPrefix+serviceName] = serviceNameVal
 		} else {
-			tags[cloudRunFunction+serviceName] = serviceNameVal
+			tags[cloudRunFunctionTagPrefix+serviceName] = serviceNameVal
 		}
 	}
 
 	if configNameVal != "" {
 		tags[configName] = configNameVal
 		if isCloudRun {
-			tags[cloudRunService+configName] = configNameVal
+			tags[cloudRunServiceTagPrefix+configName] = configNameVal
 		} else {
-			tags[cloudRunFunction+configName] = configNameVal
+			tags[cloudRunFunctionTagPrefix+configName] = configNameVal
 		}
 	}
 
-	if c.spanNamespace == cloudRunFunction {
+	if c.spanNamespace == cloudRunFunctionTagPrefix {
 		return c.getFunctionTags(tags)
 	}
-	tags[cloudRunService+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
+	tags[cloudRunServiceTagPrefix+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
 	return tags
 }
 
@@ -161,14 +161,14 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
 
 	if functionTargetVal != "" {
-		tags[cloudRunFunction+functionTarget] = functionTargetVal
+		tags[cloudRunFunctionTagPrefix+functionTarget] = functionTargetVal
 	}
 
 	if functionSignatureType != "" {
-		tags[cloudRunFunction+functionSignature] = functionSignatureType
+		tags[cloudRunFunctionTagPrefix+functionSignature] = functionSignatureType
 	}
 
-	tags[cloudRunFunction+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
+	tags[cloudRunFunctionTagPrefix+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
 	return tags
 }
 
@@ -281,11 +281,11 @@ func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
 		if cloudRunType == CloudRunJob {
-			metaChan <- keyVal{cloudRunJobNamespace + baseKey, val}
+			metaChan <- keyVal{cloudRunJobTagPrefix + baseKey, val}
 		} else if cloudRunType == CloudRunService {
-			metaChan <- keyVal{cloudRunService + baseKey, val}
+			metaChan <- keyVal{cloudRunServiceTagPrefix + baseKey, val}
 		} else if cloudRunType == CloudRunFunction {
-			metaChan <- keyVal{cloudRunFunction + baseKey, val}
+			metaChan <- keyVal{cloudRunFunctionTagPrefix + baseKey, val}
 		} else {
 			panic(fmt.Errorf("unexpected cloudRunType for GCP metadata: %d", cloudRunType))
 		}

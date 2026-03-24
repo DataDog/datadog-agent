@@ -31,7 +31,7 @@ const (
 	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
 
-	appServicePrefix             = "azure.app_services"
+	appServicePrefix             = "azure.app_services."
 	appServiceShutdownMetricName = "azure.app_services.enhanced.shutdown"
 	appServiceStartMetricName    = "azure.app_services.enhanced.cold_start"
 

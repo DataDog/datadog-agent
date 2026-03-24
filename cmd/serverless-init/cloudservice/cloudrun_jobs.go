@@ -32,7 +32,7 @@ const (
 )
 
 const (
-	cloudRunJobNamespace = "gcrj."
+	cloudRunJobTagPrefix = "gcrj."
 	// Low cardinality (include with metrics)
 	jobNameTag      = "job_name"
 	resourceNameTag = "resource_name"
@@ -68,27 +68,27 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	taskCountVal := os.Getenv(cloudRunTaskCountEnvVar)
 
 	if jobNameVal != "" {
-		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
+		tags[cloudRunJobTagPrefix+jobNameTag] = jobNameVal
 		tags[jobNameTag] = jobNameVal
 	}
 
 	if executionNameVal != "" {
-		tags[cloudRunJobNamespace+executionNameTag] = executionNameVal
+		tags[cloudRunJobTagPrefix+executionNameTag] = executionNameVal
 	}
 
 	if taskIndexVal != "" {
-		tags[cloudRunJobNamespace+taskIndexTag] = taskIndexVal
+		tags[cloudRunJobTagPrefix+taskIndexTag] = taskIndexVal
 	}
 
 	if taskAttemptVal != "" {
-		tags[cloudRunJobNamespace+taskAttemptTag] = taskAttemptVal
+		tags[cloudRunJobTagPrefix+taskAttemptTag] = taskAttemptVal
 	}
 
 	if taskCountVal != "" {
-		tags[cloudRunJobNamespace+taskCountTag] = taskCountVal
+		tags[cloudRunJobTagPrefix+taskCountTag] = taskCountVal
 	}
 
-	tags[cloudRunJobNamespace+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
+	tags[cloudRunJobTagPrefix+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
 	return tags
 }
 

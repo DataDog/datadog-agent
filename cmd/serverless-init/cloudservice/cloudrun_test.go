@@ -162,9 +162,9 @@ func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
 		cloudRunType CloudRunType
 		tagPrefix    string
 	}{
-		{CloudRunService, cloudRunService},
-		{CloudRunFunction, cloudRunFunction},
-		{CloudRunJob, cloudRunJobNamespace},
+		{CloudRunService, cloudRunServiceTagPrefix},
+		{CloudRunFunction, cloudRunFunctionTagPrefix},
+		{CloudRunJob, cloudRunJobTagPrefix},
 	} {
 		meta := GetMetaData(testConfig, tc.cloudRunType)
 		assert.Equal(t, "testcontainerid", meta[tc.tagPrefix+containerID], "cloudRunType=%v", tc.cloudRunType)
@@ -174,7 +174,7 @@ func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
 }
 
 func TestGetCloudRunTags(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunService}
+	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -203,7 +203,7 @@ func TestGetCloudRunTags(t *testing.T) {
 }
 
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunService}
+	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -239,7 +239,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunFunction}
+	service := &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
