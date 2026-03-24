@@ -148,7 +148,7 @@ func TestReplayLoopSendsAndDeletes(t *testing.T) {
 
 	// Start replay with a send function that always succeeds
 	var received atomic.Int32
-	m.StartReplayLoop(func(payload *message.Payload) bool {
+	m.StartReplayLoop(func(_ *message.Payload) bool {
 		received.Add(1)
 		return true
 	})
@@ -185,7 +185,7 @@ func TestReplayLoopRetriesOnSendFailure(t *testing.T) {
 
 	// Send function that fails 3 times then succeeds
 	var attempts atomic.Int32
-	m.StartReplayLoop(func(payload *message.Payload) bool {
+	m.StartReplayLoop(func(_ *message.Payload) bool {
 		n := attempts.Add(1)
 		return n > 3
 	})
