@@ -264,6 +264,8 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 
+	// TODO: We need to extend the semantic registry
+	// to allow validations or updates in place.
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if _, valid := a.validateAndFixHTTPStatusCode(ts, sc); !valid {
 			delete(s.Meta, "http.status_code")
