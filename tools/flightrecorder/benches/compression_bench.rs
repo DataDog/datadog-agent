@@ -21,7 +21,9 @@ use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
 // Bring in the strategies from the crate under test.
-use flightrecorder::writers::strategy::{compact_strategy, low_memory_strategy};
+use flightrecorder::writers::strategy::{compact_strategy, fast_flush_strategy, low_memory_strategy};
+use flightrecorder::writers::metrics::METRIC_FIELD_NAMES;
+use flightrecorder::writers::logs::LOG_FIELD_NAMES;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,19 +38,28 @@ fn rss_kb() -> u64 {
         .unwrap_or(0)
 }
 
-/// Build a metric-shaped StructArray with inline name+tags columns.
+/// Build a metric-shaped StructArray with decomposed tag columns (13 columns).
 fn make_metrics(n_rows: usize) -> StructArray {
     let names: Vec<Vec<u8>> = (0..n_rows)
         .map(|i| format!("system.cpu.user.{}", i % 200).into_bytes())
         .collect();
-    let tags: Vec<Vec<u8>> = (0..n_rows)
-        .map(|i| {
-            format!(
-                "host:web{}.prod.us-east-1|env:production|service:api-gateway|team:platform",
-                i % 32
-            )
-            .into_bytes()
-        })
+    let tag_host: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("web{}.prod.us-east-1", i % 32).into_bytes())
+        .collect();
+    let tag_device: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| if i % 10 == 0 { b"sda1".to_vec() } else { b"".to_vec() })
+        .collect();
+    let tag_source: Vec<Vec<u8>> = vec![b"".to_vec(); n_rows];
+    let tag_service: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("api-gateway-{}", i % 4).into_bytes())
+        .collect();
+    let tag_env: Vec<Vec<u8>> = vec![b"production".to_vec(); n_rows];
+    let tag_version: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("v1.{}", i % 3).into_bytes())
+        .collect();
+    let tag_team: Vec<Vec<u8>> = vec![b"platform".to_vec(); n_rows];
+    let tags_overflow: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("region:us-east-1|az:us-east-1{}", (b'a' + (i % 3) as u8) as char).into_bytes())
         .collect();
     let values: Vec<f64> = (0..n_rows).map(|i| i as f64 * 0.001).collect();
     let timestamps: Vec<i64> = (0..n_rows)
@@ -60,17 +71,17 @@ fn make_metrics(n_rows: usize) -> StructArray {
         .collect();
 
     StructArray::try_new(
-        FieldNames::from([
-            "name",
-            "tags",
-            "value",
-            "timestamp_ns",
-            "sample_rate",
-            "source",
-        ]),
+        FieldNames::from(METRIC_FIELD_NAMES),
         vec![
             VarBinArray::from(names).into_array(),
-            VarBinArray::from(tags).into_array(),
+            VarBinArray::from(tag_host).into_array(),
+            VarBinArray::from(tag_device).into_array(),
+            VarBinArray::from(tag_source).into_array(),
+            VarBinArray::from(tag_service).into_array(),
+            VarBinArray::from(tag_env).into_array(),
+            VarBinArray::from(tag_version).into_array(),
+            VarBinArray::from(tag_team).into_array(),
+            VarBinArray::from(tags_overflow).into_array(),
             values
                 .into_iter()
                 .collect::<PrimitiveArray>()
@@ -91,7 +102,7 @@ fn make_metrics(n_rows: usize) -> StructArray {
     .expect("build metrics StructArray")
 }
 
-/// Build a log-shaped StructArray with inline hostname/source/status/tags columns.
+/// Build a log-shaped StructArray with decomposed tag columns (10 columns).
 fn make_logs(n_rows: usize) -> StructArray {
     let hostnames: Vec<Vec<u8>> = (0..n_rows)
         .map(|i| format!("host-{}", i % 10).into_bytes())
@@ -110,8 +121,18 @@ fn make_logs(n_rows: usize) -> StructArray {
             .to_vec()
         })
         .collect();
-    let tags: Vec<Vec<u8>> = (0..n_rows)
-        .map(|i| format!("env:prod|team:platform-{}", i % 8).into_bytes())
+    let tag_service: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("svc-{}", i % 4).into_bytes())
+        .collect();
+    let tag_env: Vec<Vec<u8>> = vec![b"prod".to_vec(); n_rows];
+    let tag_version: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("v{}", i % 3).into_bytes())
+        .collect();
+    let tag_team: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("platform-{}", i % 8).into_bytes())
+        .collect();
+    let tags_overflow: Vec<Vec<u8>> = (0..n_rows)
+        .map(|i| format!("custom_tag:val{}", i % 20).into_bytes())
         .collect();
     let contents: Vec<Vec<u8>> = (0..n_rows)
         .map(|i| {
@@ -126,19 +147,16 @@ fn make_logs(n_rows: usize) -> StructArray {
         .collect();
 
     StructArray::try_new(
-        FieldNames::from([
-            "hostname",
-            "source",
-            "status",
-            "tags",
-            "content",
-            "timestamp_ns",
-        ]),
+        FieldNames::from(LOG_FIELD_NAMES),
         vec![
             VarBinArray::from(hostnames).into_array(),
             VarBinArray::from(sources).into_array(),
             VarBinArray::from(statuses).into_array(),
-            VarBinArray::from(tags).into_array(),
+            VarBinArray::from(tag_service).into_array(),
+            VarBinArray::from(tag_env).into_array(),
+            VarBinArray::from(tag_version).into_array(),
+            VarBinArray::from(tag_team).into_array(),
+            VarBinArray::from(tags_overflow).into_array(),
             VarBinArray::from(contents).into_array(),
             timestamps
                 .into_iter()
@@ -171,7 +189,7 @@ async fn write_with_strategy(
 
 fn print_comparison_table(rt: &Runtime) {
     println!("\n{}", "=".repeat(80));
-    println!("  COMPRESSION STRATEGY COMPARISON: fast vs compact");
+    println!("  COMPRESSION STRATEGY COMPARISON: fast_flush vs compact");
     println!("{}\n", "=".repeat(80));
 
     struct Row {
@@ -196,14 +214,14 @@ fn print_comparison_table(rt: &Runtime) {
 
     for (label, make_fn, n_rows) in &cases {
 
-        // Fast strategy
+        // Fast flush strategy (no compression)
         let rss_before = rss_kb();
         let start = Instant::now();
-        let fast_buf = rt.block_on(write_with_strategy(make_fn(), low_memory_strategy()));
+        let fast_buf = rt.block_on(write_with_strategy(make_fn(), fast_flush_strategy()));
         let fast_write_us = start.elapsed().as_micros();
         let fast_rss = rss_kb().saturating_sub(rss_before);
 
-        // Compact strategy
+        // Compact strategy (full compression)
         let rss_before = rss_kb();
         let start = Instant::now();
         let compact_buf = rt.block_on(write_with_strategy(make_fn(), compact_strategy()));
@@ -267,13 +285,13 @@ fn print_merge_comparison(rt: &Runtime) {
     let n_files = 10usize;
     let rows_per_file = 1_000usize;
 
-    // Write N small metric files using fast strategy
+    // Write N small flush metric files using fast_flush strategy (no compression)
     let mut total_input_bytes = 0u64;
     for i in 0..n_files {
         let st = make_metrics(rows_per_file);
-        let buf = rt.block_on(write_with_strategy(st, low_memory_strategy()));
+        let buf = rt.block_on(write_with_strategy(st, fast_flush_strategy()));
         total_input_bytes += buf.len() as u64;
-        let path = dir.path().join(format!("metrics-{}.vortex", (i + 1) * 100));
+        let path = dir.path().join(format!("flush-metrics-{}.vortex", (i + 1) * 100));
         std::fs::write(&path, &buf).unwrap();
     }
 
@@ -287,9 +305,6 @@ fn print_merge_comparison(rt: &Runtime) {
     let config = MergeConfig {
         output_dir: dir.path().to_path_buf(),
         min_files_to_trigger: 2,
-        max_files_per_pass: n_files,
-        size_threshold_bytes: 0,
-        ..Default::default()
     };
     let merged_count = rt.block_on(merge_pass(&config)).unwrap();
     let merge_time = start.elapsed();
@@ -330,7 +345,7 @@ fn bench_fast_vs_compact(c: &mut Criterion) {
         group.throughput(Throughput::Elements(n_rows as u64));
 
         group.bench_with_input(
-            BenchmarkId::new("fast_metrics", n_rows),
+            BenchmarkId::new("fast_flush_metrics", n_rows),
             &n_rows,
             |b, &n| {
                 b.iter_custom(|iters| {
@@ -338,7 +353,7 @@ fn bench_fast_vs_compact(c: &mut Criterion) {
                         let start = Instant::now();
                         for _ in 0..iters {
                             let st = make_metrics(n);
-                            let _ = write_with_strategy(st, low_memory_strategy()).await;
+                            let _ = write_with_strategy(st, fast_flush_strategy()).await;
                         }
                         start.elapsed()
                     })
@@ -364,7 +379,7 @@ fn bench_fast_vs_compact(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("fast_logs", n_rows),
+            BenchmarkId::new("fast_flush_logs", n_rows),
             &n_rows,
             |b, &n| {
                 b.iter_custom(|iters| {
@@ -372,7 +387,7 @@ fn bench_fast_vs_compact(c: &mut Criterion) {
                         let start = Instant::now();
                         for _ in 0..iters {
                             let st = make_logs(n);
-                            let _ = write_with_strategy(st, low_memory_strategy()).await;
+                            let _ = write_with_strategy(st, fast_flush_strategy()).await;
                         }
                         start.elapsed()
                     })

@@ -28,7 +28,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
 vortex = { version = "0.61", features = ["tokio"] }
-tikv-jemallocator = { version = "0.6", features = ["profiling"] }
+tikv-jemallocator = "0.6"
 tikv-jemalloc-ctl = "0.6"
 tokio-util = { version = "0.7", features = ["rt"] }
 
@@ -52,5 +52,10 @@ harness = false
 name = "compression_bench"
 harness = false
 
+[features]
+# Enable jemalloc heap profiling. Build with: cargo build --features heap-prof
+# Then set _RJEM_MALLOC_CONF=prof:true,lg_prof_sample:17 at runtime.
+heap-prof = ["tikv-jemallocator/profiling"]
+
 [profile.release]
-debug = 1  # Line tables for jeprof symbolization
+# debug = 1  # Uncomment for jeprof symbolization

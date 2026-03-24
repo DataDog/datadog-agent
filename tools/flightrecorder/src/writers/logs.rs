@@ -11,12 +11,14 @@ use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
 use super::intern::StringInterner;
+use super::tags::decompose_tags_for_logs;
 use crate::generated::signals_generated::signals::LogBatch;
 
 /// Columnar accumulator for log entries.
 ///
-/// All fields (hostname, source, status, tags, content, timestamp_ns) are
-/// written inline to self-contained log files. No separate context files needed.
+/// Tags are decomposed into per-key reserved columns (service, env, version,
+/// team) plus an overflow column. Hostname, source, and status remain as
+/// dedicated columns (they already existed in the old schema).
 pub struct LogsWriter {
     pub output_dir: PathBuf,
     pub flush_rows: usize,
@@ -27,7 +29,11 @@ pub struct LogsWriter {
     hostnames: StringInterner,
     sources: StringInterner,
     statuses: StringInterner,
-    tags: StringInterner,
+    tag_service: StringInterner,
+    tag_env: StringInterner,
+    tag_version: StringInterner,
+    tag_team: StringInterner,
+    tags_overflow: Vec<String>,
 
     // Plain columnar buffers.
     contents: Vec<Vec<u8>>,
@@ -52,7 +58,11 @@ impl LogsWriter {
             hostnames: StringInterner::with_capacity(flush_rows),
             sources: StringInterner::with_capacity(flush_rows),
             statuses: StringInterner::with_capacity(flush_rows),
-            tags: StringInterner::with_capacity(flush_rows),
+            tag_service: StringInterner::with_capacity(flush_rows),
+            tag_env: StringInterner::with_capacity(flush_rows),
+            tag_version: StringInterner::with_capacity(flush_rows),
+            tag_team: StringInterner::with_capacity(flush_rows),
+            tags_overflow: Vec::with_capacity(flush_rows),
 
             contents: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
@@ -77,16 +87,12 @@ impl LogsWriter {
                 self.sources.intern(e.source().unwrap_or(""));
                 self.statuses.intern(e.status().unwrap_or(""));
 
-                let tags_joined: String = e
-                    .tags()
-                    .map(|tl| {
-                        (0..tl.len())
-                            .map(|j| tl.get(j))
-                            .collect::<Vec<_>>()
-                            .join("|")
-                    })
-                    .unwrap_or_default();
-                self.tags.intern_owned(tags_joined);
+                let decomposed = decompose_tags_for_logs(e.tags());
+                self.tag_service.intern(&decomposed.reserved[0]);
+                self.tag_env.intern(&decomposed.reserved[1]);
+                self.tag_version.intern(&decomposed.reserved[2]);
+                self.tag_team.intern(&decomposed.reserved[3]);
+                self.tags_overflow.push(decomposed.overflow);
 
                 self.contents.push(
                     e.content().map(|c| c.bytes().to_vec()).unwrap_or_default(),
@@ -112,80 +118,66 @@ impl LogsWriter {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let path = self.output_dir.join(format!("logs-{}.vortex", ts_ms));
+        let path = self.output_dir.join(format!("flush-logs-{}.vortex", ts_ms));
 
         // Take columns.
         let (hostname_vals, hostname_codes) = self.hostnames.take();
         let (source_vals, source_codes) = self.sources.take();
         let (status_vals, status_codes) = self.statuses.take();
-        let (tag_vals, tag_codes) = self.tags.take();
+        let (service_vals, service_codes) = self.tag_service.take();
+        let (env_vals, env_codes) = self.tag_env.take();
+        let (version_vals, version_codes) = self.tag_version.take();
+        let (team_vals, team_codes) = self.tag_team.take();
+        let tags_overflow = std::mem::take(&mut self.tags_overflow);
         let contents = std::mem::take(&mut self.contents);
         let timestamps = std::mem::take(&mut self.timestamps);
 
         // Sort index by timestamp for better compression (delta encoding).
-        // Only allocates one Vec<usize> (~80 KB for 10K rows) — all columns
-        // are gathered in sorted order when building the Vortex arrays.
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
-        let hostname_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| hostname_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(hostname_vals).into_array(),
-        )
-        .context("building hostname DictArray")?;
+        // Helper: build a DictArray from interner output + sort order.
+        let build_dict =
+            |vals: Vec<String>, codes: Vec<u32>, label: &str| -> Result<DictArray> {
+                DictArray::try_new(
+                    order
+                        .iter()
+                        .map(|&i| codes[i])
+                        .collect::<PrimitiveArray>()
+                        .into_array(),
+                    VarBinArray::from(vals).into_array(),
+                )
+                .with_context(|| format!("building {label} DictArray"))
+            };
 
-        let source_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| source_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(source_vals).into_array(),
-        )
-        .context("building source DictArray")?;
+        let hostname_array = build_dict(hostname_vals, hostname_codes, "hostname")?;
+        let source_array = build_dict(source_vals, source_codes, "source")?;
+        let status_array = build_dict(status_vals, status_codes, "status")?;
+        let service_array = build_dict(service_vals, service_codes, "tag_service")?;
+        let env_array = build_dict(env_vals, env_codes, "tag_env")?;
+        let version_array = build_dict(version_vals, version_codes, "tag_version")?;
+        let team_array = build_dict(team_vals, team_codes, "tag_team")?;
 
-        let status_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| status_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(status_vals).into_array(),
-        )
-        .context("building status DictArray")?;
+        // Build overflow VarBinArray (sorted).
+        let sorted_overflow: Vec<Vec<u8>> = order
+            .iter()
+            .map(|&i| tags_overflow[i].as_bytes().to_vec())
+            .collect();
 
-        let tag_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| tag_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(tag_vals).into_array(),
-        )
-        .context("building tags DictArray")?;
-
-        // Gather contents in sorted order. This is the only non-Copy column
-        // so we must build a new Vec (contents are variable-size byte blobs).
+        // Gather contents in sorted order.
         let sorted_contents: Vec<Vec<u8>> = order.iter().map(|&i| contents[i].clone()).collect();
 
         let st = StructArray::try_new(
-            FieldNames::from([
-                "hostname",
-                "source",
-                "status",
-                "tags",
-                "content",
-                "timestamp_ns",
-            ]),
+            FieldNames::from(LOG_FIELD_NAMES),
             vec![
                 hostname_array.into_array(),
                 source_array.into_array(),
                 status_array.into_array(),
-                tag_array.into_array(),
+                service_array.into_array(),
+                env_array.into_array(),
+                version_array.into_array(),
+                team_array.into_array(),
+                VarBinArray::from(sorted_overflow).into_array(),
                 VarBinArray::from(sorted_contents).into_array(),
                 order
                     .iter()
@@ -198,7 +190,7 @@ impl LogsWriter {
         )
         .context("building logs StructArray")?;
 
-        let strategy = super::strategy::low_memory_strategy();
+        let strategy = super::strategy::fast_flush_strategy();
 
         // Fresh session per flush to prevent registry accumulation in VortexSession.
         let session = VortexSession::default();
@@ -230,6 +222,20 @@ impl LogsWriter {
         }
     }
 }
+
+/// Field names for the log schema (10 columns).
+pub const LOG_FIELD_NAMES: [&str; 10] = [
+    "hostname",
+    "source",
+    "status",
+    "tag_service",
+    "tag_env",
+    "tag_version",
+    "tag_team",
+    "tags_overflow",
+    "content",
+    "timestamp_ns",
+];
 
 #[cfg(test)]
 mod tests {
@@ -294,7 +300,11 @@ mod tests {
             w.hostnames.intern("host1");
             w.sources.intern("app");
             w.statuses.intern("info");
-            w.tags.intern("env:test");
+            w.tag_service.intern("");
+            w.tag_env.intern("test");
+            w.tag_version.intern("");
+            w.tag_team.intern("");
+            w.tags_overflow.push(String::new());
             w.contents.push(format!("log line {}", i).into_bytes());
             w.timestamps.push(i as i64 * 1000);
         }
@@ -319,7 +329,11 @@ mod tests {
         w.hostnames.intern("h");
         w.sources.intern("");
         w.statuses.intern("info");
-        w.tags.intern("");
+        w.tag_service.intern("");
+        w.tag_env.intern("");
+        w.tag_version.intern("");
+        w.tag_team.intern("");
+        w.tags_overflow.push(String::new());
         w.contents.push(binary_data.clone());
         w.timestamps.push(42);
 
@@ -340,27 +354,39 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
-        // Row 0: context 1
+        // Row 0
         w.hostnames.intern("server1");
         w.sources.intern("syslog");
         w.statuses.intern("warn");
-        w.tags.intern("team:ops");
+        w.tag_service.intern("");
+        w.tag_env.intern("");
+        w.tag_version.intern("");
+        w.tag_team.intern("ops");
+        w.tags_overflow.push(String::new());
         w.contents.push(b"hello world".to_vec());
         w.timestamps.push(12345);
 
-        // Row 1: context 2
+        // Row 1
         w.hostnames.intern("server2");
         w.sources.intern("app");
         w.statuses.intern("error");
-        w.tags.intern("env:prod|team:sre");
+        w.tag_service.intern("");
+        w.tag_env.intern("prod");
+        w.tag_version.intern("");
+        w.tag_team.intern("sre");
+        w.tags_overflow.push(String::new());
         w.contents.push(b"something went wrong".to_vec());
         w.timestamps.push(67890);
 
-        // Row 2: context 1 again
+        // Row 2 (same as row 0)
         w.hostnames.intern("server1");
         w.sources.intern("syslog");
         w.statuses.intern("warn");
-        w.tags.intern("team:ops");
+        w.tag_service.intern("");
+        w.tag_env.intern("");
+        w.tag_version.intern("");
+        w.tag_team.intern("ops");
+        w.tags_overflow.push(String::new());
         w.contents.push(b"still going".to_vec());
         w.timestamps.push(99999);
 
@@ -370,7 +396,7 @@ mod tests {
         let logs_st = read_back(&logs_path).await;
         assert_eq!(logs_st.len(), 3);
 
-        // Check column names match new inline schema
+        // Check column names match new schema
         let col_names: Vec<String> = logs_st
             .names()
             .iter()
@@ -378,7 +404,18 @@ mod tests {
             .collect();
         assert_eq!(
             col_names,
-            vec!["hostname", "source", "status", "tags", "content", "timestamp_ns"]
+            vec![
+                "hostname",
+                "source",
+                "status",
+                "tag_service",
+                "tag_env",
+                "tag_version",
+                "tag_team",
+                "tags_overflow",
+                "content",
+                "timestamp_ns",
+            ]
         );
 
         let hostnames = read_string_column(&logs_st, "hostname");
@@ -390,8 +427,11 @@ mod tests {
         let statuses = read_string_column(&logs_st, "status");
         assert_eq!(statuses, vec!["warn", "error", "warn"]);
 
-        let tags = read_string_column(&logs_st, "tags");
-        assert_eq!(tags, vec!["team:ops", "env:prod|team:sre", "team:ops"]);
+        let tag_team = read_string_column(&logs_st, "tag_team");
+        assert_eq!(tag_team, vec!["ops", "sre", "ops"]);
+
+        let tag_env = read_string_column(&logs_st, "tag_env");
+        assert_eq!(tag_env, vec!["", "prod", ""]);
 
         let contents: Vec<String> = read_bytes_column(&logs_st, "content")
             .into_iter()

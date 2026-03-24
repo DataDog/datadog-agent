@@ -69,6 +69,16 @@ pub fn low_memory_strategy() -> Arc<dyn LayoutStrategy> {
     Arc::new(table_strategy)
 }
 
+/// Minimal Vortex pipeline with no compression, no dictionary strategy, no zone
+/// maps. Just flat serialization wrapped in a table layout. Files will be larger
+/// but flush is near-instant. Compression is deferred to the merge pass
+/// (`compact_strategy`).
+pub fn fast_flush_strategy() -> Arc<dyn LayoutStrategy> {
+    let flat: Arc<dyn LayoutStrategy> = Arc::new(FlatLayoutStrategy::default());
+    let table = TableStrategy::new(flat.clone(), flat);
+    Arc::new(table)
+}
+
 /// Full Vortex pipeline tuned for background compaction. Compared to
 /// `low_memory_strategy`, uses larger buffers and higher compression
 /// concurrency — better compression ratio at the cost of more memory.

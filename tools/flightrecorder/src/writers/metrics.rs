@@ -12,12 +12,14 @@ use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
 use super::intern::StringInterner;
+use super::tags::{decompose_tags_for_metrics, DecomposedTags};
 use crate::generated::signals_generated::signals::MetricBatch;
 
 /// Columnar accumulator for metric samples.
 ///
-/// Context definitions (name + tags) are resolved inline at write time using a
-/// HashMap, producing self-contained metric files with no separate context files.
+/// Tags are decomposed into per-key reserved columns (host, device, source,
+/// service, env, version, team) plus an overflow column for non-reserved tags.
+/// This keeps dictionary cardinality low and makes flush near-instant.
 pub struct MetricsWriter {
     pub output_dir: PathBuf,
     pub flush_rows: usize,
@@ -26,7 +28,14 @@ pub struct MetricsWriter {
 
     // Interned string columns (dictionary-encoded on flush).
     names: StringInterner,
-    tags: StringInterner,
+    tag_host: StringInterner,
+    tag_device: StringInterner,
+    tag_source: StringInterner,
+    tag_service: StringInterner,
+    tag_env: StringInterner,
+    tag_version: StringInterner,
+    tag_team: StringInterner,
+    tags_overflow: Vec<String>,
     sources: StringInterner,
 
     // Plain columnar buffers.
@@ -34,8 +43,8 @@ pub struct MetricsWriter {
     timestamps: Vec<i64>,
     sample_rates: Vec<f64>,
 
-    // Resolves context_key → (name, tags) for inline writing.
-    context_map: HashMap<u64, (String, String)>,
+    // Resolves context_key → (name, decomposed tags) for inline writing.
+    context_map: HashMap<u64, (String, DecomposedTags<7>)>,
 
     // Rate-limited logging for unresolved context keys.
     unresolved_count: u64,
@@ -58,7 +67,14 @@ impl MetricsWriter {
             last_flush: Instant::now(),
 
             names: StringInterner::with_capacity(flush_rows),
-            tags: StringInterner::with_capacity(flush_rows),
+            tag_host: StringInterner::with_capacity(flush_rows),
+            tag_device: StringInterner::with_capacity(flush_rows),
+            tag_source: StringInterner::with_capacity(flush_rows),
+            tag_service: StringInterner::with_capacity(flush_rows),
+            tag_env: StringInterner::with_capacity(flush_rows),
+            tag_version: StringInterner::with_capacity(flush_rows),
+            tag_team: StringInterner::with_capacity(flush_rows),
+            tags_overflow: Vec::with_capacity(flush_rows),
             sources: StringInterner::with_capacity(flush_rows),
 
             values: Vec::with_capacity(flush_rows),
@@ -83,7 +99,7 @@ impl MetricsWriter {
     /// Ingest a MetricBatch from FlatBuffers. Flushes automatically when thresholds are reached.
     ///
     /// Context definitions (context_key != 0, name non-empty) are stored in the
-    /// context_map. All samples resolve context_key to (name, tags) inline.
+    /// context_map with decomposed tags. All samples resolve context_key inline.
     pub async fn push(&mut self, batch: &MetricBatch<'_>) -> Result<Option<PathBuf>> {
         if let Some(samples) = batch.samples() {
             for i in 0..samples.len() {
@@ -91,34 +107,39 @@ impl MetricsWriter {
                 let ckey = s.context_key();
                 let raw_name = s.name().unwrap_or("");
 
-                // If this is a context definition, store it in the map.
+                // If this is a context definition, store it with decomposed tags.
                 if ckey != 0 && !raw_name.is_empty() {
-                    let tags_joined: String = s
-                        .tags()
-                        .map(|tl| {
-                            (0..tl.len())
-                                .map(|j| tl.get(j))
-                                .collect::<Vec<_>>()
-                                .join("|")
-                        })
-                        .unwrap_or_default();
-
+                    let decomposed = decompose_tags_for_metrics(s.tags());
                     self.context_map
-                        .insert(ckey, (raw_name.to_string(), tags_joined));
+                        .insert(ckey, (raw_name.to_string(), decomposed));
                 }
 
-                // Resolve context_key to name+tags.
-                let (name, tags) = if let Some((n, t)) = self.context_map.get(&ckey) {
-                    (n.as_str(), t.as_str())
+                // Resolve context_key to name + decomposed tags.
+                if let Some((name, dtags)) = self.context_map.get(&ckey) {
+                    self.names.intern(name);
+                    self.tag_host.intern(&dtags.reserved[0]);
+                    self.tag_device.intern(&dtags.reserved[1]);
+                    self.tag_source.intern(&dtags.reserved[2]);
+                    self.tag_service.intern(&dtags.reserved[3]);
+                    self.tag_env.intern(&dtags.reserved[4]);
+                    self.tag_version.intern(&dtags.reserved[5]);
+                    self.tag_team.intern(&dtags.reserved[6]);
+                    self.tags_overflow.push(dtags.overflow.clone());
                 } else {
                     if ckey != 0 {
                         self.unresolved_count += 1;
                     }
-                    ("<unknown>", "")
-                };
+                    self.names.intern("<unknown>");
+                    self.tag_host.intern("");
+                    self.tag_device.intern("");
+                    self.tag_source.intern("");
+                    self.tag_service.intern("");
+                    self.tag_env.intern("");
+                    self.tag_version.intern("");
+                    self.tag_team.intern("");
+                    self.tags_overflow.push(String::new());
+                }
 
-                self.names.intern(name);
-                self.tags.intern(tags);
                 self.sources.intern(s.source().unwrap_or(""));
                 self.values.push(s.value());
                 self.timestamps.push(s.timestamp_ns());
@@ -155,64 +176,69 @@ impl MetricsWriter {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let path = self.output_dir.join(format!("metrics-{}.vortex", ts_ms));
+        let path = self.output_dir.join(format!("flush-metrics-{}.vortex", ts_ms));
 
         // Take columns.
         let (name_vals, name_codes) = self.names.take();
-        let (tag_vals, tag_codes) = self.tags.take();
+        let (host_vals, host_codes) = self.tag_host.take();
+        let (device_vals, device_codes) = self.tag_device.take();
+        let (tsource_vals, tsource_codes) = self.tag_source.take();
+        let (service_vals, service_codes) = self.tag_service.take();
+        let (env_vals, env_codes) = self.tag_env.take();
+        let (version_vals, version_codes) = self.tag_version.take();
+        let (team_vals, team_codes) = self.tag_team.take();
+        let tags_overflow = std::mem::take(&mut self.tags_overflow);
         let (source_vals, source_codes) = self.sources.take();
         let values = std::mem::take(&mut self.values);
         let timestamps = std::mem::take(&mut self.timestamps);
         let sample_rates = std::mem::take(&mut self.sample_rates);
 
         // Sort index by timestamp for better compression (delta encoding).
-        // Only allocates one Vec<usize> (~80 KB for 10K rows) — all columns
-        // are gathered in sorted order when building the Vortex arrays.
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
-        let name_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| name_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(name_vals).into_array(),
-        )
-        .context("building name DictArray")?;
+        // Helper: build a DictArray from interner output + sort order.
+        let build_dict =
+            |vals: Vec<String>, codes: Vec<u32>, label: &str| -> Result<DictArray> {
+                DictArray::try_new(
+                    order
+                        .iter()
+                        .map(|&i| codes[i])
+                        .collect::<PrimitiveArray>()
+                        .into_array(),
+                    VarBinArray::from(vals).into_array(),
+                )
+                .with_context(|| format!("building {label} DictArray"))
+            };
 
-        let tag_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| tag_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(tag_vals).into_array(),
-        )
-        .context("building tags DictArray")?;
+        let name_array = build_dict(name_vals, name_codes, "name")?;
+        let host_array = build_dict(host_vals, host_codes, "tag_host")?;
+        let device_array = build_dict(device_vals, device_codes, "tag_device")?;
+        let tsource_array = build_dict(tsource_vals, tsource_codes, "tag_source")?;
+        let service_array = build_dict(service_vals, service_codes, "tag_service")?;
+        let env_array = build_dict(env_vals, env_codes, "tag_env")?;
+        let version_array = build_dict(version_vals, version_codes, "tag_version")?;
+        let team_array = build_dict(team_vals, team_codes, "tag_team")?;
+        let source_array = build_dict(source_vals, source_codes, "source")?;
 
-        let source_array = DictArray::try_new(
-            order
-                .iter()
-                .map(|&i| source_codes[i])
-                .collect::<PrimitiveArray>()
-                .into_array(),
-            VarBinArray::from(source_vals).into_array(),
-        )
-        .context("building source DictArray")?;
+        // Build overflow VarBinArray (sorted).
+        let sorted_overflow: Vec<Vec<u8>> = order
+            .iter()
+            .map(|&i| tags_overflow[i].as_bytes().to_vec())
+            .collect();
 
         let st = StructArray::try_new(
-            FieldNames::from([
-                "name",
-                "tags",
-                "value",
-                "timestamp_ns",
-                "sample_rate",
-                "source",
-            ]),
+            FieldNames::from(METRIC_FIELD_NAMES),
             vec![
                 name_array.into_array(),
-                tag_array.into_array(),
+                host_array.into_array(),
+                device_array.into_array(),
+                tsource_array.into_array(),
+                service_array.into_array(),
+                env_array.into_array(),
+                version_array.into_array(),
+                team_array.into_array(),
+                VarBinArray::from(sorted_overflow).into_array(),
                 order
                     .iter()
                     .map(|&i| values[i])
@@ -235,7 +261,7 @@ impl MetricsWriter {
         )
         .context("building metrics StructArray")?;
 
-        let strategy = super::strategy::low_memory_strategy();
+        let strategy = super::strategy::fast_flush_strategy();
 
         // Fresh session per flush to prevent registry accumulation in VortexSession.
         let session = VortexSession::default();
@@ -274,9 +300,27 @@ impl MetricsWriter {
     }
 }
 
+/// Field names for the metric schema (13 columns).
+pub const METRIC_FIELD_NAMES: [&str; 13] = [
+    "name",
+    "tag_host",
+    "tag_device",
+    "tag_source",
+    "tag_service",
+    "tag_env",
+    "tag_version",
+    "tag_team",
+    "tags_overflow",
+    "value",
+    "timestamp_ns",
+    "sample_rate",
+    "source",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::tags::decompose_joined_tags_for_metrics;
     use tempfile::tempdir;
 
     fn make_writer(dir: &Path) -> MetricsWriter {
@@ -286,7 +330,14 @@ mod tests {
     fn add_rows(w: &mut MetricsWriter, n: usize) {
         for i in 0..n {
             w.names.intern("cpu.user");
-            w.tags.intern("host:a|env:prod");
+            w.tag_host.intern("a");
+            w.tag_device.intern("");
+            w.tag_source.intern("");
+            w.tag_service.intern("");
+            w.tag_env.intern("prod");
+            w.tag_version.intern("");
+            w.tag_team.intern("");
+            w.tags_overflow.push(String::new());
             w.sources.intern("test");
             w.values.push(i as f64);
             w.timestamps.push(1000);
@@ -310,7 +361,14 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         w.names.intern("cpu.user");
-        w.tags.intern("host:a");
+        w.tag_host.intern("a");
+        w.tag_device.intern("");
+        w.tag_source.intern("");
+        w.tag_service.intern("");
+        w.tag_env.intern("prod");
+        w.tag_version.intern("");
+        w.tag_team.intern("");
+        w.tags_overflow.push("custom:foo".to_string());
         w.sources.intern("src1");
         w.values.push(42.0);
         w.timestamps.push(999);
@@ -334,7 +392,14 @@ mod tests {
         let mut w = make_writer(dir.path());
         for i in 0..1000 {
             w.names.intern("cpu.user");
-            w.tags.intern("host:a|env:prod");
+            w.tag_host.intern("a");
+            w.tag_device.intern("");
+            w.tag_source.intern("");
+            w.tag_service.intern("");
+            w.tag_env.intern("prod");
+            w.tag_version.intern("");
+            w.tag_team.intern("");
+            w.tags_overflow.push(String::new());
             w.sources.intern("agent");
             w.values.push(i as f64);
             w.timestamps.push(i as i64);
@@ -343,8 +408,10 @@ mod tests {
         let path = w.flush().await.unwrap();
         let size = path.metadata().unwrap().len();
         assert!(size > 0);
+        // With fast_flush_strategy (no compression), files are larger, but
+        // dict encoding still keeps things reasonable for low-cardinality data.
         assert!(
-            size < 30_000,
+            size < 100_000,
             "file too large: {} bytes, dict encoding may not be working",
             size
         );
@@ -355,28 +422,62 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
-        // Insert context definitions
-        w.context_map
-            .insert(100, ("cpu.user".to_string(), "host:a|env:prod".to_string()));
-        w.context_map
-            .insert(200, ("mem.used".to_string(), "host:b".to_string()));
+        // Insert context definitions with decomposed tags
+        w.context_map.insert(
+            100,
+            (
+                "cpu.user".to_string(),
+                decompose_joined_tags_for_metrics("host:a|env:prod"),
+            ),
+        );
+        w.context_map.insert(
+            200,
+            (
+                "mem.used".to_string(),
+                decompose_joined_tags_for_metrics("host:b"),
+            ),
+        );
 
         // Simulate rows that resolve via context_map
-        let (name, tags) = w.context_map.get(&100).unwrap().clone();
-        w.names.intern(&name);
-        w.tags.intern(&tags);
-        w.sources.intern("agent");
-        w.values.push(1.0);
-        w.timestamps.push(1000);
-        w.sample_rates.push(1.0);
+        {
+            let (name, dtags) = w.context_map.get(&100).unwrap();
+            let name = name.clone();
+            let reserved = dtags.reserved.clone();
+            let overflow = dtags.overflow.clone();
+            w.names.intern(&name);
+            w.tag_host.intern(&reserved[0]);
+            w.tag_device.intern(&reserved[1]);
+            w.tag_source.intern(&reserved[2]);
+            w.tag_service.intern(&reserved[3]);
+            w.tag_env.intern(&reserved[4]);
+            w.tag_version.intern(&reserved[5]);
+            w.tag_team.intern(&reserved[6]);
+            w.tags_overflow.push(overflow);
+            w.sources.intern("agent");
+            w.values.push(1.0);
+            w.timestamps.push(1000);
+            w.sample_rates.push(1.0);
+        }
 
-        let (name, tags) = w.context_map.get(&200).unwrap().clone();
-        w.names.intern(&name);
-        w.tags.intern(&tags);
-        w.sources.intern("agent");
-        w.values.push(2.0);
-        w.timestamps.push(2000);
-        w.sample_rates.push(1.0);
+        {
+            let (name, dtags) = w.context_map.get(&200).unwrap();
+            let name = name.clone();
+            let reserved = dtags.reserved.clone();
+            let overflow = dtags.overflow.clone();
+            w.names.intern(&name);
+            w.tag_host.intern(&reserved[0]);
+            w.tag_device.intern(&reserved[1]);
+            w.tag_source.intern(&reserved[2]);
+            w.tag_service.intern(&reserved[3]);
+            w.tag_env.intern(&reserved[4]);
+            w.tag_version.intern(&reserved[5]);
+            w.tag_team.intern(&reserved[6]);
+            w.tags_overflow.push(overflow);
+            w.sources.intern("agent");
+            w.values.push(2.0);
+            w.timestamps.push(2000);
+            w.sample_rates.push(1.0);
+        }
 
         let path = w.flush().await.unwrap();
         assert!(path.exists());
@@ -386,8 +487,13 @@ mod tests {
     async fn test_reset_context_map() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        w.context_map
-            .insert(42, ("cpu.system".to_string(), "host:x".to_string()));
+        w.context_map.insert(
+            42,
+            (
+                "cpu.system".to_string(),
+                decompose_joined_tags_for_metrics("host:x"),
+            ),
+        );
         assert_eq!(w.context_map.len(), 1);
 
         w.reset_context_map();

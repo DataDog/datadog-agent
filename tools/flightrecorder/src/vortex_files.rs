@@ -23,21 +23,28 @@ pub struct VortexEntry {
     pub timestamp_ms: u64,
     pub size: u64,
     pub file_type: FileType,
+    /// True for uncompressed flush files (`flush-metrics-*`, `flush-logs-*`),
+    /// false for compressed merged files (`metrics-*`, `logs-*`).
+    pub is_flush: bool,
 }
 
-/// Parse a vortex filename into its file type and timestamp.
+/// Parse a vortex filename into its file type, timestamp, and flush flag.
 ///
-/// Recognizes: `metrics-{ts}.vortex`, `logs-{ts}.vortex`.
-pub fn parse_vortex_file(filename: &str) -> Option<(FileType, u64)> {
+/// Recognizes:
+///   - `flush-metrics-{ts}.vortex` / `flush-logs-{ts}.vortex` (flush files)
+///   - `metrics-{ts}.vortex` / `logs-{ts}.vortex` (merged files)
+pub fn parse_vortex_file(filename: &str) -> Option<(FileType, u64, bool)> {
     let stem = filename.strip_suffix(".vortex")?;
     let (prefix, ts_str) = stem.rsplit_once('-')?;
     let ts: u64 = ts_str.parse().ok()?;
-    let file_type = match prefix {
-        "metrics" => FileType::Metrics,
-        "logs" => FileType::Logs,
+    let (file_type, is_flush) = match prefix {
+        "flush-metrics" => (FileType::Metrics, true),
+        "flush-logs" => (FileType::Logs, true),
+        "metrics" => (FileType::Metrics, false),
+        "logs" => (FileType::Logs, false),
         _ => return None,
     };
-    Some((file_type, ts))
+    Some((file_type, ts, is_flush))
 }
 
 /// Scan a directory for all `.vortex` files with parseable names.
@@ -49,7 +56,7 @@ pub async fn scan_vortex_files(dir: &Path) -> anyhow::Result<Vec<VortexEntry>> {
             Ok(n) => n,
             Err(_) => continue,
         };
-        let (file_type, timestamp_ms) = match parse_vortex_file(&name) {
+        let (file_type, timestamp_ms, is_flush) = match parse_vortex_file(&name) {
             Some(parsed) => parsed,
             None => continue,
         };
@@ -62,6 +69,7 @@ pub async fn scan_vortex_files(dir: &Path) -> anyhow::Result<Vec<VortexEntry>> {
             timestamp_ms,
             size,
             file_type,
+            is_flush,
         });
     }
     Ok(entries)
@@ -73,13 +81,23 @@ mod tests {
 
     #[test]
     fn test_parse_vortex_file() {
+        // Flush files
+        assert_eq!(
+            parse_vortex_file("flush-metrics-1710938400123.vortex"),
+            Some((FileType::Metrics, 1710938400123, true))
+        );
+        assert_eq!(
+            parse_vortex_file("flush-logs-9999999999999.vortex"),
+            Some((FileType::Logs, 9999999999999, true))
+        );
+        // Merged files
         assert_eq!(
             parse_vortex_file("metrics-1710938400123.vortex"),
-            Some((FileType::Metrics, 1710938400123))
+            Some((FileType::Metrics, 1710938400123, false))
         );
         assert_eq!(
             parse_vortex_file("logs-9999999999999.vortex"),
-            Some((FileType::Logs, 9999999999999))
+            Some((FileType::Logs, 9999999999999, false))
         );
         // Legacy context file types are no longer recognized
         assert_eq!(parse_vortex_file("contexts-1000.vortex"), None);
@@ -97,8 +115,9 @@ mod tests {
     #[tokio::test]
     async fn test_scan_vortex_files() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("metrics-100.vortex"), "data").unwrap();
-        std::fs::write(dir.path().join("logs-200.vortex"), "data").unwrap();
+        std::fs::write(dir.path().join("flush-metrics-100.vortex"), "data").unwrap();
+        std::fs::write(dir.path().join("metrics-50.vortex"), "merged").unwrap();
+        std::fs::write(dir.path().join("flush-logs-200.vortex"), "data").unwrap();
         // Legacy context files should be ignored
         std::fs::write(dir.path().join("contexts-300.vortex"), "data").unwrap();
         std::fs::write(dir.path().join("log-contexts-400.vortex"), "data").unwrap();
@@ -107,9 +126,14 @@ mod tests {
         let mut entries = scan_vortex_files(dir.path()).await.unwrap();
         entries.sort_by_key(|e| e.timestamp_ms);
 
-        assert_eq!(entries.len(), 2);
+        assert_eq!(entries.len(), 3);
         assert_eq!(entries[0].file_type, FileType::Metrics);
-        assert_eq!(entries[0].timestamp_ms, 100);
-        assert_eq!(entries[1].file_type, FileType::Logs);
+        assert_eq!(entries[0].timestamp_ms, 50);
+        assert!(!entries[0].is_flush);
+        assert_eq!(entries[1].file_type, FileType::Metrics);
+        assert_eq!(entries[1].timestamp_ms, 100);
+        assert!(entries[1].is_flush);
+        assert_eq!(entries[2].file_type, FileType::Logs);
+        assert!(entries[2].is_flush);
     }
 }

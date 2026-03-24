@@ -10,20 +10,10 @@ use vortex::VortexSessionDefault;
 use crate::vortex_files::{self, FileType, VortexEntry};
 use crate::writers::strategy::compact_strategy;
 
-/// Default bucket boundaries for size-tiered compaction: 1 MB, 10 MB, 100 MB.
-const DEFAULT_BUCKET_BOUNDARIES: &[u64] = &[1 << 20, 10 << 20, 100 << 20];
-
 pub struct MergeConfig {
     pub output_dir: PathBuf,
-    /// Min files in a bucket before merge triggers (used for buckets 1+).
+    /// Min flush files before merge triggers.
     pub min_files_to_trigger: usize,
-    /// Max files to merge per bucket per pass (used for buckets 1+).
-    pub max_files_per_pass: usize,
-    /// Merge when total unmerged size per type exceeds this. 0 = disabled.
-    pub size_threshold_bytes: u64,
-    /// Size boundaries between buckets. Files are assigned to the lowest
-    /// bucket whose boundary exceeds their size. Defaults to [1MB, 10MB, 100MB].
-    pub bucket_boundaries: Vec<u64>,
 }
 
 impl Default for MergeConfig {
@@ -31,91 +21,53 @@ impl Default for MergeConfig {
         Self {
             output_dir: PathBuf::new(),
             min_files_to_trigger: 5,
-            max_files_per_pass: 10,
-            size_threshold_bytes: 0,
-            bucket_boundaries: DEFAULT_BUCKET_BOUNDARIES.to_vec(),
         }
     }
 }
 
-/// Assign a file to a size bucket. Bucket 0 = smallest files.
-fn size_bucket(size: u64, boundaries: &[u64]) -> usize {
-    boundaries.iter().position(|&b| size < b).unwrap_or(boundaries.len())
-}
-
-/// Run one merge pass across all file types using size-tiered compaction.
+/// Run one merge pass across all file types.
 ///
-/// Files are grouped by type, then by size bucket. Within each bucket,
-/// files of similar size are merged together. This prevents the pathological
-/// case where a large merged file keeps getting re-merged with tiny files,
-/// causing unbounded memory growth.
+/// Collects all flush files (`flush-metrics-*`, `flush-logs-*`) per type and
+/// merges them into a single compressed file (`metrics-*`, `logs-*`).
+/// Already-merged files are never re-merged.
 ///
-/// Returns total number of files merged.
+/// Returns total number of flush files merged.
 pub async fn merge_pass(config: &MergeConfig) -> Result<usize> {
     let mut entries = vortex_files::scan_vortex_files(&config.output_dir).await?;
     entries.sort_by_key(|e| e.timestamp_ms);
 
-    let boundaries = if config.bucket_boundaries.is_empty() {
-        DEFAULT_BUCKET_BOUNDARIES
-    } else {
-        &config.bucket_boundaries
-    };
-    let num_buckets = boundaries.len() + 1;
-
     let mut total_merged = 0;
 
     for file_type in &[FileType::Metrics, FileType::Logs] {
-        let typed: Vec<&VortexEntry> = entries.iter().filter(|e| e.file_type == *file_type).collect();
-        if typed.len() < 2 {
+        // Only collect flush files — merged files are already compressed.
+        let flush_files: Vec<&VortexEntry> = entries
+            .iter()
+            .filter(|e| e.file_type == *file_type && e.is_flush)
+            .collect();
+
+        if flush_files.len() < config.min_files_to_trigger {
             continue;
         }
 
-        // Check global triggers: do we need to merge at all for this type?
-        let total_size: u64 = typed.iter().map(|e| e.size).sum();
-        let count_trigger = typed.len() >= config.min_files_to_trigger;
-        let size_trigger = config.size_threshold_bytes > 0 && total_size >= config.size_threshold_bytes;
-        if !count_trigger && !size_trigger {
+        // Exclude the most recent flush file (may be actively written).
+        if flush_files.len() < 2 {
             continue;
         }
+        let candidates = &flush_files[..flush_files.len() - 1];
 
-        // Exclude the most recent file (may be actively written).
-        let candidates = &typed[..typed.len() - 1];
-
-        // Partition candidates into size buckets.
-        let mut buckets: Vec<Vec<&VortexEntry>> = vec![Vec::new(); num_buckets];
-        for entry in candidates {
-            let bucket = size_bucket(entry.size, boundaries);
-            buckets[bucket].push(entry);
-        }
-
-        // Only merge bucket 0 (small files). Higher buckets are left alone —
-        // time-based retention handles their cleanup. This avoids expensive
-        // re-merges of already-compacted files. With streaming merge, merging
-        // hundreds of small files is cheap (O(chunk_size) memory).
-        {
-            let bucket_files = &buckets[0];
-
-            let has_enough = bucket_files.len() >= config.min_files_to_trigger;
-            if bucket_files.len() < 2 || (!has_enough && !size_trigger) {
-                continue;
+        match merge_streaming(*file_type, candidates, &config.output_dir).await {
+            Ok(merged) => {
+                if merged > 0 {
+                    info!(
+                        file_type = %file_type,
+                        input_files = merged,
+                        "merge complete"
+                    );
+                }
+                total_merged += merged;
             }
-
-            let batch = &bucket_files[..];
-
-            match merge_streaming(*file_type, batch, &config.output_dir).await {
-                Ok(merged) => {
-                    if merged > 0 {
-                        info!(
-                            file_type = %file_type,
-                            input_files = merged,
-                            "merge complete"
-                        );
-                    }
-                    total_merged += merged;
-                }
-                Err(e) => {
-                    warn!(file_type = %file_type, "merge pass failed: {}", e);
-                }
+            Err(e) => {
+                warn!(file_type = %file_type, "merge pass failed: {}", e);
             }
         }
     }
@@ -199,8 +151,9 @@ async fn open_chained_stream(
 }
 
 /// Streaming merge for metrics and logs.
-/// Opens and reads files one at a time, piping chunks directly to a file on
-/// disk via BufWriter — avoids buffering the entire merged output in memory.
+/// Opens and reads flush files one at a time, piping chunks directly to a file
+/// on disk — avoids buffering the entire merged output in memory.
+/// Output is a compressed merged file (no `flush-` prefix).
 async fn merge_streaming(
     file_type: FileType,
     files: &[&VortexEntry],
@@ -248,7 +201,7 @@ async fn merge_streaming(
         .with_context(|| format!("renaming {} -> {}", tmp_path.display(), final_path.display()))?;
 
     let count = files.len();
-    delete_inputs(files, &final_path).await;
+    delete_inputs(files).await;
     info!(
         output = %final_path.display(),
         input_files = count,
@@ -278,13 +231,9 @@ async fn read_struct(path: &Path) -> Result<StructArray> {
     Ok(canonical.into_struct())
 }
 
-/// Delete input files after successful merge. Skips the output path to avoid
-/// deleting the just-written merged file (which may reuse the oldest input's name).
-async fn delete_inputs(files: &[&VortexEntry], output_path: &Path) {
+/// Delete input flush files after successful merge.
+async fn delete_inputs(files: &[&VortexEntry]) {
     for f in files {
-        if f.path == output_path {
-            continue;
-        }
         if let Err(e) = tokio::fs::remove_file(&f.path).await {
             warn!(path = %f.path.display(), "failed to delete merged input: {}", e);
         }
@@ -299,27 +248,50 @@ mod tests {
     use vortex::array::validity::Validity;
     use vortex::array::IntoArray;
 
-    /// Write a metrics vortex file with the new inline schema.
-    async fn write_metrics_file(dir: &Path, n: usize, ts_offset: u64) -> PathBuf {
+    /// Write a flush metrics vortex file with the decomposed-tag schema (13 columns).
+    async fn write_flush_metrics_file(dir: &Path, n: usize, ts_offset: u64) -> PathBuf {
+        use crate::writers::metrics::METRIC_FIELD_NAMES;
+
         let mut names: Vec<Vec<u8>> = Vec::with_capacity(n);
-        let mut tags: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_host: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_device: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_source: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_service: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_env: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_version: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tag_team: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut tags_overflow: Vec<Vec<u8>> = Vec::with_capacity(n);
         let mut values = Vec::with_capacity(n);
         let mut timestamps = Vec::with_capacity(n);
         let mut sample_rates = Vec::with_capacity(n);
         let mut sources: Vec<Vec<u8>> = Vec::with_capacity(n);
         for i in 0..n {
             names.push(format!("cpu.user.{}", i % 10).into_bytes());
-            tags.push(format!("host:web{}|env:prod", i % 5).into_bytes());
+            tag_host.push(format!("web{}", i % 5).into_bytes());
+            tag_device.push(b"".to_vec());
+            tag_source.push(b"".to_vec());
+            tag_service.push(b"".to_vec());
+            tag_env.push(b"prod".to_vec());
+            tag_version.push(b"".to_vec());
+            tag_team.push(b"".to_vec());
+            tags_overflow.push(b"".to_vec());
             values.push(i as f64 + ts_offset as f64);
             timestamps.push(1000i64 + i as i64);
             sample_rates.push(1.0f64);
             sources.push(b"test".to_vec());
         }
         let st = StructArray::try_new(
-            FieldNames::from(["name", "tags", "value", "timestamp_ns", "sample_rate", "source"]),
+            FieldNames::from(METRIC_FIELD_NAMES),
             vec![
                 VarBinArray::from(names).into_array(),
-                VarBinArray::from(tags).into_array(),
+                VarBinArray::from(tag_host).into_array(),
+                VarBinArray::from(tag_device).into_array(),
+                VarBinArray::from(tag_source).into_array(),
+                VarBinArray::from(tag_service).into_array(),
+                VarBinArray::from(tag_env).into_array(),
+                VarBinArray::from(tag_version).into_array(),
+                VarBinArray::from(tag_team).into_array(),
+                VarBinArray::from(tags_overflow).into_array(),
                 values.into_iter().collect::<PrimitiveArray>().into_array(),
                 timestamps.into_iter().collect::<PrimitiveArray>().into_array(),
                 sample_rates.into_iter().collect::<PrimitiveArray>().into_array(),
@@ -330,8 +302,9 @@ mod tests {
         )
         .unwrap();
 
-        let path = dir.join(format!("metrics-{}.vortex", ts_offset));
-        let strategy = crate::writers::strategy::compact_strategy();
+        // Flush files use the flush- prefix.
+        let path = dir.join(format!("flush-metrics-{}.vortex", ts_offset));
+        let strategy = crate::writers::strategy::fast_flush_strategy();
         let session = VortexSession::default();
         let mut buf = Vec::new();
         VortexWriteOptions::new(session)
@@ -347,52 +320,49 @@ mod tests {
     async fn test_merge_metrics() {
         let dir = tempfile::tempdir().unwrap();
 
-        // Create 3 metric files with different timestamps.
-        write_metrics_file(dir.path(), 50, 100).await;
-        write_metrics_file(dir.path(), 30, 200).await;
-        write_metrics_file(dir.path(), 20, 300).await;
+        // Create 3 flush metric files with different timestamps.
+        write_flush_metrics_file(dir.path(), 50, 100).await;
+        write_flush_metrics_file(dir.path(), 30, 200).await;
+        write_flush_metrics_file(dir.path(), 20, 300).await;
 
         let config = MergeConfig {
             output_dir: dir.path().to_path_buf(),
             min_files_to_trigger: 2,
-            max_files_per_pass: 10,
-            size_threshold_bytes: 0,
-            ..Default::default()
         };
 
         let merged = merge_pass(&config).await.unwrap();
-        // Should have merged the 2 oldest files (excluding the most recent).
+        // Should have merged the 2 oldest flush files (excluding the most recent).
         assert_eq!(merged, 2);
 
-        // Verify the merged file exists and the inputs are deleted.
+        // Verify the merged file exists and the flush inputs are deleted.
         let entries = vortex_files::scan_vortex_files(dir.path()).await.unwrap();
         let metrics: Vec<_> = entries
             .iter()
             .filter(|e| e.file_type == FileType::Metrics)
             .collect();
-        // 1 merged + 1 untouched (most recent) = 2
+        // 1 merged (metrics-100.vortex) + 1 untouched flush (flush-metrics-300.vortex) = 2
         assert_eq!(metrics.len(), 2);
 
-        // Read the merged file and verify row count.
-        let merged_entry = metrics.iter().find(|e| e.timestamp_ms == 100).unwrap();
+        let merged_entry = metrics.iter().find(|e| !e.is_flush).unwrap();
+        assert_eq!(merged_entry.timestamp_ms, 100);
         let st = read_struct(&merged_entry.path).await.unwrap();
         assert_eq!(st.len(), 80); // 50 + 30
+
+        let flush_entry = metrics.iter().find(|e| e.is_flush).unwrap();
+        assert_eq!(flush_entry.timestamp_ms, 300);
     }
 
     #[tokio::test]
     async fn test_merge_skips_below_threshold() {
         let dir = tempfile::tempdir().unwrap();
 
-        // Only 2 files, min_files=5 — should not trigger.
-        write_metrics_file(dir.path(), 10, 100).await;
-        write_metrics_file(dir.path(), 10, 200).await;
+        // Only 2 flush files, min_files=5 — should not trigger.
+        write_flush_metrics_file(dir.path(), 10, 100).await;
+        write_flush_metrics_file(dir.path(), 10, 200).await;
 
         let config = MergeConfig {
             output_dir: dir.path().to_path_buf(),
             min_files_to_trigger: 5,
-            max_files_per_pass: 10,
-            size_threshold_bytes: 0,
-            ..Default::default()
         };
 
         let merged = merge_pass(&config).await.unwrap();
@@ -400,18 +370,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_merge_respects_max_files() {
+    async fn test_merge_all_flush_files() {
         let dir = tempfile::tempdir().unwrap();
 
-        // Create 6 files.
+        // Create 6 flush files.
         for i in 0..6 {
-            write_metrics_file(dir.path(), 10, (i + 1) * 100).await;
+            write_flush_metrics_file(dir.path(), 10, (i + 1) * 100).await;
         }
 
         let config = MergeConfig {
             output_dir: dir.path().to_path_buf(),
             min_files_to_trigger: 2,
-            ..Default::default()
         };
 
         let merged = merge_pass(&config).await.unwrap();
@@ -423,82 +392,49 @@ mod tests {
             .iter()
             .filter(|e| e.file_type == FileType::Metrics)
             .collect();
-        // 1 merged + 1 most recent (skipped) = 2
+        // 1 merged + 1 most recent flush = 2
         assert_eq!(metrics.len(), 2);
-    }
-
-    #[test]
-    fn test_size_bucket_assignment() {
-        let boundaries = vec![1 << 20, 10 << 20, 100 << 20]; // 1MB, 10MB, 100MB
-        assert_eq!(size_bucket(500, &boundaries), 0);          // 500B → bucket 0
-        assert_eq!(size_bucket(500_000, &boundaries), 0);      // 500KB → bucket 0
-        assert_eq!(size_bucket(1 << 20, &boundaries), 1);      // 1MB → bucket 1
-        assert_eq!(size_bucket(5 << 20, &boundaries), 1);      // 5MB → bucket 1
-        assert_eq!(size_bucket(10 << 20, &boundaries), 2);     // 10MB → bucket 2
-        assert_eq!(size_bucket(50 << 20, &boundaries), 2);     // 50MB → bucket 2
-        assert_eq!(size_bucket(100 << 20, &boundaries), 3);    // 100MB → bucket 3
-        assert_eq!(size_bucket(500 << 20, &boundaries), 3);    // 500MB → bucket 3
+        assert!(metrics.iter().any(|e| !e.is_flush)); // merged file exists
+        assert!(metrics.iter().any(|e| e.is_flush));  // most recent flush preserved
     }
 
     #[tokio::test]
-    async fn test_merge_does_not_mix_buckets() {
-        // Create files of different sizes: small ones should merge together,
-        // and large ones should NOT be re-merged with the small ones.
+    async fn test_merge_ignores_already_merged() {
         let dir = tempfile::tempdir().unwrap();
 
-        // Write 3 small files (~4KB each, bucket 0) + 1 large file (~80KB, still bucket 0
-        // with default 1MB boundary, but let's use custom tiny boundaries to test).
-        for i in 0..3 {
-            write_metrics_file(dir.path(), 10, (i + 1) * 100).await;
-        }
-        // Write a "large" file that will land in bucket 1 with custom boundaries.
-        write_metrics_file(dir.path(), 500, 400).await;
-        // Most recent file (excluded from merge).
-        write_metrics_file(dir.path(), 10, 500).await;
+        // Create a pre-existing merged file (no flush- prefix).
+        write_flush_metrics_file(dir.path(), 50, 50).await;
+        // Rename it to look like a merged file.
+        tokio::fs::rename(
+            dir.path().join("flush-metrics-50.vortex"),
+            dir.path().join("metrics-50.vortex"),
+        )
+        .await
+        .unwrap();
 
-        // Use a tiny boundary so the 500-row file is in bucket 1.
-        // The 10-row files are ~4KB, the 500-row file is ~15KB.
-        let small_size = std::fs::metadata(dir.path().join("metrics-100.vortex")).unwrap().len();
-        let large_size = std::fs::metadata(dir.path().join("metrics-400.vortex")).unwrap().len();
+        // Create 3 flush files.
+        write_flush_metrics_file(dir.path(), 10, 100).await;
+        write_flush_metrics_file(dir.path(), 10, 200).await;
+        write_flush_metrics_file(dir.path(), 10, 300).await;
 
         let config = MergeConfig {
             output_dir: dir.path().to_path_buf(),
             min_files_to_trigger: 2,
-            // Set boundary between the two sizes so they land in different buckets.
-            bucket_boundaries: vec![(small_size + large_size) / 2],
-            ..Default::default()
         };
 
         let merged = merge_pass(&config).await.unwrap();
-        // Only the 3 small files should merge (bucket 0). The large file is alone in bucket 1.
-        assert_eq!(merged, 3);
+        // Only 2 flush files merged (3 - 1 most recent = 2).
+        // The already-merged file is NOT re-merged.
+        assert_eq!(merged, 2);
 
         let entries = vortex_files::scan_vortex_files(dir.path()).await.unwrap();
-        let metrics: Vec<_> = entries.iter().filter(|e| e.file_type == FileType::Metrics).collect();
-        // 1 merged-from-small + 1 large (untouched) + 1 most-recent = 3
+        let metrics: Vec<_> = entries
+            .iter()
+            .filter(|e| e.file_type == FileType::Metrics)
+            .collect();
+        // original merged (ts=50) + new merged (ts=100) + most recent flush (ts=300) = 3
         assert_eq!(metrics.len(), 3);
-    }
-
-    #[tokio::test]
-    async fn test_merge_size_trigger() {
-        let dir = tempfile::tempdir().unwrap();
-
-        // Create 2 files — below count threshold (5) but above size threshold.
-        write_metrics_file(dir.path(), 50, 100).await;
-        write_metrics_file(dir.path(), 50, 200).await;
-        // A third file so merge has a "most recent" to skip.
-        write_metrics_file(dir.path(), 50, 300).await;
-
-        // Count threshold is high (won't trigger), but size threshold is 1 byte (will trigger).
-        let config = MergeConfig {
-            output_dir: dir.path().to_path_buf(),
-            min_files_to_trigger: 100,
-            max_files_per_pass: 10,
-            size_threshold_bytes: 1,
-            ..Default::default()
-        };
-
-        let merged = merge_pass(&config).await.unwrap();
-        assert!(merged > 0, "size trigger should have caused a merge");
+        assert_eq!(metrics.iter().filter(|e| !e.is_flush).count(), 2);
+        assert_eq!(metrics.iter().filter(|e| e.is_flush).count(), 1);
     }
 }

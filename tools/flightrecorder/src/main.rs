@@ -43,9 +43,7 @@ async fn main() -> Result<()> {
         retention_hours = cfg.retention_hours,
         max_disk_mb = cfg.max_disk_mb,
         merge_min_files = cfg.merge_min_files,
-        merge_max_files = cfg.merge_max_files,
         merge_interval_secs = cfg.merge_interval_secs,
-        merge_size_threshold_mb = cfg.merge_size_threshold_mb,
         "flightrecorder starting"
     );
 
@@ -57,9 +55,7 @@ async fn main() -> Result<()> {
         Duration::from_secs(cfg.retention_hours * 3600),
         cfg.max_disk_mb * 1024 * 1024,
         cfg.merge_min_files,
-        cfg.merge_max_files,
         Duration::from_secs(cfg.merge_interval_secs),
-        cfg.merge_size_threshold_mb * 1024 * 1024,
     );
     let janitor_cancel = cancel.clone();
     let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });
