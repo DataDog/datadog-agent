@@ -95,6 +95,10 @@ type CloudService interface {
 type LocalService struct{}
 
 const defaultPrefix = "datadog.serverless_agent"
+
+const localServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
+const localServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
+
 const defaultUsageMetricName = "instance"
 
 // GetTags is a default implementation that returns a local empty tag set
@@ -156,13 +160,13 @@ func (l *LocalService) Init(_ *TracingContext) error {
 // Shutdown emits the shutdown metric for LocalService
 func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
-		metricAgent.AddEnhancedMetric("datadog.serverless_agent.enhanced.shutdown", 1.0, l.GetSource(), 0)
+		metricAgent.AddEnhancedMetric(localServiceShutdownMetricName, 1.0, l.GetSource(), 0)
 	}
 }
 
 // AddStartMetric adds the start metric for LocalService
 func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric("datadog.serverless_agent.enhanced.cold_start", 1.0, l.GetSource(), 0)
+	metricAgent.AddEnhancedMetric(localServiceStartMetricName, 1.0, l.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

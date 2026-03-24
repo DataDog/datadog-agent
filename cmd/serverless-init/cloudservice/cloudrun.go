@@ -43,7 +43,13 @@ const (
 
 const (
 	// Cloud Run metrics prefixes and names
-	cloudRunPrefix          = "gcp.run.container"
+	cloudRunPrefix             = "gcp.run.container"
+	cloudRunShutdownMetricName = "gcp.run.container.enhanced.shutdown"
+	cloudRunStartMetricName    = "gcp.run.container.enhanced.cold_start"
+
+	cloudRunLegacyShutdownMetricName = "gcp.run.enhanced.shutdown"
+	cloudRunLegacyStartMetricName    = "gcp.run.enhanced.cold_start"
+
 	cloudRunUsageMetricName = "instance"
 )
 
@@ -198,14 +204,14 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 // Shutdown emits the shutdown metric for CloudRun
 func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
-		metricAgent.AddEnhancedMetric("gcp.run.container.enhanced.shutdown", 1.0, c.GetSource(), 0)
-		metricAgent.AddLegacyEnhancedMetric("gcp.run.enhanced.shutdown", 1.0, c.GetSource())
+		metricAgent.AddEnhancedMetric(cloudRunShutdownMetricName, 1.0, c.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyShutdownMetricName, 1.0, c.GetSource())
 	}
 }
 
 func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric("gcp.run.container.enhanced.cold_start", 1.0, c.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric("gcp.run.enhanced.cold_start", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric(cloudRunStartMetricName, 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyStartMetricName, 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

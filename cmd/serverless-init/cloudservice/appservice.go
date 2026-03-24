@@ -31,7 +31,12 @@ const (
 	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
 
-	appServicePrefix = "azure.app_services"
+	appServicePrefix             = "azure.app_services"
+	appServiceShutdownMetricName = "azure.app_services.enhanced.shutdown"
+	appServiceStartMetricName    = "azure.app_services.enhanced.cold_start"
+
+	appServiceLegacyShutdownMetricName = "azure.appservice.enhanced.shutdown"
+	appServiceLegacyStartMetricName    = "azure.appservice.enhanced.cold_start"
 
 	appServiceUsageMetricName = "instance"
 )
@@ -100,14 +105,14 @@ func (a *AppService) Init(_ *TracingContext) error {
 // Shutdown emits the shutdown metric for AppService
 func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
-		metricAgent.AddEnhancedMetric("azure.app_services.enhanced.shutdown", 1.0, a.GetSource(), 0)
-		metricAgent.AddLegacyEnhancedMetric("azure.appservice.enhanced.shutdown", 1.0, a.GetSource())
+		metricAgent.AddEnhancedMetric(appServiceShutdownMetricName, 1.0, a.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(appServiceLegacyShutdownMetricName, 1.0, a.GetSource())
 	}
 }
 
 func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric("azure.app_services.enhanced.cold_start", 1.0, a.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric("azure.appservice.enhanced.cold_start", 1.0, a.GetSource())
+	metricAgent.AddEnhancedMetric(appServiceStartMetricName, 1.0, a.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(appServiceLegacyStartMetricName, 1.0, a.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

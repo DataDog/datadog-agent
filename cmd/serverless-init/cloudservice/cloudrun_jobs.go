@@ -41,6 +41,10 @@ const (
 	taskIndexTag     = "task_index"
 	taskAttemptTag   = "task_attempt"
 	taskCountTag     = "task_count" // not really high cardinality, but not necessary for metrics
+
+	cloudRunJobsDurationMetricName = "gcp.run.job.enhanced.task.duration"
+	cloudRunJobsStartMetricName    = "gcp.run.job.enhanced.task.started"
+	cloudRunJobsShutdownMetricName = "gcp.run.job.enhanced.task.ended"
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
@@ -144,24 +148,22 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 // and completes and submits the job span.
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
 	if enhancedMetricsEnabled {
-		durationMetricName := "gcp.run.job.enhanced.task.duration"
 		duration := float64(time.Since(c.startTime).Milliseconds())
-		metricAgent.AddEnhancedMetric(durationMetricName, duration, c.GetSource(), 0)
+		metricAgent.AddEnhancedMetric(cloudRunJobsDurationMetricName, duration, c.GetSource(), 0)
 
-		shutdownMetricName := "gcp.run.job.enhanced.task.ended"
 		exitCode := exitcode.From(runErr)
 		succeededTag := "succeeded:true"
 		if exitCode != 0 {
 			succeededTag = "succeeded:false"
 		}
-		metricAgent.AddEnhancedMetric(shutdownMetricName, 1.0, c.GetSource(), 0, succeededTag)
+		metricAgent.AddEnhancedMetric(cloudRunJobsShutdownMetricName, 1.0, c.GetSource(), 0, succeededTag)
 	}
 
 	c.completeAndSubmitJobSpan(runErr)
 }
 
 func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric("gcp.run.job.enhanced.task.started", 1.0, c.GetSource(), 0)
+	metricAgent.AddEnhancedMetric(cloudRunJobsStartMetricName, 1.0, c.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
