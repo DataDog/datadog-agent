@@ -117,10 +117,8 @@ func (c *Collector) Start() {
 func (c *Collector) Stop() {
 	if c.cancelFunc != nil {
 		c.cancelFunc()
-		// Wait for the previous collect to finish before starting the final collect
+		// Wait for collectLoop to exit, including one final collect on ctx.Done.
 		<-c.done
-		// One final collect before shutdown to collect a partial interval of enhanced metrics
-		c.collect()
 		log.Info("Enhanced metrics collector stopped")
 	}
 }
@@ -136,6 +134,8 @@ func (c *Collector) collectLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Final collect for a partial interval before shutdown.
+			c.collect()
 			return
 		case <-ticker.C:
 			c.collect()
