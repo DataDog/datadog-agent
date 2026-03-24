@@ -75,9 +75,7 @@ type remoteagentImpl struct {
 	pbcore.UnimplementedStatusProviderServer
 }
 
-// GetStatusDetails returns the status details of the trace agent.
-// The trace agent fully owns its status representation — the core agent
-// simply deserializes and displays whatever is returned here.
+// GetStatusDetails returns the status details of the trace agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	st := info.GetInProcessStatus()
 	statusBytes, err := json.Marshal(st)
