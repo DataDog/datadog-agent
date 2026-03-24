@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "json",
+    srcs = [
+        "nested_json.go",
+        "print.go",
+        "raw_object_writer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/json",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_json_iterator_go//:go"],
+)
+
+go_test(
+    name = "json_test",
+    srcs = [
+        "nested_json_test.go",
+        "print_test.go",
+        "raw_object_writer_test.go",
+    ],
+    embed = [":json"],
+    deps = [
+        "@com_github_json_iterator_go//:go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
