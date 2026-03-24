@@ -148,12 +148,15 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 func GetInProcessStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) *Status {
 	core := getCoreStatus(coreConfig, hostname)
 	m := procstatus.GetMetrics()
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
 	return &Status{
 		Date: float64(time.Now().UnixNano()),
 		Core: core,
 		Expvars: ProcessExpvars{
 			ExpvarsMap: ExpvarsMap{
 				Pid:                             m.Pid,
+				MemStats:                        MemInfo{Alloc: ms.Alloc},
 				Uptime:                          m.Uptime,
 				UptimeNano:                      float64(m.UptimeNano),
 				DockerSocket:                    m.DockerSocket,
