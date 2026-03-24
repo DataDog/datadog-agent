@@ -119,14 +119,15 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event          *model.Event
-	dnsLayer       *layers.DNS
-	monitors       *EBPFMonitors
-	profileManager securityprofile.ProfileManager
-	fieldHandlers  *EBPFFieldHandlers
-	eventPool      *ddsync.TypedPool[model.Event]
-	variableStore  *eval.VariableStore
-	numCPU         int
+	event           *model.Event
+	dnsLayer        *layers.DNS
+	monitors        *EBPFMonitors
+	profileManager  securityprofile.ProfileManager
+	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	variableStore   *eval.VariableStore
+	variableStoreMu sync.RWMutex
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -836,14 +837,18 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
-		if ok {
-			for _, s := range snapshotBoundSockets {
-				bindEvent := p.newBindEventFromReplay(entry, s)
-				bindEvent.Source = model.EventSourceReplay
+		// Replay bound sockets from entry snapshot data
+		for _, s := range entry.SnapshottedBoundSockets {
+			bindEvent := p.newBindEventFromReplay(entry, s)
+			bindEvent.Source = model.EventSourceReplay
+			events = append(events, bindEvent)
+		}
 
-				events = append(events, bindEvent)
-			}
+		// Replay mmaped files from entry snapshot data
+		for _, f := range entry.SnapshottedMmapedFiles {
+			openEvent := p.newOpenEventFromReplay(entry, f)
+			openEvent.Source = model.EventSourceReplay
+			events = append(events, openEvent)
 		}
 	}
 
@@ -914,6 +919,21 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	// send event to specific event handlers, like the event monitor consumers, subsequently
 	if notifyConsumers {
 		p.probe.sendEventToConsumers(event)
+	}
+
+	// handle sbom resolution
+	if p.Resolvers.SBOMResolver != nil {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+			if event.GetEventType() == model.ExecEventType {
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+			} else if event.GetEventType() == model.FileOpenEventType {
+				// force resolution of the file path
+				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+
+				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+			}
+		}
 	}
 
 	// handle anomaly detections
@@ -989,6 +1009,8 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 
 // evalOpts returns the eval options containing the current variable store
 func (p *EBPFProbe) evalOpts() *eval.Opts {
+	p.variableStoreMu.RLock()
+	defer p.variableStoreMu.RUnlock()
 	return &eval.Opts{VariableStore: p.variableStore}
 }
 
@@ -1079,9 +1101,23 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
 			event.Error = model.ErrNoProcessContext
-		} else if _, err := entry.HasValidLineage(); err != nil {
-			event.Error = &model.ErrProcessBrokenLineage{Err: err}
-			p.Resolvers.ProcessResolver.CountBrokenLineage()
+		} else {
+			// If the kernel reports a different ppid than the one in our
+			// cache, the process was reparented (e.g. subreaper). Update
+			// the cache tree immediately using the authoritative kernel value.
+			if event.PIDContext.PPid != 0 {
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
+			}
+
+			// Attempt to repair the lineage of processes that were orphaned
+			// during subreaper reparenting (the exit tracepoint may fire
+			// before the kernel has completed forget_original_parent).
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, newEntryCb)
+
+			if _, err := entry.HasValidLineage(); err != nil {
+				event.Error = &model.ErrProcessBrokenLineage{Err: err}
+				p.Resolvers.ProcessResolver.CountBrokenLineage()
+			}
 		}
 	}
 
@@ -1158,6 +1194,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 					return
 				}
 			}
+
+			p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(entry, metrics.ReparentCallpathRelatedEvent, nil)
 
 			relatedEvents = append(relatedEvents, relatedEvent)
 		}
@@ -2499,7 +2537,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
+	p.variableStoreMu.Unlock()
 
 	p.HandleRemediationStatus(rs)
 }
@@ -2967,6 +3007,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		Tagger:                   probe.Opts.Tagger,
 		UseRingBuffer:            p.useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
+		WorkloadMeta:             opts.WorkloadMeta,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
@@ -3269,6 +3310,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
@@ -3529,6 +3572,41 @@ func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snaps
 		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
 	}
 	event.Bind.Addr.Port = snapshottedBind.Port
+
+	return event
+}
+
+// newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.Open.SyscallEvent.Retval = 0
+	event.Open.File.PathnameStr = snapshottedFile.Path
+	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
+
+	// Try to stat the file to get basic metadata (best effort)
+	// This helps with file resolution and enrichment
+	var fileStats unix.Statx_t
+	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
+	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.Open.File.FileFields.Inode = fileStats.Ino
+		event.Open.File.FileFields.UID = fileStats.Uid
+		event.Open.File.FileFields.GID = fileStats.Gid
+		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.Open.File.Mode = fileStats.Mode
+		event.Open.File.Inode = fileStats.Ino
+		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.Open.File.NLink = fileStats.Nlink
+		event.Open.File.MountID = uint32(fileStats.Mnt_id)
+	}
 
 	return event
 }
