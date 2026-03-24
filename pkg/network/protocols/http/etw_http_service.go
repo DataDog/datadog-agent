@@ -303,37 +303,10 @@ func init() {
 
 }
 
-// buildIISTags creates a pre-built list of IIS-specific tags from a WinHttpTransaction.
-// This mirrors the tag-building logic from DynamicTags() in model_windows.go but produces
-// a standalone []string for caching and exposing via the /iis_tags endpoint.
+// buildIISTags returns tags for caching in the IIS tags cache, used for
+// remote service tag enrichment on same-host connections.
 func buildIISTags(h *WinHttpTransaction) []string {
-	tags := make([]string, 0, 7)
-	if h.AppPool != "" {
-		tags = append(tags, "http.iis.app_pool:"+h.AppPool)
-	}
-	if h.SiteName != "" {
-		tags = append(tags, "http.iis.sitename:"+h.SiteName)
-	}
-	if h.SubSite != "" {
-		tags = append(tags, "http.iis.subsite:"+h.SubSite)
-	}
-	// tag precedence: web.config -> datadog.json
-	if h.TagsFromConfig.DDService != "" {
-		tags = append(tags, "service:"+h.TagsFromConfig.DDService)
-	} else if h.TagsFromJson.DDService != "" {
-		tags = append(tags, "service:"+h.TagsFromJson.DDService)
-	}
-	if h.TagsFromConfig.DDEnv != "" {
-		tags = append(tags, "env:"+h.TagsFromConfig.DDEnv)
-	} else if h.TagsFromJson.DDEnv != "" {
-		tags = append(tags, "env:"+h.TagsFromJson.DDEnv)
-	}
-	if h.TagsFromConfig.DDVersion != "" {
-		tags = append(tags, "version:"+h.TagsFromConfig.DDVersion)
-	} else if h.TagsFromJson.DDVersion != "" {
-		tags = append(tags, "version:"+h.TagsFromJson.DDVersion)
-	}
-	return tags
+	return h.DynamicTags()
 }
 
 // storeIISTagsCache stores an IIS tags entry with a TTL.

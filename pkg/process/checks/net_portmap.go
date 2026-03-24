@@ -24,6 +24,9 @@ var (
 // long-lived portlist.Poller. The Poller is created once and reused across
 // calls so that it can benefit from scratch-buffer reuse. When the port list
 // has not changed since the last poll the cached map is returned.
+//
+// This function is not safe for concurrent use. It is only called from
+// ConnectionsCheck.Run, which is invoked sequentially by the check runner.
 func getListeningPortToPIDMap() map[int32]int32 {
 	portPollerOnce.Do(func() {
 		portPoller = &portlist.Poller{IncludeLocalhost: true}

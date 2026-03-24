@@ -15,14 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// fetchIISTagsCache is not applicable on Linux; returns nil.
-func fetchIISTagsCache(_ *http.Client) map[string][]string {
-	return nil
-}
-
-// fetchProcessCacheTags is not applicable on Linux; returns nil.
-func fetchProcessCacheTags(_ *http.Client) map[uint32][]string {
-	return nil
+// fetchRemoteServiceData returns remote service enrichment data. On Linux,
+// IIS tags and process cache tags are not applicable; only portToPID is fetched.
+func fetchRemoteServiceData(_ *http.Client) (map[string][]string, map[uint32][]string, map[int32]int32) {
+	return nil, nil, getListeningPortToPIDMap()
 }
 
 // getRemoteProcessTags returns process tags for a remote PID using the tagger.
