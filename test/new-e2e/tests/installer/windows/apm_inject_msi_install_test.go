@@ -26,7 +26,7 @@ var (
 )
 
 type testAgentMSIInstallsAPMInject struct {
-	baseSuite
+	baseAPMInjectSuite
 }
 
 // TestAgentScriptInstallsAPMInject tests the usage of the install script to install the apm-inject package.
@@ -38,7 +38,7 @@ func TestAgentMSIInstallsAPMInject(t *testing.T) {
 
 func (s *testAgentMSIInstallsAPMInject) AfterTest(suiteName, testName string) {
 	s.Installer().Purge()
-	s.baseSuite.AfterTest(suiteName, testName)
+	s.baseAPMInjectSuite.AfterTest(suiteName, testName)
 }
 
 // TestInstallFromMSI tests the Agent MSI can install the APM inject package with host instrumentation

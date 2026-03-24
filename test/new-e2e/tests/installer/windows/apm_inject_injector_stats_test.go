@@ -23,7 +23,7 @@ import (
 )
 
 type testInjectorStats struct {
-	baseSuite
+	baseAPMInjectSuite
 }
 
 // TestInjectorStats tests querying injector statistics via system-probe
@@ -35,7 +35,7 @@ func TestInjectorStats(t *testing.T) {
 
 func (s *testInjectorStats) AfterTest(suiteName, testName string) {
 	s.Installer().Purge()
-	s.baseSuite.AfterTest(suiteName, testName)
+	s.baseAPMInjectSuite.AfterTest(suiteName, testName)
 }
 
 // TestQueryStatsViaSystemProbe tests querying injector stats through system-probe HTTP endpoint

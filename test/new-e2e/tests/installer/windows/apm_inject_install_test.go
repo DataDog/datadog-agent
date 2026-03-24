@@ -18,7 +18,7 @@ import (
 )
 
 type testAPMInjectInstallSuite struct {
-	baseSuite
+	baseAPMInjectSuite
 }
 
 // TestAPMInjectInstalls tests the usage of the Datadog installer to install the apm-inject package.
@@ -29,7 +29,7 @@ func TestAPMInjectInstalls(t *testing.T) {
 }
 
 func (s *testAPMInjectInstallSuite) BeforeTest(suiteName, testName string) {
-	s.baseSuite.BeforeTest(suiteName, testName)
+	s.baseAPMInjectSuite.BeforeTest(suiteName, testName)
 	s.Require().NoError(s.Installer().Install(
 		WithMSILogFile(testName+"-msiinstall.log"),
 		WithMSIArg("DD_REMOTE_UPDATES=true"),
@@ -38,7 +38,7 @@ func (s *testAPMInjectInstallSuite) BeforeTest(suiteName, testName string) {
 
 func (s *testAPMInjectInstallSuite) AfterTest(suiteName, testName string) {
 	s.Installer().Purge()
-	s.baseSuite.AfterTest(suiteName, testName)
+	s.baseAPMInjectSuite.AfterTest(suiteName, testName)
 }
 
 // TestInstallAPMInjectPackage tests the usage of the Datadog installer to install the apm-inject package.

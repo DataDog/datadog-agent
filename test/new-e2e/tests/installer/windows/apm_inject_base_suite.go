@@ -12,13 +12,13 @@ import (
 	"github.com/cenkalti/backoff/v5"
 )
 
-type baseSuite struct {
+type baseAPMInjectSuite struct {
 	BaseSuite
 	currentAPMInjectVersion  PackageVersion
 	previousAPMInjectVersion PackageVersion
 }
 
-func (s *baseSuite) SetupSuite() {
+func (s *baseAPMInjectSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	s.currentAPMInjectVersion = NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
@@ -30,14 +30,14 @@ func (s *baseSuite) SetupSuite() {
 		s.previousAPMInjectVersion = NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
 	}
 }
-func (s *baseSuite) assertSuccessfulPromoteExperiment() {
+func (s *baseAPMInjectSuite) assertSuccessfulPromoteExperiment() {
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
 		HasPackage("datadog-apm-inject")
 	// verify the driver is running by checking the service status
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }
 
-func (s *baseSuite) assertDriverInjections(enabled bool) {
+func (s *baseAPMInjectSuite) assertDriverInjections(enabled bool) {
 	script := `
 # We copy whoami.exe to another directory because System32 is ignored by the driver
 $dst = "$env:TEMP\where.exe"

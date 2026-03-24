@@ -22,7 +22,7 @@ import (
 )
 
 type testSystemProbeConfig struct {
-	BaseSuite
+	baseAPMInjectSuite
 }
 
 // TestSystemProbeConfig tests that system-probe is enabled when apm-inject
@@ -38,7 +38,7 @@ func (s *testSystemProbeConfig) AfterTest(suiteName, testName string) {
 	// Purge does not remove config files; wipe the config directory so that
 	// leftover system-probe.yaml does not leak between tests.
 	_, _ = s.Env().RemoteHost.Execute(`Remove-Item -Path 'C:\ProgramData\Datadog\*' -Recurse -Force`)
-	s.baseSuite.AfterTest(suiteName, testName)
+	s.BaseSuite.AfterTest(suiteName, testName)
 }
 
 func (s *testSystemProbeConfig) TestInstallScriptStartsSystemProbe() {

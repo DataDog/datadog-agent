@@ -18,7 +18,7 @@ import (
 )
 
 type testAgentScriptInstallsAPMInject struct {
-	baseSuite
+	baseAPMInjectSuite
 }
 
 // TestAgentScriptInstallsAPMInject tests the usage of the install script to install the apm-inject package.
@@ -30,7 +30,7 @@ func TestAgentScriptInstallsAPMInject(t *testing.T) {
 
 func (s *testAgentScriptInstallsAPMInject) AfterTest(suiteName, testName string) {
 	s.Installer().Purge()
-	s.baseSuite.AfterTest(suiteName, testName)
+	s.baseAPMInjectSuite.AfterTest(suiteName, testName)
 }
 
 // TestInstallFromScript tests the Agent script can install the APM inject package with host instrumentation
