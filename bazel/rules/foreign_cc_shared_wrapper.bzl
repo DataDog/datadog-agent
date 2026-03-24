@@ -24,7 +24,7 @@ def _foreign_cc_shared_wrapper_impl(ctx):
             ),
         ),
         CcSharedLibraryInfo(
-            exports = [ctx.attr.input.label],
+            exports = [],
             linker_input = selected_input,
             link_once_static_libs = [],
             dynamic_deps = depset([], order = "topological"),
