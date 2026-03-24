@@ -6,6 +6,7 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,4 +30,41 @@ func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 	handler, ok := action.(*RunCommandHandler)
 	require.True(t, ok)
 	assert.Equal(t, paths, handler.allowedPaths)
+}
+
+func TestResolveProcPathBareMetal(t *testing.T) {
+	// Ensure not containerized
+	t.Setenv("DOCKER_DD_AGENT", "")
+	os.Unsetenv("DOCKER_DD_AGENT")
+
+	result := resolveProcPath()
+
+	assert.Equal(t, "/proc", result)
+}
+
+func TestResolveProcPathContainerizedWithHostMount(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	// /host/proc won't exist in CI, so this should fall back to /proc
+	// unless running on a host where /host/proc is actually mounted
+	result := resolveProcPath()
+
+	if _, err := os.Stat("/host/proc"); err == nil {
+		assert.Equal(t, "/host/proc", result)
+	} else {
+		assert.Equal(t, "/proc", result)
+	}
+}
+
+func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
+	// Simulate containerized environment without host mounts (e.g. Fargate)
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	// /host/proc won't exist in test environment, so should fall back
+	result := resolveProcPath()
+
+	// In CI/test environments, /host/proc doesn't exist, so we get /proc
+	if _, err := os.Stat("/host/proc"); os.IsNotExist(err) {
+		assert.Equal(t, "/proc", result)
+	}
 }
