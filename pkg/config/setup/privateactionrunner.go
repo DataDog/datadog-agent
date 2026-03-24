@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -85,14 +86,12 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 
 	defaultPaths := []string{defaultLogPath, defaultOsReleasePath}
 	if env.IsContainerized() {
-		// Only use /host-prefixed paths when host mounts actually exist.
-		// Serverless-containerized environments (e.g. Fargate) cannot mount
-		// host volumes, so fall back to container-local paths.
 		for i, v := range defaultPaths {
 			hostPath := filepath.Join(containerizedPathPrefix, v)
-			if parPathExists(hostPath) {
-				defaultPaths[i] = hostPath
+			if !parPathExists(hostPath) {
+				log.Warnf("PAR restricted shell: host mount %q not found; rshell may fail to execute because the path doesn't exist", hostPath)
 			}
+			defaultPaths[i] = hostPath
 		}
 	}
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
