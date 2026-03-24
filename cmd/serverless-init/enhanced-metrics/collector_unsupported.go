@@ -5,9 +5,9 @@
 
 //go:build !linux
 
-// Package collector provides enhanced metrics collection (Linux only)
+// Package enhancedmetrics provides enhanced metrics collection (Linux only)
 // This file provides a stub implementation for non-Linux platforms
-package collector
+package enhancedmetrics
 
 import (
 	"errors"

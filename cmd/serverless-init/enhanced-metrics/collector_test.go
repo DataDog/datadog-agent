@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package collector provides enhanced metrics collection
-package collector
+// Package enhancedmetrics provides enhanced metrics collection
+package enhancedmetrics
 
 import (
 	"math"
