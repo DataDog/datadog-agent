@@ -196,7 +196,7 @@ rust_test(
     name = "dd_discovery_nofeatures_test",
     crate = ":dd_discovery",
     # No crate_features — matches production build
-    data = [":testdata"],
+    data = ["//pkg/discovery/module/rust/testdata:files"],
     edition = "2024",
     deps = [
         "@crates//:dircpy",

@@ -136,6 +136,9 @@ func convertRustService(svc *C.struct_dd_service) model.Service {
 				ServiceName:    fromDDStr(m.service_name),
 				ServiceEnv:     fromDDStr(m.service_env),
 				ServiceVersion: fromDDStr(m.service_version),
+				ProcessTags:    fromDDStr(m.process_tags),
+				ContainerID:    fromDDStr(m.container_id),
+				LogsCollected:  bool(m.logs_collected),
 			}
 		}
 	}
