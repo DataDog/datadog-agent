@@ -8,4 +8,8 @@
 ---
 security:
   - |
+<<<<<<<< HEAD:releasenotes/notes/bump-cloudflare-circl-cve-73a90a28a17786c1.yaml
     Bump github.com/cloudflare/circl to fix v1.6.3 to fix CVE-2026-1229.
+========
+    Hide DMG mount in MacOS agent installation process.
+>>>>>>>> 39228a6e8c7 (Hide dmg mount (#48246)):releasenotes/notes/macos-hide-dmg-mount-9cbf94075289de68.yaml
