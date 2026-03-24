@@ -12,6 +12,7 @@ go_library(
         "throttled.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/log",
+    tags = ["test"],
     visibility = ["//visibility:public"],
     deps = ["@org_uber_go_atomic//:atomic"],
 )
