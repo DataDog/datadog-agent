@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -190,16 +190,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
 
-	// Fetch remote service tag data concurrently — these are independent I/O operations.
-	var iisTags map[string][]string
-	var procCacheTags map[uint32][]string
-	var portToPID map[int32]int32
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() { defer wg.Done(); iisTags = fetchIISTagsCache(c.sysprobeClient) }()
-	go func() { defer wg.Done(); procCacheTags = fetchProcessCacheTags(c.sysprobeClient) }()
-	go func() { defer wg.Done(); portToPID = getListeningPortToPIDMap() }()
-	wg.Wait()
+	// Fetch remote service tag data. On Windows these are HTTP calls to
+	// system-probe and run concurrently; on Linux they are no-ops.
+	iisTags, procCacheTags, portToPID := fetchRemoteServiceData(c.sysprobeClient)
 
 	// Supplement portToPID from connections data. system-probe runs as root
 	// and provides both sides of intra-host connections, so server-side
@@ -491,6 +484,24 @@ func batchConnections(
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
+	// Build the remote service resolver for intra-host connection enrichment.
+	var getIISTags func(remotePort, localPort int32) []string
+	if iisTags != nil {
+		getIISTags = func(remotePort, localPort int32) []string {
+			iisKey := strconv.FormatInt(int64(remotePort), 10) + "-" + strconv.FormatInt(int64(localPort), 10)
+			if tags, ok := iisTags[iisKey]; ok {
+				return tags
+			}
+			return nil
+		}
+	}
+	remoteServiceResolver := &remoteservice.Resolver{
+		GetServiceContext: serviceExtractor.GetServiceContext,
+		GetProcessTags:    func(pid int32) []string { return getRemoteProcessTags(pid, procCacheTags, processTagProvider) },
+		GetIISTags:        getIISTags,
+		PortToPID:         portToPID,
+	}
+
 	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
@@ -546,33 +557,11 @@ func batchConnections(
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 
 			// For same-host connections, resolve and attach the remote service tags.
-			// Try IIS ETW cache first; fall back to PID-based process_context resolution.
 			c.RemoteServiceTagsIdx = -1
 			if c.IntraHost && c.Laddr.ContainerId == "" {
-				var remoteTags []string
-
-				// Try IIS tags from system-probe ETW cache
-				if iisTags != nil {
-					iisKey := strconv.FormatInt(int64(c.Raddr.Port), 10) + "-" + strconv.FormatInt(int64(c.Laddr.Port), 10)
-					if iisCachedTags, ok := iisTags[iisKey]; ok {
-						remoteTags = append(remoteTags, iisCachedTags...)
-					}
-				}
-
-				// Fallback: resolve by destination PID using process_context and platform-specific process tags
-				if len(remoteTags) == 0 {
-					if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
-						destServiceCtx := serviceExtractor.GetServiceContext(destPID)
-						remoteTags = append(remoteTags, destServiceCtx...)
-
-						if pidTags := getRemoteProcessTags(destPID, procCacheTags, processTagProvider); len(pidTags) > 0 {
-							remoteTags = append(remoteTags, pidTags...)
-						}
-					}
-				}
-
-				if len(remoteTags) > 0 {
+				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
 					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
+					//TODO: remove this before merging!!!!!!!!!!!!!!!!!!!!!!!
 					log.Debugf("remote service tags: pid=%d -> raddr.port=%d remoteServiceTagsIdx=%d tags=%v",
 						c.Pid, c.Raddr.Port, c.RemoteServiceTagsIdx, remoteTags)
 				}
