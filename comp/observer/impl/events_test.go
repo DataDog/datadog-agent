@@ -11,9 +11,10 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // collectingSink collects all events for test assertions.
@@ -132,8 +133,8 @@ type stubExtractor struct {
 
 func (e *stubExtractor) Name() string { return e.name }
 
-func (e *stubExtractor) ProcessLog(_ observerdef.LogView) []observerdef.MetricOutput {
-	return nil
+func (e *stubExtractor) ProcessLog(_ observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	return observerdef.LogMetricsExtractorOutput{}
 }
 
 func (e *stubExtractor) GetContextByKey(key string) (observerdef.MetricContext, bool) {
@@ -300,12 +301,12 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
 	})
 
-	e.IngestLog("source-a", &logObs{
+	_, _ = e.IngestLog("source-a", &logObs{
 		content:     []byte("GET /users/123 returned 500"),
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
-	e.IngestLog("source-b", &logObs{
+	_, _ = e.IngestLog("source-b", &logObs{
 		content:     []byte("GET /users/456 returned 500"),
 		tags:        []string{"service:worker"},
 		timestampMs: 2_000,
@@ -803,7 +804,7 @@ func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
 	}
 
 	// Ingest log at 103 (no virtual metrics produced)
-	logRequests := e.IngestLog("ns", &logObs{
+	logRequests, _ := e.IngestLog("ns", &logObs{
 		content:     []byte("error happened"),
 		status:      "error",
 		timestampMs: 103000, // 103 seconds in millis
@@ -869,7 +870,7 @@ func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
 		extractors: []observerdef.LogMetricsExtractor{&sharedTagsExtractor{}},
 	})
 
-	e.IngestLog("source-a", &logObs{
+	_, _ = e.IngestLog("source-a", &logObs{
 		content:     []byte("hello"),
 		tags:        []string{"env:test"},
 		timestampMs: 1000,

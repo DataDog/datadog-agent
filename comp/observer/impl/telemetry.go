@@ -15,6 +15,9 @@ const (
 	// RRCF detector
 	telemetryRRCFScore     = "observer.rrcf.score"
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
+
+	// Log pattern extractor
+	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
 )
 
 // This is used to:
@@ -39,6 +42,12 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		telemetryRRCFThreshold,
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
+	)
+	gauges[telemetryLogPatternExtractorPatternCount] = telemetryComp.NewGauge(
+		"observer",
+		telemetryLogPatternExtractorPatternCount,
+		[]string{"detector"},
+		"Log pattern extractor pattern count",
 	)
 
 	return &telemetryHandler{
@@ -73,14 +82,14 @@ func (h *telemetryHandler) isMetricRegistered(metricName string) bool {
 
 // newTelemetryGauge creates a new telemetry gauge for the given telemetry name, detector name, and data time.
 // Warning: use a `telemetryName` that is defined in this file.
-func newTelemetryGauge(detectorName string, telemetryName string, value float64, dataTime int64) observerdef.ObserverTelemetry {
+func newTelemetryGauge(detectorName string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
 	return observerdef.ObserverTelemetry{
 		DetectorName: detectorName,
 		Metric: &metricObs{
 			name:      telemetryName,
 			value:     value,
 			tags:      []string{"detector:" + detectorName},
-			timestamp: dataTime,
+			timestamp: dataTimeSec,
 		},
 	}
 }

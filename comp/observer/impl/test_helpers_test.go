@@ -73,17 +73,19 @@ func (c *dynamicCorrelator) Reset() { c.currentIndex = 0 }
 type noopLogExtractor struct{}
 
 func (e *noopLogExtractor) Name() string { return "noop_extractor" }
-func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) []observerdef.MetricOutput {
-	return nil
+func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	return observerdef.LogMetricsExtractorOutput{}
 }
 
 type sharedTagsExtractor struct{}
 
 func (e *sharedTagsExtractor) Name() string { return "shared_tags_extractor" }
-func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) []observerdef.MetricOutput {
+func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	tags := log.GetTags()
-	return []observerdef.MetricOutput{
-		{Name: "metric.a", Value: 1, Tags: tags},
-		{Name: "metric.b", Value: 1, Tags: tags},
+	return observerdef.LogMetricsExtractorOutput{
+		Metrics: []observerdef.MetricOutput{
+			{Name: "metric.a", Value: 1, Tags: tags},
+			{Name: "metric.b", Value: 1, Tags: tags},
+		},
 	}
 }
