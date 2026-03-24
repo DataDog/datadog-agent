@@ -167,6 +167,9 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
+		// TODO(ACIX-1305): apt-transport-https, curl, gnupg are prerequisites for
+		// APT repo setup, not the thing being tested. Pre-bake them into the AMI
+		// and remove this install step.
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
 		tmpFileContent := fmt.Sprintf("deb %s %s 7", aptrepo, aptrepoDist)
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", []byte(tmpFileContent))

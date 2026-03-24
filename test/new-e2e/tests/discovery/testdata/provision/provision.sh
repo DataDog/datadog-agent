@@ -57,6 +57,9 @@ export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 source "${NVM_DIR}/nvm.sh"
 
+# Install the local instrumented Node.js app. This is NOT a network fetch:
+# the source at /home/ubuntu/e2e-test/node/instrumented is uploaded from the
+# test repo at provision time, so it cannot be pre-baked into the AMI.
 npm install /home/ubuntu/e2e-test/node/instrumented
 
 ## Create new Rails project
