@@ -215,19 +215,15 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 			logTelemetry = append(logTelemetry, out.Telemetry...)
 		}
 	}
-	if len(logTelemetry) > 0 {
-		e.telemetryMu.Lock()
-		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
-		e.telemetryMu.Unlock()
-	}
 	for _, lo := range e.logObservers {
 		processingStartTime := time.Now()
 		lo.ProcessLog(view)
 		processingTime := time.Since(processingStartTime)
-		gauge := newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000)
-		logTelemetry = append(logTelemetry, gauge)
+		logTelemetry = append(logTelemetry, newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+	}
+	if len(logTelemetry) > 0 {
 		e.telemetryMu.Lock()
-		e.accumulatedTelemetry = append(e.accumulatedTelemetry, gauge)
+		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
 		e.telemetryMu.Unlock()
 	}
 	dataTimeSec := l.timestampMs / 1000
