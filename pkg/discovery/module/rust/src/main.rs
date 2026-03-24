@@ -92,9 +92,11 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     Ok(sock)
 }
 
-async fn handle_services(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+async fn handle_services<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     if req
         .headers()
         .get(CONTENT_TYPE)
@@ -240,9 +242,11 @@ fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
         .map_err(|e| anyhow!("Failed to build too many requests response: {}", e))
 }
 
-async fn handle_request(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+async fn handle_request<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
             debug!("Handling /discovery/services request");
@@ -366,6 +370,71 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    fn services_request() -> Request<Full<Bytes>> {
+        Request::builder()
+            .method(Method::POST)
+            .uri("/discovery/services")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from("{}")))
+            .unwrap_or_else(|e| panic!("Failed to build request: {e}"))
+    }
+
+    #[tokio::test]
+    async fn test_concurrency_limit() {
+        // Acquire both permits to saturate the semaphore (limit=2).
+        let permit1 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire first permit: {e}"));
+        let permit2 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire second permit: {e}"));
+
+        // With both permits held, handle_request should return 429.
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_eq!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Expected 429 when semaphore is exhausted"
+        );
+
+        // Other endpoints should still work even with both permits held.
+        for path in [
+            "/discovery/state",
+            "/config",
+            "/config/by-source",
+            "/debug/stats",
+        ] {
+            let req = Request::builder()
+                .method(Method::GET)
+                .uri(path)
+                .body(Full::new(Bytes::new()))
+                .unwrap_or_else(|e| panic!("Failed to build request: {e}"));
+            let resp = handle_request(req)
+                .await
+                .unwrap_or_else(|e| panic!("handle_request failed for {path}: {e}"));
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "Expected 200 for {path} even when semaphore is exhausted"
+            );
+        }
+
+        // Release one permit — request should now get through (not 429).
+        drop(permit1);
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Should not get 429 when a permit is available"
+        );
+
+        drop(permit2);
+    }
 
     #[test]
     fn test_remove_pid_file_deletes_file() {
