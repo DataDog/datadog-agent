@@ -22,7 +22,7 @@ func TestCreateFromParms(t *testing.T) {
 	os.Unsetenv("DD_CONF_NODETREEMODEL")
 
 	m := NewConfig("test", "")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	m = NewConfig("test", "enable")
 	assert.Equal(t, "nodetreemodel", m.GetLibType())
@@ -34,7 +34,7 @@ func TestCreateFromParms(t *testing.T) {
 	assert.Equal(t, "tee", m.GetLibType())
 
 	m = NewConfig("test", "something invalid")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	defer func(orig string) {
 		version.AgentVersion = orig
@@ -43,7 +43,7 @@ func TestCreateFromParms(t *testing.T) {
 	version.AgentVersion = "7.75.2"
 
 	m = NewConfig("test", "7.75")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	m = NewConfig("test", "7.76.0")
 	assert.Equal(t, "viper", m.GetLibType())
@@ -70,7 +70,7 @@ func TestCreateFromEnv(t *testing.T) {
 	os.Unsetenv("DD_CONF_NODETREEMODEL")
 
 	m := NewConfig("test", "")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "enable")
 	m = NewConfig("test", "")
@@ -86,7 +86,7 @@ func TestCreateFromEnv(t *testing.T) {
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "something invalid")
 	m = NewConfig("test", "")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	defer func(orig string) {
 		version.AgentVersion = orig
@@ -96,7 +96,7 @@ func TestCreateFromEnv(t *testing.T) {
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "7.75")
 	m = NewConfig("test", "")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "7.76.0")
 	m = NewConfig("test", "")
@@ -108,7 +108,7 @@ func TestCreateFromEnv(t *testing.T) {
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "7.80")
 	m = NewConfig("test", "")
-	assert.Equal(t, "viper", m.GetLibType())
+	assert.Equal(t, "nodetreemodel", m.GetLibType())
 
 	t.Setenv("DD_CONF_NODETREEMODEL", "6.80.0")
 	m = NewConfig("test", "")
