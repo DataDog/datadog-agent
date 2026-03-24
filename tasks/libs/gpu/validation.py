@@ -50,6 +50,7 @@ def resolve_spec_paths(spec: str | None, architectures: str | None) -> tuple[str
         raise Exit(f"Architectures file not found: {architectures_path}", code=1)
     return spec_path, architectures_path
 
+
 def load_yaml_model[ModelT: BaseModel](path: str, model_cls: type[ModelT]) -> ModelT:
     import yaml
     from pydantic import ValidationError
