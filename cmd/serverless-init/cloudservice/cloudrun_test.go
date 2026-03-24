@@ -137,6 +137,42 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	assert.Equal(t, expected, metadata)
 }
 
+func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
+	tsProjectID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("testprojectid"))
+	}))
+	defer tsProjectID.Close()
+	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("testregion"))
+	}))
+	defer tsRegion.Close()
+	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("testcontainerid"))
+	}))
+	defer tsContainerID.Close()
+
+	testConfig := &GCPConfig{
+		timeout:        1 * time.Second,
+		projectIDURL:   tsProjectID.URL,
+		regionURL:      tsRegion.URL,
+		containerIDURL: tsContainerID.URL,
+	}
+
+	for _, tc := range []struct {
+		cloudRunType CloudRunType
+		tagPrefix    string
+	}{
+		{CloudRunService, cloudRunService},
+		{CloudRunFunction, cloudRunFunction},
+		{CloudRunJob, cloudRunJobNamespace},
+	} {
+		meta := GetMetaData(testConfig, tc.cloudRunType)
+		assert.Equal(t, "testcontainerid", meta[tc.tagPrefix+containerID], "cloudRunType=%v", tc.cloudRunType)
+		assert.Equal(t, "testregion", meta[tc.tagPrefix+location], "cloudRunType=%v", tc.cloudRunType)
+		assert.Equal(t, "testprojectid", meta[tc.tagPrefix+projectID], "cloudRunType=%v", tc.cloudRunType)
+	}
+}
+
 func TestGetCloudRunTags(t *testing.T) {
 	service := &CloudRun{spanNamespace: cloudRunService}
 
