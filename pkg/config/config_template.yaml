@@ -3980,6 +3980,12 @@ api_key:
 #
 #     enabled: false
 
+#     # @param excluded_ips - list of strings - optional - default: []
+#     # List of IP addresses to exclude from automatic scanning.
+#     # Devices with these IP addresses will be skipped during default scan.
+#
+#     excluded_ips: []
+
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
 #   # Discovered devices can then be monitored with the SNMP integration by using
