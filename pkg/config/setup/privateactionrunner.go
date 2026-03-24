@@ -84,9 +84,18 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	defaultPaths := []string{defaultLogPath, defaultOsReleasePath}
 	procPath := defaultProcPath
 	if env.IsContainerized() {
-		procPath = filepath.Join(containerizedPathPrefix, defaultProcPath)
+		// Only use /host-prefixed paths when host mounts actually exist.
+		// Serverless-containerized environments (e.g. Fargate) cannot mount
+		// host volumes, so fall back to container-local paths.
+		hostProcPath := filepath.Join(containerizedPathPrefix, defaultProcPath)
+		if pathExists(hostProcPath) {
+			procPath = hostProcPath
+		}
 		for i, v := range defaultPaths {
-			defaultPaths[i] = filepath.Join(containerizedPathPrefix, v)
+			hostPath := filepath.Join(containerizedPathPrefix, v)
+			if pathExists(hostPath) {
+				defaultPaths[i] = hostPath
+			}
 		}
 	}
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
