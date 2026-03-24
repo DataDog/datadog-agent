@@ -11,7 +11,7 @@ use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
 use super::intern::StringInterner;
-use super::tags::decompose_tags_for_logs;
+use super::tags::{decompose_tags_into_interners, LOG_RESERVED_KEYS};
 use crate::generated::signals_generated::signals::LogBatch;
 
 /// Columnar accumulator for log entries.
@@ -33,7 +33,7 @@ pub struct LogsWriter {
     tag_env: StringInterner,
     tag_version: StringInterner,
     tag_team: StringInterner,
-    tags_overflow: Vec<String>,
+    tags_overflow: StringInterner,
 
     // Plain columnar buffers.
     contents: Vec<Vec<u8>>,
@@ -62,7 +62,7 @@ impl LogsWriter {
             tag_env: StringInterner::with_capacity(flush_rows),
             tag_version: StringInterner::with_capacity(flush_rows),
             tag_team: StringInterner::with_capacity(flush_rows),
-            tags_overflow: Vec::with_capacity(flush_rows),
+            tags_overflow: StringInterner::with_capacity(flush_rows),
 
             contents: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
@@ -87,12 +87,19 @@ impl LogsWriter {
                 self.sources.intern(e.source().unwrap_or(""));
                 self.statuses.intern(e.status().unwrap_or(""));
 
-                let decomposed = decompose_tags_for_logs(e.tags());
-                self.tag_service.intern(&decomposed.reserved[0]);
-                self.tag_env.intern(&decomposed.reserved[1]);
-                self.tag_version.intern(&decomposed.reserved[2]);
-                self.tag_team.intern(&decomposed.reserved[3]);
-                self.tags_overflow.push(decomposed.overflow);
+                // Decompose tags directly into interners — no intermediate
+                // String allocations (was 5 Strings per row before).
+                decompose_tags_into_interners(
+                    e.tags(),
+                    LOG_RESERVED_KEYS,
+                    &mut [
+                        &mut self.tag_service,
+                        &mut self.tag_env,
+                        &mut self.tag_version,
+                        &mut self.tag_team,
+                    ],
+                    &mut self.tags_overflow,
+                );
 
                 self.contents.push(
                     e.content().map(|c| c.bytes().to_vec()).unwrap_or_default(),
@@ -128,7 +135,7 @@ impl LogsWriter {
         let (env_vals, env_codes) = self.tag_env.take();
         let (version_vals, version_codes) = self.tag_version.take();
         let (team_vals, team_codes) = self.tag_team.take();
-        let tags_overflow = std::mem::take(&mut self.tags_overflow);
+        let (overflow_vals, overflow_codes) = self.tags_overflow.take();
         let contents = std::mem::take(&mut self.contents);
         let timestamps = std::mem::take(&mut self.timestamps);
 
@@ -157,12 +164,7 @@ impl LogsWriter {
         let env_array = build_dict(env_vals, env_codes, "tag_env")?;
         let version_array = build_dict(version_vals, version_codes, "tag_version")?;
         let team_array = build_dict(team_vals, team_codes, "tag_team")?;
-
-        // Build overflow VarBinArray (sorted).
-        let sorted_overflow: Vec<Vec<u8>> = order
-            .iter()
-            .map(|&i| tags_overflow[i].as_bytes().to_vec())
-            .collect();
+        let overflow_array = build_dict(overflow_vals, overflow_codes, "tags_overflow")?;
 
         // Gather contents in sorted order.
         let sorted_contents: Vec<Vec<u8>> = order.iter().map(|&i| contents[i].clone()).collect();
@@ -177,7 +179,7 @@ impl LogsWriter {
                 env_array.into_array(),
                 version_array.into_array(),
                 team_array.into_array(),
-                VarBinArray::from(sorted_overflow).into_array(),
+                overflow_array.into_array(),
                 VarBinArray::from(sorted_contents).into_array(),
                 order
                     .iter()
@@ -304,7 +306,7 @@ mod tests {
             w.tag_env.intern("test");
             w.tag_version.intern("");
             w.tag_team.intern("");
-            w.tags_overflow.push(String::new());
+            w.tags_overflow.intern("");
             w.contents.push(format!("log line {}", i).into_bytes());
             w.timestamps.push(i as i64 * 1000);
         }
@@ -333,7 +335,7 @@ mod tests {
         w.tag_env.intern("");
         w.tag_version.intern("");
         w.tag_team.intern("");
-        w.tags_overflow.push(String::new());
+        w.tags_overflow.intern("");
         w.contents.push(binary_data.clone());
         w.timestamps.push(42);
 
@@ -362,7 +364,7 @@ mod tests {
         w.tag_env.intern("");
         w.tag_version.intern("");
         w.tag_team.intern("ops");
-        w.tags_overflow.push(String::new());
+        w.tags_overflow.intern("");
         w.contents.push(b"hello world".to_vec());
         w.timestamps.push(12345);
 
@@ -374,7 +376,7 @@ mod tests {
         w.tag_env.intern("prod");
         w.tag_version.intern("");
         w.tag_team.intern("sre");
-        w.tags_overflow.push(String::new());
+        w.tags_overflow.intern("");
         w.contents.push(b"something went wrong".to_vec());
         w.timestamps.push(67890);
 
@@ -386,7 +388,7 @@ mod tests {
         w.tag_env.intern("");
         w.tag_version.intern("");
         w.tag_team.intern("ops");
-        w.tags_overflow.push(String::new());
+        w.tags_overflow.intern("");
         w.contents.push(b"still going".to_vec());
         w.timestamps.push(99999);
 
