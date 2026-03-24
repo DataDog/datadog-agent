@@ -20,6 +20,18 @@ const (
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
 )
 
+// telemetryCounterMetricNames lists storage metric names (no :agg suffix) emitted as counter deltas.
+// Keep in sync with counters registered in newTelemetryHandler.
+var telemetryCounterMetricNames = map[string]struct{}{
+	telemetryLogPatternExtractorPatternCount: {},
+}
+
+// IsTelemetryCounterMetricName reports whether the metric name is observer counter telemetry.
+func IsTelemetryCounterMetricName(name string) bool {
+	_, ok := telemetryCounterMetricNames[name]
+	return ok
+}
+
 // This is used to:
 // 1. Enumerate all the telemetry metrics that are emitted by the observer
 // 2. Send them to the backend if we are running in observer mode (not testbench)
@@ -46,6 +58,7 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
 	)
 
+	// Also add each name to telemetryCounterMetricNames (testbench /api/series sum + metricKind).
 	counters[telemetryLogPatternExtractorPatternCount] = telemetryComp.NewCounter(
 		"observer",
 		telemetryLogPatternExtractorPatternCount,
