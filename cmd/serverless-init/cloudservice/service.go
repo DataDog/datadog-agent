@@ -157,7 +157,6 @@ func (l *LocalService) Init(_ *TracingContext) error {
 func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric("datadog.serverless_agent.enhanced.shutdown", 1.0, l.GetSource(), 0)
-		metricAgent.AddLegacyEnhancedMetric("datadog.serverless_agent.enhanced.shutdown", 1.0, l.GetSource())
 	}
 }
 
