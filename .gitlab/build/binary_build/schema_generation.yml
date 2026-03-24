@@ -19,8 +19,9 @@ generate_config_schema-linux:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- -e agent.build
-    - dda inv -- schema.generate
+    - dda inv -- schema.generate --agent-bin=./bin/agent/agent
   artifacts:
+    when: always
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
@@ -42,8 +43,9 @@ generate_config_schema-macos:
   needs: ["go_deps", "go_tools_deps"]
   script:
     - dda inv -- -e agent.build
-    - dda inv -- schema.generate
+    - dda inv -- schema.generate --agent-bin=./bin/agent/agent
   artifacts:
+    when: always
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
@@ -77,6 +79,7 @@ generate_config_schema-windows:
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Generate-ConfigSchema.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
+    when: always
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml

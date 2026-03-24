@@ -8,20 +8,18 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import bin_name
 from tasks.schema.fixes import fix_schema
 from tasks.schema.template_parser import parse_template
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
 SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
-AGENT_BIN = os.path.join(".", "bin", "agent", bin_name("agent"))
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
 
 @task
-def generate(ctx, output_dir=SCHEMA_DIR):
+def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     """
     Generate the enriched schema files for the core agent and system-probe.
 
@@ -30,9 +28,9 @@ def generate(ctx, output_dir=SCHEMA_DIR):
     2. Enrich the schemas with documentation from config_template.yaml
     3. Apply OS-specific fixes to the enriched schemas
     """
-    if not os.path.isfile(AGENT_BIN):
+    if not os.path.isfile(agent_bin):
         raise Exit(
-            f"Agent binary not found at {AGENT_BIN}. Build the agent first with: dda inv agent.build",
+            f"Agent binary not found at {agent_bin}. Build the agent first with: dda inv agent.build",
             code=1,
         )
 
@@ -45,7 +43,7 @@ def generate(ctx, output_dir=SCHEMA_DIR):
     # The createschema command writes output files to the current directory,
     # so we cd into the output dir and use an absolute path for the binary.
     print("Generating base schema files...")
-    agent_bin_abs = os.path.abspath(AGENT_BIN)
+    agent_bin_abs = os.path.abspath(agent_bin)
     with ctx.cd(output_dir):
         core_schema = ctx.run(
             f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide=True

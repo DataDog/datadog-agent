@@ -132,7 +132,6 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 type Reader interface {
 	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
 	GetLibType() string
-	GetSchema() map[string]interface{}
 
 	Get(key string) interface{}
 	GetString(key string) string

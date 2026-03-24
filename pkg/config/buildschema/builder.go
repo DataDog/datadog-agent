@@ -3,27 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package viperconfig
+package buildschema
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"time"
 )
 
-func (c *safeConfig) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
-	if os.Getenv("DD_CREATE_SCHEMA") != "true" {
-		return
-	}
-
-	c.Lock()
-	defer c.Unlock()
+func (b *builder) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
+	b.Lock()
+	defer b.Unlock()
 
 	parts := strings.Split(name, ".")
 
-	curr := c.Schema
+	curr := b.Schema
 	if len(parts) > 1 {
 		for i := 0; i < len(parts)-1; i++ {
 			p := curr["properties"]

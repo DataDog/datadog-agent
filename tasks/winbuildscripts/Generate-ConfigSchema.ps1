@@ -36,7 +36,7 @@ Invoke-BuildScript `
         exit $err
     }
 
-    & dda inv -- schema.generate
+    & dda inv -- schema.generate --agent-bin=bin/agent/agent.exe
     $err = $LASTEXITCODE
     if ($err -ne 0) {
         Write-Host -ForegroundColor Red "Schema generation failed $err"
