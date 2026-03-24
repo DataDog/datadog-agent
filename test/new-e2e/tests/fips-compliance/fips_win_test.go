@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -20,7 +21,6 @@ import (
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
 
 	"testing"
 
