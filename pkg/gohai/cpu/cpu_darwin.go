@@ -52,9 +52,9 @@ func getSysctlInt32Int64(key string) utils.Value[uint64] {
 	return getSysctl(unix.SysctlUint32, castFun, key)
 }
 
-// type returned by sysctl is uint64, stored as uint64; treats EINVAL as ErrNotCollectable
-// because some keys (e.g. hw.l3cachesize) return EINVAL on hardware that lacks the feature
-func getSysctlUint64Int64(key string) utils.Value[uint64] {
+// treats EINVAL as ErrNotCollectable because some keys (e.g. hw.l3cachesize) return EINVAL
+// on hardware that lacks the feature
+func getSysctlInt64(key string) utils.Value[uint64] {
 	castFun := func(val uint64) uint64 { return val }
 	// unix.SysctlUint64 takes extra arguments so we need a wrapper
 	sysctlUint64 := func(k string) (uint64, error) { return unix.SysctlUint64(k) }
@@ -87,9 +87,9 @@ func getCPUInfo() *Info {
 	cpuInfo.CPUPkgs = getSysctlInt32Int64("hw.packages")
 
 	// cache sizes are uint64 bytes; ENOENT on Apple Silicon (no L3) maps to ErrNotCollectable
-	cpuInfo.CacheSizeL1Bytes = getSysctlUint64Int64("hw.l1dcachesize")
-	cpuInfo.CacheSizeL2Bytes = getSysctlUint64Int64("hw.l2cachesize")
-	cpuInfo.CacheSizeL3Bytes = getSysctlUint64Int64("hw.l3cachesize")
+	cpuInfo.CacheSizeL1Bytes = getSysctlInt64("hw.l1dcachesize")
+	cpuInfo.CacheSizeL2Bytes = getSysctlInt64("hw.l2cachesize")
+	cpuInfo.CacheSizeL3Bytes = getSysctlInt64("hw.l3cachesize")
 
 	// CacheSizeKB: sum of all available cache levels in KB (mirrors Linux ARM64 behavior)
 	var totalCacheBytes uint64
