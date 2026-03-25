@@ -22,10 +22,16 @@ def bazel(ctx: Context, *args: str, capture_output: bool = False, sudo: bool = F
 
     if not (resolved_bazel := shutil.which("bazel")):
         raise Exit(bazel_not_found_message("red"))
-    result = (ctx.sudo if sudo else ctx.run)(
-        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)((resolved_bazel, *args)),
+    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
+    kwargs = {}
+    if capture_output:
+        kwargs["hide"] = "out"
+    elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
+        kwargs["pty"] = True
+    result = ctx.run(
+        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd + args),
         echo=True,
         in_stream=False,
-        **({"hide": "out"} if capture_output else {"pty": sys.stdout.isatty() and sys.platform != "win32"}),  # type: ignore[dict-item]
+        **kwargs,
     )
     return result.stdout if capture_output else None
