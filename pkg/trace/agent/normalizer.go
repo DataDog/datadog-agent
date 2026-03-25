@@ -163,15 +163,13 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 // normalizeSpanLinks handles span links normalization for both pb.Span and idx.InternalSpan
 func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
-		val, ok := link.Attributes[string(semantics.ConceptLinkName)]
-		if !ok {
-			continue
+		if val, ok := link.Attributes[string(semantics.ConceptLinkName)]; ok {
+			newName, err := normalizeutil.NormalizeName(val)
+			if err != nil {
+				log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
+			}
+			link.Attributes[string(semantics.ConceptLinkName)] = newName
 		}
-		newName, err := normalizeutil.NormalizeName(val)
-		if err != nil {
-			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
-		}
-		link.Attributes[string(semantics.ConceptLinkName)] = newName
 	}
 }
 
@@ -203,15 +201,13 @@ func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, durat
 // normalizeSpanLinksV1 handles span links normalization for idx.InternalSpan
 func (a *Agent) normalizeSpanLinksV1(links []*idx.InternalSpanLink) {
 	for _, link := range links {
-		val, ok := link.GetAttributeAsString(string(semantics.ConceptLinkName))
-		if !ok {
-			continue
+		if val, ok := link.GetAttributeAsString(string(semantics.ConceptLinkName)); ok {
+			newName, err := normalizeutil.NormalizeName(val)
+			if err != nil {
+				log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
+			}
+			link.SetStringAttribute(string(semantics.ConceptLinkName), newName)
 		}
-		newName, err := normalizeutil.NormalizeName(val)
-		if err != nil {
-			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
-		}
-		link.SetStringAttribute(string(semantics.ConceptLinkName), newName)
 	}
 }
 
