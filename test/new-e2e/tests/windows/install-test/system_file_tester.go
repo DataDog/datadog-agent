@@ -8,7 +8,6 @@ package installtest
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/assert"
@@ -59,7 +58,10 @@ func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, b
 		// we mark it as flaky so it doesn't block PRs.
 		// See WINA-624 for investigation into better ways to perform this test.
 		// If new Windows paths must be ignored, add them to the ignorePaths list in SystemPaths.
-		flake.Mark(tt)
+		// NOTE: not marked as flaky for now because it hasn't failed in a long time
+		//       and it makes our flake reports hard to read because this subtest is used in many places.
+		// flake.Mark(tt)
+
 		assert.Empty(tt, result, "should not remove system files")
 	})
 }

@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -26,7 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
@@ -35,7 +36,8 @@ import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
-	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -67,13 +69,28 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 	return []*cobra.Command{cmd}
 }
 
+func validateFlags(params *globalparams.GlobalParams) error {
+	// Require at least one configuration source
+	if params.ConfFilePath == "" && params.CoreConfPath == "" {
+		return errors.New("must provide either --config or --core-config configuration")
+	}
+
+	return nil
+}
+
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
+	// Validate flag usage
+	if err := validateFlags(cliParams.GlobalParams); err != nil {
+		return err
+	}
+
 	var opts = []fx.Option{
-		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
+		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfigURI(), cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
+		warnBothConfigs := cliParams.GlobalParams.ConfFilePath != ""
 		opts = append(opts,
 			core.Bundle(),
 			remotehostnameimpl.Module(),
@@ -82,6 +99,11 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
+			fx.Invoke(func(l log.Component) {
+				if warnBothConfigs {
+					l.Warn("Both OTel and Core Agent configuration paths were provided. The OTel configuration will be ignored and the Core Agent configuration will be used.")
+				}
+			}),
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
@@ -113,7 +135,7 @@ func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 func getTraceAgentOptions(ctx context.Context) []fx.Option {
 	return []fx.Option{
 		traceagentfx.Module(),
-		traceconfig.Module(),
+		traceconfigfx.Module(),
 
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
@@ -121,7 +143,7 @@ func getTraceAgentOptions(ctx context.Context) []fx.Option {
 			PIDFilePath:              "",
 			DisableInternalProfiling: true,
 		}),
-		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),

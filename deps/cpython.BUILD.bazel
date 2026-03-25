@@ -4,6 +4,7 @@ load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
@@ -64,6 +65,7 @@ run_binary(
             "libffi_win_dir",
             "openssl-bin_win_dir",
             "tcltk_win_dir",
+            "@python_3_12//:python3",
             "@visual_studio//:msbuild",
         ]
     ),
@@ -83,6 +85,7 @@ run_binary(
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @visual_studio//:msbuild)",
+        "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
     },
     outs = [
         "build/{}".format(file)
@@ -114,6 +117,13 @@ select_file(
     name = "headers_win",
     srcs = "python_win",
     subpath = "build/include",
+)
+
+select_file(
+    name = "python_win_lib",
+    srcs = "python_win",
+    subpath = "build/python{}.dll".format(VERSION_STR_FLAT),
+    visibility = ["//visibility:public"],
 )
 
 cc_import(
@@ -166,6 +176,7 @@ to_override_flags = [
     "CFLAGS",
     "CXXFLAGS",
     "LDFLAGS",
+    "CPPFLAGS",
 ]
 
 configure_make(
@@ -176,9 +187,6 @@ configure_make(
         "--enable-shared",
         "--without-static-libpython",
         "--with-dbmliborder=",
-        # Fixes an issue with __DATE__ being set to undefined `redacted`
-        # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
-        "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
     ] + select({
@@ -193,6 +201,11 @@ configure_make(
         "OPT": "-DNDEBUG -fwrapv",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
+        # Avoid quotation issues around keeping `redacted` (for __DATE__/__TIME__) properly quoted
+        # (See comments on redacted_compat.h)
+        # It's important to pass this on the `env` and not on `configure_options` to avoid CPPFLAGS
+        # populated by rules_foreign_cc from being overwritten
+        "CPPFLAGS": "-include$(execpath :redacted_compat.h)",
         # We need to pass linker flags here instead of `linkopts` because we don't want these to be
         # propagated to dependent targets, as `linkopts` would do.
         # This is meant to allow python to find its dependency during its modules import test.
@@ -211,6 +224,9 @@ configure_make(
         },
         "//conditions:default": {},
     }),
+    build_data = [
+        ":redacted_compat.h",
+    ],
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [

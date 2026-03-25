@@ -315,21 +315,69 @@ def run(
 
     parsed_params = {}
 
-    # Outside of CI try to automatically configure the secret to pull agent image
-    if not running_in_ci():
-        # Authentication against agent-qa is required for all kubernetes tests, to use the cache
+    # Image pull credentials: build as aligned lists, then join with commas.
+    registries: list[str] = []
+    usernames: list[str] = []
+    passwords: list[str] = []
+
+    env_registry = os.environ.get("E2E_IMAGE_PULL_REGISTRY", "")
+    env_username = os.environ.get("E2E_IMAGE_PULL_USERNAME", "")
+    env_password = os.environ.get("E2E_IMAGE_PULL_PASSWORD", "")
+    if env_password:
+        registries = env_registry.split(",") if env_registry else []
+        usernames = env_username.split(",") if env_username else []
+        passwords = env_password.split(",")
+
+    if not running_in_ci() and not passwords:
         ecr_password = _get_agent_qa_ecr_password(ctx)
         if ecr_password:
-            parsed_params["ddagent:imagePullPassword"] = ecr_password
-            parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-            parsed_params["ddagent:imagePullUsername"] = "AWS"
+            registries.append("669783387624.dkr.ecr.us-east-1.amazonaws.com")
+            usernames.append("AWS")
+            passwords.append(ecr_password)
+
+    if not running_in_ci():
+        # TODO(agent-devx): Add GCP authentication (follow-up to #47298)
         # If we use an agent image from sandbox registry we need to authenticate against it
-        if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
-            parsed_params["ddagent:imagePullPassword"] += (
-                f",{ctx.run('aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password', hide=True).stdout.strip()}"
+        if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
+            sandbox_pwd = ctx.run(
+                "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password",
+                hide=True,
+            ).stdout.strip()
+            registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
+            usernames.append("AWS")
+            passwords.append(sandbox_pwd)
+
+    if passwords:
+        env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
+        env_vars["E2E_IMAGE_PULL_USERNAME"] = ",".join(usernames)
+        env_vars["E2E_IMAGE_PULL_PASSWORD"] = ",".join(passwords)
+    if not running_in_ci():
+        # Auto-detect pipeline ID and commit SHA for local runs if not already set
+        if "E2E_PIPELINE_ID" not in os.environ:
+            print(
+                color_message(
+                    "E2E_PIPELINE_ID is not set. The E2E job you are running may require build and packaging "
+                    "jobs to have completed in the pipeline (e.g. container images, deb/rpm packages, OCI deploys). "
+                    "Check the `needs:` of your target job in .gitlab/test/e2e/e2e.yml and ensure those jobs "
+                    "have run on your branch before triggering the E2E job.",
+                    "yellow",
+                )
             )
-            parsed_params["ddagent:imagePullRegistry"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
-            parsed_params["ddagent:imagePullUsername"] += ",AWS"
+            commit_sha = get_commit_sha(ctx)
+            short_commit_sha = get_commit_sha(ctx, short=True)
+            print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
+            pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
+            if pipeline_id:
+                print(color_message(f"Auto-detected pipeline {pipeline_id} for commit {short_commit_sha}", "blue"))
+                env_vars["E2E_PIPELINE_ID"] = pipeline_id
+                env_vars["E2E_COMMIT_SHA"] = short_commit_sha
+            else:
+                print(
+                    color_message(
+                        f"No pipeline with passing packaging and deploy_packages stages found for commit {short_commit_sha}, skipping pipeline auto-detection",
+                        "yellow",
+                    )
+                )
 
     for param in configparams:
         parts = param.split("=", 1)
@@ -373,9 +421,9 @@ def run(
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
     if use_prebuilt_binaries:
-        if not os.path.exists("test-binaries.tar.gz") or not os.path.exists("manifest.json"):
+        if not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
             print(
-                "WARNING: required artifacts test-binaries.tar.gz and manifest.json not found, disabling use_prebuilt_binaries"
+                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
             )
             use_prebuilt_binaries = False
 
@@ -534,7 +582,9 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
+    success = process_test_result(
+        ctx, test_res, junit_tar, result_junits, AgentFlavor.base, test_washer, test_system="e2e"
+    )
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -545,26 +595,7 @@ def run(
             if args.get(param_key):
                 params.append(f"-{args[param_key]}")
 
-        configparams_to_retain = {
-            "ddagent:imagePullRegistry",
-            "ddagent:imagePullUsername",
-        }
-
-        registry_to_password_commands = {
-            "669783387624.dkr.ecr.us-east-1.amazonaws.com": "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password"
-        }
-
-        for configparam in configparams:
-            parts = configparam.split("=", 1)
-            key = parts[0]
-            if key in configparams_to_retain:
-                params.append(f"-c {configparam}")
-
-                if key == "ddagent:imagePullRegistry" and len(parts) > 1:
-                    registry = parts[1]
-                    password_cmd = registry_to_password_commands.get(registry)
-                    if password_cmd is not None:
-                        params.append(f"-c ddagent:imagePullPassword=$({password_cmd})")
+        params.extend(f"-c {param}" for param in configparams if "password" not in param.split("=", 1)[0].casefold())
 
         command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -- -e new-e2e-tests.run {' '.join(params)}"
         print(
@@ -1161,6 +1192,66 @@ def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) ->
         return None
     except Exception as e:
         print(f"Warning: Could not query GitLab for recent pipelines: {e}")
+        if 'GITLAB_TOKEN' not in os.environ:
+            print(
+                "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)"
+            )
+        return None
+
+
+def _find_pipeline_for_commit_sha(ctx: Context, commit_sha: str) -> str | None:
+    """
+    Find the most recent pipeline for a given commit SHA where stages
+    'packaging' and 'deploy_packages' have all jobs successfully completed (success or skipped).
+    Searches by branch ref and matches on SHA, as GitLab's sha filter is unreliable.
+    Returns pipeline_id or None if not found.
+    """
+    required_stages = {"packaging", "deploy_packages"}
+
+    try:
+        token = os.environ.get('GITLAB_TOKEN')
+        repo = get_gitlab_repo(token=token)
+
+        branch = get_current_branch(ctx)
+        pipelines = repo.pipelines.list(ref=branch, per_page=20, order_by='updated_at', get_all=False)
+        for pipeline in pipelines:
+            if not pipeline.sha.startswith(commit_sha) and not commit_sha.startswith(pipeline.sha):
+                continue
+            jobs = pipeline.jobs.list(get_all=True)
+
+            stage_jobs: dict[str, list] = {}
+            for job in jobs:
+                if job.stage in required_stages:
+                    stage_jobs.setdefault(job.stage, []).append(job)
+
+            # All required stages must be present
+            if not required_stages.issubset(stage_jobs.keys()):
+                missing = required_stages - stage_jobs.keys()
+                print(
+                    f"Pipeline {pipeline.id} skipped: missing stages {missing}",
+                    file=sys.stderr,
+                )
+                continue
+
+            # All jobs in required stages must have passed (success, skipped, or manual/not triggered)
+            failed_jobs = [
+                f"{job.stage}/{job.name} ({job.status})"
+                for stage in required_stages
+                for job in stage_jobs[stage]
+                if job.status not in ("success", "skipped", "manual")
+            ]
+            if failed_jobs:
+                print(
+                    f"Pipeline {pipeline.id} skipped: jobs not passed: {', '.join(failed_jobs)}",
+                    file=sys.stderr,
+                )
+                continue
+
+            return str(pipeline.id)
+
+        return None
+    except Exception as e:
+        print(f"Warning: Could not query GitLab for pipelines for commit {commit_sha[:8]}: {e}")
         if 'GITLAB_TOKEN' not in os.environ:
             print(
                 "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)"

@@ -51,8 +51,8 @@ func NewRemoteConfigProvider() *RemoteConfigProvider {
 
 // Collect retrieves integrations from the remote-config, builds Config objects and returns them
 func (rc *RemoteConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
-	rc.mu.RLock()
-	defer rc.mu.RUnlock()
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
 
 	rc.upToDate = true
 

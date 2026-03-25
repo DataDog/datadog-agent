@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -106,6 +107,26 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			return enc.WriteToken(jsontext.String("@duration"))
 		}),
 	)
+	underOperationMarshalers := json.JoinMarshalers(
+		basicMarshalers,
+		json.MarshalToFunc(marshalVariable),
+	)
+	expressionMarshalers := json.JoinMarshalers(
+		basicMarshalers,
+		json.MarshalToFunc(
+			makeOperationMarshaler(underOperationMarshalers),
+		),
+	)
+	marshalExpression := func(
+		enc *jsontext.Encoder,
+		expr *ir.Expression,
+	) error {
+		type ExprAlias ir.Expression
+		return json.MarshalEncode(
+			enc, (*ExprAlias)(expr),
+			json.WithMarshalers(expressionMarshalers),
+		)
+	}
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Subprogram) error {
@@ -115,6 +136,8 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				SubprogramID: v.ID,
 			})
 		}),
+		json.MarshalToFunc(makeOperationMarshaler(underOperationMarshalers)),
+		json.MarshalToFunc(marshalExpression),
 	)
 
 	// Flattens the ProbeDefinition into the probe json, keeping its
@@ -163,13 +186,10 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		writeToken(endT)
 		return nil
 	}
-	underOperationMarshalers := json.JoinMarshalers(
-		basicMarshalers,
-		json.MarshalToFunc(marshalVariable),
-	)
 	topLevelMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(makeOperationMarshaler(underOperationMarshalers)),
+		json.MarshalToFunc(marshalExpression),
 		json.MarshalToFunc(marshalProbe),
 	)
 	if err := json.MarshalEncode(
@@ -319,31 +339,43 @@ func marshalTypeAsID(enc *jsontext.Encoder, t ir.Type) error {
 	return enc.WriteToken(jsontext.String(fmt.Sprintf("%d %s %s", t.GetID(), typeName, t.GetName())))
 }
 
+type withKind[T any] struct {
+	Kind string `json:"__kind"`
+	Op   *T     `json:",inline"`
+}
+
+func newWithKind[T any](op *T) withKind[T] {
+	return withKind[T]{
+		Kind: strings.TrimPrefix(reflect.TypeOf(op).Elem().Name(), "ir."),
+		Op:   op,
+	}
+}
+
 func makeOperationMarshaler(
 	marshalers *json.Marshalers,
 ) func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
 	return func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
+		var toMarshal any
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			type locationWithKind struct {
-				Kind string         `json:"__kind"`
-				Op   *ir.LocationOp `json:",inline"`
-			}
-			return json.MarshalEncode(enc, locationWithKind{
-				Kind: "LocationOp",
-				Op:   op,
-			}, json.WithMarshalers(marshalers))
+			toMarshal = newWithKind(op)
 		case *ir.DereferenceOp:
-			type dereferenceWithKind struct {
-				Kind string            `json:"__kind"`
-				Op   *ir.DereferenceOp `json:",inline"`
-			}
-			return json.MarshalEncode(enc, dereferenceWithKind{
-				Kind: "DereferenceOp",
-				Op:   op,
-			}, json.WithMarshalers(marshalers))
+			toMarshal = newWithKind(op)
+		case *ir.ExprPushOffsetOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprLoadLiteralOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprReadStringOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprCmpEqBaseOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprCmpEqStringOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckOp:
+			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)
 		}
+		return json.MarshalEncode(enc, toMarshal, json.WithMarshalers(marshalers))
 	}
 }

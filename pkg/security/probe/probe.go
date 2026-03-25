@@ -59,6 +59,7 @@ type PlatformProbe interface {
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
 	ReplayEvents()
+	SendCustomEventKillAction(_ model.ActionReport, _ []string)
 }
 
 var probeTelemetry = struct {
@@ -121,9 +122,9 @@ type Probe struct {
 
 	// Events section
 	consumers           []*EventConsumer
-	eventHandlers       [model.MaxAllEventType][]EventHandler
-	eventConsumers      [model.MaxAllEventType][]*EventConsumer
-	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+	eventHandlers       [model.MaxAllEventType + 1][]EventHandler
+	eventConsumers      [model.MaxAllEventType + 1][]*EventConsumer
+	customEventHandlers [model.MaxAllEventType + 1][]CustomEventHandler
 
 	// stats
 	ruleActionStatsLock sync.RWMutex
@@ -328,6 +329,11 @@ func (p *Probe) sendEventToHandlers(event *model.Event) {
 }
 
 func (p *Probe) sendEventToConsumers(event *model.Event) {
+	if t := event.GetEventType(); int(t) >= len(p.eventConsumers) {
+		seclog.Errorf("event type (%d) not allowed", t)
+		return
+	}
+
 	for _, pc := range p.eventConsumers[event.GetEventType()] {
 		if copied := pc.consumer.Copy(event); copied != nil {
 			select {
@@ -357,6 +363,11 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 	p.PlatformProbe.AddDiscarderPushedCallback(cb)
 }
 
+// SendCustomEventKillAction sends a custom remediation-style event for a resolved kill action report.
+func (p *Probe) SendCustomEventKillAction(report model.ActionReport, tags []string) {
+	p.PlatformProbe.SendCustomEventKillAction(report, tags)
+}
+
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	p.logTraceEvent(event.GetEventType(), event)
@@ -368,8 +379,12 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 
 	// send specific event
 	if event.GetEventType() != model.UnknownEventType {
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
+		if t := event.GetEventType(); int(t) >= len(p.customEventHandlers) {
+			seclog.Errorf("event type (%d) not allowed", t)
+		} else {
+			for _, handler := range p.customEventHandlers[event.GetEventType()] {
+				handler.HandleCustomEvent(rule, event)
+			}
 		}
 	}
 }

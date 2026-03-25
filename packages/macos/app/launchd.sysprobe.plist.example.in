@@ -21,15 +21,15 @@
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{install_dir}/embedded/bin/system-probe</string>
+            <string>/opt/datadog-agent/embedded/bin/system-probe</string>
             <string>run</string>
             <string>-c</string>
-            <string>{install_dir}/{conf_dir}</string>
+            <string>/opt/datadog-agent/{conf_dir}</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{install_dir}/logs/launchd_sysprobe.log</string>
+        <string>/opt/datadog-agent/logs/launchd_sysprobe.log</string>
         <key>StandardErrorPath</key>
-        <string>{install_dir}/logs/launchd_sysprobe.log</string>
+        <string>/opt/datadog-agent/logs/launchd_sysprobe.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

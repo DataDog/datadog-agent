@@ -95,10 +95,11 @@ func (c *Check) Configure(
 	data integration.Data,
 	initConfig integration.Data,
 	source string,
+	provider string,
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
