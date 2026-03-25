@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
 import { api } from '../api/client';
-import type { DetectorProcessingStats, ScenarioInfo } from '../api/client';
+import type { DetectorProcessingStats, ReplayStats, ScenarioInfo } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { TagFilterGroups } from './TagFilterGroups';
 import { parseTagFilter, toggleTagInInput, matchesTagFilter } from '../filters';
@@ -339,7 +339,7 @@ interface BenchmarkViewProps {
 }
 
 export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewProps) {
-  const [rawStats, setRawStats] = useState<Record<string, DetectorProcessingStats> | null>(null);
+  const [replayStats, setReplayStats] = useState<ReplayStats | null>(null);
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [hoveredDetector, setHoveredDetector] = useState<string | null>(null);
 
@@ -348,15 +348,15 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
     if (state.connectionState !== 'ready') return;
     api
       .getBenchmarkStats()
-      .then(setRawStats)
-      .catch(() => setRawStats(null));
+      .then(setReplayStats)
+      .catch(() => setReplayStats(null));
   }, [state.activeScenario, state.connectionState]);
 
   // Sort by p99 descending so the slowest detectors are at the top
   const stats = useMemo(() => {
-    if (!rawStats) return [];
-    return Object.values(rawStats).sort((a, b) => b.p99_ns - a.p99_ns);
-  }, [rawStats]);
+    if (!replayStats?.detector_stats) return [];
+    return Object.values(replayStats.detector_stats).sort((a, b) => b.p99_ns - a.p99_ns);
+  }, [replayStats]);
 
   // Tag groups: one entry per detector using the `detector:<name>` convention
   const tagGroups = useMemo(
@@ -420,6 +420,24 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
               tagFilterInput={tagFilterInput}
               onToggleTag={(tag) => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
             />
+          </div>
+        )}
+
+        {replayStats && (
+          <div className="p-4 border-b border-slate-700">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Input Volume
+            </h2>
+            <div className="text-xs text-slate-400 space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-500">metric samples</span>
+                <span>{replayStats.input_metrics_count.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">log entries</span>
+                <span>{replayStats.input_logs_count.toLocaleString()}</span>
+              </div>
+            </div>
           </div>
         )}
 

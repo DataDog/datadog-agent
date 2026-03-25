@@ -289,6 +289,12 @@ export interface DetectorProcessingStats {
   total_ns: number;
 }
 
+export interface ReplayStats {
+  detector_stats: Record<string, DetectorProcessingStats>;
+  input_metrics_count: number;
+  input_logs_count: number;
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -413,7 +419,7 @@ class ApiClient {
     return this.fetch('/score');
   }
 
-  async getBenchmarkStats(): Promise<Record<string, DetectorProcessingStats>> {
+  async getBenchmarkStats(): Promise<ReplayStats> {
     return this.fetch('/benchmark');
   }
 
