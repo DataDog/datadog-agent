@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"time"
 
+	"strings"
+
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
@@ -155,13 +158,19 @@ func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]
 		hostTags := hosttags.Get(ctx, true, config)
 		tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
 
-		// Merge global tags from the tagger at orchestrator cardinality.
-		// On ECS Fargate this includes task-level tags like task_arn that
-		// are not part of host tags but are needed for RC predicate targeting.
+		// On ECS Fargate, the task_arn tag is not part of host tags but is
+		// needed for RC predicate targeting. Fetch it from the tagger's global
+		// tags at orchestrator cardinality.
 		if taggerComp, ok := taggerOpt.Get(); ok {
 			globalTags, err := taggerComp.GlobalTags(taggertypes.OrchestratorCardinality)
 			if err == nil {
-				tags = appendMissing(tags, globalTags)
+				taskARNPrefix := taggertags.TaskARN + ":"
+				for _, t := range globalTags {
+					if strings.HasPrefix(t, taskARNPrefix) {
+						tags = append(tags, t)
+						break
+					}
+				}
 			}
 		}
 
@@ -169,16 +178,3 @@ func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]
 	}
 }
 
-// appendMissing appends values from src that are not already present in dst.
-func appendMissing(dst, src []string) []string {
-	existing := make(map[string]struct{}, len(dst))
-	for _, t := range dst {
-		existing[t] = struct{}{}
-	}
-	for _, t := range src {
-		if _, ok := existing[t]; !ok {
-			dst = append(dst, t)
-		}
-	}
-	return dst
-}
