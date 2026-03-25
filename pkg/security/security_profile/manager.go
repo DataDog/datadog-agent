@@ -749,16 +749,14 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 			Filepath:  "",
 		}
 
-		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
-			if pce == nil {
-				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
-				continue
+		pr.Walk(func(pce *model.ProcessCacheEntry) {
+			if slices.ContainsFunc(pids, func(pid uint32) bool {
+				return pce.Pid == pid
+			}) {
+				key.Filepath = pce.FileEvent.PathnameStr
+				result[key] = true
 			}
-
-			key.Filepath = pce.FileEvent.PathnameStr
-			result[key] = true
-		}
+		})
 	}
 
 	return result
