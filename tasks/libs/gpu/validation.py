@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from invoke.exceptions import Exit
 
@@ -51,7 +51,10 @@ def resolve_spec_paths(spec: str | None, architectures: str | None) -> tuple[str
     return spec_path, architectures_path
 
 
-def load_yaml_model[ModelT: BaseModel](path: str, model_cls: type[ModelT]) -> ModelT:
+ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+def load_yaml_model(path: str, model_cls: type[ModelT]) -> ModelT:
     import yaml
     from pydantic import ValidationError
 
