@@ -21,6 +21,7 @@ Restart=on-failure
 RestartSec=2
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+Environment="DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 {{- end}}
