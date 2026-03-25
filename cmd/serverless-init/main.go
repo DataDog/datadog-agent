@@ -117,7 +117,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 			enhancedMetricsCollector.Stop()
 		}
 
-		metricAgent.WaitForPendingSamples() // wait for worker to consume it
+		metricAgent.WaitForPendingSamples() // wait for worker to consume them
 	}()
 
 	return err
