@@ -47,12 +47,12 @@ var (
 
 // Process is a process
 type Process struct {
-	Pid         uint32
+	Pid            uint32
 	ExecutableName string
-	Tags        []*intern.Value
-	ContainerID *intern.Value
-	StartTime   int64
-	Expiry      int64
+	Tags           []*intern.Value
+	ContainerID    *intern.Value
+	StartTime      int64
+	Expiry         int64
 }
 
 // Init initializes the events package
