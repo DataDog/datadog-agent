@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 )
 
 const defaultVMName = "vm"
