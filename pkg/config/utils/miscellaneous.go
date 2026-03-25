@@ -70,13 +70,16 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool("remote_configuration.enabled")
 }
 
+var (
+	reFedSite = regexp.MustCompile(`(.+\.)?ddog-gov\.(com|mil)`)
+	reFedURL  = regexp.MustCompile(`https://.+\.ddog-gov\.(com|mil)`)
+)
+
 // IsFed returns true if the Agent is running in a gov environment
 func IsFed(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
-	reURL := regexp.MustCompile(`https://.+\.ddog-gov\.com`)
 	isFipsAgent, _ := pkgfips.Enabled()
 	return cfg.GetBool("fips.enabled") || isFipsAgent ||
-		reSite.MatchString(cfg.GetString("site")) || reURL.MatchString(cfg.GetString("dd_url"))
+		reFedSite.MatchString(cfg.GetString("site")) || reFedURL.MatchString(cfg.GetString("dd_url"))
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in
