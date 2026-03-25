@@ -53,6 +53,11 @@ pub struct MetricsWriter {
     last_unresolved_log: Instant,
 
     write_buf: Vec<u8>,
+
+    // Telemetry counters (read by the telemetry reporter).
+    pub flush_count: u64,
+    pub flush_bytes: u64,
+    pub last_flush_duration_ns: u64,
 }
 
 impl MetricsWriter {
@@ -89,6 +94,10 @@ impl MetricsWriter {
             last_unresolved_log: Instant::now(),
 
             write_buf: Vec::with_capacity(64 * 1024),
+
+            flush_count: 0,
+            flush_bytes: 0,
+            last_flush_duration_ns: 0,
         }
     }
 
@@ -184,6 +193,7 @@ impl MetricsWriter {
 
     /// Flush accumulated columns to a new Vortex file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
+        let flush_start = Instant::now();
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
@@ -290,8 +300,12 @@ impl MetricsWriter {
             .with_context(|| format!("writing {}", path.display()))?;
 
         // Shrink write_buf to release memory back to the allocator.
+        let bytes_written = self.write_buf.len() as u64;
         self.write_buf = Vec::with_capacity(64 * 1024);
 
+        self.flush_count += 1;
+        self.flush_bytes += bytes_written;
+        self.last_flush_duration_ns = flush_start.elapsed().as_nanos() as u64;
         self.last_flush = Instant::now();
         Ok(path)
     }
