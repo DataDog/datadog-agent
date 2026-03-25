@@ -766,6 +766,21 @@ func (s *timeSeriesStorage) TotalPointCount(excludeNamespace string) int {
 	return total
 }
 
+// TotalSeriesCount returns the number of unique series (name + tag combinations),
+// excluding series in excludeNamespace (pass "" to include all namespaces).
+func (s *timeSeriesStorage) TotalSeriesCount(excludeNamespace string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	total := 0
+	for _, stats := range s.series {
+		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
+			continue
+		}
+		total++
+	}
+	return total
+}
+
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 // Uses binary search since timestamps are sorted.
 func (s *timeSeriesStorage) PointCountUpTo(handle observer.SeriesHandle, endTime int64) int {

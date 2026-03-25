@@ -292,6 +292,7 @@ export interface DetectorProcessingStats {
 export interface ReplayStats {
   detector_stats: Record<string, DetectorProcessingStats>;
   input_metrics_count: number;
+  input_metrics_cardinality: number;
   input_logs_count: number;
 }
 

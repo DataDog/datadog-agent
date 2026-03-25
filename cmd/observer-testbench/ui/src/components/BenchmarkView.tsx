@@ -434,6 +434,10 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
                 <span>{replayStats.input_metrics_count.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-slate-500">unique series</span>
+                <span>{replayStats.input_metrics_cardinality.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-slate-500">log entries</span>
                 <span>{replayStats.input_logs_count.toLocaleString()}</span>
               </div>

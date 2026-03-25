@@ -400,7 +400,9 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rerunDetectorsLocked()
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
-	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+	rs := tb.replayStats
+	fmt.Printf("Scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
+		rs.InputMetricsCount, rs.InputMetricsCardinality, len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
 	close(progressDone)
 	tb.mu.Unlock()
@@ -674,7 +676,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
 	// ReplayStoredData (below) will handle scheduling after all data is loaded.
-	var ingestTelemetry []observerdef.ObserverTelemetry
+	var allTelemetry []observerdef.ObserverTelemetry
 	for _, log := range tb.rawLogs {
 		obs := &logObs{
 			content:     log.GetContent(),
@@ -684,14 +686,20 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			timestampMs: log.GetTimestampUnixMilli(),
 		}
 		_, tel := tb.engine.IngestLog("parquet", obs)
-		ingestTelemetry = append(ingestTelemetry, tel...)
+		allTelemetry = append(allTelemetry, tel...)
 		// Count logs only here in the testbench
-		ingestTelemetry = append(ingestTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
+		allTelemetry = append(allTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
 
-	// Count total metric samples already in storage (excludes internal telemetry namespace).
-	metricSamples := tb.engine.Storage().TotalPointCount(observerdef.TelemetryNamespace)
-	ingestTelemetry = append(ingestTelemetry, newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(metricSamples), tb.engine.Storage().MaxTimestamp()))
+	// Count total metric samples and unique series already in storage (excludes internal telemetry namespace).
+	storageSnapshot := tb.engine.Storage()
+	maxTs := storageSnapshot.MaxTimestamp()
+	metricSamples := storageSnapshot.TotalPointCount(observerdef.TelemetryNamespace)
+	metricCardinality := storageSnapshot.TotalSeriesCount(observerdef.TelemetryNamespace)
+	allTelemetry = append(allTelemetry,
+		newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(metricSamples), maxTs),
+		newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(metricCardinality), maxTs),
+	)
 
 	// Replay all stored data through the scheduler policy.
 	// The engine's captureRawAnomaly deduplicates anomalies internally,
@@ -699,8 +707,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	result := tb.engine.ReplayStoredData()
 	unsub()
 
-	// Combine ingest telemetry (log/metric counters) with detector telemetry from the replay.
-	allTelemetry := append(ingestTelemetry, result.telemetry...)
+	allTelemetry = append(allTelemetry, result.telemetry...)
 
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
@@ -731,9 +738,10 @@ func (tb *TestBench) rerunDetectorsLocked() {
 
 	// Compute all replay stats from the combined telemetry slice built above.
 	tb.replayStats = &ReplayStats{
-		DetectorStats:     computeDetectorProcessingStats(allTelemetry),
-		InputMetricsCount: sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
-		InputLogsCount:    sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
+		DetectorStats:           computeDetectorProcessingStats(allTelemetry),
+		InputMetricsCount:       sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
+		InputMetricsCardinality: sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCardinality),
+		InputLogsCount:          sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
 	}
 
 	// Mark scenario ready now that all analysis is complete
@@ -1195,8 +1203,6 @@ func (tb *TestBench) printHeadlessRunStats() {
 		return
 	}
 
-	fmt.Printf("\nInput: %d metric series, %d log entries\n", rs.InputMetricsCount, rs.InputLogsCount)
-
 	// Sort by name for deterministic output.
 	names := make([]string, 0, len(rs.DetectorStats))
 	for name := range rs.DetectorStats {
@@ -1428,7 +1434,9 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Run analyses on all loaded data (detectors sync, correlators async)
 	tb.rerunDetectorsLocked()
-	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+	rs := tb.replayStats
+	fmt.Printf("Demo scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
+		rs.InputMetricsCount, rs.InputMetricsCardinality, len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
 	tb.mu.Unlock()
 	tb.broadcastStatus()
