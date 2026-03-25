@@ -38,7 +38,7 @@ pub async fn merge_pass(config: &MergeConfig) -> Result<usize> {
 
     let mut total_merged = 0;
 
-    for file_type in &[FileType::Metrics, FileType::Logs] {
+    for file_type in &[FileType::Metrics, FileType::Logs, FileType::TraceStats] {
         // Only collect flush files — merged files are already compressed.
         let flush_files: Vec<&VortexEntry> = entries
             .iter()
@@ -162,6 +162,7 @@ async fn merge_streaming(
     let prefix = match file_type {
         FileType::Metrics => "metrics",
         FileType::Logs => "logs",
+        FileType::TraceStats => "trace_stats",
     };
     let oldest_ts = files[0].timestamp_ms;
     let final_path = output_dir.join(format!("{prefix}-{oldest_ts}.vortex"));
