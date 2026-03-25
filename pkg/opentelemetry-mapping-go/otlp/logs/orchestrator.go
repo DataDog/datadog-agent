@@ -142,6 +142,8 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 		nodeName = ""
 	}
 
+	fmt.Println("nodeName", nodeName, "kind", kind, "uid", uid, "metadata", metadata)
+
 	// Convert the Kubernetes resource to JSON bytes for the manifest content
 	content, err := json.Marshal(k8sResource)
 	if err != nil {
