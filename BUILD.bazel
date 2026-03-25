@@ -7,8 +7,13 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
+# The list of go tags to be used by gazelle
+ALL_BUILD_TAGS = [
+    "test",
+    "seclmax",
+]
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
-# gazelle:build_tags test,seclmax
 # gazelle:exclude cmd
 # gazelle:exclude comp
 # gazelle:exclude internal/remote-agent
@@ -233,6 +238,7 @@ package(default_visibility = ["//visibility:public"])
 gazelle(
     name = "gazelle",
     args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    build_tags = ALL_BUILD_TAGS,
     gazelle = ":gazelle_binary",
 )
 
