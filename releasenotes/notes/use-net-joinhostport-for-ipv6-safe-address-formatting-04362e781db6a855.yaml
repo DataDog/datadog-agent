@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Use ``net.JoinHostPort`` for IPv6-safe address formatting in several
+    components: NetFlow listener, SNMP traps listener, OTel Prometheus
+    exporter, OTLP TCP receiver, and network device SSH connections.
+    Previously, naive ``host:port`` string concatenation would produce
+    invalid addresses when the host is an IPv6 address.
