@@ -9,7 +9,6 @@ package agentprovider
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/config/configtelemetry"
@@ -96,7 +95,7 @@ func newConfigManager(config config.Component) configManager {
 	}
 
 	hostProfilerConfig := hostProfilerConfig{
-		debugVerbosity: validateDebugVerbosity(config.GetString(configsetup.HostProfilerDebugVerbosity)),
+		debugVerbosity: validateDebugVerbosity(config.GetString("host_profiler.debug.verbosity")),
 	}
 
 	return configManager{
