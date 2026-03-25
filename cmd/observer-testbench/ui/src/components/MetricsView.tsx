@@ -233,7 +233,7 @@ export function MetricsView({
       allSeries.filter((s) => {
         const agg = getAggregationType(s.name);
         if (s.metricKind === 'counter') {
-          return agg === 'sum';
+          return agg === 'sum' || agg === 'avg';
         }
         return agg === aggregationType;
       }),
