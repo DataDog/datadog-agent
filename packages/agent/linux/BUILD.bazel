@@ -34,6 +34,7 @@ pkg_filegroup(
     name = "agent_components",
     srcs = [
         "//packages/agent/dependencies:all_files",
+        "//packages/agent/product:all_files",
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
     ],

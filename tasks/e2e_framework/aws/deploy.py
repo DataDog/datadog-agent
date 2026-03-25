@@ -36,6 +36,8 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
+    pulumi_extra_args: str = "",
+    pulumi_env: dict[str, str] | None = None,
 ) -> str:
     from pydantic_core._pydantic_core import ValidationError
 
@@ -125,6 +127,8 @@ def deploy(
         agent_env,
         helm_config,
         local_package,
+        pulumi_extra_args=pulumi_extra_args,
+        pulumi_env=pulumi_env,
     )
 
 

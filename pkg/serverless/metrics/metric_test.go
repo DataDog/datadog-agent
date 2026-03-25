@@ -48,7 +48,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false, nil)
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false, nil, nil, nil)
 }
 
 type InvalidMetricConfigMocked struct{}
@@ -63,7 +63,7 @@ func TestStartInvalidConfig(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false, nil)
+	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false, nil, nil, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -81,7 +81,7 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false, nil)
+	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false, nil, nil, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 

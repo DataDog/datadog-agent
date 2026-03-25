@@ -49,7 +49,7 @@ This command acts as the CLI wrapper that initializes and runs the core profilin
 To build the host-profiler binary, use the following invoke task:
 
 ```bash
-dda inv full-host-profiler.build
+dda inv host-profiler.build
 ```
 
 **Note**: This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
@@ -83,14 +83,14 @@ docker-compose logs host-profiler -f
 
 ```bash
 # Standalone mode
-./bin/full-host-profiler/full-host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
+./bin/host-profiler/host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
 
 # Agent-integrated mode
 # First, start the Datadog Agent
 ./bin/agent/agent run -c ./dev/dist
 
 # Then, in another terminal, start the host-profiler with Agent integration
-./bin/full-host-profiler/full-host-profiler run \
+./bin/host-profiler/host-profiler run \
   -c cmd/host-profiler/dist/host-profiler-config.yaml \
   --core-config ./dev/dist/datadog.yaml
 ```

@@ -17,6 +17,7 @@ type Params struct {
 	WindowsNodeGroup      bool
 	GPUNodeGroup          bool
 	GPUInstanceType       string
+	DisableFargate        bool
 }
 
 type Option = func(*Params) error
@@ -64,6 +65,15 @@ func WithGPUNodeGroup(instanceType string) Option {
 			instanceType = "g4dn.xlarge" // Default: 1x T4 GPU, ~$0.526/hr on-demand
 		}
 		p.GPUInstanceType = instanceType
+		return nil
+	}
+}
+
+// WithoutFargate disables the Fargate profile. Prevents DaemonSets from
+// accumulating stuck-Pending pods on Fargate's NoSchedule-tainted nodes.
+func WithoutFargate() Option {
+	return func(p *Params) error {
+		p.DisableFargate = true
 		return nil
 	}
 }

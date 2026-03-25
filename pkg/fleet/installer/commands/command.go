@@ -44,6 +44,14 @@ const (
 	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
+type cmdOption func(*cmdConfig)
+type cmdConfig struct{ quiet bool }
+
+// withQuiet suppresses stdout logging for the command (e.g. when outputting structured JSON).
+func withQuiet() cmdOption {
+	return func(c *cmdConfig) { c.quiet = true }
+}
+
 type cmd struct {
 	t              *telemetry.Telemetry
 	span           *telemetry.Span
@@ -66,9 +74,13 @@ func setupStdoutLogger(_ *env.Env) {
 }
 
 // newCmd creates a new command
-func newCmd(operation string) *cmd {
+func newCmd(operation string, opts ...cmdOption) *cmd {
+	cfg := &cmdConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
 	env := env.FromEnv()
-	if !env.IsFromDaemon {
+	if !env.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(env)
 	}
 	t := newTelemetry(env)
@@ -114,8 +126,8 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) (_ *installerCmd, err error) {
-	cmd := newCmd(operation)
+func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err error) {
+	cmd := newCmd(operation, opts...)
 	defer func() {
 		if err != nil {
 			cmd.stop(err)
@@ -537,8 +549,8 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
-func getState() (*repository.PackageStates, error) {
-	i, err := newInstallerCmd("get_states")
+func getState(opts ...cmdOption) (*repository.PackageStates, error) {
+	i, err := newInstallerCmd("get_states", opts...)
 	if err != nil {
 		return nil, err
 	}
