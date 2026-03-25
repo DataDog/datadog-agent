@@ -78,6 +78,9 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/rust.bazelrc
 
+# Go Bazel migration - https://datadoghq.atlassian.net/browse/ABLD-409 ----------------------------------------
+build --@rules_go//go/config:tags=cel,consul,containerd,cri,crio,datadog.no_waf,docker,ec2,etcd,fargateprocess,grpcnotrace,jetson,jmx,kubeapiserver,kubelet,ncm,netcgo,no_dynamic_plugins,nvml,oracle,orchestrator,otlp,podman,python,retrynotrace,sharedlibrarycheck,systemd,systemprobechecks,trivy,trivy_no_javadb,zk,zlib,zstd
+
 # Global release config ------------------------------------------------------------------------------------------------
 # This should aggregate all the release configs for all the languages with enabled optimizations,
 # stripping, etc.  It does not strictly mean that this build is the one to be released as a product.
