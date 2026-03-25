@@ -155,7 +155,7 @@ func isEligibleInterface(iface net.Interface) bool {
 }
 
 // NewLibpcapSource creates a LibpcapSource using libpcap
-func NewLibpcapSource(opts ...interface{}) (*LibpcapSource, error) {
+func NewLibpcapSource(opts ...any) (*LibpcapSource, error) {
 	snapLen := defaultSnapLen
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -179,7 +179,7 @@ func NewLibpcapSource(opts ...interface{}) (*LibpcapSource, error) {
 	// reference to ps (which would prevent GC of the LibpcapSource).
 	poolSnapLen := snapLen
 	ps.bufPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make([]byte, poolSnapLen)
 		},
 	}
