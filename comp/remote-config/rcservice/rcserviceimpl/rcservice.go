@@ -59,7 +59,7 @@ type dependencies struct {
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
-	Tagger                option.Option[tagger.Component] `optional:"true"`
+	Tagger                tagger.Component
 }
 
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
@@ -148,7 +148,7 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	return configService, nil
 }
 
-func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]) func() []string {
+func getTags(config cfgcomp.Component, taggerComp tagger.Component) func() []string {
 	return func() []string {
 		// Host tags are cached on host, but we add a timeout to avoid blocking the RC request
 		// if the host tags are not available yet and need to be fetched. They will be fetched
@@ -161,15 +161,13 @@ func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]
 		// On ECS Fargate, the task_arn tag is not part of host tags but is
 		// needed for RC predicate targeting. Fetch it from the tagger's global
 		// tags at orchestrator cardinality.
-		if taggerComp, ok := taggerOpt.Get(); ok {
-			globalTags, err := taggerComp.GlobalTags(taggertypes.OrchestratorCardinality)
-			if err == nil {
-				taskARNPrefix := taggertags.TaskARN + ":"
-				for _, t := range globalTags {
-					if strings.HasPrefix(t, taskARNPrefix) {
-						tags = append(tags, t)
-						break
-					}
+		globalTags, err := taggerComp.GlobalTags(taggertypes.OrchestratorCardinality)
+		if err == nil {
+			taskARNPrefix := taggertags.TaskARN + ":"
+			for _, t := range globalTags {
+				if strings.HasPrefix(t, taskARNPrefix) {
+					tags = append(tags, t)
+					break
 				}
 			}
 		}
