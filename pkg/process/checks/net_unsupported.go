@@ -12,11 +12,6 @@ import (
 	"net/http"
 )
 
-// getListeningPortToPIDMap is not implemented on this platform; returns nil.
-func getListeningPortToPIDMap() map[int32]int32 {
-	return nil
-}
-
 // fetchRemoteServiceData is not applicable on this platform; returns nil.
 func fetchRemoteServiceData(_ *http.Client) (map[string][]string, map[uint32][]string, map[int32]int32) {
 	return nil, nil, nil
