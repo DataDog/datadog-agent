@@ -49,10 +49,7 @@ type collector struct {
 	collectNamespaceLabels      bool
 	collectNamespaceAnnotations bool
 	ignoreServiceReadiness      bool
-
-	// stream is the gRPC streaming client for pod-to-service and namespace
-	// metadata. nil if streaming is disabled or the DCA is not enabled.
-	stream *streamClient
+	streaming                   *streamingProvider
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
@@ -132,8 +129,15 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		if nodeNameErr != nil {
 			log.Warnf("Could not get node name, kube metadata streaming disabled: %v", nodeNameErr)
 		} else {
-			c.stream = newStreamClient(nodeName, pkgconfigsetup.Datadog())
-			go c.stream.run(ctx)
+			c.streaming = newStreamingProvider(
+				nodeName,
+				pkgconfigsetup.Datadog(),
+				c.store,
+				c.ignoreServiceReadiness,
+				c.collectNamespaceLabels,
+				c.collectNamespaceAnnotations,
+			)
+			c.streaming.start(ctx)
 		}
 	}
 
@@ -141,15 +145,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 }
 
 // Pull triggers an event collection from kubelet and the Datadog Cluster Agent.
-//
-// Pod-to-service mappings and namespace metadata can be streamed via gRPC, but
-// the collector remains pull-based because streaming is not always available
-// (older DCA versions, fallback to the local API server metadata mapper).
-//
-// TODO: When streaming is active, decouple from the pull interval to take
-// advantage of real-time updates (extract streaming to a separate collector,
-// reduce the pull frequency, or something similar).
+// When streaming is active, this is a no-op.
 func (c *collector) Pull(ctx context.Context) error {
+	if c.streaming.isActive() {
+		return nil
+	}
+
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
@@ -180,7 +181,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 
 		// Unset entities that are no longer seen
-		events = append(events, c.createUnsetEvent(seenID))
+		events = append(events, createUnsetEvent(seenID))
 	}
 
 	c.seen = seen
@@ -201,7 +202,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 }
 
 // createUnsetEvent creates an unset event for the appropriate entity type.
-func (c *collector) createUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEvent {
+func createUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEvent {
 	var entity workloadmeta.Entity
 	switch seenID.Kind {
 	case workloadmeta.KindKubernetesMetadata:
@@ -256,11 +257,9 @@ func (c *collector) parsePods(
 	pods []*kubelet.Pod,
 	seen map[workloadmeta.EntityID]struct{},
 ) ([]workloadmeta.CollectorEvent, error) {
-	// selectProvider is called on every pull (instead of Start) because:
-	// 1. The stream provider can fall back to another one if the DCA returns
-	// "unimplemented" after Start.
-	// 2. Providers have a per-pull namespace cache.
-	provider, err := c.selectProvider(ctx)
+	// selectPullBasedProvider is called on every pull (instead of Start)
+	// because providers have a per-pull namespace cache.
+	provider, err := c.selectPullBasedProvider(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -341,11 +340,7 @@ func (c *collector) isDCAEnabled() bool {
 	return false
 }
 
-func (c *collector) selectProvider(ctx context.Context) (metadataProvider, error) {
-	if c.stream != nil && !c.stream.isUnimplemented() {
-		return newStreamProvider(c.stream, c.collectNamespaceLabels, c.collectNamespaceAnnotations), nil
-	}
-
+func (c *collector) selectPullBasedProvider(ctx context.Context) (metadataProvider, error) {
 	if !c.isDCAEnabled() {
 		return newLocalAPIServerProvider(c.apiClient), nil
 	}

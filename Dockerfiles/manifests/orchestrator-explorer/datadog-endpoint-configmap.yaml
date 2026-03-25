@@ -5,6 +5,7 @@ kind: ConfigMap
 metadata:
   name: datadog-endpoint-config
   namespace: default
-  labels: {}
+  labels:
+    datadoghq.com/component: endpoint-config
 data:
   api-key-secret-name: "datadog"

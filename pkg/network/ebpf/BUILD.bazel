@@ -18,15 +18,18 @@ exports_files([
 cgo_godefs(
     name = "conntrack_types_godefs",
     src = "conntrack_types.go",
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )
 
 cgo_godefs(
     name = "tuple_types_godefs",
     src = "tuple_types.go",
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )
 
 cgo_godefs(
     name = "kprobe_types_godefs",
     src = "kprobe_types.go",
     hdrs = ["//pkg/network/ebpf/c/prebuilt:prebuilt_headers"],
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )

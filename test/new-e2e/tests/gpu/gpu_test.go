@@ -308,7 +308,9 @@ func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
 		err := json.Unmarshal([]byte(jsonStatus), &status)
 
 		assert.NoError(c, err, "failed to unmarshal agent status")
-		assert.Contains(c, status.RunnerStats.Checks, "gpu")
+		assert.Contains(c, status.RunnerStats.Checks, "gpu", "gpu check should be enabled")
+
+		v.T().Logf("gpu check status: %+v", status.RunnerStats.Checks["gpu"])
 
 		gpuCheckStatus := status.RunnerStats.Checks["gpu"]
 		assert.Equal(c, gpuCheckStatus.LastError, "")

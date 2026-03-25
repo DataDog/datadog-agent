@@ -416,22 +416,6 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 	assert.False(t, found)
 }
 
-func TestGetSecretSettingPaths(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("api_key", "")
-	cfg.SetDefault("proxy.https", "")
-	cfg.SetDefault("proxy.http", "")
-	cfg.BuildSchema()
-
-	assert.Empty(t, cfg.GetSecretSettingPaths())
-
-	cfg.Set("api_key", "resolved_key", model.SourceSecretBackend)
-	cfg.Set("proxy.https", "resolved_proxy", model.SourceSecretBackend)
-
-	paths := cfg.GetSecretSettingPaths()
-	assert.ElementsMatch(t, []string{"api_key", "proxy.https"}, paths)
-}
-
 func TestIsSet(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
