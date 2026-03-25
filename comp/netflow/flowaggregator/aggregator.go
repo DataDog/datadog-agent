@@ -58,7 +58,7 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	deduplicationEnabled bool
+	shouldUseDeduplication bool
 	flowFilter           FlowFlushFilter
 	logger               log.Component
 }
@@ -125,7 +125,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		TimeNowFunction:              time.Now,
 		NewTicker:                    time.Tick,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
-		deduplicationEnabled:         config.DeduplicationEnabled,
+		shouldUseDeduplication:         config.DeduplicationEnabled,
 		logger:                       logger,
 		flowFilter:                   topNFilter,
 	}
@@ -186,13 +186,16 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 	}
 }
 
-// sendMergedFlows sends one merged event per 5-tuple group. Groups are provided directly
-// by the accumulator's flushGroups, so no re-grouping is needed here. Within each group
-// the reporters list is reduced to the highest-bytes reporter plus any ghost reporters
-// (Bytes == 0, Packets == 0) carried from the previous cycle as platform metadata.
-func (agg *FlowAggregator) sendMergedFlows(groups [][]*common.Flow, flushTime time.Time) {
+// sendMergedFlows sends one merged event per 5-tuple group. Within each group, only the
+// highest-bytes reporter is included alongside any GhostReporters from the previous cycle.
+func (agg *FlowAggregator) sendMergedFlows(groups []FlowGroup, flushTime time.Time) {
 	for _, group := range groups {
-		mergedPayload := buildMergedPayload(topReporterWithGhosts(group), agg.hostname, flushTime)
+		top := topByBytes(group.Reporters)
+		if top == nil {
+			continue
+		}
+		reporters := append([]*common.Flow{top}, group.GhostReporters...)
+		mergedPayload := buildMergedPayload(reporters, agg.hostname, flushTime)
 		payloadBytes, err := json.Marshal(mergedPayload)
 		if err != nil {
 			agg.logger.Errorf("Error marshalling merged flow payload: %s", err)
@@ -316,7 +319,7 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := ctx.FlushTime
 
-	if agg.deduplicationEnabled {
+	if agg.shouldUseDeduplication {
 		return agg.flushDedup(ctx, flushTime, flowsContexts)
 	}
 
@@ -353,21 +356,17 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 }
 
 // flushDedup handles the deduplication flush path. The accumulator returns pre-grouped
-// flows (one slice per 5-tuple); the aggregator applies intra-group TopN filtering and
+// FlowGroups (one per 5-tuple); the aggregator applies intra-group TopN filtering and
 // builds merged payloads without needing to re-derive groups.
 func (agg *FlowAggregator) flushDedup(ctx common.FlushContext, flushTime time.Time, flowsContexts int) int {
 	groups := agg.flowAcc.flushGroups(ctx)
 
-	// Collect active (non-ghost) flows for sequence tracking and exporter metadata.
-	// Ghost reporters (Bytes == 0, Packets == 0) are carry-over metadata and should
-	// not affect sequence delta calculations or exporter registration.
+	// Collect active reporters for sequence tracking and exporter metadata.
+	// GhostReporters are carry-over metadata snapshots and should not affect
+	// sequence delta calculations or exporter registration.
 	var activeFlows []*common.Flow
 	for _, group := range groups {
-		for _, f := range group {
-			if f.Bytes > 0 || f.Packets > 0 {
-				activeFlows = append(activeFlows, f)
-			}
-		}
+		activeFlows = append(activeFlows, group.Reporters...)
 	}
 
 	agg.logger.Debugf("Flushing %d flow groups to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(groups), time.Since(flushTime).Milliseconds(), flowsContexts)

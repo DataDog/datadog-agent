@@ -18,16 +18,19 @@ import (
 
 var timeNow = time.Now
 
+// FlowGroup is returned by flushGroups and represents all reporters for a single 5-tuple.
+// Reporters observed data this cycle; GhostReporters are 0-byte snapshots from the
+// previous cycle included so the platform can use them as metadata when assigning flow_role.
+type FlowGroup struct {
+	Reporters      []*common.Flow
+	GhostReporters []*common.Flow
+}
+
 // flowContext contains flow information and additional flush related data
 type flowContext struct {
 	flow                *common.Flow
 	nextFlush           time.Time
 	lastSuccessfulFlush time.Time
-	// isGhost is true when the flow has been flushed but is being kept alive for one
-	// additional cycle in deduplication mode. Ghost reporters have Bytes == 0 and
-	// Packets == 0 and are included in the next merged event as metadata. A ghost
-	// becomes active again if new data arrives before the next flush.
-	isGhost bool
 }
 
 // flowAccumulator is used to accumulate aggregated flows
@@ -47,18 +50,22 @@ type flowAccumulator struct {
 
 	hashCollisionFlowCount *atomic.Uint64
 
-	// deduplicationEnabled groups flows by 5-tuple. When true, fiveTupleGroups indexes
+	// shouldUseDeduplication groups flows by 5-tuple. When true, fiveTupleGroups indexes
 	// the per-reporter full-hash entries so they can be flushed as a single merged event.
-	deduplicationEnabled bool
+	shouldUseDeduplication bool
 	// fiveTupleGroups maps a FiveTupleHash to the set of full AggregationHashes (one per
-	// reporter) that belong to that group. Only populated when deduplicationEnabled is true.
+	// reporter) that belong to that group. Only populated when shouldUseDeduplication is true.
 	fiveTupleGroups map[uint64][]uint64
+	// prevCycleReporters holds 0-byte snapshots of reporters from the most recent flush of
+	// each group. These are returned as GhostReporters in the next flush so the platform can
+	// use them as metadata for flow_role assignment. Keyed by FiveTupleHash.
+	prevCycleReporters map[uint64][]*common.Flow
 
 	logger      log.Component
 	rdnsQuerier rdnsquerier.Component
 }
 
-func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, deduplicationEnabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, shouldUseDeduplication bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	acc := &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
 		FlushConfig:            flushConfig,
@@ -66,38 +73,34 @@ func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowSchedu
 		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
 		portRollupThreshold:    portRollupThreshold,
 		portRollupDisabled:     portRollupDisabled,
-		deduplicationEnabled:   deduplicationEnabled,
+		shouldUseDeduplication: shouldUseDeduplication,
 		hashCollisionFlowCount: atomic.NewUint64(0),
 		scheduler:              flowScheduler,
 		logger:                 logger,
 		rdnsQuerier:            rdnsQuerier,
 	}
-	if deduplicationEnabled {
+	if shouldUseDeduplication {
 		acc.fiveTupleGroups = make(map[uint64][]uint64)
+		acc.prevCycleReporters = make(map[uint64][]*common.Flow)
 	}
 	return acc
 }
 
-// flush will flush flow contexts that are due, returning the flows to send.
+// flush flushes flow contexts that are due, returning the flows to send.
 // Each context flushes independently based on its scheduled nextFlush time.
 // Use flushGroups instead when deduplication is enabled.
-func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow {
-	f.flowsMutex.Lock()
-	defer f.flowsMutex.Unlock()
-
-	return f.flushStandard(flushContext.FlushTime)
-}
-
-// flushStandard is the original per-flow flush logic.
 //
-// flowContextTTL:
 // flowContextTTL defines the duration we should keep a specific flowContext in `flowAccumulator.flows`
 // after `lastSuccessfulFlush`. Flow context in `flowAccumulator.flows` map will be deleted if `flowContextTTL`
 // is reached to avoid keeping flow context that are not seen anymore.
 // We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flowFlushInterval`).
 // Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
-func (f *flowAccumulator) flushStandard(now time.Time) []*common.Flow {
+func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow {
+	f.flowsMutex.Lock()
+	defer f.flowsMutex.Unlock()
+
+	now := flushContext.FlushTime
 	var flowsToFlush []*common.Flow
 	var expiredFlowKeys []uint64
 
@@ -137,31 +140,24 @@ func (f *flowAccumulator) flushStandard(now time.Time) []*common.Flow {
 	return flowsToFlush
 }
 
-// flushGroups flushes reporters in deduplication mode, returning one slice of flows per
-// 5-tuple group. A group flushes when any active (non-ghost) reporter's nextFlush is due;
-// all reporters in the group are included in that flush together.
-//
-// Active reporters that flush are kept alive as ghosts (Bytes == 0, Packets == 0) for one
-// additional cycle so the platform can use them as metadata when assigning flow_role.
-// Ghost reporters are included in the next flush, then transitioned to dead (flow = nil).
-func (f *flowAccumulator) flushGroups(flushContext common.FlushContext) [][]*common.Flow {
+// flushGroups flushes reporters in deduplication mode, returning one FlowGroup per 5-tuple.
+// A group flushes when any active reporter's nextFlush is due; all reporters in the group
+// flush together. GhostReporters are 0-byte snapshots from the previous flush cycle and
+// are included so the platform can use them as metadata for flow_role assignment.
+func (f *flowAccumulator) flushGroups(flushContext common.FlushContext) []FlowGroup {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
 	now := flushContext.FlushTime
-
-	// groupFlows collects the reporters to emit per 5-tuple; groupOrder preserves
-	// first-seen ordering for deterministic output.
-	groupFlows := make(map[uint64][]*common.Flow)
-	var groupOrder []uint64
+	var result []FlowGroup
 	var emptyGroups []uint64
 
 	for fiveTupleHash, reporterHashes := range f.fiveTupleGroups {
-		// Check if any active (non-ghost) reporter in this group is due to flush.
+		// Check if any active reporter in this group is due to flush.
 		groupReady := false
 		for _, hash := range reporterHashes {
 			ctx, ok := f.flows[hash]
-			if !ok || ctx.flow == nil || ctx.isGhost {
+			if !ok || ctx.flow == nil {
 				continue
 			}
 			if !ctx.nextFlush.After(now) {
@@ -173,7 +169,9 @@ func (f *flowAccumulator) flushGroups(flushContext common.FlushContext) [][]*com
 			continue
 		}
 
+		var activeFlows []*common.Flow
 		var liveHashes []uint64
+
 		for _, hash := range reporterHashes {
 			ctx, ok := f.flows[hash]
 			if !ok {
@@ -196,31 +194,23 @@ func (f *flowAccumulator) flushGroups(flushContext common.FlushContext) [][]*com
 
 			liveHashes = append(liveHashes, hash)
 
-			if _, exists := groupFlows[fiveTupleHash]; !exists {
-				groupOrder = append(groupOrder, fiveTupleHash)
-			}
-
-			if ctx.isGhost {
-				// Include ghost (Bytes == 0) as metadata for the platform, then mark dead.
-				groupFlows[fiveTupleHash] = append(groupFlows[fiveTupleHash], ctx.flow)
+			if !ctx.nextFlush.After(now) {
+				flowCopy := *ctx.flow
+				activeFlows = append(activeFlows, &flowCopy)
 				ctx.lastSuccessfulFlush = now
 				ctx.flow = nil
-				ctx.isGhost = false
-				ctx.nextFlush = f.scheduler.RefreshFlushTime(ctx)
-				f.flows[hash] = ctx
-			} else if !ctx.nextFlush.After(now) {
-				// Active reporter: copy the flow for the payload, then zero bytes/packets
-				// and keep alive as a ghost for one additional cycle.
-				flowCopy := *ctx.flow
-				groupFlows[fiveTupleHash] = append(groupFlows[fiveTupleHash], &flowCopy)
-				ctx.flow.Bytes = 0
-				ctx.flow.Packets = 0
-				ctx.isGhost = true
-				ctx.lastSuccessfulFlush = now
 				ctx.nextFlush = f.scheduler.RefreshFlushTime(ctx)
 				f.flows[hash] = ctx
 			}
-			// Reporters whose nextFlush is still in the future are left unchanged.
+		}
+
+		if len(activeFlows) > 0 {
+			result = append(result, FlowGroup{
+				Reporters:      activeFlows,
+				GhostReporters: f.prevCycleReporters[fiveTupleHash],
+			})
+			// Store 0-byte snapshots so they become GhostReporters on the next flush.
+			f.prevCycleReporters[fiveTupleHash] = zeroedSnapshots(activeFlows)
 		}
 
 		if len(liveHashes) == 0 {
@@ -232,13 +222,23 @@ func (f *flowAccumulator) flushGroups(flushContext common.FlushContext) [][]*com
 
 	for _, key := range emptyGroups {
 		delete(f.fiveTupleGroups, key)
+		delete(f.prevCycleReporters, key)
 	}
 
-	result := make([][]*common.Flow, 0, len(groupOrder))
-	for _, h := range groupOrder {
-		result = append(result, groupFlows[h])
-	}
 	return result
+}
+
+// zeroedSnapshots returns copies of the given flows with Bytes and Packets set to zero.
+// These are stored as prevCycleReporters and surfaced as GhostReporters on the next flush.
+func zeroedSnapshots(flows []*common.Flow) []*common.Flow {
+	snapshots := make([]*common.Flow, len(flows))
+	for i, f := range flows {
+		cp := *f
+		cp.Bytes = 0
+		cp.Packets = 0
+		snapshots[i] = &cp
+	}
+	return snapshots
 }
 
 func isFlowCtxExpired(flowCtx flowContext, flowTTL time.Duration, now time.Time) bool {
@@ -269,12 +269,12 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	if !ok {
 		nextFlush := f.scheduler.ScheduleNewFlowFlush(timeNow())
 
-		if f.deduplicationEnabled {
+		if f.shouldUseDeduplication {
 			fiveTupleHash := flowToAdd.FiveTupleHash()
 			// New reporter joining an existing group: inherit the group's flush time so
 			// all reporters flush together rather than at independently jittered times.
 			for _, h := range f.fiveTupleGroups[fiveTupleHash] {
-				if existingCtx, exists := f.flows[h]; exists && existingCtx.flow != nil && !existingCtx.isGhost {
+				if existingCtx, exists := f.flows[h]; exists && existingCtx.flow != nil {
 					nextFlush = existingCtx.nextFlush
 					break
 				}
@@ -290,19 +290,12 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		return
 	}
 	if aggFlow.flow == nil {
-		// flowToAdd is for the same hash as an aggregated flow that has been flushed (dead state).
+		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
-		aggFlow.isGhost = false
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
-
-		if aggFlow.isGhost {
-			// Reactivate: a late-arriving flow woke up the ghost. Clear ghost state so
-			// the accumulation below adds on top of the zeroed bytes/packets correctly.
-			aggFlow.isGhost = false
-		}
 
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes

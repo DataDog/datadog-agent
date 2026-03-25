@@ -13,27 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
-// topReporterWithGhosts returns a slice containing the single highest-bytes reporter from
-// the group plus all ghost reporters (Bytes == 0, Packets == 0). This implements the
-// intra-group Top-N policy for deduplication mode: we surface the most authoritative
-// byte count to the platform rather than sending every reporter. Ghost reporters are
-// always preserved so the platform can use them for flow_role metadata.
-func topReporterWithGhosts(reporters []*common.Flow) []*common.Flow {
+// topByBytes returns the reporter with the highest Bytes value, or nil if the slice is empty.
+func topByBytes(reporters []*common.Flow) *common.Flow {
 	var top *common.Flow
-	var ghosts []*common.Flow
 	for _, r := range reporters {
-		if r.Bytes == 0 && r.Packets == 0 {
-			ghosts = append(ghosts, r)
-			continue
-		}
 		if top == nil || r.Bytes > top.Bytes {
 			top = r
 		}
 	}
-	if top == nil {
-		return ghosts
-	}
-	return append([]*common.Flow{top}, ghosts...)
+	return top
 }
 
 // buildMergedPayload builds a MergedFlowPayload from a group of reporter flows that share
