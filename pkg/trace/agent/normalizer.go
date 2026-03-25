@@ -203,8 +203,11 @@ func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, durat
 // normalizeSpanLinksV1 handles span links normalization for idx.InternalSpan
 func (a *Agent) normalizeSpanLinksV1(links []*idx.InternalSpanLink) {
 	for _, link := range links {
-		val, _ := link.GetAttributeAsString(string(semantics.ConceptLinkName))
-		newName, err := normalizeutil.NormalizeName(val) // val=="" normalizes to DefaultSpanName
+		val, ok := link.GetAttributeAsString(string(semantics.ConceptLinkName))
+		if !ok {
+			continue
+		}
+		newName, err := normalizeutil.NormalizeName(val)
 		if err != nil {
 			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
 		}
