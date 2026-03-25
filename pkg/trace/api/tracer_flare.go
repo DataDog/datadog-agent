@@ -21,8 +21,8 @@ const (
 	serverlessFlareEndpointPath = "/api/ui/support/serverless/flare"
 )
 
-var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2,}\d{1,2})?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
-var ddNoSubDomainRegexp = regexp.MustCompile(`^(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2,}\d{1,2})?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.(com|mil))$`)
+var ddNoSubDomainRegexp = regexp.MustCompile(`^(datad(oghq|0g)\.(com|eu)|ddog-gov\.(com|mil))$`)
 var versionNumsddURLRegexp = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
 
 type endpointGetter func(url *url.URL, agentVersion string) *url.URL
