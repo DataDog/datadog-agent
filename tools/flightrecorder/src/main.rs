@@ -7,11 +7,15 @@ mod generated;
 mod heap_prof;
 mod janitor;
 mod merge;
+pub mod telemetry;
 mod transport;
 mod vortex_files;
 mod writers;
 
 use std::time::Duration;
+
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
@@ -82,6 +86,31 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
     ));
 
+    let conn_stats = Arc::new(telemetry::ConnectionStats::new());
+
+    // Start telemetry reporter (DogStatsD) if configured.
+    let telemetry_cancel = tokio_util::sync::CancellationToken::new();
+    let telemetry_handle = if let Some(reporter) =
+        telemetry::TelemetryReporter::new(&cfg.statsd_host, cfg.statsd_port)
+    {
+        info!(
+            host = %cfg.statsd_host,
+            port = cfg.statsd_port,
+            "telemetry reporter started"
+        );
+        let tc = telemetry_cancel.clone();
+        let mw = metrics_writer.clone();
+        let lw = logs_writer.clone();
+        let tw = trace_stats_writer.clone();
+        let cs = conn_stats.clone();
+        Some(tokio::spawn(async move {
+            reporter.run(tc, mw, lw, tw, cs).await;
+        }))
+    } else {
+        info!("telemetry reporter disabled (empty statsd_host)");
+        None
+    };
+
     let transport = transport::UnixSocketTransport::bind(&cfg.socket_path)?;
     info!(socket = %cfg.socket_path, "listening for connections");
 
@@ -119,6 +148,9 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         let lw = logs_writer.clone();
         let tw = trace_stats_writer.clone();
         let token = cancel.clone();
+        let cs = conn_stats.clone();
+
+        cs.active_connections.fetch_add(1, Ordering::Relaxed);
 
         client_tasks.push(tokio::spawn(async move {
             // New connection — agent will re-send all context definitions.
@@ -151,6 +183,8 @@ pub async fn run(cfg: config::Config) -> Result<()> {
                     }
                 };
 
+                cs.frames_received.fetch_add(1, Ordering::Relaxed);
+
                 match env.payload_type() {
                     signals::SignalPayload::MetricBatch => {
                         if let Some(batch) = env.payload_as_metric_batch() {
@@ -178,16 +212,21 @@ pub async fn run(cfg: config::Config) -> Result<()> {
                     }
                 }
             }
+            cs.active_connections.fetch_sub(1, Ordering::Relaxed);
         }));
 
         // Clean up completed client tasks.
         client_tasks.retain(|t| !t.is_finished());
     }
 
-    // Signal all client tasks to stop.
+    // Signal all client tasks and telemetry to stop.
     cancel.cancel();
+    telemetry_cancel.cancel();
     for task in client_tasks {
         let _ = task.await;
+    }
+    if let Some(h) = telemetry_handle {
+        let _ = h.await;
     }
 
     // Final flush on shutdown.
