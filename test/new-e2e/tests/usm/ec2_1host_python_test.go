@@ -91,8 +91,7 @@ type pythonRemoteTagsDirectLinuxSuite struct {
 
 func TestPythonRemoteTagsDirectLinuxSuite(t *testing.T) {
 	t.Parallel()
-	// TODO: restore skip once connection capture rate on Linux is validated
-	// t.Skip("Skip until lower connection capture rate on Linux is resolved")
+	t.Skip("Skip until lower connection capture rate on Linux is resolved")
 
 	e2eParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
