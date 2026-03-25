@@ -280,13 +280,14 @@ func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string
 	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
-		if cloudRunType == CloudRunJob {
+		switch cloudRunType {
+		case CloudRunJob:
 			metaChan <- keyVal{cloudRunJobTagPrefix + baseKey, val}
-		} else if cloudRunType == CloudRunService {
+		case CloudRunService:
 			metaChan <- keyVal{cloudRunServiceTagPrefix + baseKey, val}
-		} else if cloudRunType == CloudRunFunction {
+		case CloudRunFunction:
 			metaChan <- keyVal{cloudRunFunctionTagPrefix + baseKey, val}
-		} else {
+		default:
 			panic(fmt.Sprintf("unexpected cloudRunType for GCP metadata: %d", cloudRunType))
 		}
 	}
