@@ -10,11 +10,13 @@ package agentprovider
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 )
 
 type confMap = map[string]any
@@ -47,6 +49,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		profilesEndpointFormat = "https://intake.profile.%s/v1development/profiles"
 		metricsEndpointFormat  = "https://otlp.%s/v1/metrics"
 		otlpHTTPNameFormat     = "otlphttp/%s_%d"
+		debugExporterName      = "debug"
 	)
 
 	exporters := make(confMap)
@@ -63,7 +66,12 @@ func buildExporters(conf confMap, agent configManager) []any {
 		}
 	}
 
-	profilesExporters := make([]any, 0, agent.endpointsTotalLength)
+	debugEnabled := agent.hostProfilerConfig.debugVerbosity != configtelemetry.LevelNone
+	capacity := agent.endpointsTotalLength
+	if debugEnabled {
+		capacity++
+	}
+	profilesExporters := make([]any, 0, capacity)
 	// Track exporter count per site to ensure unique names for duplicate sites
 	siteExporterCount := make(map[string]int)
 	for _, endpoint := range agent.endpoints {
@@ -74,6 +82,11 @@ func buildExporters(conf confMap, agent configManager) []any {
 			_ = converters.Set(exporters, exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key))
 			profilesExporters = append(profilesExporters, exporterName)
 		}
+	}
+
+	if debugEnabled {
+		exporters[debugExporterName] = confMap{"verbosity": strings.ToLower(agent.hostProfilerConfig.debugVerbosity.String())}
+		profilesExporters = append(profilesExporters, debugExporterName)
 	}
 
 	conf["exporters"] = exporters

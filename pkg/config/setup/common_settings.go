@@ -1048,6 +1048,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Integrations excluded from these restrictions.
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
+
+	// Host Profiler related configuration
+	setupHostProfiler(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {

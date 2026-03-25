@@ -9,9 +9,15 @@ package agentprovider
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 )
+
+type hostProfilerConfig struct {
+	debugVerbosity configtelemetry.Level
+}
 
 type endpoint struct {
 	site    string
@@ -22,11 +28,23 @@ type configManager struct {
 	endpointsTotalLength int
 	endpoints            []endpoint
 	config               config.Component
+	hostProfilerConfig   hostProfilerConfig
+}
+
+func validateDebugVerbosity(value string) configtelemetry.Level {
+	var level configtelemetry.Level
+	if err := level.UnmarshalText([]byte(value)); err != nil {
+		log.Warnf("Invalid host_profiler.debug.verbosity %q: %v. Falling back to %q", value, err, configtelemetry.LevelNone)
+		return configtelemetry.LevelNone
+	}
+	return level
 }
 
 func newConfigManager(config config.Component) configManager {
 	if config == nil {
-		return configManager{}
+		return configManager{
+			hostProfilerConfig: hostProfilerConfig{debugVerbosity: configtelemetry.LevelNone},
+		}
 	}
 
 	endpointsTotalLength := 0
@@ -77,5 +95,14 @@ func newConfigManager(config config.Component) configManager {
 		log.Warnf("No API key registered for main site %s", usedSite)
 	}
 
-	return configManager{config: config, endpoints: endpoints, endpointsTotalLength: endpointsTotalLength}
+	hostProfilerConfig := hostProfilerConfig{
+		debugVerbosity: validateDebugVerbosity(config.GetString(configsetup.HostProfilerDebugVerbosity)),
+	}
+
+	return configManager{
+		config:               config,
+		endpoints:            endpoints,
+		endpointsTotalLength: endpointsTotalLength,
+		hostProfilerConfig:   hostProfilerConfig,
+	}
 }
