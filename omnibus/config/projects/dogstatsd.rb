@@ -162,6 +162,7 @@ package :msi do
 
   # For a consistent package management, please NEVER change this code
   arch = "x64"
+  # NOTE: We no longer build for 32 bit windows, so we always take the x64 path.
   if windows_arch_i386?
     upgrade_code 'a8c5b8ae-ac27-4d66-b63f-edba0e5ea477'
     arch = "x86"
