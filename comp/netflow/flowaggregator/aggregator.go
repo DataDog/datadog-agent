@@ -58,8 +58,9 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	flowFilter FlowFlushFilter
-	logger     log.Component
+	deduplicationEnabled bool
+	flowFilter           FlowFlushFilter
+	logger               log.Component
 }
 
 type sequenceDeltaKey struct {
@@ -98,7 +99,9 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	var flowScheduler FlowScheduler = ImmediateFlowScheduler{
 		flushConfig: flushConfig,
 	}
-	if config.AggregatorMaxFlowsPerPeriod > 0 {
+	// In dedup mode the per-flush TopN limiter is skipped. Intra-group filtering
+	// (topReporterWithGhosts) reduces each group to its highest-bytes reporter instead.
+	if config.AggregatorMaxFlowsPerPeriod > 0 && !config.DeduplicationEnabled {
 		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig, sender, logger)
 		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
 	}
@@ -107,7 +110,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.DeduplicationEnabled, logger, rdnsQuerier),
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -122,6 +125,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		TimeNowFunction:              time.Now,
 		NewTicker:                    time.Tick,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
+		deduplicationEnabled:         config.DeduplicationEnabled,
 		logger:                       logger,
 		flowFilter:                   topNFilter,
 	}
@@ -161,6 +165,10 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
+	if agg.deduplicationEnabled {
+		agg.sendMergedFlows(flows, flushTime)
+		return
+	}
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 
@@ -176,6 +184,40 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
+			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
+			continue
+		}
+	}
+}
+
+// sendMergedFlows groups the flushed reporter flows by 5-tuple and sends one merged
+// event per group. Within each group the reporters list is reduced to the single
+// highest-bytes reporter plus any ghost reporters (Bytes == 0, Packets == 0) carried
+// over from the previous cycle as metadata for the platform's flow_role assignment.
+func (agg *FlowAggregator) sendMergedFlows(flows []*common.Flow, flushTime time.Time) {
+	// Group reporters by 5-tuple hash, preserving first-seen order for determinism.
+	groups := make(map[uint64][]*common.Flow)
+	var groupOrder []uint64
+	for _, flow := range flows {
+		h := flow.FiveTupleHash()
+		if _, ok := groups[h]; !ok {
+			groupOrder = append(groupOrder, h)
+		}
+		groups[h] = append(groups[h], flow)
+	}
+
+	for _, h := range groupOrder {
+		mergedPayload := buildMergedPayload(topReporterWithGhosts(groups[h]), agg.hostname, flushTime)
+		payloadBytes, err := json.Marshal(mergedPayload)
+		if err != nil {
+			agg.logger.Errorf("Error marshalling merged flow payload: %s", err)
+			continue
+		}
+		agg.logger.Tracef("flushed merged flow: %s", string(payloadBytes))
+
+		m := message.NewMessage(payloadBytes, nil, "", 0)
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
+		if err != nil {
 			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
 			continue
 		}

@@ -146,6 +146,21 @@ func (f *Flow) AggregationHash() uint64 {
 	return h.Sum64()
 }
 
+// FiveTupleHash returns a hash of the flow's 5-tuple plus ToS, used to group flows from
+// multiple reporters together in deduplication mode. Unlike AggregationHash, this excludes
+// the exporter address, namespace, and ingress interface so that the same flow observed by
+// different devices maps to the same key.
+func (f *Flow) FiveTupleHash() uint64 {
+	h := fnv.New64()
+	h.Write(f.SrcAddr)                                 //nolint:errcheck
+	h.Write(f.DstAddr)                                 //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.SrcPort)    //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.DstPort)    //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.IPProtocol) //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.Tos)        //nolint:errcheck
+	return h.Sum64()
+}
+
 // IsEqualFlowContext check if the flow and another flow have equal values for all fields used in `AggregationHash`.
 // This method is used for hash collision detection.
 func IsEqualFlowContext(a Flow, b Flow) bool {

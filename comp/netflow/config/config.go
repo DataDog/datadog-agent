@@ -37,6 +37,11 @@ type NetflowConfig struct {
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+
+	// DeduplicationEnabled groups flows by 5-tuple at the agent and emits a single merged
+	// event with a reporters list instead of one event per exporter. The platform re-splits
+	// the merged event and assigns flow_role: primary/auxiliary. Opt-in to limit blast radius.
+	DeduplicationEnabled bool `mapstructure:"deduplication_enabled"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
