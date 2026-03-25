@@ -10,6 +10,7 @@ use vortex::file::VortexWriteOptions;
 use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
+use super::apply_permutation;
 use super::intern::StringInterner;
 use crate::generated::signals_generated::signals::TraceStatsBatch;
 
@@ -48,6 +49,11 @@ pub struct TraceStatsWriter {
     error_summaries: Vec<Vec<u8>>,
 
     write_buf: Vec<u8>,
+
+    // Telemetry counters (read by the telemetry reporter).
+    pub flush_count: u64,
+    pub flush_bytes: u64,
+    pub last_flush_duration_ns: u64,
 }
 
 impl TraceStatsWriter {
@@ -85,6 +91,10 @@ impl TraceStatsWriter {
             error_summaries: Vec::with_capacity(flush_rows),
 
             write_buf: Vec::with_capacity(64 * 1024),
+
+            flush_count: 0,
+            flush_bytes: 0,
+            last_flush_duration_ns: 0,
         }
     }
 
@@ -135,6 +145,7 @@ impl TraceStatsWriter {
 
     /// Flush accumulated columns to a new Vortex file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
+        let flush_start = Instant::now();
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
@@ -194,9 +205,9 @@ impl TraceStatsWriter {
         let env_array = build_dict(env_vals, env_codes, "env")?;
         let version_array = build_dict(version_vals, version_codes, "version")?;
 
-        // Gather binary columns in sorted order.
-        let sorted_ok: Vec<Vec<u8>> = order.iter().map(|&i| ok_summaries[i].clone()).collect();
-        let sorted_err: Vec<Vec<u8>> = order.iter().map(|&i| error_summaries[i].clone()).collect();
+        // Reorder binary columns in-place (avoids cloning every Vec<u8>).
+        let sorted_ok = apply_permutation(ok_summaries, &order);
+        let sorted_err = apply_permutation(error_summaries, &order);
 
         let st = StructArray::try_new(
             FieldNames::from(TRACE_STATS_FIELD_NAMES),
@@ -242,8 +253,12 @@ impl TraceStatsWriter {
             .with_context(|| format!("writing {}", path.display()))?;
 
         // Shrink write_buf to release memory back to the allocator.
+        let bytes_written = self.write_buf.len() as u64;
         self.write_buf = Vec::with_capacity(64 * 1024);
 
+        self.flush_count += 1;
+        self.flush_bytes += bytes_written;
+        self.last_flush_duration_ns = flush_start.elapsed().as_nanos() as u64;
         self.last_flush = Instant::now();
         Ok(path)
     }
