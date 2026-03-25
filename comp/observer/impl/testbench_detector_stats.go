@@ -33,6 +33,21 @@ type ReplayStats struct {
 	InputLogsCount int `json:"input_logs_count"`
 }
 
+// sumTelemetryCounter returns the total value of all counter telemetry events
+// matching the given metric name.
+func sumTelemetryCounter(telemetry []observerdef.ObserverTelemetry, name string) int {
+	total := 0.0
+	for _, t := range telemetry {
+		if t.Kind != observerdef.MetricKindCounter || t.Metric == nil {
+			continue
+		}
+		if t.Metric.GetName() == name {
+			total += t.Metric.GetValue()
+		}
+	}
+	return int(total)
+}
+
 // computeDetectorProcessingStats groups telemetry samples for
 // telemetryDetectorProcessingTimeNs by detector name and computes
 // avg / median / p99 for each.
