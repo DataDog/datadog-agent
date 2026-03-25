@@ -975,6 +975,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
+	// Data Observability
+	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+
 	// Reverse DNS Enrichment
 	config.SetKnown("reverse_dns_enrichment.workers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.chan_size") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
