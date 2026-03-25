@@ -19,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	nooptaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
@@ -57,6 +58,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 				service.WithDatabaseFileName("remote-config-installer.db"),
 			},
 		}),
+		nooptaggerfx.Module(),
 		rctelemetryreporterfx.Module(),
 		rcserviceimpl.Module(),
 		updaterimpl.Module(),
