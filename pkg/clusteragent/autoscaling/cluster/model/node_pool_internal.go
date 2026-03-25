@@ -66,7 +66,7 @@ func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolIn
 	}
 }
 
-func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpenterv1.NodePool {
+func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassRef *karpenterv1.NodeClassReference) *karpenterv1.NodePool {
 	knp := &karpenterv1.NodePool{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "NodePool",
@@ -76,7 +76,7 @@ func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpe
 			Name:   n.name,
 			Labels: map[string]string{DatadogCreatedLabelKey: "true"},
 		},
-		Spec: buildNodePoolSpec(n, nodeClassName),
+		Spec: buildNodePoolSpec(n, nodeClassRef),
 	}
 
 	return knp
@@ -139,7 +139,7 @@ func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
 var deprecatedLabels = sets.New("beta.kubernetes.io/arch", "beta.kubernetes.io/os")
 
 // buildNodePoolSpec is used for creating new NodePools from scratch
-func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.NodePoolSpec {
+func buildNodePoolSpec(n NodePoolInternal, nodeClassRef *karpenterv1.NodeClassReference) karpenterv1.NodePoolSpec {
 	wellKnownLabels := karpenterv1.WellKnownLabels
 
 	metadataLabels := map[string]string{}
@@ -198,12 +198,7 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 				// Include taints
 				Taints:       n.taints,
 				Requirements: reqs,
-				NodeClassRef: &karpenterv1.NodeClassReference{
-					// Only support EC2NodeClass for now
-					Kind:  "EC2NodeClass",
-					Name:  nodeClassName,
-					Group: "karpenter.k8s.aws",
-				},
+				NodeClassRef: nodeClassRef,
 			},
 		},
 	}

@@ -136,7 +136,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         jobs_by_name[job.name] = cast(ProjectJob, job)
 
         if job.stage in force_cancel_stages or (
-            job.status not in ["running", "canceled", "success"] and "cleanup" not in job.name
+            job.status not in ["running", "canceled", "success", "manual"] and "cleanup" not in job.name
         ):
             repo.jobs.get(job.id, lazy=True).cancel()
 

@@ -87,6 +87,7 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+      - EXTRA_PARAMS: --run TestServiceBehaviorInstallerWithRemoteConfig
       - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorAgentCommand
       - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorPowerShell
       - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe

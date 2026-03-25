@@ -15,22 +15,22 @@ from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 
-BIN_NAME = "full-host-profiler"
-BIN_DIR = os.path.join(".", "bin", "full-host-profiler")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("full-host-profiler"))
+BIN_NAME = "host-profiler"
+BIN_DIR = os.path.join(".", "bin", "host-profiler")
+BIN_PATH = os.path.join(BIN_DIR, bin_name("host-profiler"))
 
 
 @task
 def build(ctx):
     """
-    Build the full host profiler
+    Build the host profiler
     """
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
     env = {"GO111MODULE": "on"}
-    build_tags = get_default_build_tags(build="full-host-profiler")
+    build_tags = get_default_build_tags(build="host-profiler")
     ldflags = get_version_ldflags(ctx)
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
@@ -39,7 +39,7 @@ def build(ctx):
 
     # generate windows resources
     if sys.platform == 'win32':
-        raise Exit("Windows is not supported for full-host-profiler")
+        raise Exit("Windows is not supported for host-profiler")
 
     go_build(
         ctx,
@@ -59,7 +59,7 @@ def build(ctx):
 
     shutil.copy(
         "./cmd/host-profiler/dist/host-profiler-config.yaml",
-        os.path.join(dist_folder, "full-host-profiler-config.yaml"),
+        os.path.join(dist_folder, "host-profiler-config.yaml"),
     )
 
 

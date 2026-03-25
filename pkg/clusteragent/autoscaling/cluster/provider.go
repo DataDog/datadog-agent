@@ -64,7 +64,7 @@ func StartClusterAutoscaling(
 	// Start informers & controllers
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
 
-	go controller.Run(ctx)
+	go controller.Run(ctx, 1)
 
 	return nil
 }

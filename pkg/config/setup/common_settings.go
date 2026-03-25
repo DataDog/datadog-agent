@@ -1247,6 +1247,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.workload.num_workers", 2)
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")

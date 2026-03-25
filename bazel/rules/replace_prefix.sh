@@ -65,6 +65,9 @@ for f in "$@"; do
                         install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
                     fi
                 done
+                # Re-sign with an ad-hoc signature after modification as install_name_tool invalidates
+                # any existing code signature.
+                codesign --sign - --force "$f"
             elif file "$f" | grep -q "ASCII text executable"; then
                 patch_text_file "$f"
             else
