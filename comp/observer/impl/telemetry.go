@@ -14,9 +14,10 @@ import (
 const (
 	// Observer
 	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
-	telemetryInputMetricsCount        = "observer.input_metrics.count"
-	telemetryInputMetricsCardinality  = "observer.input_metrics.cardinality"
-	telemetryInputLogsCount           = "observer.input_logs.count"
+	// Only in testbench
+	telemetryTbInputMetricsCount       = "observer.input_metrics.count"
+	telemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
+	telemetryTbInputLogsCount          = "observer.input_logs.count"
 
 	// RRCF detector
 	telemetryRRCFScore     = "observer.rrcf.score"
@@ -59,21 +60,21 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 	)
 
 	// Counters
-	counters[telemetryInputMetricsCount] = telemetryComp.NewCounter(
+	counters[telemetryTbInputMetricsCount] = telemetryComp.NewCounter(
 		"observer",
-		telemetryInputMetricsCount,
+		telemetryTbInputMetricsCount,
 		[]string{},
 		"Total number of metrics processed by the observer",
 	)
-	counters[telemetryInputLogsCount] = telemetryComp.NewCounter(
+	counters[telemetryTbInputLogsCount] = telemetryComp.NewCounter(
 		"observer",
-		telemetryInputLogsCount,
+		telemetryTbInputLogsCount,
 		[]string{},
 		"Total number of logs processed by the observer",
 	)
-	counters[telemetryInputMetricsCardinality] = telemetryComp.NewCounter(
+	counters[telemetryTbInputMetricsCardinality] = telemetryComp.NewCounter(
 		"observer",
-		telemetryInputMetricsCardinality,
+		telemetryTbInputMetricsCardinality,
 		[]string{},
 		"Total number of unique metrics processed by the observer (metrics with different tags are counted as different metrics)",
 	)

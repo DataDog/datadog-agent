@@ -191,9 +191,7 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
 	sourceTag := "observer_source:" + source
 	view := &logView{obs: l}
-	logTelemetry := []observerdef.ObserverTelemetry{
-		newTelemetryCounter([]string{}, telemetryInputLogsCount, 1, l.timestampMs/1000),
-	}
+	var logTelemetry = []observerdef.ObserverTelemetry{}
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)

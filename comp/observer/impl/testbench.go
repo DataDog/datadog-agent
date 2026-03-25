@@ -428,6 +428,8 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
 
+	byTimestampCounter := make(map[int64]int64)
+
 	// Batch add all metrics to storage
 	for _, m := range metrics {
 		// Strip aggregation suffix from metric name (e.g., ":avg", ":count")
@@ -445,6 +447,8 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			}
 		}
 
+		byTimestampCounter[m.Timestamp]++
+
 		storage.Add(
 			"parquet", // namespace
 			metricName,
@@ -452,6 +456,22 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			m.Timestamp,
 			m.Tags,
 		)
+	}
+
+	// Telemetry for the number of metrics by timestamp
+	type byTimestampEntry struct {
+		Timestamp int64
+		Count     int64
+	}
+	byTimestampOrdered := make([]byTimestampEntry, 0, len(byTimestampCounter))
+	for timestamp, count := range byTimestampCounter {
+		byTimestampOrdered = append(byTimestampOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
+	}
+	sort.Slice(byTimestampOrdered, func(i, j int) bool {
+		return byTimestampOrdered[i].Timestamp < byTimestampOrdered[j].Timestamp
+	})
+	for _, entry := range byTimestampOrdered {
+		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 	}
 
 	// Load trace stats and derive trace.* metrics via processStatsView
@@ -665,7 +685,13 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		}
 		_, tel := tb.engine.IngestLog("parquet", obs)
 		ingestTelemetry = append(ingestTelemetry, tel...)
+		// Count logs only here in the testbench
+		ingestTelemetry = append(ingestTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
+
+	// Count total metric samples already in storage (excludes internal telemetry namespace).
+	metricSamples := tb.engine.Storage().TotalPointCount(observerdef.TelemetryNamespace)
+	ingestTelemetry = append(ingestTelemetry, newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(metricSamples), tb.engine.Storage().MaxTimestamp()))
 
 	// Replay all stored data through the scheduler policy.
 	// The engine's captureRawAnomaly deduplicates anomalies internally,
@@ -673,9 +699,12 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	result := tb.engine.ReplayStoredData()
 	unsub()
 
+	// Combine ingest telemetry (log/metric counters) with detector telemetry from the replay.
+	allTelemetry := append(ingestTelemetry, result.telemetry...)
+
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
-	for _, t := range append(ingestTelemetry, result.telemetry...) {
+	for _, t := range allTelemetry {
 		detName := t.DetectorName
 		if detName == "" {
 			detName = "unknown"
@@ -700,12 +729,11 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Publish the ordered event log captured during replay.
 	tb.reportedEvents = replay.events
 
-	// Compute all replay stats from telemetry accumulated during the replay.
-	allTelemetry := tb.engine.StateView().Telemetry()
+	// Compute all replay stats from the combined telemetry slice built above.
 	tb.replayStats = &ReplayStats{
 		DetectorStats:     computeDetectorProcessingStats(allTelemetry),
-		InputMetricsCount: sumTelemetryCounter(allTelemetry, telemetryInputMetricsCount),
-		InputLogsCount:    sumTelemetryCounter(allTelemetry, telemetryInputLogsCount),
+		InputMetricsCount: sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
+		InputLogsCount:    sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
 	}
 
 	// Mark scenario ready now that all analysis is complete
