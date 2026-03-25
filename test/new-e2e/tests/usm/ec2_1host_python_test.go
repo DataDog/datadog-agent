@@ -24,8 +24,8 @@ type pythonRemoteTagsLinuxSuite struct {
 }
 
 func TestPythonRemoteTagsLinuxSuite(t *testing.T) {
-	t.Skip("Skip until lower connection capture rate on Linux is resolved")
 	t.Parallel()
+	t.Skip("Skip until lower connection capture rate on Linux is resolved")
 
 	e2eParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
@@ -82,4 +82,27 @@ func (s *pythonRemoteTagsLinuxSuite) TestPythonRemoteServiceTags() {
 	const requestsPerPort = 4000
 	sendPythonHTTPRequests(host, "python3", requestsPerPort)
 	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "python", requestsPerPort)
+}
+
+// pythonRemoteTagsDirectLinuxSuite is the direct send variant of pythonRemoteTagsLinuxSuite.
+type pythonRemoteTagsDirectLinuxSuite struct {
+	pythonRemoteTagsLinuxSuite
+}
+
+func TestPythonRemoteTagsDirectLinuxSuite(t *testing.T) {
+	t.Parallel()
+	t.Skip("Skip until lower connection capture rate on Linux is resolved")
+
+	e2eParams := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.Provisioner(
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig("log_level: debug"),
+					agentparams.WithSystemProbeConfig(systemProbeConfigDirect),
+				),
+			),
+		)),
+	}
+
+	e2e.Run(t, &pythonRemoteTagsDirectLinuxSuite{}, e2eParams...)
 }
