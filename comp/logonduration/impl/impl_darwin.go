@@ -17,12 +17,14 @@ import (
 
 	"github.com/shirou/gopsutil/v4/host"
 
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -38,6 +40,7 @@ type Requires struct {
 	Log            logcomp.Component
 	EventPlatform  eventplatform.Component
 	Hostname       hostname.Component
+	Demultiplexer  demultiplexer.Component
 }
 
 // sysProbeClient is an interface for system probe used for dependency injection and testing.
@@ -88,6 +91,7 @@ type logonDurationComponent struct {
 	sysProbeClient         sysProbeClient
 	wg                     sync.WaitGroup
 	ctxCancel              context.CancelFunc
+	sender                 sender.Sender
 }
 
 // NewComponent creates a new logon duration component for macOS
@@ -114,12 +118,21 @@ func newWithClient(reqs Requires, client sysProbeClient) Provides {
 		}
 	}
 
+	sender, err := reqs.Demultiplexer.GetDefaultSender()
+	if err != nil {
+		log.Error("Logon duration: failed to get default sender")
+		return Provides{
+			Comp: &logonDurationComponent{},
+		}
+	}
+
 	comp := &logonDurationComponent{
 		config:                 reqs.Config,
 		sysprobeConfig:         reqs.SysprobeConfig,
 		hostname:               reqs.Hostname,
 		eventPlatformForwarder: forwarder,
 		sysProbeClient:         client,
+		sender:                 sender,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -203,6 +216,8 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	if err := persistentcache.Write(persistentCacheKey, currentBootTime); err != nil {
 		log.Warnf("Logon duration: failed to update persistent cache: %v", err)
 	}
+
+	c.submitMetrics(bootTime, loginTimestamps)
 
 	log.Info("Logon duration: boot analysis complete")
 }
@@ -322,4 +337,47 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 		Timestamp: bootTime,
 		Custom:    custom,
 	})
+}
+
+func (c *logonDurationComponent) submitMetrics(bootTime time.Time, ts logonduration.LoginTimestamps) {
+	if c.sender == nil {
+		return
+	}
+	hostname := c.hostname.GetSafe(context.TODO())
+
+	bootMs := float64(safeDurationMs(ts.LoginWindowTime, bootTime))
+	logonMs := float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime))
+	totalMs := bootMs + logonMs
+	loginWindowMs := float64(safeDurationMs(ts.LoginWindowTime, bootTime))
+	userLoginMs := float64(safeDurationMs(ts.LoginTime, ts.LoginWindowTime))
+	desktopReadyMs := float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime))
+
+	var filevaultTag string
+
+	if !ts.FileVaultEnabled {
+		filevaultTag = "filevault:disabled"
+	} else {
+		filevaultTag = "filevault:enabled"
+	}
+
+	if totalMs > 0 {
+		c.sender.Distribution("eudm.boot_duration", totalMs, hostname, []string{"phase:total", filevaultTag})
+	}
+	if bootMs > 0 {
+		c.sender.Distribution("eudm.boot_duration", bootMs, hostname, []string{"phase:boot", filevaultTag})
+	}
+	if logonMs > 0 {
+		c.sender.Distribution("eudm.boot_duration", logonMs, hostname, []string{"phase:logon", filevaultTag})
+	}
+	if loginWindowMs > 0 {
+		c.sender.Distribution("eudm.boot_duration", loginWindowMs, hostname, []string{"phase:login_window_ready", filevaultTag})
+	}
+	if userLoginMs > 0 {
+		c.sender.Distribution("eudm.boot_duration", userLoginMs, hostname, []string{"phase:user_login", filevaultTag})
+	}
+	if desktopReadyMs > 0 {
+		c.sender.Distribution("eudm.boot_duration", desktopReadyMs, hostname, []string{"phase:desktop_ready", filevaultTag})
+	}
+
+	c.sender.Commit()
 }

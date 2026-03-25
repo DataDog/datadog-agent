@@ -15,11 +15,13 @@ import (
 
 	"github.com/shirou/gopsutil/v4/host"
 
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +33,7 @@ type Requires struct {
 	Log           logcomp.Component
 	EventPlatform eventplatform.Component
 	Hostname      hostname.Component
+	Demultiplexer demultiplexer.Component
 }
 
 type logonDurationComponent struct {
@@ -39,6 +42,7 @@ type logonDurationComponent struct {
 	eventPlatformForwarder eventplatform.Forwarder
 	wg                     sync.WaitGroup
 	ctxCancel              context.CancelFunc
+	sender                 sender.Sender
 }
 
 // NewComponent creates a new logon duration component
@@ -85,10 +89,19 @@ func NewComponent(reqs Requires) Provides {
 		}
 	}
 
+	sender, err := reqs.Demultiplexer.GetDefaultSender()
+	if err != nil {
+		log.Error("Logon duration: failed to get default sender")
+		return Provides{
+			Comp: &logonDurationComponent{},
+		}
+	}
+
 	comp := &logonDurationComponent{
 		config:                 reqs.Config,
 		hostname:               reqs.Hostname,
 		eventPlatformForwarder: forwarder,
+		sender:                 sender,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -177,6 +190,8 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	if err := persistentcache.Write(persistentCacheKey, currentBootTime); err != nil {
 		log.Warnf("Logon duration: failed to update persistent cache: %v", err)
 	}
+
+	c.submitMetrics(result)
 
 	log.Info("Logon duration: boot analysis complete")
 }
@@ -340,4 +355,53 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		Timestamp: eventTimestamp,
 		Custom:    custom,
 	})
+}
+
+func (c *logonDurationComponent) submitMetrics(result *AnalysisResult) {
+	if c.sender == nil {
+		return
+	}
+	tl := result.Timeline
+	hostname := c.hostname.GetSafe(context.TODO())
+
+	// Total boot duration
+	if !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero() &&
+		!tl.LogonStart.IsZero() && !tl.DesktopVisibleStart.IsZero() {
+		totalMs := float64(getDurationMilliseconds(tl.BootStart, tl.LoginUIStart) +
+			getDurationMilliseconds(tl.LogonStart, tl.DesktopVisibleStart))
+		c.sender.Distribution("eudm.boot_duration", totalMs, hostname, []string{"phase:total"})
+	}
+
+	// Per-phase durations
+	phases := []struct {
+		name       string
+		start, end time.Time
+	}{
+		{"boot", tl.BootStart, tl.LoginUIStart},
+		{"logon", tl.LogonStart, tl.DesktopVisibleStart},
+		{"winlogon_init", tl.WinlogonInit, tl.WinlogonInitDone},
+		{"login_ui", tl.LoginUIStart, tl.LoginUIDone},
+		{"computer_group_policy", tl.MachineGPStart, tl.MachineGPEnd},
+		{"user_group_policy", tl.UserGPStart, tl.UserGPEnd},
+		{"user_logon", tl.LogonStart, tl.LogonStop},
+		{"profile_load", tl.ProfileLoadStart, tl.ProfileLoadEnd},
+		{"profile_create", tl.ProfileCreationStart, tl.ProfileCreationEnd},
+		{"execute_shell_commands", tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd},
+		{"userinit", tl.UserinitStart, tl.ExplorerStart},
+		{"explorer_initializing", tl.ExplorerInitStart, tl.ExplorerInitEnd},
+		{"desktop_created", tl.DesktopCreateStart, tl.DesktopCreateEnd},
+		{"desktop_visible", tl.DesktopVisibleStart, tl.DesktopVisibleEnd},
+		{"desktop_startup_apps", tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd},
+		{"desktop_ready", tl.DesktopReadyStart, tl.DesktopReadyEnd},
+	}
+
+	for _, p := range phases {
+		if p.start.IsZero() || p.end.IsZero() {
+			continue
+		}
+		ms := float64(p.end.Sub(p.start).Milliseconds())
+		c.sender.Distribution("eudm.boot_duration", ms, hostname, []string{fmt.Sprintf("phase:%s", p.name)})
+	}
+
+	c.sender.Commit()
 }
