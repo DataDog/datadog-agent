@@ -735,14 +735,15 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Publish the ordered event log captured during replay.
 	tb.reportedEvents = replay.events
 
-	// Compute all replay stats from the combined telemetry slice built above.
-	detectorStats := computeDetectorProcessingStats(allTelemetry)
+	// Compute replay stats from engine storage only for consistency.
+	storage := tb.engine.Storage()
+	detectorStats := computeDetectorProcessingStatsFromStorage(storage)
 	enrichDetectorStatsKind(detectorStats, tb.components)
 	tb.replayStats = &ReplayStats{
 		DetectorStats:           detectorStats,
-		InputMetricsCount:       sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
-		InputMetricsCardinality: tb.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace),
-		InputLogsCount:          sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
+		InputMetricsCount:       storage.TotalPointCount(observerdef.TelemetryNamespace),
+		InputMetricsCardinality: storage.TotalSeriesCount(observerdef.TelemetryNamespace),
+		InputLogsCount:          sumStoredTelemetryCounter(storage, telemetryTbInputLogsCount),
 		InputAnomaliesCount:     len(result.anomalies),
 	}
 

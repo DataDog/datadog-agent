@@ -24,6 +24,10 @@ function getAggregationType(name: string): AggregationType | null {
   return match ? (match[1] as AggregationType) : null;
 }
 
+function isPatternCounterBaseName(baseName: string): boolean {
+  return /^log\.log_pattern_extractor\.[0-9a-f]+\.count$/.test(baseName);
+}
+
 function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
@@ -63,7 +67,7 @@ function CounterRateToggleBar({
   const modes: { mode: CounterChartViewMode; label: string; title: string }[] = [
     { mode: 'raw', label: firstLabel, title: firstTitle },
     { mode: 'rate-sec', label: 'evt/s', title: 'Events per second (count ÷ bucket size)' },
-    { mode: 'rate-min', label: 'evt/min', title: 'Events per minute (60 s sliding window)' },
+    { mode: 'rate-min', label: 'evt/min', title: 'Events per minute ((count ÷ bucket size) × 60)' },
   ];
   return (
     <div className="inline-flex shrink-0 rounded overflow-hidden border border-slate-600 text-xs">
@@ -163,26 +167,13 @@ export function MetricsView({
     return dense.map((p) => ({ timestamp: p.timestamp, value: p.value / bucketSec }));
   };
 
-  // Rate (evt/min): sliding-window sum over the last 60 s of dense buckets — O(N).
+  // Rate (evt/min): same per-bucket count normalized to one minute.
   const toRatePerMinSeries = (points: Point[]): Point[] => {
     if (points.length === 0) return points;
     if (points.length === 1) return [{ timestamp: points[0].timestamp, value: 0 }];
     const [bucketSec, dense] = fillBuckets(points);
     if (bucketSec <= 0) return points;
-    const windowSec = 60;
-    const result: Point[] = [];
-    let windowSum = 0;
-    let left = 0;
-    for (let right = 0; right < dense.length; right++) {
-      windowSum += dense[right].value;
-      // Evict buckets that fall outside the 60 s window.
-      while (dense[right].timestamp - dense[left].timestamp >= windowSec) {
-        windowSum -= dense[left].value;
-        left++;
-      }
-      result.push({ timestamp: dense[right].timestamp, value: windowSum });
-    }
-    return result;
+    return dense.map((p) => ({ timestamp: p.timestamp, value: (p.value / bucketSec) * 60 }));
   };
 
   /** Per-group display for counters: raw bucket values (or cumulative for telemetry), evt/s, evt/min. Pattern groups default to evt/s until changed. */
@@ -279,8 +270,12 @@ export function MetricsView({
     () =>
       allSeries.filter((s) => {
         const agg = getAggregationType(s.name);
+        const baseName = getBaseMetricName(s.name);
         if (s.metricKind === 'counter') {
           return agg === 'sum' || agg === 'avg' || agg === 'count';
+        }
+        if (isPatternCounterBaseName(baseName)) {
+          return agg === 'count';
         }
         return agg === aggregationType;
       }),

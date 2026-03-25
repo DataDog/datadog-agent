@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"sort"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -64,16 +65,20 @@ func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, component
 	}
 }
 
-// sumTelemetryCounter returns the total value of all counter telemetry events
-// matching the given metric name.
-func sumTelemetryCounter(telemetry []observerdef.ObserverTelemetry, name string) int {
+// sumStoredTelemetryCounter returns the total value of a telemetry counter metric
+// by summing all matching telemetry series in storage.
+func sumStoredTelemetryCounter(storage *timeSeriesStorage, name string) int {
 	total := 0.0
-	for _, t := range telemetry {
-		if t.Kind != observerdef.MetricKindCounter || t.Metric == nil {
+	for _, m := range storage.ListSeriesMetadata(observerdef.TelemetryNamespace) {
+		if m.Name != name {
 			continue
 		}
-		if t.Metric.GetName() == name {
-			total += t.Metric.GetValue()
+		s := storage.GetSeriesByNumericID(m.Handle, AggregateSum)
+		if s == nil {
+			continue
+		}
+		for _, p := range s.Points {
+			total += p.Value
 		}
 	}
 	return int(total)
@@ -82,18 +87,41 @@ func sumTelemetryCounter(telemetry []observerdef.ObserverTelemetry, name string)
 // computeDetectorProcessingStats groups telemetry samples for
 // telemetryDetectorProcessingTimeNs by detector name and computes
 // avg / median / p99 for each.
-func computeDetectorProcessingStats(telemetry []observerdef.ObserverTelemetry) map[string]DetectorProcessingStats {
+func computeDetectorProcessingStatsFromStorage(storage *timeSeriesStorage) map[string]DetectorProcessingStats {
 	byDetector := make(map[string][]float64)
 
-	for _, t := range telemetry {
-		if t.Metric == nil || t.Metric.GetName() != telemetryDetectorProcessingTimeNs {
+	for _, m := range storage.ListSeriesMetadata(observerdef.TelemetryNamespace) {
+		if m.Name != telemetryDetectorProcessingTimeNs {
 			continue
 		}
-		name := t.DetectorName
+
+		avgSeries := storage.GetSeriesByNumericID(m.Handle, AggregateAverage)
+		countSeries := storage.GetSeriesByNumericID(m.Handle, AggregateCount)
+		if avgSeries == nil || countSeries == nil {
+			continue
+		}
+
+		name := detectorNameFromTags(m.Tags)
 		if name == "" {
 			continue
 		}
-		byDetector[name] = append(byDetector[name], t.Metric.GetValue())
+
+		n := len(avgSeries.Points)
+		if len(countSeries.Points) < n {
+			n = len(countSeries.Points)
+		}
+		for i := 0; i < n; i++ {
+			// Storage keeps avg+count per bucket. Rehydrate bucket observations
+			// as repeated avg values to compute summary percentiles consistently.
+			sampleCount := int(math.Round(countSeries.Points[i].Value))
+			if sampleCount <= 0 {
+				continue
+			}
+			v := avgSeries.Points[i].Value
+			for j := 0; j < sampleCount; j++ {
+				byDetector[name] = append(byDetector[name], v)
+			}
+		}
 	}
 
 	result := make(map[string]DetectorProcessingStats, len(byDetector))
