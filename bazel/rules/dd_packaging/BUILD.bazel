@@ -1,0 +1,3 @@
+load(":dd_packaging_test.bzl", "dd_packaging_test_suite")
+
+dd_packaging_test_suite(name = "_dd_packaging_tests")

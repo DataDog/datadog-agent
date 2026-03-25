@@ -1,8 +1,9 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile", "docker-compose", "cargo", "bazel-module"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
+    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
     "packageRules": [
       {
@@ -41,6 +42,21 @@
       {
         "matchManagers": ["dockerfile"],
         "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["docker-compose"],
+        "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["docker-compose"],
+        "matchFileNames": ["**/testdata/**", "**/fixtures/**", "**/testfixtures/**", "pkg/collector/corechecks/oracle/compose/**"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["cargo"],
+        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
         "schedule": ["on saturday"]
       }
     ],

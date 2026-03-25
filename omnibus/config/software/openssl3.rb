@@ -18,8 +18,6 @@ name "openssl3"
 
 skip_transitive_dependency_licensing true
 
-dependency "cacerts"
-
 default_version "3.5.5"
 
 relative_path "openssl-#{version}"
