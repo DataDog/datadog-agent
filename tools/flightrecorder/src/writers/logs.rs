@@ -10,6 +10,7 @@ use vortex::file::VortexWriteOptions;
 use vortex::session::VortexSession;
 use vortex::VortexSessionDefault;
 
+use super::apply_permutation;
 use super::intern::StringInterner;
 use super::tags::{decompose_tags_into_interners, LOG_RESERVED_KEYS};
 use crate::generated::signals_generated::signals::LogBatch;
@@ -40,6 +41,11 @@ pub struct LogsWriter {
     timestamps: Vec<i64>,
 
     write_buf: Vec<u8>,
+
+    // Telemetry counters (read by the telemetry reporter).
+    pub flush_count: u64,
+    pub flush_bytes: u64,
+    pub last_flush_duration_ns: u64,
 }
 
 impl LogsWriter {
@@ -68,6 +74,10 @@ impl LogsWriter {
             timestamps: Vec::with_capacity(flush_rows),
 
             write_buf: Vec::with_capacity(64 * 1024),
+
+            flush_count: 0,
+            flush_bytes: 0,
+            last_flush_duration_ns: 0,
         }
     }
 
@@ -116,6 +126,7 @@ impl LogsWriter {
 
     /// Flush accumulated columns to a new Vortex file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
+        let flush_start = Instant::now();
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
@@ -166,8 +177,9 @@ impl LogsWriter {
         let team_array = build_dict(team_vals, team_codes, "tag_team")?;
         let overflow_array = build_dict(overflow_vals, overflow_codes, "tags_overflow")?;
 
-        // Gather contents in sorted order.
-        let sorted_contents: Vec<Vec<u8>> = order.iter().map(|&i| contents[i].clone()).collect();
+        // Reorder contents in-place using the sort permutation to avoid
+        // cloning every Vec<u8> (was doubling peak content memory).
+        let sorted_contents = apply_permutation(contents, &order);
 
         let st = StructArray::try_new(
             FieldNames::from(LOG_FIELD_NAMES),
@@ -209,8 +221,12 @@ impl LogsWriter {
             .with_context(|| format!("writing {}", path.display()))?;
 
         // Shrink write_buf to release memory back to the allocator.
+        let bytes_written = self.write_buf.len() as u64;
         self.write_buf = Vec::with_capacity(64 * 1024);
 
+        self.flush_count += 1;
+        self.flush_bytes += bytes_written;
+        self.last_flush_duration_ns = flush_start.elapsed().as_nanos() as u64;
         self.last_flush = Instant::now();
         Ok(path)
     }
