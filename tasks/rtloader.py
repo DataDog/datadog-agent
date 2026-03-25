@@ -112,7 +112,13 @@ def install_with_bazel(ctx):
         bin_dir = os.path.join(os.path.dirname(os.path.abspath(dev_path)), "bin")
 
         # Put static rtloader lib where the go build expects to find it
-        bazel(ctx, "run", "//rtloader:install_static", "--", f"--destdir={os.path.join(get_rtloader_build_path(), 'rtloader')}")
+        bazel(
+            ctx,
+            "run",
+            "//rtloader:install_static",
+            "--",
+            f"--destdir={os.path.join(get_rtloader_build_path(), 'rtloader')}",
+        )
 
         # Install rtloader and cpython where the Agent expects them at runtime
         bazel(ctx, "run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
@@ -133,7 +139,9 @@ def install_with_bazel(ctx):
             f"find {embedded} -type f \\( -name '*.so' -o -name '*.so.*' -o -name '*.dylib'"
             f" -o -name '*.pc' -o -path '*/bin/*' \\)",
             hide="out",
-        ).stdout.strip().split("\n")
+        )
+        .stdout.strip()
+        .split("\n")
         if f
     ]
     if files_to_patch:
