@@ -8,13 +8,12 @@ package compute
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/compute"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func NewLinuxInstance(e gcp.Environment, name string, imageName string, disableUnattendedUpgrades bool, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
+func NewLinuxInstance(e gcp.Environment, name string, imageName string, startupScript string, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
 
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
@@ -25,8 +24,8 @@ func NewLinuxInstance(e gcp.Environment, name string, imageName string, disableU
 		"enable-oslogin": pulumi.String("false"),
 		"ssh-keys":       pulumi.Sprintf("gce:%s", sshPublicKey),
 	}
-	if disableUnattendedUpgrades {
-		metadata["startup-script"] = pulumi.String(os.APTDisableUnattendedUpgradesScriptContent)
+	if startupScript != "" {
+		metadata["startup-script"] = pulumi.String(startupScript)
 	}
 
 	instance, err := compute.NewInstance(e.Ctx(), e.Namer.ResourceName(name), &compute.InstanceArgs{
