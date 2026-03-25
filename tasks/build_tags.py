@@ -255,7 +255,7 @@ OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
 LOADER_TAGS = set()
 
-FULL_HOST_PROFILER_TAGS = set()
+HOST_PROFILER_TAGS = set()
 
 PRIVATEACTIONRUNNER_TAGS = set()
 
@@ -306,7 +306,7 @@ build_tags = {
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
-        "full-host-profiler": FULL_HOST_PROFILER_TAGS,
+        "host-profiler": HOST_PROFILER_TAGS,
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
         "secret-generic-connector": SECRET_GENERIC_CONNECTOR_TAGS,
         # Test setups

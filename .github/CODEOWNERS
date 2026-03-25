@@ -775,7 +775,7 @@
 /tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build
 /tasks/installer.py                     @DataDog/fleet
-/tasks/full_host_profiler.py            @DataDog/opentelemetry-agent @DataDog/profiling-full-host
+/tasks/host_profiler.py                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
