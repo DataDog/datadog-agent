@@ -175,4 +175,3 @@ func getTags(config cfgcomp.Component, taggerComp tagger.Component) func() []str
 		return tags
 	}
 }
-
