@@ -7,21 +7,24 @@ import "strconv"
 type SignalPayload byte
 
 const (
-	SignalPayloadNONE        SignalPayload = 0
-	SignalPayloadMetricBatch SignalPayload = 1
-	SignalPayloadLogBatch    SignalPayload = 2
+	SignalPayloadNONE            SignalPayload = 0
+	SignalPayloadMetricBatch     SignalPayload = 1
+	SignalPayloadLogBatch        SignalPayload = 2
+	SignalPayloadTraceStatsBatch SignalPayload = 3
 )
 
 var EnumNamesSignalPayload = map[SignalPayload]string{
-	SignalPayloadNONE:        "NONE",
-	SignalPayloadMetricBatch: "MetricBatch",
-	SignalPayloadLogBatch:    "LogBatch",
+	SignalPayloadNONE:            "NONE",
+	SignalPayloadMetricBatch:     "MetricBatch",
+	SignalPayloadLogBatch:        "LogBatch",
+	SignalPayloadTraceStatsBatch: "TraceStatsBatch",
 }
 
 var EnumValuesSignalPayload = map[string]SignalPayload{
-	"NONE":        SignalPayloadNONE,
-	"MetricBatch": SignalPayloadMetricBatch,
-	"LogBatch":    SignalPayloadLogBatch,
+	"NONE":            SignalPayloadNONE,
+	"MetricBatch":     SignalPayloadMetricBatch,
+	"LogBatch":        SignalPayloadLogBatch,
+	"TraceStatsBatch": SignalPayloadTraceStatsBatch,
 }
 
 func (v SignalPayload) String() string {

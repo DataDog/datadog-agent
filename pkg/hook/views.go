@@ -50,3 +50,27 @@ type LogView interface {
 	GetTags() []string
 	GetHostname() string
 }
+
+// TraceStatsView provides read-only access to an aggregated trace stats entry.
+type TraceStatsView interface {
+	// Grouped stats fields (from ClientGroupedStats).
+	GetService() string
+	GetName() string
+	GetResource() string
+	GetType() string
+	GetHTTPStatusCode() uint32
+	GetSpanKind() string
+	GetHits() uint64
+	GetErrors() uint64
+	GetDuration() uint64
+	GetTopLevelHits() uint64
+	GetOkSummary() []byte
+	GetErrorSummary() []byte
+
+	// Envelope fields from ClientStatsPayload / ClientStatsBucket.
+	GetHostname() string
+	GetEnv() string
+	GetVersion() string
+	GetBucketStartNs() uint64
+	GetBucketDurationNs() uint64
+}

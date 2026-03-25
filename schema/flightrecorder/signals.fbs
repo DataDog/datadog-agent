@@ -36,7 +36,32 @@ table LogBatch {
   entries:[LogEntry];
 }
 
-union SignalPayload { MetricBatch, LogBatch }
+table TraceStatEntry {
+  service:string;
+  name:string;
+  resource:string;
+  type:string;
+  span_kind:string;
+  http_status_code:uint;
+  hits:ulong;
+  errors:ulong;
+  duration_ns:ulong;
+  top_level_hits:ulong;
+  ok_summary:[ubyte];
+  error_summary:[ubyte];
+  hostname:string;
+  env:string;
+  version:string;
+  bucket_start_ns:long;
+  bucket_duration_ns:long;
+  timestamp_ns:long;
+}
+
+table TraceStatsBatch {
+  entries:[TraceStatEntry];
+}
+
+union SignalPayload { MetricBatch, LogBatch, TraceStatsBatch }
 
 table SignalEnvelope {
   payload:SignalPayload;
