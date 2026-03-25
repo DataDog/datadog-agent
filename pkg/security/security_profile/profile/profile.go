@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -120,6 +121,7 @@ func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
 func WithEventTypes(eventTypes []model.EventType) Opts {
 	return func(p *Profile) {
 		p.eventTypes = eventTypes
+		seclog.Debugf("Profile eventTypes set to: %v", eventTypes)
 	}
 }
 
@@ -528,7 +530,11 @@ func (p *Profile) SetVersionState(imageTag string, state model.EventFilteringPro
 
 // IsEventTypeValid returns true if the event type is valid for the profile
 func (p *Profile) IsEventTypeValid(evtType model.EventType) bool {
-	return slices.Contains(p.eventTypes, evtType)
+	valid := slices.Contains(p.eventTypes, evtType)
+	if !valid {
+		seclog.Debugf("Event type %s not valid for profile %s, valid types: %v", evtType, p.getSelectorStr(), p.eventTypes)
+	}
+	return valid
 }
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType

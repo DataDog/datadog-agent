@@ -135,15 +135,20 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
     u64 event_sampling_connect_rate = 0;
     LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
 
+    bpf_printk("approve_connect_sample: enabled=%d", event_sampling_connect_enabled);
+
     if (!event_sampling_connect_enabled) {
+        bpf_printk("approve_connect_sample: DISCARDED (not enabled)");
         return DISCARDED;
     }
 
     if (family != AF_INET && family != AF_INET6) {
+        bpf_printk("approve_connect_sample: DISCARDED (family=%d)", family);
         return DISCARDED;
     }
 
     monitor_event_sample_total(EVENT_CONNECT);
+    bpf_printk("approve_connect_sample: recorded total");
 
     struct bind_connect_sample_key_t key;
     __builtin_memset(&key, 0, sizeof(key));
@@ -399,12 +404,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     u64 event_sampling_open_rate = 0;
     LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
 
+    bpf_printk("approve_open_sample: enabled=%d", event_sampling_open_enabled);
+
     if (!event_sampling_open_enabled) {
+        bpf_printk("approve_open_sample: DISCARDED (not enabled)");
         return DISCARDED;
     }
 
     // Track total open events that hit the sampling logic
     monitor_event_sample_total(EVENT_OPEN);
+    bpf_printk("approve_open_sample: recorded total");
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (IS_KTHREAD(pid, pid)) {
@@ -458,8 +467,12 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
     }
 
-    if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
-        return SAMPLED;
+    if (state == DISCARDED) {
+        bpf_printk("open_approvers: all approvers DISCARDED, trying sampling");
+        if (approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
+            bpf_printk("open_approvers: SAMPLED");
+            return SAMPLED;
+        }
     }
 
     return state;
@@ -576,9 +589,13 @@ enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct sysca
     u64 family = syscall->connect.family;
     enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
 
+    bpf_printk("connect_approvers: state=%d", state);
+
     if (state == DISCARDED) {
+        bpf_printk("connect_approvers: all approvers DISCARDED, trying sampling");
         u32 pid = bpf_get_current_pid_tgid() >> 32;
         if (approve_connect_sample(pid, syscall->connect.family, syscall->connect.port, syscall->connect.protocol, syscall->connect.addr) == SAMPLED) {
+            bpf_printk("connect_approvers: SAMPLED");
             return SAMPLED;
         }
     }
@@ -616,13 +633,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) setsockopt_approvers(st
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
+    bpf_printk("approve_syscall_with_tgid: type=%d, policy_mode=%d", syscall->type, syscall->policy.mode);
+
     if (syscall->policy.mode != DENY) {
+        bpf_printk("approve_syscall_with_tgid: APPROVED by policy (mode=%d)", syscall->policy.mode);
         monitor_event_approved(syscall->type, POLICY_APPROVER_TYPE);
         return syscall->state = APPROVED;
     }
 
     syscall->state = check_approvers(syscall);
+    bpf_printk("approve_syscall_with_tgid: after check_approvers state=%d", syscall->state);
     if (syscall->state == DISCARDED) {
+        bpf_printk("approve_syscall_with_tgid: REJECTED");
         monitor_event_rejected(syscall->type);
     }
 

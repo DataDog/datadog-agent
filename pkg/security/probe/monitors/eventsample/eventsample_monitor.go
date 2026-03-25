@@ -15,6 +15,7 @@ import (
 	lib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -60,22 +61,36 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
+	hasNonZero := false
 	for eventType, stats := range statsByEventType {
 		if stats.EventsTotal == 0 && stats.EventsSampled == 0 {
 			continue
 		}
 
+		hasNonZero = true
 		eventTypeTag := "event_type:" + model.EventType(eventType).String()
 
 		if stats.EventsTotal != 0 {
 			tags := []string{eventTypeTag}
-			_ = m.statsdClient.Count(metrics.MetricEventSampleTotal, int64(stats.EventsTotal), tags, 1.0)
+			if err := m.statsdClient.Count(metrics.MetricEventSampleTotal, int64(stats.EventsTotal), tags, 1.0); err != nil {
+				seclog.Errorf("Failed to send %s metric: %v", metrics.MetricEventSampleTotal, err)
+			} else {
+				seclog.Infof("Sent sampling metric %s: value=%d tags=%v", metrics.MetricEventSampleTotal, stats.EventsTotal, tags)
+			}
 		}
 
 		if stats.EventsSampled != 0 {
 			tags := []string{eventTypeTag}
-			_ = m.statsdClient.Count(metrics.MetricEventSampleSampled, int64(stats.EventsSampled), tags, 1.0)
+			if err := m.statsdClient.Count(metrics.MetricEventSampleSampled, int64(stats.EventsSampled), tags, 1.0); err != nil {
+				seclog.Errorf("Failed to send %s metric: %v", metrics.MetricEventSampleSampled, err)
+			} else {
+				seclog.Infof("Sent sampling metric %s: value=%d tags=%v", metrics.MetricEventSampleSampled, stats.EventsSampled, tags)
+			}
 		}
+	}
+
+	if !hasNonZero {
+		seclog.Debugf("Event sample monitor: no non-zero stats (activeBuffer=%d)", m.activeStatsBuffer)
 	}
 
 	// Zero out the buffer we just read
@@ -121,6 +136,8 @@ func NewEventSampleMonitor(manager *manager.Manager, statsdClient statsd.ClientI
 	if err := monitor.bufferSelector.Put(ebpf.BufferSelectorSampleMonitorKey, monitor.activeStatsBuffer); err != nil {
 		return nil, fmt.Errorf("failed to initialize event sample buffer selector: %w", err)
 	}
+
+	seclog.Infof("Event sample monitor initialized: numCPU=%d, bufferSelectorKey=%d", numCPU, ebpf.BufferSelectorSampleMonitorKey)
 
 	return monitor, nil
 }
