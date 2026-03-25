@@ -164,15 +164,14 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
 		result, found := semantics.Lookup(normalizerRegistry, semantics.NewStringMapAccessor(link.Attributes), semantics.ConceptLinkName)
-		keyName := string(semantics.ConceptLinkName)
-		if found {
-			keyName = result.TagInfo.Name
+		if !found {
+			continue
 		}
-		newName, err := normalizeutil.NormalizeName(result.StringValue) // "" normalizes to DefaultSpanName
+		newName, err := normalizeutil.NormalizeName(result.StringValue)
 		if err != nil {
 			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
 		}
-		link.Attributes[keyName] = newName
+		link.Attributes[result.TagInfo.Name] = newName
 	}
 }
 
