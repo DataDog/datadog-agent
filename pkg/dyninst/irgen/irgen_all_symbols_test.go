@@ -137,21 +137,23 @@ func verifyIR(t *testing.T, p *ir.Program) {
 	noBodyCount := 0
 	singleInstrCount := 0
 	for _, probe := range p.Probes {
-		for _, event := range probe.Events {
-			for _, ip := range event.InjectionPoints {
-				if ip.NoReturnReason == ir.NoReturnReasonNoBody {
-					ranges := probe.Subprogram.OutOfLinePCRanges
-					if len(ranges) > 0 {
-						size := ranges[0][1] - ranges[0][0]
-						if ip.HasAssociatedReturn == false && size <= 1 {
-							singleInstrCount++
+		for _, instance := range probe.Instances {
+			for _, event := range instance.Events {
+				for _, ip := range event.InjectionPoints {
+					if ip.NoReturnReason == ir.NoReturnReasonNoBody {
+						ranges := instance.Subprogram.OutOfLinePCRanges
+						if len(ranges) > 0 {
+							size := ranges[0][1] - ranges[0][0]
+							if ip.HasAssociatedReturn == false && size <= 1 {
+								singleInstrCount++
+							} else {
+								noBodyCount++
+								t.Logf("noBody function: %s (pc=0x%x, size=%d)", instance.Subprogram.Name, ranges[0][0], size)
+							}
 						} else {
 							noBodyCount++
-							t.Logf("noBody function: %s (pc=0x%x, size=%d)", probe.Subprogram.Name, ranges[0][0], size)
+							t.Logf("noBody function: %s (no out-of-line ranges)", instance.Subprogram.Name)
 						}
-					} else {
-						noBodyCount++
-						t.Logf("noBody function: %s (no out-of-line ranges)", probe.Subprogram.Name)
 					}
 				}
 			}

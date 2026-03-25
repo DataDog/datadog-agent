@@ -169,8 +169,9 @@ func testDyninst(
 	}()
 
 	// On failure in debug mode, output trace_pipe logs for this process.
+	forceTracePipePrint, _ := strconv.ParseBool(os.Getenv("FORCE_TRACE_PIPE_PRINT"))
 	t.Cleanup(func() {
-		if collector == nil || !t.Failed() || !debug {
+		if collector == nil || !debug || (!t.Failed() && !forceTracePipePrint) {
 			return
 		}
 		if err := collector.Flush(); err != nil {

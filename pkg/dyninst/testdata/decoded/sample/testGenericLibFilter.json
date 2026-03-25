@@ -1,0 +1,223 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
+            "lineNumber": 74
+          },
+          {
+            "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.UseGenericsWithFloat64",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2/lib2.go",
+            "lineNumber": 99
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 45
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testGenericLibFilter",
+          "location": {
+            "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "items": {
+                "type": "[]float64",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "float64",
+                    "value": "1.1"
+                  },
+                  {
+                    "type": "float64",
+                    "value": "2.2"
+                  },
+                  {
+                    "type": "float64",
+                    "value": "3.3"
+                  }
+                ]
+              },
+              "pred": {
+                "type": "func(float64) bool",
+                "notCapturedReason": "unimplemented"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "[]float64",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "float64",
+                    "value": "2.2"
+                  },
+                  {
+                    "type": "float64",
+                    "value": "3.3"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "items=[1.1, 2.2, 3.3]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
+            "lineNumber": 74
+          },
+          {
+            "function": "main.outerFilter[go.shape.int]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 183
+          },
+          {
+            "function": "main.executeGenericFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 281
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testGenericLibFilter",
+          "location": {
+            "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "items": {
+                "type": "[]int",
+                "size": "5",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  {
+                    "type": "int",
+                    "value": "5"
+                  }
+                ]
+              },
+              "pred": {
+                "type": "func(int) bool",
+                "notCapturedReason": "unimplemented"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "[]int",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  {
+                    "type": "int",
+                    "value": "5"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "items=[1, 2, 3, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

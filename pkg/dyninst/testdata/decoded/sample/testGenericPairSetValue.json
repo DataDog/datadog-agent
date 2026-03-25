@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.firstBehavior.DoSomething",
+      "method": "main.(*Pair[...]).SetValue",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.firstBehavior.DoSomething",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 29
-          },
-          {
-            "function": "main.genericDo[go.shape.struct { main.s string }]",
+            "function": "main.(*Pair[go.shape.int,go.shape.bool]).SetValue",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 105
+            "lineNumber": 69
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 234
+            "lineNumber": 244
           },
           {
             "function": "main.main",
@@ -47,30 +42,35 @@
           }
         ],
         "probe": {
-          "id": "testWhollyInlinedSubroutine",
+          "id": "testGenericPairSetValue",
           "location": {
-            "method": "main.firstBehavior.DoSomething"
+            "method": "main.(*Pair[...]).SetValue"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "b": {
-                "type": "main.firstBehavior",
+              "x": {
+                "type": "*main.Pair[int,bool]",
+                "address": "[addr]",
                 "fields": {
-                  "s": {
-                    "type": "string",
-                    "value": "first"
+                  "Key": {
+                    "type": "go.shape.int",
+                    "value": "0"
+                  },
+                  "Value": {
+                    "type": "go.shape.bool",
+                    "value": "false"
                   }
                 }
-              }
-            }
-          },
-          "return": {
-            "locals": {
-              "~r0": {
-                "type": "string",
-                "value": "{first}\n"
+              },
+              "k": {
+                "type": "int",
+                "value": "1"
+              },
+              "v": {
+                "type": "bool",
+                "value": "true"
               }
             }
           }
@@ -80,7 +80,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testWhollyInlinedSubroutine",
+    "message": "k=1",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

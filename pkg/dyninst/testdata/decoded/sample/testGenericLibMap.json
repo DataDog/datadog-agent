@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.firstBehavior.DoSomething",
+      "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.firstBehavior.DoSomething",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 29
-          },
-          {
-            "function": "main.genericDo[go.shape.struct { main.s string }]",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 105
+            "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
+            "lineNumber": 60
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 234
+            "lineNumber": 277
           },
           {
             "function": "main.main",
@@ -47,30 +42,39 @@
           }
         ],
         "probe": {
-          "id": "testWhollyInlinedSubroutine",
+          "id": "testGenericLibMap",
           "location": {
-            "method": "main.firstBehavior.DoSomething"
+            "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "b": {
-                "type": "main.firstBehavior",
+              "box": {
+                "type": "lib.Box[int]",
                 "fields": {
-                  "s": {
-                    "type": "string",
-                    "value": "first"
+                  "Value": {
+                    "type": "go.shape.int",
+                    "value": "42"
                   }
                 }
+              },
+              "f": {
+                "type": "func(int) string",
+                "notCapturedReason": "unimplemented"
               }
             }
           },
           "return": {
             "locals": {
               "~r0": {
-                "type": "string",
-                "value": "{first}\n"
+                "type": "lib.Box[string]",
+                "fields": {
+                  "Value": {
+                    "type": "go.shape.string",
+                    "value": "42"
+                  }
+                }
               }
             }
           }
@@ -80,7 +84,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testWhollyInlinedSubroutine",
+    "message": "box={Value: 42}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
