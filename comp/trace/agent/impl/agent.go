@@ -32,6 +32,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -72,6 +73,14 @@ type dependencies struct {
 	TracerPayloadModifier pkgagent.TracerPayloadModifier
 }
 
+// Provides holds the outputs the trace agent component exposes to the fx graph.
+type Provides struct {
+	fx.Out
+
+	Comp          traceagent.Component
+	TraceStatsHook hook.Hook[hook.TraceStatsView] `group:"hook"`
+}
+
 var _ traceagent.Component = (*component)(nil)
 
 func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
@@ -108,7 +117,8 @@ type component struct {
 }
 
 // NewAgent creates a new Agent component.
-func NewAgent(deps dependencies) (traceagent.Component, error) {
+func NewAgent(deps dependencies) (Provides, error) {
+	statsHook := hook.NewHook[hook.TraceStatsView]("trace-stats-pipeline")
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
@@ -116,7 +126,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, errors.New(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
-		return c, nil
+		return Provides{Comp: c, TraceStatsHook: statsHook}, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
@@ -131,7 +141,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
 	if err != nil {
-		return nil, err
+		return Provides{}, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
 
@@ -151,6 +161,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
+		statsHook,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
@@ -162,7 +173,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		OnStart: func(_ context.Context) error { return start(c) },
 		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
-	return c, nil
+	return Provides{Comp: c, TraceStatsHook: statsHook}, nil
 }
 
 func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {

@@ -53,6 +53,28 @@ type capturedMetric struct {
 	Source       string
 }
 
+// capturedTraceStat is an internal copy of a trace stats entry.
+type capturedTraceStat struct {
+	Service         string
+	Name            string
+	Resource        string
+	Type            string
+	SpanKind        string
+	HTTPStatusCode  uint32
+	Hits            uint64
+	Errors          uint64
+	DurationNs      uint64
+	TopLevelHits    uint64
+	OkSummary       []byte
+	ErrorSummary    []byte
+	Hostname        string
+	Env             string
+	Version         string
+	BucketStartNs   int64
+	BucketDurationNs int64
+	TimestampNs     int64
+}
+
 // capturedLog is an internal copy of a log entry, safe to retain across hook callbacks.
 type capturedLog struct {
 	Content          []byte
@@ -382,6 +404,85 @@ func encodeLogBatchWith(b *flatbuffers.Builder, entries []capturedLog) ([]byte, 
 	b.Finish(envOff)
 
 	return sizePrefixed(b.FinishedBytes()), nil
+}
+
+// ---------------------------------------------------------------------------
+// Trace stats batch encoding
+// ---------------------------------------------------------------------------
+
+// EncodeTraceStatsBatchRing encodes trace stats directly from a ring buffer segment, using a pooled builder.
+func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail, count, capacity int) ([]byte, error) {
+	b := pool.get()
+
+	entryOffsets := make([]flatbuffers.UOffsetT, count)
+	for ri := count - 1; ri >= 0; ri-- {
+		idx := (tail + ri) % capacity
+		e := &buf[idx]
+
+		serviceOff := b.CreateString(e.Service)
+		nameOff := b.CreateString(e.Name)
+		resourceOff := b.CreateString(e.Resource)
+		typeOff := b.CreateString(e.Type)
+		spanKindOff := b.CreateString(e.SpanKind)
+		hostnameOff := b.CreateString(e.Hostname)
+		envOff := b.CreateString(e.Env)
+		versionOff := b.CreateString(e.Version)
+
+		var okSummaryOff flatbuffers.UOffsetT
+		if len(e.OkSummary) > 0 {
+			okSummaryOff = b.CreateByteVector(e.OkSummary)
+		}
+		var errorSummaryOff flatbuffers.UOffsetT
+		if len(e.ErrorSummary) > 0 {
+			errorSummaryOff = b.CreateByteVector(e.ErrorSummary)
+		}
+
+		signals.TraceStatEntryStart(b)
+		signals.TraceStatEntryAddService(b, serviceOff)
+		signals.TraceStatEntryAddName(b, nameOff)
+		signals.TraceStatEntryAddResource(b, resourceOff)
+		signals.TraceStatEntryAddType(b, typeOff)
+		signals.TraceStatEntryAddSpanKind(b, spanKindOff)
+		signals.TraceStatEntryAddHttpStatusCode(b, e.HTTPStatusCode)
+		signals.TraceStatEntryAddHits(b, e.Hits)
+		signals.TraceStatEntryAddErrors(b, e.Errors)
+		signals.TraceStatEntryAddDurationNs(b, e.DurationNs)
+		signals.TraceStatEntryAddTopLevelHits(b, e.TopLevelHits)
+		if okSummaryOff != 0 {
+			signals.TraceStatEntryAddOkSummary(b, okSummaryOff)
+		}
+		if errorSummaryOff != 0 {
+			signals.TraceStatEntryAddErrorSummary(b, errorSummaryOff)
+		}
+		signals.TraceStatEntryAddHostname(b, hostnameOff)
+		signals.TraceStatEntryAddEnv(b, envOff)
+		signals.TraceStatEntryAddVersion(b, versionOff)
+		signals.TraceStatEntryAddBucketStartNs(b, e.BucketStartNs)
+		signals.TraceStatEntryAddBucketDurationNs(b, e.BucketDurationNs)
+		signals.TraceStatEntryAddTimestampNs(b, e.TimestampNs)
+		entryOffsets[ri] = signals.TraceStatEntryEnd(b)
+	}
+
+	signals.TraceStatsBatchStartEntriesVector(b, count)
+	for i := len(entryOffsets) - 1; i >= 0; i-- {
+		b.PrependUOffsetT(entryOffsets[i])
+	}
+	entriesVec := b.EndVector(count)
+
+	signals.TraceStatsBatchStart(b)
+	signals.TraceStatsBatchAddEntries(b, entriesVec)
+	batchOff := signals.TraceStatsBatchEnd(b)
+
+	signals.SignalEnvelopeStart(b)
+	signals.SignalEnvelopeAddPayloadType(b, signals.SignalPayloadTraceStatsBatch)
+	signals.SignalEnvelopeAddPayload(b, batchOff)
+	envOff := signals.SignalEnvelopeEnd(b)
+
+	b.Finish(envOff)
+
+	result := sizePrefixed(b.FinishedBytes())
+	pool.put(b)
+	return result, nil
 }
 
 // ---------------------------------------------------------------------------
