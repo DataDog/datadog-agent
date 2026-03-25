@@ -73,6 +73,9 @@ Package: main
 		Arg: tag: string (declared at line 295, available: [295-296])
 	Function: funcArg (main.funcArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [206:208] injectible: [206-208]
 		Arg: f: func(int) (declared at line 206, available: [206-207])
+	Function: genericIdentity[...] (main.genericIdentity[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [515:517] injectible: [515-517]
+		Arg: x: .param0 (declared at line 515, available: [515-517])
+		Arg: ~r0: .param0 (declared at line 515, available: )
 	Function: inlined (main.inlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [201:203] injectible: [202-202]
 		Arg: x: int (declared at line 0, available: [201-202])
 	Function: intArg (main.intArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [168:170] injectible: [168-170]
