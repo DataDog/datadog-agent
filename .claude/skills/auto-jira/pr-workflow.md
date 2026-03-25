@@ -71,28 +71,6 @@ POST-ACTION verify: `gh pr view <number> --json title` — confirm title starts 
 
 Add a comment on the Jira ticket with the PR link (see [ticket-workflow.md](ticket-workflow.md)).
 
-### Step 4: Trigger Codex review
-
-Post `@codex review` as a GitHub **comment** on the PR (not in the PR description):
-
-```bash
-gh pr comment <number> --repo DataDog/datadog-agent -b "@codex review"
-```
-
-### Step 5: Move on
+### Step 4: Move on
 
 **CI, review, and merge are left for humans.**
-
----
-
-## End-of-session Codex Pass
-
-After ALL PRs for the session have been created (once, not per ticket):
-
-For each PR opened this session, check whether Codex has posted review comments:
-
-```bash
-gh pr view <number> --comments
-```
-
-If Codex comments exist, read them and address any valid issues (edit code, re-run lint/tests, amend the commit, force-push the branch). If no Codex comments exist yet, skip — do not wait.

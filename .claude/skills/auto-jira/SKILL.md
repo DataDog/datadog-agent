@@ -48,11 +48,7 @@ Per-ticket loop (repeat until --max-cards reached or no eligible tickets):
   5. COMMIT & PUSH     -> Single focused commit, then git push
   6. CREATE PR (DRAFT) -> Open draft PR against main
   7. FIX PR TITLE      -> Rename to [auto-jira][<KEY>] <description> using gh pr edit
-  8. LINK & COMMENT    -> Post PR link on Jira ticket; comment "@codex review" on the GitHub PR
-
-After ALL tickets for the session are done (ONCE, not per ticket):
-  9. CODEX PASS        -> For every PR opened this session, check for Codex review comments;
-                          address any that exist; skip if no comments yet
+  8. LINK & COMMENT    -> Post PR link on Jira ticket
 ```
 
 ---
