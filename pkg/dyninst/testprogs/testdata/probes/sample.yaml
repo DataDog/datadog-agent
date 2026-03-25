@@ -2342,6 +2342,8 @@ probes:
     segments:
       - str: "testWhollyInlinedSubroutine"
     captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 100
   # Capture expression probes
   - id: testCaptureExprSimple
     type: LOG_PROBE
