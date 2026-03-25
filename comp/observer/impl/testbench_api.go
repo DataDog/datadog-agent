@@ -445,18 +445,33 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
+		// MetricKind is "counter" or "gauge" for telemetry namespace; omitted otherwise.
+		MetricKind string `json:"metricKind,omitempty"`
 	}
 
 	var allSeries []seriesInfo
 
 	extractorNs := api.tb.extractorNamespaces()
+	telHandler := api.tb.telemetryHandler
 
 	// Get series metadata from all namespaces — no point data materialized.
 	// Use compact numeric IDs: "{numericID}:{aggSuffix}" (e.g. "42:avg").
 	for _, ns := range storage.Namespaces() {
 		metas := storage.ListSeriesMetadata(ns)
 		for _, m := range metas {
-			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
+			aggs := []Aggregate{AggregateAverage, AggregateCount}
+			if m.Namespace == "telemetry" && telHandler != nil && telHandler.isCounterMetric(m.Name) {
+				aggs = append(aggs, AggregateSum)
+			}
+			var metricKind string
+			if m.Namespace == "telemetry" {
+				if telHandler != nil && telHandler.isCounterMetric(m.Name) {
+					metricKind = "counter"
+				} else {
+					metricKind = "gauge"
+				}
+			}
+			for _, agg := range aggs {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
 				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
 				_, virtual := extractorNs[m.Namespace]
@@ -467,6 +482,7 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 					Tags:       m.Tags,
 					PointCount: m.PointCount,
 					Virtual:    virtual,
+					MetricKind: metricKind,
 				})
 			}
 		}

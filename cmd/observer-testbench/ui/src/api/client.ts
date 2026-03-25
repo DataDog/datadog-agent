@@ -72,6 +72,8 @@ export interface SeriesInfo {
   pointCount: number;
   /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
+  /** Telemetry metrics: counter deltas use :sum and cumulative display; gauges use the selected aggregation. */
+  metricKind?: 'gauge' | 'counter';
 }
 
 export interface Point {

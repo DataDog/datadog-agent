@@ -33,6 +33,17 @@ function formatSeriesLabel(tags: string[]): string {
   return tags.join(', ');
 }
 
+/** Prefix sum of per-bucket deltas (time-ordered) — total from scenario start. */
+function cumulativeFromStart(points: Point[]): Point[] {
+  if (points.length === 0) return points;
+  const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+  let acc = 0;
+  return sorted.map((p) => {
+    acc += p.value;
+    return { timestamp: p.timestamp, value: acc };
+  });
+}
+
 
 interface MetricGroup {
   key: string;
@@ -218,7 +229,14 @@ export function MetricsView({
   }, [allSeries]);
 
   const filteredSeries = useMemo(
-    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
+    () =>
+      allSeries.filter((s) => {
+        const agg = getAggregationType(s.name);
+        if (s.metricKind === 'counter') {
+          return agg === 'sum' || agg === 'avg' || agg === 'count';
+        }
+        return agg === aggregationType;
+      }),
     [allSeries, aggregationType]
   );
 
@@ -806,9 +824,17 @@ export function MetricsView({
                   <>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 border-t border-purple-800/50" />
-                      <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium">
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
-                        Telemetry Metrics
+                      <div className="flex flex-col items-center gap-0.5 shrink-0">
+                        <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium">
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
+                          Telemetry Metrics
+                        </div>
+                        <span
+                          className="text-[10px] text-slate-500 max-w-md text-center px-2"
+                          title="Counter metrics: sum of deltas per time bucket, displayed as a running total from scenario start. Gauges follow the aggregation control."
+                        >
+                          Counters: cumulative from start · Gauges: aggregation above
+                        </span>
                       </div>
                       <div className="flex-1 border-t border-purple-800/50" />
                     </div>
@@ -819,6 +845,8 @@ export function MetricsView({
                           return g && g.namespace === 'telemetry';
                         })
                         .map((groupKey) => {
+                          const group = groupByKey.get(groupKey);
+                          const isCounterTelemetry = group?.members.some((m) => m.metricKind === 'counter');
                           const dataList = groupSeriesData.get(groupKey) ?? [];
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
@@ -828,17 +856,21 @@ export function MetricsView({
                           const seriesIDs = new Set(chartSeries.map((d) => d.id));
                           const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                           const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                          const mapPoints = (pts: Point[]) =>
+                            isCounterTelemetry ? cumulativeFromStart(pts) : pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
                             label: formatSeriesLabel(d.tags),
-                            points: d.points,
+                            points: mapPoints(d.points),
                             seriesId: d.id,
                           }));
                           const primary = chartSeries[0];
+                          const chartTitleBase = getBaseMetricName(primary.name);
+                          const chartTitle = isCounterTelemetry ? `${chartTitleBase} (cumulative)` : primary.name;
                           return (
                             <ChartWithAnomalyDetails
                               key={groupKey}
-                              name={primary.name}
-                              points={primary.points}
+                              name={chartTitle}
+                              points={mapPoints(primary.points)}
                               anomalyMarkers={anomalyMarkers}
                               anomalies={seriesAnomalies}
                               correlationRanges={[]}

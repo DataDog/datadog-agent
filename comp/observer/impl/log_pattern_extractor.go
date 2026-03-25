@@ -98,10 +98,14 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
 	clusterResult := e.PatternClusterer.Process(message)
 	if clusterResult == nil {
 		return observerdef.LogMetricsExtractorOutput{}
+	}
+	if clusterResult.IsNew {
+		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
 
 	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)
@@ -123,8 +127,6 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			Tags:       log.GetTags(),
 			ContextKey: contextKey,
 		}},
-		Telemetry: []observerdef.ObserverTelemetry{
-			newTelemetryGauge(e.Name(), telemetryLogPatternExtractorPatternCount, float64(e.PatternClusterer.NumClusters()), log.GetTimestampUnixMilli()/1000),
-		},
+		Telemetry: telemetry,
 	}
 }

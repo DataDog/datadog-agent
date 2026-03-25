@@ -376,12 +376,25 @@ type Point struct {
 	Value     float64
 }
 
+// MetricKind distinguishes gauge (absolute level) from counter (increment) telemetry.
+// Gauge samples are exported with Set; counter samples with Add(value) on the backend counter.
+type MetricKind int
+
+const (
+	// MetricKindGauge is the default: the metric value is an absolute level.
+	MetricKindGauge MetricKind = iota
+	// MetricKindCounter indicates the value is a delta added to the named counter.
+	MetricKindCounter
+)
+
 // Describes a telemetry event that is emitted by the observer.
 // This could be a metric or a log for instance.
 type ObserverTelemetry struct {
 	DetectorName string
 	Metric       MetricView
 	Log          LogView
+	// Kind is telemetry metric kind; zero means gauge (backward compatible).
+	Kind MetricKind
 }
 
 // DetectionResult contains outputs from anomaly detection.
