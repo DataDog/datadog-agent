@@ -16,9 +16,8 @@ func init() { registerModule(NetworkTracer) }
 
 // NetworkTracer is a factory for NPM's tracer on Darwin
 var NetworkTracer = &module.Factory{
-	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: networkTracerModuleConfigNamespaces,
-	Fn:               createNetworkTracerModule,
+	Name: config.NetworkTracerModule,
+	Fn:   createNetworkTracerModule,
 }
 
 // platformRegister is a stub for Darwin
