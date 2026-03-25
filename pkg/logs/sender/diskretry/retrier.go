@@ -1,10 +1,10 @@
-// Package diskretry persists log payloads to disk while destinations are unavailable
-// and replays them when connectivity recovers.
-//
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package diskretry persists log payloads to disk while destinations are unavailable
+// and replays them when connectivity recovers.
 package diskretry
 
 import (

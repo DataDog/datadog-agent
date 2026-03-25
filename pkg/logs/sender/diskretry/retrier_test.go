@@ -8,6 +8,7 @@ package diskretry
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -214,19 +215,26 @@ func TestReplayLoopFIFOOrder(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // ensure distinct timestamps
 	}
 
+	var mu sync.Mutex
 	var order []string
 	m.StartReplayLoop(func(payload *message.Payload) bool {
+		mu.Lock()
 		order = append(order, string(payload.Encoded))
+		mu.Unlock()
 		return true
 	})
 
 	assert.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
 		return len(order) >= 3
 	}, 5*time.Second, 100*time.Millisecond)
 
 	m.Stop()
 
+	mu.Lock()
 	assert.Equal(t, []string{"A", "B", "C"}, order)
+	mu.Unlock()
 }
 
 func TestStopTerminatesReplayLoop(t *testing.T) {
