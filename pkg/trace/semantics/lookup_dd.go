@@ -57,8 +57,20 @@ func NewDDSpanAccessorV1(s *idx.InternalSpan) DDSpanAccessorV1 {
 	return DDSpanAccessorV1{span: s}
 }
 
-// GetString returns the attribute value if it is a StringValueRef, or "" otherwise.
+// GetString returns the string value for the given key. Promoted span fields
+// (component, span.kind, env, version) are read from their dedicated InternalSpan
+// accessors; all other keys are returned only if stored as a string attribute.
 func (a DDSpanAccessorV1) GetString(key string) string {
+	switch key {
+	case "component":
+		return a.span.Component()
+	case "span.kind":
+		return a.span.SpanKind()
+	case "env":
+		return a.span.Env()
+	case "version":
+		return a.span.Version()
+	}
 	attr, ok := a.span.GetAttribute(key)
 	if !ok || attr == nil {
 		return ""
