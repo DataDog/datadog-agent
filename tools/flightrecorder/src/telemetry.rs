@@ -91,20 +91,21 @@ impl TelemetryReporter {
             }
 
             // --- Jemalloc memory stats ---
-            // These don't require profiling to be enabled.
-            if let Ok(resident) = unsafe { raw::read::<usize>(b"stats.resident\0") } {
-                let _ = self.client.gauge("memory.resident", resident as u64);
-            }
-            if let Ok(allocated) = unsafe { raw::read::<usize>(b"stats.allocated\0") } {
-                let _ = self.client.gauge("memory.allocated", allocated as u64);
-            }
-            if let Ok(active) = unsafe { raw::read::<usize>(b"stats.active\0") } {
-                let _ = self.client.gauge("memory.active", active as u64);
-            }
-
-            // Need to call epoch.advance() to refresh jemalloc cached stats.
-            // This is a global operation but lightweight.
+            // Advance the epoch first to refresh jemalloc's cached stats.
             unsafe { let _ = raw::write(b"epoch\0", 1u64); }
+
+            match unsafe { raw::read::<usize>(b"stats.resident\0") } {
+                Ok(v) => { let _ = self.client.gauge("memory.resident", v as u64); }
+                Err(e) => { warn!("jemalloc stats.resident read failed: {e}"); }
+            }
+            match unsafe { raw::read::<usize>(b"stats.allocated\0") } {
+                Ok(v) => { let _ = self.client.gauge("memory.allocated", v as u64); }
+                Err(e) => { warn!("jemalloc stats.allocated read failed: {e}"); }
+            }
+            match unsafe { raw::read::<usize>(b"stats.active\0") } {
+                Ok(v) => { let _ = self.client.gauge("memory.active", v as u64); }
+                Err(e) => { warn!("jemalloc stats.active read failed: {e}"); }
+            }
 
             // --- Connection stats ---
             let conns = conn_stats.active_connections.load(Ordering::Relaxed);
