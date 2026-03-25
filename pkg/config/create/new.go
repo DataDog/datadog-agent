@@ -58,13 +58,13 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 				if res >= 0 {
 					return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 				}
-				return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+			} else {
+				// agentVersion.CompareTo didn't parse the value, it's something else
+				log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
 			}
-			// agentVersion.CompareTo didn't parse the value, it's something else
-			log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
 		}
 	}
 
 	// default config implementation
-	return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 }
