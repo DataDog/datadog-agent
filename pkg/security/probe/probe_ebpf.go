@@ -164,9 +164,11 @@ type EBPFProbe struct {
 	runtimeCompiled    bool
 	useSyscallWrapper  bool
 	useFentry          bool
-	useRingBuffers     bool
-	useMmapableMaps    bool
-	cgroup2MountPath   string
+	useRingBuffers        bool
+	useMmapableMaps       bool
+	cgroup2MountPath      string
+	samplingPressureMap   *lib.Map
+	samplingPressureLevel atomic.Uint32
 
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
@@ -583,6 +585,16 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	if p.config.RuntimeSecurity.EventSamplingDynamicEnabled {
+		p.samplingPressureMap, _, err = p.Manager.GetMap("sampling_pressure")
+		if err != nil {
+			return err
+		}
+		if p.samplingPressureMap == nil {
+			return errors.New("sampling_pressure map not found")
+		}
+	}
+
 	p.processKiller.Start(p.ctx, &p.wg)
 
 	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -806,6 +818,14 @@ func (p *EBPFProbe) Start() error {
 		}()
 	}
 
+	if p.config.RuntimeSecurity.EventSamplingDynamicEnabled {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.startSamplingPressureLoop()
+		}()
+	}
+
 	return p.eventStream.Start(&p.wg)
 }
 
@@ -970,6 +990,12 @@ func (p *EBPFProbe) SendStats() error {
 	valueNameTruncated := p.MetricNameTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
 		return err
+	}
+
+	if p.config.RuntimeSecurity.EventSamplingDynamicEnabled {
+		if err := p.statsdClient.Gauge(metrics.MetricSamplingPressureLevel, float64(p.samplingPressureLevel.Load()), []string{}, 1.0); err != nil {
+			return err
+		}
 	}
 
 	return p.monitors.SendStats()
@@ -2235,6 +2261,48 @@ func (p *EBPFProbe) Stop() {
 	_ = p.Manager.StopReaders(manager.CleanAll)
 }
 
+func (p *EBPFProbe) startSamplingPressureLoop() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			p.updateSamplingPressure()
+		}
+	}
+}
+
+func (p *EBPFProbe) updateSamplingPressure() {
+	level := p.computePressureLevel()
+	p.samplingPressureLevel.Store(uint32(level))
+	if err := p.samplingPressureMap.Put(uint32(0), level); err != nil {
+		seclog.Debugf("failed to update sampling pressure map: %v", err)
+	}
+}
+
+const (
+	pressureLow    uint8 = 0
+	pressureMedium uint8 = 1
+	pressureHigh   uint8 = 2
+)
+
+func (p *EBPFProbe) computePressureLevel() uint8 {
+	usage, capacity, err := p.monitors.eventStreamMonitor.GetRingBufferUsage()
+	if err == nil && capacity > 0 {
+		pct := usage * 100 / capacity
+		if pct > 80 {
+			return pressureHigh
+		}
+		if pct > 50 {
+			return pressureMedium
+		}
+	}
+	return pressureLow
+}
+
 // Close the probe
 func (p *EBPFProbe) Close() error {
 	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
@@ -2684,12 +2752,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_priority",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenPriority),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_priority",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectPriority),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
@@ -2700,12 +2776,24 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_priority",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindPriority),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_priority",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSPriority),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -2776,6 +2864,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
+		EventSamplingDynamicEnabled:   p.config.RuntimeSecurity.EventSamplingDynamicEnabled,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {

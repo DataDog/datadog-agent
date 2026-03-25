@@ -70,11 +70,49 @@ void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type)
 }
 
 
+static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8 priority) {
+    u64 dynamic_sampling_enabled = 0;
+    LOAD_CONSTANT("dynamic_sampling_enabled", dynamic_sampling_enabled);
+    if (!dynamic_sampling_enabled) {
+        return (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
+    }
+
+    int zero = 0;
+    u8 *pressure = bpf_map_lookup_elem(&sampling_pressure, &zero);
+    u8 pressure_level = (pressure != NULL) ? *pressure : PRESSURE_MEDIUM;
+
+    if (pressure_level >= PRESSURE_HIGH) {
+        bpf_printk("sampling_admission: REJECT limiter=%u prio=%u pressure=HIGH", limiter_key, priority);
+        return 0;
+    }
+
+    if (pressure_level == PRESSURE_LOW) {
+        bpf_printk("sampling_admission: BYPASS limiter=%u prio=%u pressure=LOW", limiter_key, priority);
+        return 1;
+    }
+
+    // MEDIUM pressure: decision depends on priority
+    if (priority >= SAMPLING_PRIORITY_HIGH) {
+        bpf_printk("sampling_admission: BYPASS limiter=%u prio=%u pressure=MED (high prio)", limiter_key, priority);
+        return 1;
+    }
+    if (priority <= SAMPLING_PRIORITY_LOW) {
+        bpf_printk("sampling_admission: REJECT limiter=%u prio=%u pressure=MED (low prio)", limiter_key, priority);
+        return 0;
+    }
+
+    u8 allowed = (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
+    bpf_printk("sampling_admission: RATE_LIMIT limiter=%u prio=%u pressure=MED allowed=%u", limiter_key, priority, allowed);
+    return allowed;
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
     u64 event_sampling_bind_enabled = 0;
     LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
     u64 event_sampling_bind_rate = 0;
     LOAD_CONSTANT("event_sampling_bind_rate", event_sampling_bind_rate);
+    u64 event_sampling_bind_priority = SAMPLING_PRIORITY_MEDIUM;
+    LOAD_CONSTANT("event_sampling_bind_priority", event_sampling_bind_priority);
 
     if (!event_sampling_bind_enabled) {
         return DISCARDED;
@@ -100,7 +138,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
         return DISCARDED;
     }
 
-    if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
+    if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_priority)) {
         bpf_map_delete_elem(&bind_samples, &key);
         return DISCARDED;
     }
@@ -114,6 +152,8 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
     LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
     u64 event_sampling_dns_rate = 0;
     LOAD_CONSTANT("event_sampling_dns_rate", event_sampling_dns_rate);
+    u64 event_sampling_dns_priority = SAMPLING_PRIORITY_MEDIUM;
+    LOAD_CONSTANT("event_sampling_dns_priority", event_sampling_dns_priority);
 
     if (!event_sampling_dns_enabled) {
         return DISCARDED;
@@ -121,7 +161,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
 
     monitor_event_sample_total(EVENT_DNS);
 
-    if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
+    if (!sampling_admission_check(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, (u8)event_sampling_dns_priority)) {
         return DISCARDED;
     }
 
@@ -134,6 +174,8 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
     u64 event_sampling_connect_rate = 0;
     LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
+    u64 event_sampling_connect_priority = SAMPLING_PRIORITY_LOW;
+    LOAD_CONSTANT("event_sampling_connect_priority", event_sampling_connect_priority);
 
     if (!event_sampling_connect_enabled) {
         return DISCARDED;
@@ -159,7 +201,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
         return DISCARDED;
     }
 
-    if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
+    if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_priority)) {
         bpf_map_delete_elem(&connect_samples, &key);
         return DISCARDED;
     }
@@ -399,6 +441,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     u64 event_sampling_open_rate = 0;
     LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
 
+    u64 event_sampling_open_priority = SAMPLING_PRIORITY_HIGH;
+    LOAD_CONSTANT("event_sampling_open_priority", event_sampling_open_priority);
+
     if (!event_sampling_open_enabled) {
         return DISCARDED;
     }
@@ -438,7 +483,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
+    if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_priority)) {
         bpf_map_delete_elem(&open_samples, &key);
         return DISCARDED;
     }

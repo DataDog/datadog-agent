@@ -284,14 +284,19 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpMaxDumpSize func() int
 
 	// Per-type event sampling config
-	EventSamplingOpenEnabled    bool
-	EventSamplingOpenRate       int
-	EventSamplingConnectEnabled bool
-	EventSamplingConnectRate    int
-	EventSamplingBindEnabled    bool
-	EventSamplingBindRate       int
-	EventSamplingDNSEnabled     bool
-	EventSamplingDNSRate        int
+	EventSamplingOpenEnabled      bool
+	EventSamplingOpenRate         int
+	EventSamplingOpenPriority     int
+	EventSamplingConnectEnabled   bool
+	EventSamplingConnectRate      int
+	EventSamplingConnectPriority  int
+	EventSamplingBindEnabled      bool
+	EventSamplingBindRate         int
+	EventSamplingBindPriority     int
+	EventSamplingDNSEnabled       bool
+	EventSamplingDNSRate          int
+	EventSamplingDNSPriority      int
+	EventSamplingDynamicEnabled   bool
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -604,14 +609,19 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// event sampling (per-type)
-		EventSamplingOpenEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
-		EventSamplingOpenRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
-		EventSamplingConnectEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
-		EventSamplingConnectRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
-		EventSamplingBindEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingDNSEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
-		EventSamplingDNSRate:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+		EventSamplingOpenEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingOpenPriority:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.priority"),
+		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingConnectPriority:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.priority"),
+		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindPriority:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.priority"),
+		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
+		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+		EventSamplingDNSPriority:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.priority"),
+		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -692,6 +702,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
 		rsConfig.EventSamplingDNSEnabled = true
+		rsConfig.EventSamplingDynamicEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

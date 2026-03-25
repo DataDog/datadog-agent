@@ -555,6 +555,10 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
+	// Tags: -
+	MetricSamplingPressureLevel = newRuntimeMetric(".event_sample.pressure_level")
 )
 
 var (

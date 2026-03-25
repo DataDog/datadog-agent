@@ -565,6 +565,21 @@ func (pbm *Monitor) sendLostEventsReadStats(client statsd.ClientInterface) error
 	return nil
 }
 
+// GetRingBufferUsage returns the current ring buffer usage and capacity in bytes.
+// Returns (0, 0, nil) when ring buffers are not in use.
+func (pbm *Monitor) GetRingBufferUsage() (usage uint64, capacity uint64, err error) {
+	for _, sm := range pbm.perfBufferStatsMaps {
+		if sm.ebpfRingBufferMap != nil {
+			u, err := pbm.getRingbufUsage(sm)
+			if err != nil {
+				return 0, 0, err
+			}
+			return u, sm.ebpfRingBufferMap.capacity, nil
+		}
+	}
+	return 0, 0, nil
+}
+
 func (pbm *Monitor) getRingbufUsage(statsMap *statMap) (uint64, error) {
 	req := erpc.NewERPCRequest(erpc.GetRingbufUsageOp)
 	if err := pbm.eRPC.Request(req); err != nil {
