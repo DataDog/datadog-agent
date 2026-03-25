@@ -36,7 +36,14 @@ build do
       " #{install_dir}/embedded/lib/libpython3.*#{sh_ext}" \
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3*"
+    python = "#{install_dir}/embedded/bin/python3"
   else
     command_on_repo_root "bazelisk run #{flavor_flag} -- @cpython//:install --destdir=#{install_dir}"
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   end
+
+  # Upgrade pip to 26.0.1 to address CVE-2026-1703 (path traversal in pip < 26.0
+  # when installing malicious wheel archives). Python 3.13 ships with pip 25.3 via
+  # ensurepip, which is vulnerable.
+  command "#{python} -m pip install pip==26.0.1"
 end
