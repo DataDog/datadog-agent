@@ -59,7 +59,7 @@ type dependencies struct {
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
-	Tagger                option.Option[tagger.Component]
+	Tagger                option.Option[tagger.Component] `optional:"true"`
 }
 
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
