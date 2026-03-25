@@ -188,10 +188,16 @@ func TestInitData(t *testing.T) {
 	assert.Nil(t, err)
 
 	expected := map[string]any{
-		"agent_version":                    version.AgentVersion,
-		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
-		"flavor":                           flavor.GetFlavor(),
-		"fips_mode":                        isFips,
+		"agent_version":         version.AgentVersion,
+		"agent_startup_time_ms": pkgconfigsetup.StartTime.UnixMilli(),
+		"flavor":                flavor.GetFlavor(),
+		"fips_mode":             isFips,
+		"fips_flavor": func() string {
+			if isFips {
+				return "agent"
+			}
+			return "proxy" // fips.enabled=true in test overrides
+		}(),
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",

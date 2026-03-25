@@ -267,11 +267,18 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	}
 
 	// FIPS mode
-	if val, err := fips.Enabled(); err == nil {
-		ia.data["fips_mode"] = val
+	fipsEnabled, fipsErr := fips.Enabled()
+	if fipsErr == nil {
+		ia.data["fips_mode"] = fipsEnabled
 	} else {
 		ia.data["fips_mode"] = false
-		ia.log.Warnf("could not check if fips is enabled: %s", err)
+		ia.log.Warnf("could not check if fips is enabled: %s", fipsErr)
+		fipsEnabled = false
+	}
+	if fipsEnabled {
+		ia.data["fips_flavor"] = "agent"
+	} else if ia.conf.GetBool("fips.enabled") {
+		ia.data["fips_flavor"] = "proxy"
 	}
 }
 
