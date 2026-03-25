@@ -35,6 +35,9 @@ type ReplayStats struct {
 	InputMetricsCardinality int `json:"input_metrics_cardinality"`
 	// InputLogsCount is the number of raw log entries present in the scenario.
 	InputLogsCount int `json:"input_logs_count"`
+	// InputAnomaliesCount is the total number of anomalies produced by detectors,
+	// which is the input volume processed by correlators.
+	InputAnomaliesCount int `json:"input_anomalies_count"`
 }
 
 // enrichDetectorStatsKind sets the Kind field on each DetectorProcessingStats entry.

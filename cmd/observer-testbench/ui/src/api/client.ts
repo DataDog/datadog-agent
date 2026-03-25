@@ -295,6 +295,7 @@ export interface ReplayStats {
   input_metrics_count: number;
   input_metrics_cardinality: number;
   input_logs_count: number;
+  input_anomalies_count: number;
 }
 
 class ApiClient {

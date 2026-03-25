@@ -341,9 +341,9 @@ const KIND_COLOR: Record<string, string> = {
   extractor: '#4ade80', // green-400
 };
 const KIND_LABEL: Record<string, string> = {
-  detector:  'ns/point',
-  correlator: 'ns/point',
-  extractor: 'ns/log',
+  detector:   'ns/point',
+  correlator: 'ns/anomaly',
+  extractor:  'ns/log',
 };
 
 interface EfficiencyEntry {
@@ -497,14 +497,15 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [hoveredDetector, setHoveredDetector] = useState<string | null>(null);
 
-  // Fetch when a scenario finishes loading
+  // Fetch when a scenario finishes loading or scenario data is refreshed (e.g. toggling a
+  // correlator updates processing stats but keeps the same active scenario name).
   useEffect(() => {
     if (state.connectionState !== 'ready') return;
     api
       .getBenchmarkStats()
       .then(setReplayStats)
       .catch(() => setReplayStats(null));
-  }, [state.activeScenario, state.connectionState]);
+  }, [state.activeScenario, state.connectionState, state.scenarioDataVersion]);
 
   // Sort by p99 descending so the slowest detectors are at the top
   const stats = useMemo(() => {
@@ -519,7 +520,9 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
       .map((s) => {
         const itemCount = s.kind === 'extractor'
           ? replayStats.input_logs_count
-          : replayStats.input_metrics_count;
+          : s.kind === 'correlator'
+            ? replayStats.input_anomalies_count
+            : replayStats.input_metrics_count;
         return {
           name: s.name,
           kind: s.kind,
@@ -683,7 +686,7 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
                 Cost per Item
               </h2>
               <span className="text-xs text-slate-500">
-                total processing time ÷ items processed · detectors &amp; correlators per data point, extractors per log
+                total processing time ÷ items processed · detectors per data point, correlators per anomaly, extractors per log
               </span>
             </div>
             <EfficiencyBarChart

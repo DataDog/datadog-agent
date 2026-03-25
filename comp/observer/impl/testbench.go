@@ -744,6 +744,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		InputMetricsCount:       sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
 		InputMetricsCardinality: sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCardinality),
 		InputLogsCount:          sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
+		InputAnomaliesCount:     len(result.anomalies),
 	}
 
 	// Mark scenario ready now that all analysis is complete
