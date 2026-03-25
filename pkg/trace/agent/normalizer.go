@@ -296,7 +296,11 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptComponent); v != "" {
+		// Use GetAttributeAsString directly instead of the semantic registry:
+		// DDSpanAccessorV1.GetString only reads from the attributes map, but "component"
+		// is stored as a promoted field (ComponentRef) on V1 spans. GetAttributeAsString
+		// handles promoted fields correctly.
+		if v, ok := s.GetAttributeAsString(string(semantics.ConceptComponent)); ok && v != "" {
 			s.SetName(v)
 		}
 	}
