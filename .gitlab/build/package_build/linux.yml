@@ -138,6 +138,7 @@ iot-agent-armhf:
     # we can only address 32 bits of memory, which is likely to OOM
     # if we use too many compression threads or a too agressive level
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
+    ARCH: arm64
 
 # ----- Dogstatsd -----
 
