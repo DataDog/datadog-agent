@@ -148,8 +148,12 @@ func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err e
 	// on windows we need to make a copy of installer binary so that it isn't in use
 	// while the MSI tries to remove it
 	if runtime.GOOS == "windows" && pkg == "datadog-agent" {
-		repositories := repository.NewRepositories(paths.PackagesPath, nil)
-		tmpDir, err := repositories.MkdirTemp()
+		tmpRootPath := paths.PackagesPath
+		if _, statErr := os.Stat(tmpRootPath); statErr != nil {
+			// packages directory does not exist, fall back to system temp dir
+			tmpRootPath = ""
+		}
+		tmpDir, err := os.MkdirTemp(tmpRootPath, "tmp-installer-*")
 		if err != nil {
 			return fmt.Errorf("error creating temp dir: %w", err)
 		}

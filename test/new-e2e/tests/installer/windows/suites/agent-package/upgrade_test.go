@@ -422,6 +422,30 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	})
 }
 
+// TestRevertsExperimentWhenPackagesDirMissing is a regression test for FA-1143.
+// It verifies that RemoveExperiment does not fail with "error creating temp dir"
+// when the packages directory has been deleted before the call.
+func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenPackagesDirMissing() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Act: rename packages dir to simulate it being missing, then remove experiment
+	_, err := s.Env().RemoteHost.Execute(`Rename-Item -Path 'C:\ProgramData\Datadog\Installer\packages' -NewName 'packages.bak'`)
+	s.Require().NoError(err)
+	_, removeErr := s.Installer().RemoveExperiment(consts.AgentPackage)
+	_, restoreErr := s.Env().RemoteHost.Execute(`Rename-Item -Path 'C:\ProgramData\Datadog\Installer\packages.bak' -NewName 'packages'`)
+	s.Require().NoError(restoreErr)
+
+	// Assert: the call must not have failed due to missing temp dir
+	if removeErr != nil {
+		s.Require().NotContains(removeErr.Error(), "error creating temp dir",
+			"MkdirTemp should fall back to system temp dir when packages directory is missing")
+	}
+}
+
 // TestExperimentMSIRollbackMaintainsCustomUserAndAltDir tests that the
 // stable version is reinstalled with the custom user and alt dir when an experiment MSI rolls back.
 // This is a regression test for WINA-1504, where remove-experiment subcommand used the wrong
