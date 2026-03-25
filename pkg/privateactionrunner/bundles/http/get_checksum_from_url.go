@@ -43,7 +43,7 @@ type GetChecksumFromURLOutputs struct {
 
 func NewGetChecksumFromURLHandler(runnerConfig *config.Config) types.Action {
 	return &GetChecksumFromURLHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithURLAllowlist()),
 	}
 }
 
