@@ -29,8 +29,9 @@ type Requires struct {
 	Lc     compdef.Lifecycle
 	Config config.Component
 
-	MetricsHooks []hook.Hook[hook.MetricView] `group:"hook"`
-	LogsHooks    []hook.Hook[hook.LogView]    `group:"hook"`
+	MetricsHooks    []hook.Hook[hook.MetricView]     `group:"hook"`
+	LogsHooks       []hook.Hook[hook.LogView]        `group:"hook"`
+	TraceStatsHooks []hook.Hook[hook.TraceStatsView] `group:"hook"`
 }
 
 // Provides defines what the component exposes to the fx graph.
@@ -76,6 +77,10 @@ func NewComponent(req Requires) (Provides, error) {
 	if logCapacity <= 0 {
 		logCapacity = 5000
 	}
+	traceStatsCapacity := req.Config.GetInt("flightrecorder.trace_stats_buffer_capacity")
+	if traceStatsCapacity <= 0 {
+		traceStatsCapacity = 1000
+	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
 	if hookBufSize <= 0 {
 		hookBufSize = 4096
@@ -89,7 +94,7 @@ func NewComponent(req Requires) (Provides, error) {
 	// Create transport and batcher. The reconnect callback is set after
 	// batcher creation to avoid a circular dependency.
 	transport := newUnixTransport(socketPath, func() { c.incReconnects() })
-	bat := newBatcher(transport, flushInterval, ptCapacity, defCapacity, logCapacity, contextCap, c)
+	bat := newBatcher(transport, flushInterval, ptCapacity, defCapacity, logCapacity, traceStatsCapacity, contextCap, c)
 	// Replace the onReconnect callback to also reset context definitions.
 	transport.mu.Lock()
 	transport.onReconnect = func() {
@@ -167,6 +172,35 @@ func NewComponent(req Requires) (Provides, error) {
 		})
 	}
 
+	// Subscribe to all trace stats hooks.
+	for _, sh := range req.TraceStatsHooks {
+		if sh == nil {
+			continue
+		}
+		sh.SubscribeWithBuffer("flightrecorder-trace-stats", hookBufSize, func(payload hook.TraceStatsView) {
+			bat.AddTraceStat(capturedTraceStat{
+				Service:          payload.GetService(),
+				Name:             payload.GetName(),
+				Resource:         payload.GetResource(),
+				Type:             payload.GetType(),
+				SpanKind:         payload.GetSpanKind(),
+				HTTPStatusCode:   payload.GetHTTPStatusCode(),
+				Hits:             payload.GetHits(),
+				Errors:           payload.GetErrors(),
+				DurationNs:       payload.GetDuration(),
+				TopLevelHits:     payload.GetTopLevelHits(),
+				OkSummary:        payload.GetOkSummary(),
+				ErrorSummary:     payload.GetErrorSummary(),
+				Hostname:         payload.GetHostname(),
+				Env:              payload.GetEnv(),
+				Version:          payload.GetVersion(),
+				BucketStartNs:    int64(payload.GetBucketStartNs()),
+				BucketDurationNs: int64(payload.GetBucketDurationNs()),
+				TimestampNs:      time.Now().UnixNano(),
+			})
+		})
+	}
+
 	req.Lc.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
 			bat.Stop()
@@ -174,8 +208,8 @@ func NewComponent(req Requires) (Provides, error) {
 		},
 	})
 
-	pkglog.Infof("flightrecorder: started (socket=%s flush=%s pts=%d defs=%d logs=%d hook_buffer=%d ctx_cap=%d)",
-		socketPath, flushInterval, ptCapacity, defCapacity, logCapacity, hookBufSize, contextCap)
+	pkglog.Infof("flightrecorder: started (socket=%s flush=%s pts=%d defs=%d logs=%d tss=%d hook_buffer=%d ctx_cap=%d)",
+		socketPath, flushInterval, ptCapacity, defCapacity, logCapacity, traceStatsCapacity, hookBufSize, contextCap)
 
 	return Provides{Comp: impl}, nil
 }

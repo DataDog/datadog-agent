@@ -47,12 +47,19 @@ type batcher struct {
 	defsActiveN int
 	defsActiveH int
 
-	// Logs double-buffer (unchanged).
+	// Logs double-buffer.
 	logCap      int
 	logsActive  []capturedLog
 	logsDrain   []capturedLog
 	logsActiveN int
 	logsActiveH int
+
+	// Trace stats double-buffer.
+	tssCap      int
+	tssActive   []capturedTraceStat
+	tssDrain    []capturedTraceStat
+	tssActiveN  int
+	tssActiveH  int
 
 	// FlatBuffers builder pool.
 	builderPool *builderPool
@@ -67,13 +74,14 @@ type batcher struct {
 	ptWatermark  int
 	defWatermark int
 	logWatermark int
+	tssWatermark int
 	flushCh      chan struct{} // capacity 1, non-blocking signal
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
 
-func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, contextCap int, c *counters) *batcher {
+func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, traceStatsCapacity, contextCap int, c *counters) *batcher {
 	b := &batcher{
 		transport:     transport,
 		flushInterval: flushInterval,
@@ -91,11 +99,16 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		logsActive: make([]capturedLog, logCapacity),
 		logsDrain:  make([]capturedLog, logCapacity),
 
+		tssCap:    traceStatsCapacity,
+		tssActive: make([]capturedTraceStat, traceStatsCapacity),
+		tssDrain:  make([]capturedTraceStat, traceStatsCapacity),
+
 		builderPool:  newBuilderPool(),
 		seenContexts: newContextSet(contextCap),
 		ptWatermark:  ptCapacity * 4 / 5,
 		defWatermark: defCapacity * 4 / 5,
 		logWatermark: logCapacity * 4 / 5,
+		tssWatermark: traceStatsCapacity * 4 / 5,
 		flushCh:      make(chan struct{}, 1),
 		stopCh:       make(chan struct{}),
 	}
@@ -166,6 +179,23 @@ func (b *batcher) AddLog(l capturedLog) {
 	}
 }
 
+// AddTraceStat enqueues a trace stats entry.
+func (b *batcher) AddTraceStat(t capturedTraceStat) {
+	b.mu.Lock()
+	if b.tssActiveN == b.tssCap {
+		b.counters.incTraceStatsDroppedOverflow(1)
+	} else {
+		b.tssActiveN++
+	}
+	b.tssActive[b.tssActiveH] = t
+	b.tssActiveH = (b.tssActiveH + 1) % b.tssCap
+	signal := b.tssActiveN >= b.tssWatermark
+	b.mu.Unlock()
+	if signal {
+		b.signalFlush()
+	}
+}
+
 func (b *batcher) flushLoop() {
 	defer b.wg.Done()
 	ticker := time.NewTicker(b.flushInterval)
@@ -199,6 +229,7 @@ func (b *batcher) signalFlush() {
 func (b *batcher) flush() {
 	b.flushMetrics()
 	b.flushLogs()
+	b.flushTraceStats()
 }
 
 func (b *batcher) flushMetrics() {
@@ -282,6 +313,37 @@ func (b *batcher) flushLogs() {
 	b.counters.incLogsSent(uint64(count))
 	b.counters.incBytesSent(uint64(len(data)))
 	returnLogSlicesRing(drain, tail, count, b.logCap)
+}
+
+func (b *batcher) flushTraceStats() {
+	b.mu.Lock()
+	if b.tssActiveN == 0 {
+		b.mu.Unlock()
+		return
+	}
+	b.tssActive, b.tssDrain = b.tssDrain, b.tssActive
+	count := b.tssActiveN
+	head := b.tssActiveH
+	b.tssActiveN = 0
+	b.tssActiveH = 0
+	b.mu.Unlock()
+
+	drain := b.tssDrain
+	tail := (head - count + b.tssCap) % b.tssCap
+
+	b.counters.setBatchSize("trace_stats", count)
+
+	data, err := EncodeTraceStatsBatchRing(b.builderPool, drain, tail, count, b.tssCap)
+	if err != nil {
+		b.counters.incTraceStatsDroppedTransport(uint64(count))
+		return
+	}
+	if err := b.transport.Send(data); err != nil {
+		b.counters.incTraceStatsDroppedTransport(uint64(count))
+		return
+	}
+	b.counters.incTraceStatsSent(uint64(count))
+	b.counters.incBytesSent(uint64(len(data)))
 }
 
 // IsContextKnown returns true if the context key has already been sent to the
