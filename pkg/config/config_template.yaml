@@ -3972,13 +3972,13 @@ api_key:
 #
 #   default_scan:
 
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: false
+#     # @param enabled - boolean - optional - default: true
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: true
 #     # Enable automatic scanning of discovered SNMP devices.
 #     # When enabled, devices discovered via autodiscovery or configured
 #     # directly will be scanned to collect OID data.
 #
-#     enabled: false
+#     enabled: true
 
 #     # @param excluded_ips - list of strings - optional - default: []
 #     # List of IP addresses to exclude from automatic scanning.
