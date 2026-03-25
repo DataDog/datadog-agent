@@ -175,19 +175,20 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 // Invalid values are dropped at ingest with accounting and sampled logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
-func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
+// Returns true if this point created a new series (cardinality +1), false otherwise.
+func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
-		return
+		return false
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
-		return
+		return false
 	}
 	key := seriesKey(namespace, name, tags)
 
@@ -207,6 +208,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
 	}
+	isNew := !exists
 	stats.writeGeneration++
 
 	// Bucket by second.
@@ -227,7 +229,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		if value > stats.maxes[idx] {
 			stats.maxes[idx] = value
 		}
-		return
+		return isNew
 	}
 
 	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
@@ -235,6 +237,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
+	return isNew
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.

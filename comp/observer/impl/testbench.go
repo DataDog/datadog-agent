@@ -431,6 +431,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
 
 	byTimestampCounter := make(map[int64]int64)
+	byTimestampCardinality := make(map[int64]int64)
 
 	// Batch add all metrics to storage
 	for _, m := range metrics {
@@ -451,13 +452,9 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 		byTimestampCounter[m.Timestamp]++
 
-		storage.Add(
-			"parquet", // namespace
-			metricName,
-			m.Value,
-			m.Timestamp,
-			m.Tags,
-		)
+		if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
+			byTimestampCardinality[m.Timestamp]++
+		}
 	}
 
 	// Telemetry for the number of metrics by timestamp
@@ -474,6 +471,18 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	})
 	for _, entry := range byTimestampOrdered {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
+	}
+
+	// Telemetry for cardinality (new unique series) by timestamp
+	byCardOrdered := make([]byTimestampEntry, 0, len(byTimestampCardinality))
+	for timestamp, count := range byTimestampCardinality {
+		byCardOrdered = append(byCardOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
+	}
+	sort.Slice(byCardOrdered, func(i, j int) bool {
+		return byCardOrdered[i].Timestamp < byCardOrdered[j].Timestamp
+	})
+	for _, entry := range byCardOrdered {
+		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 	}
 
 	// Load trace stats and derive trace.* metrics via processStatsView
@@ -691,16 +700,6 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		allTelemetry = append(allTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
 
-	// Count total metric samples and unique series already in storage (excludes internal telemetry namespace).
-	storageSnapshot := tb.engine.Storage()
-	maxTs := storageSnapshot.MaxTimestamp()
-	metricSamples := storageSnapshot.TotalPointCount(observerdef.TelemetryNamespace)
-	metricCardinality := storageSnapshot.TotalSeriesCount(observerdef.TelemetryNamespace)
-	allTelemetry = append(allTelemetry,
-		newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(metricSamples), maxTs),
-		newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(metricCardinality), maxTs),
-	)
-
 	// Replay all stored data through the scheduler policy.
 	// The engine's captureRawAnomaly deduplicates anomalies internally,
 	// so stateView.Anomalies() returns a clean deduplicated set.
@@ -742,7 +741,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	tb.replayStats = &ReplayStats{
 		DetectorStats:           detectorStats,
 		InputMetricsCount:       sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
-		InputMetricsCardinality: sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCardinality),
+		InputMetricsCardinality: tb.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace),
 		InputLogsCount:          sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
 		InputAnomaliesCount:     len(result.anomalies),
 	}
