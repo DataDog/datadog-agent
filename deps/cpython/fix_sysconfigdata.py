@@ -38,6 +38,10 @@ FLAGS_TO_CLEAR = frozenset(
 # Needs to account for paths being preceded by `=` or quotes.
 _PATH_SPLITTER_RE = re.compile(r"""(/[^\s='"]+)""")
 
+# Tokens containing these substrings are Bazel sandbox paths and should be dropped.
+# A "token" here is a maximal run of non-whitespace, non-single-quote characters.
+_BAZEL_PATH_RE = re.compile(r"[^\s']*(?:_bazel_root|bazel-out|execroot)[^\s']*\s*")
+
 
 def _fix_tool_path(segment):
     basename = os.path.basename(segment)
@@ -48,9 +52,11 @@ def _fix_value(key, value):
     if key in FLAGS_TO_CLEAR:
         return ""
     if isinstance(value, str):
-        parts = _PATH_SPLITTER_RE.split(value)
         # The split leaves path-candidates (non-separators) at odd-indexed positions
-        return "".join(_fix_tool_path(p) if i % 2 == 1 else p for i, p in enumerate(parts))
+        result = "".join(_fix_tool_path(p) if i % 2 == 1 else p for i, p in enumerate(_PATH_SPLITTER_RE.split(value)))
+        # Strip any remaining whitespace-separated token that still contains a Bazel sandbox path
+        result = _BAZEL_PATH_RE.sub("", result)
+        return result
     return value
 
 
