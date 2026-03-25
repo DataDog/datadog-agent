@@ -163,15 +163,15 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 // normalizeSpanLinks handles span links normalization for both pb.Span and idx.InternalSpan
 func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
-		result, found := semantics.Lookup(normalizerRegistry, semantics.NewStringMapAccessor(link.Attributes), semantics.ConceptLinkName)
-		if !found {
+		val, ok := link.Attributes[string(semantics.ConceptLinkName)]
+		if !ok {
 			continue
 		}
-		newName, err := normalizeutil.NormalizeName(result.StringValue)
+		newName, err := normalizeutil.NormalizeName(val)
 		if err != nil {
 			log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
 		}
-		link.Attributes[result.TagInfo.Name] = newName
+		link.Attributes[string(semantics.ConceptLinkName)] = newName
 	}
 }
 

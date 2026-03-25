@@ -211,12 +211,11 @@ func TestNormalizeSpanLinkName(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 
-	// An empty link.name is treated as absent by the registry (empty strings are skipped),
-	// so the attribute is left unchanged.
+	// Normalize a span that contains an empty link name
 	emptyLinkNameSpan := newTestSpan()
 	emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"] = ""
 	assert.NoError(t, a.normalize(ts, emptyLinkNameSpan))
-	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], "")
+	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], normalize.DefaultSpanName)
 
 	// Normalize a span that contains an invalid link name
 	invalidLinkNameSpan := newTestSpan()
