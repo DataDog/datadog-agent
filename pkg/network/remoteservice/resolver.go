@@ -54,4 +54,3 @@ func (r *Resolver) Resolve(pid int32, remotePort, localPort int32) []string {
 	}
 	return remoteTags
 }
-
