@@ -99,18 +99,14 @@
           "location": {
             "method": "main.lenMap"
           }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "m_len": {
-                "type": "uint64",
-                "notCapturedReason": "nil"
-              }
-            }
-          }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "m_len",
+          "message": "nil pointer dereference"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "duration": "[duration]"

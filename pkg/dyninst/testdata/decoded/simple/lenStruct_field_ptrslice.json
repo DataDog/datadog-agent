@@ -49,10 +49,16 @@
           }
         }
       },
-      "type": "snapshot"
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "len(x.PtrSlice)",
+          "message": "nil pointer dereference"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len={nil}"
+    "message": "len={error: nil pointer dereference}"
   }
 ]

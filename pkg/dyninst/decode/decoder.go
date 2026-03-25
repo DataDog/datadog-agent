@@ -326,7 +326,7 @@ func (s *message) init(
 		}
 		msg := "error evaluating condition"
 		if header.Condition_eval_error == 2 {
-			msg = "nil pointer encountered evaluating condition"
+			msg = errNilPointerEvaluating.Error()
 		}
 		s.Debugger.EvaluationErrors = append(
 			s.Debugger.EvaluationErrors,
@@ -367,7 +367,7 @@ func (s *message) init(
 			}
 			msg := "error evaluating condition"
 			if returnHeader.Condition_eval_error == 2 {
-				msg = "nil pointer encountered evaluating condition"
+				msg = errNilPointerEvaluating.Error()
 			}
 			s.Debugger.EvaluationErrors = append(
 				s.Debugger.EvaluationErrors,

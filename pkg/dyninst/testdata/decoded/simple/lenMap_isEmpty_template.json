@@ -49,10 +49,16 @@
           }
         }
       },
-      "type": "snapshot"
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "isEmpty(m)",
+          "message": "nil pointer dereference"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "empty={nil}"
+    "message": "empty={error: nil pointer dereference}"
   }
 ]

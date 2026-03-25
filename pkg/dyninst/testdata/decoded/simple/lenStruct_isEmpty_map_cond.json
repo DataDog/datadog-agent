@@ -25,7 +25,7 @@
       "evaluationErrors": [
         {
           "expr": "isEmpty(x.Dict)",
-          "message": "nil pointer encountered evaluating condition"
+          "message": "nil pointer dereference"
         }
       ]
     },

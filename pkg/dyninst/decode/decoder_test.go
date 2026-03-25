@@ -1547,3 +1547,75 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 		})
 	}
 }
+
+// TestDecoderNilPointerCaptureExpression tests that a nil pointer dereference
+// during expression evaluation is reported as an evaluation error for captures.
+func TestDecoderNilPointerCaptureExpression(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Flip bitset so expression 0 (the argument capture) has nil-deref
+	// instead of present. Original bitset = 0b00000101 (bit 0 and bit 2 set).
+	// We want: expr 0 not-present + nil-deref (bit 0=0, bit 1=1),
+	//          expr 1 present (bit 2=1).
+	// Result: 0b00000110 = 6
+	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
+	input[bitsetOffset] = 6
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.Event(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	// The argument should not appear in captures (it was skipped).
+	require.Nil(t, e.Debugger.Snapshot.Captures.Entry.Arguments)
+
+	// An evaluation error should be reported for the nil pointer.
+	require.NotEmpty(t, e.Debugger.EvaluationErrors)
+	found := false
+	for _, evalErr := range e.Debugger.EvaluationErrors {
+		if evalErr.Message == "nil pointer dereference" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.EvaluationErrors)
+}
+
+// TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference
+// during template expression evaluation is formatted as an error in the message.
+func TestDecoderNilPointerTemplateExpression(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Flip bitset so expression 1 (the template segment) has nil-deref.
+	// Original bitset = 0b00000101 (bit 0 and bit 2 set).
+	// We want: expr 0 present (bit 0=1),
+	//          expr 1 not-present + nil-deref (bit 2=0, bit 3=1).
+	// Result: 0b00001001 = 9
+	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
+	input[bitsetOffset] = 9
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.Event(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	// The template message should contain the error, not {nil}.
+	require.Contains(t, e.Message, "nil pointer dereference")
+	require.NotContains(t, e.Message, "{nil}")
+}

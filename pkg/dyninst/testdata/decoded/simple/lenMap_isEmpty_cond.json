@@ -25,7 +25,7 @@
       "evaluationErrors": [
         {
           "expr": "isEmpty(m)",
-          "message": "nil pointer encountered evaluating condition"
+          "message": "nil pointer dereference"
         }
       ]
     },
