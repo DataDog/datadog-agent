@@ -78,6 +78,10 @@ func (c *Check) Run() error {
 	deviceTags := c.getDeviceTags()
 	c.sender.SetDeviceTags(deviceTags)
 
+	if err := c.sender.SendDeviceMetadata(deviceID, c.checkContext.Device.IPAddress); err != nil {
+		log.Warnf("failed to send device metadata for %s: %s", deviceID, err)
+	}
+
 	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
 	if checkErr != nil {
 		return checkErr

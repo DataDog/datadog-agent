@@ -65,7 +65,8 @@
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
-/.github/dependabot.yaml                             @DataDog/agent-devx
+# Removed temporarily
+# /.github/dependabot.yaml                             @DataDog/agent-devx
 /.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security @DataDog/agent-devx
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration @DataDog/agent-devx
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes @DataDog/agent-devx
@@ -120,7 +121,7 @@
 /.gitlab/build/source_test/golang_deps_diff.yml            @DataDog/agent-runtimes
 /.gitlab/build/source_test/*                               @DataDog/agent-devx
 /.gitlab/build/source_test/linux.yml                       @DataDog/agent-devx
-/.gitlab/build/source_test/macos.yml                       @DataDog/agent-devx
+/.gitlab/build/source_test/macos.yml                       @DataDog/agent-devx @DataDog/windows-products
 /.gitlab/build/source_test/notify.yml                      @DataDog/agent-devx
 /.gitlab/build/source_test/slack.yml                       @DataDog/agent-devx
 /.gitlab/build/source_test/tooling_unit_tests.yml          @DataDog/agent-devx
@@ -233,6 +234,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
+/cmd/agent/install_mac_os.sh            @DataDog/agent-build @DataDog/windows-products
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
@@ -302,6 +304,7 @@
 /omnibus/                               @DataDog/agent-build
 /omnibus/package-scripts/agent-rpm/     @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/     @DataDog/agent-build @DataDog/fleet
+/omnibus/package-scripts/agent-dmg/     @DataDog/agent-build @DataDog/windows-products
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
@@ -313,6 +316,8 @@
 /packages/                              @DataDog/agent-build
 /packages/debian/                       @DataDog/agent-build @DataDog/fleet
 /packages/redhat/                       @DataDog/agent-build @DataDog/fleet
+/packages/macos                         @DataDog/agent-build @DataDog/windows-products
+/packages/windows                       @DataDog/agent-build @DataDog/windows-products
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
@@ -714,6 +719,7 @@
 /rtloader/                              @DataDog/agent-runtimes
 
 /tasks/                                 @DataDog/agent-devx
+/tasks/macos.py                         @DataDog/windows-products
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
 /tasks/loader.py                        @DataDog/agent-runtimes
@@ -724,6 +730,7 @@
 /tasks/unit_tests/update_go_tests.py    @DataDog/agent-runtimes
 /tasks/unit_tests/python_version_tests.py @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
+/tasks/unit_tests/macos_tests.py        @DataDog/windows-products
 /tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
@@ -799,6 +806,7 @@
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
+/test/new-e2e/tests/agent-platform/macos      @DataDog/windows-products
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-health              @DataDog/agent-health
