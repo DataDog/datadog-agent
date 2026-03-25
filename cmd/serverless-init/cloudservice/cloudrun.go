@@ -288,7 +288,7 @@ func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string
 		case CloudRunFunction:
 			metaChan <- keyVal{cloudRunFunctionTagPrefix + baseKey, val}
 		default:
-			panic(fmt.Sprintf("unexpected cloudRunType for GCP metadata: %d", cloudRunType))
+			panic(fmt.Sprintf("unexpected cloudRunType for GCP metadata: %s", cloudRunType))
 		}
 	}
 
