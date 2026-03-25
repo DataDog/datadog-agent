@@ -6,7 +6,7 @@ automountServiceAccountToken: true
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.157.5"
+    chart: "datadog-3.195.1"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-checks

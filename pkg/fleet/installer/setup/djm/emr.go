@@ -78,7 +78,7 @@ func SetupEmr(s *common.Setup) error {
 	}
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		tracerConfigEmr.TraceDebug = config.BoolToPtr(false)
+		tracerConfigEmr.TraceDebug = config.BoolToPtr(true)
 	}
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigEmr,

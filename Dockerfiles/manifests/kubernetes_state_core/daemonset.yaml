@@ -31,7 +31,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "registry.datadoghq.com/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           securityContext:
@@ -75,6 +75,8 @@ spec:
               value: "true"
             - name: DD_STRIP_PROCESS_ARGS
               value: "false"
+            - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
+              value: "true"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
@@ -100,8 +102,6 @@ spec:
               value: "false"
             - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
               value: "false"
-            - name: DD_LOGS_CONFIG_K8S_CONTAINER_USE_FILE
-              value: "true"
             - name: DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION
               value: "false"
             - name: DD_HEALTH_PORT
@@ -124,6 +124,8 @@ spec:
               value: "true"
             - name: DD_KUBERNETES_KUBELET_PODRESOURCES_SOCKET
               value: "/var/lib/kubelet/pod-resources/kubelet.sock"
+            - name: DD_KUBERNETES_KUBE_SERVICE_IGNORE_READINESS
+              value: "false"
             - name: DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED
               value: "true"
           volumeMounts:
@@ -198,7 +200,7 @@ spec:
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "registry.datadoghq.com/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -209,7 +211,7 @@ spec:
               readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "registry.datadoghq.com/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command:
             - bash

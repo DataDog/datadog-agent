@@ -42,7 +42,6 @@
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 .agent_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -53,7 +52,6 @@
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
     DD_CXX: "aarch64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
 .agent_base_flavor:
   variables:

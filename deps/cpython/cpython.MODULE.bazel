@@ -7,6 +7,7 @@ http_archive(
     build_file = "//deps:cpython.BUILD.bazel",
     files = {
         "build_python.bat": "//deps/cpython:build_python.bat",
+        "redacted_compat.h": "//deps/cpython:redacted_compat.h",
     },
     patch_strip = 1,
     patches = [

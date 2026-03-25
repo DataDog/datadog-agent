@@ -532,7 +532,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/briandowns/spinner v1.23.0 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/charlievieth/strcase v0.0.5 // indirect
