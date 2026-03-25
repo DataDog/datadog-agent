@@ -143,9 +143,13 @@ func (s *worker) run() {
 				}
 
 				if !sent {
-					// Throttle the poll loop while waiting for a send to succeed
-					// This will only happen when all reliable destinations
-					// are blocked so logs have no where to go.
+					// All reliable destinations are retrying (network outage).
+					// Try to save to disk instead of blocking the pipeline.
+					if err := s.retrier.Store(payload); err == nil {
+						sent = true
+						break
+					}
+					// Disk write failed or disabled we throttle and keep waiting for a destination.
 					time.Sleep(100 * time.Millisecond)
 				}
 			}
