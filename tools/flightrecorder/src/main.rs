@@ -72,22 +72,24 @@ async fn main() -> Result<()> {
 pub async fn run(cfg: config::Config) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
 
-    let mut metrics_writer = writers::metrics::MetricsWriter::new(
-        &cfg.output_dir,
-        cfg.flush_rows,
-        flush_interval,
-    );
-    let mut logs_writer = writers::logs::LogsWriter::new(
-        &cfg.output_dir,
-        cfg.flush_rows,
-        flush_interval,
-    );
+    let metrics_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
+        writers::metrics::MetricsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
+    ));
+    let logs_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
+        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
+    ));
+    let trace_stats_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
+        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
+    ));
 
     let transport = transport::UnixSocketTransport::bind(&cfg.socket_path)?;
     info!(socket = %cfg.socket_path, "listening for connections");
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;
+
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let mut client_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
     loop {
         // Wait for next connection or shutdown signal.
@@ -112,72 +114,91 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         };
 
         info!("client connected");
-        // New connection — agent will re-send all context definitions.
-        metrics_writer.reset_context_map();
 
-        // Read frames from this connection until EOF or shutdown.
-        let mut reader = BufReader::new(stream);
-        loop {
-            let frame_result = tokio::select! {
-                _ = sigterm.recv() => {
-                    info!("received SIGTERM during connection");
-                    break;
-                }
-                _ = sigint.recv() => {
-                    info!("received SIGINT during connection");
-                    break;
-                }
-                r = framing::read_frame(&mut reader) => r,
-            };
+        let mw = metrics_writer.clone();
+        let lw = logs_writer.clone();
+        let tw = trace_stats_writer.clone();
+        let token = cancel.clone();
 
-            let buf = match frame_result {
-                Ok(Some(b)) => b,
-                Ok(None) => {
-                    info!("client disconnected");
-                    break;
-                }
-                Err(e) => {
-                    warn!("frame read error: {}", e);
-                    break;
-                }
-            };
+        client_tasks.push(tokio::spawn(async move {
+            // New connection — agent will re-send all context definitions.
+            mw.lock().await.reset_context_map();
 
-            let env = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
-                Ok(e) => e,
-                Err(e) => {
-                    warn!("failed to decode SignalEnvelope: {}", e);
-                    continue;
-                }
-            };
+            let mut reader = BufReader::new(stream);
+            loop {
+                let frame_result = tokio::select! {
+                    _ = token.cancelled() => break,
+                    r = framing::read_frame(&mut reader) => r,
+                };
 
-            match env.payload_type() {
-                signals::SignalPayload::MetricBatch => {
-                    if let Some(batch) = env.payload_as_metric_batch() {
-                        if let Err(e) = metrics_writer.push(&batch).await {
-                            warn!("metrics writer error: {}", e);
+                let buf = match frame_result {
+                    Ok(Some(b)) => b,
+                    Ok(None) => {
+                        info!("client disconnected");
+                        break;
+                    }
+                    Err(e) => {
+                        warn!("frame read error: {}", e);
+                        break;
+                    }
+                };
+
+                let env = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("failed to decode SignalEnvelope: {}", e);
+                        continue;
+                    }
+                };
+
+                match env.payload_type() {
+                    signals::SignalPayload::MetricBatch => {
+                        if let Some(batch) = env.payload_as_metric_batch() {
+                            if let Err(e) = mw.lock().await.push(&batch).await {
+                                warn!("metrics writer error: {}", e);
+                            }
                         }
                     }
-                }
-                signals::SignalPayload::LogBatch => {
-                    if let Some(batch) = env.payload_as_log_batch() {
-                        if let Err(e) = logs_writer.push(&batch).await {
-                            warn!("logs writer error: {}", e);
+                    signals::SignalPayload::LogBatch => {
+                        if let Some(batch) = env.payload_as_log_batch() {
+                            if let Err(e) = lw.lock().await.push(&batch).await {
+                                warn!("logs writer error: {}", e);
+                            }
                         }
                     }
-                }
-                _ => {
-                    warn!("unknown SignalPayload variant");
+                    signals::SignalPayload::TraceStatsBatch => {
+                        if let Some(batch) = env.payload_as_trace_stats_batch() {
+                            if let Err(e) = tw.lock().await.push(&batch).await {
+                                warn!("trace stats writer error: {}", e);
+                            }
+                        }
+                    }
+                    _ => {
+                        warn!("unknown SignalPayload variant");
+                    }
                 }
             }
-        }
+        }));
+
+        // Clean up completed client tasks.
+        client_tasks.retain(|t| !t.is_finished());
+    }
+
+    // Signal all client tasks to stop.
+    cancel.cancel();
+    for task in client_tasks {
+        let _ = task.await;
     }
 
     // Final flush on shutdown.
-    if let Err(e) = metrics_writer.flush_if_any().await {
+    if let Err(e) = metrics_writer.lock().await.flush_if_any().await {
         warn!("final metrics flush error: {}", e);
     }
-    if let Err(e) = logs_writer.flush_if_any().await {
+    if let Err(e) = logs_writer.lock().await.flush_if_any().await {
         warn!("final logs flush error: {}", e);
+    }
+    if let Err(e) = trace_stats_writer.lock().await.flush_if_any().await {
+        warn!("final trace stats flush error: {}", e);
     }
 
     info!("flightrecorder stopped");
