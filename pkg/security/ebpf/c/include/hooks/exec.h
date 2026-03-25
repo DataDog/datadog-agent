@@ -814,9 +814,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // update pid <-> cookie mapping
     if (fork_entry) {
         fork_entry->cookie = cookie;
-    }
-
-    if (!fork_entry) {
+    } else {
         struct pid_cache_t new_pid_entry = {
             .cookie = cookie,
         };

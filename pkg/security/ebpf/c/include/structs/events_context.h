@@ -29,12 +29,11 @@ struct process_context_t {
     u32 tid;
     u32 netns;
     u32 mntns;
-    u32 is_kworker;
+    u32 is_kworker:16;
+    u32 is_session_leader:16;
     u32 ppid;
     u64 inode;
     u64 user_session_id;
-    u32 is_session_leader;
-    u32 padding_session;
 };
 
 struct ktimeval {

@@ -131,7 +131,7 @@ func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -588,7 +588,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -596,14 +596,13 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = binary.NativeEndian.Uint32(data[4:8])
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.MntNS = binary.NativeEndian.Uint32(data[12:16])
-	p.IsKworker = binary.NativeEndian.Uint32(data[16:20]) > 0
+	p.IsKworker = binary.NativeEndian.Uint16(data[16:18]) > 0
+	p.IsSessionLeader = binary.NativeEndian.Uint16(data[18:20]) > 0
 	p.PPid = binary.NativeEndian.Uint32(data[20:24])
 	p.ExecInode = binary.NativeEndian.Uint64(data[24:32])
 	p.UserSessionID = binary.NativeEndian.Uint64(data[32:40])
-	p.IsSessionLeader = binary.NativeEndian.Uint32(data[40:44]) > 0
-	// data[44:48] is padding
 
-	return 48, nil
+	return 40, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1034,7 +1033,7 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
