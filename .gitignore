@@ -138,6 +138,7 @@ pkg/ebpf/bytecode/build/
 
 # CGo generated object files
 **/_obj/*.o
+**/_cgo_*.o
 
 # windows container build output
 build.out/
