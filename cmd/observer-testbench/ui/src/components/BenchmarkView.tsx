@@ -330,6 +330,160 @@ function BenchmarkBarChart({ stats, highlighted, onHover }: BenchmarkBarChartPro
   );
 }
 
+// ── Efficiency chart ──────────────────────────────────────────────────────────
+// Shows total_ns / items_processed per detector:
+//   - detectors / correlators  →  total_ns / input_metrics_cardinality  (ns per series)
+//   - extractors               →  total_ns / input_logs_count            (ns per log)
+
+const KIND_COLOR: Record<string, string> = {
+  detector:  '#60a5fa', // blue-400
+  correlator: '#a78bfa', // violet-400
+  extractor: '#4ade80', // green-400
+};
+const KIND_LABEL: Record<string, string> = {
+  detector:  'ns/point',
+  correlator: 'ns/point',
+  extractor: 'ns/log',
+};
+
+interface EfficiencyEntry {
+  name: string;
+  kind: string;
+  nsPerItem: number;
+  totalNs: number;
+  itemCount: number;
+}
+
+interface EfficiencyBarChartProps {
+  entries: EfficiencyEntry[];
+  highlighted: Set<string> | null;
+  onHover: (name: string | null) => void;
+}
+
+const EFF_MARGIN = { top: 44, right: 115, bottom: 12, left: 235 };
+const EFF_BAR_H = 15;
+const EFF_BAR_GAP = 6;
+const EFF_GROUP_H = EFF_BAR_H + EFF_BAR_GAP;
+
+function EfficiencyBarChart({ entries, highlighted, onHover }: EfficiencyBarChartProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerWidth(Math.floor(w));
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current || entries.length === 0) {
+      d3.select(svgRef.current).selectAll('*').remove();
+      return;
+    }
+
+    const width = containerWidth || containerRef.current.clientWidth;
+    const innerWidth = width - EFF_MARGIN.left - EFF_MARGIN.right;
+    if (innerWidth <= 0) return;
+
+    const innerHeight = entries.length * EFF_GROUP_H - EFF_BAR_GAP;
+    const totalHeight = innerHeight + EFF_MARGIN.top + EFF_MARGIN.bottom;
+
+    d3.select(svgRef.current).selectAll('*').remove();
+    const svg = d3.select(svgRef.current).attr('width', width).attr('height', totalHeight);
+
+    // Legend: one swatch per kind present
+    const kindsPresent = [...new Set(entries.map((e) => e.kind))].filter((k) => k in KIND_COLOR);
+    const legendG = svg.append('g').attr('transform', `translate(${EFF_MARGIN.left}, 14)`);
+    let lx = 0;
+    kindsPresent.forEach((kind) => {
+      const color = KIND_COLOR[kind] ?? '#94a3b8';
+      const lg = legendG.append('g').attr('transform', `translate(${lx}, 0)`);
+      lg.append('rect').attr('width', 10).attr('height', 10).attr('fill', color).attr('rx', 2);
+      lg.append('text').attr('x', 14).attr('y', 9).attr('fill', color)
+        .attr('font-size', '10px').attr('font-family', 'monospace')
+        .text(`${kind} (${KIND_LABEL[kind] ?? 'ns/item'})`);
+      lx += kind.length * 7 + 100;
+    });
+
+    const xMax = d3.max(entries, (e) => e.nsPerItem) ?? 1;
+    const xScale = d3.scaleLinear().domain([0, xMax * 1.12]).range([0, innerWidth]);
+
+    const g = svg.append('g').attr('transform', `translate(${EFF_MARGIN.left},${EFF_MARGIN.top})`);
+
+    // Top axis
+    g.append('g')
+      .attr('transform', 'translate(0,-6)')
+      .call(d3.axisTop(xScale).ticks(5).tickFormat((d) => (+d === 0 ? '' : fmtUs(+d))))
+      .call((ax) => ax.select('.domain').attr('stroke', '#334155'))
+      .call((ax) => ax.selectAll('text').attr('fill', '#64748b').attr('font-size', '10px'))
+      .call((ax) => ax.selectAll('.tick line').attr('stroke', '#334155'));
+
+    // Grid
+    xScale.ticks(5).forEach((t) => {
+      g.append('line')
+        .attr('x1', xScale(t)).attr('x2', xScale(t))
+        .attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', '#1e293b').attr('stroke-width', 1);
+    });
+
+    entries.forEach((entry, i) => {
+      const y = i * EFF_GROUP_H;
+      const isActive = highlighted === null || highlighted.has(entry.name);
+      const color = KIND_COLOR[entry.kind] ?? '#94a3b8';
+      const label = KIND_LABEL[entry.kind] ?? 'ns/item';
+      const barW = Math.max(0, xScale(entry.nsPerItem));
+
+      const rowG = g.append('g')
+        .attr('transform', `translate(0,${y})`)
+        .attr('opacity', isActive ? 1 : 0.15)
+        .style('cursor', 'default')
+        .on('mouseenter', () => onHoverRef.current(entry.name))
+        .on('mouseleave', () => onHoverRef.current(null));
+
+      // Hit zone
+      rowG.append('rect')
+        .attr('x', -EFF_MARGIN.left).attr('y', -2)
+        .attr('width', EFF_MARGIN.left + innerWidth + EFF_MARGIN.right)
+        .attr('height', EFF_BAR_H + 4)
+        .attr('fill', 'transparent');
+
+      // Bar
+      rowG.append('rect')
+        .attr('x', 0).attr('y', 0).attr('width', barW).attr('height', EFF_BAR_H)
+        .attr('fill', color).attr('rx', 2).attr('opacity', 0.85);
+
+      // Value label
+      rowG.append('text')
+        .attr('x', barW + 6).attr('y', EFF_BAR_H / 2)
+        .attr('dominant-baseline', 'middle')
+        .attr('fill', color).attr('font-size', '10px').attr('font-family', 'monospace')
+        .text(`${fmtUs(entry.nsPerItem)} ${label}`);
+
+      // Detector name
+      const displayName = entry.name.length > 20 ? entry.name.slice(0, 19) + '…' : entry.name;
+      rowG.append('text')
+        .attr('x', -10).attr('y', EFF_BAR_H / 2)
+        .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+        .attr('fill', isActive ? '#e2e8f0' : '#475569')
+        .attr('font-size', '11px').attr('font-family', 'monospace')
+        .text(displayName);
+    });
+  }, [entries, highlighted, containerWidth]);
+
+  return (
+    <div ref={containerRef} className="w-full">
+      <svg ref={svgRef} style={{ display: 'block' }} />
+    </div>
+  );
+}
+
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 interface BenchmarkViewProps {
@@ -356,6 +510,26 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
   const stats = useMemo(() => {
     if (!replayStats?.detector_stats) return [];
     return Object.values(replayStats.detector_stats).sort((a, b) => b.p99_ns - a.p99_ns);
+  }, [replayStats]);
+
+  // Efficiency entries: total_ns / items_processed, sorted by ns-per-item descending
+  const efficiencyEntries = useMemo((): EfficiencyEntry[] => {
+    if (!replayStats?.detector_stats) return [];
+    return Object.values(replayStats.detector_stats)
+      .map((s) => {
+        const itemCount = s.kind === 'extractor'
+          ? replayStats.input_logs_count
+          : replayStats.input_metrics_count;
+        return {
+          name: s.name,
+          kind: s.kind,
+          nsPerItem: itemCount > 0 ? s.total_ns / itemCount : 0,
+          totalNs: s.total_ns,
+          itemCount,
+        };
+      })
+      .filter((e) => e.nsPerItem > 0)
+      .sort((a, b) => b.nsPerItem - a.nsPerItem);
   }, [replayStats]);
 
   // Tag groups: one entry per detector using the `detector:<name>` convention
@@ -482,7 +656,7 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
           </div>
         )}
 
-        {/* Chart widget */}
+        {/* Processing times chart */}
         {state.connectionState === 'ready' && stats.length > 0 && (
           <div className="bg-slate-800/60 border border-slate-700 rounded-lg p-4">
             <div className="flex items-baseline gap-3 mb-3">
@@ -495,6 +669,25 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
             </div>
             <BenchmarkBarChart
               stats={stats}
+              highlighted={highlightedSet}
+              onHover={setHoveredDetector}
+            />
+          </div>
+        )}
+
+        {/* Efficiency chart */}
+        {state.connectionState === 'ready' && efficiencyEntries.length > 0 && (
+          <div className="bg-slate-800/60 border border-slate-700 rounded-lg p-4 mt-4">
+            <div className="flex items-baseline gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-slate-200">
+                Cost per Item
+              </h2>
+              <span className="text-xs text-slate-500">
+                total processing time ÷ items processed · detectors &amp; correlators per data point, extractors per log
+              </span>
+            </div>
+            <EfficiencyBarChart
+              entries={efficiencyEntries}
               highlighted={highlightedSet}
               onHover={setHoveredDetector}
             />

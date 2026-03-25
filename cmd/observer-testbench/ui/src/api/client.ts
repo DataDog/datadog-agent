@@ -282,6 +282,7 @@ export interface ScoreResponse {
 
 export interface DetectorProcessingStats {
   name: string;
+  kind: 'detector' | 'correlator' | 'extractor' | '';
   count: number;
   avg_ns: number;
   median_ns: number;

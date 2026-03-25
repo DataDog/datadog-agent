@@ -15,7 +15,9 @@ import (
 // detector (or extractor / correlator) across all advance calls during a replay.
 // Times are in nanoseconds.
 type DetectorProcessingStats struct {
-	Name     string  `json:"name"`
+	Name string `json:"name"`
+	// Kind is the component kind: "detector", "correlator", or "extractor".
+	Kind     string  `json:"kind"`
 	Count    int     `json:"count"`
 	AvgNs    float64 `json:"avg_ns"`
 	MedianNs float64 `json:"median_ns"`
@@ -33,6 +35,30 @@ type ReplayStats struct {
 	InputMetricsCardinality int `json:"input_metrics_cardinality"`
 	// InputLogsCount is the number of raw log entries present in the scenario.
 	InputLogsCount int `json:"input_logs_count"`
+}
+
+// enrichDetectorStatsKind sets the Kind field on each DetectorProcessingStats entry.
+// It builds a reverse map from instance.Name() → kind, because a component's runtime
+// Name() (e.g. "bocpd_detector") may differ from its catalog key (e.g. "bocpd").
+func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, components map[string]*componentInstance) {
+	kindStr := map[componentKind]string{
+		componentDetector:   "detector",
+		componentCorrelator: "correlator",
+		componentExtractor:  "extractor",
+	}
+	type namer interface{ Name() string }
+	nameToKind := make(map[string]string, len(components))
+	for _, ci := range components {
+		if n, ok := ci.instance.(namer); ok {
+			nameToKind[n.Name()] = kindStr[ci.entry.kind]
+		}
+	}
+	for name, s := range stats {
+		if kind, ok := nameToKind[name]; ok {
+			s.Kind = kind
+			stats[name] = s
+		}
+	}
 }
 
 // sumTelemetryCounter returns the total value of all counter telemetry events

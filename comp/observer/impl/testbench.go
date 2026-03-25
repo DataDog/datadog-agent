@@ -737,8 +737,10 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	tb.reportedEvents = replay.events
 
 	// Compute all replay stats from the combined telemetry slice built above.
+	detectorStats := computeDetectorProcessingStats(allTelemetry)
+	enrichDetectorStatsKind(detectorStats, tb.components)
 	tb.replayStats = &ReplayStats{
-		DetectorStats:           computeDetectorProcessingStats(allTelemetry),
+		DetectorStats:           detectorStats,
 		InputMetricsCount:       sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCount),
 		InputMetricsCardinality: sumTelemetryCounter(allTelemetry, telemetryTbInputMetricsCardinality),
 		InputLogsCount:          sumTelemetryCounter(allTelemetry, telemetryTbInputLogsCount),
