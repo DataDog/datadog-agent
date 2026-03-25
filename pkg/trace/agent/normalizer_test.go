@@ -147,7 +147,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	s.Meta[string(semantics.ConceptDDBaseService)] = ""
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, normalize.DefaultServiceName, s.Service)
-	assert.Equal(t, "", s.Meta[string(semantics.ConceptPeerService)]) // no fallback on peer service tag
+	assert.Equal(t, "", s.Meta[string(semantics.ConceptPeerService)])   // no fallback on peer service tag
 	assert.Equal(t, "", s.Meta[string(semantics.ConceptDDBaseService)]) // no fallback on base service tag
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
 }
@@ -162,7 +162,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	s.Meta[string(semantics.ConceptDDBaseService)] = ""
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, s.Service, fmt.Sprintf("unnamed-%s-service", ts.Lang))
-	assert.Equal(t, "", s.Meta[string(semantics.ConceptPeerService)]) // no fallback on peer service tag
+	assert.Equal(t, "", s.Meta[string(semantics.ConceptPeerService)])   // no fallback on peer service tag
 	assert.Equal(t, "", s.Meta[string(semantics.ConceptDDBaseService)]) // no fallback on base service tag
 	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)})
 	tsExpected.Lang = ts.Lang
@@ -993,4 +993,3 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 	linkName, _ = validLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
 	assert.Equal(t, linkName, "valid_name")
 }
-
