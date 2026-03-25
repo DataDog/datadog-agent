@@ -8,7 +8,6 @@
 ---
 features:
   - |
-    The Remote Configuration service now includes tagger global tags
-    (at orchestrator cardinality) in its check-in request. On ECS Fargate
-    this adds task-level tags such as ``task_arn``, enabling RC predicate
+    The Remote Configuration service now includes the ``task_arn`` tag
+    in its check-in request on ECS Fargate, enabling RC predicate
     targeting of individual Fargate tasks.
