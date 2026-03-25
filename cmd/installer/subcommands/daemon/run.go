@@ -19,7 +19,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func runCommand(global *command.GlobalParams) *cobra.Command {
@@ -59,7 +57,6 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 				service.WithDatabaseFileName("remote-config-installer.db"),
 			},
 		}),
-		fx.Supply(option.None[tagger.Component]()),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
 		updaterimpl.Module(),
