@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -35,7 +36,8 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 }
 
-// TimeoutSeconds returns the timeout from the task inputs if present and a valid number, otherwise nil.
+// TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32
+// range. Returns nil (fall back to config) for missing, non-integer, non-positive, or out-of-range values.
 func (task *Task) TimeoutSeconds() *int32 {
 	if task.Data.Attributes == nil {
 		return nil
@@ -44,20 +46,30 @@ func (task *Task) TimeoutSeconds() *int32 {
 	if !ok {
 		return nil
 	}
+
+	var n int64
 	switch t := v.(type) {
 	case float64:
-		val := int32(t)
-		return &val
+		if t != math.Trunc(t) {
+			// Non-integer float (e.g. 1.5) — reject.
+			return nil
+		}
+		n = int64(t)
 	case int32:
-		return &t
+		n = int64(t)
 	case int64:
-		val := int32(t)
-		return &val
+		n = t
 	case int:
-		val := int32(t)
-		return &val
+		n = int64(t)
+	default:
+		return nil
 	}
-	return nil
+
+	if n <= 0 || n > math.MaxInt32 {
+		return nil
+	}
+	val := int32(n)
+	return &val
 }
 
 func (task *Task) GetFQN() string {
