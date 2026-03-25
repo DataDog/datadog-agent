@@ -2745,6 +2745,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
 		manager.ConstantEditor{
+			Name:  "has_current_cgroup_id_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupID()),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),
 		},
