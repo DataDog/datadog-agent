@@ -83,7 +83,7 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/otel-agent",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "full-host-profiler": {
+    "host-profiler": {
         "entrypoint": "cmd/host-profiler",
         "platforms": ["linux/x64", "linux/arm64"],
     },
