@@ -638,7 +638,7 @@ new-e2e-usm:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/usm
-    EXTRA_PARAMS: --run TestPythonRemoteTagsLinuxSuite
+    EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
     TEAM: cloud-network-monitoring
 
 new-e2e-discovery:
