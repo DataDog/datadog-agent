@@ -12,3 +12,7 @@ import _ "embed"
 //
 //go:embed config/usm.yaml
 var systemProbeConfig string
+
+// systemProbeConfigDirect is systemProbeConfig with direct send enabled
+// (payloads sent directly from system-probe instead of process-agent).
+var systemProbeConfigDirect = systemProbeConfig + "\nnetwork_config:\n  direct_send: true\n"
