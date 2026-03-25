@@ -70,7 +70,6 @@ func (s *baseNetworkPathIntegrationTestSuite) findNetpath(agentHostname string, 
 	var match *aggregator.Netpath
 	for _, np := range nps {
 		if np.Source.Hostname == agentHostname && isMatch(np) {
-			fmt.Printf("findNetpath: matched event from host %q, dest=%s protocol=%s\n", np.Source.Hostname, np.Destination.Hostname, np.Protocol)
 			match = np
 		}
 	}
