@@ -157,6 +157,11 @@ func (c *KataCheck) Stop() {
 	c.stopOnce.Do(func() { close(c.stopCh) })
 }
 
+// Cancel stops the kata_containers check when it is unscheduled.
+func (c *KataCheck) Cancel() {
+	c.Stop()
+}
+
 // processContainerEvents updates the sandbox↔container caches from a workloadmeta event bundle.
 func (c *KataCheck) processContainerEvents(eventBundle workloadmeta.EventBundle) {
 	defer eventBundle.Acknowledge()
@@ -204,7 +209,6 @@ func (c *KataCheck) runScrape() {
 		_ = c.Warnf("kata_containers: failed to get sender: %v", err)
 		return
 	}
-	defer s.Commit()
 
 	sandboxes := c.discoverSandboxes()
 
