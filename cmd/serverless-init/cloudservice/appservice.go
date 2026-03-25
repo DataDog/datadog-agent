@@ -38,7 +38,7 @@ const (
 	appServiceLegacyShutdownMetricName = "azure.appservice.enhanced.shutdown"
 	appServiceLegacyStartMetricName    = "azure.appservice.enhanced.cold_start"
 
-	appServiceUsageMetricName = "instance"
+	appServiceUsageMetricSuffix = "instance"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -88,8 +88,8 @@ func (a *AppService) GetMetricPrefix() string {
 	return appServicePrefix
 }
 
-func (a *AppService) GetUsageMetricName() string {
-	return appServiceUsageMetricName
+func (a *AppService) GetUsageMetricSuffix() string {
+	return appServiceUsageMetricSuffix
 }
 
 // GetSource returns the metrics source

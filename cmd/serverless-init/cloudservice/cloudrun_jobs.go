@@ -116,7 +116,7 @@ func (c *CloudRunJobs) GetMetricPrefix() string {
 	return cloudRunPrefix
 }
 
-func (c *CloudRunJobs) GetUsageMetricName() string {
+func (c *CloudRunJobs) GetUsageMetricSuffix() string {
 	return ""
 }
 

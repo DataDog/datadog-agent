@@ -59,8 +59,8 @@ const (
 	containerAppLegacyShutdownMetricName = "azure.containerapp.enhanced.shutdown"
 	containerAppLegacyStartMetricName    = "azure.containerapp.enhanced.cold_start"
 
-	containerAppUsageMetricName = "replica"
-	regionFallback              = "unknown"
+	containerAppUsageMetricSuffix = "replica"
+	regionFallback                = "unknown"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -153,8 +153,8 @@ func (c *ContainerApp) GetMetricPrefix() string {
 	return containerAppPrefix
 }
 
-func (c *ContainerApp) GetUsageMetricName() string {
-	return containerAppUsageMetricName
+func (c *ContainerApp) GetUsageMetricSuffix() string {
+	return containerAppUsageMetricSuffix
 }
 
 // GetOrigin returns the `origin` attribute type for the given

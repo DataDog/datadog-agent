@@ -52,7 +52,7 @@ func TestCollectorSendsMetricsOnStartIntervalAndStop(t *testing.T) {
 	c := &Collector{
 		metricAgent:        mockAgent,
 		cgroupReader:       mockReader,
-		usageMetricName:    "instance",
+		usageMetricSuffix:  "instance",
 		collectionInterval: 100 * time.Millisecond,
 		cancelFunc:         func() {},
 	}

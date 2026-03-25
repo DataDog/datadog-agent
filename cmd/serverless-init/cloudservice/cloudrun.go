@@ -50,7 +50,7 @@ const (
 	cloudRunLegacyShutdownMetricName = "gcp.run.enhanced.shutdown"
 	cloudRunLegacyStartMetricName    = "gcp.run.enhanced.cold_start"
 
-	cloudRunUsageMetricName = "instance"
+	cloudRunUsageMetricSuffix = "instance"
 )
 
 const (
@@ -181,8 +181,8 @@ func (c *CloudRun) GetMetricPrefix() string {
 	return cloudRunPrefix
 }
 
-func (c *CloudRun) GetUsageMetricName() string {
-	return cloudRunUsageMetricName
+func (c *CloudRun) GetUsageMetricSuffix() string {
+	return cloudRunUsageMetricSuffix
 }
 
 // GetOrigin returns the `origin` attribute type for the given

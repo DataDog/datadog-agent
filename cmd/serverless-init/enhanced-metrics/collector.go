@@ -75,13 +75,13 @@ type Collector struct {
 	cancelFunc         context.CancelFunc
 	done               chan struct{}
 	metricPrefix       string
-	usageMetricName    string
+	usageMetricSuffix  string
 	// Previous stats for rate calculation
 	previousRateStats ServerlessRateStats
 }
 
 // NewCollector creates a new Collector
-func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, usageMetricName string, collectionInterval time.Duration) (*Collector, error) {
+func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, usageMetricSuffix string, collectionInterval time.Duration) (*Collector, error) {
 	if metricAgent == nil || reflect.ValueOf(metricAgent).IsNil() {
 		return nil, errors.New("metricAgent cannot be nil")
 	}
@@ -97,7 +97,7 @@ func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricS
 		cgroupReader:       cgroupReader,
 		collectionInterval: collectionInterval,
 		metricPrefix:       metricPrefix + "enhanced.",
-		usageMetricName:    usageMetricName,
+		usageMetricSuffix:  usageMetricSuffix,
 		previousRateStats:  NullServerlessRateStats,
 	}, nil
 }
@@ -301,8 +301,8 @@ func calculateCPUUsage(currentTotal *uint64, previousTotal *uint64, currentTime 
 
 // sendMetrics sends the enhanced metrics to the metric agent
 func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
-	if c.usageMetricName != "" {
-		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricName, 1, c.metricSource, enhancedMetrics.Timestamp)
+	if c.usageMetricSuffix != "" {
+		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricSuffix, 1, c.metricSource, enhancedMetrics.Timestamp)
 	}
 
 	// CPU usage in nanocores

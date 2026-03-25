@@ -175,7 +175,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	var enhancedMetricsCollector *enhancedmetrics.Collector
 	if enhancedMetricsEnabled {
-		enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricName(), 3*time.Second)
+		enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricSuffix(), 3*time.Second)
 		if err != nil {
 			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
 		} else {
