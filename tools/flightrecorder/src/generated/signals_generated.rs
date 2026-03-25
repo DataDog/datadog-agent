@@ -21,13 +21,14 @@ pub mod signals {
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_SIGNAL_PAYLOAD: u8 = 0;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_SIGNAL_PAYLOAD: u8 = 2;
+pub const ENUM_MAX_SIGNAL_PAYLOAD: u8 = 3;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_SIGNAL_PAYLOAD: [SignalPayload; 3] = [
+pub const ENUM_VALUES_SIGNAL_PAYLOAD: [SignalPayload; 4] = [
   SignalPayload::NONE,
   SignalPayload::MetricBatch,
   SignalPayload::LogBatch,
+  SignalPayload::TraceStatsBatch,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -38,13 +39,15 @@ impl SignalPayload {
   pub const NONE: Self = Self(0);
   pub const MetricBatch: Self = Self(1);
   pub const LogBatch: Self = Self(2);
+  pub const TraceStatsBatch: Self = Self(3);
 
   pub const ENUM_MIN: u8 = 0;
-  pub const ENUM_MAX: u8 = 2;
+  pub const ENUM_MAX: u8 = 3;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::NONE,
     Self::MetricBatch,
     Self::LogBatch,
+    Self::TraceStatsBatch,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
@@ -52,6 +55,7 @@ impl SignalPayload {
       Self::NONE => Some("NONE"),
       Self::MetricBatch => Some("MetricBatch"),
       Self::LogBatch => Some("LogBatch"),
+      Self::TraceStatsBatch => Some("TraceStatsBatch"),
       _ => None,
     }
   }
@@ -684,6 +688,223 @@ impl core::fmt::Debug for LogBatch<'_> {
       ds.finish()
   }
 }
+pub enum TraceStatEntryOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+pub struct TraceStatEntry<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for TraceStatEntry<'a> {
+  type Inner = TraceStatEntry<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> TraceStatEntry<'a> {
+  pub const VT_SERVICE: flatbuffers::VOffsetT = 4;
+  pub const VT_NAME: flatbuffers::VOffsetT = 6;
+  pub const VT_RESOURCE: flatbuffers::VOffsetT = 8;
+  pub const VT_TYPE_: flatbuffers::VOffsetT = 10;
+  pub const VT_SPAN_KIND: flatbuffers::VOffsetT = 12;
+  pub const VT_HTTP_STATUS_CODE: flatbuffers::VOffsetT = 14;
+  pub const VT_HITS: flatbuffers::VOffsetT = 16;
+  pub const VT_ERRORS: flatbuffers::VOffsetT = 18;
+  pub const VT_DURATION_NS: flatbuffers::VOffsetT = 20;
+  pub const VT_TOP_LEVEL_HITS: flatbuffers::VOffsetT = 22;
+  pub const VT_OK_SUMMARY: flatbuffers::VOffsetT = 24;
+  pub const VT_ERROR_SUMMARY: flatbuffers::VOffsetT = 26;
+  pub const VT_HOSTNAME: flatbuffers::VOffsetT = 28;
+  pub const VT_ENV: flatbuffers::VOffsetT = 30;
+  pub const VT_VERSION: flatbuffers::VOffsetT = 32;
+  pub const VT_BUCKET_START_NS: flatbuffers::VOffsetT = 34;
+  pub const VT_BUCKET_DURATION_NS: flatbuffers::VOffsetT = 36;
+  pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 38;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    TraceStatEntry { _tab: table }
+  }
+
+  #[inline]
+  pub fn service(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_SERVICE, None)}
+  }
+  #[inline]
+  pub fn name(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_NAME, None)}
+  }
+  #[inline]
+  pub fn resource(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_RESOURCE, None)}
+  }
+  #[inline]
+  pub fn type_(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_TYPE_, None)}
+  }
+  #[inline]
+  pub fn span_kind(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_SPAN_KIND, None)}
+  }
+  #[inline]
+  pub fn http_status_code(&self) -> u32 {
+    unsafe { self._tab.get::<u32>(TraceStatEntry::VT_HTTP_STATUS_CODE, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn hits(&self) -> u64 {
+    unsafe { self._tab.get::<u64>(TraceStatEntry::VT_HITS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn errors(&self) -> u64 {
+    unsafe { self._tab.get::<u64>(TraceStatEntry::VT_ERRORS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn duration_ns(&self) -> u64 {
+    unsafe { self._tab.get::<u64>(TraceStatEntry::VT_DURATION_NS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn top_level_hits(&self) -> u64 {
+    unsafe { self._tab.get::<u64>(TraceStatEntry::VT_TOP_LEVEL_HITS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn ok_summary(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TraceStatEntry::VT_OK_SUMMARY, None)}
+  }
+  #[inline]
+  pub fn error_summary(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TraceStatEntry::VT_ERROR_SUMMARY, None)}
+  }
+  #[inline]
+  pub fn hostname(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_HOSTNAME, None)}
+  }
+  #[inline]
+  pub fn env(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_ENV, None)}
+  }
+  #[inline]
+  pub fn version(&self) -> Option<&'a str> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_VERSION, None)}
+  }
+  #[inline]
+  pub fn bucket_start_ns(&self) -> i64 {
+    unsafe { self._tab.get::<i64>(TraceStatEntry::VT_BUCKET_START_NS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn bucket_duration_ns(&self) -> i64 {
+    unsafe { self._tab.get::<i64>(TraceStatEntry::VT_BUCKET_DURATION_NS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn timestamp_ns(&self) -> i64 {
+    unsafe { self._tab.get::<i64>(TraceStatEntry::VT_TIMESTAMP_NS, Some(0)).unwrap()}
+  }
+}
+
+impl flatbuffers::Verifiable for TraceStatEntry<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("service", Self::VT_SERVICE, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("name", Self::VT_NAME, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("resource", Self::VT_RESOURCE, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("type_", Self::VT_TYPE_, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("span_kind", Self::VT_SPAN_KIND, false)?
+     .visit_field::<u32>("http_status_code", Self::VT_HTTP_STATUS_CODE, false)?
+     .visit_field::<u64>("hits", Self::VT_HITS, false)?
+     .visit_field::<u64>("errors", Self::VT_ERRORS, false)?
+     .visit_field::<u64>("duration_ns", Self::VT_DURATION_NS, false)?
+     .visit_field::<u64>("top_level_hits", Self::VT_TOP_LEVEL_HITS, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>("ok_summary", Self::VT_OK_SUMMARY, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>("error_summary", Self::VT_ERROR_SUMMARY, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("hostname", Self::VT_HOSTNAME, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("env", Self::VT_ENV, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("version", Self::VT_VERSION, false)?
+     .visit_field::<i64>("bucket_start_ns", Self::VT_BUCKET_START_NS, false)?
+     .visit_field::<i64>("bucket_duration_ns", Self::VT_BUCKET_DURATION_NS, false)?
+     .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
+     .finish();
+    Ok(())
+  }
+}
+
+impl core::fmt::Debug for TraceStatEntry<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("TraceStatEntry");
+      ds.field("service", &self.service());
+      ds.field("name", &self.name());
+      ds.field("resource", &self.resource());
+      ds.field("type_", &self.type_());
+      ds.field("span_kind", &self.span_kind());
+      ds.field("http_status_code", &self.http_status_code());
+      ds.field("hits", &self.hits());
+      ds.field("errors", &self.errors());
+      ds.field("duration_ns", &self.duration_ns());
+      ds.field("top_level_hits", &self.top_level_hits());
+      ds.field("ok_summary", &self.ok_summary());
+      ds.field("error_summary", &self.error_summary());
+      ds.field("hostname", &self.hostname());
+      ds.field("env", &self.env());
+      ds.field("version", &self.version());
+      ds.field("bucket_start_ns", &self.bucket_start_ns());
+      ds.field("bucket_duration_ns", &self.bucket_duration_ns());
+      ds.field("timestamp_ns", &self.timestamp_ns());
+      ds.finish()
+  }
+}
+pub enum TraceStatsBatchOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+pub struct TraceStatsBatch<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for TraceStatsBatch<'a> {
+  type Inner = TraceStatsBatch<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> TraceStatsBatch<'a> {
+  pub const VT_ENTRIES: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    TraceStatsBatch { _tab: table }
+  }
+
+  #[inline]
+  pub fn entries(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry<'a>>>> {
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry>>>>(TraceStatsBatch::VT_ENTRIES, None)}
+  }
+}
+
+impl flatbuffers::Verifiable for TraceStatsBatch<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<TraceStatEntry>>>>("entries", Self::VT_ENTRIES, false)?
+     .finish();
+    Ok(())
+  }
+}
+
+impl core::fmt::Debug for TraceStatsBatch<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("TraceStatsBatch");
+      ds.field("entries", &self.entries());
+      ds.finish()
+  }
+}
 pub enum SignalEnvelopeOffset {}
 #[derive(Copy, Clone, PartialEq)]
 
@@ -763,6 +984,21 @@ impl<'a> SignalEnvelope<'a> {
     }
   }
 
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn payload_as_trace_stats_batch(&self) -> Option<TraceStatsBatch<'a>> {
+    if self.payload_type() == SignalPayload::TraceStatsBatch {
+      self.payload().map(|t| {
+       // Safety:
+       // Created from a valid Table for this object
+       // Which contains a valid union in this slot
+       unsafe { TraceStatsBatch::init_from_table(t) }
+     })
+    } else {
+      None
+    }
+  }
+
 }
 
 impl flatbuffers::Verifiable for SignalEnvelope<'_> {
@@ -776,6 +1012,7 @@ impl flatbuffers::Verifiable for SignalEnvelope<'_> {
         match key {
           SignalPayload::MetricBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<MetricBatch>>("SignalPayload::MetricBatch", pos),
           SignalPayload::LogBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<LogBatch>>("SignalPayload::LogBatch", pos),
+          SignalPayload::TraceStatsBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<TraceStatsBatch>>("SignalPayload::TraceStatsBatch", pos),
           _ => Ok(()),
         }
      })?
@@ -839,6 +1076,13 @@ impl core::fmt::Debug for SignalEnvelope<'_> {
         },
         SignalPayload::LogBatch => {
           if let Some(x) = self.payload_as_log_batch() {
+            ds.field("payload", &x)
+          } else {
+            ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
+          }
+        },
+        SignalPayload::TraceStatsBatch => {
+          if let Some(x) = self.payload_as_trace_stats_batch() {
             ds.field("payload", &x)
           } else {
             ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
