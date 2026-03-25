@@ -48,5 +48,7 @@ RUN apt-get update && \
 # backward-compatibility symlink as some existing Helm charts / operator may reference the old binary name
 RUN ln -s /opt/datadog-agent/embedded/bin/host-profiler /opt/datadog-agent/embedded/bin/full-host-profiler
 
-ENTRYPOINT ["/opt/datadog-agent/embedded/bin/host-profiler"]
+ENV PATH="/opt/datadog-agent/embedded/bin:${PATH}"
+
+ENTRYPOINT ["host-profiler"]
 CMD ["run", "--config", "/etc/datadog-agent/host-profiler-config.yaml"]
