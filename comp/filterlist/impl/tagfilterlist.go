@@ -51,15 +51,21 @@ func NewEmptyTagMatcher() filterlist.TagMatcher {
 	}
 }
 
-func NewTagMatcher(metrics map[string]MetricTagList, log log.Component) filterlist.TagMatcher {
-	return newTagMatcher(metrics, log)
-}
-
 // NewTagMatcher creates a new instance of TagMatcher. The function takes
 // a list of metric names and tags. Those tags are hashed using murmur3.
 // The hashed value is then used to query whether a tag should be removed
-// from a given metric.
-func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatcher {
+// from a given metric. An optional log.Component may be provided to emit
+// warnings for unrecognised action values; if omitted, warnings are silently
+// dropped.
+func NewTagMatcher(metrics map[string]MetricTagList, logger ...log.Component) filterlist.TagMatcher {
+	var l log.Component
+	if len(logger) > 0 {
+		l = logger[0]
+	}
+	return newTagMatcher(metrics, l)
+}
+
+func newTagMatcher(metrics map[string]MetricTagList, logger log.Component) tagMatcher {
 	// Store a hashed version of the tag list since that will take up
 	// less space and be faster to query.
 	hashed := make(map[string]hashedMetricTagList, len(metrics))
@@ -78,7 +84,9 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 		case "":
 			act = exclude
 		default:
-			log.Warnf("`metric_tag_filterlist.%s.action` configuration value %q should be either `include` or `exclude`. Defaulting to `exclude`.", k, v.Action)
+			if logger != nil {
+				logger.Warnf("`metric_tag_filterlist.%s.action` configuration value %q should be either `include` or `exclude`. Defaulting to `exclude`.", k, v.Action)
+			}
 			act = exclude
 		}
 		hashed[k] = hashedMetricTagList{

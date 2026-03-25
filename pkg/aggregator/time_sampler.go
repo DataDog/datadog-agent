@@ -48,6 +48,11 @@ type TimeSampler struct {
 
 	hostname string
 
+	// tagFilter is used during context tracking to strip tags before generating
+	// context keys. It is updated via setTagFilter, which is called by the worker
+	// when the RC-driven tag filter list changes.
+	tagFilter filterlist.TagMatcher
+
 	// Reusable scratch state for flushSketches — allocated once, cleared each flush.
 	flushPointsByStrippedCtx   map[ckey.ContextKey][]metrics.SketchPoint
 	flushFirstCtxByStrippedKey map[ckey.ContextKey]*Context
@@ -100,7 +105,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	}
 
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp))
+	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), s.tagFilter)
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {

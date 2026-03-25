@@ -31,7 +31,7 @@ func benchmarkContextResolver(numContexts int, b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		cr.trackContext(&samples[n%numContexts], 0)
+		cr.trackContext(&samples[n%numContexts], 0, nil)
 	}
 	b.ReportAllocs()
 }

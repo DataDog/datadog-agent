@@ -116,6 +116,7 @@ func (w *timeSamplerWorker) run() {
 			w.flushFilterList = matcher
 		case matcher := <-w.tagFilterListChan:
 			w.tagFilterList = matcher
+			w.sampler.tagFilter = matcher
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
