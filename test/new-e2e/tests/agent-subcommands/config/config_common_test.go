@@ -72,4 +72,3 @@ func (v *baseConfigSuite) TestNonDefaultConfig() {
 	assertConfigValueContains(v.T(), config, "tags", "e2e")
 	assertConfigValueContains(v.T(), config, "tags", "test")
 }
-
