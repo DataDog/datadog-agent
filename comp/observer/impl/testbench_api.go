@@ -1227,12 +1227,12 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 	}
 }
 
-// handleBenchmark returns per-detector processing-time statistics (avg/median/p99)
-// computed from the last replay run.
+// handleBenchmark returns replay statistics (per-detector processing times and
+// input volume counts) computed from the last replay run.
 func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
-	stats := api.tb.GetDetectorProcessingStats()
+	stats := api.tb.GetReplayStats()
 	if stats == nil {
-		api.writeJSON(w, map[string]DetectorProcessingStats{})
+		api.writeJSON(w, &ReplayStats{DetectorStats: map[string]DetectorProcessingStats{}})
 		return
 	}
 	api.writeJSON(w, stats)

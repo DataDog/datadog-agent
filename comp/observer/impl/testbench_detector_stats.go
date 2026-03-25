@@ -23,6 +23,16 @@ type DetectorProcessingStats struct {
 	TotalNs  float64 `json:"total_ns"` // sum of all individual call durations
 }
 
+// ReplayStats aggregates all statistics produced during a replay run.
+type ReplayStats struct {
+	// DetectorStats holds per-detector processing-time statistics keyed by detector name.
+	DetectorStats map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
+	// InputMetricsCount is the number of unique metric series present in the scenario.
+	InputMetricsCount int `json:"input_metrics_count"`
+	// InputLogsCount is the number of raw log entries present in the scenario.
+	InputLogsCount int `json:"input_logs_count"`
+}
+
 // computeDetectorProcessingStats groups telemetry samples for
 // telemetryDetectorProcessingTimeNs by detector name and computes
 // avg / median / p99 for each.

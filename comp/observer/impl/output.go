@@ -23,13 +23,13 @@ type ObserverOutput struct {
 
 // ObserverMetadata describes the scenario and pipeline configuration.
 type ObserverMetadata struct {
-	Scenario            string                             `json:"scenario"`
-	TimelineStart       int64                              `json:"timeline_start"`
-	TimelineEnd         int64                              `json:"timeline_end"`
-	DetectorsEnabled    []string                           `json:"detectors_enabled"`
-	CorrelatorsEnabled  []string                           `json:"correlators_enabled"`
-	TotalAnomalyPeriods int                                `json:"total_anomaly_periods"`
-	DetectorStats       map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
+	Scenario            string       `json:"scenario"`
+	TimelineStart       int64        `json:"timeline_start"`
+	TimelineEnd         int64        `json:"timeline_end"`
+	DetectorsEnabled    []string     `json:"detectors_enabled"`
+	CorrelatorsEnabled  []string     `json:"correlators_enabled"`
+	TotalAnomalyPeriods int          `json:"total_anomaly_periods"`
+	Stats               *ReplayStats `json:"stats,omitempty"`
 }
 
 // ObserverCorrelation is one correlation cluster.
@@ -79,7 +79,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			correlatorNames = append(correlatorNames, name)
 		}
 	}
-	detectorStats := tb.detectorProcessingStats
+	replayStats := tb.replayStats
 	tb.mu.RUnlock()
 
 	sort.Strings(detectorNames)
@@ -129,7 +129,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			DetectorsEnabled:    detectorNames,
 			CorrelatorsEnabled:  correlatorNames,
 			TotalAnomalyPeriods: len(outCorrelations),
-			DetectorStats:       detectorStats,
+			Stats:               replayStats,
 		},
 		AnomalyPeriods: outCorrelations,
 	}

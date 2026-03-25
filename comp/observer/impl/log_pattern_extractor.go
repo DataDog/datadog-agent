@@ -105,7 +105,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 	if clusterResult.IsNew {
-		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
 
 	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)

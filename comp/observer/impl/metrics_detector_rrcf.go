@@ -436,7 +436,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 		})
 
 		// Emit telemetry for the CoDisp score at every scored shingle
-		telemetry = append(telemetry, newTelemetryGauge(r.Name(), telemetryRRCFScore, score, s.endTimestamp))
+		telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFScore, score, s.endTimestamp))
 
 		// Skip warmup phase — scores are artificial during forest filling
 		if r.totalScored <= warmup {
@@ -448,7 +448,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Emit telemetry for the dynamic threshold (only after warmup when threshold is meaningful)
 		if threshold > 0 {
-			telemetry = append(telemetry, newTelemetryGauge(r.Name(), telemetryRRCFThreshold, threshold, s.endTimestamp))
+			telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFThreshold, threshold, s.endTimestamp))
 		}
 
 		// Update rolling window (after computing threshold, so current score
