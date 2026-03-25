@@ -133,11 +133,13 @@ func (cgce *CacheEntry) RemovePID(pid uint32) int {
 }
 
 // AddPID adds a pid to the list of pids
-func (cgce *CacheEntry) AddPID(pid uint32) {
+func (cgce *CacheEntry) AddPID(pid uint32) int {
 	cgce.lock.Lock()
 	defer cgce.lock.Unlock()
 
 	cgce.pids[pid] = true
+
+	return len(cgce.pids)
 }
 
 // SetPIDs set the pids list

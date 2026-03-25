@@ -153,9 +153,11 @@ func (cr *Resolver) syncOrDeleteCaheEntry(cacheEntry *cgroupModel.CacheEntry, de
 	}
 
 	// otherwise sync it with new values
-	pids = slices.DeleteFunc(pids, func(todel uint32) bool {
-		return todel == deletedPid
-	})
+	if deletedPid != 0 {
+		pids = slices.DeleteFunc(pids, func(todel uint32) bool {
+			return todel == deletedPid
+		})
+	}
 	cacheEntry.SetPIDs(pids)
 }
 
@@ -180,7 +182,6 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	// push pid:PathKey pair to an history cache for fallbacks for short lived processes
 	cr.history.Add(pid, cgroupContext.CGroupPathKey.Inode)
 
-	cr.NotifyListeners(CGroupCreated, cacheEntry)
 	cr.addedCgroups.Inc()
 
 	return cacheEntry
@@ -220,7 +221,9 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, createdAt time.
 			seclog.Tracef("fallback to resolve cgroup for pid %d with existing path key %+v", pid, cacheEntry.GetCGroupID())
 			cr.fallbackSucceed.Inc()
 
-			cacheEntry.AddPID(pid)
+			if l := cacheEntry.AddPID(pid); l == 1 {
+				cr.NotifyListeners(CGroupCreated, cacheEntry)
+			}
 
 			return cacheEntry
 		}
@@ -308,9 +311,9 @@ func (cr *Resolver) Delete(inode uint64) {
 		return
 	}
 
-	seclog.Tracef("delete cgroup : %d", inode)
+	seclog.Tracef("received a cgroup delete : %d", inode)
 
-	cr.removeCacheEntry(cacheEntry)
+	cr.syncOrDeleteCaheEntry(cacheEntry, 0)
 }
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
@@ -327,7 +330,10 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupC
 		cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
 			if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
 				// if the cgroup context is the same, add the pid to the cache entry
-				cacheEntry.AddPID(pid)
+				if l := cacheEntry.AddPID(pid); l == 1 {
+					cr.NotifyListeners(CGroupCreated, cacheEntry)
+				}
+
 				cacheEntryFound = cacheEntry
 			} else if cacheEntry.ContainsPID(pid) {
 				cgroupsToClean = append(cgroupsToClean, cacheEntry)

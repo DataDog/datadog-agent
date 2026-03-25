@@ -1346,7 +1346,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		// handle cgroup v2 deletion
 		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Rmdir.File)
-		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() {
+		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
 			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
 		}
 	case model.FileUnlinkEventType:

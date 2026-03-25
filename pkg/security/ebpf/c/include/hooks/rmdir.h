@@ -149,7 +149,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->state != DISCARDED && is_event_enabled(EVENT_RMDIR)) {
+    if (syscall->state != DISCARDED) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .syscall_ctx.id = syscall->ctx_id,
