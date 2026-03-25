@@ -176,6 +176,7 @@ to_override_flags = [
     "CFLAGS",
     "CXXFLAGS",
     "LDFLAGS",
+    "CPPFLAGS",
 ]
 
 configure_make(
@@ -186,9 +187,6 @@ configure_make(
         "--enable-shared",
         "--without-static-libpython",
         "--with-dbmliborder=",
-        # Fixes an issue with __DATE__ being set to undefined `redacted`
-        # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
-        "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
     ] + select({
@@ -203,6 +201,11 @@ configure_make(
         "OPT": "-DNDEBUG -fwrapv",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
+        # Avoid quotation issues around keeping `redacted` (for __DATE__/__TIME__) properly quoted
+        # (See comments on redacted_compat.h)
+        # It's important to pass this on the `env` and not on `configure_options` to avoid CPPFLAGS
+        # populated by rules_foreign_cc from being overwritten
+        "CPPFLAGS": "-include$(execpath :redacted_compat.h)",
         # We need to pass linker flags here instead of `linkopts` because we don't want these to be
         # propagated to dependent targets, as `linkopts` would do.
         # This is meant to allow python to find its dependency during its modules import test.
@@ -221,6 +224,9 @@ configure_make(
         },
         "//conditions:default": {},
     }),
+    build_data = [
+        ":redacted_compat.h",
+    ],
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
