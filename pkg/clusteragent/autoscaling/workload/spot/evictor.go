@@ -18,8 +18,9 @@ import (
 )
 
 // podEvictor evicts a pod by namespace and name.
+// If phase is non-empty, the pod is only evicted if its current phase matches.
 type podEvictor interface {
-	evictPod(ctx context.Context, namespace, name string) error
+	evictPod(ctx context.Context, namespace, name string, phase corev1.PodPhase) error
 }
 
 type kubePodEvictor struct {
@@ -30,9 +31,9 @@ func newKubePodEvictor(client kubernetes.Interface) *kubePodEvictor {
 	return &kubePodEvictor{client: client}
 }
 
-// evictPod gets the pod to verify it is still pending, then evicts it.
-// Returns nil if the pod is not found or is no longer pending (already resolved).
-func (e *kubePodEvictor) evictPod(ctx context.Context, namespace, name string) error {
+// evictPod gets the pod and, if phase is non-empty, verifies the pod is in that phase before evicting.
+// Returns nil if the pod is not found or the phase does not match (already resolved).
+func (e *kubePodEvictor) evictPod(ctx context.Context, namespace, name string, phase corev1.PodPhase) error {
 	pod, err := e.client.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		return nil // already gone
@@ -40,8 +41,8 @@ func (e *kubePodEvictor) evictPod(ctx context.Context, namespace, name string) e
 	if err != nil {
 		return err
 	}
-	if pod.Status.Phase != corev1.PodPending {
-		return nil // no longer pending, skip
+	if phase != "" && pod.Status.Phase != phase {
+		return nil // phase mismatch, skip
 	}
 	eviction := &policyv1.Eviction{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},

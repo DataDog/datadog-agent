@@ -25,49 +25,91 @@ type pendingSpotPod struct {
 	createdAt time.Time
 }
 
+// spotConfig holds per-owner spot scheduling parameters.
+type spotConfig struct {
+	percentage  int
+	minOnDemand int
+}
+
 // pods tracks spot and on-demand pods and in-flight admission counts for the same owner.
 type pods struct {
-	spotUIDs               map[string]struct{}
-	onDemandUIDs           map[string]struct{}
+	config     spotConfig
+	lastUpdate time.Time
+
+	spotUIDs               map[string]podInfo
+	onDemandUIDs           map[string]podInfo
 	admissionSpotCount     int
 	admissionOnDemandCount int
 }
 
+// podInfo holds pod metadata.
+type podInfo struct {
+	name  string
+	phase string
+}
+
 // podTracker keeps track of pods per owner.
 type podTracker struct {
-	mu    sync.RWMutex
-	clock clock.Clock
+	clock         clock.Clock
+	defaultConfig spotConfig
+
+	mu sync.RWMutex
 	// podsPerOwner groups pods and in-flight admission counts by owner.
 	podsPerOwner map[ownerKey]*pods
 	// pendingSpotPods tracks spot-assigned pods that are pending scheduling, keyed by pod UID.
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock) *podTracker {
+func newPodTracker(clk clock.Clock, defaultConfig spotConfig) *podTracker {
 	return &podTracker{
 		clock:           clk,
+		defaultConfig:   defaultConfig,
 		podsPerOwner:    make(map[ownerKey]*pods),
 		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
 }
 
-// admitNewPod reads the current pod counts for owner and calls decideSpot(total, spot)
-// to determine pod assignment.
-// decideSpot receives the total number and the number of existing spot-assigned pods and
-// should return true if pod will be assigned to spot instance.
-// admitNewPod locks podTracker state for the duration of decideSpot call therefore it must be fast.
-// It returns the decideSpot result.
-func (t *podTracker) admitNewPod(owner ownerKey, decideSpot func(total, spot int) bool) bool {
+// admitNewPod decides whether the new pod should be spot-assigned using
+// the per-owner config and returns true if the pod was assigned to spot.
+func (t *podTracker) admitNewPod(owner ownerKey) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	pods := t.getPodsLocked(owner)
 
-	isSpot := decideSpot(pods.totalCount(), pods.spotCount())
+	total := pods.totalCount()
+	spot := pods.spotCount()
+	onDemand := total - spot
 
-	pods.admit(isSpot)
+	if onDemand < pods.config.minOnDemand {
+		log.Debugf("Skipping pod for %s: on-demand minimum not met (%d < %d), total: %d, spot: %d", owner, onDemand, pods.config.minOnDemand, total, spot)
+		return pods.admit(false)
+	}
 
-	return isSpot
+	desiredSpot := (total + 1) * pods.config.percentage / 100
+	if spot >= desiredSpot {
+		log.Debugf("Skipping pod for %s: desired spot reached (%d >= %d), total: %d", owner, spot, desiredSpot, total)
+		return pods.admit(false)
+	}
+
+	log.Debugf("Assigning pod for %s to spot (%d of desired %d spot, %d on-demand), total: %d", owner, spot, desiredSpot, onDemand, total)
+	return pods.admit(true)
+}
+
+// updateConfig updates the spot scheduling config for owner.
+func (t *podTracker) updateConfig(owner ownerKey, config spotConfig) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.getPodsLocked(owner).config = config
+}
+
+// admitNewOnDemandPod records an on-demand admission for owner.
+func (t *podTracker) admitNewOnDemandPod(owner ownerKey) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.getPodsLocked(owner).admit(false)
 }
 
 // addedOrUpdated updates tracking state when a pod is added or updated.
@@ -92,7 +134,7 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 
-	t.getPodsLocked(owner).track(pod.ID, isSpot)
+	t.getPodsLocked(owner).track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, t.clock.Now())
 
 	if isSpot {
 		// Note: we can not use CreationTimestamp or NodeName of [workloadmeta.KubernetesPod]
@@ -133,7 +175,7 @@ func (t *podTracker) deletePod(owner ownerKey, uid string) {
 // deletePodLocked deletes a pod from podsPerOwner. Must be called with t.mu held.
 func (t *podTracker) deletePodLocked(owner ownerKey, uid string) {
 	if pods, ok := t.podsPerOwner[owner]; ok {
-		if pods.delete(uid) {
+		if pods.delete(uid, t.clock.Now()) {
 			delete(t.podsPerOwner, owner)
 		}
 	}
@@ -146,9 +188,28 @@ func (t *podTracker) getPodsLocked(owner ownerKey) *pods {
 	if pods, ok := t.podsPerOwner[owner]; ok {
 		return pods
 	}
-	pods := newPods()
+	pods := t.newPods()
 	t.podsPerOwner[owner] = pods
 	return pods
+}
+
+// getPodToDelete returns the uid, name, and namespace of a pod to delete to make progress toward
+// the desired config across all tracked owners, or empty strings if no deletion is needed.
+// When a pod is selected, lastUpdate is stamped on its owner's pods to prevent selecting the
+// same owner again before the deletion takes effect.
+func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) (string, string, string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	now := t.clock.Now()
+	lastUpdatedBefore := now.Add(-rebalanceStabilizationPeriod)
+	for owner, pods := range t.podsPerOwner {
+		if uid, name := pods.getPodToDelete(lastUpdatedBefore); uid != "" {
+			pods.lastUpdate = now // suppress re-selection until stabilization period elapses
+			return uid, name, owner.Namespace
+		}
+	}
+	return "", "", ""
 }
 
 // hasPendingSpotPods returns true if any spot-assigned pod has been pending since before the given time.
@@ -183,45 +244,110 @@ func (t *podTracker) deletePendingSpotPod(uid string) {
 	delete(t.pendingSpotPods, uid)
 }
 
-func newPods() *pods {
+func (t *podTracker) newPods() *pods {
 	return &pods{
-		spotUIDs:     make(map[string]struct{}),
-		onDemandUIDs: make(map[string]struct{}),
+		config:       t.defaultConfig,
+		spotUIDs:     make(map[string]podInfo),
+		onDemandUIDs: make(map[string]podInfo),
 	}
 }
 
-// admit increments the in-flight admission count for the given spot/on-demand decision.
-func (p *pods) admit(isSpot bool) {
+// admit increments the in-flight admission count for the given spot/on-demand decision and returns isSpot.
+func (p *pods) admit(isSpot bool) bool {
 	if isSpot {
 		p.admissionSpotCount++
 	} else {
 		p.admissionOnDemandCount++
 	}
+	return isSpot
 }
 
-// track upserts the pod UID and decrements the corresponding in-flight admission count on first appearance.
-func (p *pods) track(uid string, isSpot bool) {
+// track upserts the pod UID with its info, decrementing the in-flight admission count on first appearance.
+func (p *pods) track(uid string, isSpot bool, info podInfo, now time.Time) {
 	if isSpot {
 		if _, exists := p.spotUIDs[uid]; !exists {
-			p.spotUIDs[uid] = struct{}{}
 			if p.admissionSpotCount > 0 {
 				p.admissionSpotCount--
 			}
 		}
+		p.spotUIDs[uid] = info
 	} else {
 		if _, exists := p.onDemandUIDs[uid]; !exists {
-			p.onDemandUIDs[uid] = struct{}{}
 			if p.admissionOnDemandCount > 0 {
 				p.admissionOnDemandCount--
 			}
 		}
+		p.onDemandUIDs[uid] = info
 	}
+	p.lastUpdate = now
 }
 
-// delete removes pod by uid and returns true if it tracks no more pods including in-flight admissions.
-func (p *pods) delete(uid string) bool {
+// getPodToDelete returns the uid and name of a pod to delete to make progress toward the desired config.
+// It returns empty strings if no deletion is needed.
+func (p *pods) getPodToDelete(lastUpdatedBefore time.Time) (string, string) {
+	if p.admissionSpotCount > 0 || p.admissionOnDemandCount > 0 {
+		return "", ""
+	}
+
+	if p.lastUpdate.After(lastUpdatedBefore) {
+		return "", ""
+	}
+
+	if p.hasPending() {
+		return "", ""
+	}
+
+	spot, onDemand := len(p.spotUIDs), len(p.onDemandUIDs)
+
+	if onDemand < p.config.minOnDemand {
+		// minOnDemand not satisfied: remove a spot pod to compensate.
+		return pickPod(p.spotUIDs)
+	}
+
+	total := spot + onDemand
+
+	desiredSpot := total * p.config.percentage / 100
+	if spot > desiredSpot {
+		return pickPod(p.spotUIDs)
+	}
+
+	desiredOnDemand := max(total-desiredSpot, p.config.minOnDemand)
+	if onDemand > desiredOnDemand {
+		return pickPod(p.onDemandUIDs)
+	}
+
+	return "", ""
+}
+
+// hasPending returns true if any tracked pod is in PodPending phase.
+func (p *pods) hasPending() bool {
+	const pending = string(corev1.PodPending)
+	for _, info := range p.spotUIDs {
+		if info.phase == pending {
+			return true
+		}
+	}
+	for _, info := range p.onDemandUIDs {
+		if info.phase == pending {
+			return true
+		}
+	}
+	return false
+}
+
+// pickPod returns the uid and name of a random pod from uids.
+func pickPod(uids map[string]podInfo) (string, string) {
+	for uid, info := range uids {
+		return uid, info.name
+	}
+	return "", ""
+}
+
+// delete removes pod by uid, updates lastUpdate, and returns true if it tracks no more pods including in-flight admissions.
+func (p *pods) delete(uid string, now time.Time) bool {
 	delete(p.spotUIDs, uid)
 	delete(p.onDemandUIDs, uid)
+	p.lastUpdate = now
 	return len(p.spotUIDs) == 0 && len(p.onDemandUIDs) == 0 && p.admissionSpotCount == 0 && p.admissionOnDemandCount == 0
 }
 

@@ -16,34 +16,37 @@ import (
 )
 
 const (
-	defaultSpotPercentage       = 50
-	defaultMinOnDemandReplicas  = 1
-	defaultSpotScheduleTimeout  = 1 * time.Minute
-	defaultSpotDisabledInterval = 2 * time.Minute
+	defaultSpotPercentage               = 50
+	defaultMinOnDemandReplicas          = 1
+	defaultScheduleTimeout              = 1 * time.Minute
+	defaultFallbackDuration             = 2 * time.Minute
+	defaultRebalanceStabilizationPeriod = 1 * time.Minute
 )
 
 // Config holds the spot scheduler configuration defaults.
 // These values serve as defaults when a workload doesn't specify the corresponding annotation.
 type Config struct {
-	Percentage          int
-	MinOnDemandReplicas int
-	ScheduleTimeout     time.Duration
-	DisabledInterval    time.Duration
+	Percentage                   int
+	MinOnDemandReplicas          int
+	ScheduleTimeout              time.Duration
+	FallbackDuration             time.Duration
+	RebalanceStabilizationPeriod time.Duration
 }
 
 // String returns a human-readable representation of the Config.
 func (c Config) String() string {
-	return fmt.Sprintf("SpotConfig{percentage=%d%%, minOnDemandReplicas=%d, scheduleTimeout=%v, disabledInterval=%v}",
-		c.Percentage, c.MinOnDemandReplicas, c.ScheduleTimeout, c.DisabledInterval)
+	return fmt.Sprintf("SpotConfig{percentage=%d%%, minOnDemandReplicas=%d, scheduleTimeout=%v, fallbackDuration=%v, rebalanceStabilizationPeriod=%v}",
+		c.Percentage, c.MinOnDemandReplicas, c.ScheduleTimeout, c.FallbackDuration, c.RebalanceStabilizationPeriod)
 }
 
 // ReadConfig reads spot scheduler configuration from cfg, falling back to defaults for out-of-range values.
 func ReadConfig(cfg pkgconfigmodel.Reader) Config {
 	c := Config{
-		Percentage:          cfg.GetInt("autoscaling.workload.spot.percentage"),
-		MinOnDemandReplicas: cfg.GetInt("autoscaling.workload.spot.min_on_demand_replicas"),
-		ScheduleTimeout:     cfg.GetDuration("autoscaling.workload.spot.schedule_timeout"),
-		DisabledInterval:    cfg.GetDuration("autoscaling.workload.spot.disabled_interval"),
+		Percentage:                   cfg.GetInt("autoscaling.workload.spot.percentage"),
+		MinOnDemandReplicas:          cfg.GetInt("autoscaling.workload.spot.min_on_demand_replicas"),
+		ScheduleTimeout:              cfg.GetDuration("autoscaling.workload.spot.schedule_timeout"),
+		FallbackDuration:             cfg.GetDuration("autoscaling.workload.spot.fallback_duration"),
+		RebalanceStabilizationPeriod: cfg.GetDuration("autoscaling.workload.spot.rebalance_stabilization_period"),
 	}
 
 	if c.Percentage < 0 || c.Percentage > 100 {
@@ -55,12 +58,16 @@ func ReadConfig(cfg pkgconfigmodel.Reader) Config {
 		c.MinOnDemandReplicas = defaultMinOnDemandReplicas
 	}
 	if c.ScheduleTimeout <= 0 {
-		log.Warnf("autoscaling.workload.spot.schedule_timeout=%v is not positive, using default %v", c.ScheduleTimeout, defaultSpotScheduleTimeout)
-		c.ScheduleTimeout = defaultSpotScheduleTimeout
+		log.Warnf("autoscaling.workload.spot.schedule_timeout=%v is not positive, using default %v", c.ScheduleTimeout, defaultScheduleTimeout)
+		c.ScheduleTimeout = defaultScheduleTimeout
 	}
-	if c.DisabledInterval <= 0 {
-		log.Warnf("autoscaling.workload.spot.disabled_interval=%v is not positive, using default %v", c.DisabledInterval, defaultSpotDisabledInterval)
-		c.DisabledInterval = defaultSpotDisabledInterval
+	if c.FallbackDuration <= 0 {
+		log.Warnf("autoscaling.workload.spot.fallback_duration=%v is not positive, using default %v", c.FallbackDuration, defaultFallbackDuration)
+		c.FallbackDuration = defaultFallbackDuration
+	}
+	if c.RebalanceStabilizationPeriod <= 0 {
+		log.Warnf("autoscaling.workload.spot.rebalance_stabilization_period=%v is not positive, using default %v", c.RebalanceStabilizationPeriod, defaultRebalanceStabilizationPeriod)
+		c.RebalanceStabilizationPeriod = defaultRebalanceStabilizationPeriod
 	}
 	return c
 }

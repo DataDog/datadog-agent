@@ -368,7 +368,5 @@ func corePodToWlmPod(pod *corev1.Pod) *workloadmeta.KubernetesPod {
 		},
 		Owners: owners,
 		Phase:  string(pod.Status.Phase),
-		// Use [*workloadmeta.KubernetesPod].NodeName for testing only as normally it is not set.
-		NodeName: pod.Spec.NodeName,
 	}
 }

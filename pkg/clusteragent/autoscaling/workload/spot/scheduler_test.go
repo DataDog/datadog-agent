@@ -24,12 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
+// epsilon is a small duration added to a clock step to advance past a threshold.
+const epsilon = time.Nanosecond
+
 func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.Scheduler, *clocktesting.FakeClock) {
 	config := spot.Config{
-		Percentage:          50,
-		MinOnDemandReplicas: 1,
-		ScheduleTimeout:     1 * time.Minute,
-		DisabledInterval:    2 * time.Minute,
+		Percentage:                   50,
+		MinOnDemandReplicas:          1,
+		ScheduleTimeout:              1 * time.Minute,
+		FallbackDuration:             2 * time.Minute,
+		RebalanceStabilizationPeriod: 1 * time.Minute,
 	}
 
 	clk := clocktesting.NewFakeClock(time.Now())
@@ -42,20 +46,6 @@ func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.Schedule
 	cluster.OnPodDeleted(scheduler.PodDeleted)
 
 	return scheduler, clk
-}
-
-func updateDeployment(cluster *fakeCluster, namespace, name string, replicas int, annotations map[string]string, currentReplicaSet string) string {
-	// A new ReplicaSet created
-	newReplicaSet := replicaSetName(name)
-	for range replicas {
-		pod := newPod(namespace, kubernetes.ReplicaSetKind, newReplicaSet, annotations)
-		cluster.CreatePod(pod)
-	}
-	// Old ReplicaSet is scaled down
-	if currentReplicaSet != "" {
-		cluster.DeleteOwnerPods(kubernetes.ReplicaSetKind, namespace, currentReplicaSet)
-	}
-	return newReplicaSet
 }
 
 // spotAnnotations returns annotations to enable spot scheduling.
@@ -84,7 +74,7 @@ func TestScenarios(t *testing.T) {
 		rs := updateDeployment(cluster, "default", "nginx", 1, spotAnnotations(100, 2), "")
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", 1))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(1))
 	})
 
 	t.Run("Rolling update preserves ratio", func(t *testing.T) {
@@ -102,8 +92,8 @@ func TestScenarios(t *testing.T) {
 		rs2 := updateDeployment(cluster, "default", "nginx", replicas, spotAnnotations(60, 2), rs1)
 
 		// Then: 60% spot / 40% on-demand
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("spot", 6))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("on-demand", 4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunningOnDemand(4))
 	})
 
 	t.Run("Scale-up preserves ratio", func(t *testing.T) {
@@ -119,15 +109,15 @@ func TestScenarios(t *testing.T) {
 		rs := updateDeployment(cluster, "default", "nginx", 5, annotations, "")
 
 		// Then: 2 on-demand (minOnDemand=2), 3 spot
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", 2))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("spot", 3))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
 
 		// When: scale up to 10 replicas
 		rs = updateDeployment(cluster, "default", "nginx", 10, annotations, rs)
 
 		// Then: 4 on-demand, 6 spot (60% of 10, minOnDemand=2)
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", 4))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("spot", 6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
 	})
 
 	t.Run("Changing spot percentage updates ratio", func(t *testing.T) {
@@ -144,7 +134,7 @@ func TestScenarios(t *testing.T) {
 		rsName := updateDeployment(cluster, "default", "nginx", replicas, spotAnnotations(0, minOnDemand), "")
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rsName, expectRunning("on-demand", replicas))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rsName, expectRunningOnDemand(replicas))
 
 		// When
 		steps := []struct {
@@ -168,8 +158,8 @@ func TestScenarios(t *testing.T) {
 			rsName = updateDeployment(cluster, "default", "nginx", replicas, spotAnnotations(step.percentage, minOnDemand), rsName)
 
 			// Then
-			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rsName, expectRunning("on-demand", replicas-step.spot))
-			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rsName, expectRunning("spot", step.spot))
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rsName, expectRunningOnDemand(replicas-step.spot))
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rsName, expectRunningSpot(step.spot))
 		}
 	})
 
@@ -183,15 +173,15 @@ func TestScenarios(t *testing.T) {
 
 		// When
 		annotations := spotAnnotations(60, 2)
-		rs1 := updateDeployment(cluster, "default", "nginx", 10, annotations, "")
+		rs := updateDeployment(cluster, "default", "nginx", 10, annotations, "")
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectRunning("on-demand", 4))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectPending(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectPending(6))
 
 		// When
 		// Schedule timeout
-		clk.Step(s.Config().ScheduleTimeout + 1*time.Nanosecond)
+		clk.Step(s.Config().ScheduleTimeout + epsilon)
 
 		// Then
 		require.Eventually(t, func() bool {
@@ -199,33 +189,46 @@ func TestScenarios(t *testing.T) {
 			return disabled
 		}, 1*time.Second, 50*time.Millisecond)
 
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectRunning("on-demand", 4))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectPending(0))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+		// Pending pods evicted
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectPending(0))
 
 		// When
 		// ReplicaSet recreates pods
 		for range 6 {
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs1, annotations))
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, annotations))
 		}
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs1, expectRunning("on-demand", 10))
+		// Fallback to on-demand
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(10))
 
 		// When
-		cluster.AddSpotNode("spot")
+		cluster.AddSpotNode("new-spot")
 		// Advance past disabled interval to re-enable spot scheduling
-		clk.Step(s.Config().DisabledInterval + time.Second)
+		clk.Step(s.Config().FallbackDuration + epsilon)
 		require.Eventually(t, func() bool {
 			_, disabled := s.IsSpotSchedulingDisabled()
 			return !disabled
 		}, 1*time.Second, 50*time.Millisecond)
 
-		// TODO: auto-recovery
-		rs2 := updateDeployment(cluster, "default", "nginx", 10, annotations, rs1)
+		// Rebalancing
+		for i := range 6 {
+			// When
+			clk.Step(s.Config().RebalanceStabilizationPeriod + epsilon)
+
+			// Then: excess on-demand pod evicted
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(10-1-i))
+
+			// ReplicaSet recreates pod
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, annotations))
+			// Important: wait for it to be Running before next step
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(i+1))
+		}
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("spot", 6))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs2, expectRunning("on-demand", 4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
 	})
 
 	t.Run("Pod replacement preserves ratio", func(t *testing.T) {
@@ -244,8 +247,8 @@ func TestScenarios(t *testing.T) {
 		annotations := spotAnnotations(spotPercentage, minOnDemand)
 
 		rs := updateDeployment(cluster, "default", "nginx", replicas, annotations, "")
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("spot", expectedSpot))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", expectedOnDemand))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(expectedSpot))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(expectedOnDemand))
 
 		for range 10 {
 			// When
@@ -268,9 +271,125 @@ func TestScenarios(t *testing.T) {
 			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectHasNoneOf(deleted))
 
 			// Then
-			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("spot", expectedSpot))
-			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", expectedOnDemand))
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(expectedSpot))
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(expectedOnDemand))
 		}
+	})
+
+	t.Run("Rebalancing after scale-down evicts excess on-demand pod", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, clk := runTestScheduler(t.Context(), cluster)
+
+		annotations := spotAnnotations(60, 2)
+
+		rs := updateDeployment(cluster, "default", "nginx", 10, annotations, "")
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+
+		// When: scale down to 5 replicas leaving 2 spot / 3 on-demand — ratio is off
+		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 2, 3)
+
+		// When: rebalancing evicts the excess on-demand pod
+		clk.Step(s.Config().RebalanceStabilizationPeriod + epsilon)
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
+
+		// ReplicaSet recreates the evicted pod as spot
+		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, annotations))
+
+		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=2 satisfied)
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
+	})
+
+	t.Run("Rebalancing after scale-down evicts excess spot pod to satisfy min-on-demand", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, clk := runTestScheduler(t.Context(), cluster)
+
+		annotations := spotAnnotations(60, 2)
+
+		rs := updateDeployment(cluster, "default", "nginx", 10, annotations, "")
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+
+		// When: scale down to 5 replicas leaving 5 spot / 0 on-demand — on-demand count is below minOnDemand=2
+		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 5, 0)
+
+		// Rebalancing evicts spot pods until on-demand count reaches minOnDemand=2.
+		// Each evicted spot pod is recreated by the ReplicaSet as on-demand.
+		for i := range 2 {
+			clk.Step(s.Config().RebalanceStabilizationPeriod + epsilon)
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(4-i))
+
+			// ReplicaSet recreates the evicted pod as on-demand (on-demand count still below minOnDemand)
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, annotations))
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(i+1))
+		}
+
+		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=2 satisfied)
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
+	})
+
+	t.Run("Rebalancing after scale-down evicts excess spot pod (min-on-demand already satisfied)", func(t *testing.T) {
+		// Given: minOnDemand=1 so that after scale-down on-demand count can be >= minOnDemand
+		// while spot count still exceeds the desired ratio.
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, clk := runTestScheduler(t.Context(), cluster)
+
+		annotations := spotAnnotations(60, 1)
+
+		rs := updateDeployment(cluster, "default", "nginx", 10, annotations, "")
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+
+		// When: scale down to 5 replicas leaving 4 spot / 1 on-demand — on-demand satisfies minOnDemand=1
+		// but spot count exceeds the desired 3 (60% of 5).
+		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 4, 1)
+
+		// When: rebalancing evicts the excess spot pod
+		clk.Step(s.Config().RebalanceStabilizationPeriod + epsilon)
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+
+		// ReplicaSet recreates the evicted pod as on-demand
+		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, annotations))
+
+		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=1 satisfied)
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
+	})
+
+	t.Run("Rebalancing after scale-down when ratio is already correct", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, clk := runTestScheduler(t.Context(), cluster)
+
+		annotations := spotAnnotations(60, 2)
+
+		rs := updateDeployment(cluster, "default", "nginx", 10, annotations, "")
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
+
+		// When: scale down to 5 replicas preserving the ratio — 3 spot / 2 on-demand (60% of 5)
+		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 3, 2)
+
+		// Then: ratio is already correct; rebalancing does not evict any pod
+		clk.Step(s.Config().RebalanceStabilizationPeriod + epsilon)
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
 	})
 
 	t.Run("Pods not eligible for spot are scheduled onto on-demand node", func(t *testing.T) {
@@ -285,8 +404,8 @@ func TestScenarios(t *testing.T) {
 		rs := updateDeployment(cluster, "default", "nginx", 5, nil, "")
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", 5))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("spot", 0))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(5))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(0))
 	})
 
 	t.Run("Pods not eligible for spot are not tracked", func(t *testing.T) {
@@ -301,7 +420,7 @@ func TestScenarios(t *testing.T) {
 		rs := updateDeployment(cluster, "default", "nginx", 5, nil, "")
 
 		// Then
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", 5))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(5))
 		total, spot := s.TrackedCounts("default", kubernetes.ReplicaSetKind, rs)
 		assert.Zero(t, total)
 		assert.Zero(t, spot)
@@ -331,8 +450,8 @@ func TestScenarios(t *testing.T) {
 		annotations := spotAnnotations(60, 2)
 		rs := updateDeployment(cluster, "default", "nginx", replicas, annotations, "")
 
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("spot", 6))
-		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunning("on-demand", 4))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(6))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
 
 		// When
 		stopScheduler()
@@ -347,11 +466,81 @@ func TestScenarios(t *testing.T) {
 	})
 }
 
-func expectRunning(node string, count int) func([]*workloadmeta.KubernetesPod) bool {
+// updateDeployment simulates a Deployment rollout by creating a new ReplicaSet with the given
+// replicas and annotations, then deleting all pods of the previous ReplicaSet (if any).
+// Returns the name of the new ReplicaSet.
+func updateDeployment(cluster *fakeCluster, namespace, name string, replicas int, annotations map[string]string, currentReplicaSet string) string {
+	// A new ReplicaSet created
+	newReplicaSet := replicaSetName(name)
+	for range replicas {
+		pod := newPod(namespace, kubernetes.ReplicaSetKind, newReplicaSet, annotations)
+		cluster.CreatePod(pod)
+	}
+	// Old ReplicaSet is scaled down
+	if currentReplicaSet != "" {
+		cluster.DeleteOwnerPods(kubernetes.ReplicaSetKind, namespace, currentReplicaSet)
+	}
+	return newReplicaSet
+}
+
+// scaleDown simulates a Deployment scale-down by deleting pods to reach the expected spot/on-demand counts.
+func scaleDown(t *testing.T, cluster *fakeCluster, ownerKind, namespace, name string, expectSpot, expectOnDemand int) {
+	t.Helper()
+	pods := cluster.ListOwnerPods(ownerKind, namespace, name)
+
+	currentSpot, currentOnDemand := 0, 0
+	for _, pod := range pods {
+		if spot.IsSpotAssigned(pod) {
+			currentSpot++
+		} else {
+			currentOnDemand++
+		}
+	}
+
+	require.GreaterOrEqual(t, currentSpot, expectSpot, "expectSpot=%d exceeds current spot count %d", expectSpot, currentSpot)
+	require.GreaterOrEqual(t, currentOnDemand, expectOnDemand, "expectOnDemand=%d exceeds current on-demand count %d", expectOnDemand, currentOnDemand)
+
+	spotToDelete := currentSpot - expectSpot
+	onDemandToDelete := currentOnDemand - expectOnDemand
+	deleted := make(map[string]struct{})
+	for _, pod := range pods {
+		if spot.IsSpotAssigned(pod) {
+			if spotToDelete > 0 {
+				cluster.DeletePod(pod)
+				deleted[pod.ID] = struct{}{}
+				spotToDelete--
+			}
+		} else {
+			if onDemandToDelete > 0 {
+				cluster.DeletePod(pod)
+				deleted[pod.ID] = struct{}{}
+				onDemandToDelete--
+			}
+		}
+	}
+
+	cluster.AssertOwnerPods(ownerKind, namespace, name, expectHasNoneOf(deleted))
+	cluster.AssertOwnerPods(ownerKind, namespace, name, expectRunningSpot(expectSpot))
+	cluster.AssertOwnerPods(ownerKind, namespace, name, expectRunningOnDemand(expectOnDemand))
+}
+
+func expectRunningSpot(count int) func([]*workloadmeta.KubernetesPod) bool {
 	return func(pods []*workloadmeta.KubernetesPod) bool {
 		actual := 0
 		for _, p := range pods {
-			if p.Phase == string(corev1.PodRunning) && p.NodeName == node {
+			if p.Phase == string(corev1.PodRunning) && spot.IsSpotAssigned(p) {
+				actual++
+			}
+		}
+		return actual == count
+	}
+}
+
+func expectRunningOnDemand(count int) func([]*workloadmeta.KubernetesPod) bool {
+	return func(pods []*workloadmeta.KubernetesPod) bool {
+		actual := 0
+		for _, p := range pods {
+			if p.Phase == string(corev1.PodRunning) && !spot.IsSpotAssigned(p) {
 				actual++
 			}
 		}

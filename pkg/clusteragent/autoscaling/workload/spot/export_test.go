@@ -11,6 +11,7 @@ import (
 	"context"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -53,10 +54,15 @@ func (s *Scheduler) IsSpotSchedulingDisabled() (time.Time, bool) {
 	return s.isSpotSchedulingDisabled()
 }
 
+// IsSpotAssigned reports whether the pod is assigned to a spot instance.
+func IsSpotAssigned(pod *workloadmeta.KubernetesPod) bool {
+	return isSpotAssigned(pod)
+}
+
 // podEvictorFunc is a function type implementing podEvictor for testing.
 type podEvictorFunc func(ctx context.Context, namespace, name string) error
 
-func (f podEvictorFunc) evictPod(ctx context.Context, namespace, name string) error {
+func (f podEvictorFunc) evictPod(ctx context.Context, namespace, name string, _ corev1.PodPhase) error {
 	return f(ctx, namespace, name)
 }
 

@@ -23,6 +23,7 @@ import (
 
 const (
 	checkOnDemandFallbackInterval = 10 * time.Second
+	rebalanceInterval             = 10 * time.Second
 )
 
 // Scheduler schedules eligible pods onto spot instances.
@@ -53,7 +54,7 @@ func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 		evictor:       evictor,
 		fallbackStore: store,
 		isLeader:      isLeader,
-		tracker:       newPodTracker(clk),
+		tracker:       newPodTracker(clk, spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}),
 		subscribed:    make(chan struct{}),
 	}
 }
@@ -66,6 +67,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	// does not delay pod updates processing.
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)
+	go s.rebalance(ctx)
 }
 
 // trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
@@ -119,51 +121,73 @@ func (s *Scheduler) checkOnDemandFallback(ctx context.Context) {
 	}
 }
 
+// rebalance periodically evicts pods that are over the desired spot/on-demand ratio,
+// allowing the owning controller to recreate them with the correct scheduling.
+func (s *Scheduler) rebalance(ctx context.Context) {
+	ticker := s.clock.NewTicker(rebalanceInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C():
+			if !s.isLeader() {
+				continue
+			}
+			_, disabled := s.isSpotSchedulingDisabled()
+			if disabled {
+				continue
+			}
+			uid, name, namespace := s.tracker.getPodToDelete(s.config.RebalanceStabilizationPeriod)
+			if uid == "" {
+				continue
+			}
+			if err := s.evictor.evictPod(ctx, namespace, name, ""); err != nil {
+				log.Errorf("Failed to evict pod %s/%s for rebalancing: %v", namespace, name, err)
+				continue
+			}
+			log.Infof("Evicted pod %s/%s for spot rebalancing", namespace, name)
+		}
+	}
+}
+
 // PodCreated is called via admission webhook.
 // It decides whether a pod should be scheduled on spot and updates it accordingly.
+// On-demand pods are left unchanged for resilience: if the webhook is unavailable,
+// pods are still scheduled normally and no other component depend on modifications.
 func (s *Scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
-	if !s.isSpotEligible(pod) {
+	unchanged := func() (bool, error) {
 		return false, nil
+	}
+
+	if !s.isSpotEligible(pod) {
+		return unchanged()
 	}
 
 	owner, ok := resolveCoreV1PodOwner(pod)
 	if !ok {
-		return false, nil
+		return unchanged()
 	}
 
 	log.Debugf("Pod created via webhook for owner %s", owner)
 
-	spotPercentage, minOnDemand := s.readConfig(pod)
-
 	disabledUntil, disabled := s.isSpotSchedulingDisabled()
+	if disabled {
+		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", disabledUntil, owner)
+		s.tracker.admitNewOnDemandPod(owner)
+		return unchanged()
+	}
 
-	isSpot := s.tracker.admitNewPod(owner, func(total, spot int) bool {
-		if disabled {
-			log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", disabledUntil, owner)
-			return false
-		}
+	// For now update config from pod annotations.
+	// TODO: update config from owner annotations asynchronously.
+	s.tracker.updateConfig(owner, s.readConfig(pod))
 
-		onDemand := total - spot
-		if onDemand < minOnDemand {
-			log.Debugf("Skipping pod for %s: on-demand minimum not met (%d < %d), total: %d, spot: %d", owner, onDemand, minOnDemand, total, spot)
-			return false
-		}
-
-		desiredSpot := (total + 1) * spotPercentage / 100
-		if spot >= desiredSpot {
-			log.Debugf("Skipping pod for %s: desired spot reached (%d >= %d), total: %d", owner, spot, desiredSpot, total)
-			return false
-		}
-
-		log.Debugf("Assigning pod for %s to spot (%d of desired %d spot, %d on-demand), total: %d", owner, spot, desiredSpot, onDemand, total)
-		return true
-	})
-
-	if isSpot {
+	if s.tracker.admitNewPod(owner) {
 		assignToSpot(pod)
 		return true, nil
 	}
-	return false, nil
+	return unchanged()
 }
 
 // PodDeleted is called via admission webhook.
@@ -227,7 +251,7 @@ func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 	}
 
 	for uid, pod := range s.tracker.getPendingSpotPods() {
-		if err := s.evictor.evictPod(ctx, pod.namespace, pod.name); err != nil {
+		if err := s.evictor.evictPod(ctx, pod.namespace, pod.name, corev1.PodPending); err != nil {
 			log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.namespace, pod.name, err)
 			continue
 		}
@@ -281,7 +305,7 @@ func (s *Scheduler) reEnableSpotScheduling(now time.Time) bool {
 // disableSpotScheduling disables spot scheduling if it is not disabled yet, persists the timestamp
 // to the store, and returns timestamp until scheduling is disabled and a boolean signaling if it was just disabled.
 func (s *Scheduler) disableSpotScheduling(ctx context.Context, now time.Time) (time.Time, bool) {
-	disabledUntil := now.Add(s.config.DisabledInterval)
+	disabledUntil := now.Add(s.config.FallbackDuration)
 	updated := false
 
 	s.mu.Lock()
@@ -303,20 +327,23 @@ func (s *Scheduler) disableSpotScheduling(ctx context.Context, now time.Time) (t
 }
 
 // readConfig reads spot configuration from pod annotations, falling back to s.config defaults.
-func (s *Scheduler) readConfig(pod *corev1.Pod) (spotPercentage int, minOnDemand int) {
-	spotPercentage = s.config.Percentage
+func (s *Scheduler) readConfig(pod *corev1.Pod) spotConfig {
+	config := spotConfig{
+		percentage:  s.config.Percentage,
+		minOnDemand: s.config.MinOnDemandReplicas,
+	}
+
 	if v := pod.Annotations[SpotPercentageAnnotation]; v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 100 {
-			spotPercentage = n
+			config.percentage = n
 		}
 	}
 
-	minOnDemand = s.config.MinOnDemandReplicas
 	if v := pod.Annotations[SpotMinOnDemandReplicasAnnotation]; v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			minOnDemand = n
+			config.minOnDemand = n
 		}
 	}
 
-	return
+	return config
 }

@@ -43,6 +43,25 @@ replicas share the same fallback state. Non-leader replicas sync the disabled st
 
 Cluster Agent re-enables spot scheduling after the spot disabled interval elapses.
 
+### Rebalancing
+
+The leader periodically checks whether each owner's actual spot/on-demand ratio matches the configured target.
+When a deviation is detected, it evicts one excess pod per owner per stabilization period (1 minute), letting the
+workload controller recreate it under the current scheduling policy. Rebalancing is skipped while spot scheduling
+is disabled (on-demand fallback period) or when there are in-flight admissions.
+
+Rebalancing handles the following cases:
+
+- **Admission race:** concurrent Cluster Agent replicas admit pods without shared count state — one replica may
+  assign too many or too few spot pods.
+- **Scale-down:** the workload controller deletes pods without regard to type, leaving the remaining
+  spot/on-demand ratio wrong.
+- **Node removal:** spot or on-demand node removal shifts all affected pods to the other type; rebalancing
+  restores the ratio.
+- **Auto-recovery after fallback:** once the disabled interval elapses, all pods remain on-demand until
+  rebalancing evicts the excess ones and the workload controller recreates them as spot — no manual rollout
+  restart required.
+
 <a id="pod-updates-may-not-change"></a>1: Pod updates may not change fields other than `spec.containers[*].image`,`spec.initContainers[*].image`,`spec.activeDeadlineSeconds`,`spec.tolerations` (only additions to existing tolerations),`spec.terminationGracePeriodSeconds` (allow it to be set to 1 if it was previously negative)
 
 ### TODO
@@ -53,8 +72,6 @@ Cluster Agent re-enables spot scheduling after the spot disabled interval elapse
 - [ ] Implement Argo Rollout support
 - [ ] Emit Kubernetes events
 - [ ] Add metrics and observability
-- [ ] Downscaling behaviour (similar to https://github.com/kubernetes/kubernetes/issues/124149): consider adding annotation
-      `controller.kubernetes.io/pod-deletion-cost` to Deployment pods to keep on-demand/spot ratio during downscaling (see https://kubernetes.io/docs/reference/labels-annotations-taints/#pod-deletion-cost)
 
 ## Spot scheduling configuration
 

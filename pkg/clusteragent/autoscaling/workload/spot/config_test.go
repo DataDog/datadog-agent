@@ -20,16 +20,18 @@ import (
 func TestReadConfig(t *testing.T) {
 	t.Run("valid values returned as-is", func(t *testing.T) {
 		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.workload.spot.percentage":             60,
-			"autoscaling.workload.spot.min_on_demand_replicas": 3,
-			"autoscaling.workload.spot.schedule_timeout":       "30s",
-			"autoscaling.workload.spot.disabled_interval":      "5m",
+			"autoscaling.workload.spot.percentage":                      60,
+			"autoscaling.workload.spot.min_on_demand_replicas":          3,
+			"autoscaling.workload.spot.schedule_timeout":                "30s",
+			"autoscaling.workload.spot.fallback_duration":               "5m",
+			"autoscaling.workload.spot.rebalance_stabilization_period":  "2m",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 60, c.Percentage)
 		assert.Equal(t, 3, c.MinOnDemandReplicas)
 		assert.Equal(t, 30*time.Second, c.ScheduleTimeout)
-		assert.Equal(t, 5*time.Minute, c.DisabledInterval)
+		assert.Equal(t, 5*time.Minute, c.FallbackDuration)
+		assert.Equal(t, 2*time.Minute, c.RebalanceStabilizationPeriod)
 	})
 
 	t.Run("percentage out of range falls back to default", func(t *testing.T) {
@@ -37,7 +39,7 @@ func TestReadConfig(t *testing.T) {
 			"autoscaling.workload.spot.percentage":             101,
 			"autoscaling.workload.spot.min_on_demand_replicas": 1,
 			"autoscaling.workload.spot.schedule_timeout":       "30s",
-			"autoscaling.workload.spot.disabled_interval":      "5m",
+			"autoscaling.workload.spot.fallback_duration":      "5m",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 50, c.Percentage)
@@ -48,31 +50,23 @@ func TestReadConfig(t *testing.T) {
 			"autoscaling.workload.spot.percentage":             50,
 			"autoscaling.workload.spot.min_on_demand_replicas": -1,
 			"autoscaling.workload.spot.schedule_timeout":       "30s",
-			"autoscaling.workload.spot.disabled_interval":      "5m",
+			"autoscaling.workload.spot.fallback_duration":      "5m",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 1, c.MinOnDemandReplicas)
 	})
 
-	t.Run("zero schedule_timeout falls back to default", func(t *testing.T) {
+	t.Run("zero durations fall back to defaults", func(t *testing.T) {
 		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.workload.spot.percentage":             50,
-			"autoscaling.workload.spot.min_on_demand_replicas": 1,
-			"autoscaling.workload.spot.schedule_timeout":       "0s",
-			"autoscaling.workload.spot.disabled_interval":      "5m",
+			"autoscaling.workload.spot.percentage":                     50,
+			"autoscaling.workload.spot.min_on_demand_replicas":         1,
+			"autoscaling.workload.spot.schedule_timeout":               "0s",
+			"autoscaling.workload.spot.fallback_duration":              "0s",
+			"autoscaling.workload.spot.rebalance_stabilization_period": "0s",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 1*time.Minute, c.ScheduleTimeout)
-	})
-
-	t.Run("zero disabled_interval falls back to default", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.workload.spot.percentage":             50,
-			"autoscaling.workload.spot.min_on_demand_replicas": 1,
-			"autoscaling.workload.spot.schedule_timeout":       "30s",
-			"autoscaling.workload.spot.disabled_interval":      "0s",
-		})
-		c := spot.ReadConfig(cfg)
-		assert.Equal(t, 2*time.Minute, c.DisabledInterval)
+		assert.Equal(t, 2*time.Minute, c.FallbackDuration)
+		assert.Equal(t, 1*time.Minute, c.RebalanceStabilizationPeriod)
 	})
 }
