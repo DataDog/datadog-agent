@@ -125,8 +125,10 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	grpcSrv := grpc.NewServer(opts...)
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
+
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
+		taggerServer:       taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
+		kubeMetadataServer: startKubeMetadataStreamer(ctx, w),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second

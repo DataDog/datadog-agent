@@ -384,7 +384,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			cfg.SetWithoutSource("language_detection.enabled", false)
 
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
-			defer c.cleanup()
+
 			ctx := t.Context()
 
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
@@ -589,7 +589,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 			// Collector setup
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
-			defer c.cleanup()
+
 			ctx := t.Context()
 
 			// Create test server & override collector client
@@ -691,6 +691,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
 
 	c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
+
 	ctx := t.Context()
 
 	// Set initial state: process entity in the store, SD was tracking a service,

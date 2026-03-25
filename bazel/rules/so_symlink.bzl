@@ -19,6 +19,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
             prefix = dest_prefix,
             target_compatible_with = [platform],
             attributes = attributes,
+            package_metadata = [],
         )
         return platform, ":{}".format(name)
 
@@ -32,6 +33,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
         renames = {src: target},
         target_compatible_with = [platform],
         attributes = attributes,
+        package_metadata = [],
     )
 
     major = version.partition(".")[0]
@@ -46,13 +48,14 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
             target = target,
             target_compatible_with = [platform],
             attributes = attributes,
+            package_metadata = [],
         )
         target = link
 
-    pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
+    pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform], package_metadata = [])
     return platform, ":{}".format(name)
 
-def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None):
+def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None, visibility = None):
     """Creates shared library symlink chain following Unix conventions.
 
     Unix (Linux/macOS): Generates the common multilevel symlink hierarchy for shared libraries:
@@ -71,8 +74,10 @@ def so_symlink(name, src, libname = None, version = None, prefix = "", attribute
         prefix: Installation directory prefix (default: "")
         version: Full version string (e.g., "3.0", ignored on Windows)
         attributes: pkg_attributes
+        visibility: Bazel visibility for the generated alias target
     """
     native.alias(
         name = name,
         actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec, attributes) for spec in _SPECS])),
+        visibility = visibility,
     )
