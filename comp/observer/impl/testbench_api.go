@@ -460,9 +460,13 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 	for _, ns := range storage.Namespaces() {
 		metas := storage.ListSeriesMetadata(ns)
 		for _, m := range metas {
-			aggs := []Aggregate{AggregateAverage, AggregateCount}
+			var aggs []Aggregate
 			if m.Namespace == "telemetry" && telHandler != nil && telHandler.isCounterMetric(m.Name) {
-				aggs = append(aggs, AggregateSum)
+				// Counters are per-bucket deltas; exposing avg/count/sum as three API series
+				// with the same tags produced three indistinguishable "untagged" lines in the UI.
+				aggs = []Aggregate{AggregateSum}
+			} else {
+				aggs = []Aggregate{AggregateAverage, AggregateCount}
 			}
 			var metricKind string
 			if m.Namespace == "telemetry" {
