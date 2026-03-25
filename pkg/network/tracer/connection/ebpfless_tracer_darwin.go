@@ -9,10 +9,17 @@ package connection
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
+
+// nowNanoseconds returns a wall-clock timestamp in nanoseconds.
+// On Darwin there is no eBPF, so we use wall-clock time directly.
+func nowNanoseconds() (int64, error) {
+	return time.Now().UnixNano(), nil
+}
 
 const (
 	// the segment length to read on Darwin

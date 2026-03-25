@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -104,15 +103,12 @@ func (t *Tracer) Stop() {
 
 // GetActiveConnections returns the network connections for the given client
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
-	latestTime, err := ddebpf.NowNanoseconds()
-	if err != nil {
-		return nil, nil, fmt.Errorf("error retrieving latest timestamp: %w", err)
-	}
+	latestTime := time.Now().UnixNano()
 
 	// Get connections from the tracer, collecting expired entries along the way
 	buffer := network.ClientPool.Get(clientID)
 	var expired []network.ConnectionStats
-	err = t.connTracer.GetConnections(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
+	err := t.connTracer.GetConnections(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
 		if c.IsExpired(uint64(latestTime), t.timeoutForConn(c)) {
 			expired = append(expired, *c)
 			return false

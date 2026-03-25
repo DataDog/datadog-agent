@@ -10,9 +10,15 @@ package connection
 import (
 	"fmt"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
+
+// nowNanoseconds returns a monotonic timestamp comparable to eBPF ktime.
+func nowNanoseconds() (int64, error) {
+	return ddebpf.NowNanoseconds()
+}
 
 const (
 	// the segment length to read on Linux

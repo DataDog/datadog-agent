@@ -20,7 +20,6 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/prometheus/client_golang/prometheus"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -225,7 +224,7 @@ func (t *ebpfLessTracer) processConnection(
 
 	var ts int64
 	var err error
-	if ts, err = ddebpf.NowNanoseconds(); err != nil {
+	if ts, err = nowNanoseconds(); err != nil {
 		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 	}
 	conn.LastUpdateEpoch = uint64(ts)
@@ -438,7 +437,7 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 // cleanupPendingConns removes pending connections from the TCP tracer.
 // For more information, refer to CleanupExpiredPendingConns
 func (t *ebpfLessTracer) cleanupPendingConns() error {
-	ts, err := ddebpf.NowNanoseconds()
+	ts, err := nowNanoseconds()
 	if err != nil {
 		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 	}
