@@ -79,18 +79,13 @@ func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowSchedu
 }
 
 // flush will flush flow contexts that are due, returning the flows to send.
-// In standard mode each context flushes independently. In deduplication mode
-// all reporters sharing the same 5-tuple flush together as a group; ghost reporters
-// from the previous cycle are included with Bytes == 0 / Packets == 0.
+// Each context flushes independently based on its scheduled nextFlush time.
+// Use flushGroups instead when deduplication is enabled.
 func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
-	now := flushContext.FlushTime
-	if f.deduplicationEnabled {
-		return f.flushDedup(now)
-	}
-	return f.flushStandard(now)
+	return f.flushStandard(flushContext.FlushTime)
 }
 
 // flushStandard is the original per-flow flush logic.
@@ -142,13 +137,23 @@ func (f *flowAccumulator) flushStandard(now time.Time) []*common.Flow {
 	return flowsToFlush
 }
 
-// flushDedup flushes groups of reporters sharing the same 5-tuple together.
-// A group flushes when any active (non-ghost) reporter's nextFlush is due.
-// Ghost reporters from the previous cycle are included with zeroed bytes/packets
-// as metadata for the platform, then transitioned to dead (flow = nil).
-// Active reporters that flush are kept alive as ghosts for one additional cycle.
-func (f *flowAccumulator) flushDedup(now time.Time) []*common.Flow {
-	var flowsToFlush []*common.Flow
+// flushGroups flushes reporters in deduplication mode, returning one slice of flows per
+// 5-tuple group. A group flushes when any active (non-ghost) reporter's nextFlush is due;
+// all reporters in the group are included in that flush together.
+//
+// Active reporters that flush are kept alive as ghosts (Bytes == 0, Packets == 0) for one
+// additional cycle so the platform can use them as metadata when assigning flow_role.
+// Ghost reporters are included in the next flush, then transitioned to dead (flow = nil).
+func (f *flowAccumulator) flushGroups(flushContext common.FlushContext) [][]*common.Flow {
+	f.flowsMutex.Lock()
+	defer f.flowsMutex.Unlock()
+
+	now := flushContext.FlushTime
+
+	// groupFlows collects the reporters to emit per 5-tuple; groupOrder preserves
+	// first-seen ordering for deterministic output.
+	groupFlows := make(map[uint64][]*common.Flow)
+	var groupOrder []uint64
 	var emptyGroups []uint64
 
 	for fiveTupleHash, reporterHashes := range f.fiveTupleGroups {
@@ -168,7 +173,6 @@ func (f *flowAccumulator) flushDedup(now time.Time) []*common.Flow {
 			continue
 		}
 
-		// Flush the group: collect all reporters (active + ghost) and advance state.
 		var liveHashes []uint64
 		for _, hash := range reporterHashes {
 			ctx, ok := f.flows[hash]
@@ -177,7 +181,7 @@ func (f *flowAccumulator) flushDedup(now time.Time) []*common.Flow {
 			}
 
 			if ctx.flow == nil {
-				// Dead context: check TTL and either clean up or keep for scheduling.
+				// Dead context: clean up if TTL expired, otherwise keep for scheduling.
 				if isFlowCtxExpired(ctx, f.flowContextTTL, now) {
 					delete(f.flows, hash)
 				} else {
@@ -192,19 +196,23 @@ func (f *flowAccumulator) flushDedup(now time.Time) []*common.Flow {
 
 			liveHashes = append(liveHashes, hash)
 
+			if _, exists := groupFlows[fiveTupleHash]; !exists {
+				groupOrder = append(groupOrder, fiveTupleHash)
+			}
+
 			if ctx.isGhost {
-				// Include the ghost reporter (Bytes == 0) as metadata, then mark dead.
-				flowsToFlush = append(flowsToFlush, ctx.flow)
+				// Include ghost (Bytes == 0) as metadata for the platform, then mark dead.
+				groupFlows[fiveTupleHash] = append(groupFlows[fiveTupleHash], ctx.flow)
 				ctx.lastSuccessfulFlush = now
 				ctx.flow = nil
 				ctx.isGhost = false
 				ctx.nextFlush = f.scheduler.RefreshFlushTime(ctx)
 				f.flows[hash] = ctx
 			} else if !ctx.nextFlush.After(now) {
-				// Active reporter due to flush: copy the flow for the payload, then
-				// zero bytes/packets and keep alive as a ghost for one more cycle.
+				// Active reporter: copy the flow for the payload, then zero bytes/packets
+				// and keep alive as a ghost for one additional cycle.
 				flowCopy := *ctx.flow
-				flowsToFlush = append(flowsToFlush, &flowCopy)
+				groupFlows[fiveTupleHash] = append(groupFlows[fiveTupleHash], &flowCopy)
 				ctx.flow.Bytes = 0
 				ctx.flow.Packets = 0
 				ctx.isGhost = true
@@ -212,8 +220,7 @@ func (f *flowAccumulator) flushDedup(now time.Time) []*common.Flow {
 				ctx.nextFlush = f.scheduler.RefreshFlushTime(ctx)
 				f.flows[hash] = ctx
 			}
-			// Reporters whose nextFlush is still in the future are left unchanged;
-			// they'll be included when the group next becomes ready.
+			// Reporters whose nextFlush is still in the future are left unchanged.
 		}
 
 		if len(liveHashes) == 0 {
@@ -227,7 +234,11 @@ func (f *flowAccumulator) flushDedup(now time.Time) []*common.Flow {
 		delete(f.fiveTupleGroups, key)
 	}
 
-	return flowsToFlush
+	result := make([][]*common.Flow, 0, len(groupOrder))
+	for _, h := range groupOrder {
+		result = append(result, groupFlows[h])
+	}
+	return result
 }
 
 func isFlowCtxExpired(flowCtx flowContext, flowTTL time.Duration, now time.Time) bool {

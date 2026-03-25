@@ -399,7 +399,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	// 3/ Assert
 	w.Flush()
 	logs := b.String()
-	assert.Equal(t, strings.Count(logs, "[WARN] flush: error submitting collector metrics: some prometheus gatherer error"), 1, logs)
+	assert.Equal(t, strings.Count(logs, "[WARN] emitFlushMetrics: error submitting collector metrics: some prometheus gatherer error"), 1, logs)
 }
 
 func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {

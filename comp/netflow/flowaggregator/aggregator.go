@@ -165,10 +165,6 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
-	if agg.deduplicationEnabled {
-		agg.sendMergedFlows(flows, flushTime)
-		return
-	}
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 
@@ -190,24 +186,13 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 	}
 }
 
-// sendMergedFlows groups the flushed reporter flows by 5-tuple and sends one merged
-// event per group. Within each group the reporters list is reduced to the single
-// highest-bytes reporter plus any ghost reporters (Bytes == 0, Packets == 0) carried
-// over from the previous cycle as metadata for the platform's flow_role assignment.
-func (agg *FlowAggregator) sendMergedFlows(flows []*common.Flow, flushTime time.Time) {
-	// Group reporters by 5-tuple hash, preserving first-seen order for determinism.
-	groups := make(map[uint64][]*common.Flow)
-	var groupOrder []uint64
-	for _, flow := range flows {
-		h := flow.FiveTupleHash()
-		if _, ok := groups[h]; !ok {
-			groupOrder = append(groupOrder, h)
-		}
-		groups[h] = append(groups[h], flow)
-	}
-
-	for _, h := range groupOrder {
-		mergedPayload := buildMergedPayload(topReporterWithGhosts(groups[h]), agg.hostname, flushTime)
+// sendMergedFlows sends one merged event per 5-tuple group. Groups are provided directly
+// by the accumulator's flushGroups, so no re-grouping is needed here. Within each group
+// the reporters list is reduced to the highest-bytes reporter plus any ghost reporters
+// (Bytes == 0, Packets == 0) carried from the previous cycle as platform metadata.
+func (agg *FlowAggregator) sendMergedFlows(groups [][]*common.Flow, flushTime time.Time) {
+	for _, group := range groups {
+		mergedPayload := buildMergedPayload(topReporterWithGhosts(group), agg.hostname, flushTime)
 		payloadBytes, err := json.Marshal(mergedPayload)
 		if err != nil {
 			agg.logger.Errorf("Error marshalling merged flow payload: %s", err)
@@ -330,6 +315,11 @@ func (agg *FlowAggregator) flushLoop() {
 func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := ctx.FlushTime
+
+	if agg.deduplicationEnabled {
+		return agg.flushDedup(ctx, flushTime, flowsContexts)
+	}
+
 	flowsToFlush := agg.flowAcc.flush(ctx)
 
 	// apply filtering
@@ -357,6 +347,53 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 
 	flushCount := len(flowsToFlush)
 
+	agg.emitFlushMetrics(flowsContexts, flushCount)
+	agg.flushedFlowCount.Add(uint64(flushCount))
+	return flushCount
+}
+
+// flushDedup handles the deduplication flush path. The accumulator returns pre-grouped
+// flows (one slice per 5-tuple); the aggregator applies intra-group TopN filtering and
+// builds merged payloads without needing to re-derive groups.
+func (agg *FlowAggregator) flushDedup(ctx common.FlushContext, flushTime time.Time, flowsContexts int) int {
+	groups := agg.flowAcc.flushGroups(ctx)
+
+	// Collect active (non-ghost) flows for sequence tracking and exporter metadata.
+	// Ghost reporters (Bytes == 0, Packets == 0) are carry-over metadata and should
+	// not affect sequence delta calculations or exporter registration.
+	var activeFlows []*common.Flow
+	for _, group := range groups {
+		for _, f := range group {
+			if f.Bytes > 0 || f.Packets > 0 {
+				activeFlows = append(activeFlows, f)
+			}
+		}
+	}
+
+	agg.logger.Debugf("Flushing %d flow groups to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(groups), time.Since(flushTime).Milliseconds(), flowsContexts)
+
+	sequenceDeltaPerExporter := agg.getSequenceDelta(activeFlows)
+	for key, seqDelta := range sequenceDeltaPerExporter {
+		tags := []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP, "flow_type:" + string(key.FlowType)}
+		agg.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", tags)
+		agg.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", tags)
+		if seqDelta.Reset {
+			agg.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", tags)
+		}
+	}
+
+	if len(groups) > 0 {
+		agg.sendMergedFlows(groups, flushTime)
+	}
+	agg.sendExporterMetadata(activeFlows, flushTime)
+
+	flushCount := len(groups)
+	agg.emitFlushMetrics(flowsContexts, flushCount)
+	agg.flushedFlowCount.Add(uint64(flushCount))
+	return flushCount
+}
+
+func (agg *FlowAggregator) emitFlushMetrics(flowsContexts int, flushCount int) {
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.Count("datadog.netflow.aggregator.flows_flushed", float64(flushCount), "", nil)
@@ -370,11 +407,6 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	if err != nil {
 		agg.logger.Warnf("error submitting collector metrics: %s", err)
 	}
-
-	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
-	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
-	agg.flushedFlowCount.Add(uint64(flushCount))
-	return len(flowsToFlush)
 }
 
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
