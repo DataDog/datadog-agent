@@ -38,12 +38,12 @@ type EnhancedMetricTags struct {
 }
 
 // CloudRunType identifies the GCP Cloud Run variant.
-type CloudRunType int
+type CloudRunType string
 
 const (
-	CloudRunService CloudRunType = iota
-	CloudRunFunction
-	CloudRunJob
+	CloudRunService  CloudRunType = "service"
+	CloudRunFunction CloudRunType = "function"
+	CloudRunJob      CloudRunType = "job"
 )
 
 // CloudService implements getting tags from each Cloud Provider.
