@@ -336,7 +336,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 	// Advance correlators so they can update their internal state.
 	for _, correlator := range correlators {
+		advanceStart := time.Now()
 		correlator.Advance(upTo)
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
