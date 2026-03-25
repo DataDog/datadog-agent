@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var hostRoot = funcs.MemoizeNoError(func() string {
@@ -207,7 +208,14 @@ func errIsProcessNotRunning(err error) bool {
 		errors.Is(err, os.ErrNotExist)
 }
 
-func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
+func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (running bool, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("Recovered panic in isProcessStillRunningImpl for pid %d (likely malformed /proc stat): %v", entry.Pid, r)
+			running = false
+			retErr = nil
+		}
+	}()
 	_, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
 	if errIsProcessNotRunning(err) {
 		return false, nil
