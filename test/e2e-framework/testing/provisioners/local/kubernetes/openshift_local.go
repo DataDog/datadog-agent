@@ -65,12 +65,17 @@ func openShiftLocalRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, pa
 		return err
 	}
 
-	fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
-	if err != nil {
-		return err
-	}
-	if err := fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
-		return err
+	var fakeIntake *fakeintakeComp.Fakeintake
+	if params.fakeintakeOptions != nil {
+		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
+		if err != nil {
+			return err
+		}
+		if err := fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
+			return err
+		}
+	} else {
+		env.FakeIntake = nil
 	}
 
 	if params.agentOptions != nil {
@@ -89,10 +94,12 @@ func openShiftLocalRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, pa
 				kubernetesagentparams.WithClusterName(cluster.ClusterName),
 				kubernetesagentparams.WithNamespace("datadog"),
 				kubernetesagentparams.WithTimeout(900),
-				kubernetesagentparams.WithFakeintake(fakeIntake),
 			},
 			params.agentOptions...,
 		)
+		if fakeIntake != nil {
+			params.agentOptions = append([]kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}, params.agentOptions...)
+		}
 
 		agent, err := helm.NewKubernetesAgent(&localEnv, params.name, kubeProvider, params.agentOptions...)
 		if err != nil {

@@ -177,7 +177,6 @@ func openShiftProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 	var openShiftOpts []provopenshift.ProvisionerOption
 
 	agentOpts := append([]kubernetesagentparams.Option{}, opts.AgentOptions...)
-	agentOpts = append(agentOpts, kubernetesagentparams.WithTimeout(1800))
 	openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(agentOpts...))
 	if opts.PreAgentHook != nil {
 		openShiftOpts = append(openShiftOpts, provopenshift.WithPreAgentHook(provopenshift.PreAgentHook(opts.PreAgentHook)))
@@ -196,7 +195,6 @@ func openShiftLocalProvisioner(opts ProvisionerOptions) provisioners.TypedProvis
 	var openShiftOpts []provlocal.ProvisionerOption
 
 	agentOpts := append([]kubernetesagentparams.Option{}, opts.AgentOptions...)
-	agentOpts = append(agentOpts, kubernetesagentparams.WithTimeout(1800))
 	openShiftOpts = append(openShiftOpts, provlocal.WithAgentOptions(agentOpts...))
 	if opts.PreAgentHook != nil {
 		openShiftOpts = append(openShiftOpts, provlocal.WithPreAgentHook(provlocal.PreAgentHook(opts.PreAgentHook)))
