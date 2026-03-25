@@ -363,6 +363,28 @@ func TestRuntimeSettings(t *testing.T) {
 				assert.Equal(t, "{\"value\":{\"Value\":\"fancy\",\"Source\":\"cli\"}}", string(body))
 			},
 		},
+		{
+			"SetValue non-existent setting",
+			func(t *testing.T, comp settings.Component) {
+				router := mux.NewRouter()
+				router.HandleFunc("/config/{setting}", comp.SetValue).Methods("POST")
+				ts := httptest.NewServer(router)
+				defer ts.Close()
+
+				requestBody := "value=" + html.EscapeString("test")
+				request, err := http.NewRequest("POST", ts.URL+"/config/non_existing", bytes.NewBuffer([]byte(requestBody)))
+				require.NoError(t, err)
+				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+				resp, err := ts.Client().Do(request)
+				require.NoError(t, err)
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+
+				assert.Equal(t, 400, resp.StatusCode)
+				assert.Contains(t, string(body), "non_existing not found")
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
