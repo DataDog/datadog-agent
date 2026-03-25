@@ -64,6 +64,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/score", api.cors(api.handleScore))
+	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
 
@@ -1224,6 +1225,17 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 		log.Printf("Failed to encode JSON: %v", err)
 		http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
 	}
+}
+
+// handleBenchmark returns per-detector processing-time statistics (avg/median/p99)
+// computed from the last replay run.
+func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
+	stats := api.tb.GetDetectorProcessingStats()
+	if stats == nil {
+		api.writeJSON(w, map[string]DetectorProcessingStats{})
+		return
+	}
+	api.writeJSON(w, stats)
 }
 
 // writeError writes an error response.

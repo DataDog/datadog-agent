@@ -9,6 +9,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -192,7 +193,10 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	view := &logView{obs: l}
 	var logTelemetry []observerdef.ObserverTelemetry
 	for _, extractor := range e.extractors {
+		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
+		processingTime := time.Since(processingStartTime)
+		logTelemetry = append(logTelemetry, newTelemetryGauge(extractor.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {
 			tags := copyTags(m.Tags)
 			if !sliceContains(tags, sourceTag) {
@@ -211,13 +215,16 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 			logTelemetry = append(logTelemetry, out.Telemetry...)
 		}
 	}
+	for _, lo := range e.logObservers {
+		processingStartTime := time.Now()
+		lo.ProcessLog(view)
+		processingTime := time.Since(processingStartTime)
+		logTelemetry = append(logTelemetry, newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+	}
 	if len(logTelemetry) > 0 {
 		e.telemetryMu.Lock()
 		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
 		e.telemetryMu.Unlock()
-	}
-	for _, lo := range e.logObservers {
-		lo.ProcessLog(view)
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
@@ -302,14 +309,19 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	var allTelemetry []observerdef.ObserverTelemetry
 
 	for _, detector := range detectors {
+		processingStartTime := time.Now()
 		result := detector.Detect(e.storage, upTo)
+		processingTime := time.Since(processingStartTime)
+		allTelemetry = append(allTelemetry, newTelemetryGauge(detector.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
+
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate — skip correlators, events, and reporters
 			}
-			e.processAnomaly(anomaly)
+			correlatorTelemetry := e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
+			allTelemetry = append(allTelemetry, correlatorTelemetry...)
 
 			e.emit(engineEvent{
 				kind:      eventAnomalyCreated,
@@ -377,10 +389,16 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
-func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
+func (e *engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.ObserverTelemetry {
+	var allTelemetry []observerdef.ObserverTelemetry
 	for _, correlator := range e.correlators {
+		processingStartTime := time.Now()
 		correlator.ProcessAnomaly(anomaly)
+		processingTime := time.Since(processingStartTime)
+		allTelemetry = append(allTelemetry, newTelemetryGauge(correlator.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
 	}
+
+	return allTelemetry
 }
 
 // captureRawAnomaly stores a raw anomaly for telemetry and testbench display.

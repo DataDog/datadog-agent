@@ -244,6 +244,7 @@ type LogMetricsExtractor interface {
 // receive log observations. This allows detectors to incorporate log signals
 // without going through the metrics extraction path.
 type LogObserver interface {
+	Detector
 	ProcessLog(log LogView)
 }
 

@@ -131,6 +131,10 @@ type TestBench struct {
 
 	// This is not directly used, it's mostly to ensure that telemetry metrics are registered in the telemetry handler
 	telemetryHandler *telemetryHandler
+
+	// detectorProcessingStats holds per-detector avg/median/p99 processing times
+	// computed after each replay run, keyed by detector name.
+	detectorProcessingStats map[string]DetectorProcessingStats
 }
 
 // ScenarioInfo describes an available scenario.
@@ -696,6 +700,9 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Publish the ordered event log captured during replay.
 	tb.reportedEvents = replay.events
 
+	// Compute per-detector processing stats from all telemetry accumulated during the replay.
+	tb.detectorProcessingStats = computeDetectorProcessingStats(tb.engine.StateView().Telemetry())
+
 	// Mark scenario ready now that all analysis is complete
 	tb.ready = true
 }
@@ -918,6 +925,15 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 	return result
 }
 
+// GetDetectorProcessingStats returns per-detector processing-time statistics
+// (avg / median / p99, in nanoseconds) computed from the last replay run.
+// Returns nil if no scenario has been run yet.
+func (tb *TestBench) GetDetectorProcessingStats() map[string]DetectorProcessingStats {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	return tb.detectorProcessingStats
+}
+
 // GetCorrelations returns all correlations detected across the full run.
 func (tb *TestBench) GetCorrelations() []observerdef.ActiveCorrelation {
 	tb.mu.RLock()
@@ -1126,6 +1142,8 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 		return fmt.Errorf("loading scenario %q: %w", scenario, err)
 	}
 
+	tb.printDetectorProcessingStats()
+
 	// Write structured JSON output.
 	if outputPath != "" {
 		if err := tb.WriteObserverOutput(outputPath, verbose); err != nil {
@@ -1135,6 +1153,48 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 	}
 
 	return nil
+}
+
+// printDetectorProcessingStats prints per-detector processing-time statistics to stdout.
+func (tb *TestBench) printDetectorProcessingStats() {
+	stats := tb.GetDetectorProcessingStats()
+	if len(stats) == 0 {
+		return
+	}
+
+	// Sort by name for deterministic output.
+	names := make([]string, 0, len(stats))
+	for name := range stats {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fmt.Println("\nDetector processing times:")
+	for _, name := range names {
+		s := stats[name]
+		fmt.Printf("  %-40s  avg=%8.2fµs  median=%8.2fµs  p99=%8.2fµs  total=%s  (%d calls)\n",
+			name,
+			s.AvgNs/1e3,
+			s.MedianNs/1e3,
+			s.P99Ns/1e3,
+			formatTotalNs(s.TotalNs),
+			s.Count,
+		)
+	}
+}
+
+// formatTotalNs formats a total duration (nanoseconds) with auto-scaling to
+// µs, ms, or s so the column width stays compact regardless of magnitude.
+func formatTotalNs(ns float64) string {
+	us := ns / 1e3
+	if us < 1_000 {
+		return fmt.Sprintf("%8.1fµs", us)
+	}
+	ms := us / 1_000
+	if ms < 1_000 {
+		return fmt.Sprintf("%8.1fms", ms)
+	}
+	return fmt.Sprintf("%8.3fs ", ms/1_000)
 }
 
 // RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then

@@ -12,6 +12,9 @@ import (
 )
 
 const (
+	// Observer
+	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
+
 	// RRCF detector
 	telemetryRRCFScore     = "observer.rrcf.score"
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
@@ -33,6 +36,12 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 	counters := make(map[string]telemetry.Counter)
 
 	// Gauges
+	gauges[telemetryDetectorProcessingTimeNs] = telemetryComp.NewGauge(
+		"observer",
+		telemetryDetectorProcessingTimeNs,
+		[]string{"detector"},
+		"Per detector processing time in nanoseconds (doesn't include storage time)",
+	)
 	gauges[telemetryRRCFScore] = telemetryComp.NewGauge(
 		"observer",
 		telemetryRRCFScore,
