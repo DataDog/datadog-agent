@@ -27,7 +27,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		t.Cleanup(pc.Stop)
 
 		p := pc.processEvent(entry)
-		if entry.ContainerID == nil && len(entry.Tags) == 0 {
+		if entry.ContainerID == nil && len(entry.Tags) == 0 && entry.ExecutableName == "" {
 			assert.Nil(t, p)
 		} else {
 			assert.Equal(t, entry, p)
@@ -36,6 +36,25 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 
 	t.Run("without container id", func(t *testing.T) {
 		entry := events.Process{Pid: 1234}
+
+		testFunc(t, t.Name(), &entry)
+	})
+
+	t.Run("with executable name only", func(t *testing.T) {
+		entry := events.Process{
+			Pid:            1234,
+			ExecutableName: "nginx",
+		}
+
+		testFunc(t, t.Name(), &entry)
+	})
+
+	t.Run("with executable name and tags", func(t *testing.T) {
+		entry := events.Process{
+			Pid:            1234,
+			ExecutableName: "nginx",
+			Tags:           []*intern.Value{intern.GetByString("service:foo")},
+		}
 
 		testFunc(t, t.Name(), &entry)
 	})

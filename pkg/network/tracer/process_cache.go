@@ -125,7 +125,7 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 }
 
 func (pc *processCache) processEvent(entry *events.Process) *events.Process {
-	if len(entry.Tags) == 0 && entry.ContainerID == nil {
+	if len(entry.Tags) == 0 && entry.ContainerID == nil && entry.ExecutableName == "" {
 		return nil
 	}
 
