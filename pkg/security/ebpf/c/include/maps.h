@@ -106,7 +106,7 @@ BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
-BPF_ARRAY_MAP(sampling_pressure, u8, 1)
+BPF_ARRAY_MAP(sampling_pressure_pct, u8, 1)
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 

@@ -212,7 +212,6 @@ type MapSpecEditorOpts struct {
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
-	EventSamplingDynamicEnabled   bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -321,11 +320,9 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if opts.EventSamplingDynamicEnabled {
-		editors["sampling_pressure"] = manager.MapSpecEditor{
-			MaxEntries: 1,
-			EditorFlag: manager.EditMaxEntries,
-		}
+	editors["sampling_pressure_pct"] = manager.MapSpecEditor{
+		MaxEntries: 1,
+		EditorFlag: manager.EditMaxEntries,
 	}
 
 	if opts.PathResolutionEnabled {
