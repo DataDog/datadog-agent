@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -40,10 +40,10 @@ func New(e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Ma
 
 	if params.FIPSModeEnabled {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("enable"), &command.Args{
-			Create: pulumi.String(powershell.PsHost().
+			Create: pulumi.String(client.PsHost().
 				SetFIPSMode(true).
 				Compile()),
-			Delete: pulumi.String(powershell.PsHost().
+			Delete: pulumi.String(client.PsHost().
 				SetFIPSMode(false).
 				Compile()),
 		})
