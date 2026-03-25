@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState, useId } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import type { Point, AnomalyMarker, SeriesID } from '../api/client';
 import type { CorrelationRange, TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
@@ -60,42 +60,6 @@ export function getSeriesVariantColor(index: number) {
 function getAnomalyMarkerId(anomaly: AnomalyMarker): string {
   const detectorId = anomaly.detectorComponent ?? anomaly.detectorName;
   return `${detectorId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
-}
-
-/**
- * When zoomed to a time window, include the last sample before the window and the
- * first sample after it so lines still cross the plot when the window falls between
- * bucket timestamps (strict in-range filtering would yield no points).
- */
-function augmentPointsForTimeWindow(points: Point[], timeRange: TimeRange): Point[] {
-  if (points.length === 0) return points;
-  const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
-  const { start, end } = timeRange;
-  const inside = sorted.filter((p) => p.timestamp >= start && p.timestamp <= end);
-
-  let before: Point | undefined;
-  for (const p of sorted) {
-    if (p.timestamp < start) before = p;
-    else break;
-  }
-  let after: Point | undefined;
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    const p = sorted[i];
-    if (p.timestamp > end) after = p;
-    else break;
-  }
-
-  const out: Point[] = [];
-  if (before !== undefined) out.push(before);
-  out.push(...inside);
-  if (after !== undefined) out.push(after);
-
-  const seen = new Set<number>();
-  return out.filter((p) => {
-    if (seen.has(p.timestamp)) return false;
-    seen.add(p.timestamp);
-    return true;
-  });
 }
 
 // Represents one concrete tagged series variant drawn as a separate line.
@@ -172,8 +136,6 @@ export function MetricsChart({
   const panStartRangeRef = useRef<TimeRange | null>(null);
   const panTriggerRef = useRef<'middle' | 'meta-left' | null>(null);
   const xScaleRef = useRef<d3.ScaleTime<number, number> | null>(null);
-  /** Stable id for SVG clipPath (colon-free for url(#...) references). */
-  const plotClipId = useId().replace(/:/g, '');
 
   const isSeriesVisible = (seriesId?: SeriesID): boolean => {
     if (!seriesId || !visibleSeriesIds) return true;
@@ -191,19 +153,19 @@ export function MetricsChart({
     [anomalies, enabledDetectors, visibleSeriesIds]
   );
 
-  // Points for the current zoom window, plus boundary samples so lines still render
-  // when the window falls between bucket timestamps.
+  // Filter points by time range
   const displayPoints = useMemo(() => {
     if (!timeRange) return points;
-    return augmentPointsForTimeWindow(points, timeRange);
+    return points.filter((p) => p.timestamp >= timeRange.start && p.timestamp <= timeRange.end);
   }, [points, timeRange]);
 
+  // Filter variant series points by time range
   const displaySeriesVariants = useMemo(() => {
     if (!seriesVariants) return undefined;
     if (!timeRange) return seriesVariants;
     return seriesVariants.map((s) => ({
       ...s,
-      points: augmentPointsForTimeWindow(s.points, timeRange),
+      points: s.points.filter((p) => p.timestamp >= timeRange.start && p.timestamp <= timeRange.end),
     }));
   }, [seriesVariants, timeRange]);
 
@@ -266,19 +228,9 @@ export function MetricsChart({
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    svg
-      .append('defs')
-      .append('clipPath')
-      .attr('id', plotClipId)
-      .append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight);
-
-    const plot = g.append('g').attr('class', 'metrics-plot-area').attr('clip-path', `url(#${plotClipId})`);
-
     // Determine which data to use for scales and rendering
     const useVariantData = variantMode;
-    const pointsToRender = displayPoints;
+    const pointsToRender = displayPoints.length > 0 ? displayPoints : points;
     const allVariantPoints = orderedSeriesVariants?.flatMap((s) => s.points) ?? [];
     const visibleVariantPoints = visibleOrderedSeriesVariants?.flatMap((s) => s.points) ?? [];
 
@@ -329,7 +281,7 @@ export function MetricsChart({
       const x2 = xScale(range.end * 1000);
       const rectWidth = Math.max(x2 - x1, 4); // Minimum 4px width for visibility
 
-      plot.append('rect')
+      g.append('rect')
         .attr('x', x1)
         .attr('y', 0)
         .attr('width', rectWidth)
@@ -340,12 +292,6 @@ export function MetricsChart({
         .attr('stroke-dasharray', '4,2')
         .attr('opacity', 0.5);
     });
-
-    // Grid lines (under series lines; clipped to plot area)
-    plot.append('g')
-      .attr('class', 'grid')
-      .attr('opacity', 0.1)
-      .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ''));
 
     // Group anomalies by timestamp to handle overlaps
     const anomaliesByTimestamp = new Map<number, typeof filteredAnomalies>();
@@ -413,7 +359,7 @@ export function MetricsChart({
         const colorIdx = orderedSeriesVariants?.findIndex((s) => s.seriesId === series.seriesId && s.label === series.label) ?? 0;
         const color = getSeriesVariantColor(Math.max(colorIdx, 0));
         const isHighlighted = !activeHighlightedSeriesId || !series.seriesId || series.seriesId === activeHighlightedSeriesId;
-        plot.append('path')
+        g.append('path')
           .datum(series.points)
           .attr('fill', 'none')
           .attr('stroke', color)
@@ -425,7 +371,7 @@ export function MetricsChart({
 
     } else {
       // Draw single line
-      plot.append('path')
+      g.append('path')
         .datum(pointsToRender)
         .attr('fill', 'none')
         .attr('stroke', '#8b5cf6')
@@ -433,11 +379,37 @@ export function MetricsChart({
         .attr('d', line);
     }
 
+    // X axis
+    g.append('g')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(
+        d3
+          .axisBottom(xScale)
+          .ticks(6)
+          .tickFormat((d) => d3.timeFormat('%H:%M:%S')(d as Date))
+      )
+      .attr('color', '#64748b')
+      .selectAll('text')
+      .attr('fill', '#94a3b8');
+
+    // Y axis
+    g.append('g')
+      .call(d3.axisLeft(yScale).ticks(5))
+      .attr('color', '#64748b')
+      .selectAll('text')
+      .attr('fill', '#94a3b8');
+
+    // Grid lines
+    g.append('g')
+      .attr('class', 'grid')
+      .attr('opacity', 0.1)
+      .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ''));
+
     // Phase marker lines (dotted vertical lines for episode phases)
     phaseMarkers.forEach((marker) => {
       const x = xScale(marker.timestamp * 1000);
       if (x < -20 || x > innerWidth + 20) return;
-      plot.append('line')
+      g.append('line')
         .attr('x1', x).attr('x2', x)
         .attr('y1', 0).attr('y2', innerHeight)
         .attr('stroke', marker.color)
@@ -445,7 +417,7 @@ export function MetricsChart({
         .attr('stroke-dasharray', '4,3')
         .attr('opacity', 0.75)
         .attr('pointer-events', 'none');
-      plot.append('text')
+      g.append('text')
         .attr('x', x + 3)
         .attr('y', 10)
         .attr('fill', marker.color)
@@ -480,7 +452,7 @@ export function MetricsChart({
 
         // Clear the brush selection visually
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        plot.select('.brush').call(brush.move as any, null);
+        g.select('.brush').call(brush.move as any, null);
 
         // Call the callback to set global time range
         if (onTimeRangeChangeRef.current && end > start) {
@@ -489,7 +461,7 @@ export function MetricsChart({
       });
 
     // Append brush to chart
-    plot.append('g')
+    g.append('g')
       .attr('class', 'brush')
       .call(brush)
       .selectAll('rect')
@@ -497,13 +469,13 @@ export function MetricsChart({
       .attr('ry', 2);
 
     // Style the brush selection
-    plot.select('.brush .selection')
+    g.select('.brush .selection')
       .attr('fill', 'rgba(139, 92, 246, 0.3)')
       .attr('stroke', '#8b5cf6')
       .attr('stroke-width', 1);
 
     // --- Hover: vertical guideline + snap dot ---
-    const hoverLine = plot.append('line')
+    const hoverLine = g.append('line')
       .attr('y1', 0)
       .attr('y2', innerHeight)
       .attr('stroke', '#94a3b8')
@@ -512,7 +484,7 @@ export function MetricsChart({
       .attr('pointer-events', 'none')
       .style('display', 'none');
 
-    const hoverDot = plot.append('circle')
+    const hoverDot = g.append('circle')
       .attr('r', 5)
       .attr('stroke', '#f8fafc')
       .attr('stroke-width', 2)
@@ -522,7 +494,7 @@ export function MetricsChart({
     type SeriesEntry = { points: Point[]; label: string; color: string; seriesKey: string };
 
     const restoreSeriesOpacity = () => {
-      plot.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
+      g.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
         const key = d3.select(this).attr('data-series-key');
         const isHighlighted = !activeHighlightedSeriesId || key === activeHighlightedSeriesId;
         d3.select(this)
@@ -534,7 +506,7 @@ export function MetricsChart({
     // Draw anomaly marker circles on top of the brush so they receive pointer events.
     // The brush overlay rect (pointer-events: all) covers the full plot area; any element
     // appended before the brush group is painted beneath it and its handlers never fire.
-    const markerSelection = plot
+    const markerSelection = g
       .append('g')
       .attr('class', 'anomaly-markers')
       .selectAll('circle')
@@ -571,7 +543,7 @@ export function MetricsChart({
       });
 
     // Add mouse handlers on the brush overlay rect so they fire regardless of brush state
-    plot.select<SVGRectElement>('.brush rect.overlay')
+    g.select<SVGRectElement>('.brush rect.overlay')
       .on('mousemove.hover', (event: MouseEvent) => {
         if (isPanningRef.current || isBrushingRef.current) {
           hoverDot.style('display', 'none');
@@ -656,7 +628,7 @@ export function MetricsChart({
 
         // Dim all series except the hovered one
         if (useVariantData && nearestSeriesKey) {
-          plot.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
+          g.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
             const key = d3.select(this).attr('data-series-key');
             const active = key === nearestSeriesKey;
             d3.select(this)
@@ -683,27 +655,7 @@ export function MetricsChart({
         setHoveredMetricRef.current(null);
       });
 
-    // Axes are not clipped so tick labels stay in the margins; drawn on top of the plot.
-    g.append('g')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(
-        d3
-          .axisBottom(xScale)
-          .ticks(6)
-          .tickFormat((d) => d3.timeFormat('%H:%M:%S')(d as Date))
-      )
-      .attr('color', '#64748b')
-      .selectAll('text')
-      .attr('fill', '#94a3b8');
-
-    g.append('g')
-      .call(d3.axisLeft(yScale).ticks(5))
-      .attr('color', '#64748b')
-      .selectAll('text')
-      .attr('fill', '#94a3b8');
-
   }, [
-    plotClipId,
     points,
     displayPoints,
     filteredAnomalies,
