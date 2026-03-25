@@ -65,7 +65,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/dyninst/procsubscribe
 # gazelle:exclude pkg/dyninst/symbol
 # gazelle:exclude pkg/dyninst/symdb
-# gazelle:exclude pkg/dyninst/testdata
 # gazelle:exclude pkg/dyninst/testprogs
 # gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
