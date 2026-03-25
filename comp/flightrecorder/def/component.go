@@ -16,10 +16,12 @@ type Component interface {
 
 // Stats contains runtime counters for the flight recorder.
 type Stats struct {
-	MetricsSent    uint64
-	LogsSent       uint64
-	MetricsDropped uint64
-	LogsDropped    uint64
-	BytesSent      uint64
-	Reconnects     uint64
+	MetricsSent     uint64
+	LogsSent        uint64
+	TraceStatsSent  uint64
+	MetricsDropped  uint64
+	LogsDropped     uint64
+	TraceStatsDropped uint64
+	BytesSent       uint64
+	Reconnects      uint64
 }

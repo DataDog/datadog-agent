@@ -32,6 +32,7 @@ import (
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
+	flightrecorderfx "github.com/DataDog/datadog-agent/comp/flightrecorder/fx"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
@@ -118,6 +119,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		zstdfx.Module(),
 		payloadmodifierfx.Module(),
 		trace.Bundle(),
+		flightrecorderfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		fxinstrumentation.Module(),

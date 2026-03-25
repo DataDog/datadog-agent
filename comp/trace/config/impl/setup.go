@@ -558,7 +558,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
 	}
-
 	// undocumented deprecated
 	if core.IsConfigured("apm_config.analyzed_rate_by_service") {
 		rateByService := make(map[string]float64)
