@@ -15,8 +15,8 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
+	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
+	oidresolverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"

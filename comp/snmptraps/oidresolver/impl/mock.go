@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

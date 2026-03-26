@@ -22,9 +22,33 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// Requires defines the dependencies for the oidresolver component.
+type Requires struct {
+	fx.In
+
+	Conf   config.Component
+	Logger log.Component
+}
+
+// Provides defines the output of the oidresolver component.
+type Provides struct {
+	fx.Out
+
+	Comp oidresolver.Component
+}
+
+// NewComponent creates a new oidresolver component.
+func NewComponent(reqs Requires) (Provides, error) {
+	comp, err := newResolver(reqs.Conf, reqs.Logger)
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: comp}, nil
+}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
