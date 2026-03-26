@@ -68,6 +68,7 @@ type Resolver struct {
 	deletedCgroups  atomic.Int64
 	fallbackSucceed atomic.Int64
 	fallbackFailed  atomic.Int64
+	remainingPids   atomic.Int64
 }
 
 // NewResolver returns a new cgroups monitor
@@ -213,7 +214,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 }
 
-func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, createdAt time.Time) *cgroupModel.CacheEntry {
+func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32) *cgroupModel.CacheEntry {
 	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(pid, pid)
 	if err == nil && cgroup.CGroupID != "" {
 		// check if the cgroup is already in the cache
@@ -238,7 +239,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, createdAt time.
 		}
 		containerContext := model.ContainerContext{
 			ContainerID: cid,
-			CreatedAt:   uint64(createdAt.UnixNano()),
+			CreatedAt:   uint64(cgroup.CreatedAt.UnixNano()),
 		}
 		seclog.Tracef("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -273,7 +274,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, createdAt time.
 		}
 		containerContext := model.ContainerContext{
 			ContainerID: cid,
-			CreatedAt:   uint64(createdAt.UnixNano()),
+			CreatedAt:   uint64(cgroup.CreatedAt.UnixNano()),
 		}
 		seclog.Tracef("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -313,7 +314,16 @@ func (cr *Resolver) Delete(inode uint64) {
 
 	seclog.Tracef("received a cgroup delete : %d", inode)
 
-	cr.syncOrDeleteCaheEntry(cacheEntry, 0)
+	// try to resync remaining pids
+	if pids := cacheEntry.GetPIDs(); len(pids) > 0 {
+		cr.remainingPids.Inc()
+
+		for _, pid := range pids {
+			cr.resolveFromFallback(pid, pid)
+		}
+	}
+
+	cr.removeCacheEntry(cacheEntry)
 }
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
@@ -360,7 +370,7 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupC
 		}
 	}
 
-	return cr.resolveFromFallback(pid, ppid, createdAt)
+	return cr.resolveFromFallback(pid, ppid)
 }
 
 func (cr *Resolver) iterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
@@ -506,6 +516,11 @@ func (cr *Resolver) SendStats() error {
 	}
 	if count := cr.fallbackFailed.Swap(0); count > 0 {
 		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverFallbackFailed, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+	if count := cr.remainingPids.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverRemainingPids, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
 		}
 	}
