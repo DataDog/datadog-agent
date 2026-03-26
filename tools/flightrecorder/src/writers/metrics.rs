@@ -1,19 +1,17 @@
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use arrow::array::{ArrayRef, Float64Array, Int64Array, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use parquet::arrow::ArrowWriter;
 use tokio::sync::Mutex;
 
 use super::context_store::ContextStore;
 use super::intern::StringInterner;
-use super::parquet_helpers::{default_writer_props, dict_utf8_type, interner_to_dict_array};
+use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
 use super::tags::{decompose_joined_into_interners, METRIC_RESERVED_KEYS};
 use crate::generated::signals_generated::signals::MetricBatch;
 
@@ -62,10 +60,7 @@ fn contextkey_schema() -> Arc<Schema> {
 ///   `contexts.bin` file via a [`ContextStore`] with bloom-filter dedup.
 ///   Much lower RSS since no `context_map` or tag StringInterners are needed.
 pub struct MetricsWriter {
-    pub output_dir: PathBuf,
-    pub flush_rows: usize,
-    pub flush_interval: Duration,
-    pub last_flush: Instant,
+    pub base: BaseWriter,
 
     // --- Common columns (both modes) ---
     sources: StringInterner,
@@ -79,12 +74,6 @@ pub struct MetricsWriter {
     // Rate-limited logging for unresolved context keys (inline mode only).
     unresolved_count: u64,
     last_unresolved_log: Instant,
-
-    // Telemetry counters (read by the telemetry reporter).
-    pub flush_count: u64,
-    pub flush_bytes: u64,
-    pub rows_written: u64,
-    pub last_flush_duration_ns: u64,
 }
 
 enum MetricsMode {
@@ -116,7 +105,8 @@ impl MetricsWriter {
         inline: bool,
         context_store: Option<Arc<Mutex<ContextStore>>>,
     ) -> Self {
-        let output_dir = output_dir.as_ref().to_path_buf();
+        let output_dir = output_dir.as_ref();
+        let flush_rows = flush_rows;
         let mode = if inline {
             MetricsMode::Inline {
                 names: StringInterner::with_capacity(flush_rows),
@@ -138,10 +128,7 @@ impl MetricsWriter {
         };
 
         Self {
-            output_dir,
-            flush_rows,
-            flush_interval,
-            last_flush: Instant::now(),
+            base: BaseWriter::new(output_dir, flush_rows, flush_interval),
 
             sources: StringInterner::with_capacity(flush_rows),
             values: Vec::with_capacity(flush_rows),
@@ -152,11 +139,6 @@ impl MetricsWriter {
 
             unresolved_count: 0,
             last_unresolved_log: Instant::now(),
-
-            flush_count: 0,
-            flush_bytes: 0,
-            rows_written: 0,
-            last_flush_duration_ns: 0,
         }
     }
 
@@ -274,7 +256,7 @@ impl MetricsWriter {
             self.last_unresolved_log = Instant::now();
         }
 
-        if self.len() >= self.flush_rows || self.last_flush.elapsed() >= self.flush_interval {
+        if self.base.should_flush(self.len()) {
             return self.flush().await.map(Some);
         }
         Ok(None)
@@ -282,17 +264,10 @@ impl MetricsWriter {
 
     /// Flush accumulated columns to a new Parquet file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
-        let flush_start = Instant::now();
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
         }
-
-        let ts_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let path = self.output_dir.join(format!("flush-metrics-{}.parquet", ts_ms));
 
         let (source_vals, source_codes) = self.sources.take();
         let values = std::mem::take(&mut self.values);
@@ -383,24 +358,7 @@ impl MetricsWriter {
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building metrics RecordBatch")?;
 
-        let file = File::create(&path)
-            .with_context(|| format!("creating {}", path.display()))?;
-        let props = default_writer_props();
-        let mut writer = ArrowWriter::try_new(file, schema, Some(props))
-            .context("creating Parquet writer for metrics")?;
-        writer.write(&batch).context("writing metrics batch")?;
-        writer.close().context("closing metrics Parquet writer")?;
-
-        let bytes_written = std::fs::metadata(&path)
-            .with_context(|| format!("reading metadata for {}", path.display()))?
-            .len();
-
-        self.flush_count += 1;
-        self.flush_bytes += bytes_written;
-        self.rows_written += row_count as u64;
-        self.last_flush_duration_ns = flush_start.elapsed().as_nanos() as u64;
-        self.last_flush = Instant::now();
-        Ok(path)
+        self.base.write_parquet("metrics", schema, batch)
     }
 
     /// Clear the context map (inline mode) or no-op (context_key mode).
@@ -431,6 +389,7 @@ mod tests {
     };
     use arrow::datatypes::UInt32Type;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    use std::fs::File;
     use tempfile::tempdir;
 
     fn make_inline_writer(dir: &Path) -> MetricsWriter {
@@ -660,16 +619,16 @@ mod tests {
         let mut w = make_inline_writer(dir.path());
         add_inline_rows(&mut w, 10);
 
-        assert_eq!(w.flush_count, 0);
-        assert_eq!(w.flush_bytes, 0);
+        assert_eq!(w.base.flush_count, 0);
+        assert_eq!(w.base.flush_bytes, 0);
 
         let path = w.flush().await.unwrap();
-        assert_eq!(w.flush_count, 1);
-        assert!(w.flush_bytes > 0);
-        assert!(w.last_flush_duration_ns > 0);
+        assert_eq!(w.base.flush_count, 1);
+        assert!(w.base.flush_bytes > 0);
+        assert!(w.base.last_flush_duration_ns > 0);
 
         // flush_bytes should match the file size on disk.
         let file_size = std::fs::metadata(&path).unwrap().len();
-        assert_eq!(w.flush_bytes, file_size);
+        assert_eq!(w.base.flush_bytes, file_size);
     }
 }
