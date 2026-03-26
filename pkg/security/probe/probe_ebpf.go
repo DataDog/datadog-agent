@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
+	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -56,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -825,6 +827,8 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	var events []*model.Event
 
+	socketSnapshotter := procfs.NewBoundSocketSnapshotter()
+
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
 		event.Source = model.EventSourceReplay
@@ -837,15 +841,30 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		// Replay bound sockets from entry snapshot data
-		for _, s := range entry.SnapshottedBoundSockets {
+		// Snapshot and replay bound sockets and mmaped files on-the-fly from /proc
+		// to avoid storing this data permanently in the process cache
+		proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
+		if err != nil {
+			return
+		}
+
+		// Replay bound sockets
+		boundSockets, err := socketSnapshotter.GetBoundSockets(proc)
+		if err != nil {
+			seclog.Debugf("error while listing sockets (pid: %v): %s", entry.Pid, err)
+		}
+		for _, s := range boundSockets {
 			bindEvent := p.newBindEventFromReplay(entry, s)
 			bindEvent.Source = model.EventSourceReplay
 			events = append(events, bindEvent)
 		}
 
-		// Replay mmaped files from entry snapshot data
-		for _, f := range entry.SnapshottedMmapedFiles {
+		// Replay mmaped files
+		mmapedFiles, err := procfs.GetMmapedFiles(proc)
+		if err != nil {
+			seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+		}
+		for _, f := range mmapedFiles {
 			openEvent := p.newOpenEventFromReplay(entry, f)
 			openEvent.Source = model.EventSourceReplay
 			events = append(events, openEvent)
