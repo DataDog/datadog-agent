@@ -26,15 +26,23 @@
 // fx group so that any component can subscribe to it:
 //
 //	// producer side — e.g. inside the demultiplexer
-//	metricHook := hook.NewHook[hook.MetricView]("metrics-pipeline")
+//	metricHook := hook.NewHook[[]hook.MetricSampleSnapshot]("metrics-pipeline")
 //	// metricHook is injected into the fx graph under group:"hook"
 //
-//	// in TimeSampler, CheckSampler, AggregatingSender …
-//	metricHook.Publish("time-sampler", sample)
+//	// in timeSamplerWorker, noAggregationStreamWorker — publish a batch of snapshots
+//	// after processing the pooled batch, before returning it to the pool:
+//	batch := make([]hook.MetricSampleSnapshot, len(ms))
+//	for i := range ms {
+//	    batch[i] = hook.NewMetricSampleSnapshot(&ms[i])
+//	}
+//	metricHook.Publish("dogstatsd", batch)
+//	metricSamplePool.PutBatch(ms) // safe: snapshots are copies
 //
 //	// consumer side — e.g. the shared-memory ring-buffer writer
-//	unsubscribe := metricHook.Subscribe("shm-writer", func(v hook.MetricView) {
-//	    ringbuf.Write(v.GetName(), v.GetValue(), v.GetRawTags())  // must return quickly
+//	unsubscribe := metricHook.Subscribe("shm-writer", func(batch []hook.MetricSampleSnapshot) {
+//	    for _, s := range batch {
+//	        ringbuf.Write(s.Name, s.Value, s.RawTags)  // must return quickly
+//	    }
 //	})
 //	defer unsubscribe()
 //
@@ -52,9 +60,9 @@
 // # Copy safety
 //
 // Many pipeline objects (e.g. [pkg/metrics.MetricSample]) are pooled and may
-// be recycled by the producer after Publish returns.  The subscriber callback
-// must copy any data it needs to retain before returning, as the underlying
-// object may be reused by the time the callback is called again.
+// be recycled immediately after Publish returns.  Producers must therefore
+// publish [MetricSampleSnapshot] values (not pointers into the pool) so that
+// subscriber goroutines receive owned copies that are safe to read at any time.
 //
 // # Telemetry
 //
