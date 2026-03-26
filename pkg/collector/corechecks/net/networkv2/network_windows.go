@@ -36,6 +36,8 @@ const (
 )
 
 var (
+	// tcpStateMetricsSuffixMapping combines multiple TCP states into broader categories
+	// (the default behavior, matching combine_connection_states: true).
 	tcpStateMetricsSuffixMapping = map[string]string{
 		"ESTABLISHED":  "established",
 		"SYN_SENT":     "opening",
@@ -47,6 +49,21 @@ var (
 		"CLOSE_WAIT":   "closing",
 		"LAST_ACK":     "closing",
 		"LISTEN":       "listening",
+		"CLOSING":      "closing",
+	}
+	// tcpStateMetricsSuffixMappingUncombined maps each TCP state to its own individual
+	// metric suffix (matching combine_connection_states: false, mirroring the Python check).
+	tcpStateMetricsSuffixMappingUncombined = map[string]string{
+		"ESTABLISHED":  "estab",
+		"SYN_SENT":     "syn_sent",
+		"SYN_RECEIVED": "syn_recv",
+		"FIN_WAIT_1":   "fin_wait_1",
+		"FIN_WAIT_2":   "fin_wait_2",
+		"TIME_WAIT":    "time_wait",
+		"CLOSED":       "close",
+		"CLOSE_WAIT":   "close_wait",
+		"LAST_ACK":     "time_wait", // matches Python: last_ack is folded into time_wait
+		"LISTEN":       "listen",
 		"CLOSING":      "closing",
 	}
 	udpStateMetricsSuffixMapping = map[string]string{
@@ -66,6 +83,7 @@ type networkInstanceConfig struct {
 	CollectCountMetrics      bool     `yaml:"collect_count_metrics"`
 	CollectConnectionState   bool     `yaml:"collect_connection_state"`
 	CollectConnectionQueues  bool     `yaml:"collect_connection_queues"`
+	CombineConnectionStates  bool     `yaml:"combine_connection_states"`
 	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe      string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern *regexp.Regexp
@@ -80,7 +98,6 @@ type networkConfig struct {
 
 type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
-	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
 	TCPStats(kind string) (*mibTCPStats, error)
 }
@@ -89,10 +106,6 @@ type defaultNetworkStats struct{}
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
-}
-
-func (n defaultNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
-	return net.ProtoCounters(protocols)
 }
 
 func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
@@ -117,7 +130,7 @@ func (c *NetworkCheck) Run() error {
 			if err != nil {
 				return err
 			}
-			submitConnectionsMetrics(sender, protocol, connectionsStats)
+			submitConnectionsMetrics(sender, protocol, connectionsStats, c.config.instance.CombineConnectionStates)
 		}
 	}
 
@@ -140,14 +153,18 @@ func (c *NetworkCheck) Run() error {
 	return nil
 }
 
-func submitConnectionsMetrics(sender sender.Sender, protocolName string, connectionsStats []net.ConnectionStat) {
+func submitConnectionsMetrics(sender sender.Sender, protocolName string, connectionsStats []net.ConnectionStat, combineConnectionStates bool) {
 	metricCount := map[string]float64{}
 	var stateMetricSuffixMapping map[string]string
 	switch protocolName {
 	case "udp4", "udp6":
 		stateMetricSuffixMapping = udpStateMetricsSuffixMapping
 	case "tcp4", "tcp6":
-		stateMetricSuffixMapping = tcpStateMetricsSuffixMapping
+		if combineConnectionStates {
+			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping
+		} else {
+			stateMetricSuffixMapping = tcpStateMetricsSuffixMappingUncombined
+		}
 	}
 
 	for _, suffix := range stateMetricSuffixMapping {
@@ -305,8 +322,8 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return err
 	}
@@ -344,7 +361,8 @@ func newCheck(_ config.Component) check.Check {
 		net:       defaultNetworkStats{},
 		config: networkConfig{
 			instance: networkInstanceConfig{
-				CollectRateMetrics: true,
+				CollectRateMetrics:      true,
+				CombineConnectionStates: true,
 			},
 		},
 	}

@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/go-json-experiment/json/jsontext"
@@ -37,6 +38,34 @@ type GetMemberExpr struct {
 }
 
 func (gme *GetMemberExpr) expr() {}
+
+// EqExpr represents an equality comparison expression.
+type EqExpr struct {
+	Left, Right Expr
+}
+
+func (ee *EqExpr) expr() {}
+
+// LiteralExpr represents a literal value (int64, float64, bool, or string).
+type LiteralExpr struct {
+	Value any // int64 | float64 | bool | string
+}
+
+func (le *LiteralExpr) expr() {}
+
+// LenExpr represents a len() call on a collection (string, slice, map).
+type LenExpr struct {
+	Operand Expr
+}
+
+func (le *LenExpr) expr() {}
+
+// IsEmptyExpr represents an isEmpty() call on a collection (string, slice, map).
+type IsEmptyExpr struct {
+	Operand Expr
+}
+
+func (ie *IsEmptyExpr) expr() {}
 
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
@@ -92,12 +121,34 @@ func Parse(dslJSON []byte) (Expr, error) {
 		return nil
 	}
 
-	// Ensure we have a JSON object
+	// Peek at the first token to handle literal values (non-object).
 	objStart, err := dec.ReadToken()
 	if err != nil {
 		return nil, fmt.Errorf("parse error: failed to read token: %w", err)
 	}
-	if kind := objStart.Kind(); kind != '{' {
+	switch kind := objStart.Kind(); kind {
+	case '"':
+		return &LiteralExpr{Value: objStart.String()}, nil
+	case '0':
+		// Number: try int64 first, fallback to float64.
+		numStr := objStart.String()
+		if i, err := strconv.ParseInt(numStr, 10, 64); err == nil {
+			return &LiteralExpr{Value: i}, nil
+		}
+		f, err := strconv.ParseFloat(numStr, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse number %q: %w", numStr, err)
+		}
+		return &LiteralExpr{Value: f}, nil
+	case 't':
+		return &LiteralExpr{Value: true}, nil
+	case 'f':
+		return &LiteralExpr{Value: false}, nil
+	case 'n':
+		return &LiteralExpr{Value: nil}, nil
+	case '{':
+		// Continue with object parsing below.
+	default:
 		return nil, fmt.Errorf("parse error: malformed DSL: got token %v (%v), expected {", objStart, kind)
 	}
 
@@ -132,6 +183,51 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &RefExpr{Ref: refValue}, nil
+	case "eq":
+		// Equality comparison: {"eq": [<lhs_expr>, <rhs_expr>]}
+		arrStart, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read eq array start: %w", err)
+		}
+		if kind := arrStart.Kind(); kind != '[' {
+			return nil, fmt.Errorf("parse error: malformed eq: got token %v (%v), expected [", arrStart, kind)
+		}
+
+		// Read LHS expression.
+		lhsJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read eq LHS expression: %w", err)
+		}
+		lhs, err := Parse(lhsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse eq LHS expression: %w", err)
+		}
+
+		// Read RHS expression.
+		rhsJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read eq RHS expression: %w", err)
+		}
+		rhs, err := Parse(rhsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse eq RHS expression: %w", err)
+		}
+
+		// Read array closing bracket.
+		arrEnd, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read eq array end: %w", err)
+		}
+		if kind := arrEnd.Kind(); kind != ']' {
+			return nil, fmt.Errorf("parse error: malformed eq: got token %v (%v), expected ]", arrEnd, kind)
+		}
+
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+
+		return &EqExpr{Left: lhs, Right: rhs}, nil
+
 	case "getmember":
 		// Handle both lowercase and camelCase variants.
 		// Read the array argument [baseExpr, "memberName"]
@@ -193,6 +289,24 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &GetMemberExpr{Base: baseExpr, Member: memberName}, nil
+	case "len", "isEmpty":
+		// Read the argument value and parse it recursively.
+		argJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s argument: %w", operation, err)
+		}
+		arg, err := Parse(argJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse %s argument: %w", operation, err)
+		}
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+		if operation == "len" {
+			return &LenExpr{Operand: arg}, nil
+		}
+		return &IsEmptyExpr{Operand: arg}, nil
+
 	default:
 		// Read the argument for unsupported operations.
 		// We track the offset before and after reading the argument value
