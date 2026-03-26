@@ -8,7 +8,7 @@ package formatterimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
