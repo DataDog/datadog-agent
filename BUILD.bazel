@@ -65,7 +65,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/configsync
 # gazelle:exclude comp/core/delegatedauth
 # gazelle:exclude comp/core/diagnose
-# gazelle:exclude comp/core/flare
+# gazelle:exclude comp/core/flare/flareimpl
+# gazelle:exclude comp/core/flare/helpers
+# gazelle:exclude comp/core/flare/types
 # gazelle:exclude comp/core/fxinstrumentation
 # gazelle:exclude comp/core/gui
 # gazelle:exclude comp/core/healthprobe
