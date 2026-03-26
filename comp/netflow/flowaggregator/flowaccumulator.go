@@ -18,10 +18,16 @@ import (
 
 var timeNow = time.Now
 
+// FlowBatch is the flush result type for the standard accumulator.
+type FlowBatch = []*common.Flow
+
+// FlowGroupBatch is the flush result type for the dedup accumulator.
+type FlowGroupBatch = []FlowGroup
+
 // FlowAccumulator accumulates incoming flows and flushes them on a schedule.
 // The type parameter T determines the shape of the flush result:
-//   - []*common.Flow for standard (per-flow) mode
-//   - []FlowGroup for deduplication (per-5-tuple) mode
+//   - FlowBatch for standard (per-flow) mode
+//   - FlowGroupBatch for deduplication (per-5-tuple) mode
 type FlowAccumulator[T any] interface {
 	Add(*common.Flow)
 	Flush(common.FlushContext) T
