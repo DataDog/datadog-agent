@@ -2,4 +2,3 @@
 target/
 # bazel convenience symlinks suddenly caused issues
 # inside of arm64 Linux containers.
-bazel-*/
