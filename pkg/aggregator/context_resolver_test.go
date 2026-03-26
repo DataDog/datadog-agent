@@ -106,8 +106,8 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 
 	// If the struct changes it's ok to change these, but be careful if you notice that
 	// the size increases a lot.
-	assert.Equal(t, uint64(0xd0), contextResolver.bytesByMtype[metrics.GaugeType])
-	assert.Equal(t, uint64(0x68), contextResolver.bytesByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0xc0), contextResolver.bytesByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(0x60), contextResolver.bytesByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.bytesByMtype[metrics.RateType])
 	assert.Equal(t, uint64(0x2b), contextResolver.dataBytesByMtype[metrics.GaugeType])
 	assert.Equal(t, uint64(0x26), contextResolver.dataBytesByMtype[metrics.CountType])
@@ -319,7 +319,10 @@ func setupTagger(t *testing.T) tagger.Component {
 }
 
 func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
-
+	// Tag stripping does NOT happen at trackContext time; it happens at flush
+	// time in the TimeSampler (see TestFlushSketchesTagStrip). This test verifies
+	// that trackContext stores full unstripped tagger tags and creates separate
+	// contexts for each origin.
 	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name"},
@@ -331,7 +334,6 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 
 	contextResolver := newContextResolver(fakeTagger, store, "test")
 
-	// Two distributions with different tagger tags that will be stripped should get the same context key
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
@@ -354,13 +356,18 @@ func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
 	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
 	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
 
-	// Both distributions should have the same context key because the differing tagger tags (env, pod_name) were stripped
-	assert.Equal(t, contextKey1, contextKey2, "distributions with different stripped tagger tags should have same context key")
+	// Tags are not stripped at trackContext time, so the two distributions
+	// (with different tagger tags) have distinct context keys.
+	assert.NotEqual(t, contextKey1, contextKey2, "distributions with different tagger tags should have different context keys at track time")
 
-	// Check only the unstripped tags remain
+	// Full unstripped tagger tags are retained in each context.
 	context1, ok := contextResolver.get(contextKey1)
 	require.True(t, ok)
-	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
+	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"env:prod", "image_name:image", "pod_name:thing1", "version:1.0"}))
+
+	context2, ok := contextResolver.get(contextKey2)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, context2.Tags(), tagset.CompositeTagsFromSlice([]string{"env:staging", "image_name:image", "pod_name:thing2", "version:1.0"}))
 }
 
 func TestTrackContextStrippingOriginTags(t *testing.T) {
@@ -411,6 +418,10 @@ func TestTrackContextStrippingOriginTagsDiffers(t *testing.T) {
 }
 
 func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
+	// Tag stripping does NOT happen at trackContext time; it happens at flush
+	// time in the TimeSampler (see TestFlushSketchesTagStrip). This test verifies
+	// that trackContext stores full unstripped metric tags and creates separate
+	// contexts for each origin.
 	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name", "thing"},
@@ -444,13 +455,18 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
 	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
 
-	// Both distributions should have the same context key because the differing tagger tags (env, pod_name) were stripped
-	assert.Equal(t, contextKey1, contextKey2, "distributions with different stripped tagger tags should have same context key")
+	// Tags are not stripped at trackContext time, so the two distributions
+	// (with different tagger and metric tags) have distinct context keys.
+	assert.NotEqual(t, contextKey1, contextKey2, "distributions with different tags should have different context keys at track time")
 
-	// Check only the unstripped tags remain
+	// Full unstripped tags are retained in each context.
 	context1, ok := contextResolver.get(contextKey1)
 	require.True(t, ok)
-	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
+	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"env:prod", "image_name:image", "pod_name:thing1", "version:1.0", "thing:zing"}))
+
+	context2, ok := contextResolver.get(contextKey2)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, context2.Tags(), tagset.CompositeTagsFromSlice([]string{"env:staging", "image_name:image", "pod_name:thing2", "version:1.0", "thing:zang"}))
 }
 
 func TestTrackContextStrippingMetricTags(t *testing.T) {
