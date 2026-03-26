@@ -7,9 +7,10 @@ Spot scheduling configuration has the following options:
 - spot instance percentage - defines the percentage of total workload replicas that are allowed to be scheduled on spot instances
 - minimal on-demand replicas - defines the minimum number of replicas that must be scheduled on on-demand instances
 - spot schedule timeout - defines the timeout after which the agent falls back to on-demand scheduling
-  in case a pod could not be placed on a spot instance (default: 1 minute)
-- spot disabled interval - defines the interval during which spot scheduling is disabled due to previous failure
-  to schedule a pod on a spot instance (default: 2 minutes)
+  in case a pod could not be placed on a spot instance
+- fallback duration - defines the duration during which spot scheduling is disabled due to previous failure
+  to schedule a pod on a spot instance
+- rebalance stabilization period - defines the period between rebalancing decisions for a workload to avoid pod churn
 
 Cluster Agent defines default values for spot scheduling configuration options and allows overriding them per workload.
 
@@ -23,44 +24,44 @@ counts existing pods for the same workload owner, and selects spot placement bas
 
 To schedule a pod on a spot instance, Cluster Agent adds a `karpenter.sh/capacity-type=spot` nodeSelector and
 a toleration because spot nodes carry a `karpenter.sh/capacity-type=spot:NoSchedule` taint.
+It also adds the `autoscaling.datadoghq.com/spot-assigned=true` label so the pod can be identified as spot-assigned.
+
+Cluster Agent does not modify on-demand pods for resilience: on-demand pods schedule correctly
+when the admission webhook is unavailable and other components can not depend on modifications (e.g. presence of a label).
 
 Important:
 - using nodeSelector causes Karpenter to provision a new spot node when no suitable spot node is available yet.
-- Kubernetes does not allow removal of nodeSelector [[1]](#pod-updates-may-not-change) after pod creation, so Cluster Agent cannot directly fix
-  spot-assigned pods that fail to schedule — it must trigger the workload to recreate them.
-
-On-demand pods are not modified as they have no matching toleration, so the Kubernetes scheduler will not place them on spot nodes.
+- Kubernetes does not allow removal of nodeSelector [[1]](#pod-updates-may-not-change) after pod creation,
+  so Cluster Agent cannot directly fix spot-assigned pods that fail to schedule — it must evict them and let the workload to recreate them.
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
 Cluster Agent periodically checks all tracked pods and if spot-assigned pods are pending longer than the configured
-timeout it disables spot scheduling for a configured interval and evicts the stuck spot-assigned pods.
+timeout it disables spot scheduling for a configured duration and evicts the pending spot-assigned pods.
 The workload controller replaces the evicted pods, and since spot scheduling is disabled at this point,
 newly admitted pods are scheduled on-demand (on-demand fallback).
 
-The disabled-until timestamp is persisted to a ConfigMap (`spot-scheduler-state`) so that all Cluster Agent
-replicas share the same fallback state. Non-leader replicas sync the disabled state from the ConfigMap every
-10 seconds, ensuring their admission webhooks also route replacement pods to on-demand.
+The disabled-until timestamp is persisted to a ConfigMap by the leader Cluster Agent.
+Non-leader replicas sync the disabled state from the ConfigMap, ensuring their admission webhooks do not assign pods to spot nodes.
 
-Cluster Agent re-enables spot scheduling after the spot disabled interval elapses.
+Cluster Agent re-enables spot scheduling after the fallback duration elapses.
 
 ### Rebalancing
 
 The leader periodically checks whether each owner's actual spot/on-demand ratio matches the configured target.
-When a deviation is detected, it evicts one excess pod per owner per stabilization period (1 minute), letting the
+When a deviation is detected, it evicts one excess pod per owner per stabilization period, letting the
 workload controller recreate it under the current scheduling policy. Rebalancing is skipped while spot scheduling
-is disabled (on-demand fallback period) or when there are in-flight admissions.
+is disabled (on-demand fallback duration) or when there are in-flight admissions.
 
 Rebalancing handles the following cases:
 
-- **Admission race:** concurrent Cluster Agent replicas admit pods without shared count state — one replica may
+- Admission race: concurrent Cluster Agent replicas admit pods without shared count state — one replica may
   assign too many or too few spot pods.
-- **Scale-down:** the workload controller deletes pods without regard to type, leaving the remaining
+- Workload scale-down: the workload controller deletes pods without regard to type, leaving the remaining
   spot/on-demand ratio wrong.
-- **Node removal:** spot or on-demand node removal shifts all affected pods to the other type; rebalancing
+- Node scale-down: spot or on-demand node removal shifts all affected pods to the other type; rebalancing
   restores the ratio.
-- **Auto-recovery after fallback:** once the disabled interval elapses, all pods remain on-demand until
-  rebalancing evicts the excess ones and the workload controller recreates them as spot — no manual rollout
-  restart required.
+- On-demand fallback recovery: once the fallback duration elapses, all pods remain on-demand until
+  rebalancing evicts the excess ones and the workload controller recreates them as spot.
 
 <a id="pod-updates-may-not-change"></a>1: Pod updates may not change fields other than `spec.containers[*].image`,`spec.initContainers[*].image`,`spec.activeDeadlineSeconds`,`spec.tolerations` (only additions to existing tolerations),`spec.terminationGracePeriodSeconds` (allow it to be set to 1 if it was previously negative)
 
@@ -93,9 +94,11 @@ spec:
         - name: DD_AUTOSCALING_WORKLOAD_SPOT_MIN_ON_DEMAND_REPLICAS
           value: "2" # schedule at least two pods onto on-demand node
         - name: DD_AUTOSCALING_WORKLOAD_SPOT_SCHEDULE_TIMEOUT
-          value: "1m5s" # disable spot scheduling after assigned pods are pending for longer than timeout
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_DISABLED_INTERVAL
-          value: "2m10s" # re-enable spot scheduling after this interval elapses
+          value: "1m" # disable spot scheduling after assigned pods are pending for longer than timeout
+        - name: DD_AUTOSCALING_WORKLOAD_SPOT_FALLBACK_DURATION
+          value: "2m" # re-enable spot scheduling after this duration elapses
+        - name: DD_AUTOSCALING_WORKLOAD_SPOT_REBALANCE_STABILIZATION_PERIOD
+          value: "1m" # minimum time between rebalancing decisions
 # ...
 ```
 
@@ -150,5 +153,3 @@ nginx-6f8f465d8c-p548f   1/1     Running   0          5m29s
 nginx-6f8f465d8c-s6cnj   1/1     Running   0          5m29s   true
 nginx-6f8f465d8c-sn6dw   1/1     Running   0          5m29s
 ```
-
-

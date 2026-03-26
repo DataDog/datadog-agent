@@ -24,12 +24,20 @@ const (
 )
 
 // Config holds the spot scheduler configuration defaults.
-// These values serve as defaults when a workload doesn't specify the corresponding annotation.
 type Config struct {
-	Percentage                   int
-	MinOnDemandReplicas          int
-	ScheduleTimeout              time.Duration
-	FallbackDuration             time.Duration
+	// Percentage is the target percentage of spot replicas out of total replicas [0, 100].
+	Percentage int
+	// MinOnDemandReplicas is the minimum number of on-demand replicas to keep running
+	// regardless of the spot percentage. Must be non-negative.
+	MinOnDemandReplicas int
+	// ScheduleTimeout is the maximum time to wait for a spot pods to be scheduled
+	// before triggering on-demand fallback.
+	ScheduleTimeout time.Duration
+	// FallbackDuration is how long scheduler stays in on-demand fallback mode
+	// after a spot scheduling failure.
+	FallbackDuration time.Duration
+	// RebalanceStabilizationPeriod is the time between rebalancing
+	// decisions for a workload to avoid pod churn.
 	RebalanceStabilizationPeriod time.Duration
 }
 
