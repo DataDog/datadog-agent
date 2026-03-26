@@ -72,6 +72,34 @@ pub async fn scan_signal_files(dir: &Path) -> anyhow::Result<Vec<SignalEntry>> {
     Ok(entries)
 }
 
+/// Synchronous version of `scan_signal_files` for CLI tools.
+pub fn scan_signal_files_sync(dir: &Path) -> anyhow::Result<Vec<SignalEntry>> {
+    let mut entries = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let name = match entry.file_name().into_string() {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+        let (file_type, timestamp_ms) = match parse_signal_file(&name) {
+            Some(parsed) => parsed,
+            None => continue,
+        };
+        let size = match entry.metadata() {
+            Ok(m) => m.len(),
+            Err(_) => continue,
+        };
+        entries.push(SignalEntry {
+            path: entry.path(),
+            timestamp_ms,
+            size,
+            file_type,
+        });
+    }
+    entries.sort_by_key(|e| e.timestamp_ms);
+    Ok(entries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
