@@ -218,7 +218,7 @@ var (
 var testOptions = fx.Options(
 	senderhelper.Opts,
 	oidresolverfx.MockModule(),
-	Module(),
+	fxutil.ProvideComponentConstructor(NewComponent),
 )
 
 func TestFormatPacketV1Generic(t *testing.T) {
