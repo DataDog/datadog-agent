@@ -11,12 +11,12 @@
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
         "schedule": ["* 2-6 * * 1,3"],
-        "minimumReleaseAge: null
+        "minimumReleaseAge": null
       },
       {
         "matchDepNames": ["omnibus-ruby"],
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}",
-        "minimumReleaseAge: null,
+        "minimumReleaseAge": null,
         "matchUpdateTypes": ["major", "minor", "patch"],
         "enabled": false
       },
