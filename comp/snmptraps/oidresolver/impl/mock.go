@@ -10,20 +10,8 @@ package oidresolverimpl
 import (
 	"fmt"
 
-	"go.uber.org/fx"
-
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// MockModule provides a dummy resolver with canned data.
-// Set your own data with fx.Replace(&oidresolver.TrapDBFileContent{...})
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewMockResolver),
-		fx.Supply(&dummyTrapDB),
-	)
-}
 
 // MockResolver implements OIDResolver with a mock database.
 type MockResolver struct {
@@ -53,6 +41,11 @@ func (r MockResolver) GetVariableMetadata(_ string, varOid string) (oidresolver.
 // NewMockResolver creates a mock resolver populated with fake data.
 func NewMockResolver(content *oidresolver.TrapDBFileContent) oidresolver.Component {
 	return &MockResolver{content}
+}
+
+// DummyTrapDB returns a pointer to the built-in dummy trap database for use in tests.
+func DummyTrapDB() *oidresolver.TrapDBFileContent {
+	return &dummyTrapDB
 }
 
 var dummyTrapDB = oidresolver.TrapDBFileContent{
