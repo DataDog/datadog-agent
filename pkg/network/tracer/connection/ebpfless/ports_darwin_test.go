@@ -473,7 +473,7 @@ func TestReadTCPListeningPorts_EstablishedNotPresent(t *testing.T) {
 }
 
 // TestReadPortsDarwin_EphemeralTCPListenerIncluded verifies that a TCP socket
-// listening on an ephemeral port IS included by readPortsDarwin. TCP ports are
+// listening on an ephemeral port IS included by readListeningPorts. TCP ports are
 // not filtered by the ephemeral range because the XSO_TCB LISTEN-state check
 // already guarantees the socket is a genuine server socket.
 func TestReadPortsDarwin_EphemeralTCPListenerIncluded(t *testing.T) {
@@ -499,10 +499,10 @@ func TestReadPortsDarwin_EphemeralTCPListenerIncluded(t *testing.T) {
 	cfg.CollectUDPv4Conns = false
 	cfg.CollectUDPv6Conns = false
 
-	ports, err := readPortsDarwin(cfg)
+	ports, err := readListeningPorts(cfg)
 	require.NoError(t, err)
 	_, found := ports[boundPortsKey{network.TCP, port}]
-	assert.True(t, found, "readPortsDarwin should include ephemeral TCP listener on port %d", port)
+	assert.True(t, found, "readListeningPorts should include ephemeral TCP listener on port %d", port)
 }
 
 // TestReadTCPListeningPorts_ClosedNotPresent ensures a closed listener's port

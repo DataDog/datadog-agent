@@ -71,7 +71,7 @@ func NewBoundPorts(cfg *config.Config) *BoundPorts {
 		config:    cfg,
 		ports:     map[boundPortsKey]struct{}{},
 		stop:      make(chan struct{}),
-		readPorts: readPortsDarwin,
+		readPorts: readListeningPorts,
 	}
 }
 
@@ -95,8 +95,8 @@ func isEphemeralPort(port, first, last uint16) bool {
 	return port >= first && port <= last
 }
 
-// readPortsDarwin reads listening ports using sysctl PCB lists on macOS.
-func readPortsDarwin(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
+// readListeningPorts reads listening ports using sysctl PCB lists on macOS.
+func readListeningPorts(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
 	ports := make(map[boundPortsKey]struct{})
 
 	// Read the OS ephemeral range for UDP filtering. network.IsPortInEphemeralRange

@@ -24,13 +24,13 @@ func NewBoundPorts(cfg *config.Config) *BoundPorts {
 		config:    cfg,
 		ports:     map[boundPortsKey]struct{}{},
 		stop:      make(chan struct{}),
-		readPorts: readPortsLinux(ino),
+		readPorts: readListeningPorts(ino),
 	}
 }
 
-// readPortsLinux returns a function that reads listening ports from procfs,
+// readListeningPorts returns a function that reads listening ports from procfs,
 // filtering by the given network namespace inode
-func readPortsLinux(ino uint32) func(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
+func readListeningPorts(ino uint32) func(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
 	return func(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
 		ports := make(map[boundPortsKey]struct{})
 

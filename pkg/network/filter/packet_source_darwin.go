@@ -11,7 +11,10 @@ package filter
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
+	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -82,7 +86,7 @@ type interfaceHandle struct {
 	dirDecoder *directionDecoder
 
 	// localAddrs contains the local IP addresses for this interface
-	localAddrs   map[string]struct{}
+	localAddrs   map[netip.Addr]struct{}
 	localAddrsMu sync.RWMutex
 }
 
@@ -110,7 +114,7 @@ type LibpcapSource struct {
 	// GC pressure. The pool is initialized in NewLibpcapSource with the
 	// configured snapLen so that buf[:len(data)] is always safe (libpcap
 	// truncates captured data to snapLen).
-	bufPool sync.Pool
+	bufPool *ddsync.TypedPool[[]byte]
 }
 
 // DarwinPacketInfo holds information about a packet on Darwin
@@ -181,14 +185,7 @@ func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
 		exit:       make(chan struct{}),
 		packetChan: make(chan packetWithInfo, packetChannelSize),
 	}
-	// Capture snapLen in a local variable so the closure below doesn't hold a
-	// reference to ps (which would prevent GC of the LibpcapSource).
-	poolSnapLen := snapLen
-	ps.bufPool = sync.Pool{
-		New: func() any {
-			return make([]byte, poolSnapLen)
-		},
-	}
+	ps.bufPool = ddsync.NewSlicePool[byte](snapLen, snapLen)
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -214,12 +211,8 @@ func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
 		ps.refreshLocalAddrs()
 	}()
 
-	names := make([]string, 0, len(ps.interfaces))
-	for name := range ps.interfaces {
-		names = append(names, name)
-	}
 	log.Infof("created libpcap source on %d interfaces, snaplen=%d", len(ps.interfaces), snapLen)
-	log.Debugf("capturing on interfaces: %v", names)
+	log.Debugf("capturing on interfaces: %v", slices.Collect(maps.Keys(ps.interfaces)))
 	return ps, nil
 }
 
@@ -282,7 +275,7 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		linkType:          lt,
 		goPacketLayerType: linkTypeToLayerType(lt),
 		dirDecoder:        newDirectionDecoder(),
-		localAddrs:        make(map[string]struct{}),
+		localAddrs:        make(map[netip.Addr]struct{}),
 	}
 
 	if err := ih.refreshLocalAddrs(); err != nil {
@@ -323,16 +316,17 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 }
 
 // getBuffer retrieves a snapLen-capacity buffer from the pool.
-// The returned slice  has len == cap == snapLen.
+// The returned slice has len == cap == snapLen.
 func (p *LibpcapSource) getBuffer() []byte {
-	return p.bufPool.Get().([]byte)
+	return *p.bufPool.Get()
 }
 
-// putBuffer returns a buffer to the pool. The slice is  reset to its
+// putBuffer returns a buffer to the pool. The slice is reset to its
 // full capacity before pooling so that the next caller receives a
-// slice with len == cap == snapLen
+// slice with len == cap == snapLen.
 func (p *LibpcapSource) putBuffer(buf []byte) {
-	p.bufPool.Put(buf[:cap(buf)])
+	buf = buf[:cap(buf)]
+	p.bufPool.Put(&buf)
 }
 
 // VisitPackets reads packets from the persistent channel and invokes the visitor
@@ -574,7 +568,7 @@ func (ih *interfaceHandle) refreshLocalAddrs() error {
 	ih.localAddrsMu.Lock()
 	defer ih.localAddrsMu.Unlock()
 
-	ih.localAddrs = make(map[string]struct{})
+	ih.localAddrs = make(map[netip.Addr]struct{})
 
 	for _, addr := range addrs {
 		var ip net.IP
@@ -585,10 +579,8 @@ func (ih *interfaceHandle) refreshLocalAddrs() error {
 			ip = v.IP
 		}
 		if ip != nil {
-			if ip4 := ip.To4(); ip4 != nil {
-				ih.localAddrs[string(ip4)] = struct{}{}
-			} else {
-				ih.localAddrs[string(ip.To16())] = struct{}{}
+			if a, ok := netip.AddrFromSlice(ip); ok {
+				ih.localAddrs[a.Unmap()] = struct{}{}
 			}
 		}
 	}
@@ -597,12 +589,12 @@ func (ih *interfaceHandle) refreshLocalAddrs() error {
 	return nil
 }
 
-// isLocalAddr checks if an IP (as raw bytes) is a local address for this interface
-func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
+// isLocalAddr checks if an IP is a local address for this interface
+func (ih *interfaceHandle) isLocalAddr(addr netip.Addr) bool {
 	ih.localAddrsMu.RLock()
 	defer ih.localAddrsMu.RUnlock()
 
-	_, exists := ih.localAddrs[string(ip)]
+	_, exists := ih.localAddrs[addr]
 	return exists
 }
 
@@ -617,11 +609,11 @@ func newDirectionDecoder() *directionDecoder {
 // For Ethernet we require enough bytes for the link header plus a full IP
 // header (IPv4 20 bytes or IPv6 40 bytes) based on EtherType; for loopback
 // we require 4-byte header plus 20 bytes (IPv4 minimum).
-func (d *directionDecoder) decodeAndGetIPs(data []byte, firstLayer gopacket.LayerType) (srcIP, dstIP []byte, ok bool) {
+func (d *directionDecoder) decodeAndGetIPs(data []byte, firstLayer gopacket.LayerType) (srcIP, dstIP netip.Addr, ok bool) {
 	var minLen int
 	if firstLayer == layers.LayerTypeEthernet {
 		if len(data) < 14 {
-			return nil, nil, false
+			return netip.Addr{}, netip.Addr{}, false
 		}
 		etherType := uint16(data[12])<<8 | uint16(data[13])
 		if etherType == 0x86DD {
@@ -633,15 +625,17 @@ func (d *directionDecoder) decodeAndGetIPs(data []byte, firstLayer gopacket.Laye
 		minLen = 4 + 20 // loopback header + IPv4 minimum
 	}
 	if len(data) < minLen {
-		return nil, nil, false
+		return netip.Addr{}, netip.Addr{}, false
 	}
 	pkt := gopacket.NewPacket(data, firstLayer, gopacket.NoCopy)
 	netLayer := pkt.NetworkLayer()
 	if netLayer == nil {
-		return nil, nil, false
+		return netip.Addr{}, netip.Addr{}, false
 	}
 	flow := netLayer.NetworkFlow()
-	return flow.Src().Raw(), flow.Dst().Raw(), true
+	src, _ := netip.AddrFromSlice(flow.Src().Raw())
+	dst, _ := netip.AddrFromSlice(flow.Dst().Raw())
+	return src.Unmap(), dst.Unmap(), true
 }
 
 // linkTypeToLayerType converts a pcap DLT link type to the gopacket.LayerType
@@ -676,9 +670,9 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 	return classifyDirection(ih, srcIP, dstIP)
 }
 
-// classifyDirection returns the packet direction given raw source and
-// destination IP bytes checked against the interface's local address set.
-func classifyDirection(ih *interfaceHandle, srcIP, dstIP []byte) uint8 {
+// classifyDirection returns the packet direction given source and
+// destination addresses checked against the interface's local address set.
+func classifyDirection(ih *interfaceHandle, srcIP, dstIP netip.Addr) uint8 {
 	srcIsLocal := ih.isLocalAddr(srcIP)
 	dstIsLocal := ih.isLocalAddr(dstIP)
 	if srcIsLocal && !dstIsLocal {
