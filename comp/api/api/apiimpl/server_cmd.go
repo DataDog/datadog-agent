@@ -43,6 +43,8 @@ func (server *apiServer) startCMDServer(
 
 	// Validate token for every request
 	agentMux.Use(server.ipc.HTTPMiddleware)
+	// Fill route template captures for the telemetry middleware (reduces metric cardinality)
+	agentMux.Use(observability.CaptureRouteTemplateMiddleware)
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
