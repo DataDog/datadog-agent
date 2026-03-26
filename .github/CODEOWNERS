@@ -403,8 +403,7 @@
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
 
-# Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
-/comp/core/agenttelemetry               @DataDog/agent-runtimes @iglendd
+/comp/core/agenttelemetry               @DataDog/agent-health
 
 # trace-agent logging implementation should also notify agent-apm
 /comp/core/log/impl-trace @DataDog/agent-apm
