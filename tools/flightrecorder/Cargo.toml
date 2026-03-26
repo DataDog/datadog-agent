@@ -19,6 +19,10 @@ path = "src/reader.rs"
 name = "validate"
 path = "src/validate.rs"
 
+[[bin]]
+name = "hydrate"
+path = "src/hydrate.rs"
+
 [dependencies]
 flatbuffers = "25"
 tokio = { version = "1", features = ["full"] }
