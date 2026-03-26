@@ -1,144 +1,115 @@
-/// Reads a vortex file written by flightrecorder and prints its contents.
+/// Flight recorder Parquet file reader.
 ///
-/// Metric files contain inline name+tags columns (no separate context files needed).
-/// Log files contain inline hostname/source/status/tags columns.
-///
-/// Usage: reader <path-to-vortex-file> [--search <substring>]
-use std::path::PathBuf;
+/// Usage: reader <file.parquet> [--search <substring>] [--limit <n>]
+use std::fs::File;
 
-use anyhow::{Context, Result};
-use clap::Parser;
-use vortex::array::stream::ArrayStreamExt;
-use vortex::array::Canonical;
-use vortex::file::OpenOptionsSessionExt;
-use vortex::session::VortexSession;
-use vortex::VortexSessionDefault;
+use arrow::array::Array;
+use arrow::datatypes::UInt32Type;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
-#[derive(Parser)]
-struct Args {
-    /// Path to the .vortex file to read
-    path: PathBuf,
-    /// Only print rows containing this substring
-    #[arg(long)]
-    search: Option<String>,
-    /// Maximum rows to print (0 = all)
-    #[arg(long, default_value = "0")]
-    limit: usize,
-}
+fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: reader <file.parquet> [--search <substring>] [--limit <n>]");
+        std::process::exit(1);
+    }
+    let path = &args[1];
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let args = Args::parse();
+    let mut search: Option<String> = None;
+    let mut limit: usize = usize::MAX;
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--search" if i + 1 < args.len() => {
+                search = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--limit" if i + 1 < args.len() => {
+                limit = args[i + 1].parse().unwrap_or(usize::MAX);
+                i += 2;
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
 
-    let session = VortexSession::default();
+    let file = File::open(path)?;
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)?
+        .build()?;
 
-    let array = session
-        .open_options()
-        .open_path(args.path.clone())
-        .await
-        .with_context(|| format!("opening {}", args.path.display()))?
-        .scan()?
-        .into_array_stream()?
-        .read_all()
-        .await
-        .context("reading array")?;
+    let mut rows_printed = 0;
 
-    let canonical = array.to_canonical().context("canonicalizing top array")?;
-    let st = canonical.into_struct();
+    for batch in reader {
+        let batch = batch?;
+        let schema = batch.schema();
+        let num_rows = batch.num_rows();
 
-    let n = st.len();
-    let names: Vec<String> = st.names().iter().map(|s| s.as_ref().to_string()).collect();
+        for row in 0..num_rows {
+            if rows_printed >= limit {
+                return Ok(());
+            }
 
-    eprintln!("file: {}", args.path.display());
-    eprintln!("rows: {n}");
-    eprintln!("columns: {}", names.join(", "));
-    eprintln!("---");
+            let mut parts: Vec<String> = Vec::new();
+            for (col_idx, field) in schema.fields().iter().enumerate() {
+                let col = batch.column(col_idx);
+                let val = format_value(col.as_ref(), row);
+                parts.push(format!("{}={}", field.name(), val));
+            }
 
-    // Build per-column string representations
-    let mut cols: Vec<Vec<String>> = Vec::with_capacity(names.len());
-    for col_name in &names {
-        let field_arr = st
-            .unmasked_field_by_name(col_name.as_str())
-            .with_context(|| format!("accessing column {col_name}"))?;
-        let col_canonical = field_arr
-            .to_canonical()
-            .with_context(|| format!("canonicalizing column {col_name}"))?;
-
-        let strings: Vec<String> = match col_canonical {
-            Canonical::VarBinView(vbv) => (0..n)
-                .map(|i| {
-                    let bytes = vbv.bytes_at(i);
-                    String::from_utf8_lossy(bytes.as_slice()).into_owned()
-                })
-                .collect(),
-            Canonical::Primitive(prim) => {
-                use vortex::array::dtype::PType;
-                match prim.ptype() {
-                    PType::I64 => prim
-                        .as_slice::<i64>()
-                        .iter()
-                        .map(|v| v.to_string())
-                        .collect(),
-                    PType::F64 => prim
-                        .as_slice::<f64>()
-                        .iter()
-                        .map(|v| format!("{v:.6}"))
-                        .collect(),
-                    PType::I32 => prim
-                        .as_slice::<i32>()
-                        .iter()
-                        .map(|v| v.to_string())
-                        .collect(),
-                    PType::F32 => prim
-                        .as_slice::<f32>()
-                        .iter()
-                        .map(|v| format!("{v:.6}"))
-                        .collect(),
-                    PType::U64 => prim
-                        .as_slice::<u64>()
-                        .iter()
-                        .map(|v| v.to_string())
-                        .collect(),
-                    pt => (0..n).map(|_| format!("<{pt:?}>")).collect(),
+            let line = parts.join(" | ");
+            if let Some(ref s) = search {
+                if !line.contains(s.as_str()) {
+                    continue;
                 }
             }
-            other => {
-                let dt = other.dtype().to_string();
-                (0..n).map(|_| format!("<{dt}>")).collect()
-            }
-        };
-        cols.push(strings);
-    }
-
-    let mut printed = 0usize;
-    for row in 0..n {
-        let parts: Vec<String> = names
-            .iter()
-            .zip(cols.iter())
-            .map(|(name, col)| format!("{name}={}", col[row]))
-            .collect();
-
-        let line = parts.join(" | ");
-
-        if let Some(ref search) = args.search {
-            if !line.contains(search.as_str()) {
-                continue;
-            }
+            println!("{line}");
+            rows_printed += 1;
         }
-        println!("{}", line);
-        printed += 1;
-        if args.limit > 0 && printed >= args.limit {
-            eprintln!("(limit reached)");
-            break;
-        }
-    }
-
-    eprintln!("---");
-    if let Some(ref s) = args.search {
-        eprintln!("matched: {printed} / {n} rows (search: {s:?})");
-    } else {
-        eprintln!("printed: {printed} rows");
     }
 
     Ok(())
+}
+
+fn format_value(col: &dyn Array, row: usize) -> String {
+    if col.is_null(row) {
+        return "null".to_string();
+    }
+
+    // Try dictionary first (most string columns use this).
+    if let Some(dict) = col.as_any().downcast_ref::<arrow::array::DictionaryArray<UInt32Type>>() {
+        let values = dict.values().as_any().downcast_ref::<arrow::array::StringArray>().unwrap();
+        let key = dict.keys().value(row) as usize;
+        return values.value(key).to_string();
+    }
+
+    // Primitive types.
+    if let Some(a) = col.as_any().downcast_ref::<arrow::array::Int64Array>() {
+        return a.value(row).to_string();
+    }
+    if let Some(a) = col.as_any().downcast_ref::<arrow::array::Float64Array>() {
+        return format!("{:.6}", a.value(row));
+    }
+    if let Some(a) = col.as_any().downcast_ref::<arrow::array::UInt64Array>() {
+        return a.value(row).to_string();
+    }
+    if let Some(a) = col.as_any().downcast_ref::<arrow::array::UInt32Array>() {
+        return a.value(row).to_string();
+    }
+
+    // Binary.
+    if let Some(a) = col.as_any().downcast_ref::<arrow::array::BinaryArray>() {
+        let bytes = a.value(row);
+        if let Ok(s) = std::str::from_utf8(bytes) {
+            return s.to_string();
+        }
+        return format!("<{} bytes>", bytes.len());
+    }
+
+    // String.
+    if let Some(a) = col.as_any().downcast_ref::<arrow::array::StringArray>() {
+        return a.value(row).to_string();
+    }
+
+    format!("<unsupported type: {:?}>", col.data_type())
 }

@@ -1,18 +1,43 @@
+use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use vortex::array::arrays::{DictArray, PrimitiveArray, StructArray, VarBinArray};
-use vortex::array::dtype::FieldNames;
-use vortex::array::validity::Validity;
-use vortex::array::IntoArray;
-use vortex::file::VortexWriteOptions;
-use vortex::session::VortexSession;
-use vortex::VortexSessionDefault;
+use arrow::array::{ArrayRef, BinaryArray, Int64Array, UInt32Array, UInt64Array};
+use arrow::datatypes::{DataType, Field, Schema};
+use arrow::record_batch::RecordBatch;
+use parquet::arrow::ArrowWriter;
 
 use super::apply_permutation;
 use super::intern::StringInterner;
+use super::parquet_helpers::{default_writer_props, dict_utf8_type, interner_to_dict_array};
 use crate::generated::signals_generated::signals::TraceStatsBatch;
+
+/// Schema for the trace stats Parquet file (18 columns).
+fn trace_stats_schema() -> Arc<Schema> {
+    let dt = dict_utf8_type();
+    Arc::new(Schema::new(vec![
+        Field::new("service", dt.clone(), false),
+        Field::new("name", dt.clone(), false),
+        Field::new("resource", dt.clone(), false),
+        Field::new("type", dt.clone(), false),
+        Field::new("span_kind", dt.clone(), false),
+        Field::new("hostname", dt.clone(), false),
+        Field::new("env", dt.clone(), false),
+        Field::new("version", dt, false),
+        Field::new("http_status_code", DataType::UInt32, false),
+        Field::new("hits", DataType::UInt64, false),
+        Field::new("errors", DataType::UInt64, false),
+        Field::new("duration_ns", DataType::UInt64, false),
+        Field::new("top_level_hits", DataType::UInt64, false),
+        Field::new("ok_summary", DataType::Binary, false),
+        Field::new("error_summary", DataType::Binary, false),
+        Field::new("bucket_start_ns", DataType::Int64, false),
+        Field::new("bucket_duration_ns", DataType::Int64, false),
+        Field::new("timestamp_ns", DataType::Int64, false),
+    ]))
+}
 
 /// Columnar accumulator for trace stats entries.
 ///
@@ -47,8 +72,6 @@ pub struct TraceStatsWriter {
     // Binary columns (DDSketch protobuf).
     ok_summaries: Vec<Vec<u8>>,
     error_summaries: Vec<Vec<u8>>,
-
-    write_buf: Vec<u8>,
 
     // Telemetry counters (read by the telemetry reporter).
     pub flush_count: u64,
@@ -90,8 +113,6 @@ impl TraceStatsWriter {
             ok_summaries: Vec::with_capacity(flush_rows),
             error_summaries: Vec::with_capacity(flush_rows),
 
-            write_buf: Vec::with_capacity(64 * 1024),
-
             flush_count: 0,
             flush_bytes: 0,
             last_flush_duration_ns: 0,
@@ -132,7 +153,9 @@ impl TraceStatsWriter {
                     e.ok_summary().map(|v| v.bytes().to_vec()).unwrap_or_default(),
                 );
                 self.error_summaries.push(
-                    e.error_summary().map(|v| v.bytes().to_vec()).unwrap_or_default(),
+                    e.error_summary()
+                        .map(|v| v.bytes().to_vec())
+                        .unwrap_or_default(),
                 );
             }
         }
@@ -143,7 +166,7 @@ impl TraceStatsWriter {
         Ok(None)
     }
 
-    /// Flush accumulated columns to a new Vortex file. Returns the file path.
+    /// Flush accumulated columns to a new Parquet file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
         let flush_start = Instant::now();
         let row_count = self.len();
@@ -155,7 +178,9 @@ impl TraceStatsWriter {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let path = self.output_dir.join(format!("flush-trace_stats-{}.vortex", ts_ms));
+        let path = self
+            .output_dir
+            .join(format!("flush-trace_stats-{}.parquet", ts_ms));
 
         // Take columns.
         let (service_vals, service_codes) = self.services.take();
@@ -182,79 +207,82 @@ impl TraceStatsWriter {
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
-        // Helper: build a DictArray from interner output + sort order.
-        let build_dict =
-            |vals: Vec<String>, codes: Vec<u32>, label: &str| -> Result<DictArray> {
-                DictArray::try_new(
-                    order
-                        .iter()
-                        .map(|&i| codes[i])
-                        .collect::<PrimitiveArray>()
-                        .into_array(),
-                    VarBinArray::from(vals).into_array(),
-                )
-                .with_context(|| format!("building {label} DictArray"))
-            };
-
-        let service_array = build_dict(service_vals, service_codes, "service")?;
-        let name_array = build_dict(name_vals, name_codes, "name")?;
-        let resource_array = build_dict(resource_vals, resource_codes, "resource")?;
-        let type_array = build_dict(type_vals, type_codes, "type")?;
-        let span_kind_array = build_dict(span_kind_vals, span_kind_codes, "span_kind")?;
-        let hostname_array = build_dict(hostname_vals, hostname_codes, "hostname")?;
-        let env_array = build_dict(env_vals, env_codes, "env")?;
-        let version_array = build_dict(version_vals, version_codes, "version")?;
-
         // Reorder binary columns in-place (avoids cloning every Vec<u8>).
         let sorted_ok = apply_permutation(ok_summaries, &order);
         let sorted_err = apply_permutation(error_summaries, &order);
 
-        let st = StructArray::try_new(
-            FieldNames::from(TRACE_STATS_FIELD_NAMES),
-            vec![
-                service_array.into_array(),
-                name_array.into_array(),
-                resource_array.into_array(),
-                type_array.into_array(),
-                span_kind_array.into_array(),
-                hostname_array.into_array(),
-                env_array.into_array(),
-                version_array.into_array(),
-                order.iter().map(|&i| http_status_codes[i]).collect::<PrimitiveArray>().into_array(),
-                order.iter().map(|&i| hits[i]).collect::<PrimitiveArray>().into_array(),
-                order.iter().map(|&i| errors[i]).collect::<PrimitiveArray>().into_array(),
-                order.iter().map(|&i| durations[i]).collect::<PrimitiveArray>().into_array(),
-                order.iter().map(|&i| top_level_hits[i]).collect::<PrimitiveArray>().into_array(),
-                VarBinArray::from(sorted_ok).into_array(),
-                VarBinArray::from(sorted_err).into_array(),
-                order.iter().map(|&i| bucket_starts[i]).collect::<PrimitiveArray>().into_array(),
-                order.iter().map(|&i| bucket_durations[i]).collect::<PrimitiveArray>().into_array(),
-                order.iter().map(|&i| timestamps[i]).collect::<PrimitiveArray>().into_array(),
-            ],
-            row_count,
-            Validity::NonNullable,
-        )
-        .context("building trace_stats StructArray")?;
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(interner_to_dict_array(service_vals, service_codes, &order)),
+            Arc::new(interner_to_dict_array(name_vals, name_codes, &order)),
+            Arc::new(interner_to_dict_array(
+                resource_vals,
+                resource_codes,
+                &order,
+            )),
+            Arc::new(interner_to_dict_array(type_vals, type_codes, &order)),
+            Arc::new(interner_to_dict_array(
+                span_kind_vals,
+                span_kind_codes,
+                &order,
+            )),
+            Arc::new(interner_to_dict_array(
+                hostname_vals,
+                hostname_codes,
+                &order,
+            )),
+            Arc::new(interner_to_dict_array(env_vals, env_codes, &order)),
+            Arc::new(interner_to_dict_array(version_vals, version_codes, &order)),
+            Arc::new(UInt32Array::from_iter_values(
+                order.iter().map(|&i| http_status_codes[i]),
+            )),
+            Arc::new(UInt64Array::from_iter_values(
+                order.iter().map(|&i| hits[i]),
+            )),
+            Arc::new(UInt64Array::from_iter_values(
+                order.iter().map(|&i| errors[i]),
+            )),
+            Arc::new(UInt64Array::from_iter_values(
+                order.iter().map(|&i| durations[i]),
+            )),
+            Arc::new(UInt64Array::from_iter_values(
+                order.iter().map(|&i| top_level_hits[i]),
+            )),
+            Arc::new(BinaryArray::from_iter_values(
+                sorted_ok.iter().map(|v| v.as_slice()),
+            )),
+            Arc::new(BinaryArray::from_iter_values(
+                sorted_err.iter().map(|v| v.as_slice()),
+            )),
+            Arc::new(Int64Array::from_iter_values(
+                order.iter().map(|&i| bucket_starts[i]),
+            )),
+            Arc::new(Int64Array::from_iter_values(
+                order.iter().map(|&i| bucket_durations[i]),
+            )),
+            Arc::new(Int64Array::from_iter_values(
+                order.iter().map(|&i| timestamps[i]),
+            )),
+        ];
 
-        let strategy = super::strategy::fast_flush_strategy();
+        let schema = trace_stats_schema();
+        let batch = RecordBatch::try_new(schema.clone(), columns)
+            .context("building trace_stats RecordBatch")?;
 
-        // Fresh session per flush to prevent registry accumulation in VortexSession.
-        let session = VortexSession::default();
+        let file =
+            File::create(&path).with_context(|| format!("creating {}", path.display()))?;
+        let props = default_writer_props();
+        let mut writer = ArrowWriter::try_new(file, schema, Some(props))
+            .context("creating Parquet writer for trace_stats")?;
+        writer
+            .write(&batch)
+            .context("writing trace_stats batch")?;
+        writer
+            .close()
+            .context("closing trace_stats Parquet writer")?;
 
-        self.write_buf.clear();
-        VortexWriteOptions::new(session)
-            .with_strategy(strategy)
-            .write(&mut self.write_buf, st.into_array().to_array_stream())
-            .await
-            .context("writing trace_stats vortex file")?;
-
-        tokio::fs::write(&path, &self.write_buf)
-            .await
-            .with_context(|| format!("writing {}", path.display()))?;
-
-        // Shrink write_buf to release memory back to the allocator.
-        let bytes_written = self.write_buf.len() as u64;
-        self.write_buf = Vec::with_capacity(64 * 1024);
+        let bytes_written = std::fs::metadata(&path)
+            .with_context(|| format!("reading metadata for {}", path.display()))?
+            .len();
 
         self.flush_count += 1;
         self.flush_bytes += bytes_written;
@@ -273,24 +301,265 @@ impl TraceStatsWriter {
     }
 }
 
-/// Field names for the trace stats schema (18 columns).
-pub const TRACE_STATS_FIELD_NAMES: [&str; 18] = [
-    "service",
-    "name",
-    "resource",
-    "type",
-    "span_kind",
-    "hostname",
-    "env",
-    "version",
-    "http_status_code",
-    "hits",
-    "errors",
-    "duration_ns",
-    "top_level_hits",
-    "ok_summary",
-    "error_summary",
-    "bucket_start_ns",
-    "bucket_duration_ns",
-    "timestamp_ns",
-];
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Array, AsArray, BinaryArray, Int64Array, UInt32Array, UInt64Array};
+    use arrow::datatypes::UInt32Type;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    use tempfile::tempdir;
+
+    fn make_writer(dir: &Path) -> TraceStatsWriter {
+        TraceStatsWriter::new(dir, 1000, Duration::from_secs(60))
+    }
+
+    fn read_parquet(path: &Path) -> RecordBatch {
+        let file = File::open(path).unwrap();
+        let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+            .unwrap()
+            .build()
+            .unwrap();
+        let batches: Vec<RecordBatch> = reader.collect::<Result<_, _>>().unwrap();
+        assert_eq!(batches.len(), 1, "expected exactly one row group");
+        batches.into_iter().next().unwrap()
+    }
+
+    fn read_dict_string_column(batch: &RecordBatch, name: &str) -> Vec<String> {
+        let col = batch
+            .column_by_name(name)
+            .unwrap_or_else(|| panic!("column {name} not found"));
+        let dict = col.as_dictionary::<UInt32Type>();
+        let values = dict.values().as_string::<i32>();
+        let keys = dict.keys();
+        (0..dict.len())
+            .map(|i| {
+                let key = keys.value(i) as usize;
+                values.value(key).to_string()
+            })
+            .collect()
+    }
+
+    fn add_rows(w: &mut TraceStatsWriter, n: usize) {
+        for i in 0..n {
+            w.services.intern("web-service");
+            w.names.intern("http.request");
+            w.resources.intern("/api/v1/users");
+            w.types.intern("web");
+            w.span_kinds.intern("server");
+            w.hostnames.intern("host1");
+            w.envs.intern("prod");
+            w.versions.intern("1.0.0");
+
+            w.http_status_codes.push(200);
+            w.hits.push(100 + i as u64);
+            w.errors.push(i as u64);
+            w.durations.push(1_000_000 * (i as u64 + 1));
+            w.top_level_hits.push(50 + i as u64);
+            w.bucket_starts.push(1_000_000_000 * i as i64);
+            w.bucket_durations.push(10_000_000_000);
+            w.timestamps.push(i as i64 * 1000);
+
+            w.ok_summaries.push(vec![0x0a, 0x01, i as u8]);
+            w.error_summaries.push(vec![0x0b, 0x02, i as u8]);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_push_and_flush() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+        add_rows(&mut w, 50);
+
+        let path = w.flush().await.unwrap();
+        assert!(path.exists());
+        assert!(path.metadata().unwrap().len() > 0);
+
+        let batch = read_parquet(&path);
+        assert_eq!(batch.num_rows(), 50);
+        assert_eq!(batch.num_columns(), 18);
+    }
+
+    #[tokio::test]
+    async fn test_empty_flush_errors() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+        assert!(w.flush().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_roundtrip_trace_stats() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+
+        // Row 0 (later timestamp).
+        w.services.intern("svc-a");
+        w.names.intern("op1");
+        w.resources.intern("/foo");
+        w.types.intern("web");
+        w.span_kinds.intern("server");
+        w.hostnames.intern("h1");
+        w.envs.intern("staging");
+        w.versions.intern("2.0");
+        w.http_status_codes.push(200);
+        w.hits.push(10);
+        w.errors.push(1);
+        w.durations.push(5000);
+        w.top_level_hits.push(5);
+        w.bucket_starts.push(1000);
+        w.bucket_durations.push(10_000_000_000);
+        w.timestamps.push(2000);
+        w.ok_summaries.push(vec![1, 2, 3]);
+        w.error_summaries.push(vec![4, 5]);
+
+        // Row 1 (earlier timestamp — should come first after sort).
+        w.services.intern("svc-b");
+        w.names.intern("op2");
+        w.resources.intern("/bar");
+        w.types.intern("rpc");
+        w.span_kinds.intern("client");
+        w.hostnames.intern("h2");
+        w.envs.intern("prod");
+        w.versions.intern("3.0");
+        w.http_status_codes.push(500);
+        w.hits.push(20);
+        w.errors.push(5);
+        w.durations.push(10000);
+        w.top_level_hits.push(15);
+        w.bucket_starts.push(500);
+        w.bucket_durations.push(10_000_000_000);
+        w.timestamps.push(1000);
+        w.ok_summaries.push(vec![10, 20]);
+        w.error_summaries.push(vec![30]);
+
+        let path = w.flush().await.unwrap();
+        let batch = read_parquet(&path);
+
+        assert_eq!(batch.num_rows(), 2);
+
+        // Verify column names.
+        let schema = batch.schema();
+        let col_names: Vec<&str> = schema
+            .fields()
+            .iter()
+            .map(|f| f.name().as_str())
+            .collect();
+        assert_eq!(
+            col_names,
+            vec![
+                "service",
+                "name",
+                "resource",
+                "type",
+                "span_kind",
+                "hostname",
+                "env",
+                "version",
+                "http_status_code",
+                "hits",
+                "errors",
+                "duration_ns",
+                "top_level_hits",
+                "ok_summary",
+                "error_summary",
+                "bucket_start_ns",
+                "bucket_duration_ns",
+                "timestamp_ns",
+            ]
+        );
+
+        // Sorted by timestamp: row 1 (ts=1000) comes first, row 0 (ts=2000) second.
+        let services = read_dict_string_column(&batch, "service");
+        assert_eq!(services, vec!["svc-b", "svc-a"]);
+
+        let names = read_dict_string_column(&batch, "name");
+        assert_eq!(names, vec!["op2", "op1"]);
+
+        let resources = read_dict_string_column(&batch, "resource");
+        assert_eq!(resources, vec!["/bar", "/foo"]);
+
+        let types = read_dict_string_column(&batch, "type");
+        assert_eq!(types, vec!["rpc", "web"]);
+
+        let span_kinds = read_dict_string_column(&batch, "span_kind");
+        assert_eq!(span_kinds, vec!["client", "server"]);
+
+        // Numeric columns (sorted by timestamp).
+        let http_col = batch
+            .column_by_name("http_status_code")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        assert_eq!(http_col.values().to_vec(), vec![500, 200]);
+
+        let hits_col = batch
+            .column_by_name("hits")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        assert_eq!(hits_col.values().to_vec(), vec![20, 10]);
+
+        let errors_col = batch
+            .column_by_name("errors")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        assert_eq!(errors_col.values().to_vec(), vec![5, 1]);
+
+        let dur_col = batch
+            .column_by_name("duration_ns")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        assert_eq!(dur_col.values().to_vec(), vec![10000, 5000]);
+
+        let ts_col = batch
+            .column_by_name("timestamp_ns")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
+        assert_eq!(ts_col.values().to_vec(), vec![1000, 2000]);
+
+        // Binary columns (sorted by timestamp).
+        let ok_col = batch
+            .column_by_name("ok_summary")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert_eq!(ok_col.value(0), &[10, 20]);
+        assert_eq!(ok_col.value(1), &[1, 2, 3]);
+
+        let err_col = batch
+            .column_by_name("error_summary")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert_eq!(err_col.value(0), &[30]);
+        assert_eq!(err_col.value(1), &[4, 5]);
+    }
+
+    #[tokio::test]
+    async fn test_telemetry_counters() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+        add_rows(&mut w, 10);
+
+        assert_eq!(w.flush_count, 0);
+        assert_eq!(w.flush_bytes, 0);
+
+        let path = w.flush().await.unwrap();
+        assert_eq!(w.flush_count, 1);
+        assert!(w.flush_bytes > 0);
+        assert!(w.last_flush_duration_ns > 0);
+
+        // flush_bytes should match the file size on disk.
+        let file_size = std::fs::metadata(&path).unwrap().len();
+        assert_eq!(w.flush_bytes, file_size);
+    }
+}
