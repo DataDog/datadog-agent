@@ -507,8 +507,8 @@ gazelle(
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
         "-strict",  # don't swallow syntax errors or unknown directives
-        "-build_tags=" + ",".join(_GAZELLE_BUILD_TAGS),
     ],
+    build_tags = _GAZELLE_BUILD_TAGS,
     gazelle = ":gazelle_binary",
     prefix = "github.com/DataDog/datadog-agent",
 )
