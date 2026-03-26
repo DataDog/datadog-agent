@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const secretsManagementDocsURL = "https://docs.datadoghq.com/agent/configuration/secrets-management"
+
 type limitBuffer struct {
 	max int
 	buf *bytes.Buffer
@@ -95,9 +97,24 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("error while running '%s': command timeout", r.backendCommand)
+			return nil, fmt.Errorf("'%s' timed out after %d seconds. You can increase secret_backend_timeout in datadog.yaml. Docs: %s",
+				r.backendCommand, r.backendTimeout, secretsManagementDocsURL)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s", r.backendCommand, err)
+		errStr := strings.ToLower(err.Error())
+		stderrStr := stderr.buf.String()
+		if strings.Contains(errStr, "permission denied") || strings.Contains(errStr, "operation not permitted") || strings.Contains(errStr, "access is denied") {
+			log.Warnf("'%s' failed: permission denied. See docs for more information on the setup secrets: %s",
+				r.backendCommand, secretsManagementDocsURL)
+			return nil, fmt.Errorf("permission denied executing secret command '%s'", r.backendCommand)
+		}
+		if strings.Contains(stderrStr, "invalid version") || strings.Contains(stderrStr, "expected 1.0") {
+			log.Warnf("'%s' seems to have detected an invalid version. The Agent sends payload with version '%s'. If your script only works with version '1.0', update it. Docs: %s",
+				r.backendCommand, secrets.PayloadVersion, secretsManagementDocsURL)
+		} else {
+			log.Warnf("'%s' failed (exit code %s, message: '%s'). See docs for FAQ and troubleshooting methods: %s",
+				r.backendCommand, exitCode, err, secretsManagementDocsURL)
+		}
+		return nil, fmt.Errorf("error while running '%s': %s. See docs for FAQ and troubleshooting methods: %s", r.backendCommand, err, secretsManagementDocsURL)
 	}
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
@@ -186,7 +203,8 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
 		r.tlmSecretUnmarshalError.Inc()
-		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
+		return nil, fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
+			r.backendCommand, err, secretsManagementDocsURL)
 	}
 
 	res := map[string]string{}
@@ -194,7 +212,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		v, ok := secrets[sec]
 		if !ok {
 			r.tlmSecretResolveError.Inc("missing", sec)
-			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command", sec)
+			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command. Ensure your script returns the handle in the expected JSON format. Docs: %s", sec, secretsManagementDocsURL)
 		}
 
 		if v.ErrorMsg != "" {
@@ -208,7 +226,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 
 		if v.Value == "" {
 			r.tlmSecretResolveError.Inc("empty", sec)
-			return nil, fmt.Errorf("resolved secret for '%s' is empty", sec)
+			return nil, fmt.Errorf("resolved secret for '%s' is empty. Check that the secret exists in your backend and has a non-empty value. If using secret_backend_remove_trailing_line_break, trailing newlines are stripped. Docs: %s", sec, secretsManagementDocsURL)
 		}
 		res[sec] = v.Value
 	}

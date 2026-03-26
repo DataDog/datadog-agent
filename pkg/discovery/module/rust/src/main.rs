@@ -40,10 +40,15 @@ use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::Semaphore;
 
 mod cli;
 
 use cli::Args;
+
+/// We choose 2 because one is for regular agent checks and another one is for manual troubleshooting.
+/// This matches the Go system-probe's DefaultMaxConcurrentRequests.
+static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
@@ -87,9 +92,11 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     Ok(sock)
 }
 
-async fn handle_services(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+async fn handle_services<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     if req
         .headers()
         .get(CONTENT_TYPE)
@@ -114,7 +121,7 @@ async fn handle_services(
         }
     };
 
-    let services = get_services(params);
+    let services = tokio::task::spawn_blocking(|| get_services(params)).await?;
     debug!("Found {} services", services.services.len());
 
     Response::builder()
@@ -224,12 +231,32 @@ fn not_found() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
         .map_err(|e| anyhow!("Failed to build not found response: {}", e))
 }
 
-async fn handle_request(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .status(StatusCode::TOO_MANY_REQUESTS)
+        .body(
+            Full::new(Bytes::from("Too many requests"))
+                .map_err(|e| match e {})
+                .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build too many requests response: {}", e))
+}
+
+async fn handle_request<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
             debug!("Handling /discovery/services request");
+            let _permit = match SERVICES_SEMAPHORE.try_acquire() {
+                Ok(permit) => permit,
+                Err(_) => {
+                    warn!("rejecting request for path=/discovery/services concurrency_limit=2");
+                    return too_many_requests();
+                }
+            };
             handle_services(req).await
         }
         (&Method::GET, "/discovery/state") => handle_state().await,
@@ -237,7 +264,7 @@ async fn handle_request(
         (&Method::GET, "/config/by-source") => handle_config_by_source().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
         _ => {
-            info!(
+            debug!(
                 "{} Request to unknown endpoint: {}",
                 req.method(),
                 req.uri().path()
@@ -313,7 +340,7 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse(env::args())?;
     dd_agent_log::init(dd_agent_log::LogConfig {
@@ -343,6 +370,71 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    fn services_request() -> Request<Full<Bytes>> {
+        Request::builder()
+            .method(Method::POST)
+            .uri("/discovery/services")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from("{}")))
+            .unwrap_or_else(|e| panic!("Failed to build request: {e}"))
+    }
+
+    #[tokio::test]
+    async fn test_concurrency_limit() {
+        // Acquire both permits to saturate the semaphore (limit=2).
+        let permit1 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire first permit: {e}"));
+        let permit2 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire second permit: {e}"));
+
+        // With both permits held, handle_request should return 429.
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_eq!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Expected 429 when semaphore is exhausted"
+        );
+
+        // Other endpoints should still work even with both permits held.
+        for path in [
+            "/discovery/state",
+            "/config",
+            "/config/by-source",
+            "/debug/stats",
+        ] {
+            let req = Request::builder()
+                .method(Method::GET)
+                .uri(path)
+                .body(Full::new(Bytes::new()))
+                .unwrap_or_else(|e| panic!("Failed to build request: {e}"));
+            let resp = handle_request(req)
+                .await
+                .unwrap_or_else(|e| panic!("handle_request failed for {path}: {e}"));
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "Expected 200 for {path} even when semaphore is exhausted"
+            );
+        }
+
+        // Release one permit — request should now get through (not 429).
+        drop(permit1);
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Should not get 429 when a permit is available"
+        );
+
+        drop(permit2);
+    }
 
     #[test]
     fn test_remove_pid_file_deletes_file() {
