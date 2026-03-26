@@ -28,6 +28,7 @@ use generated::signals_generated::signals;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
+        .with_ansi(atty::is(atty::Stream::Stdout))
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive(tracing::Level::INFO.into()),
