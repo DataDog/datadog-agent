@@ -72,7 +72,14 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname
 # gazelle:exclude comp/core/ipc
-# gazelle:exclude comp/core/log
+# gazelle:exclude comp/core/log/fx-systemprobe
+# gazelle:exclude comp/core/log/fx-trace
+# gazelle:exclude comp/core/log/fx
+# gazelle:exclude comp/core/log/impl-systemprobe
+# gazelle:exclude comp/core/log/impl-trace
+# gazelle:exclude comp/core/log/impl
+# gazelle:exclude comp/core/log/mock
+# gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/lsof
 # gazelle:exclude comp/core/pid
 # gazelle:exclude comp/core/profiler
