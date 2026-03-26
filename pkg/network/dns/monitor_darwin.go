@@ -73,13 +73,8 @@ func newDarwinDNSMonitorWithSource(cfg *config.Config, src filter.PacketSource) 
 // processPacket selects the appropriate parser based on the packet's link-layer
 // type, then delegates to the embedded snooper's cache, stat keeper, and telemetry.
 func (m *dnsMonitor) processPacket(data []byte, info filter.PacketInfo, ts time.Time) error {
-	pktInfo, _ := info.(*filter.DarwinPacketInfo)
-	if pktInfo == nil {
-		pktInfo = &filter.DarwinPacketInfo{}
-	}
-
 	var parser *dnsParser
-	if pktInfo.LayerType == layers.LayerTypeLoopback {
+	if info.LinkLayerType() == layers.LayerTypeLoopback {
 		parser = m.loopbackParser
 	} else {
 		parser = m.ethernetParser

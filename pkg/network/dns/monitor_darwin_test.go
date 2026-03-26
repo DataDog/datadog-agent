@@ -59,7 +59,7 @@ func (m *mockSubSource) VisitPackets(visitor func(data []byte, info filter.Packe
 			return nil
 		default:
 		}
-		info := &filter.DarwinPacketInfo{LayerType: pkt.layerType}
+		info := filter.NewDarwinPacketInfo(0, pkt.layerType)
 		if err := visitor(pkt.data, info, pkt.ts); err != nil {
 			return err
 		}

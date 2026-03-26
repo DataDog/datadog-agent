@@ -134,6 +134,11 @@ type DarwinPacketInfo struct {
 	layerType gopacket.LayerType
 }
 
+// NewDarwinPacketInfo creates a DarwinPacketInfo with the given direction and link-layer type.
+func NewDarwinPacketInfo(pktType uint8, linkLayer gopacket.LayerType) *DarwinPacketInfo {
+	return &DarwinPacketInfo{PktType: pktType, layerType: linkLayer}
+}
+
 // PacketType returns the packet direction type
 func (d *DarwinPacketInfo) PacketType() uint8 {
 	return d.PktType
