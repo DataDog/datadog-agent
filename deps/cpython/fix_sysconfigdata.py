@@ -35,6 +35,7 @@ FLAGS_TO_CLEAR = frozenset(
 )
 
 # Regexp to split into alternating path candidates and other tokens
+# Needs to account for paths being preceded by `=` or quotes.
 _PATH_SPLITTER_RE = re.compile(r"""(/[^\s='"]+)""")
 
 
