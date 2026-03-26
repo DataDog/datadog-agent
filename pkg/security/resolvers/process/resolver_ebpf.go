@@ -106,7 +106,7 @@ type EBPFResolver struct {
 	procFallbackLimiterDrop      *atomic.Int64
 	inodeErrStats                map[string]*atomic.Int64 // inode error stats by tag
 
-	entryCache              map[uint32]*model.ProcessCacheEntry
+	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	// limiters
