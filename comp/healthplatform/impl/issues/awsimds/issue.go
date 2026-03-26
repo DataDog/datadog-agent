@@ -16,6 +16,8 @@ import (
 //go:embed fix-aws-imds-hop-limit.sh
 var fixScript string
 
+const imdsAddress = "169.254.169.254:80"
+
 // AWSIMDSIssue provides the complete issue template for AWS IMDS hop limit problems
 type AWSIMDSIssue struct{}
 

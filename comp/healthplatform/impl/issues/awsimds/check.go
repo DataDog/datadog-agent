@@ -16,10 +16,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-const (
-	imdsAddress = "169.254.169.254:80"
-	dialTimeout = 1 * time.Second
-)
+const dialTimeout = 1 * time.Second
 
 // Check detects if the AWS IMDSv2 endpoint is unreachable from inside a container
 // due to the default hop limit of 1. The check works by attempting a TCP connection
