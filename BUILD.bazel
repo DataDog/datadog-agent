@@ -253,7 +253,11 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/logs/sender
 # gazelle:exclude pkg/logs/service
 # gazelle:exclude pkg/logs/sources
-# gazelle:exclude pkg/logs/status
+# gazelle:exclude pkg/logs/status/builder.go
+# gazelle:exclude pkg/logs/status/status.go
+# gazelle:exclude pkg/logs/status/status_test.go
+# gazelle:exclude pkg/logs/status/test_utils.go
+# gazelle:exclude pkg/logs/status/utils
 # gazelle:exclude pkg/logs/tailers
 # gazelle:exclude pkg/logs/util
 # gazelle:exclude pkg/metrics
