@@ -217,14 +217,29 @@ func initNvkindCluster(env config.Env, vm *remote.Host, name string, clusterOpts
 
 		// Run the nvkind command to create the cluster
 		kindClusterName := env.CommonNamer().DisplayName(49)
+
+		// Force pulumi to delete the cluster before trying to recreate it,
+		// although this only works if the create command succeeded previously.
+		// If not, it will just try to run the create command again, which is
+		// why we need to run the kind delete command on create failure, see below.
+		clusterOpts := utils.MergeOptions(opts, pulumi.DeleteBeforeReplace(true))
+		deleteClusterCmd := pulumi.Sprintf("kind delete cluster --name %s", kindClusterName)
 		nvkindCreateCluster, err := vm.OS.Runner().Command(
 			env.CommonNamer().ResourceName("nvkind-create"),
 			&command.Args{
-				Create:   pulumi.Sprintf("nvkind cluster create --name %s --config-template %s --config-values %s", kindClusterName, nvkindTemplatePath, nvkindValuesPath),
-				Delete:   pulumi.Sprintf("kind delete clusters %s || true", kindClusterName),
+				// For the create command, delete the cluster if the creation
+				// fails. And if the delete succeeds, still have && false to
+				// ensure that the command returns an exit error anways
+				Create: pulumi.Sprintf("nvkind cluster create --name %s --config-template %s --config-values %s || (%s && false)", kindClusterName, nvkindTemplatePath, nvkindValuesPath, deleteClusterCmd),
+				// On the other hand, do not fail the delete command if nvkind
+				// delete fails, as it can happen if the cluster hasn't been
+				// created or nvkind deleted it because of an error (nvkind is
+				// not consistent and will not always delete the cluster when it
+				// fails to create it)
+				Delete:   pulumi.Sprintf("%s || true", deleteClusterCmd),
 				Triggers: pulumi.Array{nvkindValuesContent, pulumi.String(nvkindConfigTemplate)},
 			},
-			opts...)
+			clusterOpts...)
 		if err != nil {
 			return fmt.Errorf("failed to create nvkind cluster: %w", err)
 		}

@@ -12,6 +12,10 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
+// Sentinel value for nil_bit_idx indicating no nil bit should be set
+// (used by condition expressions which report nil via condition_eval_error).
+#define NIL_BIT_IDX_NONE 0xFFFFFFFF
+
 const int32_t defaultCollectionSizeBytesLimit = 512;
 
 DEFINE_BINARY_SEARCH(
@@ -915,13 +919,23 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "EXPR_DEREFERENCE_PTR: starting");
     uint32_t bias = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
+    uint32_t nil_bit_idx = sm_read_program_uint32(sm);
     buf_offset_t value_offset = sm->offset;
     if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
     if (addr == 0) {
-      // NULL pointer: abort expression evaluation.
+      // NULL pointer: set nil bit in presence bitset if applicable.
+      if (nil_bit_idx != NIL_BIT_IDX_NONE) {
+        buf_offset_t nil_byte_offset = sm->expr_results_offset + nil_bit_idx / 8;
+        uint32_t nil_bit = nil_bit_idx % 8;
+        if (scratch_buf_bounds_check(&nil_byte_offset, 1)) {
+          (*buf)[nil_byte_offset] |= (1 << nil_bit);
+        }
+      }
+      sm->condition_nil_deref = true;
+      // Abort expression evaluation.
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -1540,6 +1554,7 @@ stack_machine_process_frame(global_ctx_t* ctx, frame_data_t* frame_data,
   ctx->stack_machine->frame_data = *frame_data;
   ctx->stack_machine->condition_failed = false;
   ctx->stack_machine->condition_eval_error = false;
+  ctx->stack_machine->condition_nil_deref = false;
   return sm_run(ctx);
 }
 
@@ -1549,6 +1564,7 @@ stack_machine_chase_pointers(global_ctx_t* ctx) {
   ctx->stack_machine->offset = scratch_buf_len(ctx->buf);
   ctx->stack_machine->condition_failed = false;
   ctx->stack_machine->condition_eval_error = false;
+  ctx->stack_machine->condition_nil_deref = false;
   return sm_run(ctx);
 }
 

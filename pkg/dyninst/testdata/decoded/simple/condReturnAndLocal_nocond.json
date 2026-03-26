@@ -18,7 +18,7 @@
           {
             "function": "main.condReturnAndLocal",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 321
+            "lineNumber": 360
           },
           {
             "function": "main.main",
@@ -89,7 +89,7 @@
           {
             "function": "main.condReturnAndLocal",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 321
+            "lineNumber": 360
           },
           {
             "function": "main.main",

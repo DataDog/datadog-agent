@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "idx",
+    srcs = [
+        "internal_span.go",
+        "span.go",
+        "span.pb.go",
+        "span_v05.go",
+        "tracer_payload.go",
+        "tracer_payload.pb.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_tinylib_msgp//msgp",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)
+
+go_test(
+    name = "idx_test",
+    srcs = [
+        "internal_span_test.go",
+        "span_marshal_test.go",
+        "span_test.go",
+        "span_v05_test.go",
+        "tracer_payload_test.go",
+    ],
+    embed = [":idx"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
+        "@com_github_vmihailenco_msgpack_v4//:msgpack",
+    ],
+)

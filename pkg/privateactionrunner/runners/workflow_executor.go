@@ -123,12 +123,16 @@ func (l *Loop) handleTask(
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
-	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, l.runner.config.TaskTimeoutSeconds)
+	timeoutSeconds := task.TimeoutSeconds()
+	if timeoutSeconds == nil {
+		timeoutSeconds = l.runner.config.TaskTimeoutSeconds
+	}
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
 	defer timeoutCancel()
 
 	output, err := l.runner.RunTask(timeoutCtx, task, credential)
 
-	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, l.runner.config.TaskTimeoutSeconds, logger); isTimeout {
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
 		l.publishFailure(ctx, task, timeoutErr)
 		return
 	}

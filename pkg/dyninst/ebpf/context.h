@@ -81,6 +81,10 @@ typedef struct stack_machine {
   // exits early (e.g. nil pointer dereference), this flag remains set to
   // signal that the condition could not be fully evaluated.
   bool condition_eval_error;
+  // Set to true when a nil pointer dereference causes an expression or
+  // condition evaluation to abort. Used together with condition_eval_error
+  // to distinguish nil-caused failures from other evaluation errors.
+  bool condition_nil_deref;
 
   // Temporary data, stored here to save on stack space.
   uint64_t value_0;
@@ -107,6 +111,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->data_stack_pointer = 0;
   stack_machine->condition_failed = false;
   stack_machine->condition_eval_error = false;
+  stack_machine->condition_nil_deref = false;
   chased_pointers_trie_init(&stack_machine->chased);
   chased_slices_init(&stack_machine->chased_slices);
   stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
