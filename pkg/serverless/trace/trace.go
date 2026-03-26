@@ -7,6 +7,7 @@ package trace
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"strconv"
@@ -119,7 +120,11 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 
 		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
-			log.Errorf("Unable to load trace agent config: %s", confErr)
+			if errors.Is(confErr, config.ErrMissingAPIKey) {
+				log.Warnf("Trace agent config: %s", confErr)
+			} else {
+				log.Errorf("Unable to load trace agent config: %s", confErr)
+			}
 		} else {
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
@@ -269,6 +274,11 @@ func (c noopConcentrator) Start()              {}
 func (c noopConcentrator) Stop()               {}
 func (c noopConcentrator) Add(stats.Input)     {}
 func (c noopConcentrator) AddV1(stats.InputV1) {}
+
+// NewNoopTraceAgent returns a no-op trace agent that safely discards all data.
+func NewNoopTraceAgent() ServerlessTraceAgent {
+	return noopTraceAgent{}
+}
 
 type noopTraceAgent struct{}
 
