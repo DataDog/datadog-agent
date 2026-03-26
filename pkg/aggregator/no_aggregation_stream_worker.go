@@ -197,13 +197,6 @@ func (w *noAggregationStreamWorker) run() {
 						countProcessed := 0
 						countUnsupportedType := 0
 
-						// Build snapshots before processing — must happen before PutBatch
-						// to avoid reading recycled memory.
-						hookBatch := make([]hook.MetricSampleSnapshot, len(samples))
-						for i := range samples {
-							hookBatch[i] = hook.NewMetricSampleSnapshot(&samples[i])
-						}
-
 						for _, sample := range samples {
 							mtype, supported := metricSampleAPIType(sample)
 
@@ -248,7 +241,13 @@ func (w *noAggregationStreamWorker) run() {
 						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
 						expvarNoAggSamplesProcessedUnsupportedType.Add(int64(countUnsupportedType))
 
-						w.metricHook.Publish("dogstatsd-no-aggr", hookBatch)
+						if w.metricHook.HasSubscribers() {
+							hookBatch := make([]hook.MetricSampleSnapshot, len(samples))
+							for i := range samples {
+								hookBatch[i] = hook.NewMetricSampleSnapshot(&samples[i])
+							}
+							w.metricHook.Publish("dogstatsd-no-aggr", hookBatch)
+						}
 						w.metricSamplePool.PutBatch(samples) // return the sample batch back to the pool for reuse
 
 						if serializedSamples > w.maxMetricsPerPayload {

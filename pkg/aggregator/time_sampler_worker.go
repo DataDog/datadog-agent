@@ -118,11 +118,15 @@ func (w *timeSamplerWorker) run() {
 			}
 			// Publish a batch of snapshots before returning the slice to the pool.
 			// Snapshots are value copies, so this is safe even after PutBatch.
-			batch := make([]hook.MetricSampleSnapshot, len(ms))
-			for i := range ms {
-				batch[i] = hook.NewMetricSampleSnapshot(&ms[i])
+			// The HasSubscribers guard avoids allocating the batch when nobody
+			// is listening, keeping the hot path allocation-free.
+			if w.metricHook.HasSubscribers() {
+				batch := make([]hook.MetricSampleSnapshot, len(ms))
+				for i := range ms {
+					batch[i] = hook.NewMetricSampleSnapshot(&ms[i])
+				}
+				w.metricHook.Publish("dogstatsd", batch)
 			}
-			w.metricHook.Publish("dogstatsd", batch)
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher
