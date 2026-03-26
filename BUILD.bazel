@@ -444,11 +444,14 @@ exports_files(glob(
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
 
-# All custom build tags from tasks/build_tags.py ALL_TAGS.
-# "test" is intentionally absent: test-only sources (//go:build test) are
-# routed to go_test targets by the go_build_tags Gazelle extension instead.
+# All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
+# "test" is included so Gazelle analyzes test-only sources and generates their
+# deps. The go_build_tags Gazelle extension removes those files from go_library
+# and moves them into go_test targets; their deps remain in go_library (harmless
+# extra) and are accessible to go_test via embedding.
 _GAZELLE_BUILD_TAGS = [
     "bundle_installer",
+    "test",
     "cel",
     "clusterchecks",
     "consul",
