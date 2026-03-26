@@ -202,6 +202,31 @@ func TestConcurrentSubscribePublish(_ *testing.T) {
 	wg.Wait()
 }
 
+// TestWithBufferSizeUsesCustomCapacity verifies that WithBufferSize overrides the
+// default 100-slot channel so large-burst consumers can absorb more payloads
+// before dropping.
+func TestWithBufferSizeUsesCustomCapacity(t *testing.T) {
+	h := NewHook[int]("bufsize-test")
+
+	const customSize = 4096
+	unsub := h.Subscribe("consumer", func(_ int) { time.Sleep(time.Hour) },
+		WithBufferSize[int](customSize),
+	)
+	defer unsub()
+
+	// Fill up to customSize without blocking.
+	for i := range customSize {
+		h.Publish("producer", i)
+	}
+
+	impl := h.(*hook[int])
+	impl.mu.RLock()
+	c := impl.consumers["consumer"]
+	impl.mu.RUnlock()
+
+	assert.Equal(t, customSize, cap(c.ch), "channel capacity should match WithBufferSize argument")
+}
+
 // TestSubscribeDuplicateNamePanics asserts that subscribing with a name already
 // in use panics immediately rather than silently leaking a goroutine.
 func TestSubscribeDuplicateNamePanics(t *testing.T) {
