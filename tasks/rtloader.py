@@ -39,7 +39,7 @@ def make(ctx, install_prefix=None, cmake_options=''):
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
-    cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={prefix}"
+    cmake_args = cmake_options + f" -DCMAKE_INSTALL_PREFIX:PATH={prefix}"
     if os.getenv('DD_CMAKE_TOOLCHAIN'):
         cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
 
