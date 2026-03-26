@@ -91,13 +91,12 @@ func (h *RunCommandHandler) Run(
 	if len(inputs.AllowedCommands) > 0 {
 		cmdOpt = interp.AllowedCommands(inputs.AllowedCommands)
 	}
-	opts := []interp.RunnerOption{
+	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.AllowedPaths(h.allowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		cmdOpt,
-	}
-	runner, err := interp.New(opts...)
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
