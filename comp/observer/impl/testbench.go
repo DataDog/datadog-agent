@@ -1225,6 +1225,40 @@ func (tb *TestBench) printHeadlessRunStats() {
 			s.Count,
 		)
 	}
+
+	// Same definition as the benchmark UI "Cost per Item" chart: total_ns ÷ input volume.
+	type perItemRow struct {
+		name      string
+		kind      string
+		nsPerItem float64
+		items     int
+	}
+	perItem := make([]perItemRow, 0, len(rs.DetectorStats))
+	for _, name := range names {
+		s := rs.DetectorStats[name]
+		nItems := replayStatsItemCountForKind(rs, s.Kind)
+		if nItems <= 0 {
+			continue
+		}
+		nsPer := s.TotalNs / float64(nItems)
+		if nsPer <= 0 {
+			continue
+		}
+		perItem = append(perItem, perItemRow{name: name, kind: s.Kind, nsPerItem: nsPer, items: nItems})
+	}
+	sort.Slice(perItem, func(i, j int) bool { return perItem[i].nsPerItem > perItem[j].nsPerItem })
+
+	if len(perItem) > 0 {
+		fmt.Println("\nProcessing time per item (total ÷ items processed — same as benchmark \"Cost per Item\"):")
+		for _, row := range perItem {
+			fmt.Printf("  %-40s  %8s  %-10s (%d items)\n",
+				row.name,
+				formatNsAsUsShort(row.nsPerItem),
+				perItemSuffixLabel(row.kind),
+				row.items,
+			)
+		}
+	}
 }
 
 // formatTotalNs formats a total duration (nanoseconds) with auto-scaling to
@@ -1239,6 +1273,41 @@ func formatTotalNs(ns float64) string {
 		return fmt.Sprintf("%8.1fms", ms)
 	}
 	return fmt.Sprintf("%8.3fs ", ms/1_000)
+}
+
+// formatNsAsUsShort formats a duration in nanoseconds as µs with the same
+// precision rules as the testbench benchmark UI (fmtUs).
+func formatNsAsUsShort(ns float64) string {
+	us := ns / 1e3
+	if us < 10 {
+		return fmt.Sprintf("%.2fµs", us)
+	}
+	if us < 100 {
+		return fmt.Sprintf("%.1fµs", us)
+	}
+	return fmt.Sprintf("%.0fµs", us)
+}
+
+func replayStatsItemCountForKind(rs *ReplayStats, kind string) int {
+	switch kind {
+	case "extractor":
+		return rs.InputLogsCount
+	case "correlator":
+		return rs.InputAnomaliesCount
+	default:
+		return rs.InputMetricsCount
+	}
+}
+
+func perItemSuffixLabel(kind string) string {
+	switch kind {
+	case "extractor":
+		return "ns/log"
+	case "correlator":
+		return "ns/anomaly"
+	default:
+		return "ns/point"
+	}
 }
 
 // RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then
