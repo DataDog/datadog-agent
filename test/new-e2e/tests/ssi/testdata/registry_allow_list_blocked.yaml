@@ -5,8 +5,6 @@ clusterAgent:
   env:
     - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY_ALLOW_LIST
       value: "fake.registry.invalid"
-    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
-      value: "false"
 
 # Temporary until the Datadog CSI driver is released
 datadog-csi-driver:
