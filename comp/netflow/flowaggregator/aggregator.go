@@ -58,6 +58,13 @@ type FlowAggregatorRunner interface {
 	Start()
 	Stop()
 	GetFlowInChan() chan *common.Flow
+
+	// Testing helpers — allow tests to configure the aggregator without
+	// type-asserting to a concrete generic instantiation.
+	SetTimeNowFunction(fn func() time.Time)
+	SetFlushTickFrequency(d time.Duration)
+	GetFlushedFlowCount() *atomic.Uint64
+	GetFlowContextCount() int
 }
 
 // ---------------------------------------------------------------------------
@@ -205,6 +212,26 @@ func (agg *FlowAggregator[T]) Stop() {
 // GetFlowInChan returns flow input chan
 func (agg *FlowAggregator[T]) GetFlowInChan() chan *common.Flow {
 	return agg.flowIn
+}
+
+// SetTimeNowFunction overrides the time source used by the aggregator.
+func (agg *FlowAggregator[T]) SetTimeNowFunction(fn func() time.Time) {
+	agg.TimeNowFunction = fn
+}
+
+// SetFlushTickFrequency overrides the flush tick interval.
+func (agg *FlowAggregator[T]) SetFlushTickFrequency(d time.Duration) {
+	agg.FlushConfig.FlushTickFrequency = d
+}
+
+// GetFlushedFlowCount returns the flushed flow counter.
+func (agg *FlowAggregator[T]) GetFlushedFlowCount() *atomic.Uint64 {
+	return agg.flushedFlowCount
+}
+
+// GetFlowContextCount returns the number of flow contexts currently tracked.
+func (agg *FlowAggregator[T]) GetFlowContextCount() int {
+	return agg.flowAcc.GetFlowContextCount()
 }
 
 func (agg *FlowAggregator[T]) run() {

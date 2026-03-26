@@ -12,7 +12,7 @@ import (
 
 // WaitForFlowsToBeFlushed waits up to timeoutDuration for at least minEvents
 // flows to be flushed by the aggregator. It is intended for testing.
-func WaitForFlowsToBeFlushed[T any](aggregator *FlowAggregator[T], timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
+func WaitForFlowsToBeFlushed(aggregator FlowAggregatorRunner, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -24,7 +24,7 @@ func WaitForFlowsToBeFlushed[T any](aggregator *FlowAggregator[T], timeoutDurati
 			return 0, errors.New("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
-			events := aggregator.flushedFlowCount.Load()
+			events := aggregator.GetFlushedFlowCount().Load()
 			if events >= minEvents {
 				return events, nil
 			}
@@ -34,7 +34,7 @@ func WaitForFlowsToBeFlushed[T any](aggregator *FlowAggregator[T], timeoutDurati
 
 // WaitForFlowsToAccumulate waits up to timeoutDuration for at least minFlows
 // flows to be accumulated by the aggregator. It is intended for testing.
-func WaitForFlowsToAccumulate[T any](aggregator *FlowAggregator[T], timeoutDuration time.Duration, minFlows int) error {
+func WaitForFlowsToAccumulate(aggregator FlowAggregatorRunner, timeoutDuration time.Duration, minFlows int) error {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -43,7 +43,7 @@ func WaitForFlowsToAccumulate[T any](aggregator *FlowAggregator[T], timeoutDurat
 		case <-timeout:
 			return errors.New("timeout error waiting for events")
 		case <-ticker.C:
-			if aggregator.flowAcc.GetFlowContextCount() >= minFlows {
+			if aggregator.GetFlowContextCount() >= minFlows {
 				return nil
 			}
 		}

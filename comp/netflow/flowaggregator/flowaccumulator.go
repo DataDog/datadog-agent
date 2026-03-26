@@ -111,9 +111,13 @@ func (b *flowAccumulatorBase) HashCollisionCount() *atomic.Uint64 {
 }
 
 // addCommon handles port rollup, locking, and the core accumulation logic.
-// postRollup, if non-nil, is called after port rollup but before the lock is acquired.
-// onNewFlow is called under lock when a new aggregation hash is first seen;
-// it may modify *nextFlush (e.g., to inherit a group's flush time in dedup mode).
+//
+// Callback locking contract:
+//   - postRollup runs WITHOUT flowsMutex held. It must not access b.flows or
+//     other mutex-protected state. It is safe for computing derived values from
+//     the (already-rewritten) flow, e.g. FlowKeyHash after port rollup.
+//   - onNewFlow runs WITH flowsMutex held. It may read/write b.flows and modify
+//     *nextFlush (e.g., to inherit a group's flush time in dedup mode).
 func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, postRollup func(), onNewFlow func(aggHash uint64, nextFlush *time.Time)) {
 	b.logger.Tracef("Add new flow: %+v", flowToAdd)
 
@@ -374,16 +378,20 @@ func newDedupFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowS
 // existing 5-tuple group inherit the group's flush time so all reporters in the
 // group flush together.
 func (d *dedupFlowAccumulator) Add(flowToAdd *common.Flow) {
-	// fiveTupleHash is computed in the postRollup callback so it reflects
-	// any port-rollup rewrites (e.g. ephemeral port normalization).
+	// fiveTupleHash is computed in the postRollup callback (runs unlocked — only
+	// reads flow fields, no shared state) so it reflects any port-rollup rewrites.
+	// The onNewFlow callback (runs under flowsMutex) safely accesses d.flows and
+	// d.fiveTupleGroups.
 	var fiveTupleHash uint64
 	d.addCommon(flowToAdd, func() {
 		fiveTupleHash = flowToAdd.FlowKeyHash()
 	}, func(aggHash uint64, nextFlush *time.Time) {
 		// New reporter joining an existing group: inherit the group's flush time so
 		// all reporters flush together rather than at independently jittered times.
+		// Prefer an active member's nextFlush; fall back to any member's nextFlush
+		// (e.g. a dead context that was flushed recently but has a valid schedule).
 		for _, h := range d.fiveTupleGroups[fiveTupleHash] {
-			if existingCtx, exists := d.flows[h]; exists && existingCtx.flow != nil {
+			if existingCtx, exists := d.flows[h]; exists {
 				*nextFlush = existingCtx.nextFlush
 				break
 			}
@@ -446,14 +454,15 @@ func (d *dedupFlowAccumulator) Flush(flushContext common.FlushContext) []FlowGro
 
 			liveHashes = append(liveHashes, hash)
 
-			if !ctx.nextFlush.After(now) {
-				flowCopy := *ctx.flow
-				activeFlows = append(activeFlows, &flowCopy)
-				ctx.lastSuccessfulFlush = now
-				ctx.flow = nil
-				ctx.nextFlush = d.scheduler.RefreshFlushTime(ctx)
-				d.flows[hash] = ctx
-			}
+			// Once the group is ready, flush ALL reporters that have data — not just
+			// those individually due. This ensures reporters with slightly offset
+			// flush times (e.g. a late joiner) are still sent together for dedup.
+			flowCopy := *ctx.flow
+			activeFlows = append(activeFlows, &flowCopy)
+			ctx.lastSuccessfulFlush = now
+			ctx.flow = nil
+			ctx.nextFlush = d.scheduler.RefreshFlushTime(ctx)
+			d.flows[hash] = ctx
 		}
 
 		if len(activeFlows) > 0 {
