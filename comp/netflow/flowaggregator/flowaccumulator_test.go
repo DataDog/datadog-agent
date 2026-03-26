@@ -104,7 +104,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	// Then
 	assert.Equal(t, 2, len(acc.flows))
 
-	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
+	wrappedFlowA := acc.flows[flowA1.PerReporterHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
 	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
@@ -114,7 +114,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
 	assert.Equal(t, map[string]any{"custom_field": "test", "custom_field_2": "second_flow_field"}, wrappedFlowA.flow.AdditionalFields) // Keeping first value seen for key `custom_field`
 
-	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
+	wrappedFlowB := acc.flows[flowB1.PerReporterHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 30}, wrappedFlowB.flow.DstAddr)
 }
@@ -154,7 +154,7 @@ func Test_flowAccumulator_addWithJitter(t *testing.T) {
 	// Then
 	require.Len(t, acc.flows, 1)
 
-	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
+	wrappedFlowA := acc.flows[flowA1.PerReporterHash()]
 	assert.WithinRange(t, wrappedFlowA.nextFlush, MockTimeNow(), MockTimeNow().Add(common.DefaultAggregatorFlushInterval*time.Second))
 	assert.NotEqual(t, MockTimeNow(), wrappedFlowA.nextFlush)
 
@@ -163,7 +163,7 @@ func Test_flowAccumulator_addWithJitter(t *testing.T) {
 		FlushTime: timeNow(),
 	})
 
-	wrappedFlowAPt2 := acc.flows[flowA1.AggregationHash()]
+	wrappedFlowAPt2 := acc.flows[flowA1.PerReporterHash()]
 	assert.Equal(t, wrappedFlowA.nextFlush.Add(common.DefaultAggregatorFlushInterval*time.Second), wrappedFlowAPt2.nextFlush, "the next flush should not be jittered")
 }
 
@@ -256,7 +256,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	// Then
 	assert.Equal(t, 4, len(acc.flows))
 
-	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
+	wrappedFlowA := acc.flows[flowA1.PerReporterHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
 	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
@@ -265,13 +265,13 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
 
-	assert.Equal(t, uint64(20), acc.flows[flowB1.AggregationHash()].flow.Packets)
-	assert.Equal(t, int32(2001), acc.flows[flowB1.AggregationHash()].flow.DstPort)
-	assert.Equal(t, uint64(10), acc.flows[flowB2.AggregationHash()].flow.Packets)
-	assert.Equal(t, int32(2002), acc.flows[flowB2.AggregationHash()].flow.DstPort)
+	assert.Equal(t, uint64(20), acc.flows[flowB1.PerReporterHash()].flow.Packets)
+	assert.Equal(t, int32(2001), acc.flows[flowB1.PerReporterHash()].flow.DstPort)
+	assert.Equal(t, uint64(10), acc.flows[flowB2.PerReporterHash()].flow.Packets)
+	assert.Equal(t, int32(2002), acc.flows[flowB2.PerReporterHash()].flow.DstPort)
 	// flowB3, B4, B5, B6 are aggregated into one flow with DstPort = 0
-	assert.Equal(t, uint64(40), acc.flows[flowBwithPortRollup.AggregationHash()].flow.Packets)
-	assert.Equal(t, int32(-1), acc.flows[flowBwithPortRollup.AggregationHash()].flow.DstPort)
+	assert.Equal(t, uint64(40), acc.flows[flowBwithPortRollup.PerReporterHash()].flow.Packets)
+	assert.Equal(t, int32(-1), acc.flows[flowBwithPortRollup.PerReporterHash()].flow.DstPort)
 }
 
 func Test_flowAccumulator_flush(t *testing.T) {
@@ -307,7 +307,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	// Then
 	assert.Equal(t, 1, len(acc.flows))
 
-	wrappedFlow := acc.flows[flow.AggregationHash()]
+	wrappedFlow := acc.flows[flow.PerReporterHash()]
 
 	assert.Equal(t, MockTimeNow(), wrappedFlow.nextFlush)
 	assert.Equal(t, zeroTime, wrappedFlow.lastSuccessfulFlush)
@@ -321,7 +321,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		LastFlushedAt: MockTimeNow(),
 	}
 	acc.Flush(flushCtx)
-	wrappedFlow = acc.flows[flow.AggregationHash()]
+	wrappedFlow = acc.flows[flow.PerReporterHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration), wrappedFlow.nextFlush)
 	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
 
@@ -333,7 +333,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		LastFlushedAt: MockTimeNow(),
 	}
 	acc.Flush(flushCtx)
-	wrappedFlow = acc.flows[flow.AggregationHash()]
+	wrappedFlow = acc.flows[flow.PerReporterHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration), wrappedFlow.nextFlush)
 	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
 
@@ -345,7 +345,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		LastFlushedAt: MockTimeNow(),
 	}
 	acc.Flush(flushCtx)
-	wrappedFlow = acc.flows[flow.AggregationHash()]
+	wrappedFlow = acc.flows[flow.PerReporterHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration*2), wrappedFlow.nextFlush)
 	// lastSuccessfulFlush time doesn't change because there is no new flow
 	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
@@ -359,7 +359,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 	acc.Add(flow)
 	acc.Flush(flushCtx)
-	wrappedFlow = acc.flows[flow.AggregationHash()]
+	wrappedFlow = acc.flows[flow.PerReporterHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration*3), wrappedFlow.nextFlush)
 	assert.Equal(t, flushTime4, wrappedFlow.lastSuccessfulFlush)
 
@@ -371,7 +371,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		LastFlushedAt: MockTimeNow(),
 	}
 	acc.Flush(flushCtx)
-	_, ok := acc.flows[flow.AggregationHash()]
+	_, ok := acc.flows[flow.PerReporterHash()]
 	assert.False(t, ok)
 
 	// test flush with TTL reached (now+ttl is after last successful flush) to clean up entry
@@ -389,7 +389,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 	setMockTimeNow(flushTime6)
 	acc.Flush(flushCtx)
-	_, ok = acc.flows[flow.AggregationHash()]
+	_, ok = acc.flows[flow.PerReporterHash()]
 	assert.False(t, ok)
 }
 
@@ -454,18 +454,18 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
 	// test valid hash collision (same flow object) does not increment flow count
-	aggHash1 := flowA1.AggregationHash()
+	aggHash1 := flowA1.PerReporterHash()
 	acc.detectHashCollision(aggHash1, *flowA1, *flowA1)
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
 	// test valid hash collision (same data, new flow object) does not increment flow count
 	// Note: not a realistic use case as hashes will be different, but testing for completeness
-	aggHash2 := flowA2.AggregationHash()
+	aggHash2 := flowA2.PerReporterHash()
 	acc.detectHashCollision(aggHash2, *flowA1, *flowA2)
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
 	// test invalid hash collision (different flow context, same hash) increments flow count
-	aggHash3 := flowB1.AggregationHash()
+	aggHash3 := flowB1.PerReporterHash()
 	acc.detectHashCollision(aggHash3, *flowA1, *flowB1)
 	assert.Equal(t, uint64(1), acc.hashCollisionFlowCount.Load())
 }

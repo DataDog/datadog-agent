@@ -7,27 +7,17 @@
 package flowaggregator
 
 import (
-	"encoding/json"
-	"net"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -37,19 +27,11 @@ import (
 const flushFlowsToSendInterval = 10 * time.Second
 const metricPrefix = "datadog.netflow."
 
-// ---------------------------------------------------------------------------
-// Type aliases for readability
-// ---------------------------------------------------------------------------
-
 // StandardFlowAggregator is the concrete type for the standard (non-dedup) aggregator.
 type StandardFlowAggregator = FlowAggregator[FlowBatch]
 
 // DedupFlowAggregator is the concrete type for the deduplication aggregator.
 type DedupFlowAggregator = FlowAggregator[FlowGroupBatch]
-
-// ---------------------------------------------------------------------------
-// FlowAggregatorRunner — non-generic interface for external consumers
-// ---------------------------------------------------------------------------
 
 // FlowAggregatorRunner is the non-generic interface for running a FlowAggregator.
 // Used by external consumers (server, listener) that don't need to know the
@@ -67,19 +49,10 @@ type FlowAggregatorRunner interface {
 	GetFlowContextCount() int
 }
 
-// ---------------------------------------------------------------------------
-// FlushSubmitter — type-specific flush pipeline
-// ---------------------------------------------------------------------------
-
-// FlushSubmitter handles the type-specific flush pipeline: filtering, sequence
-// tracking, serialization, and forwarding.
-type FlushSubmitter[T any] interface {
-	Submit(result T, ctx common.FlushContext) int
+// FlowFlushFilter is an interface that can be used to filter flows before they are sent to the EP Forwarder.
+type FlowFlushFilter interface {
+	Filter(flushCtx common.FlushContext, flows []*common.Flow) []*common.Flow
 }
-
-// ---------------------------------------------------------------------------
-// FlowAggregator
-// ---------------------------------------------------------------------------
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows.
 // The type parameter T is the flush result type from the accumulator:
@@ -90,7 +63,7 @@ type FlowAggregator[T any] struct {
 	FlushConfig                  common.FlushConfig
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      FlowAccumulator[T]
-	submitter                    FlushSubmitter[T]
+	submitter                    EPForwarder[T]
 	sender                       sender.Sender
 	stopChan                     chan struct{}
 	flushLoopDone                chan struct{}
@@ -103,13 +76,8 @@ type FlowAggregator[T any] struct {
 	logger                       log.Component
 }
 
-// FlowFlushFilter is an interface that can be used to filter flows before they are sent to the EP Forwarder.
-type FlowFlushFilter interface {
-	Filter(flushCtx common.FlushContext, flows []*common.Flow) []*common.Flow
-}
-
 // newFlowAggregatorBase builds the shared fields for a FlowAggregator[T].
-func newFlowAggregatorBase[T any](flowAcc FlowAccumulator[T], submitter FlushSubmitter[T], flushConfig common.FlushConfig, rollupTrackerRefreshInterval time.Duration, bufferSize int, snd sender.Sender, logger log.Component) *FlowAggregator[T] {
+func newFlowAggregatorBase[T any](flowAcc FlowAccumulator[T], submitter EPForwarder[T], flushConfig common.FlushConfig, rollupTrackerRefreshInterval time.Duration, bufferSize int, snd sender.Sender, logger log.Component) *FlowAggregator[T] {
 	return &FlowAggregator[T]{
 		flowIn:                       make(chan *common.Flow, bufferSize),
 		flowAcc:                      flowAcc,
@@ -148,7 +116,7 @@ func NewStandardFlowAggregator(snd sender.Sender, epForwarder eventplatform.Forw
 	rollupInterval := time.Duration(conf.AggregatorRollupTrackerRefreshInterval) * time.Second
 
 	acc := newStandardFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, conf.AggregatorPortRollupThreshold, conf.AggregatorPortRollupDisabled, logger, rdnsQuerier)
-	submitter := &standardFlushSubmitter{
+	submitter := &standardEPForwarder{
 		filter:      topNFilter,
 		seqTracker:  newSequenceTracker(snd, logger),
 		epForwarder: epForwarder,
@@ -172,7 +140,7 @@ func NewDedupFlowAggregator(snd sender.Sender, epForwarder eventplatform.Forward
 	rollupInterval := time.Duration(conf.AggregatorRollupTrackerRefreshInterval) * time.Second
 
 	acc := newDedupFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, conf.AggregatorPortRollupThreshold, conf.AggregatorPortRollupDisabled, logger, rdnsQuerier)
-	submitter := &dedupFlushSubmitter{
+	submitter := &dedupEPForwarder{
 		seqTracker:  newSequenceTracker(snd, logger),
 		epForwarder: epForwarder,
 		hostname:    hostname,
@@ -190,10 +158,6 @@ func NewFlowAggregator(snd sender.Sender, epForwarder eventplatform.Forwarder, c
 	}
 	return NewStandardFlowAggregator(snd, epForwarder, conf, hostname, logger, rdnsQuerier)
 }
-
-// ---------------------------------------------------------------------------
-// FlowAggregator methods
-// ---------------------------------------------------------------------------
 
 // Start will start the FlowAggregator worker
 func (agg *FlowAggregator[T]) Start() {
@@ -299,7 +263,7 @@ func (agg *FlowAggregator[T]) flushLoop() {
 	}
 }
 
-// flush flushes the accumulator and submits the result via the type-specific submitter.
+// flush flushes the accumulator and submits the result via the type-specific EP forwarder.
 func (agg *FlowAggregator[T]) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.GetFlowContextCount()
 	result := agg.flowAcc.Flush(ctx)
@@ -355,280 +319,4 @@ func (agg *FlowAggregator[T]) submitCollectorMetrics() error {
 		}
 	}
 	return nil
-}
-
-// ---------------------------------------------------------------------------
-// sequenceTracker — shared by both submitter variants
-// ---------------------------------------------------------------------------
-
-type sequenceDeltaKey struct {
-	Namespace  string
-	ExporterIP string
-	FlowType   common.FlowType
-}
-
-type sequenceDeltaValue struct {
-	Delta        int64
-	LastSequence uint32
-	Reset        bool
-}
-
-// maxNegativeSequenceDiffToReset are thresholds used to detect sequence reset
-var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
-	common.TypeSFlow5:   -1000,
-	common.TypeNetFlow5: -1000,
-	common.TypeNetFlow9: -100,
-	common.TypeIPFIX:    -100,
-}
-
-// sequenceTracker tracks per-exporter sequence deltas across flush cycles.
-type sequenceTracker struct {
-	lastSequencePerExporter   map[sequenceDeltaKey]uint32
-	lastSequencePerExporterMu sync.Mutex
-	sender                    sender.Sender
-	logger                    log.Component
-}
-
-func newSequenceTracker(snd sender.Sender, logger log.Component) *sequenceTracker {
-	return &sequenceTracker{
-		lastSequencePerExporter: make(map[sequenceDeltaKey]uint32),
-		sender:                  snd,
-		logger:                  logger,
-	}
-}
-
-// trackAndEmit computes sequence deltas for the given flows and emits metrics.
-func (st *sequenceTracker) trackAndEmit(flows []*common.Flow) {
-	deltas := st.getSequenceDelta(flows)
-	for key, seqDelta := range deltas {
-		tags := []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP, "flow_type:" + string(key.FlowType)}
-		st.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", tags)
-		st.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", tags)
-		if seqDelta.Reset {
-			st.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", tags)
-		}
-	}
-}
-
-// getSequenceDelta returns the delta of current sequence number compared to previously saved sequence number.
-// Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
-// only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
-func (st *sequenceTracker) getSequenceDelta(flowsToFlush []*common.Flow) map[sequenceDeltaKey]sequenceDeltaValue {
-	maxSequencePerExporter := make(map[sequenceDeltaKey]uint32)
-	for _, flow := range flowsToFlush {
-		key := sequenceDeltaKey{
-			Namespace:  flow.Namespace,
-			ExporterIP: net.IP(flow.ExporterAddr).String(),
-			FlowType:   flow.FlowType,
-		}
-		if flow.SequenceNum > maxSequencePerExporter[key] {
-			maxSequencePerExporter[key] = flow.SequenceNum
-		}
-	}
-	sequenceDeltaPerExporter := make(map[sequenceDeltaKey]sequenceDeltaValue)
-
-	st.lastSequencePerExporterMu.Lock()
-	defer st.lastSequencePerExporterMu.Unlock()
-	for key, seqnum := range maxSequencePerExporter {
-		lastSeq, prevExist := st.lastSequencePerExporter[key]
-		delta := int64(0)
-		if prevExist {
-			delta = int64(seqnum) - int64(lastSeq)
-		}
-		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
-		reset := delta < int64(maxNegSeqDiff)
-		st.logger.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, st.lastSequencePerExporter[key], reset)
-		seqDeltaValue := sequenceDeltaValue{LastSequence: seqnum}
-		if reset { // sequence reset
-			seqDeltaValue.Delta = int64(seqnum)
-			seqDeltaValue.Reset = reset
-			st.lastSequencePerExporter[key] = seqnum
-		} else if delta < 0 {
-			seqDeltaValue.Delta = 0
-		} else {
-			seqDeltaValue.Delta = delta
-			st.lastSequencePerExporter[key] = seqnum
-		}
-		sequenceDeltaPerExporter[key] = seqDeltaValue
-	}
-	return sequenceDeltaPerExporter
-}
-
-// ---------------------------------------------------------------------------
-// standardFlushSubmitter — standard (per-flow) flush pipeline
-// ---------------------------------------------------------------------------
-
-// standardFlushSubmitter implements FlushSubmitter[FlowBatch].
-// It applies TopN filtering, tracks sequence deltas, serializes individual
-// flow payloads, and sends exporter metadata.
-type standardFlushSubmitter struct {
-	filter      FlowFlushFilter
-	seqTracker  *sequenceTracker
-	epForwarder eventplatform.Forwarder
-	hostname    string
-	logger      log.Component
-}
-
-var _ FlushSubmitter[FlowBatch] = (*standardFlushSubmitter)(nil)
-
-func (s *standardFlushSubmitter) Submit(flows FlowBatch, ctx common.FlushContext) int {
-	// Apply TopN filtering.
-	flowsBeforeFilter := len(flows)
-	flows = s.filter.Filter(ctx, flows)
-	numRowsFiltered := flowsBeforeFilter - len(flows)
-
-	s.logger.Debugf("Flushing %d flows to the forwarder, %d dropped by TopN filtering (flush_duration=%d)",
-		len(flows), numRowsFiltered, time.Since(ctx.FlushTime).Milliseconds())
-
-	s.seqTracker.trackAndEmit(flows)
-
-	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
-	if len(flows) > 0 {
-		s.sendFlows(flows, ctx.FlushTime)
-	}
-	sendExporterMetadata(flows, ctx.FlushTime, s.epForwarder, s.logger)
-	return len(flows)
-}
-
-func (s *standardFlushSubmitter) sendFlows(flows []*common.Flow, flushTime time.Time) {
-	for _, flow := range flows {
-		flowPayload := buildPayload(flow, s.hostname, flushTime)
-
-		// Calling MarshalJSON directly as it's faster than calling json.Marshall
-		payloadBytes, err := flowPayload.MarshalJSON()
-		if err != nil {
-			s.logger.Errorf("Error marshalling device metadata: %s", err)
-			continue
-		}
-		s.logger.Tracef("flushed flow: %s", string(payloadBytes))
-
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
-		if err != nil {
-			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
-			s.logger.Errorf("Error sending to event platform forwarder: %s", err)
-			continue
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// dedupFlushSubmitter — dedup (per-5-tuple) flush pipeline
-// ---------------------------------------------------------------------------
-
-// dedupFlushSubmitter implements FlushSubmitter[FlowGroupBatch].
-// It collects active reporters for sequence tracking, serializes merged
-// payloads (all reporters + ghosts per group), and sends exporter metadata.
-type dedupFlushSubmitter struct {
-	seqTracker  *sequenceTracker
-	epForwarder eventplatform.Forwarder
-	hostname    string
-	logger      log.Component
-}
-
-var _ FlushSubmitter[FlowGroupBatch] = (*dedupFlushSubmitter)(nil)
-
-func (d *dedupFlushSubmitter) Submit(groups FlowGroupBatch, ctx common.FlushContext) int {
-	// Collect active reporters for sequence tracking and exporter metadata.
-	// GhostReporters are carry-over metadata snapshots and should not affect
-	// sequence delta calculations or exporter registration.
-	var activeFlows []*common.Flow
-	for _, group := range groups {
-		activeFlows = append(activeFlows, group.Reporters...)
-	}
-
-	d.logger.Debugf("Flushing %d flow groups (%d active reporters) to the forwarder (flush_duration=%d)",
-		len(groups), len(activeFlows), time.Since(ctx.FlushTime).Milliseconds())
-
-	d.seqTracker.trackAndEmit(activeFlows)
-
-	if len(groups) > 0 {
-		d.sendMergedFlows(groups, ctx.FlushTime)
-	}
-	sendExporterMetadata(activeFlows, ctx.FlushTime, d.epForwarder, d.logger)
-	// Return total active reporter count so flows_flushed metric is comparable
-	// across standard and dedup modes.
-	return len(activeFlows)
-}
-
-// sendMergedFlows sends one merged event per 5-tuple group. All reporters (active +
-// ghost) are included so the platform has the full picture for flow_role assignment.
-func (d *dedupFlushSubmitter) sendMergedFlows(groups []FlowGroup, flushTime time.Time) {
-	for _, group := range groups {
-		if len(group.Reporters) == 0 {
-			continue
-		}
-		reporters := make([]*common.Flow, 0, len(group.Reporters)+len(group.GhostReporters))
-		reporters = append(reporters, group.Reporters...)
-		reporters = append(reporters, group.GhostReporters...)
-		mergedPayload := buildMergedPayload(reporters, d.hostname, flushTime)
-		payloadBytes, err := json.Marshal(mergedPayload)
-		if err != nil {
-			d.logger.Errorf("Error marshalling merged flow payload: %s", err)
-			continue
-		}
-		d.logger.Tracef("flushed merged flow: %s", string(payloadBytes))
-
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = d.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
-		if err != nil {
-			d.logger.Errorf("Error sending to event platform forwarder: %s", err)
-			continue
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// sendExporterMetadata — shared by both submitters
-// ---------------------------------------------------------------------------
-
-func sendExporterMetadata(flows []*common.Flow, flushTime time.Time, epForwarder eventplatform.Forwarder, logger log.Component) {
-	// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
-	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
-
-	// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
-	// orderedExporterIDs structure: map[NAMESPACE][]EXPORTER_ID
-	orderedExporterIDs := make(map[string][]string)
-
-	for _, flow := range flows {
-		exporterIPAddress := format.IPAddr(flow.ExporterAddr)
-		if exporterIPAddress == "" || strings.HasPrefix(exporterIPAddress, "?") {
-			logger.Errorf("Invalid exporter Addr: %s", exporterIPAddress)
-			continue
-		}
-		exporterID := flow.Namespace + ":" + exporterIPAddress + ":" + string(flow.FlowType)
-		if _, ok := exporterMap[flow.Namespace]; !ok {
-			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
-		}
-		if _, ok := exporterMap[flow.Namespace][exporterID]; ok {
-			// this exporter is already in the map, no need to reprocess it
-			continue
-		}
-		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
-			ID:        exporterID,
-			IPAddress: exporterIPAddress,
-			FlowType:  string(flow.FlowType),
-		}
-		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
-	}
-	for namespace, ids := range orderedExporterIDs {
-		var netflowExporters []metadata.NetflowExporter
-		for _, exporterID := range ids {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
-		}
-		metadataPayloads := metadata.BatchPayloads(integrations.Netflow, namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, nil, netflowExporters, nil)
-		for _, payload := range metadataPayloads {
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				logger.Errorf("Error marshalling device metadata: %s", err)
-				continue
-			}
-			logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
-			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
-			if err != nil {
-				logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
-			}
-		}
-	}
 }

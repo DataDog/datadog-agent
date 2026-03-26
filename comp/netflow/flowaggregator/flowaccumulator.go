@@ -115,7 +115,7 @@ func (b *flowAccumulatorBase) HashCollisionCount() *atomic.Uint64 {
 // Callback locking contract:
 //   - postRollup runs WITHOUT flowsMutex held. It must not access b.flows or
 //     other mutex-protected state. It is safe for computing derived values from
-//     the (already-rewritten) flow, e.g. FlowKeyHash after port rollup.
+//     the (already-rewritten) flow, e.g. DeduplicationHash after port rollup.
 //   - onNewFlow runs WITH flowsMutex held. It may read/write b.flows and modify
 //     *nextFlush (e.g., to inherit a group's flush time in dedup mode).
 func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, postRollup func(), onNewFlow func(aggHash uint64, nextFlush *time.Time)) {
@@ -140,7 +140,7 @@ func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, postRollup func(
 	b.flowsMutex.Lock()
 	defer b.flowsMutex.Unlock()
 
-	aggHash := flowToAdd.AggregationHash()
+	aggHash := flowToAdd.PerReporterHash()
 	aggFlow, ok := b.flows[aggHash]
 	if !ok {
 		nextFlush := b.scheduler.ScheduleNewFlowFlush(timeNow())
@@ -259,7 +259,7 @@ func (b *flowAccumulatorBase) addRDNSEnrichment(aggHash uint64, srcAddr []byte, 
 }
 
 func (b *flowAccumulatorBase) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
-	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
+	if !common.IsEqualPerReporterContext(existingFlow, flowToAdd) {
 		b.logger.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
 		b.hashCollisionFlowCount.Inc()
 	}
@@ -353,13 +353,13 @@ func (s *standardFlowAccumulator) Flush(flushContext common.FlushContext) []*com
 type dedupFlowAccumulator struct {
 	flowAccumulatorBase
 
-	// fiveTupleGroups maps a FlowKeyHash to the set of full AggregationHashes (one per
+	// fiveTupleGroups maps a DeduplicationHash to the set of full PerReporterHashes (one per
 	// reporter) that belong to that group.
 	fiveTupleGroups map[uint64][]uint64
 
 	// prevCycleReporters holds 0-byte snapshots of reporters from the most recent flush of
 	// each group. These are returned as GhostReporters in the next flush so the platform can
-	// use them as metadata for flow_role assignment. Keyed by FlowKeyHash.
+	// use them as metadata for flow_role assignment. Keyed by DeduplicationHash.
 	prevCycleReporters map[uint64][]*common.Flow
 }
 
@@ -384,7 +384,7 @@ func (d *dedupFlowAccumulator) Add(flowToAdd *common.Flow) {
 	// d.fiveTupleGroups.
 	var fiveTupleHash uint64
 	d.addCommon(flowToAdd, func() {
-		fiveTupleHash = flowToAdd.FlowKeyHash()
+		fiveTupleHash = flowToAdd.DeduplicationHash()
 	}, func(aggHash uint64, nextFlush *time.Time) {
 		// New reporter joining an existing group: inherit the group's flush time so
 		// all reporters flush together rather than at independently jittered times.
