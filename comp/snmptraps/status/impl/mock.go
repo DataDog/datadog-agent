@@ -8,21 +8,11 @@ package statusimpl
 import (
 	"sync"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 )
 
-// MockModule defines a fake Component
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-	)
-}
-
-// newMock returns a Component that uses plain internal values instead of expvars
-func newMock() status.Component {
+// NewMock returns a Component that uses plain internal values instead of expvars
+func NewMock() status.Component {
 	return &mockManager{}
 }
 
