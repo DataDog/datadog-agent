@@ -55,7 +55,7 @@ func TestServer(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	assert.NotEmpty(t, server)
 	assert.NoError(t, server.Error())
@@ -78,7 +78,7 @@ func TestNonBlockingFailure(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	assert.NotEmpty(t, server)
 	assert.ErrorIs(t, server.Error(), os.ErrNotExist)
@@ -93,7 +93,7 @@ func TestDisabled(t *testing.T) {
 				"network_devices.snmp_traps.enabled": false,
 			})
 		}),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	assert.NotNil(t, server)
 	assert.NoError(t, server.Error())
