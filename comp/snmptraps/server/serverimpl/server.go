@@ -22,8 +22,8 @@ import (
 	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
+	listenerfx "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx"
 	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
@@ -107,7 +107,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 		configfx.Module(),
 		formatterfx.Module(),
 		forwarderimpl.Module(),
-		listenerimpl.Module(),
+		listenerfx.Module(),
 		oidresolverfx.Module(),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)
