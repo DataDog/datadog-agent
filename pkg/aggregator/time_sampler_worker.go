@@ -117,6 +117,7 @@ func (w *timeSamplerWorker) run() {
 		case matcher := <-w.tagFilterListChan:
 			// Clear the context resolver strip cache when setting a new filter list
 			clear(w.sampler.contextResolver.resolver.stripCache)
+			clear(w.sampler.contextResolver.resolver.stripCacheReverse)
 			w.tagFilterList = matcher
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)

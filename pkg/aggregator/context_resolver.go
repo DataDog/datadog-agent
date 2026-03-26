@@ -88,6 +88,9 @@ type contextResolver struct {
 	// stripCache maps a pre-strip contextKey to the post-strip (contextKey, taggerKey, metricKey).
 	// This avoids repeated RetainFunc calls for metrics we have already processed.
 	stripCache map[ckey.ContextKey]stripCacheEntry
+	// stripCacheReverse maps a post-strip contextKey back to the pre-strip contextKeys that produced it.
+	// This allows O(1) cleanup of stripCache entries when a context is removed from contextsByKey.
+	stripCacheReverse map[ckey.ContextKey][]ckey.ContextKey
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -108,7 +111,8 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
-		stripCache:       make(map[ckey.ContextKey]stripCacheEntry),
+		stripCache:        make(map[ckey.ContextKey]stripCacheEntry),
+		stripCacheReverse: make(map[ckey.ContextKey][]ckey.ContextKey),
 	}
 }
 
@@ -156,6 +160,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 					metricKey:   metricKey,
 					removedTags: removed,
 				}
+				cr.stripCacheReverse[contextKey] = append(cr.stripCacheReverse[contextKey], preCacheKey)
 				tlmFilteredTagsCacheMiss.Inc()
 			}
 			keysSet = true
@@ -210,6 +215,11 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 	context := cr.contextsByKey[expiredContextKey].context
 	delete(cr.contextsByKey, expiredContextKey)
 
+	for _, preCacheKey := range cr.stripCacheReverse[expiredContextKey] {
+		delete(cr.stripCache, preCacheKey)
+	}
+	delete(cr.stripCacheReverse, expiredContextKey)
+
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
 		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
@@ -239,6 +249,8 @@ func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
 		c.context.release()
 	}
+	clear(cr.stripCache)
+	clear(cr.stripCacheReverse)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
