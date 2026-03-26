@@ -205,6 +205,12 @@ fn is_gpu_device(link: &Path) -> bool {
 
     let bytes = link.as_os_str().as_encoded_bytes();
 
+    // AMD ROCm: checked before the NVIDIA prefix guard to ensure it is always reachable.
+    if bytes == b"/dev/kfd" {
+        return true;
+    }
+
+    // NVIDIA devices: /dev/nvidia{N}, /dev/nvidiactl, /dev/nvidia-uvm, etc.
     let Some(suffix) = bytes.strip_prefix(NVIDIA_DEV_PREFIX) else {
         return false;
     };
@@ -677,6 +683,37 @@ mod tests {
             assert!(!is_gpu_device(Path::new("nvidia0")));
             assert!(!is_gpu_device(Path::new("/dev/nvidia 0")));
             assert!(!is_gpu_device(Path::new("/dev/NVIDIA0")));
+        }
+
+        #[test]
+        fn test_amd_kfd_device() {
+            assert!(is_gpu_device(Path::new("/dev/kfd")));
+        }
+
+        #[test]
+        fn test_amd_and_nvidia_coexist() {
+            // Both AMD and NVIDIA devices must be detected independently.
+            assert!(is_gpu_device(Path::new("/dev/kfd")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia0")));
+            assert!(is_gpu_device(Path::new("/dev/nvidiactl")));
+        }
+
+        #[test]
+        fn test_amd_kfd_partial_or_similar_not_detected() {
+            assert!(!is_gpu_device(Path::new("/dev/kfd0")));
+            assert!(!is_gpu_device(Path::new("/dev/kfd1")));
+            assert!(!is_gpu_device(Path::new("/dev/kfdd")));
+            assert!(!is_gpu_device(Path::new("kfd")));
+            assert!(!is_gpu_device(Path::new("/dev/KFD")));
+        }
+
+        #[test]
+        fn test_dri_render_nodes_not_detected() {
+            // /dev/dri/renderD* is shared between AMD and Intel display/compute,
+            // too noisy for device-based detection — must be excluded.
+            assert!(!is_gpu_device(Path::new("/dev/dri/renderD128")));
+            assert!(!is_gpu_device(Path::new("/dev/dri/renderD129")));
+            assert!(!is_gpu_device(Path::new("/dev/dri/card0")));
         }
     }
 }

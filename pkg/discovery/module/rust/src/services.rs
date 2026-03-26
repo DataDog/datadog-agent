@@ -102,7 +102,7 @@ pub fn get_services(params: Params) -> ServicesResponse {
 }
 
 fn is_using_gpu(pid: i32, open_files_info: &OpenFilesInfo) -> bool {
-    open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid)
+    open_files_info.has_gpu_device || procfs::maps::has_any_gpu_libraries(pid)
 }
 
 fn get_service(
