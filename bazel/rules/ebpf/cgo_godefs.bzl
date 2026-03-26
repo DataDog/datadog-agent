@@ -158,8 +158,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         deps = all_deps,
         hdrs = hdrs,
         target_compatible_with = select({
-            "@platforms//os:linux": [],
-            "@platforms//os:windows": [],
+            "@platforms//os:{}".format(platform): [],
             "//conditions:default": ["@platforms//:incompatible"],
         }),
     )
