@@ -132,9 +132,9 @@ type TestBench struct {
 	// This is not directly used, it's mostly to ensure that telemetry metrics are registered in the telemetry handler
 	telemetryHandler *telemetryHandler
 
-	// detectorProcessingStats holds per-detector avg/median/p99 processing times
-	// computed after each replay run, keyed by detector name.
-	detectorProcessingStats map[string]DetectorProcessingStats
+	// replayStats holds all statistics computed after each replay run,
+	// including per-detector processing times and input volume counts.
+	replayStats *ReplayStats
 }
 
 // ScenarioInfo describes an available scenario.
@@ -400,7 +400,9 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rerunDetectorsLocked()
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
-	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+	rs := tb.replayStats
+	fmt.Printf("Scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
+		rs.InputMetricsCount, rs.InputMetricsCardinality, len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
 	close(progressDone)
 	tb.mu.Unlock()
@@ -428,6 +430,9 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
 
+	byTimestampCounter := make(map[int64]int64)
+	byTimestampCardinality := make(map[int64]int64)
+
 	// Batch add all metrics to storage
 	for _, m := range metrics {
 		// Strip aggregation suffix from metric name (e.g., ":avg", ":count")
@@ -445,13 +450,39 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			}
 		}
 
-		storage.Add(
-			"parquet", // namespace
-			metricName,
-			m.Value,
-			m.Timestamp,
-			m.Tags,
-		)
+		byTimestampCounter[m.Timestamp]++
+
+		if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
+			byTimestampCardinality[m.Timestamp]++
+		}
+	}
+
+	// Telemetry for the number of metrics by timestamp
+	type byTimestampEntry struct {
+		Timestamp int64
+		Count     int64
+	}
+	byTimestampOrdered := make([]byTimestampEntry, 0, len(byTimestampCounter))
+	for timestamp, count := range byTimestampCounter {
+		byTimestampOrdered = append(byTimestampOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
+	}
+	sort.Slice(byTimestampOrdered, func(i, j int) bool {
+		return byTimestampOrdered[i].Timestamp < byTimestampOrdered[j].Timestamp
+	})
+	for _, entry := range byTimestampOrdered {
+		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
+	}
+
+	// Telemetry for cardinality (new unique series) by timestamp
+	byCardOrdered := make([]byTimestampEntry, 0, len(byTimestampCardinality))
+	for timestamp, count := range byTimestampCardinality {
+		byCardOrdered = append(byCardOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
+	}
+	sort.Slice(byCardOrdered, func(i, j int) bool {
+		return byCardOrdered[i].Timestamp < byCardOrdered[j].Timestamp
+	})
+	for _, entry := range byCardOrdered {
+		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 	}
 
 	// Load trace stats and derive trace.* metrics via processStatsView
@@ -654,7 +685,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
 	// ReplayStoredData (below) will handle scheduling after all data is loaded.
-	var ingestTelemetry []observerdef.ObserverTelemetry
+	var allTelemetry []observerdef.ObserverTelemetry
 	for _, log := range tb.rawLogs {
 		obs := &logObs{
 			content:     log.GetContent(),
@@ -664,7 +695,9 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			timestampMs: log.GetTimestampUnixMilli(),
 		}
 		_, tel := tb.engine.IngestLog("parquet", obs)
-		ingestTelemetry = append(ingestTelemetry, tel...)
+		allTelemetry = append(allTelemetry, tel...)
+		// Count logs only here in the testbench
+		allTelemetry = append(allTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
 
 	// Replay all stored data through the scheduler policy.
@@ -673,9 +706,11 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	result := tb.engine.ReplayStoredData()
 	unsub()
 
+	allTelemetry = append(allTelemetry, result.telemetry...)
+
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
-	for _, t := range append(ingestTelemetry, result.telemetry...) {
+	for _, t := range allTelemetry {
 		detName := t.DetectorName
 		if detName == "" {
 			detName = "unknown"
@@ -700,8 +735,17 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Publish the ordered event log captured during replay.
 	tb.reportedEvents = replay.events
 
-	// Compute per-detector processing stats from all telemetry accumulated during the replay.
-	tb.detectorProcessingStats = computeDetectorProcessingStats(tb.engine.StateView().Telemetry())
+	// Compute replay stats from engine storage only for consistency.
+	storage := tb.engine.Storage()
+	detectorStats := computeDetectorProcessingStatsFromStorage(storage)
+	enrichDetectorStatsKind(detectorStats, tb.components)
+	tb.replayStats = &ReplayStats{
+		DetectorStats:           detectorStats,
+		InputMetricsCount:       storage.TotalSampleCount(observerdef.TelemetryNamespace),
+		InputMetricsCardinality: storage.TotalSeriesCount(observerdef.TelemetryNamespace),
+		InputLogsCount:          sumStoredTelemetryCounter(storage, telemetryTbInputLogsCount),
+		InputAnomaliesCount:     len(result.anomalies),
+	}
 
 	// Mark scenario ready now that all analysis is complete
 	tb.ready = true
@@ -925,13 +969,13 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 	return result
 }
 
-// GetDetectorProcessingStats returns per-detector processing-time statistics
-// (avg / median / p99, in nanoseconds) computed from the last replay run.
+// GetReplayStats returns all statistics computed from the last replay run,
+// including per-detector processing times and input volume counts.
 // Returns nil if no scenario has been run yet.
-func (tb *TestBench) GetDetectorProcessingStats() map[string]DetectorProcessingStats {
+func (tb *TestBench) GetReplayStats() *ReplayStats {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	return tb.detectorProcessingStats
+	return tb.replayStats
 }
 
 // GetCorrelations returns all correlations detected across the full run.
@@ -1142,7 +1186,7 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 		return fmt.Errorf("loading scenario %q: %w", scenario, err)
 	}
 
-	tb.printDetectorProcessingStats()
+	tb.printHeadlessRunStats()
 
 	// Write structured JSON output.
 	if outputPath != "" {
@@ -1155,23 +1199,23 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 	return nil
 }
 
-// printDetectorProcessingStats prints per-detector processing-time statistics to stdout.
-func (tb *TestBench) printDetectorProcessingStats() {
-	stats := tb.GetDetectorProcessingStats()
-	if len(stats) == 0 {
+// printHeadlessRunStats prints per-detector processing-time statistics to stdout.
+func (tb *TestBench) printHeadlessRunStats() {
+	rs := tb.GetReplayStats()
+	if rs == nil || len(rs.DetectorStats) == 0 {
 		return
 	}
 
 	// Sort by name for deterministic output.
-	names := make([]string, 0, len(stats))
-	for name := range stats {
+	names := make([]string, 0, len(rs.DetectorStats))
+	for name := range rs.DetectorStats {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
 	fmt.Println("\nDetector processing times:")
 	for _, name := range names {
-		s := stats[name]
+		s := rs.DetectorStats[name]
 		fmt.Printf("  %-40s  avg=%8.2fµs  median=%8.2fµs  p99=%8.2fµs  total=%s  (%d calls)\n",
 			name,
 			s.AvgNs/1e3,
@@ -1180,6 +1224,40 @@ func (tb *TestBench) printDetectorProcessingStats() {
 			formatTotalNs(s.TotalNs),
 			s.Count,
 		)
+	}
+
+	// Same definition as the benchmark UI "Cost per Item" chart: total_ns ÷ input volume.
+	type perItemRow struct {
+		name      string
+		kind      string
+		nsPerItem float64
+		items     int
+	}
+	perItem := make([]perItemRow, 0, len(rs.DetectorStats))
+	for _, name := range names {
+		s := rs.DetectorStats[name]
+		nItems := replayStatsItemCountForKind(rs, s.Kind)
+		if nItems <= 0 {
+			continue
+		}
+		nsPer := s.TotalNs / float64(nItems)
+		if nsPer <= 0 {
+			continue
+		}
+		perItem = append(perItem, perItemRow{name: name, kind: s.Kind, nsPerItem: nsPer, items: nItems})
+	}
+	sort.Slice(perItem, func(i, j int) bool { return perItem[i].nsPerItem > perItem[j].nsPerItem })
+
+	if len(perItem) > 0 {
+		fmt.Println("\nProcessing time per item (total ÷ items processed — same as benchmark \"Cost per Item\"):")
+		for _, row := range perItem {
+			fmt.Printf("  %-40s  %8s  %-10s (%d items)\n",
+				row.name,
+				formatNsAsUsShort(row.nsPerItem),
+				perItemSuffixLabel(row.kind),
+				row.items,
+			)
+		}
 	}
 }
 
@@ -1195,6 +1273,41 @@ func formatTotalNs(ns float64) string {
 		return fmt.Sprintf("%8.1fms", ms)
 	}
 	return fmt.Sprintf("%8.3fs ", ms/1_000)
+}
+
+// formatNsAsUsShort formats a duration in nanoseconds as µs with the same
+// precision rules as the testbench benchmark UI (fmtUs).
+func formatNsAsUsShort(ns float64) string {
+	us := ns / 1e3
+	if us < 10 {
+		return fmt.Sprintf("%.2fµs", us)
+	}
+	if us < 100 {
+		return fmt.Sprintf("%.1fµs", us)
+	}
+	return fmt.Sprintf("%.0fµs", us)
+}
+
+func replayStatsItemCountForKind(rs *ReplayStats, kind string) int {
+	switch kind {
+	case "extractor":
+		return rs.InputLogsCount
+	case "correlator":
+		return rs.InputAnomaliesCount
+	default:
+		return int(rs.InputMetricsCount)
+	}
+}
+
+func perItemSuffixLabel(kind string) string {
+	switch kind {
+	case "extractor":
+		return "ns/log"
+	case "correlator":
+		return "ns/anomaly"
+	default:
+		return "ns/point"
+	}
 }
 
 // RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then
@@ -1393,7 +1506,9 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Run analyses on all loaded data (detectors sync, correlators async)
 	tb.rerunDetectorsLocked()
-	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+	rs := tb.replayStats
+	fmt.Printf("Demo scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
+		rs.InputMetricsCount, rs.InputMetricsCardinality, len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
 	tb.mu.Unlock()
 	tb.broadcastStatus()

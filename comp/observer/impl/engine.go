@@ -191,12 +191,12 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
 	sourceTag := "observer_source:" + source
 	view := &logView{obs: l}
-	var logTelemetry []observerdef.ObserverTelemetry
+	var logTelemetry = []observerdef.ObserverTelemetry{}
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
 		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge(extractor.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {
 			tags := copyTags(m.Tags)
 			if !sliceContains(tags, sourceTag) {
@@ -219,7 +219,7 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		processingStartTime := time.Now()
 		lo.ProcessLog(view)
 		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge(lo.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + lo.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 	}
 	if len(logTelemetry) > 0 {
 		e.telemetryMu.Lock()
@@ -312,7 +312,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		processingStartTime := time.Now()
 		result := detector.Detect(e.storage, upTo)
 		processingTime := time.Since(processingStartTime)
-		allTelemetry = append(allTelemetry, newTelemetryGauge(detector.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + detector.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
 
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
@@ -336,7 +336,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 	// Advance correlators so they can update their internal state.
 	for _, correlator := range correlators {
+		advanceStart := time.Now()
 		correlator.Advance(upTo)
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
@@ -395,7 +397,7 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.Obser
 		processingStartTime := time.Now()
 		correlator.ProcessAnomaly(anomaly)
 		processingTime := time.Since(processingStartTime)
-		allTelemetry = append(allTelemetry, newTelemetryGauge(correlator.Name(), telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
 	}
 
 	return allTelemetry

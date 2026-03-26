@@ -26,8 +26,8 @@ func TestTelemetryHandler_CounterAdd(t *testing.T) {
 	)
 
 	h.handleTelemetry([]observerdef.ObserverTelemetry{
-		newTelemetryCounter("det-a", counterName, 2, 100),
-		newTelemetryCounter("det-a", counterName, 3, 101),
+		newTelemetryCounter([]string{"detector:det-a"}, counterName, 2, 100),
+		newTelemetryCounter([]string{"detector:det-a"}, counterName, 3, 101),
 	})
 	// No-op telemetry: asserts routing does not warn or panic.
 }
@@ -37,7 +37,7 @@ func TestTelemetryHandler_GaugeSet(t *testing.T) {
 	h := newTelemetryHandler(tel)
 
 	h.handleTelemetry([]observerdef.ObserverTelemetry{
-		newTelemetryGauge("det", telemetryRRCFScore, 0.5, 100),
+		newTelemetryGauge([]string{"detector:det"}, telemetryRRCFScore, 0.5, 100),
 	})
 }
 

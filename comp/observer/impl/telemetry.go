@@ -14,6 +14,10 @@ import (
 const (
 	// Observer
 	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
+	// Only in testbench
+	telemetryTbInputMetricsCount       = "observer.input_metrics.count"
+	telemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
+	telemetryTbInputLogsCount          = "observer.input_logs.count"
 
 	// RRCF detector
 	telemetryRRCFScore     = "observer.rrcf.score"
@@ -55,6 +59,25 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
 	)
 
+	// Counters
+	counters[telemetryTbInputMetricsCount] = telemetryComp.NewCounter(
+		"observer",
+		telemetryTbInputMetricsCount,
+		[]string{},
+		"Total number of metrics processed by the observer",
+	)
+	counters[telemetryTbInputLogsCount] = telemetryComp.NewCounter(
+		"observer",
+		telemetryTbInputLogsCount,
+		[]string{},
+		"Total number of logs processed by the observer",
+	)
+	counters[telemetryTbInputMetricsCardinality] = telemetryComp.NewCounter(
+		"observer",
+		telemetryTbInputMetricsCardinality,
+		[]string{},
+		"Total number of unique metrics processed by the observer (metrics with different tags are counted as different metrics)",
+	)
 	counters[telemetryLogPatternExtractorPatternCount] = telemetryComp.NewCounter(
 		"observer",
 		telemetryLogPatternExtractorPatternCount,
@@ -118,30 +141,43 @@ func (h *telemetryHandler) isCounterMetric(name string) bool {
 	return ok
 }
 
-// newTelemetryGauge creates a new telemetry gauge for the given telemetry name, detector name, and data time.
+// detectorNameFromTags returns the value of the first "detector:" tag, for ObserverTelemetry.DetectorName.
+func detectorNameFromTags(tags []string) string {
+	const prefix = "detector:"
+	for _, t := range tags {
+		if len(t) > len(prefix) && t[:len(prefix)] == prefix {
+			return t[len(prefix):]
+		}
+	}
+	return ""
+}
+
+// newTelemetryGauge creates gauge telemetry for the given metric name, tags, value, and data time (unix seconds).
 // Warning: use a `telemetryName` that is defined in this file.
-func newTelemetryGauge(detectorName string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
+func newTelemetryGauge(tags []string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
+	tagsCopy := copyTags(tags)
 	return observerdef.ObserverTelemetry{
-		DetectorName: detectorName,
+		DetectorName: detectorNameFromTags(tagsCopy),
 		Kind:         observerdef.MetricKindGauge,
 		Metric: &metricObs{
 			name:      telemetryName,
 			value:     value,
-			tags:      []string{"detector:" + detectorName},
+			tags:      tagsCopy,
 			timestamp: dataTimeSec,
 		},
 	}
 }
 
 // newTelemetryCounter creates counter telemetry: the value is added to the named counter (must be registered in newTelemetryHandler).
-func newTelemetryCounter(detectorName string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
+func newTelemetryCounter(tags []string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
+	tagsCopy := copyTags(tags)
 	return observerdef.ObserverTelemetry{
-		DetectorName: detectorName,
+		DetectorName: detectorNameFromTags(tagsCopy),
 		Kind:         observerdef.MetricKindCounter,
 		Metric: &metricObs{
 			name:      telemetryName,
 			value:     value,
-			tags:      []string{"detector:" + detectorName},
+			tags:      tagsCopy,
 			timestamp: dataTimeSec,
 		},
 	}

@@ -460,9 +460,13 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 	for _, ns := range storage.Namespaces() {
 		metas := storage.ListSeriesMetadata(ns)
 		for _, m := range metas {
-			aggs := []Aggregate{AggregateAverage, AggregateCount}
+			var aggs []Aggregate
 			if m.Namespace == "telemetry" && telHandler != nil && telHandler.isCounterMetric(m.Name) {
-				aggs = append(aggs, AggregateSum)
+				// Counters are per-bucket deltas; exposing avg/count/sum as three API series
+				// with the same tags produced three indistinguishable "untagged" lines in the UI.
+				aggs = []Aggregate{AggregateSum}
+			} else {
+				aggs = []Aggregate{AggregateAverage, AggregateCount}
 			}
 			var metricKind string
 			if m.Namespace == "telemetry" {
@@ -1227,12 +1231,12 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 	}
 }
 
-// handleBenchmark returns per-detector processing-time statistics (avg/median/p99)
-// computed from the last replay run.
+// handleBenchmark returns replay statistics (per-detector processing times and
+// input volume counts) computed from the last replay run.
 func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
-	stats := api.tb.GetDetectorProcessingStats()
+	stats := api.tb.GetReplayStats()
 	if stats == nil {
-		api.writeJSON(w, map[string]DetectorProcessingStats{})
+		api.writeJSON(w, &ReplayStats{DetectorStats: map[string]DetectorProcessingStats{}})
 		return
 	}
 	api.writeJSON(w, stats)
