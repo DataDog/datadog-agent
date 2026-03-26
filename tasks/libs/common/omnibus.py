@@ -29,6 +29,7 @@ ENV_PASSHTROUGH = {
     'HOME': 'Home directory might be used by invoked programs such as git',
     'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
     'INTEGRATION_WHEELS_CACHE_BUCKET': 'Bucket where integration wheels are cached',
+    'PACKAGE_BASE_URL': 'Base URL for integration dependency wheels, expanded by pip in lockfiles',
     'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD': 'Setting that skips uploading integration wheels to cache',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'OMNIBUS_FORCE_PACKAGES': 'Force Omnibus to build actual packages',
