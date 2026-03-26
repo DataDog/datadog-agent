@@ -3,10 +3,20 @@
 Your goal is to write documentations for packages in this repo.
 These documentations will be markdown files named following this pattern: `<package-name>.md`.
 
-About how to write the documentation, keep in mind it should be understandable for a contributor who's not very familiar with the package. Each documentation should contain these sections:
-- Purpose: Short description of what does the package and how it's useful
-- Key elements: List of the most importants elements of the package that one should know before working on it. Those can be any Go concepts like interfaces, structs, types, functions, static variables, constants, build flags, Cgo, platform specificities etc.
-- Usage: How it's used in the codebase
+About how to write the documentation, keep in mind it should be understandable for a contributor who's not very familiar with the package. Each documentation must contain these sections **in this order**:
+
+1. **TL;DR** — A single blockquote line (`> **TL;DR:** ...`) at the very top summarising what the package does in one sentence. Written for quick scanning: "what is this package for in 10 words?"
+
+2. **Purpose** — 2–4 sentences describing what the package does and why it exists.
+
+3. **Key elements** — The most important Go concepts a contributor must know before working on it. Use H3 subsections to group them:
+   - `### Key types` — structs and type aliases
+   - `### Key interfaces` — interfaces (omit if none)
+   - `### Key functions` — exported functions and constructors (omit if none)
+   - `### Configuration and build flags` — config keys, build tags, Cgo, platform notes (omit if none)
+   Keep each entry to one line: name + one-sentence description.
+
+4. **Usage** — How it's used in the codebase. Include a cross-references table for related packages.
 
 # Packages
 
