@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	defaultSpotPercentage               = 50
-	defaultMinOnDemandReplicas          = 1
+	defaultSpotPercentage               = 100 // schedule all pods on spot by default to maximize cost savings.
+	defaultMinOnDemandReplicas          = 3   // aim for at least one on-demand pod per availability zone (assuming a 3-AZ region).
 	defaultScheduleTimeout              = 1 * time.Minute
 	defaultFallbackDuration             = 2 * time.Minute
 	defaultRebalanceStabilizationPeriod = 1 * time.Minute

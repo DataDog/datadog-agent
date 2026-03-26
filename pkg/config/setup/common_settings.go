@@ -1271,8 +1271,8 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	// Spot scheduling
 	config.BindEnvAndSetDefault("autoscaling.workload.spot.enabled", false)
-	config.BindEnvAndSetDefault("autoscaling.workload.spot.percentage", 50)
-	config.BindEnvAndSetDefault("autoscaling.workload.spot.min_on_demand_replicas", 1)
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.percentage", 100)
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.min_on_demand_replicas", 3)
 	config.BindEnvAndSetDefault("autoscaling.workload.spot.schedule_timeout", "1m")
 	config.BindEnvAndSetDefault("autoscaling.workload.spot.fallback_duration", "2m")
 	config.BindEnvAndSetDefault("autoscaling.workload.spot.rebalance_stabilization_period", "1m")
