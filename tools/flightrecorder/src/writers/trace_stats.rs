@@ -243,16 +243,18 @@ impl TraceStatsWriter {
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building trace_stats RecordBatch")?;
 
-        self.base.write_parquet("trace_stats", schema, batch)
+        self.base.write_batch("trace_stats", schema, batch)
     }
 
-    /// Flush if any rows are buffered. Used on shutdown.
+    /// Flush any buffered rows and close the active Parquet file. Used on shutdown.
     pub async fn flush_if_any(&mut self) -> Result<Option<PathBuf>> {
-        if self.len() == 0 {
+        let result = if self.len() == 0 {
             Ok(None)
         } else {
             self.flush().await.map(Some)
-        }
+        };
+        self.base.close()?;
+        result
     }
 }
 
@@ -276,8 +278,11 @@ mod tests {
             .build()
             .unwrap();
         let batches: Vec<RecordBatch> = reader.collect::<Result<_, _>>().unwrap();
-        assert_eq!(batches.len(), 1, "expected exactly one row group");
-        batches.into_iter().next().unwrap()
+        assert!(!batches.is_empty(), "no row groups in parquet file");
+        if batches.len() == 1 {
+            return batches.into_iter().next().unwrap();
+        }
+        arrow::compute::concat_batches(&batches[0].schema(), &batches).unwrap()
     }
 
     fn read_dict_string_column(batch: &RecordBatch, name: &str) -> Vec<String> {
@@ -328,8 +333,9 @@ mod tests {
 
         let path = w.flush().await.unwrap();
         assert!(path.exists());
-        assert!(path.metadata().unwrap().len() > 0);
 
+        w.base.close().unwrap();
+        assert!(path.metadata().unwrap().len() > 0);
         let batch = read_parquet(&path);
         assert_eq!(batch.num_rows(), 50);
         assert_eq!(batch.num_columns(), 18);
@@ -388,6 +394,7 @@ mod tests {
         w.error_summaries.push(vec![30]);
 
         let path = w.flush().await.unwrap();
+        w.base.close().unwrap();
         let batch = read_parquet(&path);
 
         assert_eq!(batch.num_rows(), 2);
@@ -511,10 +518,11 @@ mod tests {
 
         let path = w.flush().await.unwrap();
         assert_eq!(w.base.flush_count, 1);
-        assert!(w.base.flush_bytes > 0);
         assert!(w.base.last_flush_duration_ns > 0);
 
-        // flush_bytes should match the file size on disk.
+        // flush_bytes is updated on file rotation/close.
+        w.base.close().unwrap();
+        assert!(w.base.flush_bytes > 0);
         let file_size = std::fs::metadata(&path).unwrap().len();
         assert_eq!(w.base.flush_bytes, file_size);
     }
