@@ -9,14 +9,14 @@ package serverimpl
 import (
 	"context"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coreStatus "github.com/DataDog/datadog-agent/comp/core/status"
-
-	"go.uber.org/fx"
-
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
@@ -28,15 +28,14 @@ import (
 	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 // Requires defines the dependencies for the server component.
 type Requires struct {
-	fx.In
+	compdef.In
 
-	Lc        fx.Lifecycle
+	Lc        compdef.Lifecycle
 	Conf      config.Component
 	HNService hostname.Component
 	Demux     demultiplexer.Component
@@ -45,7 +44,7 @@ type Requires struct {
 
 // Provides defines the output of the server component.
 type Provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp           server.Component
 	StatusProvider coreStatus.InformationProvider
@@ -53,22 +52,16 @@ type Provides struct {
 
 // NewComponent creates a new server component.
 func NewComponent(reqs Requires) Provides {
-	return newServer(reqs.Lc, dependencies{
+	p := newServer(reqs.Lc, dependencies{
 		Conf:      reqs.Conf,
 		HNService: reqs.HNService,
 		Demux:     reqs.Demux,
 		Logger:    reqs.Logger,
 	})
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newServer))
+	return Provides{Comp: p.Comp, StatusProvider: p.StatusProvider}
 }
 
 type dependencies struct {
-	fx.In
 	Conf      config.Component
 	HNService hostname.Component
 	Demux     demultiplexer.Component
@@ -86,8 +79,6 @@ type injections struct {
 }
 
 type provides struct {
-	fx.Out
-
 	Comp           server.Component
 	StatusProvider coreStatus.InformationProvider
 }
@@ -114,7 +105,7 @@ func (w *TrapsServer) Error() error {
 
 // newServer creates a new traps server, registering it with the fx lifecycle
 // system if traps are enabled.
-func newServer(lc fx.Lifecycle, deps dependencies) provides {
+func newServer(lc compdef.Lifecycle, deps dependencies) provides {
 	if !trapsconfig.IsEnabled(deps.Conf) {
 		return provides{
 			Comp: &TrapsServer{running: false},
@@ -151,7 +142,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 		}
 	}
 
-	lc.Append(fx.Hook{
+	lc.Append(compdef.Hook{
 		OnStart: func(ctx context.Context) error {
 			err := app.Start(ctx)
 			if err != nil {

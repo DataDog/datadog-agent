@@ -159,13 +159,6 @@ components_classic_style = [
     'comp/remote-config/rcservicemrf/rcservicemrfimpl',
     'comp/remote-config/rcstatus/rcstatusimpl',
     'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
-    'comp/snmptraps/config/configimpl',
-    'comp/snmptraps/formatter/formatterimpl',
-    'comp/snmptraps/forwarder/forwarderimpl',
-    'comp/snmptraps/listener/listenerimpl',
-    'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/server/serverimpl',
-    'comp/snmptraps/status/statusimpl',
     'comp/systray/systray/systrayimpl',
     'comp/trace/etwtracer/etwtracerimpl',
     'comp/trace/status/statusimpl',
@@ -188,6 +181,7 @@ components_missing_implementation_folder = [
 ignore_fx_import = [
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
+    "comp/snmptraps/server",  # uses fx.App for a sub-app pattern
     "comp/trace/agent",
 ]
 
