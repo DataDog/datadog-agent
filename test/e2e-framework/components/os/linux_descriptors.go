@@ -13,8 +13,12 @@ var (
 	Ubuntu2204    = NewDescriptor(Ubuntu, "22-04")
 	Ubuntu2004    = NewDescriptor(Ubuntu, "20-04")
 
-	DebianDefault = Debian12
-	Debian12      = NewDescriptor(Debian, "12")
+	// Tool-baked Ubuntu variants (tools pre-installed in AMI)
+	Ubuntu2404Docker = NewDescriptor(Ubuntu, "24-04-docker")
+
+	DebianDefault  = Debian12
+	Debian12       = NewDescriptor(Debian, "12")
+	Debian12Docker = NewDescriptor(Debian, "12-docker")
 
 	AmazonLinuxDefault = AmazonLinux2023
 	AmazonLinux2023    = NewDescriptor(AmazonLinux, "2023")
@@ -28,8 +32,14 @@ var (
 	RedHatDefault = RedHat9
 	RedHat9       = NewDescriptor(RedHat, "9")
 
+	// Tool-baked RedHat variants
+	RedHat9Docker = NewDescriptor(RedHat, "9-docker")
+
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
+
+	// Tool-baked SUSE variants
+	Suse154Docker = NewDescriptor(Suse, "15-4-docker")
 
 	FedoraDefault = Fedora40
 	Fedora40      = NewDescriptor(Fedora, "40")
