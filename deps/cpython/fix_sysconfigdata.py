@@ -11,6 +11,7 @@ is acceptable given the file's usage.
 import argparse
 import ast
 import os
+import re
 import sys
 
 # Names of tool to strip to their basenames
@@ -33,16 +34,22 @@ FLAGS_TO_CLEAR = frozenset(
     ]
 )
 
+# Regexp to split into alternating path candidates and other tokens
+_PATH_SPLITTER_RE = re.compile(r"""(/[^\s='"]+)""")
+
+
+def _fix_tool_path(segment):
+    basename = os.path.basename(segment)
+    return basename if basename in TOOL_BASENAMES else segment
+
 
 def _fix_value(key, value):
     if key in FLAGS_TO_CLEAR:
         return ""
     if isinstance(value, str):
-        # Replace tool name references with their basename anywhere they occur
-        tokens = value.split()
-        new_tokens = [os.path.basename(t) if os.path.basename(t) in TOOL_BASENAMES else t for t in tokens]
-        if new_tokens != tokens:
-            return " ".join(new_tokens)
+        parts = _PATH_SPLITTER_RE.split(value)
+        # The split leaves path-candidates (non-separators) at odd-indexed positions
+        return "".join(_fix_tool_path(p) if i % 2 == 1 else p for i, p in enumerate(parts))
     return value
 
 
