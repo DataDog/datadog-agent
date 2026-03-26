@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"

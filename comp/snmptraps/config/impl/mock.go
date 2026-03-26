@@ -11,17 +11,17 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type dependencies struct {
+type mockDependencies struct {
 	fx.In
 	HostnameService hostname.Component
 	Conf            *trapsconf.TrapsConfig
 }
 
-func newMockConfig(dep dependencies) (trapsconf.Component, error) {
+func newMockConfig(dep mockDependencies) (trapsconf.Component, error) {
 	host, err := dep.HostnameService.Get(context.Background())
 	if err != nil {
 		return nil, err

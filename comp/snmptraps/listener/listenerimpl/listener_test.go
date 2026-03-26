@@ -13,8 +13,8 @@ import (
 	"go.uber.org/fx"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
+	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
