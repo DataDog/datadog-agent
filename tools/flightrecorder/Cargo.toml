@@ -34,6 +34,7 @@ tikv-jemalloc-ctl = "0.6"
 tokio-util = { version = "0.7", features = ["rt"] }
 cadence = "1"
 bloomfilter = "1"
+atty = "0.2"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
