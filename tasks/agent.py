@@ -320,13 +320,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copytree(
             "./cmd/agent/dist/checks/",
             os.path.join(dist_folder, "checks"),
-            ignore=shutil.ignore_patterns(["BUILD.bazel"]),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
             dirs_exist_ok=True,
         )
         shutil.copytree(
             "./cmd/agent/dist/utils/",
             os.path.join(dist_folder, "utils"),
-            ignore=shutil.ignore_patterns(["BUILD.bazel"]),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
             dirs_exist_ok=True,
         )
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
@@ -348,7 +348,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copytree(
             f"./cmd/agent/dist/conf.d/{check}.d/",
             check_dir,
-            ignore=shutil.ignore_patterns(["BUILD.bazel"]),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
             dirs_exist_ok=True,
         )
         # Ensure the config folders are not world writable
@@ -362,7 +362,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             shutil.copytree(
                 f"./cmd/agent/dist/conf.d/{check}.d/",
                 check_dir,
-                ignore=shutil.ignore_patterns(["BUILD.bazel"]),
+                ignore=shutil.ignore_patterns("BUILD.bazel"),
                 dirs_exist_ok=True,
             )
 
@@ -376,11 +376,11 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     shutil.copytree(
         "./comp/core/gui/guiimpl/views/private",
         os.path.join(dist_folder, "views"),
-        ignore=shutil.ignore_patterns(["BUILD.bazel"]),
+        ignore=shutil.ignore_patterns("BUILD.bazel"),
         dirs_exist_ok=True,
     )
     if development:
-        shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns(["BUILD.bazel"]), dirs_exist_ok=True)
+        shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns("BUILD.bazel"), dirs_exist_ok=True)
 
 
 @task
