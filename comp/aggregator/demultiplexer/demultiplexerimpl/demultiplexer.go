@@ -64,7 +64,7 @@ type provides struct {
 	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
 	AggregatorDemultiplexer aggregator.Demultiplexer
-	MetricHook              hook.Hook[hook.MetricView] `group:"hook"`
+	MetricHook              hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -78,7 +78,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
-	metricHook := hook.NewHook[hook.MetricView]("metrics-pipeline")
+	metricHook := hook.NewHook[[]hook.MetricSampleSnapshot]("metrics-pipeline")
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,

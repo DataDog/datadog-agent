@@ -37,7 +37,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 
 func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	mSample1 := metrics.MetricSample{
@@ -102,7 +102,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -159,7 +159,7 @@ func TestCheckRateSampling(t *testing.T) {
 
 func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := strings.NewMatcher([]string{}, false)
@@ -229,7 +229,7 @@ func TestHistogramCountSampling(t *testing.T) {
 
 func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := strings.NewMatcher([]string{}, false)
@@ -311,7 +311,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -370,7 +370,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 
 func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -566,7 +566,7 @@ func sketchOf(lower, upper float64, count uint) *quantile.Sketch {
 
 func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := strings.NewMatcher([]string{}, false)
@@ -605,7 +605,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 
 func testCheckDistribution(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -643,7 +643,7 @@ func TestCheckDistribution(t *testing.T) {
 
 func testFilteredMetrics(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -721,7 +721,7 @@ func TestFilteredMetrics(t *testing.T) {
 
 func testFilteredSketches(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -798,7 +798,7 @@ func TestFilteredSketches(t *testing.T) {
 
 func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[hook.MetricView]())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent, hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	// Generate a context key that is NOT registered in the context resolver.
 	k := ckey.NewKeyGenerator()
