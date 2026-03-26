@@ -70,6 +70,16 @@ func (s *seriesStats) pointCount() int {
 	return len(s.timestamps)
 }
 
+// sampleCount returns the total number of samples for a series.
+// A point can contain multiple samples if it is aggregated.
+func (s *seriesStats) sampleCount() int64 {
+	count := int64(0)
+	for _, c := range s.counts {
+		count += c
+	}
+	return count
+}
+
 // Aggregate is an alias to the definition in the observer component for internal use.
 type Aggregate = observer.Aggregate
 
@@ -754,17 +764,18 @@ func (s *timeSeriesStorage) PointCount(handle observer.SeriesHandle) int {
 	return 0
 }
 
-// TotalPointCount returns the total number of stored data points across all series,
+// TotalSampleCount returns the total number of stored samples across all series,
 // excluding series in excludeNamespace (pass "" to include all namespaces).
-func (s *timeSeriesStorage) TotalPointCount(excludeNamespace string) int {
+// A point can contain multiple samples if it is aggregated.
+func (s *timeSeriesStorage) TotalSampleCount(excludeNamespace string) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	total := 0
+	total := int64(0)
 	for _, stats := range s.series {
 		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
 			continue
 		}
-		total += stats.pointCount()
+		total += stats.sampleCount()
 	}
 	return total
 }

@@ -31,7 +31,7 @@ type ReplayStats struct {
 	// DetectorStats holds per-detector processing-time statistics keyed by detector name.
 	DetectorStats map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
 	// InputMetricsCount is the total number of metric data points (samples) in the scenario.
-	InputMetricsCount int `json:"input_metrics_count"`
+	InputMetricsCount int64 `json:"input_metrics_count"`
 	// InputMetricsCardinality is the number of unique metric series (name + tag combinations).
 	InputMetricsCardinality int `json:"input_metrics_cardinality"`
 	// InputLogsCount is the number of raw log entries present in the scenario.

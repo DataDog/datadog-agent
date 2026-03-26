@@ -741,7 +741,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	enrichDetectorStatsKind(detectorStats, tb.components)
 	tb.replayStats = &ReplayStats{
 		DetectorStats:           detectorStats,
-		InputMetricsCount:       storage.TotalPointCount(observerdef.TelemetryNamespace),
+		InputMetricsCount:       storage.TotalSampleCount(observerdef.TelemetryNamespace),
 		InputMetricsCardinality: storage.TotalSeriesCount(observerdef.TelemetryNamespace),
 		InputLogsCount:          sumStoredTelemetryCounter(storage, telemetryTbInputLogsCount),
 		InputAnomaliesCount:     len(result.anomalies),
@@ -1295,7 +1295,7 @@ func replayStatsItemCountForKind(rs *ReplayStats, kind string) int {
 	case "correlator":
 		return rs.InputAnomaliesCount
 	default:
-		return rs.InputMetricsCount
+		return int(rs.InputMetricsCount)
 	}
 }
 
