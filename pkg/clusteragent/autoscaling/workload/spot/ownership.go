@@ -14,13 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-type ownerKey struct {
+type objectKey struct {
 	Namespace string
 	Kind      string
 	Name      string
 }
 
-func (o ownerKey) String() string {
+func (o objectKey) String() string {
 	return o.Kind + " " + o.Namespace + "/" + o.Name
 }
 
@@ -29,34 +29,34 @@ func (o ownerKey) String() string {
 // Using the direct owner rather than the top-level workload (Deployment) ensures
 // that pods from different ReplicaSets during a rolling update are counted independently,
 // giving each revision a fresh spot/on-demand ratio calculation.
-func resolveCoreV1PodOwner(pod *corev1.Pod) (ownerKey, bool) {
+func resolveCoreV1PodOwner(pod *corev1.Pod) (objectKey, bool) {
 	if len(pod.OwnerReferences) == 0 {
-		return ownerKey{}, false
+		return objectKey{}, false
 	}
 
 	ownerRef := pod.OwnerReferences[0]
 
 	// Ignore pods owned directly by a Deployment
 	if ownerRef.Kind == kubernetes.DeploymentKind {
-		return ownerKey{}, false
+		return objectKey{}, false
 	}
 
-	return ownerKey{Namespace: pod.Namespace, Kind: ownerRef.Kind, Name: ownerRef.Name}, true
+	return objectKey{Namespace: pod.Namespace, Kind: ownerRef.Kind, Name: ownerRef.Name}, true
 }
 
 // resolveWLMPodOwner resolves the direct owner for a workloadmeta KubernetesPod.
 // See [resolvePodOwner] for the rationale of using the direct owner.
-func resolveWLMPodOwner(pod *workloadmeta.KubernetesPod) (ownerKey, bool) {
+func resolveWLMPodOwner(pod *workloadmeta.KubernetesPod) (objectKey, bool) {
 	if len(pod.Owners) == 0 {
-		return ownerKey{}, false
+		return objectKey{}, false
 	}
 
 	owner := pod.Owners[0]
 
 	// Ignore pods owned directly by a Deployment
 	if owner.Kind == kubernetes.DeploymentKind {
-		return ownerKey{}, false
+		return objectKey{}, false
 	}
 
-	return ownerKey{Namespace: pod.Namespace, Kind: owner.Kind, Name: owner.Name}, true
+	return objectKey{Namespace: pod.Namespace, Kind: owner.Kind, Name: owner.Name}, true
 }

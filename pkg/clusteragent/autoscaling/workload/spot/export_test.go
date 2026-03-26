@@ -9,6 +9,7 @@ package spot
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -18,21 +19,21 @@ import (
 )
 
 // NewTestScheduler creates a Scheduler for testing.
-func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error) *Scheduler {
+func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error, store workloadConfigStore) *Scheduler {
 	isLeader := func() bool {
 		return true
 	}
 	evictorFunc := podEvictorFunc(func(_ context.Context, namespace, name string) error {
 		return evictPod(namespace, name)
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, noopFallbackStore{}, isLeader)
+	return newScheduler(config, clk, wlm, evictorFunc, noopFallbackStore{}, store, isLeader)
 }
 
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given owner.
 func (s *Scheduler) TrackedCounts(namespace, kind, name string) (total, spot int) {
 	s.tracker.mu.RLock()
 	defer s.tracker.mu.RUnlock()
-	owner := ownerKey{Namespace: namespace, Kind: kind, Name: name}
+	owner := objectKey{Namespace: namespace, Kind: kind, Name: name}
 	if pods, ok := s.tracker.podsPerOwner[owner]; ok {
 		return pods.totalCount(), pods.spotCount()
 	}
@@ -72,3 +73,38 @@ type noopFallbackStore struct{}
 func (noopFallbackStore) store(context.Context, time.Time) error { return nil }
 
 func (noopFallbackStore) read(context.Context) (time.Time, error) { return time.Time{}, nil }
+
+// TestWorkloadConfigStore is a test-only workloadConfigStore backed by a mutable map.
+type TestWorkloadConfigStore struct {
+	defaultConfig spotConfig
+
+	mu      sync.RWMutex
+	configs map[objectKey]spotConfig
+}
+
+// NewTestWorkloadConfigStore creates a TestWorkloadConfigStore with defaults from cfg.
+func NewTestWorkloadConfigStore(cfg Config) *TestWorkloadConfigStore {
+	return &TestWorkloadConfigStore{
+		defaultConfig: spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas},
+		configs:       make(map[objectKey]spotConfig),
+	}
+}
+
+func (s *TestWorkloadConfigStore) run(ctx context.Context) { <-ctx.Done() }
+
+func (s *TestWorkloadConfigStore) getConfig(key objectKey) (spotConfig, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cfg, ok := s.configs[key]
+	return cfg, ok
+}
+
+// Update sets the spot config for the given workload from annotations.
+func (s *TestWorkloadConfigStore) Update(namespace, kind, name string, annotations map[string]string) {
+	key := objectKey{Namespace: namespace, Kind: kind, Name: name}
+	cfg := s.defaultConfig
+	overrideFromAnnotations(&cfg, annotations)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.configs[key] = cfg
+}

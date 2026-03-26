@@ -69,6 +69,7 @@ func StartWorkloadAutoscaling(
 		spotScheduler = spot.NewScheduler(
 			spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm,
 			apiCl.Cl,
+			apiCl.DynamicInformerCl,
 			namespace.GetResourcesNamespace(),
 			isLeaderFunc)
 	}

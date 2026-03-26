@@ -9,6 +9,7 @@ package spot
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -43,7 +44,7 @@ type Config struct {
 
 // String returns a human-readable representation of the Config.
 func (c Config) String() string {
-	return fmt.Sprintf("SpotConfig{percentage=%d%%, minOnDemandReplicas=%d, scheduleTimeout=%v, fallbackDuration=%v, rebalanceStabilizationPeriod=%v}",
+	return fmt.Sprintf("percentage=%d%%, minOnDemandReplicas=%d, scheduleTimeout=%v, fallbackDuration=%v, rebalanceStabilizationPeriod=%v",
 		c.Percentage, c.MinOnDemandReplicas, c.ScheduleTimeout, c.FallbackDuration, c.RebalanceStabilizationPeriod)
 }
 
@@ -78,4 +79,28 @@ func ReadConfig(cfg pkgconfigmodel.Reader) Config {
 		c.RebalanceStabilizationPeriod = defaultRebalanceStabilizationPeriod
 	}
 	return c
+}
+
+// spotConfig holds per-workload spot scheduling parameters.
+type spotConfig struct {
+	percentage  int
+	minOnDemand int
+}
+
+func (c spotConfig) String() string {
+	return fmt.Sprintf("percentage=%d%%, minOnDemand=%d", c.percentage, c.minOnDemand)
+}
+
+// overrideFromAnnotations overrides cfg fields from spot annotations, leaving unset fields unchanged.
+func overrideFromAnnotations(cfg *spotConfig, annotations map[string]string) {
+	if v := annotations[SpotPercentageAnnotation]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 100 {
+			cfg.percentage = n
+		}
+	}
+	if v := annotations[SpotMinOnDemandReplicasAnnotation]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.minOnDemand = n
+		}
+	}
 }

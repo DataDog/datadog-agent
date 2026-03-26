@@ -315,13 +315,12 @@ func randomSuffix(n int) string {
 	return b.String()
 }
 
-// newPod builds a corev1.Pod with the given owner and annotations.
-func newPod(namespace, ownerKind, ownerName string, annotations map[string]string) *corev1.Pod {
+// newPod builds a corev1.Pod with the given owner.
+func newPod(namespace, ownerKind, ownerName string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    namespace,
 			GenerateName: ownerName + "-",
-			Annotations:  maps.Clone(annotations),
 			OwnerReferences: []metav1.OwnerReference{
 				{Kind: ownerKind, Name: ownerName},
 			},

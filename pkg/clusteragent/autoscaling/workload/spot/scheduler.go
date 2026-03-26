@@ -9,15 +9,16 @@ package spot
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
+	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +34,7 @@ type Scheduler struct {
 	wlm           workloadmeta.Component
 	evictor       podEvictor
 	fallbackStore fallbackStore
+	configStore   workloadConfigStore
 	isLeader      func() bool
 	tracker       *podTracker
 	subscribed    chan struct{}
@@ -42,32 +44,34 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a new spot Scheduler.
-func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client kubernetes.Interface, namespace string, isLeader func() bool) *Scheduler {
-	return newScheduler(cfg, clk, wlm, newKubePodEvictor(client), newConfigMapFallbackStore(client, namespace), isLeader)
+func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client k8sclient.Interface, dynamicClient dynamic.Interface, namespace string, isLeader func() bool) *Scheduler {
+	return newScheduler(cfg, clk, wlm, newKubePodEvictor(client), newConfigMapFallbackStore(client, namespace), newKubeWorkloadConfigStore(dynamicClient, cfg), isLeader)
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, store fallbackStore, isLeader func() bool) *Scheduler {
-	return &Scheduler{
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, fallbackStore fallbackStore, configStore workloadConfigStore, isLeader func() bool) *Scheduler {
+	s := &Scheduler{
 		config:        cfg,
 		clock:         clk,
 		wlm:           wlm,
 		evictor:       evictor,
-		fallbackStore: store,
+		fallbackStore: fallbackStore,
+		configStore:   configStore,
 		isLeader:      isLeader,
-		tracker:       newPodTracker(clk, spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}),
 		subscribed:    make(chan struct{}),
 	}
+	s.tracker = newPodTracker(clk, spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
+	return s
 }
 
 // Start launches goroutines to track pod updates and check for on-demand fallback and returns immediately.
 func (s *Scheduler) Start(ctx context.Context) {
 	log.Infof("Starting spot scheduler: %s", s.config)
 
-	// Run in separate goroutines so that a slow fallback check (which may make Kubernetes API calls)
-	// does not delay pod updates processing.
+	// Run in separate goroutines to not not delay pod updates processing.
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)
 	go s.rebalance(ctx)
+	go s.configStore.run(ctx)
 }
 
 // trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
@@ -179,10 +183,6 @@ func (s *Scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 		return unchanged()
 	}
 
-	// For now update config from pod annotations.
-	// TODO: update config from owner annotations asynchronously.
-	s.tracker.updateConfig(owner, s.readConfig(pod))
-
 	if s.tracker.admitNewPod(owner) {
 		assignToSpot(pod)
 		return true, nil
@@ -208,13 +208,40 @@ func (s *Scheduler) PodDeleted(pod *corev1.Pod) {
 	s.tracker.deletePod(owner, uid)
 }
 
+// getSpotConfig returns the spot config for the given owner.
+func (s *Scheduler) getSpotConfig(owner objectKey) (spotConfig, bool) {
+	// For ReplicaSet resolve to the parent Deployment.
+	if owner.Kind == kubernetes.ReplicaSetKind {
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+		if deploymentName == "" {
+			return spotConfig{}, false
+		}
+		owner = objectKey{Namespace: owner.Namespace, Kind: kubernetes.DeploymentKind, Name: deploymentName}
+	}
+
+	return s.configStore.getConfig(owner)
+}
+
 func (s *Scheduler) isSpotEligible(pod *corev1.Pod) bool {
-	return pod.Annotations[SpotEnabledAnnotation] == "true"
+	owner, hasOwner := resolveCoreV1PodOwner(pod)
+	if !hasOwner {
+		return false
+	}
+	_, ok := s.getSpotConfig(owner)
+	return ok
 }
 
 func (s *Scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	pod, ok := entity.(*workloadmeta.KubernetesPod)
-	return ok && pod.Annotations[SpotEnabledAnnotation] == "true"
+	if !ok {
+		return false
+	}
+	owner, hasOwner := resolveWLMPodOwner(pod)
+	if !hasOwner {
+		return false
+	}
+	_, ok = s.getSpotConfig(owner)
+	return ok
 }
 
 func assignToSpot(pod *corev1.Pod) {
@@ -324,26 +351,4 @@ func (s *Scheduler) disableSpotScheduling(ctx context.Context, now time.Time) (t
 		}
 	}
 	return disabledUntil, updated
-}
-
-// readConfig reads spot configuration from pod annotations, falling back to s.config defaults.
-func (s *Scheduler) readConfig(pod *corev1.Pod) spotConfig {
-	config := spotConfig{
-		percentage:  s.config.Percentage,
-		minOnDemand: s.config.MinOnDemandReplicas,
-	}
-
-	if v := pod.Annotations[SpotPercentageAnnotation]; v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 100 {
-			config.percentage = n
-		}
-	}
-
-	if v := pod.Annotations[SpotMinOnDemandReplicasAnnotation]; v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			config.minOnDemand = n
-		}
-	}
-
-	return config
 }

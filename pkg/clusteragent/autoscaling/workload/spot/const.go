@@ -7,10 +7,10 @@
 
 package spot
 
-// Spot scheduling annotations and constants.
+// Spot scheduling constants.
 const (
-	// SpotEnabledAnnotation is the annotation key used to opt-in pod into spot scheduling
-	SpotEnabledAnnotation = "autoscaling.datadoghq.com/spot-enabled"
+	// SpotEnabledLabelSelector is used to opt-in workload into spot scheduling.
+	SpotEnabledLabelSelector = "autoscaling.datadoghq.com/spot-enabled=true"
 	// SpotPercentageAnnotation is the annotation key for the desired percentage of replicas on spot (0-100)
 	SpotPercentageAnnotation = "autoscaling.datadoghq.com/spot-percentage"
 	// SpotMinOnDemandReplicasAnnotation is the annotation key for the minimum number of on-demand replicas

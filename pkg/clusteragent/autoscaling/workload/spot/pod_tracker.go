@@ -19,16 +19,10 @@ import (
 )
 
 type pendingSpotPod struct {
-	owner     ownerKey
+	owner     objectKey
 	namespace string
 	name      string
 	createdAt time.Time
-}
-
-// spotConfig holds per-owner spot scheduling parameters.
-type spotConfig struct {
-	percentage  int
-	minOnDemand int
 }
 
 // pods tracks spot and on-demand pods and in-flight admission counts for the same owner.
@@ -52,30 +46,33 @@ type podInfo struct {
 type podTracker struct {
 	clock         clock.Clock
 	defaultConfig spotConfig
+	configSource  func(objectKey) (spotConfig, bool)
 
 	mu sync.RWMutex
 	// podsPerOwner groups pods and in-flight admission counts by owner.
-	podsPerOwner map[ownerKey]*pods
+	podsPerOwner map[objectKey]*pods
 	// pendingSpotPods tracks spot-assigned pods that are pending scheduling, keyed by pod UID.
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock, defaultConfig spotConfig) *podTracker {
+func newPodTracker(clk clock.Clock, defaultConfig spotConfig, configSource func(objectKey) (spotConfig, bool)) *podTracker {
 	return &podTracker{
 		clock:           clk,
 		defaultConfig:   defaultConfig,
-		podsPerOwner:    make(map[ownerKey]*pods),
+		configSource:    configSource,
+		podsPerOwner:    make(map[objectKey]*pods),
 		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
 }
 
 // admitNewPod decides whether the new pod should be spot-assigned using
 // the per-owner config and returns true if the pod was assigned to spot.
-func (t *podTracker) admitNewPod(owner ownerKey) bool {
+func (t *podTracker) admitNewPod(owner objectKey) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	pods := t.getPodsLocked(owner)
+	t.refreshConfigLocked(owner, pods)
 
 	total := pods.totalCount()
 	spot := pods.spotCount()
@@ -96,16 +93,8 @@ func (t *podTracker) admitNewPod(owner ownerKey) bool {
 	return pods.admit(true)
 }
 
-// updateConfig updates the spot scheduling config for owner.
-func (t *podTracker) updateConfig(owner ownerKey, config spotConfig) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	t.getPodsLocked(owner).config = config
-}
-
 // admitNewOnDemandPod records an on-demand admission for owner.
-func (t *podTracker) admitNewOnDemandPod(owner ownerKey) {
+func (t *podTracker) admitNewOnDemandPod(owner objectKey) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -165,7 +154,7 @@ func (t *podTracker) deleted(pod *workloadmeta.KubernetesPod) {
 }
 
 // deletePod deletes pod by owner and uid.
-func (t *podTracker) deletePod(owner ownerKey, uid string) {
+func (t *podTracker) deletePod(owner objectKey, uid string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -173,7 +162,7 @@ func (t *podTracker) deletePod(owner ownerKey, uid string) {
 }
 
 // deletePodLocked deletes a pod from podsPerOwner. Must be called with t.mu held.
-func (t *podTracker) deletePodLocked(owner ownerKey, uid string) {
+func (t *podTracker) deletePodLocked(owner objectKey, uid string) {
 	if pods, ok := t.podsPerOwner[owner]; ok {
 		if pods.delete(uid, t.clock.Now()) {
 			delete(t.podsPerOwner, owner)
@@ -182,9 +171,17 @@ func (t *podTracker) deletePodLocked(owner ownerKey, uid string) {
 	delete(t.pendingSpotPods, uid)
 }
 
+// refreshConfigLocked refreshes the spot config for pods from the configSource.
+// Must be called with t.mu held.
+func (t *podTracker) refreshConfigLocked(owner objectKey, pods *pods) {
+	if cfg, ok := t.configSource(owner); ok {
+		pods.config = cfg
+	}
+}
+
 // getPodsLocked returns the pods for owner, creating it if absent.
 // Must be called with t.mu held.
-func (t *podTracker) getPodsLocked(owner ownerKey) *pods {
+func (t *podTracker) getPodsLocked(owner objectKey) *pods {
 	if pods, ok := t.podsPerOwner[owner]; ok {
 		return pods
 	}
@@ -204,6 +201,7 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 	now := t.clock.Now()
 	lastUpdatedBefore := now.Add(-rebalanceStabilizationPeriod)
 	for owner, pods := range t.podsPerOwner {
+		t.refreshConfigLocked(owner, pods)
 		if uid, name := pods.getPodToDelete(lastUpdatedBefore); uid != "" {
 			pods.lastUpdate = now // suppress re-selection until stabilization period elapses
 			return uid, name, owner.Namespace

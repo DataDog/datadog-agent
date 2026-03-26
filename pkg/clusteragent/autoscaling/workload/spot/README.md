@@ -68,7 +68,6 @@ Rebalancing handles the following cases:
 ### TODO
 
 - [ ] Fallback ConfigMap RBAC
-- [ ] Move spot configuration to the Deployment/StatefulSet annotations
 - [ ] Add StatefulSet tests
 - [ ] Implement Argo Rollout support
 - [ ] Emit Kubernetes events
@@ -102,9 +101,11 @@ spec:
 # ...
 ```
 
-### Workload annotations
+### Workload configuration
 
-Default configuration can be overriden per workload via `podTemplate` annotations:
+To enable spot scheduling for a workload add `autoscaling.datadoghq.com/spot-enabled: "true"` label.
+Default configuration can be overridden via annotations:
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -112,6 +113,10 @@ metadata:
   name: nginx
   labels:
     app: nginx
+    autoscaling.datadoghq.com/spot-enabled: "true" # Enable spot scheduling
+  annotations:
+    autoscaling.datadoghq.com/spot-percentage: "50" # Split pods 50/50% between spot and on-demand nodes
+    autoscaling.datadoghq.com/spot-min-on-demand-replicas: "1" # schedule at least one pod onto on-demand node
 spec:
   replicas: 1
   selector:
@@ -119,14 +124,8 @@ spec:
       app: nginx
   template:
     metadata:
-      annotations:
-        autoscaling.datadoghq.com/spot-enabled: "true" # enable spot scheduling for this Deployment
-        autoscaling.datadoghq.com/spot-percentage: "50" # split pods 50/50% between spot and on-demand nodes
-        autoscaling.datadoghq.com/spot-min-on-demand-replicas: "1" # schedule at least one pod onto on-demand node
       labels:
         app: nginx
-        # Set automatically by Cluster Agent on spot-assigned pods (not user-configurable):
-        # autoscaling.datadoghq.com/spot-assigned: "true" # spot-assigned pods
     spec:
       containers:
       - name: nginx
@@ -135,9 +134,10 @@ spec:
         - containerPort: 80
 ```
 
-Pods scheduled on spot instances have `autoscaling.datadoghq.com/spot-assigned=true` label.
+Label and annotation changes take effect gradually due to rebalancing, use `kubectl rollout restart` to speed up the change.
 
-Use `kubectl get pods` with `-Lautoscaling.datadoghq.com/spot-assigned` to see which pods are scheduled on spot instances:
+Pods scheduled on spot instances have `autoscaling.datadoghq.com/spot-assigned=true` label,
+use `kubectl get pods` with `-Lautoscaling.datadoghq.com/spot-assigned` to see which pods are scheduled on spot instances:
 
 ```console
 $ kubectl get pods -lapp=nginx -Lautoscaling.datadoghq.com/spot-assigned
