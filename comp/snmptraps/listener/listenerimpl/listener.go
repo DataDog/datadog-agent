@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 )
 
 // Module defines the fx options for this component.
