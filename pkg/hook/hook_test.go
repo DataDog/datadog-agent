@@ -235,6 +235,64 @@ func TestSubscriberCountReflectsSubscribeUnsubscribe(t *testing.T) {
 	require.Equal(t, int32(0), impl.subscriberCount.Load())
 }
 
+// TestWithRecycleDeliversCopiesAndRecycles verifies that WithRecycle causes
+// Publish to clone the payload per subscriber, and recycle to be called after
+// the callback returns — enabling pool-based zero-GC delivery.
+func TestWithRecycleDeliversCopiesAndRecycles(t *testing.T) {
+	h := NewHook[[]int]("recycle-test")
+
+	var recycled []int
+	recycleReady := make(chan struct{})
+
+	unsub := h.Subscribe("consumer", func(v []int) {
+		assert.Equal(t, []int{1, 2, 3}, v)
+	}, WithRecycle(
+		func(src []int) []int {
+			dst := make([]int, len(src))
+			copy(dst, src)
+			return dst
+		},
+		func(v []int) {
+			recycled = v
+			close(recycleReady)
+		},
+	))
+	defer unsub()
+
+	h.Publish("producer", []int{1, 2, 3})
+
+	select {
+	case <-recycleReady:
+	case <-time.After(time.Second):
+		t.Fatal("timeout: recycle not called")
+	}
+	assert.Equal(t, []int{1, 2, 3}, recycled)
+}
+
+// TestWithRecycleOnDropCallsRecycle verifies that if the channel is full and
+// the payload is dropped, recycle is still called on the cloned copy.
+func TestWithRecycleOnDropCallsRecycle(t *testing.T) {
+	h := NewHook[int]("recycle-drop-test")
+
+	recycleCount := atomic.Int32{}
+	// Fill the channel to force drops.
+	unsub := h.Subscribe("consumer", func(_ int) { time.Sleep(time.Hour) },
+		WithRecycle(
+			func(src int) int { return src },
+			func(_ int) { recycleCount.Add(1) },
+		),
+	)
+	defer unsub()
+
+	// Send enough to overflow the 100-slot buffer (first send succeeds, rest drop).
+	for i := range 200 {
+		h.Publish("producer", i)
+	}
+
+	// At least 99 items should have been dropped and recycled.
+	assert.GreaterOrEqual(t, int(recycleCount.Load()), 99)
+}
+
 // TestNoGoroutineLeak asserts that the subscriber goroutine exits after
 // the unsubscribe function is called.
 func TestNoGoroutineLeak(t *testing.T) {
