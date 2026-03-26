@@ -13,6 +13,9 @@ var (
 	Ubuntu2204    = NewDescriptor(Ubuntu, "22-04")
 	Ubuntu2004    = NewDescriptor(Ubuntu, "20-04")
 
+	// Tool-baked Ubuntu variants (tools pre-installed in AMI)
+	Ubuntu2204ServiceDiscovery = NewDescriptor(Ubuntu, "22-04-service-discovery")
+
 	DebianDefault = Debian12
 	Debian12      = NewDescriptor(Debian, "12")
 
