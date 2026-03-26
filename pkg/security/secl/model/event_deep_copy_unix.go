@@ -485,16 +485,6 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
 	return copied
 }
-func deepCopybyteArr(fieldToCopy []byte) []byte {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make([]byte, len(fieldToCopy))
-	for i := range fieldToCopy {
-		copied[i] = fieldToCopy[i]
-	}
-	return copied
-}
 func deepCopyProcessContextPtr(fieldToCopy *ProcessContext) *ProcessContext {
 	if fieldToCopy == nil {
 		return nil
@@ -740,6 +730,16 @@ func deepCopyExitEvent(fieldToCopy ExitEvent) ExitEvent {
 func deepCopyFailedDNSEvent(fieldToCopy FailedDNSEvent) FailedDNSEvent {
 	copied := FailedDNSEvent{}
 	copied.Payload = deepCopybyteArr(fieldToCopy.Payload)
+	return copied
+}
+func deepCopybyteArr(fieldToCopy []byte) []byte {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]byte, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+	}
 	return copied
 }
 func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
