@@ -22,6 +22,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -37,8 +38,11 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 	}{
 		{
 			// the container collection is enabled by default in containerized environments
-			name:             "empty config - container collection is enabled",
-			configs:          nil,
+			name:    "empty config - container collection is enabled",
+			configs: nil,
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			containerizedEnv: true,
 			enabled:          true,
 		},
@@ -56,6 +60,9 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
 			},
 			containerizedEnv: true,
 			enabled:          true,
@@ -79,25 +86,27 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			enabled:          false,
 		},
 		{
-			name: "check is disabled in the process-agent as run in core agent is enabled",
+			name: "check in the process-agent depends on platform",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
-				"process_config.run_in_core_agent.enabled":    true,
 			},
 
 			containerizedEnv: true,
 			flavor:           flavor.ProcessAgent,
-			enabled:          false,
+			// On Linux, process checks run in core agent so this is disabled in process-agent.
+			// On other platforms, the check runs in the process-agent.
+			enabled: !coreagent.ProcessChecksRunInCoreAgent(),
 		},
 		{
-			name: "check is enabled in the core agent as run in core agent is enabled",
+			name: "check is enabled in the core agent on linux",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled":   false,
 				"process_config.container_collection.enabled": true,
-				"process_config.run_in_core_agent.enabled":    true,
 			},
-
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
 			containerizedEnv: true,
 			flavor:           flavor.DefaultAgent,
 			enabled:          true,

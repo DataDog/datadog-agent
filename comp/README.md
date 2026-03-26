@@ -246,6 +246,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 
 
+### [comp/dogstatsd/http](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/http)
+
+Package http defines dogstatsd http server component
+
 ### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
 
 Package pidmap implements a component for tracking pid and containerID relations
@@ -745,6 +749,12 @@ Package datadogclient provides a client to query the datadog API
 *Datadog Team*: fleet
 
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
+
+### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
+
+*Datadog Team*: data-observability
+
+Package queryactions provides the Data Observability query actions component
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 

@@ -154,6 +154,44 @@ async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
         .map_err(|e| anyhow!("Failed to build response: {}", e))
 }
 
+async fn handle_config() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    // SPL only runs when discovery.enabled and discovery.use_system_probe_lite are both true,
+    // so we can hardcode these values.
+    let yaml_config = "discovery:\n  enabled: true\n  use_system_probe_lite: true\n";
+    Response::builder()
+        .body(
+            Full::new(Bytes::from(yaml_config))
+                .map_err(|e| match e {})
+                .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
+async fn handle_config_by_source() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .header("Content-Type", "application/json")
+        .body(
+            Full::new(
+                serde_json::to_vec(&json!({
+                    "default": {
+                        "discovery": {
+                            "enabled": true,
+                            "use_system_probe_lite": true
+                        }
+                    }
+                }))
+                .unwrap_or_else(|e| {
+                    error!("Failed to serialize response: {e}");
+                    b"Internal server error".to_vec()
+                })
+                .into(),
+            )
+            .map_err(|e| match e {})
+            .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
 async fn handle_debug_stats() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     Response::builder()
         .header("Content-Type", "application/json")
@@ -195,9 +233,11 @@ async fn handle_request(
             handle_services(req).await
         }
         (&Method::GET, "/discovery/state") => handle_state().await,
+        (&Method::GET, "/config") => handle_config().await,
+        (&Method::GET, "/config/by-source") => handle_config_by_source().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
         _ => {
-            info!(
+            debug!(
                 "{} Request to unknown endpoint: {}",
                 req.method(),
                 req.uri().path()

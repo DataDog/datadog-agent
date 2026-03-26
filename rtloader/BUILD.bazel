@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -249,6 +250,7 @@ pkg_filegroup(
             ":rtloader_with_symlinks",
         ],
     }),
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(

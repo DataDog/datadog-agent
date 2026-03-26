@@ -842,11 +842,6 @@ func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
 	return c.AllSettingsWithoutDefault()
 }
 
-// GetSecretSettingPaths does not exist in the viper impl
-func (c *safeConfig) GetSecretSettingPaths() []string {
-	return nil
-}
-
 // AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
 // along with the sequence ID.
 // Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
