@@ -596,7 +596,7 @@ func start(log log.Component,
 			log.Errorf("[KubeActions] Event Platform forwarder component is NIL")
 		}
 
-		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, le.IsLeader, rcClient, epForwarder); err != nil {
+		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, le.IsLeader, rcClient, epForwarder, clusterName, clusterID); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
