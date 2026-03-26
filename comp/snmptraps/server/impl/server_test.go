@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

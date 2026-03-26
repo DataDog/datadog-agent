@@ -25,12 +25,41 @@ import (
 	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	listenerfx "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx"
 	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
+
+// Requires defines the dependencies for the server component.
+type Requires struct {
+	fx.In
+
+	Lc        fx.Lifecycle
+	Conf      config.Component
+	HNService hostname.Component
+	Demux     demultiplexer.Component
+	Logger    log.Component
+}
+
+// Provides defines the output of the server component.
+type Provides struct {
+	fx.Out
+
+	Comp           server.Component
+	StatusProvider coreStatus.InformationProvider
+}
+
+// NewComponent creates a new server component.
+func NewComponent(reqs Requires) Provides {
+	return newServer(reqs.Lc, dependencies{
+		Conf:      reqs.Conf,
+		HNService: reqs.HNService,
+		Demux:     reqs.Demux,
+		Logger:    reqs.Logger,
+	})
+}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
@@ -112,13 +141,13 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 		oidresolverfx.Module(),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)
-	server := &TrapsServer{app: app, stat: stat}
+	srv := &TrapsServer{app: app, stat: stat}
 
 	if err := app.Err(); err != nil {
 		deps.Logger.Errorf("Failed to initialize snmp-traps server: %s", err)
-		server.stat.SetStartError(err)
+		srv.stat.SetStartError(err)
 		return provides{
-			Comp: server,
+			Comp: srv,
 		}
 	}
 
@@ -127,20 +156,20 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 			err := app.Start(ctx)
 			if err != nil {
 				deps.Logger.Errorf("Failed to start snmp-traps server: %s", err)
-				server.stat.SetStartError(err)
+				srv.stat.SetStartError(err)
 			} else {
-				server.running = true
+				srv.running = true
 			}
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			server.running = false
+			srv.running = false
 			return app.Stop(ctx)
 		},
 	})
 
 	return provides{
-		Comp:           server,
+		Comp:           srv,
 		StatusProvider: coreStatus.NewInformationProvider(statusimpl.Provider{}),
 	}
 }
