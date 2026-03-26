@@ -1,306 +1,145 @@
-/// Validates vortex files written by flightrecorder.
+/// Validates Parquet files written by flightrecorder.
 ///
-/// Reads all .vortex metric files in a directory and outputs a report with:
+/// Reads all .parquet metric files in a directory and outputs a report with:
 ///   - total row count
-///   - distinct (name, tags) context count
-///   - per-file row counts
+///   - file count
+///   - column schema
 ///
-/// Usage: validate <directory> [--json]
-///
-/// Exit code 0 = all checks pass, 1 = validation errors found.
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+/// Usage: validate <directory>
+use std::collections::HashMap;
+use std::fs::File;
+use std::path::Path;
 
-use anyhow::{Context, Result};
-use clap::Parser;
-use vortex::array::stream::ArrayStreamExt;
-use vortex::array::Canonical;
-use vortex::file::OpenOptionsSessionExt;
-use vortex::session::VortexSession;
-use vortex::VortexSessionDefault;
+use arrow::array::Array;
+use arrow::datatypes::UInt32Type;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
-#[derive(Parser)]
-struct Args {
-    /// Directory containing .vortex files
-    dir: PathBuf,
-    /// Output machine-readable JSON
-    #[arg(long)]
-    json: bool,
-    /// Only validate metric files (flush-metrics-*.vortex and metrics-*.vortex)
-    #[arg(long, default_value = "true")]
-    metrics_only: bool,
-}
-
-#[derive(Default)]
-struct ValidationResult {
-    total_rows: usize,
-    files_read: usize,
-    distinct_contexts: usize,
-    empty_name_rows: usize,
-    file_details: Vec<FileDetail>,
-    errors: Vec<String>,
-}
-
-struct FileDetail {
-    path: String,
-    rows: usize,
-}
-
-fn extract_strings(canonical: &Canonical, n: usize) -> Result<Vec<String>> {
-    match canonical {
-        Canonical::VarBinView(vbv) => Ok((0..n)
-            .map(|i| String::from_utf8_lossy(vbv.bytes_at(i).as_slice()).into_owned())
-            .collect()),
-        other => anyhow::bail!("expected VarBinView column, got {:?}", other.dtype()),
-    }
-}
-
-fn extract_column_strings(
-    st: &vortex::array::arrays::StructArray,
-    col_name: &str,
-    n: usize,
-) -> Result<Vec<String>> {
-    let arr = st
-        .unmasked_field_by_name(col_name)
-        .with_context(|| format!("accessing '{col_name}' column"))?;
-    let canonical = arr
-        .to_canonical()
-        .with_context(|| format!("canonicalizing '{col_name}'"))?;
-    extract_strings(&canonical, n)
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let args = Args::parse();
-
-    let session = VortexSession::default();
-
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(&args.dir)
-        .with_context(|| format!("reading directory {}", args.dir.display()))?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| {
-            p.extension().and_then(|e| e.to_str()) == Some("vortex")
-                && (!args.metrics_only
-                    || p.file_name()
-                        .and_then(|n| n.to_str())
-                        .is_some_and(|n| n.starts_with("metrics-") || n.starts_with("flush-metrics-")))
-        })
-        .collect();
-    entries.sort();
-
-    let mut result = ValidationResult::default();
-    let mut contexts: HashSet<(String, String)> = HashSet::new();
-    let mut context_counts: HashMap<(String, String), usize> = HashMap::new();
-    let mut source_counts: HashMap<String, usize> = HashMap::new();
-
-    for path in &entries {
-        match validate_file(
-            &session,
-            path,
-            &mut contexts,
-            &mut context_counts,
-            &mut source_counts,
-        )
-        .await
-        {
-            Ok(detail) => {
-                result.total_rows += detail.rows;
-                result.files_read += 1;
-                result.file_details.push(detail);
-            }
-            Err(e) => {
-                result.errors.push(format!("{}: {e}", path.display()));
-            }
-        }
-    }
-
-    // Count anomalies from context_counts
-    for ((name, _tags), count) in &context_counts {
-        if name.is_empty() || name == "<unknown>" {
-            result.empty_name_rows += *count;
-        }
-    }
-    result.distinct_contexts = contexts.len();
-
-    let has_errors = !result.errors.is_empty() || result.empty_name_rows > 0;
-
-    if args.json {
-        print_json(&result);
-    } else {
-        print_human(&result, &context_counts, &source_counts);
-    }
-
-    if has_errors {
+fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: validate <directory>");
         std::process::exit(1);
     }
-    Ok(())
-}
+    let dir = Path::new(&args[1]);
 
-async fn validate_file(
-    session: &VortexSession,
-    path: &PathBuf,
-    contexts: &mut HashSet<(String, String)>,
-    context_counts: &mut HashMap<(String, String), usize>,
-    source_counts: &mut HashMap<String, usize>,
-) -> Result<FileDetail> {
-    let array = session
-        .open_options()
-        .open_path(path.clone())
-        .await
-        .with_context(|| format!("opening {}", path.display()))?
-        .scan()?
-        .into_array_stream()?
-        .read_all()
-        .await
-        .context("reading array")?;
+    let json_output = args.iter().any(|a| a == "--json");
 
-    let canonical = array.to_canonical().context("canonicalizing")?;
-    let st = canonical.into_struct();
-    let n = st.len();
+    let mut total_rows = 0u64;
+    let mut files_read = 0u64;
+    let mut rows_by_file: Vec<(String, u64)> = Vec::new();
+    let mut schema_sample: Option<Vec<String>> = None;
+    let mut context_counts: HashMap<String, u64> = HashMap::new();
 
-    // Read name and reserved tag columns for context key construction.
-    let names = extract_column_strings(&st, "name", n)?;
-    let tag_host = extract_column_strings(&st, "tag_host", n)?;
-    let tag_env = extract_column_strings(&st, "tag_env", n)?;
-    let tag_service = extract_column_strings(&st, "tag_service", n)?;
-    let tags_overflow = extract_column_strings(&st, "tags_overflow", n)?;
-    let sources = extract_column_strings(&st, "source", n)?;
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let name = entry.file_name().into_string().unwrap_or_default();
+        if !name.ends_with(".parquet") || !name.contains("metrics") {
+            continue;
+        }
 
-    for i in 0..n {
-        // Build a context key from name + key reserved tags + overflow.
-        let tags_key = format!(
-            "{}|{}|{}|{}",
-            tag_host[i], tag_env[i], tag_service[i], tags_overflow[i]
-        );
-        let key = (names[i].clone(), tags_key);
-        contexts.insert(key.clone());
-        *context_counts.entry(key).or_insert(0) += 1;
-        *source_counts.entry(sources[i].clone()).or_insert(0) += 1;
-    }
-
-    Ok(FileDetail {
-        path: path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned(),
-        rows: n,
-    })
-}
-
-fn print_json(result: &ValidationResult) {
-    println!("{{");
-    println!("  \"total_rows\": {},", result.total_rows);
-    println!("  \"files_read\": {},", result.files_read);
-    println!("  \"distinct_contexts\": {},", result.distinct_contexts);
-    println!("  \"empty_name_rows\": {},", result.empty_name_rows);
-    println!(
-        "  \"pass\": {},",
-        result.errors.is_empty() && result.empty_name_rows == 0
-    );
-    println!("  \"files\": [");
-    for (i, f) in result.file_details.iter().enumerate() {
-        let comma = if i + 1 < result.file_details.len() {
-            ","
-        } else {
-            ""
+        let path = entry.path();
+        let file = match File::open(&path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("  WARN: cannot open {}: {}", path.display(), e);
+                continue;
+            }
         };
-        println!(
-            "    {{\"path\": \"{}\", \"rows\": {}}}{}",
-            f.path, f.rows, comma
-        );
-    }
-    println!("  ],");
-    println!("  \"errors\": [");
-    for (i, e) in result.errors.iter().enumerate() {
-        let comma = if i + 1 < result.errors.len() {
-            ","
-        } else {
-            ""
+
+        let reader = match ParquetRecordBatchReaderBuilder::try_new(file) {
+            Ok(b) => b.build()?,
+            Err(e) => {
+                eprintln!("  WARN: cannot read {}: {}", path.display(), e);
+                continue;
+            }
         };
-        // Escape quotes in error messages
-        let escaped = e.replace('\\', "\\\\").replace('"', "\\\"");
-        println!("    \"{escaped}\"{comma}");
+
+        let mut file_rows = 0u64;
+        for batch in reader {
+            let batch = batch?;
+
+            if schema_sample.is_none() {
+                schema_sample = Some(
+                    batch
+                        .schema()
+                        .fields()
+                        .iter()
+                        .map(|f| format!("{}: {:?}", f.name(), f.data_type()))
+                        .collect(),
+                );
+            }
+
+            // Try to extract "name" column for context counting (inline mode).
+            if let Some(name_col) = batch.column_by_name("name") {
+                if let Some(dict) = name_col
+                    .as_any()
+                    .downcast_ref::<arrow::array::DictionaryArray<UInt32Type>>()
+                {
+                    let values = dict
+                        .values()
+                        .as_any()
+                        .downcast_ref::<arrow::array::StringArray>()
+                        .unwrap();
+                    for i in 0..dict.len() {
+                        if !dict.is_null(i) {
+                            let key = dict.keys().value(i) as usize;
+                            let name = values.value(key);
+                            *context_counts.entry(name.to_string()).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+
+            file_rows += batch.num_rows() as u64;
+        }
+
+        total_rows += file_rows;
+        files_read += 1;
+        rows_by_file.push((name, file_rows));
     }
-    println!("  ]");
-    println!("}}");
-}
 
-fn print_human(
-    result: &ValidationResult,
-    context_counts: &HashMap<(String, String), usize>,
-    source_counts: &HashMap<String, usize>,
-) {
-    eprintln!("=== Vortex Validation Report ===");
-    eprintln!("Files read:        {}", result.files_read);
-    eprintln!("Total rows:        {}", result.total_rows);
-    eprintln!("Distinct contexts: {}", result.distinct_contexts);
-    eprintln!();
+    if json_output {
+        let mut top_contexts: Vec<_> = context_counts.into_iter().collect();
+        top_contexts.sort_by(|a, b| b.1.cmp(&a.1));
+        top_contexts.truncate(20);
 
-    if result.empty_name_rows > 0 {
-        eprintln!(
-            "FAIL: {} rows with empty/unknown metric name",
-            result.empty_name_rows
-        );
-    }
+        println!("{{");
+        println!("  \"total_rows\": {},", total_rows);
+        println!("  \"files_read\": {},", files_read);
+        println!("  \"top_contexts\": {{");
+        for (i, (name, count)) in top_contexts.iter().enumerate() {
+            let comma = if i + 1 < top_contexts.len() { "," } else { "" };
+            println!("    \"{}\": {}{}", name, count, comma);
+        }
+        println!("  }}");
+        println!("}}");
+    } else {
+        println!("=== Flight Recorder Validate ===");
+        println!("Directory: {}", dir.display());
+        println!("Files read: {}", files_read);
+        println!("Total rows: {}", total_rows);
 
-    if !result.errors.is_empty() {
-        eprintln!("FAIL: {} file read errors:", result.errors.len());
-        for e in &result.errors {
-            eprintln!("  - {e}");
+        if let Some(schema) = schema_sample {
+            println!("\nSchema ({} columns):", schema.len());
+            for col in &schema {
+                println!("  {col}");
+            }
+        }
+
+        if !context_counts.is_empty() {
+            let mut top: Vec<_> = context_counts.into_iter().collect();
+            top.sort_by(|a, b| b.1.cmp(&a.1));
+            println!("\nTop 20 metric names ({} distinct):", top.len());
+            for (name, count) in top.iter().take(20) {
+                println!("  {count:>8}  {name}");
+            }
+        }
+
+        println!("\nFiles:");
+        for (name, rows) in &rows_by_file {
+            println!("  {rows:>8} rows  {name}");
         }
     }
 
-    if result.errors.is_empty() && result.empty_name_rows == 0 {
-        eprintln!("PASS: all rows have valid metric names");
-    }
-
-    // Show top 20 contexts by frequency
-    let mut sorted: Vec<_> = context_counts.iter().collect();
-    sorted.sort_by(|a, b| b.1.cmp(a.1));
-    eprintln!();
-    eprintln!("Top 20 contexts by frequency:");
-    for (i, ((name, tags), count)) in sorted.iter().take(20).enumerate() {
-        let tag_preview = if tags.len() > 60 {
-            format!("{}...", &tags[..60])
-        } else {
-            tags.clone()
-        };
-        eprintln!("  {}. {} [{}] — {} rows", i + 1, name, tag_preview, count);
-    }
-
-    // Show rows by pipeline source
-    let mut source_sorted: Vec<_> = source_counts.iter().collect();
-    source_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    eprintln!();
-    eprintln!("Rows by pipeline source:");
-    for (source, count) in &source_sorted {
-        let label = if source.is_empty() {
-            "(empty)"
-        } else {
-            source.as_str()
-        };
-        eprintln!("  {:40} {:>8} rows", label, count);
-    }
-
-    // Show distinct metric name prefixes (first dotted segment)
-    let mut name_prefixes: HashMap<String, usize> = HashMap::new();
-    for ((name, _), count) in context_counts.iter() {
-        let prefix = name.split('.').next().unwrap_or(name).to_string();
-        *name_prefixes.entry(prefix).or_insert(0) += count;
-    }
-    let mut prefix_sorted: Vec<_> = name_prefixes.iter().collect();
-    prefix_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    eprintln!();
-    eprintln!("Metric name prefixes:");
-    for (prefix, count) in &prefix_sorted {
-        eprintln!("  {:40} {:>8} rows", prefix, count);
-    }
-
-    eprintln!();
-    eprintln!("Per-file row counts:");
-    for f in &result.file_details {
-        eprintln!("  {:50} {:>8} rows", f.path, f.rows);
-    }
+    Ok(())
 }

@@ -1,19 +1,36 @@
+use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use vortex::array::arrays::{DictArray, PrimitiveArray, StructArray, VarBinArray};
-use vortex::array::dtype::FieldNames;
-use vortex::array::validity::Validity;
-use vortex::array::IntoArray;
-use vortex::file::VortexWriteOptions;
-use vortex::session::VortexSession;
-use vortex::VortexSessionDefault;
+use arrow::array::{ArrayRef, BinaryArray, Int64Array};
+use arrow::datatypes::{DataType, Field, Schema};
+use arrow::record_batch::RecordBatch;
+use parquet::arrow::ArrowWriter;
 
 use super::apply_permutation;
 use super::intern::StringInterner;
+use super::parquet_helpers::{default_writer_props, dict_utf8_type, interner_to_dict_array};
 use super::tags::{decompose_tags_into_interners, LOG_RESERVED_KEYS};
 use crate::generated::signals_generated::signals::LogBatch;
+
+/// Schema for the logs Parquet file (10 columns).
+fn logs_schema() -> Arc<Schema> {
+    let dt = dict_utf8_type();
+    Arc::new(Schema::new(vec![
+        Field::new("hostname", dt.clone(), false),
+        Field::new("source", dt.clone(), false),
+        Field::new("status", dt.clone(), false),
+        Field::new("tag_service", dt.clone(), false),
+        Field::new("tag_env", dt.clone(), false),
+        Field::new("tag_version", dt.clone(), false),
+        Field::new("tag_team", dt.clone(), false),
+        Field::new("tags_overflow", dt, false),
+        Field::new("content", DataType::Binary, false),
+        Field::new("timestamp_ns", DataType::Int64, false),
+    ]))
+}
 
 /// Columnar accumulator for log entries.
 ///
@@ -39,8 +56,6 @@ pub struct LogsWriter {
     // Plain columnar buffers.
     contents: Vec<Vec<u8>>,
     timestamps: Vec<i64>,
-
-    write_buf: Vec<u8>,
 
     // Telemetry counters (read by the telemetry reporter).
     pub flush_count: u64,
@@ -72,8 +87,6 @@ impl LogsWriter {
 
             contents: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
-
-            write_buf: Vec::with_capacity(64 * 1024),
 
             flush_count: 0,
             flush_bytes: 0,
@@ -124,7 +137,7 @@ impl LogsWriter {
         Ok(None)
     }
 
-    /// Flush accumulated columns to a new Vortex file. Returns the file path.
+    /// Flush accumulated columns to a new Parquet file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
         let flush_start = Instant::now();
         let row_count = self.len();
@@ -136,7 +149,7 @@ impl LogsWriter {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let path = self.output_dir.join(format!("flush-logs-{}.vortex", ts_ms));
+        let path = self.output_dir.join(format!("flush-logs-{}.parquet", ts_ms));
 
         // Take columns.
         let (hostname_vals, hostname_codes) = self.hostnames.take();
@@ -154,75 +167,48 @@ impl LogsWriter {
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
-        // Helper: build a DictArray from interner output + sort order.
-        let build_dict =
-            |vals: Vec<String>, codes: Vec<u32>, label: &str| -> Result<DictArray> {
-                DictArray::try_new(
-                    order
-                        .iter()
-                        .map(|&i| codes[i])
-                        .collect::<PrimitiveArray>()
-                        .into_array(),
-                    VarBinArray::from(vals).into_array(),
-                )
-                .with_context(|| format!("building {label} DictArray"))
-            };
-
-        let hostname_array = build_dict(hostname_vals, hostname_codes, "hostname")?;
-        let source_array = build_dict(source_vals, source_codes, "source")?;
-        let status_array = build_dict(status_vals, status_codes, "status")?;
-        let service_array = build_dict(service_vals, service_codes, "tag_service")?;
-        let env_array = build_dict(env_vals, env_codes, "tag_env")?;
-        let version_array = build_dict(version_vals, version_codes, "tag_version")?;
-        let team_array = build_dict(team_vals, team_codes, "tag_team")?;
-        let overflow_array = build_dict(overflow_vals, overflow_codes, "tags_overflow")?;
-
         // Reorder contents in-place using the sort permutation to avoid
         // cloning every Vec<u8> (was doubling peak content memory).
         let sorted_contents = apply_permutation(contents, &order);
 
-        let st = StructArray::try_new(
-            FieldNames::from(LOG_FIELD_NAMES),
-            vec![
-                hostname_array.into_array(),
-                source_array.into_array(),
-                status_array.into_array(),
-                service_array.into_array(),
-                env_array.into_array(),
-                version_array.into_array(),
-                team_array.into_array(),
-                overflow_array.into_array(),
-                VarBinArray::from(sorted_contents).into_array(),
-                order
-                    .iter()
-                    .map(|&i| timestamps[i])
-                    .collect::<PrimitiveArray>()
-                    .into_array(),
-            ],
-            row_count,
-            Validity::NonNullable,
-        )
-        .context("building logs StructArray")?;
+        let content_array: ArrayRef = Arc::new(BinaryArray::from_iter_values(
+            sorted_contents.iter().map(|v| v.as_slice()),
+        ));
 
-        let strategy = super::strategy::fast_flush_strategy();
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(interner_to_dict_array(hostname_vals, hostname_codes, &order)),
+            Arc::new(interner_to_dict_array(source_vals, source_codes, &order)),
+            Arc::new(interner_to_dict_array(status_vals, status_codes, &order)),
+            Arc::new(interner_to_dict_array(service_vals, service_codes, &order)),
+            Arc::new(interner_to_dict_array(env_vals, env_codes, &order)),
+            Arc::new(interner_to_dict_array(version_vals, version_codes, &order)),
+            Arc::new(interner_to_dict_array(team_vals, team_codes, &order)),
+            Arc::new(interner_to_dict_array(
+                overflow_vals,
+                overflow_codes,
+                &order,
+            )),
+            content_array,
+            Arc::new(Int64Array::from_iter_values(
+                order.iter().map(|&i| timestamps[i]),
+            )),
+        ];
 
-        // Fresh session per flush to prevent registry accumulation in VortexSession.
-        let session = VortexSession::default();
+        let schema = logs_schema();
+        let batch = RecordBatch::try_new(schema.clone(), columns)
+            .context("building logs RecordBatch")?;
 
-        self.write_buf.clear();
-        VortexWriteOptions::new(session)
-            .with_strategy(strategy)
-            .write(&mut self.write_buf, st.into_array().to_array_stream())
-            .await
-            .context("writing logs vortex file")?;
+        let file =
+            File::create(&path).with_context(|| format!("creating {}", path.display()))?;
+        let props = default_writer_props();
+        let mut writer = ArrowWriter::try_new(file, schema, Some(props))
+            .context("creating Parquet writer for logs")?;
+        writer.write(&batch).context("writing logs batch")?;
+        writer.close().context("closing logs Parquet writer")?;
 
-        tokio::fs::write(&path, &self.write_buf)
-            .await
-            .with_context(|| format!("writing {}", path.display()))?;
-
-        // Shrink write_buf to release memory back to the allocator.
-        let bytes_written = self.write_buf.len() as u64;
-        self.write_buf = Vec::with_capacity(64 * 1024);
+        let bytes_written = std::fs::metadata(&path)
+            .with_context(|| format!("reading metadata for {}", path.display()))?
+            .len();
 
         self.flush_count += 1;
         self.flush_bytes += bytes_written;
@@ -241,76 +227,63 @@ impl LogsWriter {
     }
 }
 
-/// Field names for the log schema (10 columns).
-pub const LOG_FIELD_NAMES: [&str; 10] = [
-    "hostname",
-    "source",
-    "status",
-    "tag_service",
-    "tag_env",
-    "tag_version",
-    "tag_team",
-    "tags_overflow",
-    "content",
-    "timestamp_ns",
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::array::{Array, AsArray, BinaryArray, Int64Array};
+    use arrow::datatypes::UInt32Type;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use tempfile::tempdir;
-    use vortex::array::stream::ArrayStreamExt;
-    use vortex::array::Canonical;
-    use vortex::file::OpenOptionsSessionExt;
 
     fn make_writer(dir: &Path) -> LogsWriter {
         LogsWriter::new(dir, 1000, Duration::from_secs(60))
     }
 
-    /// Read back a vortex file and return the struct's canonical form.
-    async fn read_back(path: &Path) -> vortex::array::arrays::StructArray {
-        let session = VortexSession::default();
-        let array = session
-            .open_options()
-            .open_path(path.to_path_buf())
-            .await
+    fn read_parquet(path: &Path) -> RecordBatch {
+        let file = File::open(path).unwrap();
+        let reader = ParquetRecordBatchReaderBuilder::try_new(file)
             .unwrap()
-            .scan()
-            .unwrap()
-            .into_array_stream()
-            .unwrap()
-            .read_all()
-            .await
+            .build()
             .unwrap();
-        let canonical = array.to_canonical().unwrap();
-        canonical.into_struct()
+        let batches: Vec<RecordBatch> = reader.collect::<Result<_, _>>().unwrap();
+        assert_eq!(batches.len(), 1, "expected exactly one row group");
+        batches.into_iter().next().unwrap()
     }
 
-    fn read_i64_column(st: &vortex::array::arrays::StructArray, name: &str) -> Vec<i64> {
-        let arr = st.unmasked_field_by_name(name).unwrap();
-        let canonical = arr.to_canonical().unwrap();
-        match canonical {
-            Canonical::Primitive(prim) => prim.as_slice::<i64>().to_vec(),
-            other => panic!("expected Primitive i64 for {name}, got {:?}", other.dtype()),
-        }
-    }
-
-    fn read_bytes_column(st: &vortex::array::arrays::StructArray, name: &str) -> Vec<Vec<u8>> {
-        let arr = st.unmasked_field_by_name(name).unwrap();
-        let canonical = arr.to_canonical().unwrap();
-        match canonical {
-            Canonical::VarBinView(vbv) => (0..st.len())
-                .map(|i| vbv.bytes_at(i).as_slice().to_vec())
-                .collect(),
-            other => panic!("expected VarBinView for {name}, got {:?}", other.dtype()),
-        }
-    }
-
-    fn read_string_column(st: &vortex::array::arrays::StructArray, name: &str) -> Vec<String> {
-        read_bytes_column(st, name)
-            .into_iter()
-            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    fn read_dict_string_column(batch: &RecordBatch, name: &str) -> Vec<String> {
+        let col = batch
+            .column_by_name(name)
+            .unwrap_or_else(|| panic!("column {name} not found"));
+        let dict = col.as_dictionary::<UInt32Type>();
+        let values = dict.values().as_string::<i32>();
+        let keys = dict.keys();
+        (0..dict.len())
+            .map(|i| {
+                let key = keys.value(i) as usize;
+                values.value(key).to_string()
+            })
             .collect()
+    }
+
+    fn read_i64_column(batch: &RecordBatch, name: &str) -> Vec<i64> {
+        let col = batch
+            .column_by_name(name)
+            .unwrap_or_else(|| panic!("column {name} not found"));
+        col.as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap()
+            .values()
+            .iter()
+            .copied()
+            .collect()
+    }
+
+    fn read_bytes_column(batch: &RecordBatch, name: &str) -> Vec<Vec<u8>> {
+        let col = batch
+            .column_by_name(name)
+            .unwrap_or_else(|| panic!("column {name} not found"));
+        let bin = col.as_any().downcast_ref::<BinaryArray>().unwrap();
+        (0..bin.len()).map(|i| bin.value(i).to_vec()).collect()
     }
 
     fn add_rows(w: &mut LogsWriter, n: usize) {
@@ -356,14 +329,14 @@ mod tests {
         w.timestamps.push(42);
 
         let path = w.flush().await.unwrap();
-        let st = read_back(&path).await;
+        let batch = read_parquet(&path);
 
-        assert_eq!(st.len(), 1);
-        let contents = read_bytes_column(&st, "content");
+        assert_eq!(batch.num_rows(), 1);
+        let contents = read_bytes_column(&batch, "content");
         assert_eq!(contents[0], binary_data);
-        let ts = read_i64_column(&st, "timestamp_ns");
+        let ts = read_i64_column(&batch, "timestamp_ns");
         assert_eq!(ts[0], 42);
-        let hostnames = read_string_column(&st, "hostname");
+        let hostnames = read_dict_string_column(&batch, "hostname");
         assert_eq!(hostnames[0], "h");
     }
 
@@ -411,14 +384,15 @@ mod tests {
         let logs_path = w.flush().await.unwrap();
 
         // --- Verify logs file ---
-        let logs_st = read_back(&logs_path).await;
-        assert_eq!(logs_st.len(), 3);
+        let batch = read_parquet(&logs_path);
+        assert_eq!(batch.num_rows(), 3);
 
-        // Check column names match new schema
-        let col_names: Vec<String> = logs_st
-            .names()
+        // Check column names match new schema.
+        let schema = batch.schema();
+        let col_names: Vec<&str> = schema
+            .fields()
             .iter()
-            .map(|s| s.as_ref().to_string())
+            .map(|f| f.name().as_str())
             .collect();
         assert_eq!(
             col_names,
@@ -436,22 +410,22 @@ mod tests {
             ]
         );
 
-        let hostnames = read_string_column(&logs_st, "hostname");
+        let hostnames = read_dict_string_column(&batch, "hostname");
         assert_eq!(hostnames, vec!["server1", "server2", "server1"]);
 
-        let sources = read_string_column(&logs_st, "source");
+        let sources = read_dict_string_column(&batch, "source");
         assert_eq!(sources, vec!["syslog", "app", "syslog"]);
 
-        let statuses = read_string_column(&logs_st, "status");
+        let statuses = read_dict_string_column(&batch, "status");
         assert_eq!(statuses, vec!["warn", "error", "warn"]);
 
-        let tag_team = read_string_column(&logs_st, "tag_team");
+        let tag_team = read_dict_string_column(&batch, "tag_team");
         assert_eq!(tag_team, vec!["ops", "sre", "ops"]);
 
-        let tag_env = read_string_column(&logs_st, "tag_env");
+        let tag_env = read_dict_string_column(&batch, "tag_env");
         assert_eq!(tag_env, vec!["", "prod", ""]);
 
-        let contents: Vec<String> = read_bytes_column(&logs_st, "content")
+        let contents: Vec<String> = read_bytes_column(&batch, "content")
             .into_iter()
             .map(|b| String::from_utf8(b).unwrap())
             .collect();
@@ -460,7 +434,7 @@ mod tests {
             vec!["hello world", "something went wrong", "still going"]
         );
 
-        let timestamps = read_i64_column(&logs_st, "timestamp_ns");
+        let timestamps = read_i64_column(&batch, "timestamp_ns");
         assert_eq!(timestamps, vec![12345, 67890, 99999]);
     }
 
@@ -469,5 +443,24 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         assert!(w.flush().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_telemetry_counters() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+        add_rows(&mut w, 10);
+
+        assert_eq!(w.flush_count, 0);
+        assert_eq!(w.flush_bytes, 0);
+
+        let path = w.flush().await.unwrap();
+        assert_eq!(w.flush_count, 1);
+        assert!(w.flush_bytes > 0);
+        assert!(w.last_flush_duration_ns > 0);
+
+        // flush_bytes should match the file size on disk.
+        let file_size = std::fs::metadata(&path).unwrap().len();
+        assert_eq!(w.flush_bytes, file_size);
     }
 }
