@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	status "github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,12 +17,5 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(statusimpl.NewComponent),
 		fxutil.ProvideOptional[status.Component](),
-	)
-}
-
-// MockModule defines a fake Component for testing.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(statusimpl.NewMock),
 	)
 }

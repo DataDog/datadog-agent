@@ -19,7 +19,7 @@ import (
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
-	statusfx "github.com/DataDog/datadog-agent/comp/snmptraps/status/fx"
+	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -45,7 +45,7 @@ func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	conf.Enabled = true
 	s := fxutil.Test[services](t,
 		configimpl.MockModule(),
-		statusfx.MockModule(),
+		statusimpl.MockModule(),
 		senderhelper.Opts,
 		Module(),
 		fx.Replace(conf),
