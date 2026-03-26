@@ -1,3 +1,5 @@
+> **TL;DR:** Provides helpers to collect and expose static tags that are attached to every piece of telemetry in environments (such as EKS Fargate sidecars) where traditional host metadata is unavailable.
+
 # pkg/util/tags
 
 ## Purpose
@@ -15,7 +17,7 @@ extras) for intra-cluster propagation.
 
 ## Key elements
 
-### Functions
+### Key functions
 
 | Function | Description |
 |---|---|

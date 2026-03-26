@@ -1,3 +1,5 @@
+> **TL;DR:** Bundles the three HTTP forwarder instances (process, real-time process, and connections) that the process-agent uses to ship collected data to Datadog, each with independent in-flight queues to prevent one stream from starving the others.
+
 # comp/process/forwarders
 
 ## Purpose
@@ -14,32 +16,35 @@ The process and real-time forwarders share the same API endpoint configuration b
 
 ## Key elements
 
-### `comp/process/forwarders` (definition)
+### Key interfaces
 
 | Symbol | Description |
 |--------|-------------|
 | `Component` | Interface with three accessors: `GetProcessForwarder()`, `GetRTProcessForwarder()`, `GetConnectionsForwarder()`. |
 
-### `comp/process/forwarders/forwardersimpl`
+### Key types
+
+| Symbol | Description |
+|--------|-------------|
+| `forwardersComp` | Concrete implementation of `Component`; stores the three forwarder instances. |
+| `dependencies` | fx input struct: `config.Component`, `log.Component`, `connectionsforwarder.Component`, `compdef.Lifecycle`, `secrets.Component`. |
+
+### Key functions
 
 | Symbol | Description |
 |--------|-------------|
 | `Module()` | Returns the fx `fxutil.Module` that registers `newForwarders` as a provider. |
-| `dependencies` | fx input struct: `config.Component`, `log.Component`, `connectionsforwarder.Component`, `compdef.Lifecycle`, `secrets.Component`. |
-| `forwardersComp` | Concrete implementation of `Component`; stores the three forwarder instances. |
 | `newForwarders(deps)` | Constructor. Reads `process_config.process_queue_bytes` (falls back to `DefaultProcessQueueBytes`), resolves API endpoints via `endpoint.GetAPIEndpoints`, then creates two `defaultforwarder` instances and wires in the injected connections forwarder. |
 | `createForwarder(deps, options)` | Calls `defaultforwarder.NewForwarder` with `DisableAPIKeyChecking=true`. |
 | `createParams(config, log, queueBytes, endpoints)` | Builds `defaultforwarder.Options` from API endpoints, attaches the retry queue byte limit. |
 
-#### Configuration reference
+A mock implementation (`forwarders_mock.go`) is provided for use in tests.
+
+### Configuration and build flags
 
 | Key | Default | Effect |
 |-----|---------|--------|
 | `process_config.process_queue_bytes` | `pkgconfigsetup.DefaultProcessQueueBytes` | Maximum total payload bytes held in each forwarder's retry queue. |
-
-### `comp/process/forwarders/forwardersimpl/forwarders_mock.go`
-
-Provides a mock implementation of `Component` for use in tests.
 
 ## Usage
 

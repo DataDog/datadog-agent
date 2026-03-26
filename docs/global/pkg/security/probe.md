@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/probe` owns the cross-platform kernel event probe — capturing security events via eBPF or ETW, decoding them into SECL `model.Event` values, and dispatching them to the rule engine and registered consumers.
+
 # pkg/security/probe — Kernel-space event probe
 
 ## Purpose
@@ -8,7 +10,7 @@ The package is intentionally cross-platform: `probe.go` and `eventconsumer.go` a
 
 ## Key elements
 
-### Core types
+### Key types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -22,7 +24,7 @@ The package is intentionally cross-platform: `probe.go` and `eventconsumer.go` a
 | `FileHasher` | `file_hasher.go` | Computes file hashes asynchronously as part of hash-action rule responses. |
 | `OnDemandProbesManager` | `on_demand.go` | Dynamically attaches/detaches additional eBPF probes at runtime without requiring a full rule reload. Capped at `MaxOnDemandEventsPerSecond = 1000`. |
 
-### Interfaces
+### Key interfaces
 
 | Interface | File | Description |
 |-----------|------|-------------|
@@ -100,7 +102,7 @@ Per-subsystem eBPF map monitors, all reporting via statsd:
 | `sysctl/` | Monitor for sysctl changes via cgroup BPF programs. |
 | `procfs/` | Fallback process information reader from `/proc`. |
 
-### Important constants and variables
+### Key functions and constants
 
 | Symbol | Value / Description |
 |--------|---------------------|
@@ -112,7 +114,7 @@ Per-subsystem eBPF map monitors, all reporting via statsd:
 | `ErrorSentinel` (`constantfetch`) | `^uint64(0)` — sentinel for an unresolved kernel constant. |
 | `defaultEventTypes` | `[fork, exec, exit, tracer_memfd_seal]` — always-on event types regardless of active rules. |
 
-### Build flags
+### Configuration and build flags
 
 | Flag | Effect |
 |------|--------|

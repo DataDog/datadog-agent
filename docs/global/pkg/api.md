@@ -1,3 +1,5 @@
+> **TL;DR:** Shared HTTP API utilities providing auth-token management, IPC TLS certificates, token-validation middleware, and the `/version` endpoint used by all agent binaries.
+
 # pkg/api
 
 ## Purpose
@@ -11,6 +13,8 @@
 - **`coverage/`** — optional (build tag `e2ecoverage`) handler that flushes Go coverage counters to disk.
 
 ## Key elements
+
+### Key functions
 
 ### `pkg/api/security`
 

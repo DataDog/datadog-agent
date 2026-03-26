@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/reporter` wires the Datadog logs pipeline into CWS by creating a `RuntimeReporter` (`RawReporter` implementation) that wraps security event payloads in log messages and forwards them to the Datadog intake endpoint.
+
 # pkg/security/reporter — CWS event reporter
 
 ## Purpose
@@ -8,7 +10,7 @@ The package has no build tag and is used on both Linux and Windows wherever `sec
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -22,7 +24,9 @@ type RawReporter interface {
 }
 ```
 
-### Constructor
+### Key functions
+
+#### Constructor
 
 ```go
 func NewCWSReporter(
@@ -41,7 +45,7 @@ Internally delegates to `newReporter` with fixed source name `"runtime-security-
 - A `sources.LogSource` tagged with the provided source name and type.
 - Registers the provider with `stopper` so it is shut down cleanly with the rest of the agent.
 
-### Sending events
+#### Sending events
 
 ```go
 func (r *RuntimeReporter) ReportRaw(content []byte, service string, timestamp time.Time, tags ...string)

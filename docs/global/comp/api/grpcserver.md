@@ -1,3 +1,5 @@
+> **TL;DR:** Encapsulates construction of the agent's internal gRPC server, registering `AgentServer` and `AgentSecureServer` services so they can be multiplexed with the HTTP API over a single TCP listener.
+
 # comp/api/grpcserver
 
 **Team:** agent-runtimes
@@ -17,7 +19,9 @@ Two fx flavors are provided:
 
 ## Key Elements
 
-### Interface (`comp/api/grpcserver/def/component.go`)
+### Key interfaces
+
+#### Interface (`comp/api/grpcserver/def/component.go`)
 
 ```go
 type Component interface {
@@ -27,7 +31,9 @@ type Component interface {
 
 `BuildServer` is called once by `comp/api/api` when it starts the CMD listener. It returns a fully configured gRPC server that can handle both TLS and h2c (unencrypted HTTP/2) connections. Returning `nil` (as the `none` implementation does) signals to the caller that no gRPC handler should be registered.
 
-### Agent implementation (`comp/api/grpcserver/impl-agent`)
+### Key types
+
+#### Agent implementation (`comp/api/grpcserver/impl-agent`)
 
 `BuildServer` creates a `google.golang.org/grpc.Server` with:
 - TLS credentials from `comp/core/ipc` (`s.IPC.GetTLSServerConfig()`)
@@ -42,7 +48,9 @@ Two gRPC services are registered on the server:
 | `AgentServer` | `pbgo/core` | Unauthenticated service; exposes `GetHostname` |
 | `AgentSecureServer` | `pbgo/core` | Authenticated service; exposes tagger streaming, workloadmeta streaming, DogStatsD capture, remote config, autodiscovery config streaming, workload filter evaluation, and remote agent registry |
 
-### Dependencies of the agent implementation
+### Key functions
+
+#### Dependencies of the agent implementation
 
 ```go
 type Requires struct {
@@ -69,7 +77,9 @@ type Requires struct {
 
 All optional dependencies (`option.Option[...]`) are handled with safe defaults: if a service is absent, the corresponding gRPC method returns `codes.Unimplemented`.
 
-### Muxing helper (`comp/api/grpcserver/helpers/grpc.go`)
+### Configuration and build flags
+
+#### Muxing helper (`comp/api/grpcserver/helpers/grpc.go`)
 
 ```go
 func NewMuxedGRPCServer(

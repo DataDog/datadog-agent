@@ -1,3 +1,5 @@
+> **TL;DR:** A memory-efficient rolling-window statistics tracker that computes all-time and windowed average and peak values over bucketed time windows, used primarily to surface log pipeline latency on the agent status page.
+
 # pkg/util/statstracker
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/statstracker`

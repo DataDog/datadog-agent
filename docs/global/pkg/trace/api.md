@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/api` is the front-door of the trace agent — it hosts the HTTP and gRPC servers that accept spans from language tracers and OTel, rate-limits and decodes incoming payloads, and also proxies profiling, DogStatsD, EVP, and other auxiliary protocols to the Datadog backend.
+
 # pkg/trace/api
 
 ## Purpose

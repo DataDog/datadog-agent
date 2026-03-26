@@ -1,3 +1,5 @@
+> **TL;DR:** A push-based global cache where checks register hostname-to-tag mappings (external host tags); the metadata collector drains this cache periodically and includes the tags in the `agent_check` metadata payload sent to the Datadog intake.
+
 # pkg/collector/externalhost
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/collector/externalhost`
@@ -10,7 +12,7 @@ The model is push-based: checks call `SetExternalTags` at runtime rather than th
 
 ## Key Elements
 
-### Types (`payload.go`)
+### Key types
 
 | Type | Definition | Description |
 |---|---|---|
@@ -18,7 +20,7 @@ The model is push-based: checks call `SetExternalTags` at runtime rather than th
 | `Payload` | `[]hostTags` | The full metadata payload — a list of `[hostname, ExternalTags]` pairs, JSON-serializable |
 | `hostTags` | `[]interface{}` | Internal: `[hostname string, ExternalTags map]` tuple |
 
-### Cache and functions (`externalhost.go`)
+### Key functions
 
 The cache is a two-level map `map[sourceType]map[hostname]ExternalTags`, protected by `cacheMutex`.
 

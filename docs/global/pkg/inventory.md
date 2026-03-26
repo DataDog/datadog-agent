@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/inventory` collects installed software applications (Windows, macOS) and static hardware information (manufacturer, model, serial number) from the host, forwarding them to the Datadog backend via system-probe and the metadata components.
+
 # pkg/inventory
 
 Two sub-packages that collect host hardware and software metadata for Datadog's inventory features.
@@ -12,6 +14,8 @@ Collects the list of installed applications from the host system. The data is us
 
 ### Key elements
 
+### Key interfaces
+
 **`Collector` interface** (`collector.go`)
 
 ```go
@@ -21,6 +25,8 @@ type Collector interface {
 ```
 
 Each platform-specific collector (e.g. registry, MSI database, `.app` bundles, Homebrew, PKG receipts) implements this interface and is responsible for a single software source.
+
+### Key types
 
 **`Entry`** (`collector.go`)
 
@@ -52,6 +58,8 @@ Wire format for Agent↔System Probe communication. Includes all fields (includi
 
 A non-fatal collection issue. A collector returns warnings instead of errors when partial data is available.
 
+### Key functions
+
 **Top-level functions**
 
 - `GetSoftwareInventory() ([]*Entry, []*Warning, error)` — calls `defaultCollectors()` for the current platform and aggregates results.
@@ -79,6 +87,8 @@ Collects static hardware metadata about the host: manufacturer, model, serial nu
 
 ### Key elements
 
+### Key types
+
 **`SystemInfo`** (`collector.go`)
 
 ```go
@@ -91,6 +101,8 @@ type SystemInfo struct {
     Identifier   string  // e.g. MacBook Pro model identifier, Windows SKU number
 }
 ```
+
+### Key functions
 
 **`Collect() (*SystemInfo, error)`**
 

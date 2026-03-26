@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmpscanmanager` orchestrates periodic SNMP device profile scans, managing a bounded worker pool, deduplication, persistent scan history, and exponential back-off retries triggered by the SNMP discovery subsystem.
+
 # comp/snmpscanmanager
 
 ## Purpose
@@ -8,16 +10,34 @@ Relevant configuration key: `network_devices.default_scan.enabled`. When `false`
 
 ## Key elements
 
-### `comp/snmpscanmanager/def`
+### Key interfaces
 
 | Symbol | Description |
 |--------|-------------|
 | `Component` | Public interface: single method `RequestScan(req ScanRequest, forceQueue bool)`. |
 | `ScanRequest` | Value type carrying `DeviceIP string`. |
 
-### `comp/snmpscanmanager/impl`
+### Key types
 
-#### Top-level constants
+| Type | Description |
+|------|-------------|
+| `snmpScanManagerImpl` | Main struct. Owns a `scanQueue` channel, an `allRequestedIPs` set (deduplication), a `deviceScans` map (per-IP scan history), a `scanScheduler`, and a `snmpConfigProvider`. Protected by `sync.Mutex`. |
+| `deviceScan` | Per-device scan record: `DeviceIP`, `ScanStatus` (`"success"` / `"failed"`), `ScanEndTs`, `Failures` count. Serialised to JSON in the persistent cache under key `"snmp_scanned_devices"`. |
+| `scanScheduler` / `scanSchedulerImpl` | Min-heap priority queue of `scanTask` entries sorted by `nextScanTs`. Exposes `QueueScanTask` and `PopDueScans(now)`. |
+| `snmpConfigProvider` | Thin interface wrapping `snmpparse.GetParamsFromAgent`; separated to allow mocking in tests. |
+
+### Key functions
+
+| Function | Description |
+|----------|-------------|
+| `NewComponent(reqs Requires) (Provides, error)` | Constructor. Loads the persistent cache, registers `OnStart`/`OnStop` hooks, and provides `status.InformationProvider` and `flare.Provider` outputs. |
+| `RequestScan(req, forceQueue)` | Thread-safe. Drops if disabled or already queued (unless `forceQueue`). Non-blocking channel send; drops with warning if queue is full. |
+| `scanWorker()` | Worker goroutine (2 instances). Pulls from `scanQueue`, calls `processScanRequest`, updates `deviceScans`. |
+| `scanSchedulerWorker()` | Single goroutine; wakes every 10 minutes, calls `scanScheduler.PopDueScans`, re-queues due scans with `forceQueue=true`. |
+| `processScanRequest(req)` | Resolves SNMP config via `snmpConfigProvider`, delegates to `snmpscan.Component.ScanDeviceAndSendData`, then calls `onDeviceScanSuccess` or `onDeviceScanFailure`. |
+| `loadCache()` / `writeCache()` | Persist `deviceScans` via `pkg/persistentcache`. Called at startup and after every scan result. |
+
+### Configuration and build flags
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
@@ -28,27 +48,9 @@ Relevant configuration key: `network_devices.default_scan.enabled`. When `false`
 | `scanRefreshInterval` | 182 days | How long before a successfully scanned device is rescanned. |
 | `scanRefreshJitter` | ±2 weeks | Random jitter applied to `scanRefreshInterval`. |
 
+The feature is enabled with `network_devices.default_scan.enabled: true`.
+
 Retry delays after a failed scan: 1 h → 12 h → 1 day → 3 days → 1 week (up to 5 attempts). Only `gosnmplib.ConnectionError` failures are retried; other errors are permanent.
-
-#### Core types
-
-| Type | Description |
-|------|-------------|
-| `snmpScanManagerImpl` | Main struct. Owns a `scanQueue` channel, an `allRequestedIPs` set (deduplication), a `deviceScans` map (per-IP scan history), a `scanScheduler`, and a `snmpConfigProvider`. Protected by `sync.Mutex`. |
-| `deviceScan` | Per-device scan record: `DeviceIP`, `ScanStatus` (`"success"` / `"failed"`), `ScanEndTs`, `Failures` count. Serialised to JSON in the persistent cache under key `"snmp_scanned_devices"`. |
-| `scanScheduler` / `scanSchedulerImpl` | Min-heap priority queue of `scanTask` entries sorted by `nextScanTs`. Exposes `QueueScanTask` and `PopDueScans(now)`. |
-| `snmpConfigProvider` | Thin interface wrapping `snmpparse.GetParamsFromAgent`; separated to allow mocking in tests. |
-
-#### Key functions
-
-| Function | Description |
-|----------|-------------|
-| `NewComponent(reqs Requires) (Provides, error)` | Constructor. Loads the persistent cache, registers `OnStart`/`OnStop` hooks, and provides `status.InformationProvider` and `flare.Provider` outputs. |
-| `RequestScan(req, forceQueue)` | Thread-safe. Drops if disabled or already queued (unless `forceQueue`). Non-blocking channel send; drops with warning if queue is full. |
-| `scanWorker()` | Worker goroutine (2 instances). Pulls from `scanQueue`, calls `processScanRequest`, updates `deviceScans`. |
-| `scanSchedulerWorker()` | Single goroutine; wakes every 10 minutes, calls `scanScheduler.PopDueScans`, re-queues due scans with `forceQueue=true`. |
-| `processScanRequest(req)` | Resolves SNMP config via `snmpConfigProvider`, delegates to `snmpscan.Component.ScanDeviceAndSendData`, then calls `onDeviceScanSuccess` or `onDeviceScanFailure`. |
-| `loadCache()` / `writeCache()` | Persist `deviceScans` via `pkg/persistentcache`. Called at startup and after every scan result. |
 
 ### `comp/snmpscanmanager/mock`
 

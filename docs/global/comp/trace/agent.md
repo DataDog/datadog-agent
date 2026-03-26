@@ -1,3 +1,5 @@
+> **TL;DR:** The fx component that owns the trace-agent lifecycle — it wraps `pkg/trace/agent.Agent`, manages Go runtime tuning, wires OTLP ingestion, and integrates with remote configuration for live sampling-rate updates.
+
 # comp/trace/agent
 
 **Team:** agent-apm
@@ -26,7 +28,7 @@ is disabled via `apm_config.enabled: false` or `DD_APM_ENABLED=false`.
 
 ## Key elements
 
-### Interface (`comp/trace/agent/def`)
+### Key interfaces
 
 ```go
 type Component interface {
@@ -51,7 +53,7 @@ type Component interface {
 }
 ```
 
-### Params (`comp/trace/agent/impl`)
+### Key types
 
 `Params` carries CLI flags forwarded from the `trace-agent run` command:
 
@@ -62,7 +64,7 @@ type Component interface {
 | `MemProfile` | `--mem-profile` | Dump heap profile on stop. |
 | `DisableInternalProfiling` | — | Suppress `internal_profiling`. |
 
-### Internal structure
+#### Internal structure
 
 `component` (unexported) embeds `*pkg/trace/agent.Agent` and adds:
 
@@ -75,7 +77,11 @@ fx lifecycle hooks call `start()` / `stop()` which in turn call
 `runAgentSidekicks` (info server, remote config endpoint, profiling) and
 `stopAgentSidekicks` (flush profiler, flush logs).
 
-### fx wiring
+### Configuration and build flags
+
+Key config keys consumed via `comp/trace/config`: `apm_config.enabled`, `apm_config.max_cpu_percent`, `apm_config.max_memory`. Build tag: `otlp` gates the OTLP receiver wiring in `agentimpl`.
+
+#### fx wiring
 
 ```
 comp/trace/agent/fx.Module()

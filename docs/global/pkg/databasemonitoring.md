@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/databasemonitoring` provides AWS RDS and Aurora auto-discovery logic that discovers database instances by AWS tags and feeds them to the autodiscovery system so the appropriate DBM checks are scheduled without manual configuration.
+
 # pkg/databasemonitoring
 
 ## Purpose
@@ -8,7 +10,9 @@ The package is only compiled with the `ec2` build tag because it assumes the age
 
 ## Key elements (`pkg/databasemonitoring/aws/`)
 
-### Types
+### Key types
+
+#### Types
 
 | Type | Description |
 |------|-------------|
@@ -18,7 +22,9 @@ The package is only compiled with the `ec2` build tag because it assumes the age
 | `Config` | Discovery configuration: `Enabled`, `DiscoveryInterval` (seconds), `QueryTimeout` (seconds), `Tags` (filter), `DbmTag` (opt-in tag), `GlobalViewDbTag`, `Region`. |
 | `RdsClient` | Interface satisfied by `*Client`. Mocked in tests via `rdsclient_mockgen.go`. |
 
-### Constructors and configuration
+### Key functions
+
+#### Constructors and configuration
 
 | Symbol | Description |
 |--------|-------------|
@@ -26,7 +32,7 @@ The package is only compiled with the `ec2` build tag because it assumes the age
 | `NewAuroraAutodiscoveryConfig() (Config, error)` | Reads `database_monitoring.autodiscovery.aurora.*` from `datadog.yaml`. |
 | `NewRdsAutodiscoveryConfig() (Config, error)` | Reads `database_monitoring.autodiscovery.rds.*` from `datadog.yaml`. |
 
-### Discovery methods on `*Client`
+#### Discovery methods on `*Client`
 
 | Method | Description |
 |--------|-------------|
@@ -34,13 +40,17 @@ The package is only compiled with the `ec2` build tag because it assumes the age
 | `GetAuroraClusterEndpoints(ctx, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error)` | For each cluster ID, lists its `available` DB instances and returns them grouped by cluster. Note: currently limited to 100 instances per cluster (not paginated). |
 | `GetRdsInstancesFromTags(ctx, config Config) ([]Instance, error)` | Lists all RDS instances with `postgres`, `mysql`, `aurora-mysql`, or `aurora-postgresql` engines, filtering by the AWS tags in `config.Tags`. Paginated. |
 
-### Helper methods on `Instance`
+#### Helper methods on `Instance`
 
 | Method | Description |
 |--------|-------------|
 | `(*Instance).Digest(checkType, clusterID string) string` | Returns a stable FNV-64 hash of `(checkType, clusterID, Endpoint, Port, Engine, IamEnabled)` as a hex string. Used by autodiscovery listeners to detect configuration changes and avoid re-scheduling unchanged instances. |
 
-### Internal helpers
+### Configuration and build flags
+
+All files carry `//go:build ec2`. Configuration keys are under `database_monitoring.autodiscovery.aurora.*` and `database_monitoring.autodiscovery.rds.*` in `datadog.yaml`.
+
+#### Internal helpers
 
 - `makeInstance(db types.DBInstance, config Config) (*Instance, error)` — constructs an `Instance` from an AWS SDK `DBInstance`. Resolves the default `DbName` from the engine type when the DB does not have one. Sets `DbmEnabled` if the instance carries `config.DbmTag`.
 - `containsTags(clusterTags, providedTags)` — checks that all `providedTags` (as `key:value` strings, case-insensitive) are present in `clusterTags`.

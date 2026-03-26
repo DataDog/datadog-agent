@@ -1,3 +1,5 @@
+> **TL;DR:** `jmxlogger` provides a dedicated, configurable logger for the JMXFetch subprocess, routing its stdout and stderr to either the agent's log file or a separate CLI-specified file.
+
 # comp/agent/jmxlogger
 
 **Package:** `github.com/DataDog/datadog-agent/comp/agent/jmxlogger`
@@ -11,7 +13,7 @@ Without this component the JMXFetch output would have no typed logger and caller
 
 ## Key Elements
 
-### Interface
+### Key interfaces
 
 ```go
 // component.go
@@ -28,9 +30,9 @@ type Component interface {
 | `JMXError` | Writes an error-level log message; returns any logging error |
 | `Flush` | Flushes buffered log output (called on graceful shutdown) |
 
-### `Params`
+### Key types
 
-Controls how the logger is configured:
+**`Params`** — controls how the logger is configured:
 
 ```go
 // Two constructors in jmxloggerimpl/params.go
@@ -40,13 +42,23 @@ func NewDefaultParams() Params            // Normal mode: respect agent config
 
 In CLI mode (`fromCLI: true`) the logger writes only to the specified file (typically placed in the JMX flare directory). In normal mode it honours `jmx_log_file`, `disable_file_logging`, `syslog_rfc`, `log_to_console`, and `log_format_json` from `datadog.yaml`.
 
-### Lifecycle
+### Key functions
+
+`jmxloggerimpl.Module(params)` wires `newJMXLogger` into the fx graph. The `Params` value is supplied at the call site so that CLI subcommands can inject a different params than the long-running agent process.
 
 A `fx.Hook` registered on `OnStop` calls `Flush()` and then `close()` (which releases the underlying seelog instance) so that no log lines are dropped during agent shutdown.
 
-### FX wiring
+### Configuration and build flags
 
-`jmxloggerimpl.Module(params)` wires `newJMXLogger` into the fx graph. The `Params` value is supplied at the call site so that CLI subcommands can inject a different params than the long-running agent process.
+In default (non-CLI) mode, `newJMXLogger` reads the following config keys:
+
+| Key | Description |
+|-----|-------------|
+| `jmx_log_file` | Destination log file for JMXFetch output |
+| `disable_file_logging` | Suppress file-based logging |
+| `syslog_rfc` | Enable RFC-5424 syslog format |
+| `log_to_console` | Mirror output to stdout |
+| `log_format_json` | Emit structured JSON log lines |
 
 ## Usage
 

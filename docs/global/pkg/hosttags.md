@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/hosttags` provides a time-bounded cache of host tags that the aggregator attaches to metrics during the startup window, preventing tag loss while cloud-provider metadata is still being fetched.
+
 # pkg/hosttags
 
 ## Purpose
@@ -15,7 +17,9 @@ There are **two related packages** that together implement host tag collection:
 
 ## Key Elements
 
-### `pkg/hosttags`
+### Key types
+
+#### `pkg/hosttags`
 
 **`HostTagProvider`** — thread-safe struct that holds a snapshot of host tags and automatically expires it:
 
@@ -36,7 +40,9 @@ type HostTagProvider struct {
 
 ---
 
-### `comp/metadata/host/hostimpl/hosttags` (collection layer)
+### Key functions
+
+#### `comp/metadata/host/hostimpl/hosttags` (collection layer)
 
 **`Tags`** — the result type:
 
@@ -69,6 +75,10 @@ GCE tags are stored separately under `GoogleCloudPlatform` because they are repo
 **`tag_value_split_separator`** — a config map that allows splitting multi-value tags. For example `environment: ","` would split `environment:prod,staging` into two tags.
 
 ---
+
+### Configuration and build flags
+
+No build tags. Key configuration options are `expected_tags_duration`, `collect_ec2_tags`, `collect_ec2_instance_info`, `collect_gce_tags`, `collect_gpu_tags`, `disable_cluster_name_tag_key`, and `tag_value_split_separator`. See `## Usage / Configuration keys` for the full table.
 
 ## Usage
 

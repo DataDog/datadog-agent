@@ -1,3 +1,5 @@
+> **TL;DR:** Thin wrapper around the Docker daemon HTTP API providing a global singleton client with automatic retry, container and image inspection helpers, typed event streaming and polling, storage statistics, and Swarm metadata collection.
+
 # pkg/util/docker
 
 ## Purpose
@@ -15,17 +17,30 @@ build-tag guards of their own.
 
 ## Key elements
 
-### Build tag
+### Key types
 
-All non-stub files carry `//go:build docker`. The stubs always compile and
-return sentinel errors, keeping the callers tag-free.
+**`DockerUtil`** struct — the central type. Holds the underlying `*client.Client`, a query timeout, an image-name-by-SHA cache, and event-stream state. Not instantiated directly; use the global helpers.
 
-### `DockerUtil` struct
+**`Config`** struct — embedded in `DockerUtil`. Notable fields: `CacheDuration` (default 10 s), `CollectNetwork` (default `true`).
 
-The central type. It holds the underlying `*client.Client` (from
-`github.com/docker/docker`), a query timeout read from `docker_query_timeout`
-in `datadog.yaml`, an image-name-by-SHA cache, and the event-stream state.
-`DockerUtil` is not instantiated directly; use the global helpers below.
+**`StorageStats`** — holds `Name`, `Free`, `Used`, and `Total` as nullable `*uint64` fields. `GetPercentUsed()` computes usage even when only two of the three values are present.
+
+**`ContainerEvent`** — fields: `ContainerID`, `ContainerName`, `ImageName`, `Action`, `Timestamp`, `Attributes`.
+
+**`ImageEvent`** — fields: `ImageID`, `Action` (`pull`, `delete`, `tag`, `untag`), `Timestamp`.
+
+**Sentinel errors**
+
+| Error | Meaning |
+|---|---|
+| `ErrDockerNotAvailable` | Docker daemon not reachable at init time |
+| `ErrDockerNotCompiled` | `docker` build tag absent |
+| `ErrNotImplemented` | Mirroring `gopsutil` internal sentinel |
+| `ErrAlreadySubscribed` | Subscriber name already registered |
+| `ErrNotSubscribed` | Subscriber name not found on unsubscribe |
+| `ErrStorageStatsNotAvailable` | Storage stats not available for this driver |
+
+### Key interfaces
 
 ### `Client` interface (`client.go`)
 
@@ -44,7 +59,9 @@ type Client interface {
 
 `DockerUtil` satisfies this interface. Tests use `client_mock.go`.
 
-### Global singleton (`global.go`)
+### Key functions
+
+#### Global singleton (`global.go`)
 
 | Function | Description |
 |---|---|
@@ -137,20 +154,15 @@ Network mode constants: `DefaultNetworkMode`, `HostNetworkMode`,
 `BridgeNetworkMode`, `NoneNetworkMode`, `AwsvpcNetworkMode`,
 `UnknownNetworkMode`.
 
-### `Config` struct
+### Configuration and build flags
 
-Embedded in `DockerUtil`. Notable fields:
+All non-stub files carry `//go:build docker`. The stubs always compile and return sentinel errors, keeping callers tag-free.
 
-- `CacheDuration` (default 10 s) — TTL for the inspect cache.
-- `CollectNetwork` (default `true`) — enables network stats collection.
-
-### Sentinel errors (`util_common.go`)
-
-| Error | Meaning |
+| Config key | Description |
 |---|---|
-| `ErrDockerNotAvailable` | Docker daemon not reachable at init time |
-| `ErrDockerNotCompiled` | `docker` build tag absent |
-| `ErrNotImplemented` | Mirroring `gopsutil` internal sentinel |
+| `docker_query_timeout` | Timeout in seconds for Docker API calls |
+| `container_image.enabled` | Enables image event streaming |
+| `collect_ec2_tags` | Propagated to image events (via the docker workloadmeta collector) |
 
 ## Usage
 

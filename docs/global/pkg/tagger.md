@@ -1,3 +1,5 @@
+> **TL;DR:** Thin boundary package that supplies the `OriginInfo` type used by DogStatsD, APM, and the OTel collector to pass origin-detection data to the tagger component (`comp/core/tagger`) for container/pod tag enrichment.
+
 # pkg/tagger
 
 ## Purpose
@@ -9,6 +11,24 @@ The tagger's job is to **enrich metrics, logs, and traces with infrastructure ta
 ---
 
 ## Key elements
+
+### Key types
+
+- `OriginInfo` (`pkg/tagger/types/types.go`) — carries origin-detection data (UDS container ID, local/external data, cardinality, product origin) from a metrics producer to the tagger.
+- `TagCardinality` (`comp/core/tagger/types`) — `Low`, `Orchestrator`, `High`, `None`, `ChecksConfig` cardinality levels.
+- `TagInfo` — per-source tag snapshot stored by the tag store; separate slices for each cardinality level.
+- `Entity` / `EntityID` — tagger-internal entity representation and URN-style identifier.
+
+### Key interfaces
+
+- `Component` (`comp/core/tagger/def/component.go`) — the full tagger interface: `Tag`, `EnrichTags`, `GlobalTags`, `Subscribe`, `GetEntity`, etc.
+
+### Key functions
+
+- `EnrichTags(tb tagset.TagsAccumulator, originInfo OriginInfo)` — resolve origin and append all tags; the hot path called per DogStatsD/APM payload.
+- `Tag(entityID, cardinality)` — look up tags for a known entity.
+- `Subscribe(id, filter)` — receive a stream of tag-change events.
+- `GenerateContainerIDFromOriginInfo(originInfo)` — resolve a container ID from the origin protocol fields.
 
 ### pkg/tagger (root)
 

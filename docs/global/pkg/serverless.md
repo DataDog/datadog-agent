@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/serverless` provides the building blocks for the Datadog serverless agent extension — DogStatsD metrics, APM traces, and log collection for AWS Lambda and other serverless runtimes — with synchronous end-of-invocation flushing to prevent data loss.
+
 # Package `pkg/serverless`
 
 ## Purpose
@@ -43,13 +45,17 @@ flushing paths to ensure data is not lost when the sandbox is frozen.
 
 ## Key elements
 
-### Root package (`pkg/serverless`)
+### Key interfaces
+
+#### Root package (`pkg/serverless`)
 
 | Element | Description |
 |---|---|
 | `FlushableAgent` interface | Single-method interface (`Flush()`) implemented by all three sub-agents. Enables generic flush loops in the extension code. |
 
-### `pkg/serverless/metrics`
+### Key types
+
+#### `pkg/serverless/metrics`
 
 | Element | Description |
 |---|---|
@@ -61,7 +67,7 @@ flushing paths to ensure data is not lost when the sandbox is frozen.
 | `(c *ServerlessMetricAgent) WaitForPendingSamples()` | Spins until the aggregator has consumed all buffered samples. Call this during shutdown before stopping. |
 | `SketchesBucketOffset` field | `time.Duration` added to the current timestamp when computing the bucket for distribution/sketch metrics. Compensates for invocation start-time offset. |
 
-### `pkg/serverless/trace`
+#### `pkg/serverless/trace`
 
 | Element | Description |
 |---|---|
@@ -73,18 +79,20 @@ flushing paths to ensure data is not lost when the sandbox is frozen.
 | `spanModifier` struct | Implements `agent.SpanModifier`. Stamps `_dd.origin` on every span that does not already carry it. The origin value is derived from the cloud service type at runtime. |
 | `disableTraceStatsEnvVar` (`DD_SERVERLESS_INIT_DISABLE_TRACE_STATS`) | When set to `"true"`, replaces the `Concentrator` with a no-op to skip trace stats computation in `serverless-init` deployments. |
 
-### `pkg/serverless/trace/modifier`
+#### `pkg/serverless/trace/modifier`
 
 Contains `TracerPayloadModifier` (consumed via `serverlessmodifier.NewTracerPayloadModifier`). Injects function-level tags into every `TracerPayload` arriving through the trace pipeline. This is set as `ta.TracerPayloadModifier` in `StartServerlessTraceAgent`.
 
-### `pkg/serverless/logs`
+### Key functions
+
+#### `pkg/serverless/logs`
 
 | Element | Description |
 |---|---|
 | `SetupLogAgent(logChannel, sourceName, source, ...)` | Creates and starts a `ServerlessLogsAgent` backed by a `channel.Scheduler`. The scheduler feeds log messages received on `logChannel` into the standard logs pipeline. |
 | `SetLogsTags(tags []string)` | Updates the tag set attached to all log messages without restarting the agent. Called when function tags are resolved after the first invocation. |
 
-### `pkg/serverless/otlp`
+#### `pkg/serverless/otlp`
 
 | Element | Description |
 |---|---|
@@ -95,7 +103,7 @@ Contains `TracerPayloadModifier` (consumed via `serverlessmodifier.NewTracerPayl
 
 Build tag: `//go:build otlp`. When the tag is absent, `otlp_no_otlp.go` provides stub implementations so callers compile without the OTel collector dependency.
 
-### `pkg/serverless/tags`
+#### `pkg/serverless/tags`
 
 | Element | Description |
 |---|---|
@@ -105,14 +113,18 @@ Build tag: `//go:build otlp`. When the tag is absent, `otlp_no_otlp.go` provides
 | `GetExtensionVersion() string` | Returns the extension version string injected at build time by the `datadog-lambda-extension` build scripts. Defaults to `"xxx"` if not replaced. |
 | `ComputeStatsKey` / `ComputeStatsValue` | Tag pair (`_dd.compute_stats` = `"1"`) used to signal that trace stats should be computed for a given trace. |
 
-### `pkg/serverless/env`
+### Configuration and build flags
+
+The `otlp` build tag gates `pkg/serverless/otlp`; without it, stubs compile in. There are no dedicated `datadog.yaml` keys for this package — configuration is passed programmatically via `StartServerlessTraceAgentArgs` and environment variables such as `DD_SERVERLESS_INIT_DISABLE_TRACE_STATS`.
+
+#### `pkg/serverless/env`
 
 | Element | Description |
 |---|---|
 | `AzureAppServicesEnvVar` (`DD_AZURE_APP_SERVICES`) | Environment variable set to `"1"` by the Datadog Azure App Services extension. |
 | `IsAzureAppServicesExtension() bool` | Returns true when running inside the Azure App Services extension context. |
 
-### `pkg/serverless/streamlogs`
+#### `pkg/serverless/streamlogs`
 
 | Element | Description |
 |---|---|

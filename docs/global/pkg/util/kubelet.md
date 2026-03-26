@@ -1,3 +1,5 @@
+> **TL;DR:** Thin adapter exposing kubelet-derived hostname and host-alias helpers to the agent, returning the Kubernetes node name (optionally suffixed with the cluster name) without requiring callers to import the lower-level kubelet package directly.
+
 # pkg/util/kubelet
 
 ## Purpose
@@ -20,17 +22,7 @@ container inspection, health probes) lives in `pkg/util/kubernetes/kubelet`.
 
 ## Key elements
 
-### Build tags
-
-The package uses conditional compilation to provide safe no-op stubs when the
-`kubelet` build tag is absent (e.g. in stripped-down builds):
-
-| Build tag | Behaviour |
-|---|---|
-| `//go:build kubelet` | Full implementation: queries `KubeUtilInterface.GetNodename`, resolves cluster name. |
-| `//go:build !kubelet` | Stub: `GetHostname` and `GetHostAliases` return an error; `GetMetaClusterNameText` returns `""`. |
-
-### Functions
+### Key functions
 
 All exported functions are defined in both the real and the stub file.
 
@@ -40,7 +32,7 @@ All exported functions are defined in both the real and the stub file.
 | `GetHostAliases` | `(ctx context.Context) ([]string, error)` | Wraps `GetHostname` and validates the result with `validate.ValidHostname`. Returns a single-element slice on success. |
 | `GetMetaClusterNameText` | `(ctx context.Context, hostname string) string` | Returns a human-readable cluster name string for the agent status page. When the raw cluster name contained underscores (non-RFC-1123), the string is formatted as `<compliant> (original name: <raw>)`. Returns `""` when Kubernetes is not detected. |
 
-### RFC 1123 cluster name normalisation
+**RFC 1123 cluster name normalisation**
 
 Kubernetes cluster names from EKS and AKS sometimes contain underscores, which
 are not valid in DNS labels (RFC 1123).  `GetHostname` replaces `_` with `-`
@@ -48,12 +40,19 @@ when building the hostname suffix.  If the replacement produces an
 RFC-1123-invalid result (e.g. trailing `-`), the cluster name suffix is dropped
 entirely and the plain node name is returned.
 
-### Dependency on `pkg/util/kubernetes/kubelet`
+**Dependency on `pkg/util/kubernetes/kubelet`**
 
 The real implementation delegates to `k.GetKubeUtil()` (from
 `pkg/util/kubernetes/kubelet`) to obtain the node name.  The getter is stored
 in a package-level variable (`kubeUtilGet`) so tests can inject a mock without
 starting a real kubelet connection.
+
+### Configuration and build flags
+
+| Build tag | Behaviour |
+|---|---|
+| `//go:build kubelet` | Full implementation: queries `KubeUtilInterface.GetNodename`, resolves cluster name. |
+| `//go:build !kubelet` | Stub: `GetHostname` and `GetHostAliases` return an error; `GetMetaClusterNameText` returns `""`. |
 
 ## Usage
 

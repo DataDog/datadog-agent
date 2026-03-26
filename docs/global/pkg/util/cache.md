@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a global TTL cache (backed by `patrickmn/go-cache`) for short-lived shared state and a lightweight `BasicCache` for per-component, no-expiry in-memory storage.
+
 # pkg/util/cache
 
 ## Purpose
@@ -12,7 +14,9 @@
 
 ## Key elements
 
-### Global TTL cache
+### Key types
+
+#### Global TTL cache
 
 **`Cache`** — package-level `*cache.Cache` (from `patrickmn/go-cache`).
 
@@ -48,7 +52,7 @@ These look up `key` in the global `Cache`. On a cache miss they call `cb`, store
 (only on success — errors are never cached), and return it. `Get` stores with
 `cache.NoExpiration`; `GetWithExpiration` uses the provided `expire` duration.
 
-### BasicCache
+#### BasicCache
 
 ```go
 type BasicCache struct { ... }

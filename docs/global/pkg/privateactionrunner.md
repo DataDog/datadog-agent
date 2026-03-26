@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/privateactionrunner` implements the Private Action Runner that executes Datadog Workflow actions inside private networks, bridging the cloud-hosted workflow engine with resources not reachable from the public internet via cryptographically verified task polling and a registry of action bundles.
+
 # pkg/privateactionrunner
 
 ## Purpose
@@ -17,7 +19,9 @@ The binary entry point is `cmd/privateactionrunner/`.
 
 ## Key Elements
 
-### Types (`types/`)
+### Key types
+
+#### Types (`types/`)
 
 | Symbol | Kind | Description |
 |--------|------|-------------|
@@ -29,7 +33,9 @@ The binary entry point is `cmd/privateactionrunner/`.
 | `Task.GetFQN()` | method | Returns `"<bundle_id>.<action_name>"`. |
 | `Task.Validate()` | method | Checks that the task is non-nil and has a JobId. |
 
-### Runners (`runners/`)
+### Key interfaces
+
+#### Runners (`runners/`)
 
 | Symbol | Kind | Description |
 |--------|------|-------------|
@@ -40,7 +46,9 @@ The binary entry point is `cmd/privateactionrunner/`.
 | `WorkflowRunner.RunTask(ctx, task, creds)` | method | Looks up the bundle and action from the FQN, enforces the action allowlist and URL allowlist, runs the action, and publishes the result. Sends heartbeats in a background goroutine. |
 | `Loop` | struct | The polling loop inside `WorkflowRunner`. Dequeues tasks from OPMS, verifies signatures, resolves credentials, and dispatches to a goroutine pool of size `config.RunnerPoolSize`. Uses a circuit breaker for backoff on consecutive dequeue failures. |
 
-### Bundles (`bundles/`)
+### Key functions
+
+#### Bundles (`bundles/`)
 
 `bundles/registry.go` (selected by build tag; `registry_kubeapiserver.go` for the Kubernetes API server variant) maps bundle IDs to `Bundle` implementations:
 
@@ -59,7 +67,11 @@ The binary entry point is `cmd/privateactionrunner/`.
 
 `NewRegistry(cfg, traceroute, eventPlatform)` instantiates all bundles and returns a `*Registry`. `Registry.GetBundle(id)` returns the named bundle (or `nil`).
 
-### Config (`adapters/config/`)
+### Configuration and build flags
+
+The `kubeapiserver` build tag selects the Kubernetes API server variant of the bundle registry. Configuration is loaded into `Config` from the agent YAML; key fields include `ActionsAllowlist`, `Allowlist`, `RShellAllowedPaths`, `RunnerPoolSize`, and `TaskTimeoutSeconds`.
+
+#### Config (`adapters/config/`)
 
 `Config` is the central configuration struct, populated from the agent config YAML and passed to all major components.
 
@@ -79,7 +91,7 @@ Key fields:
 
 `Config.IsActionAllowed(bundleId, actionName)` and `Config.IsURLInAllowlist(url)` are the two security enforcement points called before every action.
 
-### Credentials (`credentials/`)
+#### Credentials (`credentials/`)
 
 `credentials/resolver/PrivateCredentialResolver` resolves a `ConnectionInfo` proto (from the task) into a `*privateconnection.PrivateCredentials` struct that bundles use for outbound authentication.
 
@@ -97,7 +109,7 @@ Docker secret files are JSON with the format:
 
 File size is capped at 1 MB.
 
-### Enrollment (`enrollment/`)
+#### Enrollment (`enrollment/`)
 
 `SelfEnroll(ctx, ddSite, runnerNamePrefix, hostname, apiKey, appKey)` performs first-time runner registration:
 1. Generates an ECDSA key pair.
@@ -106,7 +118,7 @@ File size is capped at 1 MB.
 
 The identity (private key + URN) is persisted to `privateactionrunner_private_identity.json` and loaded on subsequent starts.
 
-### Task verification (`task-verifier/`)
+#### Task verification (`task-verifier/`)
 
 `TaskVerifier.UnwrapTaskFromSignedEnvelope(envelope)` verifies a task's cryptographic signature before execution:
 - Checks that the envelope is non-empty and carries at least one signature.
@@ -116,7 +128,7 @@ The identity (private key + URN) is persisted to `privateactionrunner_private_id
 
 `KeysManager` fetches and caches Datadog's public signing keys (via Remote Config), and `WaitForReady()` blocks `WorkflowRunner.Start` until keys are available.
 
-### OPMS client (`opms/`)
+#### OPMS client (`opms/`)
 
 `opms.Client` wraps the OPMS HTTP API:
 
@@ -130,7 +142,7 @@ The identity (private key + URN) is persisted to `privateactionrunner_private_id
 
 Requests are signed with the runner's ECDSA private key. The client is shared between `CommonRunner` (health check) and `WorkflowRunner` (task polling).
 
-### Modes (`adapters/modes/`)
+#### Modes (`adapters/modes/`)
 
 `Mode` is a string type. Currently only `ModePull` (`"pull"`) is defined, meaning the runner polls OPMS rather than having tasks pushed to it.
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/dyninst` implements dynamic instrumentation (Live Debugger) for Go processes by compiling Remote Config probe definitions into eBPF stack-machine programs that are attached as uprobes to capture variable values at arbitrary locations without restarting the target.
+
 # pkg/dyninst
 
 ## Purpose
@@ -33,18 +35,13 @@ process lifecycle events and RC updates.
 
 ## Key elements
 
-### Build flag
+### Configuration and build flags
 
-All files in this package (and most sub-packages) require the `linux_bpf` build tag:
+All implementation files require the `linux_bpf` build tag. The `ir` and `rcjson` sub-packages are exceptions — they compile without it for use in tooling and tests. Configuration for circuit-breaker CPU limits, rate limits, and type-discovery caps is supplied via `actuator.Config`.
 
-```go
-//go:build linux_bpf
-```
+### Key types
 
-The `ir` and `rcjson` packages are exceptions: they compile without the build tag so that
-tooling and tests that only need the data model can use them on any platform.
-
-### Sub-packages
+#### Sub-packages
 
 | Package | Role |
 |---------|------|
@@ -64,7 +61,7 @@ tooling and tests that only need the data model can use them on any platform.
 | `exprlang` | AST definition for the Datadog expression language (DSL) used in probe conditions and templates. |
 | `irprinter` | Serializes an `ir.Program` to JSON for debugging. |
 
-### Core types
+#### Core types
 
 #### `ir` package
 
@@ -220,7 +217,9 @@ func (d *DataItem) Data() ([]byte, bool)
 `EventPairingExpectationConditionFailed`) control how the output pipeline pairs entry and
 return events.
 
-### eBPF stack machine
+### Key interfaces
+
+#### eBPF stack machine
 
 The eBPF C code lives in `pkg/dyninst/ebpf/`. It implements a custom stack machine
 (`stack_machine.h`) executed inside the uprobe handler. The machine reads variable values

@@ -1,3 +1,5 @@
+> **TL;DR:** Top-level fx component for the logs collection subsystem; discovers log sources, processes each message through configurable rules, and forwards results to the Datadog intake or a Vector proxy.
+
 # comp/logs/agent
 
 **Team:** agent-log-pipelines
@@ -10,7 +12,9 @@ When `logs_enabled: false` is set in the configuration, `newLogsAgent` returns a
 
 ## Key Elements
 
-### Interfaces (`comp/logs/agent/component.go`)
+### Key interfaces
+
+#### Interfaces (`comp/logs/agent/component.go`)
 
 ```go
 type Component interface {
@@ -30,7 +34,9 @@ type ServerlessLogsAgent interface {
 
 `ServerlessLogsAgent` extends `Component` with an explicit lifecycle for use in the serverless agent, which does not wire dependencies through fx.
 
-### fx module (`agentimpl/agent.go`)
+### Key types
+
+#### fx module (`agentimpl/agent.go`)
 
 ```go
 func Module() fxutil.Module {
@@ -48,7 +54,9 @@ The constructor `newLogsAgent` resolves all dependencies listed in `dependencies
 | `LogsReciever` | `option.Option[integrations.Component]` | Channel for integration-submitted logs |
 | `APIStreamLogs` | `api.AgentEndpointProvider` | `POST /stream-logs` HTTP endpoint |
 
-### Dependencies
+### Key functions
+
+#### Dependencies
 
 The constructor requires:
 - `configComponent.Component` — for `logs_enabled`, endpoint config, processing rules, etc.
@@ -58,7 +66,9 @@ The constructor requires:
 - `inventoryagent.Component` — records the active transport (HTTP/TCP) in inventory metadata
 - `[]schedulers.Scheduler` via the fx value group `"log-agent-scheduler"` — pluggable source schedulers (e.g., the autodiscovery scheduler)
 
-### Scheduler plug-in pattern
+### Configuration and build flags
+
+#### Scheduler plug-in pattern
 
 Any component that needs to add log sources at runtime should provide a scheduler via the `"log-agent-scheduler"` value group:
 

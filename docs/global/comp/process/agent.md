@@ -1,3 +1,5 @@
+> **TL;DR:** The top-level orchestration component for the process-agent subsystem that decides whether the process subsystem should be active (based on flavor, enabled checks, and configuration) and wires status/flare integration when running embedded in the core agent.
+
 # comp/process/agent — Process Agent Orchestration Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/process/agent`
@@ -22,7 +24,9 @@ The component intentionally has a thin interface: it does not start goroutines o
 | `agent_linux.go` | Linux-specific `Enabled()`: process checks run in the core agent; standalone process-agent only needed for NPM (connections check) |
 | `agent_fallback.go` | Non-Linux fallback `Enabled()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/process/agent
@@ -32,6 +36,10 @@ type Component interface {
 ```
 
 `Enabled()` returns whether the process subsystem is active. It is evaluated once and memoised (via `sync.Once` on Linux) to prevent duplicate log output.
+
+### Configuration and build flags
+
+Enablement is platform-specific: `agent_linux.go` and `agent_fallback.go` supply different `Enabled()` implementations controlled by the Go build constraint (`GOOS`). No dedicated config keys — the decision is based on the agent flavor and which checks report `IsEnabled()`.
 
 ## fx wiring
 

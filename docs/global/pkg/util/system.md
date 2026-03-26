@@ -1,3 +1,5 @@
+> **TL;DR:** A broad collection of system-level helpers for querying CPU count, network routes and IPs, Linux namespace membership, file descriptors, inode numbers, dynamic library availability, and transport-agnostic IPC socket utilities.
+
 # pkg/util/system
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/packet` defines the `SnmpPacket` struct and `PacketsChannel` type alias that connect all pipeline stages of the SNMP traps subsystem without creating circular dependencies.
+
 # comp/snmptraps/packet
 
 **Package:** `github.com/DataDog/datadog-agent/comp/snmptraps/packet`
@@ -9,7 +11,9 @@
 
 ## Key elements
 
-### `SnmpPacket`
+### Key types
+
+#### `SnmpPacket`
 
 ```go
 type SnmpPacket struct {
@@ -26,7 +30,7 @@ Wraps the raw `gosnmp.SnmpPacket` with the additional metadata the agent needs:
 - **`Namespace`**: the device namespace configured on the listener (e.g. `"default"`, `"prod"`), emitted as the `device_namespace` tag.
 - **`Timestamp`**: populated by the listener at receive time and forwarded to the Datadog backend as the event timestamp.
 
-### `PacketsChannel`
+#### `PacketsChannel`
 
 ```go
 type PacketsChannel = chan *SnmpPacket
@@ -34,7 +38,9 @@ type PacketsChannel = chan *SnmpPacket
 
 A type alias for the channel that connects the listener to the forwarder. Using an alias (rather than a named type) means any `chan *SnmpPacket` value satisfies the type without an explicit cast.
 
-### `GetTags() []string`
+### Key functions
+
+#### `GetTags() []string`
 
 Returns the Datadog tags derived from the packet:
 
@@ -46,9 +52,9 @@ Returns the Datadog tags derived from the packet:
 
 These tags are applied both to agent telemetry metrics and to the formatted trap event payload.
 
-### Test helpers (`test_helpers.go`)
+### Configuration and build flags
 
-Available under the `!serverless && test` build constraint. Provides pre-built `*SnmpPacket` values and `gosnmp.SnmpTrap` fixtures:
+**Test helpers** (`test_helpers.go` — compiled under `!serverless && test` build constraint) — provides pre-built `*SnmpPacket` values and `gosnmp.SnmpTrap` fixtures:
 
 | Symbol | Description |
 |---|---|

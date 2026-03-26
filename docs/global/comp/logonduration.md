@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/logonduration` parses a Windows ETL boot trace file after each reboot, extracts key OS boot milestones (kernel start, Winlogon, desktop ready), calculates logon durations, and submits a single Event Management v2 payload to Datadog.
+
 # comp/logonduration/impl
 
 **Package:** `github.com/DataDog/datadog-agent/comp/logonduration`
@@ -15,7 +17,7 @@ This data lets operators monitor user experience degradation from slow Group Pol
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/logonduration/def/component.go
@@ -24,9 +26,9 @@ type Component interface{}
 
 The interface is intentionally empty. All work is managed internally via fx.Lifecycle `OnStart`/`OnStop` hooks. The component is used for its side effects (one-shot analysis and event submission at agent startup).
 
-### Dependencies (Windows)
+### Key types
 
-Injected via `Requires` struct in `impl/impl_windows.go`:
+**Dependencies (Windows)** — injected via `Requires` struct in `impl/impl_windows.go`:
 
 | Dependency | Role |
 |---|---|
@@ -35,9 +37,17 @@ Injected via `Requires` struct in `impl/impl_windows.go`:
 | `eventplatform.Component` | Provides the `Forwarder` used to submit events to Datadog |
 | `hostname.Component` | Used to populate the `host` field in the event payload |
 
-### Boot analysis workflow
+**Key types:**
 
-The component's `run()` method executes once at agent startup, after `OnStart` fires:
+| Type | Description |
+|------|-------------|
+| `BootTimeline` | Struct with one `time.Time` field per milestone. Only non-zero fields are included in the output. |
+| `Milestone` | A single timeline entry in the JSON payload (`name`, `offset_s`, `duration_s`, `timestamp`). |
+| `AnalysisResult` | Wrapper around `BootTimeline` returned by `analyzeETL`. |
+
+### Key functions
+
+**Boot analysis workflow** — the component's `run()` method executes once at agent startup:
 
 1. **Stop the active ETL session.** The AutoLogger was started by the OS at boot time. The agent stops it to flush and finalise the ETL file.
 2. **Re-arm the AutoLogger.** Sets the `Start` registry value to `1` under `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\Datadog Logon Duration` so the trace session will run again on the next boot.
@@ -46,7 +56,7 @@ The component's `run()` method executes once at agent startup, after `OnStart` f
 5. **Event submission.** Builds an Event Management v2 payload and sends it via `eventplatform.Forwarder.SendEventPlatformEventBlocking`.
 6. **Cache update.** Writes the current boot time to the persistent cache so the next agent run skips analysis if no reboot has occurred.
 
-### ETW providers monitored
+**ETW providers monitored:**
 
 The analyzer subscribes to six ETW providers to build the `BootTimeline`:
 
@@ -59,23 +69,7 @@ The analyzer subscribes to six ETW providers to build the `BootTimeline`:
 | Group Policy | `{AEA1B4FA-...}` | Machine and user GP processing (Events 4000–4001, 8000–8001) |
 | Shell-Core | `{30336ED4-...}` | Explorer initialisation steps: desktop create, desktop visible, startup apps, finalize (Events 9601–9602, 9611–9612, 9648–9649) |
 
-### Key types
-
-**BootTimeline** — struct with one `time.Time` field per milestone. Only non-zero fields are included in the output.
-
-**Milestone** — a single timeline entry in the JSON payload:
-```go
-type Milestone struct {
-    Name      string  `json:"name"`
-    OffsetS   float64 `json:"offset_s"`    // seconds since BootStart
-    DurationS float64 `json:"duration_s"`  // duration of the phase (0 if point-in-time)
-    Timestamp string  `json:"timestamp"`
-}
-```
-
-**AnalysisResult** — wrapper around `BootTimeline` returned by `analyzeETL`.
-
-### Event payload
+**Event payload**
 
 The submitted event uses the Event Management v2 format. The `custom` field contains:
 
@@ -99,11 +93,13 @@ Durations are defined as:
 - **Logon Duration**: `LogonStart` → `DesktopVisibleStart` (time from credential submission to desktop visible)
 - **Total Boot Duration**: sum of the two above (excludes idle time at the login screen)
 
-### AutoLogger prerequisite
+### Configuration and build flags
+
+**AutoLogger prerequisite:**
 
 The component will not run unless an ETW AutoLogger named `"Datadog Logon Duration"` exists in the registry. This AutoLogger is created by the agent's Windows installer. If the key is absent at startup, the component logs a warning and returns without doing anything. This is a silent no-op on machines where the agent was not installed via the MSI.
 
-### Configuration
+**Configuration:**
 
 | Key | Default | Description |
 |---|---|---|

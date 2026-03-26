@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/event` extracts individual APM event spans from traces for Trace Search indexing, applying a configurable per-second rate limiter so high-cardinality spans can be retained at higher rates than full traces without overwhelming the backend.
+
 # pkg/trace/event
 
 ## Purpose

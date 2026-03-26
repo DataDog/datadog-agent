@@ -1,3 +1,5 @@
+> **TL;DR:** A bridge component that translates `datadog.yaml` (`apm_config.*`) into a `pkg/trace/config.AgentConfig` object, subscribes to live API-key rotations, and exposes HTTP handlers for runtime configuration inspection and mutation.
+
 # comp/trace/config
 
 **Team:** agent-apm
@@ -29,7 +31,7 @@ Responsibilities:
 
 ## Key elements
 
-### Interface (`comp/trace/config/def`)
+### Key interfaces
 
 ```go
 type Component interface {
@@ -59,7 +61,9 @@ type Component interface {
 }
 ```
 
-### Params (`comp/trace/config/def`)
+### Key types
+
+#### `Params`
 
 ```go
 type Params struct {
@@ -71,7 +75,7 @@ type Params struct {
 }
 ```
 
-### Dependencies (`comp/trace/config/impl`)
+#### Dependencies
 
 | Dep | Purpose |
 |---|---|
@@ -79,7 +83,9 @@ type Params struct {
 | `comp/core/tagger/def.Component` | Provides container tag lookup used to enrich spans with `ContainerTags`. |
 | `comp/core/ipc/def.Component` | Supplies the auth token and TLS config for IPC / debug server endpoints. |
 
-### Important `pkg/trace/config.AgentConfig` fields set by this component
+### Configuration and build flags
+
+Key `apm_config.*` settings mapped to `AgentConfig` fields:
 
 | Field | Config key |
 |---|---|
@@ -91,14 +97,14 @@ type Params struct {
 | `RemoteConfigClient` | auto-created when RC is enabled |
 | `MaxCPU` / `MaxMemory` | `apm_config.max_cpu_percent` / `apm_config.max_memory` |
 
-### Remote configuration
+#### Remote configuration
 
 When `remote_configuration.apm_sampling.enabled` is true, the component
 creates a gRPC RC client subscribed to `ProductAPMSampling` and
 `ProductAgentConfig`. A separate MRF client (`ProductAgentFailover`) is
 created when `multi_region_failover.enabled` is true.
 
-### fx wiring
+#### fx wiring
 
 ```
 comp/trace/config/fx.Module()

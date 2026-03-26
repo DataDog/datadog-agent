@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ssi` provides test utilities for Single Step Instrumentation (SSI), offering assertion helpers (`PodValidator`, `ContainerValidator`) that verify correct APM library injection into Kubernetes pods across init-container, CSI, and image-volume modes.
+
 # pkg/ssi
 
 ## Purpose
@@ -10,7 +12,11 @@ The package currently contains one sub-package:
 
 It has its own `go.mod` (an independent module) so it can be imported by both the main agent module and the E2E test module without circular dependencies.
 
-## Injection modes
+## Key elements
+
+### Key types
+
+#### Injection modes
 
 SSI supports three distinct mechanisms for delivering APM library files into containers:
 
@@ -23,9 +29,7 @@ SSI supports three distinct mechanisms for delivering APM library files into con
 
 Each mode produces a different set of pod-level volumes, init containers, and container volume mounts, all of which the validators in this package can assert.
 
-## Key types
-
-### `PodValidator`
+#### `PodValidator`
 
 The primary entry point for test assertions. Wraps a `*corev1.Pod` and provides a rich set of `Require*` methods that fail the test via `testing.T` on mismatch.
 
@@ -51,7 +55,7 @@ Constructor creates mode-specific `InjectionValidator` and builds `ContainerVali
 | `RequireInitSecurityContext(t, *corev1.SecurityContext)` | Asserts the security context on all `datadog-*` init containers. |
 | `RequireInitResourceRequirements(t, *corev1.ResourceRequirements)` | Asserts resource requests/limits on all `datadog-*` init containers. |
 
-### `ContainerValidator`
+#### `ContainerValidator`
 
 Per-container assertions. Usually obtained indirectly via `PodValidator`, but can be used directly.
 
@@ -68,7 +72,7 @@ Per-container assertions. Usually obtained indirectly via `PodValidator`, but ca
 | `RequireResourceRequirements(t, *corev1.ResourceRequirements)` | Asserts CPU/memory requests and limits. |
 | `RequireUnmutated(t)` | Asserts no unexpected `DD_*` or `LD_PRELOAD` env vars. |
 
-### `ImageValidator`
+#### `ImageValidator`
 
 Parses and validates a container image string of the form `registry/name:tag`.
 
@@ -79,7 +83,9 @@ Parses and validates a container image string of the form `registry/name:tag`.
 | `RequireName(t, expected)` | Asserts image name. |
 | `RequireTag(t, expected)` | Asserts image tag/version. |
 
-### `InjectionValidator` interface
+### Key interfaces
+
+#### `InjectionValidator` interface
 
 Implemented by the three mode-specific validators (`initContainerInjectionValidator`, `csiInjectionValidator`, `imageVolumeInjectionValidator`). Selected automatically by `NewPodValidator` based on the `InjectionMode`.
 
@@ -92,6 +98,10 @@ type InjectionValidator interface {
     RequireInjectorVersion(t *testing.T, expected string)
 }
 ```
+
+### Configuration and build flags
+
+`pkg/ssi/testutils` has its own `go.mod`. No build tags; the package compiles on all platforms. Dependencies are controlled by `pkg/ssi/testutils/go.mod`.
 
 ## What each mode validates
 

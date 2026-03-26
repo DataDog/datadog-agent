@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/workloadselection` manages APM Single-Step Instrumentation policies by subscribing to Remote Config, merging org-wide APM policy JSON, compiling it to a binary, and writing it to a path the APM injector reads.
+
 # comp/workloadselection — Workload Selection Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/workloadselection/def`
@@ -18,7 +20,9 @@ This allows operators to centrally control which workloads receive automatic APM
 | `comp/workloadselection/impl` | Full implementation (RC listener + policy compilation) |
 | `comp/workloadselection/fx` | fx `Module()` wiring `impl` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/workloadselection/def
@@ -26,6 +30,26 @@ type Component interface{}
 ```
 
 The interface carries no exported methods. The component operates entirely through its Remote Config listener, which is registered as an `rctypes.ListenerProvider` side-output from `NewComponent`.
+
+### Key functions
+
+**RC listener:** The component subscribes to the `APM_POLICIES` Remote Config product (`state.ProductApmPolicies`). When the backend pushes a config update:
+
+1. Each incoming policy config path is parsed to extract a numeric ordering prefix (format `N.<name>`).
+2. All configs are sorted by that prefix (then alphabetically by path for a deterministic tie-break).
+3. The sorted `policies` arrays from each JSON config are concatenated into a single merged JSON document.
+4. The merged document is passed to `dd-compile-policy` via `exec.Command`, which writes a compiled binary to a temporary file.
+5. The temporary file is atomically renamed to `<conf_path>/managed/rc-orgwide-wls-policy.bin`.
+
+When the RC update contains zero configs (policy removed), the binary file is deleted.
+
+### Configuration and build flags
+
+| Key | Description |
+|---|---|
+| `apm_config.workload_selection` | Master enable flag; component is no-op when `false` |
+
+The component also requires the `dd-compile-policy` binary at `<install_path>/embedded/bin/dd-compile-policy`. If absent, the component silently disables itself.
 
 ## Implementation details
 

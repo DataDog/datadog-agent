@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a per-endpoint compressor factory for the logs pipeline, allowing each HTTP destination to independently select a compression algorithm and level at pipeline setup time.
+
 # comp/serializer/logscompression
 
 **Team:** agent-log-pipelines
@@ -8,7 +10,9 @@
 
 ## Key Elements
 
-### Interface (`comp/serializer/logscompression/def/component.go`)
+### Key interfaces
+
+#### Interface (`comp/serializer/logscompression/def/component.go`)
 
 ```go
 type Component interface {
@@ -18,11 +22,15 @@ type Component interface {
 
 `kind` is a string identifying the compression algorithm (e.g., `"zstd"`, `"gzip"`, `"none"`). `level` is algorithm-specific. The method delegates to `pkg/util/compression/selector.NewCompressor`, which resolves the algorithm by name and returns a `compression.Compressor` ready to compress individual payloads.
 
-### Implementation (`impl/logscompressionimpl.go`)
+### Key types
+
+#### Implementation (`impl/logscompressionimpl.go`)
 
 The production implementation is a zero-field struct. `NewCompressor` is stateless — it creates a new `compression.Compressor` on every call.
 
-### fx modules
+### Configuration and build flags
+
+#### fx modules
 
 | Package | Description |
 |---|---|

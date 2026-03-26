@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/types` defines the shared `Fingerprint` and `FingerprintConfig` types that the file tailer and auditor use to identify and resume log files across agent restarts, without pulling in heavier pipeline dependencies.
+
 # pkg/logs/types
 
 ## Purpose
@@ -6,7 +8,9 @@ Defines shared data types for the logs system that are imported by multiple pack
 
 ## Key Elements
 
-### Fingerprinting
+### Key types
+
+#### Fingerprinting
 
 File fingerprints allow the agent to identify a log file across restarts even if its path or inode changes, by hashing the first few lines or bytes of the file.
 
@@ -19,6 +23,14 @@ File fingerprints allow the agent to identify a log file across restarts even if
 | `InvalidFingerprintValue` | Constant `0` — the zero-value signals an invalid or uncomputed fingerprint. |
 | `DefaultLinesCount` | `1` — default line count for `line_checksum`. |
 | `DefaultBytesCount` | `1024` — default byte count for `byte_checksum`. |
+
+### Configuration and build flags
+
+| Config key | Description |
+|---|---|
+| `logs_config.file_fingerprint.by_name` or source-level `fingerprint` field | Enables fingerprinting for file tailers; sets the `FingerprintStrategy` (`line_checksum` or `byte_checksum`). |
+| `logs_config.file_fingerprint.lines_to_scan` | Number of lines (for `line_checksum`) or bytes (for `byte_checksum`) used to compute the fingerprint. Maps to `FingerprintConfig.Count`. |
+| `logs_config.file_fingerprint.lines_to_skip` | Lines or bytes to skip before hashing. Maps to `FingerprintConfig.CountToSkip`. |
 
 ## Usage
 

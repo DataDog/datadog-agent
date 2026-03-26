@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/config` defines `AgentConfig`, the single shared configuration object for the entire trace agent, along with all sub-structures and defaults; every other `pkg/trace/*` package receives an `*AgentConfig` pointer at construction time and never reads `datadog.yaml` directly after startup.
+
 # pkg/trace/config
 
 ## Purpose

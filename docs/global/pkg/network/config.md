@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/config` owns all configuration for NPM and USM, reading values from `system-probe.yaml` and exposing a single `*Config` struct that drives every network monitoring subsystem.
+
 # pkg/network/config
 
 ## Purpose
@@ -8,7 +10,13 @@ The sub-package `sysctl/` provides a small, caching reader for kernel parameters
 
 ## Key elements
 
-### `Config` struct (`config.go`)
+### Key interfaces
+
+This package exposes no interfaces. All consumers interact with `*Config` and `*USMConfig` directly.
+
+### Key types
+
+#### `Config` struct (`config.go`)
 
 `Config` embeds `ebpf.Config` (from `pkg/ebpf`) and adds ~60 network-specific fields. A representative selection:
 
@@ -79,13 +87,15 @@ The sub-package `sysctl/` provides a small, caching reader for kernel parameters
 | `CustomBatchingEnabled` | Custom kernel-side batching for perf events |
 | `EnableCertCollection` | Collect TLS certificates via uprobes |
 
-### `USMConfig` struct (`usm_config.go`)
+#### `USMConfig` struct (`usm_config.go`)
 
 Embedded in `Config` under the `service_monitoring_config` namespace. Contains per-protocol monitoring flags and tuning for HTTP, HTTP/2, Kafka, gRPC, Postgres, Redis, MongoDB, and other L7 protocols. Key fields mirror the NPM pattern: `EnableHTTPMonitoring`, `MaxHTTPStatsBuffered`, `HTTPMapCleanerInterval`, etc.
 
 `NewUSMConfig(cfg)` is called from `New()` and returns a fully populated `*USMConfig`.
 
-### Constructor
+### Key functions
+
+#### Constructor
 
 ```go
 func New() *Config
@@ -93,7 +103,7 @@ func New() *Config
 
 Reads `pkgconfigsetup.SystemProbe()`, calls `sysconfig.Adjust(cfg)` to apply any system-probe-wide adjustments, and returns a fully-populated `*Config`. It also logs a warning for each disabled protocol family.
 
-### Computed methods
+#### Computed methods
 
 | Method | Description |
 |--------|-------------|
@@ -102,7 +112,9 @@ Reads `pkgconfigsetup.SystemProbe()`, calls `sysconfig.Adjust(cfg)` to apply any
 
 ---
 
-### `sysctl/` sub-package
+### Configuration and build flags
+
+#### `sysctl/` sub-package
 
 Path: `pkg/network/config/sysctl`
 

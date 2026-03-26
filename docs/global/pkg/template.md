@@ -1,3 +1,5 @@
+> **TL;DR:** Vendored, lightly-patched copy of Go's `text/template` and `html/template` standard library packages, enabling the agent codebase to apply fixes without waiting for an upstream Go release while maintaining an identical public API.
+
 # pkg/template
 
 ## Purpose
@@ -14,6 +16,20 @@ The top-level package (`pkg/template`) contains only a doc comment. All usable c
 An internal helper package `pkg/template/internal/fmtsort` provides stable map-key ordering used during template execution (mirrors `internal/fmtsort` from the Go stdlib).
 
 ## Key elements
+
+### Key types
+
+- `Template` (both `text` and `html`) — parsed, thread-safe template object.
+- `FuncMap` — `map[string]any` mapping template function names to Go functions.
+- `HTML`, `CSS`, `JS`, `URL` (html package only) — pre-trusted content types that bypass auto-escaping.
+
+### Key functions
+
+- `New(name string) *Template` — allocates a named template.
+- `Must(t *Template, err error) *Template` — panics on error; safe for package-level `var` init.
+- `ParseFiles` / `ParseGlob` / `ParseFS` — load template source from files, patterns, or an `fs.FS`.
+
+---
 
 ### `pkg/template/text`
 

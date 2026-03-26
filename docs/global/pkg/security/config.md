@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/config` is the single source of truth for all CWS configuration, defining and loading every `runtime_security_config.*` key from `system-probe.yaml` into strongly-typed `Config` and `RuntimeSecurityConfig` structs.
+
 # pkg/security/config
 
 ## Purpose
@@ -6,7 +8,7 @@ Defines and loads the complete CWS (Cloud Workload Security) configuration. It i
 
 ## Key elements
 
-### Types
+### Key types
 
 #### `Config`
 
@@ -57,18 +59,20 @@ Represents a policy-file entry in configuration (name, globs for files, tags).
 
 Used when requesting activity-dump persistence. `StorageFormat` and `StorageType` are stringer-generated enums (`//go:generate go run golang.org/x/tools/cmd/stringer`).
 
-### Functions
+### Key functions
 
 | Function | Description |
 |----------|-------------|
 | `NewConfig()` | Creates a combined `Config` from both probe and CWS configs. |
 | `NewRuntimeSecurityConfig()` | Reads all `runtime_security_config.*` keys from `pkgconfigsetup.SystemProbe()` and returns a populated `RuntimeSecurityConfig`. |
 
-### Platform-specific sanitization (`config_linux.go` / `config_others.go`)
+### Configuration and build flags
+
+#### Platform-specific sanitization (`config_linux.go` / `config_others.go`)
 
 `sanitizePlatform()` is called after construction. On Linux with eBPFLess mode, it forces `ActivityDumpEnabled = false` and `SecurityProfileEnabled = false` since those features require full eBPF.
 
-### Constants
+#### Constants
 
 `ADMinMaxDumSize = 100` — minimum value enforced for `activity_dump.max_dump_size`.
 

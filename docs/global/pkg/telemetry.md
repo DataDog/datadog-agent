@@ -1,3 +1,5 @@
+> **TL;DR:** Thin compatibility shim that exposes Prometheus/OpenMetrics-backed `Counter`, `Gauge`, and `Histogram` types for agent-internal telemetry — usable at package-init time without a direct dependency on the component system, with a no-op serverless variant.
+
 # pkg/telemetry
 
 ## Purpose
@@ -23,6 +25,8 @@ fx dependency) use `pkg/telemetry` directly; components inside `comp/` typically
 
 ## Key elements
 
+### Key types
+
 ### Metric types
 
 | Type | Interface | Description |
@@ -38,7 +42,7 @@ The `Counter` / `Gauge` / `Histogram` interfaces carry both a variadic tag API
 (`Inc("val1", "val2", ...)`) and a `WithTags(map[string]string)` API for zero-allocation hot
 paths.
 
-### Constructor functions
+### Key functions
 
 ```go
 // Counters
@@ -60,6 +64,10 @@ telemetry.NewHistogramNoOp() Histogram  // always a no-op, useful in tests
 
 All constructors register the metric with the global registry immediately. They are safe to
 call at package-init time (inside `var` declarations or `init()`).
+
+### Configuration and build flags
+
+The `serverless` build tag selects `noopsimpl` (discards all metrics). The `Options.NoDoubleUnderscoreSep` field and `Options.DefaultMetric` field control naming and export behavior.
 
 ### Options
 

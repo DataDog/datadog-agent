@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/payload` provides lightweight routing-metadata types (`Via`, `Subnet`, `Interface`) attached to network flows, kept in a separate module to avoid pulling system-probe internals into packages that only need to inspect or forward routing information.
+
 # pkg/network/payload
 
 ## Purpose
@@ -6,6 +8,16 @@
 
 ## Key elements
 
+### Key interfaces
+
+This package exposes no interfaces or functions beyond the struct types below.
+
+### Key functions
+
+All fields are accessed directly — no constructor functions or helper methods are provided.
+
+### Key types
+
 | Type | Fields | Description |
 |---|---|---|
 | `Via` | `Subnet Subnet`, `Interface Interface` | Routing decision for a flow — which subnet alias and network interface were used. Embedded in `network.ConnectionStats` in `pkg/network`. |
@@ -13,6 +25,10 @@
 | `Interface` | `HardwareAddr string` | MAC address of the egress network interface. |
 
 All fields are tagged `omitempty` so that the JSON payload stays compact when routing information is unavailable.
+
+### Configuration and build flags
+
+This package carries no build constraints and no configuration. It is compiled on all platforms.
 
 ## Usage
 

@@ -1,3 +1,5 @@
+> **TL;DR:** The check execution engine root package, providing the `CheckScheduler` that bridges autodiscovery configs to running check instances by resolving them through a priority-ordered loader registry and submitting them to the collector component.
+
 # Package `pkg/collector`
 
 ## Purpose
@@ -30,6 +32,8 @@ The **collector component** (`comp/collector/collector`) is the fx component tha
 | [`comp/collector/collector`](../../comp/collector/collector.md) | fx component wrapping runner + scheduler; entry point for the main Agent |
 
 ## Key Elements
+
+### Key types
 
 ### `CheckScheduler`
 

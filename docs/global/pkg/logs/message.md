@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/message` defines the core data types (`Message`, `Payload`, `Origin`) that a log line carries through every stage of the pipeline, from raw tailer bytes through decoding, processing, encoding, and final delivery.
+
 # pkg/logs/message
 
 ## Purpose
@@ -12,7 +14,9 @@ message is transported; the types here provide a stable contract between all pip
 
 ## Key elements
 
-### `Message`
+### Key types
+
+#### `Message`
 
 The central type: a log line together with all of its metadata.
 
@@ -25,7 +29,7 @@ type Message struct {
 
 `Message` is always allocated on the heap (`*Message`) and flows through Go channels.
 
-### `MessageContent` and the state machine
+#### `MessageContent` and the state machine
 
 `MessageContent` tracks how the content bytes have been transformed. The state field drives
 `GetContent` and `SetContent` so callers do not need to know which representation is active.
@@ -63,7 +67,9 @@ func (m *Message) Render() ([]byte, error)         // renders structured → byt
 For `StateStructured`, `GetContent` returns only the user-visible message field (e.g. from a
 journald entry), not the full structured object.
 
-### `StructuredContent` interface
+### Key interfaces
+
+#### `StructuredContent` interface
 
 Implemented by tailers that emit structured log objects (journald, Windows Event Log).
 
@@ -78,7 +84,7 @@ type StructuredContent interface {
 `BasicStructuredContent` is the default implementation, backed by `map[string]interface{}` with
 a `"message"` key.
 
-### `MessageMetadata`
+#### `MessageMetadata`
 
 All non-content metadata attached to a message.
 
@@ -105,7 +111,7 @@ func (m *MessageMetadata) GetLatency() int64          // nanoseconds since inges
 func (m *MessageMetadata) RecordProcessingRule(ruleType, ruleName string)
 ```
 
-### `Origin`
+#### `Origin`
 
 Links a message to its `sources.LogSource` and carries per-message overrides for service,
 source, and tags.
@@ -129,7 +135,9 @@ func (o *Origin) Tags(processingTags []string) []string
 func (o *Origin) TagsPayload(processingTags []string) []byte   // syslog-style tag header bytes
 ```
 
-### Status constants and syslog severity
+### Configuration and build flags
+
+#### Status constants and syslog severity
 
 ```go
 const (
@@ -146,7 +154,9 @@ const (
 func StatusToSeverity(status string) []byte   // returns syslog severity bytes (e.g. "<46>")
 ```
 
-### `Payload`
+### Key functions
+
+#### `Payload`
 
 A batch of encoded messages ready to be sent to the intake (output of `sender.Strategy`).
 
@@ -164,7 +174,7 @@ func (m *Payload) Size() int64     // sum of RawDataLen across all messages
 func (m *Payload) IsMRF() bool     // true if all messages should go to MRF destinations
 ```
 
-### Constructor functions
+#### Constructor functions
 
 | Function | Use case |
 |---|---|
@@ -175,7 +185,7 @@ func (m *Payload) IsMRF() bool     // true if all messages should go to MRF dest
 | `NewStructuredMessage(content, origin, status, ts)` | Structured message (journald, WinEvent) |
 | `NewStructuredMessageWithParsingExtra(...)` | Structured with `IsTruncated` |
 
-### Sentinel values and tag helpers
+#### Sentinel values and tag helpers
 
 ```go
 var TruncatedFlag = []byte("...TRUNCATED...")  // prepended/appended to truncated lines
@@ -188,7 +198,7 @@ func MultiLineSourceTag(source string) string   // "multiline:<source>"
 func LogSourceTag(stream string) string         // "logsource:stdout" / "logsource:stderr"
 ```
 
-### `ParsingExtra`
+#### `ParsingExtra`
 
 Extra fields populated by parsers and consumed by downstream stages.
 

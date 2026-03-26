@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/tagger` is the central source of entity tags throughout the agent, deriving low/orchestrator/high-cardinality tag sets from workloadmeta events and serving them to metrics, logs, traces, and DogStatsD enrichment.
+
 # Component `comp/core/tagger`
 
 ## Purpose
@@ -14,7 +16,9 @@ Tags are grouped by **cardinality**, which controls how many distinct tag values
 
 ## Key Elements
 
-### Component interface (`comp/core/tagger/def`)
+### Key interfaces
+
+#### Component interface (`comp/core/tagger/def`)
 
 ```go
 type Component interface {
@@ -45,7 +49,9 @@ type Component interface {
 | `GlobalTags(cardinality)` | Static host-level tags used when host tags are absent (e.g., serverless). |
 | `EnrichTags(tb, originInfo)` | Resolves the origin of a DogStatsD packet to an entity and appends its tags to the accumulator. |
 
-### EntityID (`comp/core/tagger/types`)
+### Key types
+
+#### EntityID (`comp/core/tagger/types`)
 
 Entity IDs have the form `{prefix}://{id}`. The valid prefixes are:
 
@@ -64,7 +70,7 @@ Entity IDs have the form `{prefix}://{id}`. The valid prefixes are:
 
 Build an `EntityID` with `types.NewEntityID(prefix, id)`, or parse one from a string with `types.ExtractPrefixAndID(str)`.
 
-### TagInfo and TagStore
+#### TagInfo and TagStore
 
 Collectors (inside `taggerimpl`) produce `types.TagInfo` structs:
 
@@ -84,7 +90,7 @@ type TagInfo struct {
 
 The **TagStore** (`comp/core/tagger/tagstore`) ingests these and serves queries. When multiple sources report tags for the same entity, they are stored separately per source and merged at query time according to `CollectorPriority` (`NodeRuntime < NodeOrchestrator < ClusterOrchestrator`).
 
-### Entity
+#### Entity
 
 ```go
 type Entity struct {
@@ -99,7 +105,7 @@ type Entity struct {
 
 `entity.GetTags(cardinality)` flattens the appropriate tag slices into a single `[]string`.
 
-### Subscriptions
+#### Subscriptions
 
 `Subscribe` returns a `types.Subscription` interface:
 
@@ -113,7 +119,7 @@ type Subscription interface {
 
 Events have type `EventTypeAdded`, `EventTypeModified`, or `EventTypeDeleted`.
 
-### TagCardinality
+#### TagCardinality
 
 ```go
 const (

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/networkpath` provides the shared types, traceroute runner, payload structures, and metric-sending utilities for the agent's network path tracing feature, modeling hop-by-hop analysis between the agent host and remote destinations.
+
 # pkg/networkpath — Network path tracing
 
 ## Purpose
@@ -16,7 +18,9 @@ Actual packet-level traceroute logic lives in the external library `github.com/D
 
 ## Key elements
 
-### `traceroute/config/`
+### Key types
+
+#### `traceroute/config/`
 
 Defines the input parameters for a single traceroute execution.
 
@@ -24,7 +28,9 @@ Defines the input parameters for a single traceroute execution.
 |--------|-------------|
 | `Config` struct | `DestHostname`, `DestPort`, `MaxTTL`, `Timeout`, `Protocol`, `TCPMethod`, `TCPSynParisTracerouteMode`, `ReverseDNS`, `TracerouteQueries`, `E2eQueries`, `DisableWindowsDriver`, plus source service / container metadata. Passed from the check to the traceroute component. |
 
-### `traceroute/runner/`
+### Key functions
+
+#### `traceroute/runner/`
 
 The `Runner` wraps the `github.com/DataDog/datadog-traceroute` library and translates its results into `payload.NetworkPath`.
 
@@ -38,7 +44,9 @@ The `Runner` wraps the `github.com/DataDog/datadog-traceroute` library and trans
 
 The runner is platform-split: `runner_linux.go` and `runner_nolinux.go` provide OS-specific helpers (e.g. `createGatewayLookup`).
 
-### `payload/`
+### Key interfaces
+
+#### `payload/`
 
 Defines every type needed to represent and transmit a network-path result.
 
@@ -75,7 +83,7 @@ Defines every type needed to represent and transmit a network-path result.
 | `E2eProbe` | End-to-end probe stats: RTT samples, packet counts, loss percentage, jitter, and RTT latency summary (avg/min/max). |
 | `ValidateNetworkPath(path)` | Returns an error if any `TracerouteRun` has an empty destination IP. Called before forwarding to detect incomplete results from system-probe. |
 
-### `metricsender/`
+#### `metricsender/`
 
 An abstraction layer for emitting gauge metrics, so the same path-analysis code can run inside the agent check or via StatsD (e.g. in the process agent or standalone tools).
 
@@ -84,6 +92,10 @@ An abstraction layer for emitting gauge metrics, so the same path-analysis code 
 | `MetricSender` interface | `Gauge(metricName string, value float64, tags []string)`. |
 | `NewMetricSenderAgent(sender.Sender)` | Wraps an agent `sender.Sender`; forwards to `sender.Gauge` with an empty host. |
 | `NewMetricSenderStatsd(statsd.ClientInterface)` | Wraps a DogStatsD client; forwards to `statsdClient.Gauge` with sampling rate 1. |
+
+### Configuration and build flags
+
+The runner is platform-split: Linux and non-Linux variants are selected by build tags. Configuration is supplied via `config.Config` at call time. Agent-level configuration keys (e.g. `network_path.connections_monitoring.enabled`) are documented in the `## Usage` section below.
 
 ---
 

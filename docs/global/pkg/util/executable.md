@@ -1,3 +1,5 @@
+> **TL;DR:** Provides symlink-resolving helpers to locate the current agent executable's directory and to find other programs on `PATH`, filling the gap left by `os.Executable` for cross-platform agent installations.
+
 # pkg/util/executable
 
 ## Purpose
@@ -7,6 +9,8 @@
 ---
 
 ## Key elements
+
+### Key functions
 
 **`Folder() (string, error)`** — returns the directory containing the current executable after resolving all symlinks. Uses `os.Executable()` followed by `filepath.EvalSymlinks()` then `filepath.Dir()`. Returns an error if either `os.Executable` or symlink resolution fails.
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `agentcrashdetect` registers the `agentcrashdetect` check, which reads Windows BSOD crash records left by Datadog kernel drivers in the registry and reports them once via the Agent Telemetry pipeline.
+
 # comp/checks/agentcrashdetect
 
 **Package:** `github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect`
@@ -14,7 +16,7 @@ The check only activates when at least one of the relevant system-probe modules 
 
 ## Key Elements
 
-### Interface
+### Key interfaces
 
 ```go
 // def/component.go
@@ -23,7 +25,9 @@ type Component interface{}
 
 Marker interface; all behaviour is the side effect of registering the check factory during startup.
 
-### `AgentCrashDetect` check
+### Key types
+
+**`AgentCrashDetect` check struct:**
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -32,28 +36,7 @@ Marker interface; all behaviour is the side effect of registering the check fact
 | `probeconfig` | `compsysconfig.Component` | System-probe config, used to check enabled flags |
 | `atel` | `agenttelemetry.Component` | Sends the `agentbsod` telemetry event |
 
-### Crash detection mechanism
-
-Crash data is written to the Windows registry by the `wincrashdetect` system-probe module after the system recovers from a BSOD. The registry path is:
-
-```
-HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting
-```
-
-`WinCrashReporter.CheckForCrash()` reads and returns any unprocessed crash record. The `lastReported` registry key prevents the same crash from being reported more than once.
-
-### Datadog driver list
-
-The check only reports crashes where a Datadog driver appears in the call stack:
-
-| Driver name | Purpose |
-|-------------|---------|
-| `ddnpm` | Network Performance Monitoring / USM |
-| `ddprocmon` | CWS process monitoring |
-| `ddinjector` | APM application tracing |
-| `crashdriver` | Testing only |
-
-### `AgentBSOD` telemetry payload
+**`AgentBSOD` telemetry payload:**
 
 ```go
 type AgentBSOD struct {
@@ -68,9 +51,30 @@ type AgentBSOD struct {
 
 Sent as a JSON-marshalled byte slice via `agenttelemetry.Component.SendEvent("agentbsod", payload)`.
 
-### FX wiring
+**Datadog driver list** — the check only reports crashes where one of these drivers appears in the call stack:
 
-`Requires`:
+| Driver name | Purpose |
+|-------------|---------|
+| `ddnpm` | Network Performance Monitoring / USM |
+| `ddprocmon` | CWS process monitoring |
+| `ddinjector` | APM application tracing |
+| `crashdriver` | Testing only |
+
+### Key functions
+
+**Crash detection mechanism:** Crash data is written to the Windows registry by the `wincrashdetect` system-probe module after the system recovers from a BSOD:
+
+```
+HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting
+```
+
+`WinCrashReporter.CheckForCrash()` reads and returns any unprocessed crash record. The `lastReported` registry key prevents the same crash from being reported more than once.
+
+`NewComponent` calls `core.RegisterCheck` during `OnStart`.
+
+### Configuration and build flags
+
+Requires the following fx dependencies:
 
 | Dependency | Purpose |
 |------------|---------|
@@ -78,7 +82,7 @@ Sent as a JSON-marshalled byte slice via `agenttelemetry.Component.SendEvent("ag
 | `agenttelemetry.Component` | Send crash telemetry |
 | `compdef.Lifecycle` | Register `OnStart` hook |
 
-`NewComponent` calls `core.RegisterCheck` during `OnStart`.
+The check activates only when at least one of `network_config.enabled`, `service_monitoring_config.enabled`, `runtime_security_config.enabled`, or `windows_crash_detection.enabled` is `true`.
 
 ## Usage
 

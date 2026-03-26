@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/traceutil` provides the low-level span and trace utilities used throughout the trace pipeline — the `ProcessedTrace` pipeline carrier, span attribute helpers, top-level span detection, Azure App Service tag extraction, and string normalization/truncation functions — with strict import constraints to avoid circular dependencies.
+
 # pkg/trace/traceutil
 
 ## Purpose

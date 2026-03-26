@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/trace-telemetry` polls the trace-agent's `/debug/vars` endpoint every 45 seconds to expose `trace.enabled` and `trace.working` Prometheus gauges indicating whether the trace-agent is reachable and has sent data.
+
 # comp/trace-telemetry
 
 ## Purpose
@@ -11,31 +13,36 @@ The component polls the trace-agent's `/debug/vars` expvar endpoint every 45 sec
 
 ## Key elements
 
-### `comp/trace-telemetry/def`
+### Key interfaces
 
 | Symbol | Description |
 |--------|-------------|
 | `Component` | Empty marker interface; the component runs entirely as a side effect (background goroutine). |
 
-### `comp/trace-telemetry/impl`
+### Key types
 
 | Symbol | Description |
 |--------|-------------|
-| `Requires` | fx dependency struct: `config.Component`, `ipc.HTTPClient`, `log.Component`, `telemetry.Component`, `compdef.Lifecycle`. |
-| `Provides` | fx output struct containing `tracetelemetry.Component`. |
-| `NewComponent(reqs Requires) (Provides, error)` | Constructor; registers `OnStart`/`OnStop` lifecycle hooks. |
 | `tracetelemetryImpl` | Private implementation. Holds two `telemetry.Gauge` values (`enabled`, `working`) and two `atomic.Bool` fields (`running`, `sending`) that are updated by `updateState()`. |
 | `traceAgentExpvars` | JSON-deserialization struct matching the trace-agent's expvar output (`trace_writer.bytes`, `stats_writer.bytes`). |
+| `Requires` | fx dependency struct: `config.Component`, `ipc.HTTPClient`, `log.Component`, `telemetry.Component`, `compdef.Lifecycle`. |
+| `Provides` | fx output struct containing `tracetelemetry.Component`. |
 
-Key internal methods:
+### Key functions
 
+- `NewComponent(reqs Requires) (Provides, error)` — constructor; registers `OnStart`/`OnStop` lifecycle hooks.
 - `Start()` — launches the polling goroutine with a `time.Ticker` (45 s) and a cancellable context.
 - `Stop()` — cancels the context, which terminates the goroutine.
 - `updateState()` — fetches `https://localhost:<apm_config.debug.port>/debug/vars`, marks `running = true` on success, marks `sending = true` if any bytes have been written. The method is a no-op once `sending` is `true` (state is sticky).
 
-### `comp/trace-telemetry/fx`
+The fx `Module()` forces instantiation unconditionally via `fx.Invoke`, so the background goroutine always starts when the main agent runs.
 
-Provides the fx `Module()`. The module forces instantiation unconditionally via `fx.Invoke`, so the background goroutine always starts when the main agent runs.
+### Configuration and build flags
+
+| Key | Description |
+|---|---|
+| `apm_config.debug.port` | Port for the trace-agent debug HTTP server (default `5012`) |
+| `apm_config.enabled` | When `false`, the trace-agent is not started and `trace.enabled` remains `0.0` |
 
 ## Usage
 
@@ -58,13 +65,6 @@ The `working` state is **sticky**: once `updateState()` observes non-zero
 is set to `1.0` permanently for that process lifetime. This reflects the
 intended semantics — "the trace-agent has successfully sent data since startup"
 — rather than "the trace-agent is currently sending data".
-
-### Configuration
-
-The component reads `apm_config.debug.port` via `config.Component` to build the
-polling URL `https://localhost:<port>/debug/vars`. The default port is `5012`
-(set by `pkg/trace/config`). If `apm_config.enabled` is `false` the
-trace-agent is not started, so `trace.enabled` will remain `0.0`.
 
 ### Testing
 

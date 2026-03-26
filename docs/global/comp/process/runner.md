@@ -1,3 +1,5 @@
+> **TL;DR:** The fx component that owns the check scheduling loop for the process agent — it filters enabled checks from the fx `"check"` group, starts the underlying `CheckRunner`, and wires the real-time notification channel so the submitter can adjust collection frequency.
+
 # comp/process/runner — Process Agent Check Runner Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/process/runner`
@@ -16,7 +18,9 @@ The runner receives all registered check components (process, connections, conta
 | `comp/process/runner` (root) | `Component` interface |
 | `comp/process/runner/runnerimpl` | `runnerImpl` struct, `newRunner` constructor, `Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/process/runner
@@ -30,6 +34,10 @@ type Component interface {
 |---|---|
 | `GetChecks()` | Returns the enabled `checks.Check` objects that the runner is actively executing. |
 | `GetProvidedChecks()` | Returns all registered `types.CheckComponent` instances, regardless of whether they are enabled. Useful for introspection (e.g., status display). |
+
+### Configuration and build flags
+
+No dedicated config keys. Lifecycle registration is conditional on `agent.Enabled()`. The `filterEnabledChecks` helper (package-private) filters the `"check"` group at construction time.
 
 ## fx wiring
 

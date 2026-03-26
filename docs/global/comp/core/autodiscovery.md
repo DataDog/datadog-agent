@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/autodiscovery` dynamically matches integration configuration templates against discovered workload services (containers, pods, ECS tasks) and notifies downstream schedulers (check runner, log pipeline) when configs appear or disappear.
+
 # Component `comp/core/autodiscovery`
 
 ## Purpose
@@ -27,7 +29,9 @@ The metascheduler dispatches all scheduled configs to registered `Scheduler` sub
 
 ## Key Elements
 
-### Component interface (`comp/core/autodiscovery`)
+### Key interfaces
+
+#### Component interface (`comp/core/autodiscovery`)
 
 ```go
 type Component interface {
@@ -60,7 +64,9 @@ type Component interface {
 }
 ```
 
-### `integration.Config`
+### Key types
+
+#### `integration.Config`
 
 The central data type produced by providers and consumed by schedulers:
 
@@ -88,7 +94,7 @@ type Config struct {
 
 A config is a **template** if `ADIdentifiers` (or `AdvancedADIdentifiers`) is non-empty. Templates are held until a matching service is discovered, then resolved. Non-templates are scheduled immediately.
 
-### Config providers (`comp/core/autodiscovery/providers/types`)
+#### Config providers (`comp/core/autodiscovery/providers/types`)
 
 A config provider supplies `integration.Config` values. There are two flavors:
 
@@ -139,7 +145,7 @@ Or register a factory in the catalog so it is instantiated by name from `datadog
 func RegisterProvider(name string, factory types.ConfigProviderFactory)
 ```
 
-### Scheduler interface (`comp/core/autodiscovery/scheduler`)
+#### Scheduler interface (`comp/core/autodiscovery/scheduler`)
 
 Any component that consumes resolved configs implements `Scheduler`:
 
@@ -165,7 +171,7 @@ Key scheduler subscribers in the agent:
 | `logs/schedulers/ad` | Starts log collection for discovered services |
 | `comp/logs/adscheduler` | Component-wrapped version of the log AD scheduler |
 
-### Listeners and services
+#### Listeners and services
 
 Listeners monitor infrastructure and generate "service" records:
 
@@ -188,7 +194,9 @@ Each `Service` has a service ID and a tagger entity:
 
 Built-in listeners include: `docker`, `containerd`, `kubelet`, `kube_endpoints`, `kube_services`, `ecs`, `snmp`, `cloudfoundry`.
 
-### AD identifiers and template resolution
+### Configuration and build flags
+
+#### AD identifiers and template resolution
 
 A config template carries AD identifiers — strings that name the services it applies to. When a listener reports a new service, autodiscovery looks for templates whose AD identifiers match that service's identifiers. On a match, template variables in the instance config are expanded (e.g., `%%host%%`, `%%port%%`, `%%env_VAR%%`) and the resolved config is scheduled.
 

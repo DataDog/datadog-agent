@@ -1,3 +1,5 @@
+> **TL;DR:** Manages the lifecycle of a full OpenTelemetry Collector embedded in the Datadog Agent, supporting both the Datadog Distribution of OpenTelemetry (DDOT) with a user-supplied config and the core Agent's fixed OTLP ingestion pipeline.
+
 # comp/otelcol/collector — OpenTelemetry Collector component
 
 ## Purpose
@@ -17,7 +19,9 @@ The component requires the `otlp` build tag.
 
 ## Key elements
 
-### Interface
+### Key interfaces
+
+#### Interface
 
 ```go
 // comp/otelcol/collector/def
@@ -29,7 +33,9 @@ type Component interface {
 `Status()` returns the current OTel Collector state (e.g. `Running`, `Stopping`)
 along with any error string.
 
-### Implementations
+### Key types
+
+#### Implementations
 
 There are two implementations, selected by the fx module used:
 
@@ -71,7 +77,9 @@ A lighter implementation that wraps `comp/otelcol/otlp.Pipeline`. It provides:
 - `FlareProvider` — serialises OTLP pipeline diagnostics into Agent flares.
 - `StatusProvider` — surfaces the collector state in `agent status`.
 
-### fx modules
+### Key functions
+
+#### fx modules
 
 ```go
 // For OTel Agent
@@ -86,7 +94,9 @@ Both modules call `fxutil.ProvideOptional[collector.Component]()` so the
 component is available as an `option.Option[collector.Component]` for consumers
 that must not hard-depend on it.
 
-### `Params`
+### Configuration and build flags
+
+#### `Params`
 
 ```go
 type Params struct {

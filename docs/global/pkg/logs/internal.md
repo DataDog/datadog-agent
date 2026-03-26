@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/internal` contains the internal building blocks that transform raw byte streams from tailers into decoded `message.Message` values, including the framer, line parser, multiline aggregator, structured-content parsers, and tag provider — all wired together by the `Decoder` pipeline.
+
 # pkg/logs/internal
 
 ## Purpose
@@ -17,6 +19,44 @@ Tailer bytes
 Each stage is wired together in `decoder/decoder.go`.
 
 ---
+
+## Key elements
+
+### Key interfaces
+
+| Interface | Package | Description |
+|---|---|---|
+| `Decoder` | `decoder/` | `Start()`, `Stop()`, `InputChan()`, `OutputChan()`, `GetLineCount()`, `GetDetectedPattern()`. Public contract for the decoder actor. |
+| `LineHandler` | `decoder/` | Internal: `process(*message.Message)`, `flushChan()`, `flush()`. Implemented by single-line, multiline, auto-multiline, and preprocessor variants. |
+| `LineParser` | `decoder/` | Wraps a `parsers.Parser` and handles partial-line assembly. |
+| `Parser` | `parsers/` | `Parse(*message.Message) (*message.Message, error)` + `SupportsPartialLine() bool`. Implemented by kubernetes, dockerstream, dockerfile, encodedtext, integrations, and noop parsers. |
+| `FrameMatcher` | `framer/` | `FindFrame(buf []byte, seen int)` — finds frame boundaries in a byte buffer. |
+| `Aggregator` | `decoder/preprocessor/` | Four implementations: `PassThroughAggregator`, `RegexAggregator`, `CombiningAggregator`, `DetectingAggregator`. |
+
+### Key types
+
+| Type | Package | Description |
+|---|---|---|
+| `Framer` | `framer/` | Stateful struct that breaks a byte stream into discrete frames, calling `outputFn` per complete frame. |
+| `Preprocessor` | `decoder/preprocessor/` | Orchestrates JSON aggregation → tokenization → labeling → aggregation → sampling. |
+| `Tokenizer` | `decoder/preprocessor/` | Converts raw log bytes into structural `Token` sequences for the labeler. |
+| `Labeler` | `decoder/preprocessor/` | Assigns a `Label` (e.g. `StartGroup`, `NoGroup`) to each log line. |
+| `DetectedPattern` | `decoder/` | Thread-safe container for the auto-multiline detected regex, reused after file rotation. |
+| `Provider` | `tag/` | Returns a tag list for a log message entity. |
+
+### Key functions
+
+| Function | Package | Description |
+|---|---|---|
+| `decoder.InitializeDecoder(source, parser, tailerInfo)` | `decoder/` | Standard entry point: UTF-8 newline-framed decoder for file and socket tailers. |
+| `decoder.NewDecoderWithFraming(source, parser, framing, multiLinePattern, tailerInfo)` | `decoder/` | Creates a decoder with an explicit `Framing`, selecting the line handler from source config. |
+| `decoder.NewNoopDecoder()` | `decoder/` | Pass-through decoder for tests. |
+| `tag.NewProvider(entityID, tagAdder)` | `tag/` | Tag provider backed by the Tagger, with a one-time warm-up sleep on first call. |
+| `tag.NewLocalProvider(tags)` | `tag/` | Statically configured tag provider with optional expected-tags window. |
+
+### Configuration and build flags
+
+See [Configuration knobs](#configuration-knobs-relevant-datadogyaml-keys) below for the full list of `datadog.yaml` keys that affect this package.
 
 ## Sub-packages
 

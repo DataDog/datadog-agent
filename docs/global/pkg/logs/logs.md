@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs` is the logs agent subsystem that collects log lines from files, containers, journald, Windows Event Log, and network sockets, then processes and forwards them to the Datadog intake through a configurable multi-stage pipeline.
+
 # pkg/logs
 
 ## Purpose
@@ -66,7 +68,9 @@ Autodiscovery
 
 ## Key elements
 
-### `sources.LogSource`
+### Key types
+
+#### `sources.LogSource`
 
 The unit of log collection configuration. Created by schedulers and consumed by launchers.
 
@@ -88,7 +92,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource
 `Config.Type` controls which launcher picks up the source (e.g. `"file"`, `"docker"`,
 `"journald"`, `"tcp"`, `"udp"`, `"windows_event"`).
 
-### `sources.LogSources`
+#### `sources.LogSources`
 
 Thread-safe pub/sub registry. Schedulers call `AddSource`/`RemoveSource`; launchers subscribe
 with `SubscribeForType` or `SubscribeAll` and receive channels of `*LogSource`.
@@ -101,7 +105,9 @@ func (s *LogSources) SubscribeAll() (added, removed chan *LogSource)
 func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource
 ```
 
-### `schedulers.Scheduler` interface
+### Key interfaces
+
+#### `schedulers.Scheduler` interface
 
 ```go
 type Scheduler interface {
@@ -114,7 +120,7 @@ type Scheduler interface {
 schedulers. The most important built-in implementation is the Autodiscovery scheduler in
 `pkg/logs/schedulers/ad`.
 
-### `launchers.Launcher` interface
+#### `launchers.Launcher` interface
 
 ```go
 type Launcher interface {
@@ -126,7 +132,7 @@ type Launcher interface {
 
 `SourceProvider` exposes `SubscribeForType`, `SubscribeAll`, and `GetAddedForType`.
 
-### `pipeline.Provider` interface
+#### `pipeline.Provider` interface
 
 Entry point used by tailers to obtain a pipeline channel.
 
@@ -143,7 +149,9 @@ type Provider interface {
 `NextPipelineChan` returns a round-robin channel across all running pipelines. Tailers write
 `*message.Message` values directly to this channel.
 
-### `pipeline.Pipeline`
+### Key functions
+
+#### `pipeline.Pipeline`
 
 A single pipeline instance: `Processor → Strategy → Sender → Destination`.
 
@@ -165,7 +173,7 @@ The encoder chosen at construction time depends on the transport:
 - `processor.ProtoEncoder` — protobuf/HTTP
 - `processor.RawEncoder` — TCP
 
-### `processor.Processor`
+#### `processor.Processor`
 
 Runs on each pipeline goroutine. For every `*message.Message` it:
 1. Applies `config.ProcessingRule`s (exclude, include, mask/redact, exclude-truncated).
@@ -183,7 +191,7 @@ type Encoder interface {
 Processing rules are sourced from both the global `logs_config.processing_rules` and per-source
 `LogsConfig.ProcessingRules`.
 
-### `sender.Strategy`
+#### `sender.Strategy`
 
 Converts a stream of encoded `*message.Message` values into `*message.Payload` batches.
 
@@ -191,18 +199,20 @@ Converts a stream of encoded `*message.Message` values into `*message.Payload` b
   then compresses and flushes; used for HTTP.
 - `StreamStrategy` — one message per payload; used for TCP.
 
-### `sender.Sender`
+#### `sender.Sender`
 
 Distributes `*message.Payload` values across one or more `worker` goroutines, each of which
 calls a `client.Destination` to deliver the payload to the intake.
 
-### Pipeline failover (`logs_config.pipeline_failover.enabled`)
+### Configuration and build flags
+
+#### Pipeline failover (`logs_config.pipeline_failover.enabled`)
 
 When enabled, the provider inserts a router channel between tailers and pipelines. A forwarder
 goroutine tries non-blocking sends to all pipelines in order before falling back to a blocking
 send on the primary. This prevents a single blocked pipeline from stalling all tailers.
 
-### Multi-Region Failover (MRF)
+#### Multi-Region Failover (MRF)
 
 Controlled by `multi_region_failover.failover_logs` and
 `multi_region_failover.logs_service_allowlist`. When active, the processor sets

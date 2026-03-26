@@ -1,3 +1,5 @@
+> **TL;DR:** Measures the fraction of time a component is busy (0.0–1.0) using EWMA smoothing over fixed intervals, designed for check runner workers that wrap each execution with `Started()`/`Finished()` calls.
+
 # pkg/util/utilizationtracker
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/utilizationtracker`

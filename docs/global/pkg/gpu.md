@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/gpu` implements GPU monitoring inside system-probe by intercepting CUDA runtime calls via eBPF uprobes and combining them with NVML device data to produce per-process GPU utilization and memory-allocation metrics.
+
 # pkg/gpu
 
 ## Purpose
@@ -20,7 +22,9 @@ tags. Most sub-packages that do not touch eBPF or NVML are usable under just
 
 ## Key elements
 
-### Top-level data flow
+### Key types
+
+#### Top-level data flow
 
 ```
 libcudart / libcuda uprobe events
@@ -50,7 +54,7 @@ libcudart / libcuda uprobe events
   returns *model.GPUStats to the core check
 ```
 
-### Types
+#### Types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -67,7 +71,9 @@ libcudart / libcuda uprobe events
 | `SafeNVML` | `safenvml/lib.go` | Interface wrapping `github.com/NVIDIA/go-nvml`. Symbol-checks every NVML call at runtime; fails fast only on missing critical symbols. Singleton accessed via `GetSafeNvmlLib()`. |
 | `SafeDevice` / `PhysicalDevice` / `MIGDevice` | `safenvml/device*.go` | Represent NVML GPU devices; `MIGDevice` wraps MIG slices. |
 
-### eBPF types (generated, `ebpf/`)
+### Key interfaces
+
+#### eBPF types (generated, `ebpf/`)
 
 The `ebpf/` sub-package exposes C-struct mirrors generated from
 `ebpf/c/types.h`:
@@ -80,7 +86,9 @@ The `ebpf/` sub-package exposes C-struct mirrors generated from
 | `CudaSync` | Stream-synchronise event. |
 | `CudaEventKey` / `CudaEventValue` | Keys/values for the `cuda_event_to_stream` BPF map. |
 
-### CUDA binary parsing (`cuda/`)
+### Key functions
+
+#### CUDA binary parsing (`cuda/`)
 
 | Symbol | Description |
 |--------|-------------|
@@ -89,7 +97,7 @@ The `ebpf/` sub-package exposes C-struct mirrors generated from
 | `CubinKernel` | Per-kernel metadata extracted from a cubin: name, `KernelSize`, shared memory, register counts. |
 | `KernelCache` | Asynchronous cache: `Get(pid, addr, smVersion)` returns a `*CubinKernel` immediately if cached, or `ErrKernelNotProcessedYet` while a background goroutine resolves it. |
 
-### Container / device mapping (`containers/`)
+#### Container / device mapping (`containers/`)
 
 `MatchContainerDevices(container, devices)` maps a workloadmeta `Container` to
 NVML `Device` objects using:
@@ -100,12 +108,16 @@ NVML `Device` objects using:
 
 `HasGPUs(container)` is a lightweight pre-check before calling the full matcher.
 
-### Tag injection (`tags/`)
+#### Tag injection (`tags/`)
 
 `GetTags()` returns host-level tags indicating GPU presence (e.g.,
 `gpu:true`). The no-op stub (`tags_noop.go`) is used on non-Linux builds.
 
-### Memory pools
+### Configuration and build flags
+
+The core logic requires `linux_bpf` and `nvml` build tags. Sub-packages without eBPF or NVML dependencies compile under `linux` or all platforms. Configuration is loaded via `config.New()` from the `gpu_monitoring` section of `system-probe.yaml`.
+
+#### Memory pools
 
 Three object pools (`memoryPools` in `stream.go`) recycle `enrichedKernelLaunch`,
 `kernelSpan`, and `memorySpan` to reduce GC pressure. Every `pool.Get()` must

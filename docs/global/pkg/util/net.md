@@ -1,3 +1,5 @@
+> **TL;DR:** Provides two small network utilities — FQDN resolution via DNS round-trip and a pre-flight check for whether a Unix domain socket is writable — used by host metadata and DogStatsD.
+
 # pkg/util/net
 
 ## Purpose
@@ -12,12 +14,14 @@ The package is intentionally thin: it wraps Go's standard `net` package and `gol
 
 ## Key elements
 
+### Key functions
+
 | Symbol | File(s) | Description |
 |--------|---------|-------------|
 | `Fqdn(hostname string) string` | `host.go` / `host_serverless.go` | Resolves a hostname to its FQDN using a forward (`LookupIP`) and reverse (`LookupAddr`) DNS round-trip. Falls back to the original hostname on any error. Under the `serverless` build tag the function always returns `""` because DNS is unavailable in that environment. |
 | `IsUDSAvailable(path string) bool` | `endpoint_check_nix.go` / `endpoint_check_windows.go` | Returns `true` only when the path exists, is a socket (`ModeSocket`), and the process has write permission (`unix.W_OK`). Always returns `false` on Windows, where DogStatsD does not use UDS datagram sockets. |
 
-### Build tags
+### Configuration and build flags
 
 | Tag | Effect |
 |-----|--------|

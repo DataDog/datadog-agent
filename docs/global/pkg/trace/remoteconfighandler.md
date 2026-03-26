@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/remoteconfighandler` bridges the Remote Configuration system to the trace agent's runtime-adjustable samplers, applying live updates to sampling TPS, rare sampler toggle, log level, and MRF failover settings without requiring an agent restart.
+
 # pkg/trace/remoteconfighandler
 
 ## Purpose

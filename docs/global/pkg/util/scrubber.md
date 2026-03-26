@@ -1,3 +1,5 @@
+> **TL;DR:** Removes sensitive credentials (API keys, passwords, tokens, TLS certificates, and more) from arbitrary text, YAML, and JSON before they are logged or included in a diagnostic flare.
+
 # pkg/util/scrubber
 
 ## Purpose
@@ -10,7 +12,9 @@ can be registered at runtime from agent configuration or the secrets backend.
 
 ## Key elements
 
-### Core type: `Scrubber`
+### Key types
+
+#### Core type: `Scrubber`
 
 ```go
 type Scrubber struct { ... }
@@ -47,7 +51,7 @@ lines (starting with `#`) and blank lines are dropped during single-line process
 | `SetShouldApply(func(Replacer) bool)` | Gate replacers conditionally (used by flare to skip replacers newer than the flare version) |
 | `SetPreserveENC(bool)` | When true, single-line replacers skip matches that contain an `ENC[...]` secret reference so that encrypted values survive scrubbing |
 
-### `Replacer`
+#### `Replacer`
 
 ```go
 type Replacer struct {
@@ -69,7 +73,9 @@ type Replacer struct {
 
 **`ReplacerKind`** — `SingleLine` or `MultiLine`.
 
-### `DefaultScrubber` and package-level helpers
+### Key functions
+
+#### `DefaultScrubber` and package-level helpers
 
 `DefaultScrubber` is a package-level `*Scrubber` initialised with all default replacers on
 `init()`. Package-level functions delegate to it:
@@ -86,7 +92,9 @@ type Replacer struct {
 | `ScrubJSONString(data)` | `DefaultScrubber.ScrubJSON` (string in/out) |
 | `ScrubDataObj(data)` | `DefaultScrubber.ScrubDataObj` |
 
-### Default credential patterns
+### Configuration and build flags
+
+#### Default credential patterns
 
 The default replacers cover:
 
@@ -99,7 +107,7 @@ The default replacers cover:
 - **OAuth**: `consumer_key`, `token_id`.
 - **HTTP headers**: `x-*-key`, `x-*-token`, `x-*-auth`, `x-*-secret` patterns, plus specific well-known header names.
 
-### Runtime key registration
+#### Runtime key registration
 
 **`AddStrippedKeys(keys []string)`** adds YAML key patterns to `DefaultScrubber` at runtime
 and records them in a global list so that scrubbers created afterwards also inherit them:
@@ -113,7 +121,7 @@ scrubber.AddStrippedKeys(scrubberAdditionalKeys)     // from additional_endpoint
 scrubber.AddStrippedKeys([]string{resolvedSecretKey})
 ```
 
-### Helpers
+#### Helpers
 
 **`HideKeyExceptLastFourChars(key string) string`** — replaces all but the last 4 characters
 with `*`. Returns `"********"` for unrecognised lengths.

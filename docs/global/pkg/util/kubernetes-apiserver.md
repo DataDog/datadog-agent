@@ -1,3 +1,5 @@
+> **TL;DR:** Authenticated Kubernetes API server client used by the Cluster Agent, providing a singleton `APIClient` with all typed and dynamic clients, informer factories, leader election, cluster controllers for pod-to-service mapping and HPA, and a resource-type discovery cache.
+
 # pkg/util/kubernetes/apiserver
 
 ## Purpose
@@ -16,6 +18,45 @@ Everything in this package requires the `kubeapiserver` build tag; most files al
 All production code in this package and its sub-packages is gated by `//go:build kubeapiserver`. Stub files (`apiserver_nocompile.go`, `controllers/metadata_controller_nocompile.go`) satisfy the interface when the tag is absent.
 
 ## Key elements
+
+### Key types
+
+**`APIClient`** — the central type; carries all Kubernetes clients and informer factories. Obtained via `GetAPIClient()` or `WaitForAPIClient(ctx)`.
+
+**`MetadataMapperBundle`** — per-node mapping of pods to Kubernetes Services. Stored in the shared in-memory cache. See `### MetadataMapperBundle` below.
+
+**`LeaderEngine`** — manages Kubernetes leader election for the Cluster Agent. See `### leaderelection/` sub-package.
+
+**`ControllerContext`** — carries all shared dependencies for the cluster controllers. See `### controllers/` sub-package.
+
+**`ClusterResource`** / **`FeatureGate`** — returned by resource type cache and feature-gate discovery helpers respectively.
+
+### Key interfaces
+
+The `APIClient` exposes typed clients (`kubernetes.Interface`, `dynamic.Interface`, etc.) and informer factories — these are standard `client-go` interfaces, not defined in this package.
+
+### Key functions
+
+See `### Notable APIClient methods`, `### Informer sync helpers`, `### Resource type cache`, `### Entity ID builders`, and `### Client constructors for one-off use` below.
+
+### Configuration and build flags
+
+All production code requires `//go:build kubeapiserver`. Stub files satisfy the interface when the tag is absent.
+
+| Config key | Default | Effect |
+|---|---|---|
+| `kubernetes_kubeconfig_path` | `""` | Load kubeconfig from path; otherwise use in-cluster config |
+| `kubernetes_apiserver_client_timeout` | — | Timeout for regular clients |
+| `kubernetes_apiserver_informer_client_timeout` | — | Timeout for informer clients |
+| `kubernetes_informers_resync_period` | — | Informer resync interval |
+| `kubernetes_apiserver_tls_verify` | `true` | Enable TLS verification |
+| `kubernetes_apiserver_use_protobuf` | `false` | Use protobuf encoding |
+| `leader_lease_name` | — | Name of the Lease or ConfigMap used as lock |
+| `leader_lease_duration` | 60 s | Duration of the lease |
+| `leader_election_default_resource` | auto | `"lease"` or `"configmap"` |
+| `kube_cache_sync_timeout_seconds` | — | Deadline for `SyncInformers` |
+
+---
 
 ### `APIClient` struct (`apiserver.go`)
 

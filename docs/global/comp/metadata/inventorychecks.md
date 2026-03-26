@@ -1,3 +1,5 @@
+> **TL;DR:** Builds and periodically sends the `check_metadata` inventory payload, recording per-instance check metadata, log source configuration, and on-disk config file hashes to populate the Checks tab of the Datadog Infrastructure inventory UI.
+
 # comp/metadata/inventorychecks — Checks Inventory Payload Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/metadata/inventorychecks`
@@ -29,7 +31,9 @@ The component registers itself as a collector event listener and triggers a refr
 | `comp/metadata/inventorychecks` | Component interface (`Component`) |
 | `comp/metadata/inventorychecks/inventorychecksimpl` | Implementation (`inventorychecksImpl` struct), `Payload` type, fx `Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -47,9 +51,9 @@ type Component interface {
 }
 ```
 
-## Key types
+### Key types
 
-### `inventorychecksimpl.Payload`
+#### `inventorychecksimpl.Payload`
 
 The JSON structure sent to the backend:
 
@@ -68,17 +72,27 @@ type Payload struct {
 - `logs_metadata` — keyed by log source name; contains config, status, service, source, tags, etc.
 - `files_metadata` — keyed by filename; contains `raw_config` and `hash` fields.
 
-### Per-instance metadata map
+#### Per-instance metadata map
 
 Each entry in `check_metadata[checkName]` is built from `check.GetMetadata(c, withConfigs)` merged with any values submitted via `Set`. When `inventories_checks_configuration_enabled` is true, `init_config` and `instance_config` YAML strings are included (pre-scrubbed by the check infrastructure before storage).
 
-### `util.InventoryPayload` (embedded)
+#### `util.InventoryPayload` (embedded)
 
 The implementation embeds `comp/metadata/internal/util.InventoryPayload`, which provides:
 - `Refresh()` — schedule an out-of-cycle send
 - `GetAsJSON()` — return current payload as scrubbed JSON
 - `MetadataProvider()` — returns a `runnerimpl.Provider`
 - `FlareProvider()` — adds `metadata/inventory/checks.json` to flares
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `inventories_enabled` | `true` | Master switch for all inventory metadata |
+| `inventories_checks_configuration_enabled` | `true` | Include init/instance config in check metadata and log source metadata |
+| `inventories_min_interval` | `60s` | Minimum time between two payload submissions |
+| `inventories_max_interval` | `600s` | Maximum time between submissions |
+| `inventories_first_run_delay` | `60s` | Delay before the first send after startup |
 
 ## fx wiring
 

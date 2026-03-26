@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/workloadmeta` is the central in-memory store for workload metadata (containers, pods, ECS tasks, processes, images, GPUs), merging data from multiple runtime collectors and distributing lifecycle events to downstream components via a publish-subscribe model.
+
 # Component `comp/core/workloadmeta`
 
 ## Purpose
@@ -8,7 +10,9 @@ Other agent components subscribe to this store to react to workload lifecycle ev
 
 ## Key Elements
 
-### Component interface (`comp/core/workloadmeta/def`)
+### Key interfaces
+
+#### Component interface (`comp/core/workloadmeta/def`)
 
 The component is accessed via `workloadmeta.Component`:
 
@@ -65,7 +69,9 @@ type Component interface {
 }
 ```
 
-### Entity kinds (`Kind`)
+### Key types
+
+#### Entity kinds (`Kind`)
 
 Each stored object belongs to a `Kind`:
 
@@ -84,7 +90,7 @@ Each stored object belongs to a `Kind`:
 | `KindKubelet` | `kubelet` |
 | `KindCRD` | `crd` |
 
-### Sources (`Source`)
+#### Sources (`Source`)
 
 Data can come from multiple sources; workloadmeta merges them into one entity:
 
@@ -99,7 +105,9 @@ Data can come from multiple sources; workloadmeta merges them into one entity:
 | `SourceHost` | Host-level tags |
 | `SourceServiceDiscovery` | Service discovery for processes |
 
-### Events and subscriptions
+### Key functions
+
+#### Events and subscriptions
 
 Subscribers receive `EventBundle` values on a channel. Each bundle contains one or more `Event` values:
 
@@ -136,7 +144,7 @@ for bundle := range ch {
 
 A `nil` filter matches all events for all kinds from all sources.
 
-### Collectors (`Collector` interface)
+#### Collectors (`Collector` interface)
 
 Collectors are the source of data. Each collector implements:
 
@@ -160,7 +168,9 @@ type CollectorProvider struct {
 
 Built-in collectors live under `comp/core/workloadmeta/collectors/internal/` and include: `containerd`, `docker`, `crio`, `podman`, `kubelet`, `kubeapiserver`, `ecs`, `nvml`, `process`, and `cloudfoundry`.
 
-### AgentType
+### Configuration and build flags
+
+#### AgentType
 
 `Params.AgentType` (a bitmask) controls which collectors are activated:
 

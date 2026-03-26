@@ -1,3 +1,5 @@
+> **TL;DR:** Executes a single on-demand traceroute and returns the full hop-by-hop `NetworkPath`, either running in-process (local impl) or delegating to the system-probe TracerouteModule over a Unix socket (remote impl).
+
 # comp/networkpath/traceroute — Traceroute Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def`
@@ -26,7 +28,9 @@ Both variants annotate the result with the local agent hostname (from `comp/core
 | `comp/networkpath/traceroute/fx-remote` | fx `Module()` wiring `impl-remote` |
 | `comp/networkpath/traceroute/mock` | Test mock |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def
@@ -35,7 +39,9 @@ type Component interface {
 }
 ```
 
-### `config.Config` (key fields)
+### Key types
+
+#### `config.Config` (key fields)
 
 Defined in `pkg/networkpath/traceroute/config`:
 
@@ -50,9 +56,13 @@ Defined in `pkg/networkpath/traceroute/config`:
 | `ReverseDNS` | Whether the runner should resolve hop IPs (npcollector disables this and handles rDNS itself) |
 | `SourceContainerID` | Attached to the path source metadata |
 
-### `payload.NetworkPath` (return value)
+#### `payload.NetworkPath` (return value)
 
 Defined in `pkg/networkpath/payload`. Contains structured source and destination metadata, a `Traceroute` field with per-run hop lists, and timing information. The `Source.Hostname` field is always populated by the component implementations from the agent hostname.
+
+### Configuration and build flags
+
+The local implementation requires system privileges; the remote implementation needs `traceroute_module.enabled: true` in `system-probe.yaml`. Both modules register the component as optional (`fxutil.ProvideOptional`).
 
 ## fx wiring
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/system-probe/utils` provides shared HTTP handler utilities for system-probe modules: JSON response helpers, a concurrency-limiter middleware, and a cgroup memory monitor.
+
 # pkg/system-probe/utils
 
 ## Purpose
@@ -6,7 +8,9 @@ Shared utilities for system-probe HTTP handlers: JSON response helpers, a concur
 
 ## Key Elements
 
-### HTTP helpers (`utils.go`)
+### Key functions
+
+#### HTTP helpers (`utils.go`)
 
 | Symbol | Description |
 |---|---|
@@ -16,14 +20,20 @@ Shared utilities for system-probe HTTP handlers: JSON response helpers, a concur
 | `WriteAsJSON(req, w, data, outputOptions)` | Marshals `data` to JSON and writes it to `w`. Uses `json.NewEncoder` with optional indentation. Logs an error and returns HTTP 500 on encode failure; silently swallows broken-pipe errors (`EPIPE`). |
 | `GetClientID(req)` | Returns the `client_id` query parameter, defaulting to `"-1"`. Used by modules to track which agent client is making the request. |
 
-### Concurrency limiter (`limiter.go`)
+### Key types
+
+#### Concurrency limiter (`limiter.go`)
 
 | Symbol | Description |
 |---|---|
 | `DefaultMaxConcurrentRequests` | `2` — one slot for the regular agent check, one for manual troubleshooting. |
 | `WithConcurrencyLimit(limit, handler)` | Middleware that wraps an `http.HandlerFunc`. Uses an atomic counter to track in-flight requests; returns HTTP 429 and logs a warning if the limit is exceeded. |
 
-### Memory monitor (`memory_monitor_linux.go` / `memory_monitor_stub.go`)
+### Configuration and build flags
+
+`MemoryMonitor` is Linux-only; a no-op stub is provided on other platforms. There are no dedicated agent config keys — pressure levels and thresholds are passed directly as constructor arguments.
+
+#### Memory monitor (`memory_monitor_linux.go` / `memory_monitor_stub.go`)
 
 | Symbol | Description |
 |---|---|

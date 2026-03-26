@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/networkdevice` is the shared NDM library providing common metadata types, SNMP device-profile definitions, a cross-platform pinger, a timestamp-deduplicating sender, and per-device diagnostics used by all Network Device Monitoring integrations.
+
 # pkg/networkdevice
 
 ## Purpose
@@ -13,7 +15,9 @@
 
 ## Key elements
 
-### `pkg/networkdevice/metadata`
+### Key types
+
+#### `pkg/networkdevice/metadata`
 
 The central package; defines every JSON type sent to the Datadog NDM intake.
 
@@ -30,7 +34,7 @@ The central package; defines every JSON type sent to the Datadog NDM intake.
 | `ScanStatus` / `ScanType` | Enums for network scan state (`in progress`, `completed`, `error`) and trigger type (`manual`, `rc_triggered`, `default`). |
 | `PayloadMetadataBatchSize` | Constant `100` — the max number of resources per metadata event payload. |
 
-### `pkg/networkdevice/profile/profiledefinition`
+#### `pkg/networkdevice/profile/profiledefinition`
 
 Defines the Go representation of an SNMP device profile. Shared between the SNMP integration and the backend.
 
@@ -48,7 +52,9 @@ Defines the Go representation of an SNMP device profile. Shared between the SNMP
 
 The `schema/` sub-package ships a JSON Schema for RC profile validation (`profile_rc_schema.json`). The `normalize_cmd` and `schema_cmd` binaries are developer tools for normalising profile YAML and regenerating the schema.
 
-### `pkg/networkdevice/pinger`
+### Key interfaces
+
+#### `pkg/networkdevice/pinger`
 
 | Symbol | Description |
 |--------|-------------|
@@ -59,7 +65,7 @@ The `schema/` sub-package ships a JSON Schema for RC profile validation (`profil
 
 Platform-specific implementations live in `pinger_linux.go`, `pinger_darwin.go`, `pinger_windows.go`. A `mock.go` is provided for tests.
 
-### `pkg/networkdevice/sender`
+#### `pkg/networkdevice/sender`
 
 | Symbol | Description |
 |--------|-------------|
@@ -69,7 +75,9 @@ Platform-specific implementations live in `pinger_linux.go`, `pinger_darwin.go`,
 | `GetDeviceTags(defaultIPTag, deviceIP string) []string` | Returns pre-populated device tags from the internal map, or falls back to `[<tag>:<ip>, device_namespace:<ns>]`. |
 | `ShouldSendEntry(key string, ts float64) bool` | Returns `false` if `ts` is not newer than the last sent timestamp for `key`. |
 
-### `pkg/networkdevice/diagnoses`
+### Key functions
+
+#### `pkg/networkdevice/diagnoses`
 
 | Symbol | Description |
 |--------|-------------|
@@ -79,11 +87,15 @@ Platform-specific implementations live in `pinger_linux.go`, `pinger_darwin.go`,
 | `Report() []metadata.DiagnosisMetadata` | Flushes and returns metadata-ready diagnoses. |
 | `ReportAsAgentDiagnoses() []diagnose.Diagnosis` | Converts the last flushed diagnoses to the agent `diagnose` CLI format (used by `agent diagnose`). |
 
-### `pkg/networkdevice/integrations`
+#### `pkg/networkdevice/integrations`
 
 The `Integration` string enum lists all NDM integrations: `snmp`, `cisco-sdwan`, `versa`, `netflow`, `network-configuration-management`. Used as the `integration` field in `NetworkDevicesMetadata`.
 
-### `pkg/networkdevice/utils`
+### Configuration and build flags
+
+The `kubeapiserver` build tag is not required; the package compiles on all platforms. Platform-specific pinger implementations are selected via build tags (`linux`, `darwin`, `windows`). There are no dedicated agent configuration keys for this package — consumers supply configuration (namespace, integration name) at construction time.
+
+#### `pkg/networkdevice/utils`
 
 Small utilities used across NDM:
 

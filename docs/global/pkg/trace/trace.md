@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace` is the self-contained core of the Datadog Trace Agent: it receives APM and OTel payloads, processes them through normalization/obfuscation/filtering/sampling, computes RED metrics over 100% of spans, and forwards sampled traces plus aggregated stats to the Datadog backend.
+
 # Package `pkg/trace`
 
 ## Purpose

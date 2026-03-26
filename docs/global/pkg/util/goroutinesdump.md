@@ -1,3 +1,5 @@
+> **TL;DR:** Fetches the full goroutine stack trace of the running agent by hitting its built-in pprof HTTP endpoint over the IPC address, used as a shutdown-timeout diagnostic by the logs agent.
+
 # pkg/util/goroutinesdump
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/goroutinesdump`

@@ -14,7 +14,7 @@ About how to write the documentation, keep in mind it should be understandable f
    - `### Key interfaces` — interfaces (omit if none)
    - `### Key functions` — exported functions and constructors (omit if none)
    - `### Configuration and build flags` — config keys, build tags, Cgo, platform notes (omit if none)
-   Keep each entry to one line: name + one-sentence description.
+   Each entry should have a name and a clear description. **When enriching existing docs: you may rewrite for clarity and improve wording, but never remove meaningful technical details, code examples, or tables. Adding is always good. Shortening is only acceptable for genuinely redundant or bloated text — never for substantive technical content.**
 
 4. **Usage** — How it's used in the codebase. Include a cross-references table for related packages.
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/secrets` resolves `ENC[handle]` placeholders in agent configuration by invoking a user-supplied executable, and supports periodic refresh, change notifications, Kubernetes scoping, audit logging, and automatic scrubbing of resolved values from logs and flares.
+
 # comp/core/secrets — Secret Backend Integration Component
 
 **Team:** agent-configuration
@@ -32,7 +34,9 @@ The component also supports:
 
 ## Key elements
 
-### Component interface (`def/component.go`)
+### Key interfaces
+
+#### Component interface (`def/component.go`)
 
 ```go
 type Component interface {
@@ -56,7 +60,9 @@ type Component interface {
 | `IsValueFromSecret` | Returns `true` if the given plaintext string was ever returned by the backend — used by the scrubber to redact secret values from logs. |
 | `RemoveOrigin` | Removes all handle-to-location mappings for a given config origin. Used when an integration config is removed from autodiscovery. |
 
-### ConfigParams (`def/component.go`)
+### Key types
+
+#### ConfigParams (`def/component.go`)
 
 Key fields:
 
@@ -79,7 +85,7 @@ Key fields:
 | `AuditFileMaxSize` | Maximum size (bytes) of the audit file before rotation. |
 | `RunPath` | Directory where the audit file (`secret-audit-file.json`) is written. |
 
-### SecretChangeCallback (`def/type.go`)
+#### SecretChangeCallback (`def/type.go`)
 
 ```go
 type SecretChangeCallback func(handle, origin string, path []string, oldValue, newValue any)
@@ -90,7 +96,9 @@ resolved or when its value changes during a refresh. `path` is the YAML key
 path where the handle appears (e.g. `["api_key"]` or
 `["logs_config", "additional_endpoints", "0", "api_key"]`).
 
-### Refresh allowlist (`impl/secrets.go`)
+### Key functions
+
+#### Refresh allowlist (`impl/secrets.go`)
 
 Not all secrets are refreshed. The implementation applies an allowlist to
 prevent partial in-memory config updates from causing inconsistent state:
@@ -103,7 +111,7 @@ prevent partial in-memory config updates from causing inconsistent state:
   `debugger_additional_endpoints`, `debugger_diagnostics_additional_endpoints`,
   `symdb_additional_endpoints`.
 
-### Backend protocol
+#### Backend protocol
 
 The component invokes `secret_backend_command` with a JSON payload on stdin:
 
@@ -129,7 +137,9 @@ On non-Windows platforms the backend executable must be owned by root and not
 world-writable. Use `GroupExecPerm` to relax the group-execution check when
 running in containers.
 
-### fx module (`fx/fx.go`)
+### Configuration and build flags
+
+#### fx module (`fx/fx.go`)
 
 `fx.Module()` provides `NewComponent`, which satisfies:
 
@@ -142,7 +152,7 @@ running in containers.
 A no-op implementation is available at `comp/core/secrets/fx-noop` for builds
 that do not need secrets support.
 
-### Mock (`mock/mock.go`)
+#### Mock (`mock/mock.go`)
 
 `mock.New(t)` returns a `*Mock` that resolves handles from a map set via
 `SetSecrets(map[string]string)`. Additional hook setters (`SetRefreshHook`,

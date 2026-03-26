@@ -1,3 +1,5 @@
+> **TL;DR:** Reads hardware identity fields from the Linux DMI/SMBIOS sysfs tree to detect AWS EC2 instances and populate host inventory metadata without making HTTP calls.
+
 # pkg/util/dmi
 
 ## Purpose

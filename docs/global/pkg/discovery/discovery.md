@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/discovery` is a Linux-only system-probe module that identifies running services by determining their name, programming language, APM instrumentation state, and open ports from `/proc`, delivering the results via a `GET /discovery/services` REST endpoint.
+
 # pkg/discovery — Service and Application Discovery
 
 ## Purpose
@@ -23,7 +25,9 @@ components.
 
 ## Key elements
 
-### `model/`
+### Key types
+
+#### `model/`
 
 Defines the wire types for the `/discovery/services` endpoint.
 
@@ -37,7 +41,7 @@ Defines the wire types for the `/discovery/services` endpoint.
 
 `InjectedPIDs` lists PIDs that have already received APM library injection from the Admission Controller, allowing consumers to skip re-injection.
 
-### `language/`
+#### `language/`
 
 Defines the `Language` string type and its constants:
 
@@ -67,7 +71,9 @@ type definitions.
 > for the full API including `LanguageName` constants, the `LanguageDetector` LRU cache,
 > and the `TracerDetector` / `InjectorDetector` sub-detectors.
 
-### `tracermetadata/`
+### Key interfaces
+
+#### `tracermetadata/`
 
 Parses tracer-generated metadata written by running APM tracers to an in-memory file descriptor (memfd). This sub-package (no build constraint) defines:
 
@@ -82,7 +88,9 @@ Parses tracer-generated metadata written by running APM tracers to an in-memory 
 
 The discovery module uses `tracermetadata.GetTracerMetadataFromPath` for each `/proc/<pid>/fd` entry that refers to a tracer memfd to extract rich service and tag information directly from the running tracer, without environment variable polling.
 
-### `apm/`
+### Key functions
+
+#### `apm/`
 
 Detects whether a process already carries APM instrumentation (build constraint: `linux`).
 
@@ -99,7 +107,7 @@ Per-language detection strategies:
 | Java | Checks command line and `JAVA_TOOL_OPTIONS` / `_JAVA_OPTIONS` / `JDK_JAVA_OPTIONS` for `-javaagent:` pointing to a Datadog JAR. |
 | .NET | Checks `CORECLR_ENABLE_PROFILING=1` env var, then scans `/proc/<pid>/maps` for `Datadog.Trace.dll`. |
 
-### `usm/`
+#### `usm/`
 
 Infers the best service name for a process from its command line and application-level
 configuration files. No build constraint — used on all platforms.
@@ -129,7 +137,7 @@ in `application.properties`, `package.json` for Node.js, `setup.py` / `setup.cfg
 The `resolveWorkingDirRelativePath` method resolves relative file paths by checking both
 `/proc/<pid>/cwd` and the `PWD` environment variable.
 
-### `core/`
+#### `core/`
 
 Lightweight Linux-only package (`//go:build linux`) holding the `Discovery` struct and `PidSet` helper used internally by the module implementation.
 
@@ -139,7 +147,11 @@ Lightweight Linux-only package (`//go:build linux`) holding the `Discovery` stru
 | `PidSet` | `map[int32]struct{}` with `Has`, `Add`, `Remove` helpers. Used by the module to track sets of known/GPU/injected PIDs efficiently. |
 | `DiscoveryConfig` | Config struct loaded from the `discovery` section of `system-probe.yaml`. |
 
-### `module/`
+### Configuration and build flags
+
+The module and its implementation files are Linux-only (build constraint `linux`). It has no eBPF programs. Configuration is read from the `discovery` section of `system-probe.yaml` into `DiscoveryConfig`. There are no top-level `datadog.yaml` keys.
+
+#### `module/`
 
 System-probe module implementation (build constraint: `linux`). Implements
 `pkg/system-probe/api/module.Module`.
@@ -161,7 +173,7 @@ System-probe module implementation (build constraint: `linux`). Implements
 **Concurrency** — `handleServices` is wrapped with `utils.WithConcurrencyLimit` to cap
 parallel requests to `utils.DefaultMaxConcurrentRequests`.
 
-### `envs/`
+#### `envs/`
 
 Provides `Variables`, a lazy accessor for process environment variables read from
 `/proc/<pid>/environ`. Accessed via `envs.Get(name)`.

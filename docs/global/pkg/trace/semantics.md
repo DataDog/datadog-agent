@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/semantics` provides a versioned, data-driven registry of semantic attribute equivalences across Datadog and OTel tracing conventions, so that lookup code can resolve concepts like "HTTP status code" through a canonical precedence chain without embedding attribute-name strings directly.
+
 # pkg/trace/semantics
 
 ## Purpose

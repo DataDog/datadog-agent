@@ -1,3 +1,5 @@
+> **TL;DR:** Agent-wide logging library that wraps a pluggable backend behind package-level functions, providing pre-init buffering, automatic secret scrubbing, dynamic log level changes, and adapters for klog, zap, syslog, and stdlib.
+
 # pkg/util/log
 
 ## Purpose
@@ -23,11 +25,19 @@ Key design properties that matter to contributors:
 
 ### `pkg/util/log` (root package)
 
+#### Key types
+
 **`DatadogLogger`** — the singleton struct that holds the active `LoggerInterface` and the current `*slog.LevelVar`. Never used directly; all access goes through the package-level functions.
+
+**`LogLevel`** (alias for `types.LogLevel`) — an integer type backed by `slog.Level`. Constants: `TraceLvl`, `DebugLvl`, `InfoLvl`, `WarnLvl`, `ErrorLvl`, `CriticalLvl`, `Off`. String names: `"trace"`, `"debug"`, `"info"`, `"warn"`, `"error"`, `"critical"`, `"off"`.
+
+**`Wrapper`** — thin struct that re-exports all log functions with a configurable stack depth offset. Used by `comp/core/log` to expose `LoggerInterface` to FX-managed components without adding spurious frames to stack traces. Prefer the component interface (`comp/core/log/def`) in new component code.
+
+#### Key interfaces
 
 **`LoggerInterface`** (alias for `types.LoggerInterface`) — the interface a backend must implement to be plugged in. Methods: `Trace/Debug/Info/Warn/Error/Critical` (and `f` variants), `Close`, `Flush`, `SetAdditionalStackDepth`, `SetContext`.
 
-**`LogLevel`** (alias for `types.LogLevel`) — an integer type backed by `slog.Level`. Constants: `TraceLvl`, `DebugLvl`, `InfoLvl`, `WarnLvl`, `ErrorLvl`, `CriticalLvl`, `Off`. String names: `"trace"`, `"debug"`, `"info"`, `"warn"`, `"error"`, `"critical"`, `"off"`.
+#### Key functions
 
 **Setup functions**
 
@@ -62,13 +72,13 @@ if log.ShouldLog(log.DebugLvl) && lim.ShouldLog() {
 
 **`KlogRedirectLogger`** — implements `io.Writer`; parses klog's `Lmmdd …] msg` format and forwards to the appropriate agent log level. Used to silence klog's default stderr output in Kubernetes components.
 
-**`Wrapper`** — thin struct that re-exports all log functions with a configurable stack depth offset. Used by `comp/core/log` to expose `LoggerInterface` to FX-managed components without adding spurious frames to stack traces. Prefer the component interface (`comp/core/log/def`) in new component code.
-
 ---
 
 ### `pkg/util/log/setup`
 
 The **configuration layer** that builds a `LoggerInterface` from agent config and installs it as the global logger. Most binaries should not call this directly — they go through `comp/core/log/impl`.
+
+#### Key functions
 
 **`SetupLogger(name, level, logFile, syslogURI, syslogRFC, console, json, cfg)`** — the main entry point. Constructs an slog-backed logger with the requested outputs (file, console, syslog), registers a `cfg.OnUpdate` hook to propagate `log_level` changes, and also installs the logger as `log/slog`'s default handler.
 
@@ -79,6 +89,8 @@ The **configuration layer** that builds a `LoggerInterface` from agent config an
 **`NewLogWriter(depth int, level LogLevel) (io.Writer, error)`** — wraps the global logger as an `io.Writer`. Useful for redirecting stdlib `log.Logger` or other writer-based loggers into the agent log.
 
 **`NewTLSHandshakeErrorWriter`** — same as `NewLogWriter` but downgrades TLS handshake errors to `DEBUG` to avoid noise.
+
+#### Configuration and build flags
 
 Relevant config keys read by `setup/`:
 

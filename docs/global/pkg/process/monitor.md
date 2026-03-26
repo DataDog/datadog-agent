@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/process/monitor` is a Linux-only singleton that fires registered callbacks whenever a process starts or exits on the host, sourcing events from either a netlink `PROC_EVENT` socket or an external eBPF event stream.
+
 # pkg/process/monitor
 
 ## Purpose
@@ -12,7 +14,9 @@ The primary use cases are:
 
 ## Key elements
 
-### ProcessMonitor (`process_monitor.go`)
+### Key types
+
+#### ProcessMonitor (`process_monitor.go`)
 
 ```go
 type ProcessMonitor struct { ... }
@@ -30,7 +34,7 @@ var processMonitor = &ProcessMonitor{
 
 Multiple callers share the same instance; a reference counter (`refcount atomic.Int32`) tracks how many callers have acquired it.
 
-### ProcessCallback
+#### ProcessCallback
 
 ```go
 type ProcessCallback = func(pid uint32)
@@ -38,7 +42,11 @@ type ProcessCallback = func(pid uint32)
 
 The type accepted by both subscribe methods. Callbacks receive only the PID; callers must read `/proc/<pid>` themselves if additional process information is needed.
 
-### GetProcessMonitor
+### Key functions
+
+#### Key functions
+
+#### GetProcessMonitor
 
 ```go
 func GetProcessMonitor() *ProcessMonitor
@@ -46,7 +54,7 @@ func GetProcessMonitor() *ProcessMonitor
 
 Returns the singleton and increments the reference counter. Every call must be paired with a later `Stop()` call.
 
-### Initialize
+#### Initialize
 
 ```go
 func (pm *ProcessMonitor) Initialize(useEventStream bool) error
@@ -59,7 +67,7 @@ Idempotent (uses `sync.Once`). On the first call it:
 3. If `useEventStream` is `true`: skips netlink setup; event delivery is expected from an external `consumers.ProcessConsumer` wired up via `InitializeEventConsumer`.
 4. Scans all existing `/proc/<pid>` entries and fires exec callbacks for already-running processes (skipped when no exec callbacks are registered).
 
-### SubscribeExec / SubscribeExit
+#### SubscribeExec / SubscribeExit
 
 ```go
 func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) func()
@@ -70,7 +78,7 @@ Register a callback. Both methods return an unsubscribe closure that removes the
 
 Internally, callbacks are stored as `map[*ProcessCallback]struct{}` (keyed by pointer so each registration is independent) under a read-write mutex. An `atomic.Bool` flag (`hasExecCallbacks` / `hasExitCallbacks`) short-circuits the mutex acquisition on the hot path when no callbacks are registered.
 
-### Stop
+#### Stop
 
 ```go
 func (pm *ProcessMonitor) Stop()
@@ -78,7 +86,7 @@ func (pm *ProcessMonitor) Stop()
 
 Decrements the reference counter. When the counter reaches zero, closes the `done` channel, waits for the event loop and all callback workers to drain (`processMonitorWG`, `callbackRunnersWG`), then resets internal state so the monitor can be re-initialized. The reset is primarily for test isolation, since in production the monitor is initialized only once.
 
-### InitializeEventConsumer
+#### InitializeEventConsumer
 
 ```go
 func InitializeEventConsumer(consumer *consumers.ProcessConsumer)
@@ -86,7 +94,7 @@ func InitializeEventConsumer(consumer *consumers.ProcessConsumer)
 
 Alternative event source for environments where the event monitor subsystem (eBPF-based) is used instead of netlink. The provided `consumers.ProcessConsumer` is subscribed to exec/exit events, which are forwarded to the same internal callback dispatch path as the netlink events.
 
-### mainEventLoop (internal)
+#### mainEventLoop (internal)
 
 Runs as a goroutine. Selects on:
 - `netlinkEventsChannel` — dispatches `ExecProcEvent` and `ExitProcEvent` to the callback worker pool.
@@ -94,11 +102,15 @@ Runs as a goroutine. Selects on:
 - `logTicker` — logs a summary of telemetry counters every 2 minutes.
 - `done` — tears down on `Stop()`.
 
-### Callback dispatch
+#### Callback dispatch
 
 Callbacks are never called directly from the event loop. Instead, a closure is sent over `callbackRunner` (a `chan func()` of size 5000) to one of the worker goroutines. If the channel is full, the event is dropped and `process_exec_channel_is_full` / `process_exit_channel_is_full` telemetry counters are incremented. This prevents slow callbacks from stalling the netlink event loop.
 
-### Telemetry
+### Configuration and build flags
+
+The package is Linux-only (`//go:build linux`). Stub implementations are provided on other platforms. The callback worker pool size is fixed at one goroutine per logical CPU, bounded by `pendingCallbacksQueueSize = 5000`. There are no agent config keys; the package is controlled entirely by calling code.
+
+#### Telemetry
 
 All metrics are registered under the `usm.process.monitor` Prometheus metric group:
 

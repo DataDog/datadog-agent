@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/telemetry` periodically samples running containers and emits per-container gauge metrics to drive CWS/CSPM metering and billing dashboards.
+
 # pkg/security/telemetry
 
 ## Purpose
@@ -6,7 +8,7 @@ Provides the CWS (Cloud Workload Security) side of container-running telemetry. 
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -15,7 +17,7 @@ Provides the CWS (Cloud Workload Security) side of container-running telemetry. 
 | `ContainersRunningTelemetry` | Linux-only higher-level wrapper. Reads the config, picks the right metric name (plain vs Fargate variant), and calls `ReportContainers` on a one-minute ticker via `Run(ctx context.Context)`. |
 | `SimpleTelemetrySender` | Minimal interface (`Gauge`, `Commit`) abstracting either a statsd client or a `SenderManager` default sender. |
 
-### Functions
+### Key functions
 
 | Function | Description |
 |----------|-------------|
@@ -23,7 +25,7 @@ Provides the CWS (Cloud Workload Security) side of container-running telemetry. 
 | `NewContainersRunningTelemetry(cfg, statsdClient, wmeta, filterStore)` | Linux-only constructor. Bridges the workloadfilter component to `ContainersTelemetry`. |
 | `NewSimpleTelemetrySenderFromStatsd(sci)` | Wraps a `statsd.ClientInterface` as a `SimpleTelemetrySender`. |
 
-### Build flags
+### Configuration and build flags
 
 `containers_running_telemetry_linux.go` carries no explicit build tag but is named `_linux.go`, so the `ContainersRunningTelemetry` type and its `Run` loop are Linux-only. `containers_running_telemetry_others.go` provides a stub for non-Linux platforms.
 

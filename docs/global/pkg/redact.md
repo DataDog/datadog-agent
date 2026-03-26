@@ -1,3 +1,5 @@
+> **TL;DR:** Removes sensitive data (credentials, API keys, tokens) from process command lines, Kubernetes pod/container specs, and Custom Resource manifests before they are sent to the Datadog backend — purpose-built for the orchestrator and process collector pipelines.
+
 # pkg/redact
 
 ## Purpose
@@ -10,6 +12,8 @@ pipeline, where live Kubernetes objects contain environment variables, CLI argum
 probe headers, and annotations that may embed credentials.
 
 ## Key elements
+
+### Key types
 
 ### `DataScrubber`
 
@@ -62,7 +66,13 @@ api_key, apikey, pwd, secret, credentials, stripetoken
 | `redactedSecret` | `"********"` — replaces scrubbed CLI/env values |
 | `redactedAnnotationValue` | `"-"` — replaces whole sensitive annotation/label values |
 
+### Key functions
+
 ### Kubernetes scrubbing functions (build tag `orchestrator`)
+
+### Configuration and build flags
+
+The `orchestrator` build tag gates all Kubernetes-specific scrubbing functions (`ScrubPod`, `ScrubPodTemplateSpec`, `ScrubCRManifest`, `RemoveSensitiveAnnotationsAndLabels`).
 
 The following functions are only compiled when the `orchestrator` build tag is present.
 

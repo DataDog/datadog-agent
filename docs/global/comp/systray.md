@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/systray` implements the Windows system tray application (`ddtray.exe`), providing a notification icon with a context menu to start, stop, restart, configure, and flare the Datadog Agent Windows service.
+
 # comp/systray/systray
 
 ## Purpose
@@ -8,7 +10,7 @@ This component is **Windows-only** (`//go:build windows` on all implementation f
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/systray/systray/def/component.go (build: windows)
@@ -17,7 +19,9 @@ type Component interface{}
 
 The interface is a marker type. All behaviour is managed through the fx lifecycle hooks registered in `NewComponent`.
 
-### Params
+### Key types
+
+**`Params`** — supplied by the CLI command and drives initial behaviour:
 
 ```go
 type Params struct {
@@ -27,11 +31,7 @@ type Params struct {
 }
 ```
 
-`Params` is supplied by the CLI command and drives initial behaviour.
-
-### Implementation: `systrayImpl`
-
-Located in `comp/systray/systray/impl/systray.go` (Windows only).
+**`systrayImpl`** — located in `comp/systray/systray/impl/systray.go` (Windows only):
 
 | Field | Type | Role |
 |---|---|---|
@@ -42,7 +42,9 @@ Located in `comp/systray/systray/impl/systray.go` (Windows only).
 | `client` | `ipc.HTTPClient` | HTTP client for Agent IPC calls |
 | `singletonEventHandle` | `windows.Handle` | Named Windows event ensuring only one ddtray instance runs |
 
-### Lifecycle
+### Key functions
+
+#### Lifecycle
 
 **`start`** (fast, called by fx):
 1. If `LaunchGuiFlag` is set, opens the configuration browser in a goroutine.
@@ -55,7 +57,7 @@ Located in `comp/systray/systray/impl/systray.go` (Windows only).
 2. Waits for `windowRoutine` to exit via `routineWaitGroup`.
 3. Closes the singleton event handle.
 
-### Window and message loop
+#### Window and message loop
 
 `windowRoutine` runs on an OS-locked goroutine (required by `lxn/walk`/Win32). It:
 
@@ -65,7 +67,9 @@ Located in `comp/systray/systray/impl/systray.go` (Windows only).
 4. Attaches a left-click handler and builds the context menu.
 5. Runs `mw.Run()` (blocking message loop).
 
-### Context menu items
+### Configuration and build flags
+
+**Context menu items:**
 
 | Label | Command |
 |---|---|
@@ -77,13 +81,9 @@ Located in `comp/systray/systray/impl/systray.go` (Windows only).
 | Flare | Opens a Win32 dialog box to collect ticket/email, then calls the Agent IPC `/agent/flare` endpoint or falls back to a local flare |
 | Exit | Calls `shutdowner.Shutdown()` |
 
-### UAC and elevation
+**UAC and elevation:** The `uac.c` / `uac.h` CGo helper implements `LaunchUnelevated`, which uses `IShellDispatch2::ShellExecute` to open a URL as the non-elevated user even when `ddtray.exe` runs elevated. `NewComponent` fails immediately if the current process is not running as an administrator.
 
-The `uac.c` / `uac.h` CGo helper implements `LaunchUnelevated`, which uses `IShellDispatch2::ShellExecute` to open a URL as the non-elevated user even when `ddtray.exe` runs elevated. This prevents the configuration browser from inheriting administrator privileges.
-
-`NewComponent` fails immediately if the current process is not running as an administrator, since service control operations require it.
-
-### Flare flow
+**Flare flow:**
 
 When the user clicks "Flare":
 

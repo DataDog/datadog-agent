@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/pid` writes the current process PID to a file at startup (preventing double-starts) and removes it on shutdown, wrapping `pkg/pidfile` in the fx lifecycle so the behavior is automatic and consistent across all agent binaries.
+
 # comp/core/pid — PID File Management Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/pid`
@@ -19,7 +21,11 @@ The actual file-level logic (write, stale-PID detection) lives in [`pkg/pidfile`
 | `comp/core/pid/fx` | `Module()` — wires `NewComponent` into fx |
 | `comp/core/pid/mock` | Test mock |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface{}
@@ -30,7 +36,9 @@ The component has no public methods. Its value is entirely in its lifecycle side
 - **At construction** — writes the PID file (fails fast with an error if the path is occupied by a live process).
 - **On `OnStop`** — removes the PID file.
 
-## Params
+### Key types
+
+#### Params
 
 `Params` is the only input the component needs:
 
@@ -44,7 +52,9 @@ func NewParams(pidfilePath string) Params
 
 When `PIDfilePath` is empty the component is effectively a no-op (no file is written and no `OnStop` hook is registered).
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 ```go
 // Supply the path at startup
@@ -77,7 +87,9 @@ fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
 pidfx.Module(),
 ```
 
-## Platform behavior
+### Configuration and build flags
+
+#### Platform behavior
 
 Stale-PID detection is platform-specific and implemented in [`pkg/pidfile`](../../../pkg/pidfile.md):
 

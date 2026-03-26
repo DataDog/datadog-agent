@@ -1,3 +1,5 @@
+> **TL;DR:** Periodically sends the Cluster Agent's identity, version, leader-election state, feature flags, and scrubbed per-source configuration to the Datadog inventory backend, and exposes the same data at a `/metadata/cluster-agent` HTTP endpoint and in flares.
+
 # comp/metadata/clusteragent
 
 **Team:** container-platform
@@ -13,7 +15,7 @@ The full implementation is guarded by the `kubeapiserver` build tag. A no-op imp
 
 ## Key elements
 
-### Interface (`comp/metadata/clusteragent/def/component.go`)
+### Key interfaces
 
 ```go
 type Component interface {
@@ -23,7 +25,9 @@ type Component interface {
 }
 ```
 
-### Payload (`comp/metadata/clusteragent/impl/cluster_agent.go`)
+### Key types
+
+#### Payload
 
 ```go
 type Payload struct {
@@ -44,11 +48,15 @@ Notable fields inside `Metadata`:
 - `feature_*` — boolean/string values for every significant Cluster Agent feature flag (Admission Controller, APM instrumentation, External Metrics Provider, Cluster Checks, etc.)
 - `full_configuration`, `file_configuration`, `environment_variable_configuration`, `agent_runtime_configuration`, `remote_configuration`, `fleet_policies_configuration`, `cli_configuration`, `provided_configuration` — scrubbed YAML config layers (present when `inventories_configuration_enabled` is `true`)
 
-### fx wiring (`comp/metadata/clusteragent/fx/fx.go`)
+### Configuration and build flags
+
+The full implementation is guarded by the `kubeapiserver` build tag. A no-op is compiled when the tag is absent. Collection is enabled by `enable_cluster_agent_metadata_collection` and governed by `inventories_max_interval` (~10 minutes). Configuration layer snapshots are included when `inventories_configuration_enabled` is `true`.
+
+#### fx wiring
 
 `fx.Module()` registers `NewComponent` and makes `Component` available as an optional value. The module also `fx.Invoke`s the component so it starts even when nothing explicitly depends on it.
 
-### Dependencies (from `Requires`)
+#### Dependencies
 
 | Dependency | Purpose |
 |---|---|
@@ -57,7 +65,7 @@ Notable fields inside `Metadata`:
 | `serializer.MetricSerializer` | Submit the payload to the backend (nil when collection is disabled) |
 | `hostnameinterface.Component` | Resolve the agent hostname for cluster-name lookup |
 
-### Outputs (from `Provides`)
+#### Outputs
 
 | Output | Purpose |
 |---|---|

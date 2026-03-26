@@ -1,3 +1,5 @@
+> **TL;DR:** Defines the public interfaces (`Reader`, `Writer`, `Config`, `BuildableConfig`) and shared types (`Source`, `Proxy`, `Warnings`) that the entire agent configuration system is built upon — importable without pulling in the full setup dependency graph.
+
 # pkg/config/model
 
 ## Purpose
@@ -19,6 +21,8 @@ full `pkg/config/setup` dependency graph.
   changes. See `docs/global/pkg/util/log.md`.
 
 ## Key elements
+
+### Key interfaces
 
 ### Interfaces
 
@@ -46,6 +50,8 @@ used only in `pkg/config/setup`, `pkg/config/create`, and `pkg/config/mock`.
 - `AllFlattenedSettingsWithSequenceID()` — atomic snapshot of all flattened leaf keys plus sequence ID for race-free reads.
 - `ConfigFileUsed()` / `ExtraConfigFilesUsed()` — the file paths that were loaded.
 - `GetLibType()` — returns `"viper"`, `"nodetreemodel"`, or `"tee"` for diagnostics.
+
+### Key types
 
 ### `Source`
 
@@ -122,6 +128,8 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 A callback registered with `Reader.OnUpdate`. The config calls all registered receivers in
 sequence each time `Set` is called. Receivers must not block. The `sequenceID` is a monotonically
 increasing counter that can be paired with `Reader.GetSequenceID()` to detect stale reads.
+
+### Key functions
 
 ### Override mechanism
 

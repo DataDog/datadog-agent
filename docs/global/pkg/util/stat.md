@@ -1,3 +1,5 @@
+> **TL;DR:** A lightweight channel-based rate aggregator that accumulates integer event values over one-second windows and publishes per-second throughput snapshots via a channel and expvar, used by DogStatsD and the log pipeline.
+
 # pkg/util/stat
 
 ## Purpose

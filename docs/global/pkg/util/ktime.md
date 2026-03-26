@@ -1,3 +1,5 @@
+> **TL;DR:** Converts kernel monotonic timestamps from eBPF events into absolute wall-clock `time.Time` values by tracking boot time and applying drift-corrected offsets on Linux.
+
 # pkg/util/ktime
 
 ## Purpose

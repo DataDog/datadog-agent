@@ -1,3 +1,5 @@
+> **TL;DR:** Provides cross-platform ZIP creation/extraction and `.tar.xz` walking/extraction with path-traversal protection, used for flare packaging and eBPF/BTF asset unpacking.
+
 # pkg/util/archive
 
 ## Purpose
@@ -8,7 +10,9 @@ The ZIP implementation is adapted from the `mholt/archiver` library (v3.5.1) but
 
 ## Key elements
 
-### ZIP — creation
+### Key functions
+
+#### ZIP — creation
 
 ```go
 func Zip(sources []string, destination string) error
@@ -18,7 +22,7 @@ Creates a `.zip` archive at `destination` from one or more source paths. Each so
 
 Compression: Deflate at default level for files; Store (no compression) for directory entries.
 
-### ZIP — extraction
+#### ZIP — extraction
 
 ```go
 func Unzip(source, destination string) error
@@ -29,7 +33,7 @@ Extracts a `.zip` file to `destination`. For each entry:
 - Paths are sanitized using `github.com/cyphar/filepath-securejoin` (`SecureJoin`) to prevent path traversal (zip-slip).
 - Directories are created with mode `0755`; files are written with mode `0755`.
 
-### `.tar.xz` — walking
+#### `.tar.xz` — walking
 
 ```go
 var ErrStopWalk = errors.New("stop walk")
@@ -40,7 +44,7 @@ func WalkTarXZArchiveReader(rdr io.Reader, walkFunc func(*tar.Reader, *tar.Heade
 
 Iterates every entry in a `.tar.xz` archive, calling `walkFunc` for each. Returning `ErrStopWalk` from the callback stops iteration cleanly (not an error). The `Reader` variant accepts any `io.Reader`, useful when the archive is already open or comes from a network stream.
 
-### `.tar.xz` — extraction
+#### `.tar.xz` — extraction
 
 ```go
 func TarXZExtractFile(tarxzArchive, path, destinationDir string) error
@@ -53,13 +57,15 @@ func TarXZExtractAllReader(rdr io.Reader, destinationDir string) error
 
 All extraction functions sanitize destination paths with `SecureJoin` to prevent path traversal.
 
-### Security considerations
+### Configuration and build flags
+
+#### Security considerations
 
 - Symlinks are skipped in both `Zip` (during creation) and `Unzip` (during extraction).
 - All extraction functions use `SecureJoin` to confine output files within the destination directory, guarding against zip-slip attacks.
 - `Zip` guards against infinite loops when the destination file falls inside a source directory.
 
-### Dependencies
+#### Dependencies
 
 - Standard library `archive/zip`, `archive/tar`, `compress/flate`
 - `github.com/cyphar/filepath-securejoin` — safe path joining

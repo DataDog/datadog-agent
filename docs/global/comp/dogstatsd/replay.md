@@ -1,3 +1,5 @@
+> **TL;DR:** Records live DogStatsD traffic to a binary `.dog` file (with tagger-state snapshot) and replays it with original timing, enabling load testing and offline reproduction of production metric workloads.
+
 # comp/dogstatsd/replay — Traffic Capture and Replay Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def`
@@ -24,7 +26,9 @@ The component is always present in the main agent; in environments where capture
 | `comp/dogstatsd/replay/impl-noop` | No-op implementation (`noopTrafficCapture`) |
 | `comp/dogstatsd/replay/mock` | Mock implementation for unit tests |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -81,6 +85,13 @@ type UnixDogstatsdMsg struct {
 ```
 
 `GUID = 999888777` is a magic constant used in replay mode to inject fake Unix socket credentials so replayed packets get the same origin tags as the original.
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `dogstatsd_capture_depth` | `0` (unlimited) | Channel buffer depth for async packet writing |
+| `dogstatsd_capture_path` | `""` | Directory for capture files; falls back to `run_path/dsd_capture` |
 
 ## File format (`.dog`)
 

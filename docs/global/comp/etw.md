@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/etw` provides a Go interface to Windows Event Tracing for Windows (ETW), allowing agent components to subscribe to named ETW providers and receive structured event records via callbacks without writing CGo/Win32 session management boilerplate.
+
 # comp/etw/impl
 
 **Package:** `github.com/DataDog/datadog-agent/comp/etw`
@@ -13,7 +15,7 @@ ETW is used throughout the agent for low-overhead, kernel-assisted telemetry on 
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/etw/component.go
@@ -28,7 +30,7 @@ type Component interface {
 
 Both accept an optional `SessionConfigurationFunc` to tune buffer sizes and kernel flags before the session is created.
 
-### Session interface
+**`Session` interface:**
 
 ```go
 type Session interface {
@@ -48,7 +50,7 @@ Typical call order:
 3. `StartTracing(callback)` — **blocking call** that processes incoming events until `StopTracing` is called from another goroutine.
 4. `StopTracing()` — disables all providers and stops the session.
 
-### Configuration types
+### Key types
 
 **SessionConfiguration** (passed via `SessionConfigurationFunc`):
 
@@ -69,9 +71,7 @@ Typical call order:
 | `EnabledIDs` | Whitelist of event IDs (mutually exclusive with `DisabledIDs`) |
 | `DisabledIDs` | Blacklist of event IDs (mutually exclusive with `EnabledIDs`) |
 
-### Event types
-
-The `DDEventRecord` struct mirrors the Win32 `EVENT_RECORD` layout and is passed (by pointer) to the `EventCallback`:
+**`DDEventRecord`** — mirrors the Win32 `EVENT_RECORD` layout and is passed (by pointer) to the `EventCallback`:
 
 ```go
 type EventCallback func(e *DDEventRecord)
@@ -88,9 +88,9 @@ type DDEventRecord struct {
 
 The callback pointer lives only for the duration of the call. Any data that must outlive the callback must be copied.
 
-### UserData helper
+### Key functions
 
-`GetUserData(event *DDEventRecord) UserData` (in `impl/eventrecord.go`) wraps `UserData` in a `UserData` interface for structured field extraction:
+**`GetUserData`** helper — `GetUserData(event *DDEventRecord) UserData` (in `impl/eventrecord.go`) wraps `UserData` in a `UserData` interface for structured field extraction:
 
 ```go
 type UserData interface {
@@ -105,11 +105,12 @@ type UserData interface {
 
 All reads are by offset. Fields in ETW user-data buffers are packed sequentially; consumers must know the schema for their provider.
 
-### Implementation notes
+### Configuration and build flags
 
 - The implementation (`comp/etw/impl`) uses CGo to call `StartTraceW`, `EnableTraceEx2`, `ProcessTrace`, and `ControlTraceW` from the Win32 ETW API. The C helper `DDEnableTrace` (in `session.c`/`session.h`) reconstructs `EVENT_FILTER_DESCRIPTOR` arrays from flat slices because Go pointers containing Go pointers cannot be passed directly to C.
 - The `ddEtwCallbackC` C-exported function bridges the C ETW callback to the Go `EventCallback` using `cgo.Handle`.
 - Sessions run in real-time mode (`EVENT_TRACE_REAL_TIME_MODE`); there is no file-based logging.
+- Platform: Windows only (`//go:build windows`).
 
 ## Usage
 

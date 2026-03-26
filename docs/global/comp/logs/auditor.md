@@ -1,3 +1,5 @@
+> **TL;DR:** Implements at-least-once delivery for the logs pipeline by maintaining a persistent on-disk registry of per-source read positions, so tailers can resume from the last committed offset after an agent restart.
+
 # comp/logs/auditor
 
 **Team:** agent-log-pipelines
@@ -8,7 +10,9 @@
 
 ## Key Elements
 
-### Interfaces (`comp/logs/auditor/def/`)
+### Key interfaces
+
+#### Interfaces (`comp/logs/auditor/def/`)
 
 ```go
 // Component is the full auditor lifecycle + channel.
@@ -33,7 +37,9 @@ type Registry interface {
 
 Launchers receive only the `Registry` interface (not the full `Component`) to prevent them from controlling the auditor lifecycle.
 
-### Important types
+### Key types
+
+#### Important types
 
 | Type | Location | Description |
 |---|---|---|
@@ -41,7 +47,9 @@ Launchers receive only the `Registry` interface (not the full `Component`) to pr
 | `JSONRegistry` | `impl/auditor.go` | On-disk serialization with a `Version` field (currently v2) |
 | `RegistryWriter` | `def/component.go` | Strategy interface for writing the registry file — two implementations: atomic (via temp file rename) and non-atomic |
 
-### Lifecycle
+### Key functions
+
+#### Lifecycle
 
 ```
 Start() → recover registry from disk → goroutine: run()
@@ -62,7 +70,9 @@ The auditor silently drops an incoming offset that has an `IngestionTimestamp` o
 
 The on-disk format is versioned. The `unmarshalRegistry` method handles v0, v1, and v2 formats for backward compatibility on upgrade.
 
-### Configuration keys
+### Configuration and build flags
+
+#### Configuration keys
 
 | Key | Default | Effect |
 |---|---|---|

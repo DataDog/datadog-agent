@@ -1,3 +1,5 @@
+> **TL;DR:** Periodically fetches the Security Agent's configuration via IPC and sends it as a scrubbed per-source inventory payload to the Datadog backend, also serving it at a `/metadata/security-agent` HTTP endpoint and including it in flares.
+
 # comp/metadata/securityagent
 
 **Team:** agent-configuration
@@ -15,7 +17,7 @@ Configuration is fetched from the Security Agent process over IPC using `configF
 
 ## Key elements
 
-### Interface (`comp/metadata/securityagent/def/component.go`)
+### Key interfaces
 
 The component interface is empty — the component contributes its behaviour entirely through the values it provides to fx:
 
@@ -25,7 +27,9 @@ type Component interface{}
 
 All integration points (HTTP endpoint, flare, metadata runner) are registered as fx output values.
 
-### Payload (`comp/metadata/securityagent/impl/security_agent.go`)
+### Key types
+
+#### Payload
 
 ```go
 type Payload struct {
@@ -40,11 +44,18 @@ Fields inside `Metadata`:
 - `full_configuration` — complete scrubbed YAML (when `inventories_configuration_enabled` is `true`)
 - `file_configuration`, `environment_variable_configuration`, `agent_runtime_configuration`, `remote_configuration`, `fleet_policies_configuration`, `cli_configuration`, `source_local_configuration`, `provided_configuration` — per-source scrubbed YAML layers
 
-### fx wiring (`comp/metadata/securityagent/fx/fx.go`)
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `inventories_configuration_enabled` | `true` | Include per-source config layer snapshots; only `agent_version` is sent when `false` |
+| `inventories_max_interval` | `600s` | Maximum interval between submissions |
+
+#### fx wiring
 
 `fx.Module()` registers `NewComponent` and exposes `Component` as an optional value.
 
-### Dependencies (from `Requires`)
+#### Dependencies
 
 | Dependency | Purpose |
 |---|---|
@@ -54,7 +65,7 @@ Fields inside `Metadata`:
 | `hostnameinterface.Component` | Resolve the hostname included in the payload |
 | `ipc.HTTPClient` | Fetch the Security Agent configuration over the IPC socket |
 
-### Outputs (from `Provides`)
+#### Outputs
 
 | Output | Purpose |
 |---|---|

@@ -1,3 +1,5 @@
+> **TL;DR:** Manages the lifecycle of the agent's CMD HTTP API server (CLI-to-agent communication with bearer-token auth) and IPC API server (inter-process config access with mutual TLS), with all routes contributed via an fx endpoint group.
+
 # comp/api/api — Agent HTTP API Server Component
 
 **Team:** agent-runtimes
@@ -26,6 +28,10 @@ Both servers start and stop via fx lifecycle hooks. All endpoints are added thro
 | `apiimpl/observability` | Telemetry middleware and response-logging middleware |
 | `comp/api/api/utils` | gRPC helpers and streaming utilities shared by callers |
 
+## Key Elements
+
+### Key interfaces
+
 ## Component interface
 
 ```go
@@ -36,6 +42,8 @@ type Component interface {
 ```
 
 Both methods return `nil` until the fx `OnStart` hook completes.
+
+### Key types
 
 ## Registering endpoints — `AgentEndpointProvider`
 
@@ -58,11 +66,15 @@ return provides{
 
 All requests to the CMD server pass through `ipc.HTTPMiddleware`, which validates the bearer token — endpoints added via `AgentEndpointProvider` do not need to implement authentication themselves.
 
+### Key functions
+
 ## IPC server and the config allowlist
 
 The IPC server exposes `/config/v1/{path}` (GET a single key) and `/config/v1/` (GET all allowed keys). Access is restricted to the keys listed in `AuthorizedConfigPathsCore` (defined in `def/component.go`). Authorization is prefix-aware: if `logs_config.additional_endpoints` is in the set, any path starting with `logs_config.additional_endpoints.` is also permitted.
 
 To expose additional keys from a non-core agent (e.g. security-agent), components can call `GetConfigEndpointMuxCore` or construct a separate `configEndpoint` with a custom `AuthorizedSet`.
+
+### Configuration and build flags
 
 ## Security model
 

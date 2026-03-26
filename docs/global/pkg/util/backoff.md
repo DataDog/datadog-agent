@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a stateless, pluggable exponential-backoff policy used by the forwarder, Remote Configuration client, and log pipeline to throttle retries after failures.
+
 # pkg/util/backoff
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/backoff`
@@ -10,7 +12,9 @@ The package separates **policy** (the `Policy` interface) from the **state** (a 
 
 ## Key elements
 
-### `Policy` (interface)
+### Key interfaces
+
+#### `Policy`
 
 ```go
 type Policy interface {
@@ -27,7 +31,9 @@ Callers own an `int` error counter. They call:
 
 The interface makes it straightforward to substitute a test double or a different algorithm without changing call sites.
 
-### `ExpBackoffPolicy` (struct)
+### Key types
+
+#### `ExpBackoffPolicy` (struct)
 
 The only built-in `Policy` implementation. Computes an exponential back-off with jitter:
 
@@ -49,7 +55,9 @@ else:
     wait = random(candidate / MinBackoffFactor, candidate)
 ```
 
-### `NewExpBackoffPolicy`
+### Key functions
+
+#### `NewExpBackoffPolicy`
 
 ```go
 func NewExpBackoffPolicy(

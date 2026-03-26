@@ -1,10 +1,14 @@
+> **TL;DR:** Writes the running process PID to a file at startup and guards against duplicate instances — returns an error if the PID file already points to a live process, and silently overwrites stale files.
+
 # pkg/pidfile
 
-### Purpose
+## Purpose
 
 Writes the current process PID to a file at startup, and guards against starting a second instance of the same process. If the PID file already exists and the recorded PID belongs to a running process, `WritePID` returns an error; if the PID is stale (process gone), it overwrites the file. The caller is responsible for removing the file at shutdown.
 
-### Key elements
+## Key elements
+
+### Key functions
 
 **`WritePID(pidFilePath string) error`**
 
@@ -24,7 +28,7 @@ Internal helper that checks whether a PID corresponds to a running process. Impl
 | macOS | `syscall.Kill(pid, 0)` — sends signal 0 (no-op); success means process exists |
 | Windows | `winutil.IsProcess(pid)` from `pkg/util/winutil` |
 
-### Usage
+## Usage
 
 The package is consumed by `comp/core/pid/impl/pid.go`, the fx component that wraps PID file management in the Agent's component lifecycle:
 

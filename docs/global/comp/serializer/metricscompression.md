@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a single, shared `Compressor` instance for the metrics serialization pipeline, reading the algorithm and level from agent configuration once at startup so all consumers receive the same compressor via fx injection.
+
 # comp/serializer/metricscompression — Metrics Compression Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def`
@@ -19,6 +21,32 @@ Consumers (the serializer, stream compressor, check samplers, etc.) receive the 
 | `fx/` | Standard `Module()` wiring via `NewCompressorReq` |
 | `fx-otel/` | OTel-specific `Module()` wiring via `NewCompressorReqOtel` |
 | `fx-mock/` | `MockModule()` for tests — provides a no-op (`NoneKind`) compressor |
+
+## Key Elements
+
+### Key interfaces
+
+`Component` is a direct alias for `pkg/util/compression.Compressor`:
+
+### Key types
+
+See the `StreamCompressor` interface returned by `NewStreamCompressor` for streaming compression.
+
+### Key functions
+
+| Constructor | Purpose |
+|---|---|
+| `NewCompressorReq` | Standard constructor — reads `serializer_compressor_kind` and `serializer_zstd_compressor_level` from config |
+| `NewCompressorReqOtel` | OTel-specific constructor — always uses zlib regardless of config |
+
+### Configuration and build flags
+
+| Key | Default | Effect |
+|---|---|---|
+| `serializer_compressor_kind` | `"zlib"` | Algorithm: `"zlib"`, `"zstd"`, `"gzip"`, or `"none"` |
+| `serializer_zstd_compressor_level` | — | Compression level when `zstd` is selected |
+
+Use `metricscompressionfx.Module()` for the standard agent, `metricscompressionfxotel.Module()` for OTel, and `metricscompressionfxmock.MockModule()` for tests.
 
 ## Component interface
 

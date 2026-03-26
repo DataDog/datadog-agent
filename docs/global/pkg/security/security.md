@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security` is the integration hub for Datadog Cloud Workload Security (CWS), wiring together the eBPF probe, rule engine, security-agent gRPC bridge, SECL compiler, resolvers, security profiles, and all supporting sub-systems.
+
 # pkg/security — Cloud Workload Security (CWS)
 
 ## Purpose
@@ -20,7 +22,7 @@
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Package | Description |
 |------|---------|-------------|
@@ -34,14 +36,16 @@
 | `CustomEvent` | `events` | Synthetic events generated internally (self-test results, heartbeats, rule-set-loaded notifications) that bypass normal kernel-event flow. |
 | `SelfTester` | `probe/selftests` | Runs controlled filesystem/process operations after startup to verify the probe detects them; reports success/failure via a `CustomEvent`. |
 
-### Interfaces
+### Key interfaces
 
 | Interface | Package | Description |
 |-----------|---------|-------------|
 | `EventSender` | `events` | `SendEvent(rule, event, extTagsCb, service)` — abstracts event forwarding; default implementation is `APIServer`, overridable in tests. |
 | `RuleSetListener` | `secl/rules` | Callback interface notified when a rule set is loaded; used by `SelfTester` to inject test rules. |
 
-### Configuration keys (datadog.yaml)
+### Configuration and build flags
+
+#### Configuration keys (datadog.yaml)
 
 ```yaml
 runtime_security_config:
@@ -57,7 +61,7 @@ runtime_security_config:
     send_report: true
 ```
 
-### Build flags
+#### Build flags
 
 | Flag | Effect |
 |------|--------|

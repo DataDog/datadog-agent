@@ -1,3 +1,5 @@
+> **TL;DR:** Provides helpers for creating TLS-secured gRPC clients and servers within the Datadog Agent, including bearer-token authentication interceptors, mTLS enforcement, telemetry metrics, and a logger bridge.
+
 # pkg/util/grpc
 
 ## Purpose
@@ -14,7 +16,9 @@
 
 ## Key elements
 
-### Client creation (`agent_client.go`)
+### Key functions
+
+#### Client creation (`agent_client.go`)
 
 | Function | Returns | Description |
 |----------|---------|-------------|
@@ -25,7 +29,7 @@ Both functions use TLS credentials derived from the supplied `*tls.Config`. When
 
 Passing `cmdPort = "-1"` disables the client entirely (returns an error immediately).
 
-### Authentication (`auth.go`)
+#### Authentication (`auth.go`)
 
 | Symbol | Description |
 |--------|-------------|
@@ -33,7 +37,7 @@ Passing `cmdPort = "-1"` disables the client entirely (returns an error immediat
 | `StaticAuthInterceptor(token string) grpc_auth.AuthFunc` | Convenience wrapper around `AuthInterceptor` that does a constant-time comparison against a fixed token. |
 | `NewBearerTokenAuth(token string) credentials.PerRPCCredentials` | Client-side per-RPC credentials that inject `Authorization: Bearer <token>` into every call. Requires TLS. |
 
-### mTLS (`cert.go`)
+#### mTLS (`cert.go`)
 
 | Symbol | Description |
 |--------|-------------|
@@ -42,7 +46,7 @@ Passing `cmdPort = "-1"` disables the client entirely (returns an error immediat
 
 These interceptors complement `tls.VerifyClientCertIfGiven` in the TLS configuration: the TLS handshake validates the certificate's signature; the interceptors enforce that one was actually provided.
 
-### Server setup (`server.go`)
+#### Server setup (`server.go`)
 
 | Function | Description |
 |----------|-------------|
@@ -53,7 +57,7 @@ These interceptors complement `tls.VerifyClientCertIfGiven` in the TLS configura
 | `CombinedStreamServerInterceptor(authInterceptor)` | Same for streaming. |
 | `ClientOptionsWithMetrics(opts...)` | Returns dial options with client-side metrics interceptors prepended. |
 
-### Metrics interceptors (`interceptors.go`, `metrics.go`)
+#### Metrics interceptors (`interceptors.go`, `metrics.go`)
 
 The interceptors record four Prometheus/telemetry metrics under the `grpc` namespace:
 
@@ -66,7 +70,7 @@ The interceptors record four Prometheus/telemetry metrics under the `grpc` names
 
 Payload size is tracked only for messages that implement `Size() int` (all protobuf-generated types do).
 
-### Timeout helper (`timeout.go`)
+#### Timeout helper (`timeout.go`)
 
 ```go
 func DoWithTimeout(f func() error, d time.Duration) error
@@ -74,7 +78,7 @@ func DoWithTimeout(f func() error, d time.Duration) error
 
 Runs `f` in a goroutine and returns its error. If `d` elapses first it returns a gRPC `DeadlineExceeded` status error.
 
-### Logger (`logger.go`)
+#### Logger (`logger.go`)
 
 ```go
 func NewLogger() grpclog.LoggerV2
@@ -82,7 +86,9 @@ func NewLogger() grpclog.LoggerV2
 
 Creates a `grpclog.LoggerV2` that forwards gRPC-internal log output to the Datadog logger. The log level is controlled by the standard `GRPC_GO_LOG_SEVERITY_LEVEL` and `GRPC_GO_LOG_VERBOSITY_LEVEL` environment variables. The default level is `error`.
 
-### `pkg/util/grpc/context`
+### Key types
+
+#### `pkg/util/grpc/context`
 
 Two typed context keys to avoid collisions in the request context:
 

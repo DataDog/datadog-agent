@@ -1,3 +1,5 @@
+> **TL;DR:** Translates raw DogStatsD metric names into structured Datadog metric names and tags using regex or wildcard rules, enabling positional name segments to be extracted as tag key-value pairs before samples reach the aggregator.
+
 # comp/dogstatsd/mapper — Metric Name Mapping Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/dogstatsd/mapper`
@@ -23,9 +25,11 @@ This package has no `def/` or `impl/` split — all types and logic live directl
 | `component.go` | (empty — package is not an fx component; consumed directly by the server) |
 | `component_mock.go` | Mock helper for tests |
 
-## Key types
+## Key elements
 
-### `MappingProfileConfig` and `MetricMappingConfig`
+### Key types
+
+#### `MappingProfileConfig` and `MetricMappingConfig`
 
 Used to deserialise `dogstatsd_mapper_profiles` from the agent config (via `structure.UnmarshalKey`):
 
@@ -44,7 +48,9 @@ type MetricMappingConfig struct {
 }
 ```
 
-### `MetricMapper`
+### Key functions
+
+#### `MetricMapper`
 
 ```go
 type MetricMapper struct {
@@ -60,7 +66,7 @@ func (m *MetricMapper) Map(metricName string) *MapResult
 
 `Map` returns a `*MapResult` for the first matching rule, or `nil` if no rule matches. Results (including non-matches) are cached to avoid recompiling on repeated metric names.
 
-### `MapResult`
+#### `MapResult`
 
 ```go
 type MapResult struct {
@@ -70,9 +76,18 @@ type MapResult struct {
 }
 ```
 
-### `mapperCache`
+#### `mapperCache`
 
 An LRU cache (using `github.com/hashicorp/golang-lru/v2`) keyed on the original metric name. Both match and non-match results are cached. Cache size is configurable (passed as `cacheSize` to `NewMetricMapper`).
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `dogstatsd_mapper_profiles` | `[]` | List of `MappingProfileConfig` objects read at server startup |
+| `dogstatsd_mapper_cache_size` | `1000` | LRU cache size (number of unique metric names cached) |
+
+Profiles are loaded once at startup; changing them requires restarting the agent (no hot-reload path).
 
 ## Wildcard vs. regex matching
 

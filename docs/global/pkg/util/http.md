@@ -1,3 +1,5 @@
+> **TL;DR:** Provides shared HTTP client infrastructure (transport creation, proxy resolution, TLS configuration, connection resets, and token management) so every outbound HTTP call in the agent uses consistent, config-driven behaviour.
+
 # pkg/util/http
 
 ## Purpose
@@ -9,7 +11,9 @@ rolling its own `http.Transport`.
 
 ## Key elements
 
-### Transport
+### Key functions
+
+#### Transport
 
 **`CreateHTTPTransport(cfg pkgconfigmodel.Reader, opts ...func(*http.Transport)) *http.Transport`**
 
@@ -43,7 +47,9 @@ standard `golang.org/x/net/http/httpproxy` library. Transitional deprecation war
 emitted once per URL for cases where the two modes would behave differently (see proxy warnings
 section below).
 
-### Client with connection resets
+### Key types
+
+#### Client with connection resets
 
 **`ResetClient`** wraps `*http.Client` and periodically recreates the underlying client to
 evict stale connections. This is important for long-lived agent processes where upstream
@@ -62,7 +68,7 @@ resp, err := client.Do(req)
 `Do` is thread-safe. When the reset interval elapses, `CloseIdleConnections` is called on the
 old client and a new one is created via the factory.
 
-### Auto-renewing API token
+#### Auto-renewing API token
 
 **`APIToken`** caches a bearer token value with an expiration date and calls a renewal
 callback when the token is expired. Concurrent callers are handled with a read/write lock:
@@ -76,7 +82,9 @@ token := httputils.NewAPIToken(func(ctx context.Context) (string, time.Time, err
 val, err := token.Get(ctx)
 ```
 
-### High-level helpers
+### Key functions (helpers)
+
+#### High-level helpers
 
 | Function | Description |
 |---|---|
@@ -91,7 +99,9 @@ functions for simple, infrequent requests. Long-lived, high-throughput paths sho
 **`StatusCodeError`** is returned by the helpers when the server responds with a non-200
 status. Callers can type-assert to inspect `StatusCode`, `Method`, and `URL`.
 
-### Proxy deprecation warnings
+### Configuration and build flags
+
+#### Proxy deprecation warnings
 
 `GetProxyTransportFunc` tracks three categories of URLs (keyed by scheme+host) and emits
 each warning at most once:

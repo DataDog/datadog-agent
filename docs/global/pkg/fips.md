@@ -1,3 +1,5 @@
+> **TL;DR:** Uniform API for querying FIPS 140-2 compliance status at runtime — selects among four build-tag-gated implementations (standard, BoringCrypto, Microsoft Go Linux, Microsoft Go Windows) and governs whether the FIPS proxy is activated.
+
 # pkg/fips
 
 ## Purpose
@@ -12,6 +14,8 @@ and the FIPS proxy (`fips.enabled` config option): when the native FIPS flavor i
 proxy is intentionally disabled.
 
 ## Key elements
+
+### Key functions
 
 The package exposes two functions with identical signatures across all build variants:
 
@@ -34,7 +38,7 @@ Returns a human-readable string suitable for display in `agent status` output:
 The status page adds a fourth value, `"proxy"`, when `Status()` returns `"not available"` but
 `fips.enabled` is set in the config (indicating the FIPS proxy is handling compliance).
 
-### Build variants
+### Configuration and build flags
 
 The implementation file selected at compile time depends on build tags:
 

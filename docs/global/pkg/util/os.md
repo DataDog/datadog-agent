@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a Linux-only `PidExists` helper that checks whether a process is still alive by stat-ing its `/proc/<pid>` directory, respecting the container-aware procfs root.
+
 # pkg/util/os
 
 ## Purpose

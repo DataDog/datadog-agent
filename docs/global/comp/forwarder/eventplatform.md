@@ -1,3 +1,5 @@
+> **TL;DR:** Routes structured, typed event payloads (SNMP traps, NetFlow, container lifecycle, SBOM, DBM, etc.) to the Datadog Event Platform intake via independent per-event-type HTTP pipelines with their own batching, compression, and retry tuning.
+
 # comp/forwarder/eventplatform — Event Platform Forwarder Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/forwarder/eventplatform`
@@ -16,6 +18,10 @@ Producers call `SendEventPlatformEvent` (non-blocking, drops on full channel) or
 |---|---|
 | `comp/forwarder/eventplatform` (root) | `Component` and `Forwarder` interfaces, event-type constants |
 | `eventplatformimpl/` | `Module()`, `Params`, pipeline construction, `defaultEventPlatformForwarder` |
+
+## Key Elements
+
+### Key interfaces
 
 ## Component interface
 
@@ -38,6 +44,8 @@ type Forwarder interface {
 
 `Component` is implemented as an `option.Option[Forwarder]`: it is absent when neither `UseEventPlatformForwarder` nor `UseNoopEventPlatformForwarder` is set in `Params`.
 
+### Key types
+
 ## Event types
 
 The constants below are defined in the root package and used by producers to address the correct pipeline:
@@ -58,6 +66,8 @@ The constants below are defined in the root package and used by producers to add
 
 Private event types used internally by DBM and Data Streams (`dbm-samples`, `dbm-metrics`, `dbm-activity`, `dbm-metadata`, `dbm-health`, `data-streams-message`) are registered but their constants are not exported from the root package.
 
+### Key functions
+
 ## Pipeline internals
 
 Each registered event type gets a `passthroughPipeline`:
@@ -68,6 +78,8 @@ Each registered event type gets a `passthroughPipeline`:
 - Optional **compression** read from the endpoint config; falls back to no compression.
 
 Endpoint URLs are resolved from config using the per-pipeline `endpointsConfigPrefix` (e.g. `network_devices.metadata.`), with an additional `hostnameEndpointPrefix` used to build the default hostname.
+
+### Configuration and build flags
 
 ## fx wiring
 

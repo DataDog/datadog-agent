@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/agent` implements `RuntimeSecurityAgent` — the security-agent process side of CWS that connects to system-probe over gRPC, receives security events and activity dumps, and forwards them to the Datadog backend via log reporters.
+
 # pkg/security/agent
 
 ## Purpose
@@ -6,7 +8,7 @@ Implements the user-space security agent (`RuntimeSecurityAgent`): the process-s
 
 ## Key elements
 
-### Types
+### Key types
 
 #### `RuntimeSecurityAgent` (`agent.go`)
 
@@ -21,6 +23,8 @@ Central struct. Owns:
 - Atomic counters: `running`, `connected`, `eventReceived`, `activityDumpReceived`
 
 `RuntimeSecurityAgent` also implements the `SecurityAgentAPIServer` gRPC interface (`SendEvent`, `SendActivityDumpStream`) so it can act as the receiving server when `event_grpc_server` is set to `"security-agent"` (the agent listens for events rather than polling system-probe).
+
+### Key interfaces
 
 #### `ADStorage` interface
 
@@ -52,7 +56,7 @@ Two separate gRPC client structs:
 
 Both connect to the socket paths from `runtime_security_config.socket` / `runtime_security_config.cmd_socket`. The event client also supports vsock transport (used in VM/Fargate environments, configured via `vsock_addr`).
 
-#### `SecurityModuleCmdClientWrapper` interface
+#### `SecurityModuleCmdClientWrapper`
 
 Interface over `RuntimeSecurityCmdClient` exposing all diagnostic operations. Used for mocking in tests (`mocks/security_module_cmd_client_wrapper.go`).
 
@@ -70,7 +74,7 @@ Methods: `DumpDiscarders`, `DumpProcessCache`, `GenerateActivityDump`, `ListActi
 | `(rsa) DispatchActivityDump(msg)` | `agent.go` | Forwards an activity dump to the `ADStorage` backend via `storage.HandleActivityDump(image, tag, header, data)`. No-ops if `storage == nil` (Windows). |
 | `(rsa) StatusProvider()` | `status_provider.go` | Returns a `status.Provider` that exposes connection state, event counters, environment info (kernel lockdown, ring buffer, fentry, constant fetchers), self-test results, and policy status in the `datadog-agent status` output. |
 
-### Build flags
+### Configuration and build flags
 
 | File | Build constraint |
 |------|-----------------|

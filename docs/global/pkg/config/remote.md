@@ -1,3 +1,5 @@
+> **TL;DR:** Agent-side implementation of Remote Configuration — an HTTP client that fetches TUF/Uptane-verified, signed config files from the Datadog backend, a gRPC service that distributes them to sub-processes, and a lightweight client used in those sub-processes to subscribe to product updates.
+
 # pkg/config/remote
 
 Remote Configuration (RC) is the system that delivers signed, versioned configuration files from the Datadog backend to agents at runtime — without a restart. `pkg/config/remote` is the agent-side implementation of that system. It is split across sub-packages that each cover a distinct layer of the architecture.
@@ -22,6 +24,33 @@ Datadog RC backend
 ```
 
 TUF/Uptane metadata verification happens in `uptane/`. Embedded root certificates live in `meta/`. Config path and product types are defined in `data/`.
+
+---
+
+## Key elements
+
+### Key types
+
+- `api.API` — `Fetch`, `FetchOrgData`, `FetchOrgStatus`
+- `data.Product` — RC product identifier string
+- `data.ConfigPath` — structured TUF path parsed from `datadog/<org_id>/<product>/…`
+- `uptane.CoreAgentClient` — drives full Uptane verification over BoltDB
+- `service.CoreAgentService` — central RC service struct (polls backend, serves gRPC)
+- `client.Client` — lightweight poll loop for sub-processes; carries `Listener` callbacks
+
+### Key interfaces
+
+- `service.uptaneClient` / `service.coreAgentUptaneClient` — test seam for the Uptane client
+- `client.ConfigFetcher` — `ClientGetConfigs`; the single gRPC call `client.Client` makes per poll
+- `client.Listener` — `OnUpdate`, `OnStateChange`, `ShouldIgnoreSignatureExpiration`
+- `service.RcTelemetryReporter` — emits RC-specific metrics from the core agent
+
+### Key functions
+
+- `client.NewGRPCClient` / `client.NewUnverifiedGRPCClient` — constructor variants for sub-process clients
+- `client.Subscribe` / `client.SubscribeAll` / `client.GetConfigs` — subscription and snapshot APIs
+- `meta.RootsDirector` / `meta.RootsConfig` — select embedded TUF root JSON for the current site
+- `data.ParseConfigPath` — decodes a TUF target path into its structured fields
 
 ---
 

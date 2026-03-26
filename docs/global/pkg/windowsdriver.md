@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/windowsdriver` provides Go bindings for Datadog's custom Windows kernel drivers (`ddprocmon` and `DDInjector`), managing driver service lifecycle and communicating via IOCTLs over device handles.
+
 # pkg/windowsdriver
 
 ## Purpose
@@ -8,7 +10,9 @@ All code in this package carries `//go:build windows` and is therefore excluded 
 
 ## Sub-packages
 
-### `driver/`
+### Key types
+
+#### `driver/`
 
 Generic helpers for Windows Service Control Manager (SCM) operations applied to any kernel driver service.
 
@@ -18,7 +22,7 @@ Generic helpers for Windows Service Control Manager (SCM) operations applied to 
 | `StartDriverService(name string) error` | Enables (if disabled) and starts the named driver service. |
 | `StopDriverService(name string, disable bool) error` | Stops the service; optionally sets it to `SERVICE_DISABLED`. |
 
-### `olreader/`
+#### `olreader/`
 
 `OverlappedReader` is a generic, reusable component for performing asynchronous (overlapped) reads from a Windows device handle using an I/O Completion Port (IOCP). It hides the complexity of Win32 overlapped I/O behind a simple callback interface.
 
@@ -34,7 +38,9 @@ Generic helpers for Windows Service Control Manager (SCM) operations applied to 
 
 Buffer memory is allocated via C `malloc` (to keep the `windows.Overlapped` structure pointer-stable across GC cycles) and freed in `cleanBuffers`.
 
-### `procmon/`
+### Key interfaces
+
+#### `procmon/`
 
 Go interface to the `ddprocmon` kernel driver, which delivers process-start and process-stop notifications to user space via overlapped reads.
 
@@ -57,7 +63,9 @@ Key constants (defined in the cgo-generated `types_windows.go`):
 
 The notification wire format is described by `DDProcessNotification` (generated from the C header `include/procmonapi.h`).
 
-### `ddinjector/`
+### Key functions
+
+#### `ddinjector/`
 
 Go interface to the `DDInjector` kernel driver, which is responsible for injecting APM instrumentation into Windows processes at creation time.
 
@@ -71,6 +79,10 @@ Go interface to the `DDInjector` kernel driver, which is responsible for injecti
 | `DDInjectorCountersV1` | Cgo-mapped C struct mirroring `_DRIVER_COUNTERS_V1` from `include/ddinjector_public.h`. Versioning policy: V1 fields are frozen; new versions add a nested struct. |
 
 The counter structure is versioned: `DDInjectorCounterRequest.RequestedVersion` is set to `countersVersion = 1` in the current implementation. The public header documents how to extend to V2+ without breaking existing clients.
+
+### Configuration and build flags
+
+All files carry `//go:build windows`. There are no `datadog.yaml` keys for this package; the `ddinjector` module is enabled via `injector.enable_telemetry` in `system-probe.yaml`.
 
 ## Usage
 

@@ -1,3 +1,5 @@
+> **TL;DR:** Integrates the Trivy vulnerability scanner to generate CycloneDX SBOM reports for container images and host filesystems, driving the agent's SBOM collection pipeline.
+
 # pkg/util/trivy
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/sbom` provides the infrastructure for scanning container images and host filesystems to generate CycloneDX Software Bills of Materials (SBOMs), storing results in workloadmeta and forwarding them to the Datadog CSPM backend.
+
 # pkg/sbom — Software Bill of Materials scanning
 
 ## Purpose
@@ -10,7 +12,9 @@ The package is conditionally compiled: most collector and conversion code requir
 
 ## Key elements
 
-### Root package (`pkg/sbom`)
+### Key types
+
+#### Root package (`pkg/sbom`)
 
 | Symbol | Description |
 |--------|-------------|
@@ -23,14 +27,16 @@ The package is conditionally compiled: most collector and conversion code requir
 | `ScanOptionsFromConfigForHosts(cfg)` | Reads `sbom.host.*` config keys into a `ScanOptions`. |
 | Constants `ScanFilesystemType`, `ScanDaemonType` | Tag values for the `scan_method` tag on metrics. |
 
-### `types/`
+#### `types/`
 
 Defines the foundational interfaces and structs used by all sub-packages:
 
 - `ScanRequest` interface: `Collector() string`, `Type(ScanOptions) string`, `ID() string`.
 - `ScanOptions` struct: fields for `Analyzers`, `CheckDiskUsage`, `MinAvailableDisk`, `Timeout`, `WaitAfter`, `Fast`, `UseMount`, `OverlayFsScan`, `AdditionalDirs`.
 
-### `collectors/`
+### Key interfaces
+
+#### `collectors/`
 
 Defines the `Collector` interface and the global registry:
 
@@ -54,7 +60,9 @@ Built-in collector back-ends (each in its own sub-directory):
 
 Each collector's `collectors/<name>/request.go` (or similar) implements `types.ScanRequest`.
 
-### `scanner/`
+### Key functions
+
+#### `scanner/`
 
 Orchestrates scan execution. The `Scanner` struct wraps a rate-limiting work queue (exponential backoff) around the collector registry.
 
@@ -71,7 +79,7 @@ Orchestrates scan execution. The `Scanner` struct wraps a rate-limiting work que
 
 The scanner enforces a disk-space guard before every scan: it reads `sbom.container_image.check_disk_usage` / `sbom.container_image.min_available_disk` and also requires 1.2× the image size to be free (unless `UseMount` or `OverlayFsScan` is set).
 
-### `bomconvert/` (build tag: `trivy || (windows && wmi)`)
+#### `bomconvert/` (build tag: `trivy || (windows && wmi)`)
 
 Converts between the `github.com/CycloneDX/cyclonedx-go` types (used by trivy) and the internal `agent-payload/v5/cyclonedx_v1_4` protobuf types used for transmission.
 
@@ -81,6 +89,10 @@ Converts between the `github.com/CycloneDX/cyclonedx-go` types (used by trivy) a
 | `ConvertDuration(d time.Duration) *durationpb.Duration` | Utility to convert Go durations to protobuf `Duration`. |
 
 All component types, hashes, licenses, severities, compositions, and vulnerabilities are mapped 1-to-1 through type-switch converters.
+
+### Configuration and build flags
+
+Most collector and conversion code requires the `trivy` build tag on Linux/macOS, or `windows && wmi` on Windows. The configuration keys for scan options, disk-usage guards, backoff, and cache are described in the `## Configuration keys` section below.
 
 ---
 

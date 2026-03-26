@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ebpf/telemetry` exposes runtime observability for eBPF programs in the agent, surfacing map operation errors, BPF helper call errors, and perf/ring-buffer usage as Prometheus metrics via a bytecode-patching mechanism that adds zero overhead when disabled.
+
 # pkg/ebpf/telemetry
 
 ## Purpose
@@ -12,7 +14,7 @@ All metrics are exposed as Prometheus counters/gauges and collected by the syste
 
 ## Key elements
 
-### Build flags
+### Configuration and build flags
 
 | Build tag | Files affected |
 |-----------|---------------|
@@ -20,16 +22,21 @@ All metrics are exposed as Prometheus counters/gauges and collected by the syste
 | `linux` | `perf_metrics.go` (no BPF dependency, uses `prometheus` only). |
 | Non-Linux stubs | `*_nonlinux.go` / `*_noop.go` provide empty implementations so the package compiles on macOS/Windows. |
 
-### Types
+### Key interfaces
+
+| Type | Description |
+|------|-------------|
+| `ErrorsTelemetryModifier` | `ebpf-manager` modifier (implements `ModifierBeforeInit`, `ModifierAfterInit`, `ModifierBeforeStop`). Automatically wires telemetry into any manager it is attached to—no per-module boilerplate needed. |
+
+### Key types
 
 | Type | Description |
 |------|-------------|
 | `EBPFErrorsCollector` | Prometheus `Collector`. Reads map-error and helper-error telemetry maps and emits them as counters with labels `{map_name, error, module}` and `{helper, probe_name, error, module}`. Created by `NewEBPFErrorsCollector()`. |
-| `ErrorsTelemetryModifier` | `ebpf-manager` modifier (implements `ModifierBeforeInit`, `ModifierAfterInit`, `ModifierBeforeStop`). Automatically wires telemetry into any manager it is attached to—no per-module boilerplate needed. |
 | `ebpfTelemetry` (unexported) | Singleton holding maps keyed by `(resourceName, moduleName)`. Shared across all modules via the package-level `errorsTelemetry` variable. |
 | `KprobeStats` | `{Hits uint64, Misses uint64}` read from `tracefs/kprobe_profile`. |
 
-### Constants / map names
+**Constants / map names:**
 
 | Constant | Value | Description |
 |----------|-------|-------------|

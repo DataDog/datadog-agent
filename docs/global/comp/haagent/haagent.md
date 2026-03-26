@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/haagent` enables high-availability deployments by tracking whether the current agent is the elected leader via Remote Config, and gating HA-aware check execution on that state.
+
 # comp/haagent/impl — High-Availability Agent Component
 
 **Import path (interface):** `github.com/DataDog/datadog-agent/comp/haagent/def`
@@ -21,7 +23,9 @@ The component tracks whether the current agent is the **active** (leader) or **s
 | `comp/haagent/fx/` | fx module wiring |
 | `comp/haagent/mock/` | Test mock |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -33,7 +37,9 @@ type Component interface {
 }
 ```
 
-### State type
+### Key types
+
+**`State`** — represents the leadership status of the current agent instance:
 
 ```go
 type State string
@@ -47,7 +53,7 @@ const (
 
 State starts as `Unknown` and transitions to `Active` or `Standby` once the first Remote Config update arrives. If the RC subscription delivers an empty update list the state resets to `Unknown`.
 
-### Key methods
+### Key functions
 
 | Method | Description |
 |---|---|
@@ -56,7 +62,7 @@ State starts as `Unknown` and transitions to `Active` or `Standby` once the firs
 | `SetLeader(hostname)` | Compares `hostname` with the local agent hostname. Sets state to `Active` if they match, `Standby` otherwise. Logs state transitions at INFO level. |
 | `IsActive()` | Returns `true` only when state is `Active`. Consumers call this before executing HA-gated work. |
 
-## Configuration
+### Configuration and build flags
 
 | Key | Default | Description |
 |---|---|---|

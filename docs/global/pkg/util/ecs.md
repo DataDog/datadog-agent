@@ -1,3 +1,5 @@
+> **TL;DR:** Typed HTTP client layer for all four versions of the ECS Task Metadata Service (TMDS), providing detection, task/container/instance metadata fetching, per-container stats, and cluster/ARN parsing for both ECS EC2 and ECS Fargate workloads.
+
 # pkg/util/ecs
 
 ## Purpose
@@ -30,7 +32,23 @@ All files in this package (except `no_ecs.go`) require the `docker` build tag. `
 
 ## Key elements
 
-### Top-level (`pkg/util/ecs`)
+### Key types
+
+**`MetaECS`** struct — top-level cluster metadata used by the inventory pipeline. Fields: `AWSAccountID`, `Region`, `ECSCluster`, `ECSClusterID` (MD5-derived UUID), `ECSAgentVersion`.
+
+**V3/V4 types** (`metadata/v3or4/types.go`) — see `### V3/V4 types` below for `Task`, `Container`, `ContainerStatsV4`, and related structs.
+
+### Key interfaces
+
+**`v1.Client`** — introspection endpoint operations: `GetInstance`, `GetTasks`.
+
+**`v2.Client`** — Fargate basic metadata: `GetTask`, `GetTaskWithTags`, `GetContainerStats`.
+
+**`v3or4.Client`** — task-scoped metadata: `GetTask`, `GetTaskWithTags`, `GetContainer`, `GetContainerStats`.
+
+### Key functions
+
+#### Top-level (`pkg/util/ecs`)
 
 ```go
 type MetaECS struct {
@@ -178,13 +196,15 @@ type ContainerStatsV4 struct {
 
 All HTTP calls to TMDS endpoints are tracked via `telemetry.AddQueryToTelemetry(path, *http.Response)` which records request counts and HTTP status codes as metrics.
 
-### Config keys
+### Configuration and build flags
 
 | Key | Description |
 |---|---|
 | `ecs_agent_url` | Override the v1 endpoint URL |
 | `ecs_agent_container_name` | Docker container name of the ECS agent (default: `ecs-agent`) |
 | `ecs_metadata_timeout` | HTTP timeout in milliseconds for metadata calls |
+
+All files in this package (except `no_ecs.go`) require the `docker` build tag. `no_ecs.go` provides empty stubs for non-Docker builds.
 
 ## Relationship to other packages
 

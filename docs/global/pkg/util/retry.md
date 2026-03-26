@@ -1,3 +1,5 @@
+> **TL;DR:** Provides an embeddable, thread-safe retry mechanism with configurable one-shot, fixed-count, and exponential-backoff strategies, plus structured error types for distinguishing temporary from permanent failures.
+
 # pkg/util/retry
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/retry`
@@ -16,7 +18,7 @@ to poll again.
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -26,7 +28,7 @@ to poll again.
 | `Status` | Enum describing the current retrier state (`NeedSetup`, `Idle`, `OK`, `FailWillRetry`, `PermaFail`). |
 | `Strategy` | Enum selecting retry behaviour (`OneTry`, `RetryCount`, `Backoff`, `JustTesting`). |
 
-### Config fields
+### Configuration and build flags
 
 | Field | Strategy | Description |
 |-------|----------|-------------|
@@ -38,7 +40,7 @@ to poll again.
 | `InitialRetryDelay` | `Backoff` | Starting delay; doubled on each failure. |
 | `MaxRetryDelay` | `Backoff` | Upper bound on the computed backoff delay. |
 
-### Retrier methods
+### Key functions
 
 | Method | Description |
 |--------|-------------|
@@ -48,7 +50,7 @@ to poll again.
 | `NextRetry() time.Time` | Returns when the next attempt is allowed. |
 | `LastError() *Error` | Returns a wrapped version of the last attempt error. |
 
-### Error helpers
+### Key functions (error helpers)
 
 | Function | Description |
 |----------|-------------|

@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a generic `Map` combinator for slices that transforms each element with a function and returns a new slice, filling the gap left by Go's standard library.
+
 # pkg/util/slices
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/slices`
@@ -8,7 +10,9 @@ Provides generic slice helpers that complement Go's standard `slices` package (a
 
 ## Key elements
 
-### `Map[S ~[]E, E any, RE any](s S, fn func(E) RE) []RE`
+### Key functions
+
+#### `Map[S ~[]E, E any, RE any](s S, fn func(E) RE) []RE`
 
 Applies `fn` to every element of `s` and returns a new slice of results, preserving order and pre-allocating to `len(s)` capacity. The input slice is not modified.
 

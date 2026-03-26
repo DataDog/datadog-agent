@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/kubestatemetrics` embeds kube-state-metrics in-process inside the Datadog Cluster Agent, adding a memory-efficient custom `MetricsStore`, optional workloadmeta-backed pod collection, and event-callback hooks for resource lifecycle reactions.
+
 # pkg/kubestatemetrics
 
 ## Purpose
@@ -28,7 +30,9 @@ build tag. The workloadmeta-backed pod collector additionally requires `kubelet`
 
 ## Key elements
 
-### `builder/` — store factory
+### Key types
+
+#### `builder/` — store factory
 
 | Symbol | Description |
 |--------|-------------|
@@ -44,7 +48,9 @@ build tag. The workloadmeta-backed pod collector additionally requires `kubelet`
 | `cacheEnabledListerWatcher` | Wraps an upstream `ListerWatcher`; uses `ResourceVersionMatch=NotOlderThan` on List calls to read from the API-server cache rather than etcd (reduces load). |
 | `workloadmetaReflector` | Bridges workloadmeta pod events into `cache.Store.Add/Update/Delete` calls. Requires `kubeapiserver` + `kubelet` build tags. |
 
-### `store/` — custom metrics store
+### Key interfaces
+
+#### `store/` — custom metrics store
 
 | Symbol | Description |
 |--------|-------------|
@@ -60,6 +66,10 @@ build tag. The workloadmeta-backed pod collector additionally requires `kubelet`
 | `EventNotifier` | Interface with `NotifyStoreEvent`; implemented by `Builder` to decouple the store from the builder import. |
 | `FamilyAllow` / `MetricAllow` | Filter function types passed to `Push`. Pre-built `GetAllFamilies` and `GetAllMetrics` pass everything through. |
 | `ExtractNamespaceAndName(obj)` | Helper that extracts namespace and name from any Kubernetes object (type-switches common types, falls back to `metav1.Object`). |
+
+### Configuration and build flags
+
+All files require the `kubeapiserver` build tag. The workloadmeta-backed pod collector additionally requires `kubelet`. There are no dedicated `datadog.yaml` keys for this package; behavior is controlled by builder options and the `kubernetes_state_core` check configuration.
 
 ---
 

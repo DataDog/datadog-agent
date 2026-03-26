@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/opentelemetry-mapping-go` is the canonical translation layer between the OTel data model and the Datadog data model, covering resource-attribute-to-tag mapping, OTLP metrics conversion (gauges, sums, histograms) to Datadog time series and sketches, and host metadata derivation — published as standalone Go modules so the OTel Collector Datadog exporter can import them independently.
+
 # pkg/opentelemetry-mapping-go
 
 ## Purpose
@@ -19,6 +21,51 @@ The package has its own `go.mod` files in each sub-directory because it is also 
 standalone module used by the OpenTelemetry Collector Datadog exporter outside of the agent.
 
 ## Key elements
+
+### Key types
+
+| Type | Sub-package | Description |
+|------|-------------|-------------|
+| `Translator` | `otlp/attributes` | Resolves a `source.Source` (hostname or cloud resource ID) from OTel resource attributes; tracks missing-source telemetry. |
+| `Source` | `otlp/attributes` | `{Kind, Identifier}` pair representing a host identity (hostname or Fargate task ARN). |
+| `Dimensions` | `otlp/metrics` | Carries the metric name, host, and tags for a translated data point. |
+| `Metadata` | `otlp/metrics` | Returned by `MapMetrics`; includes discovered runtime languages. |
+| `Reporter` | `inframetadata` | Periodic reporter that derives `payload.HostMetadata` from OTel resources and pushes them to the Datadog infrastructure list. |
+
+### Key interfaces
+
+| Interface | Sub-package | Description |
+|-----------|-------------|-------------|
+| `Provider` | `otlp/metrics` | `MapMetrics(ctx, md, consumer, hostHandler)` — primary metrics translation entry point. |
+| `Consumer` | `otlp/metrics` | Receives translated time series, sketches, and histograms synchronously from `MapMetrics`. Optional `HostConsumer` / `TagsConsumer` sub-interfaces. |
+| `Pusher` | `inframetadata` | `Push(ctx, payload.HostMetadata)` — callers supply their own implementation to deliver metadata to the Datadog API. |
+| `HostFromAttributesHandler` | `otlp/attributes` | Provides additional hostname resolution logic; injected into `ResourceToSource`. |
+
+### Key functions
+
+| Function | Sub-package | Description |
+|----------|-------------|-------------|
+| `NewTranslator(set)` | `otlp/attributes` | Creates an attributes `Translator` with telemetry tracking. |
+| `SourceFromAttrs(attrs, handler)` | `otlp/attributes` | Low-level helper that resolves host identity from OTel attributes in priority order. |
+| `NewDefaultTranslator(set, attrTranslator, opts...)` | `otlp/metrics` | Stateful translator with cumulative-to-delta conversion and TTL cache. |
+| `NewMinimalTranslator(logger, attrTranslator, opts...)` | `otlp/metrics` | Lightweight, stateless translator; skips cumulative monotonic sums and histograms. |
+| `(*Translator).StatsToMetrics(sp)` | `otlp/metrics` | Encodes a `StatsPayload` as fake `pmetric.Metrics` for APM stats pipeline passthrough. |
+| `NewReporter(logger, pusher, period)` | `inframetadata` | Creates a `Reporter` that periodically flushes host metadata derived via `ConsumeResource`. |
+
+### Configuration and build flags
+
+The `otlp/metrics` translator is configured via `TranslatorOption` functions (see `#### TranslatorOption functions` under `### Sub-packages in detail` below). Key behavioral toggles:
+
+- `WithRemapping()` — enables OTel-to-Datadog metric name remapping; use in Collector deployments without the native Agent.
+- `WithOTelPrefix()` — prefixes system/process metrics with `otel.` to avoid collisions with native Agent metrics.
+- `WithHistogramMode()` — controls whether histograms are emitted as distributions, counters, or without bucket data.
+- `WithNumberMode()` — controls cumulative-to-delta conversion behavior.
+
+The `datadog.host.use_as_metadata` boolean resource attribute overrides the default `shouldUseByDefault` policy in `inframetadata`: set to `"true"` to force a resource to contribute host metadata even when no hostname is detected.
+
+---
+
+### Sub-packages in detail
 
 ### `otlp/attributes`
 

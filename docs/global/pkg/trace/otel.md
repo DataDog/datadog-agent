@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/otel` provides the OTel-to-Datadog conversion utilities for ingesting OTLP traces — mapping span attributes to Datadog fields, detecting top-level spans, converting trace/span IDs, and bridging OTLP payloads into the APM stats concentrator pipeline.
+
 # pkg/trace/otel
 
 ## Purpose

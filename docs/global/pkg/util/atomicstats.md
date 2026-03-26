@@ -1,3 +1,5 @@
+> **TL;DR:** Reflection-based helper that converts structs with `stats:""` tagged fields (including `go.uber.org/atomic` pointers) into `map[string]interface{}` snapshots for expvar and status page display.
+
 # pkg/util/atomicstats
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/atomicstats`

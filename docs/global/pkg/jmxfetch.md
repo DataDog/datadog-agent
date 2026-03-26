@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/jmxfetch` manages the lifecycle of the JMXFetch subprocess that collects JMX metrics from services like Kafka and Cassandra, passing configurations via the Agent's IPC channel and forwarding collected metrics through DogStatsD.
+
 # pkg/jmxfetch
 
 ### Purpose
@@ -9,6 +11,8 @@ Manages the lifecycle of the JMXFetch subprocess — a Java process that collect
 All non-stub code is gated by the `jmx` build tag. When built without this tag, the package exposes no-op stubs for all public functions so the rest of the codebase compiles cleanly. Always check for `//go:build jmx` or `//go:build !jmx` at the top of source files.
 
 ### Key elements
+
+### Key types
 
 **`JMXFetch`** (`jmxfetch.go`, build tag `jmx`)
 
@@ -29,9 +33,13 @@ Key fields:
 | `DSD` | DogStatsD server component (used to resolve the reporter endpoint) |
 | `IPCHost` / `IPCPort` | Override the Agent IPC address passed to JMXFetch |
 
+### Key interfaces
+
 **`JMXReporter`**
 
 String type with three constants: `ReporterStatsd` (default, sends metrics to DogStatsD), `ReporterConsole`, `ReporterJSON`.
+
+### Key functions
 
 **`JMXFetch.Start(manage bool) error`**
 
@@ -93,6 +101,10 @@ When AutoDiscovery finds a JMX-annotated service (e.g. a Kafka container), `JmxS
 The `comp/api` package exposes `/agent/jmx/configs` and `/agent/jmx/integrations` endpoints backed by `GetScheduledConfigs` and `GetIntegrations`.
 
 For the standalone `jmx` CLI subcommand (`pkg/cli/standalone/jmx.go`), a `JMXFetch` instance is created directly with `ReporterConsole` or `ReporterJSON` reporter and `manage=false`.
+
+### Configuration and build flags
+
+All non-stub code is gated by the `jmx` build tag. When built without it, the package exposes no-op stubs.
 
 ### Configuration keys
 

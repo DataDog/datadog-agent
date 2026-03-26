@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/common` is a lightweight cross-cutting utilities package shared by both the `security-agent` and `system-probe` sides of CWS, providing the `RawReporter` interface, log-context helpers for intake routing, address utilities, and passwd/group parsers.
+
 # pkg/security/common — shared CWS types and utilities
 
 ## Purpose
@@ -8,7 +10,9 @@ Sub-package `usergrouputils/` provides portable `/etc/passwd` and `/etc/group` p
 
 ## Key elements
 
-### `RawReporter` interface (`raw_reporter.go`)
+### Key interfaces
+
+#### `RawReporter` interface (`raw_reporter.go`)
 
 ```go
 type RawReporter interface {
@@ -18,7 +22,9 @@ type RawReporter interface {
 
 The central abstraction for sending CWS events to the intake. Implemented by `reporter.RuntimeReporter`; consumed throughout `pkg/security/module`, `pkg/security/agent`, and `pkg/compliance`.
 
-### Log context helpers (`logs_context.go`)
+### Key functions
+
+#### Log context helpers (`logs_context.go`)
 
 These functions build the `logsconfig.Endpoints` and `client.DestinationsContext` pair needed to route events to the correct Datadog intake track.
 
@@ -40,7 +46,7 @@ Track type constants (`TrackType = logsconfig.IntakeTrackType`):
 | `SecInfo` | `"secinfo"` |
 | `cwsIntakeOrigin` (unexported) | `"cloud-workload-security"` |
 
-### Cloud provider account ID (`account_id.go`)
+#### Cloud provider account ID (`account_id.go`)
 
 ```go
 func QueryAccountIDTag() string
@@ -48,7 +54,7 @@ func QueryAccountIDTag() string
 
 Detects EC2 (`account_id`), GCE (`project_id`), or Azure (`subscription_id`) and returns a `"<name>:<value>"` tag string, lazily computed and cached via `sync.Once`. Used to enrich CWS events with the cloud account context.
 
-### Address utilities (`address_utils.go`)
+#### Address utilities (`address_utils.go`)
 
 ```go
 func GetFamilyAddress(path string) string   // "unix" or "tcp"
@@ -57,7 +63,9 @@ func GetCmdSocketPath(socketPath, cmdSocketPath string) (string, error)
 
 `GetCmdSocketPath` derives the command socket path from the event socket path: for Unix sockets it prepends `cmd-` to the filename; for TCP it increments the port by 1. Used to wire `system-probe` ↔ `security-agent` IPC.
 
-### Static hostname service (`hostname_service.go`)
+### Key types
+
+#### Static hostname service (`hostname_service.go`)
 
 ```go
 type StaticHostnameService struct { ... }
@@ -66,7 +74,7 @@ func NewStaticHostnameService(hostname string) *StaticHostnameService
 
 Implements `hostnameinterface.Component` with a fixed hostname. Used by `reporter.newReporter` to inject the agent hostname into the logs pipeline without requiring a full hostname resolution component.
 
-### Container filter (`filters.go`)
+#### Container filter (`filters.go`)
 
 ```go
 func NewContainerFilter(cfg model.Config, prefix string) (*containers.Filter, error)
@@ -74,7 +82,7 @@ func NewContainerFilter(cfg model.Config, prefix string) (*containers.Filter, er
 
 Builds an include/exclude container filter from config keys `<prefix>container_include`, `<prefix>container_exclude`, and optionally appends the pause container exclusion list when `<prefix>exclude_pause_container` is true.
 
-### No-op status provider (`status_provider.go`)
+#### No-op status provider (`status_provider.go`)
 
 ```go
 type NoopStatusProvider struct{}
@@ -84,7 +92,7 @@ func (n *NoopStatusProvider) RemoveGlobalWarning(string) {}
 
 Satisfies the `pipeline.StatusProvider` interface without side effects. Used by `reporter.newReporter` when no real status reporting is needed.
 
-### `usergrouputils/` — passwd/group parsers
+#### `usergrouputils/` — passwd/group parsers
 
 | Function | Description |
 |----------|-------------|

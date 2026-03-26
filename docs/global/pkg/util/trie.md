@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a generic in-memory `SuffixTrie` for O(path-length) longest-suffix match lookups, used to resolve container IDs from cgroup paths without a full linear scan.
+
 # pkg/util/trie
 
 ## Purpose
@@ -6,7 +8,9 @@
 
 ## Key elements
 
-### `SuffixTrie[T any]` (`trie.go`)
+### Key types
+
+#### `SuffixTrie[T any]` (`trie.go`)
 
 ```go
 type SuffixTrie[T any] struct { ... }

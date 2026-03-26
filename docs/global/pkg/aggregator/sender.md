@@ -1,3 +1,5 @@
+> **TL;DR:** Defines the `Sender` and `SenderManager` interfaces through which checks submit metrics, events, and service checks to the aggregation pipeline, keeping check code decoupled from aggregator internals.
+
 # Package `pkg/aggregator/sender`
 
 ## Purpose
@@ -22,6 +24,8 @@ There are two interfaces:
 ---
 
 ## Key elements
+
+### Key interfaces
 
 ### `Sender` interface
 

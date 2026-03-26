@@ -1,3 +1,5 @@
+> **TL;DR:** Lightweight read-only client that reads Podman's BoltDB (≤v4) or SQLite (≥v4.9) state databases directly to list containers, avoiding a dependency on the full Podman library.
+
 # pkg/util/podman
 
 ## Purpose

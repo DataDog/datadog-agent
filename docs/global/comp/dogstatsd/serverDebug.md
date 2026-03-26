@@ -1,3 +1,5 @@
+> **TL;DR:** A runtime debug facility for the DogStatsD server that tracks per-metric statistics, detects volume spikes via a rolling 5-second bucket, and exposes the results as JSON — all toggled at runtime without an agent restart.
+
 # comp/dogstatsd/serverDebug
 
 **Team:** agent-metric-pipelines
@@ -10,7 +12,7 @@ The debug mode is off by default and can be toggled at runtime without restartin
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 `comp/dogstatsd/serverDebug/component.go`
 
@@ -30,7 +32,9 @@ type Component interface {
 | `SetMetricStatsEnabled` | Toggles debug mode. Enabling starts a background goroutine that maintains rolling 1-second count buckets. Disabling stops it. |
 | `GetJSONDebugStats` | Returns JSON-marshalled stats. Keys are `ckey.ContextKey` hashes; values are `metricStat` objects. |
 
-### metricStat
+### Key types
+
+#### `metricStat`
 
 ```go
 type metricStat struct {
@@ -41,25 +45,35 @@ type metricStat struct {
 }
 ```
 
-### metricsCountBuckets
+#### `metricsCountBuckets`
 
 A ring buffer of five `uint64` counters, one per second, used for spike detection. A spike is flagged when the current bucket exceeds the sum of all other four buckets.
 
-### Spike detection and logging
+### Key functions
+
+#### Spike detection and logging
 
 The `enableMetricsStats` path starts a ticker at 100 ms. On each second boundary it rotates the ring buffer and calls `hasSpike()`. If a spike is detected, a `Warnf` is emitted via the component logger.
 
-### Optional DogStatsD file logger
+#### Optional DogStatsD file logger
 
 If `dogstatsd_logging_enabled` is `true` in the agent config, the component writes every recorded metric to a dedicated log file (`dogstatsd_log_file`, defaulting to `defaultpaths.DogstatsDLogFile`). This is separate from the main agent log.
 
-### Serverless constructor
+#### Serverless constructor
 
 `NewServerlessServerDebug()` creates an instance without an fx dependency graph, using a temporary logger and the global config reader. This is used by the serverless agent.
 
-### FormatDebugStats (helper)
+#### `FormatDebugStats` (helper)
 
 `serverdebugimpl.FormatDebugStats(stats []byte) (string, error)` parses the JSON produced by `GetJSONDebugStats` and returns a human-readable tabular string sorted by descending count. Used by the `agent dogstatsd-stats` CLI subcommand.
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `dogstatsd_metrics_stats_enable` | `false` | Enable per-metric debug statistics at startup |
+| `dogstatsd_logging_enabled` | `false` | Write every recorded metric to a dedicated log file |
+| `dogstatsd_log_file` | `defaultpaths.DogstatsDLogFile` | Path to the DogStatsD-specific log file |
 
 ## Usage
 

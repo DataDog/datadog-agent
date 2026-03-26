@@ -1,3 +1,5 @@
+> **TL;DR:** Provides allocation-free, deterministic hashing of a metric context (name, hostname, tag set) into a `uint64` key used as a fast map key throughout the aggregator and metrics pipeline.
+
 # pkg/aggregator/ckey
 
 ## Purpose
@@ -13,6 +15,8 @@ The design choices are intentional:
 A separate `TagsKey` (`uint64`) hashes only the tag portion, used when callers need to compare tag sets independently of the metric name or hostname (e.g. the `GenerateWithTags2` two-accumulator variant).
 
 ## Key elements
+
+### Key types
 
 | Symbol | Kind | Description |
 |--------|------|-------------|

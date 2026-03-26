@@ -1,3 +1,5 @@
+> **TL;DR:** Provides the HTTP clients node agents use to query the Datadog Cluster Agent for Kubernetes metadata, cluster/endpoint check configurations, and language detection, serving as the main IPC boundary between node agents and the cluster agent.
+
 # pkg/util/clusteragent
 
 ## Purpose
@@ -20,9 +22,9 @@ initialization helpers.
 
 ## Key elements
 
-### DCAClient
+### Key interfaces
 
-#### Interface
+#### DCAClient interface (`DCAClientInterface`)
 
 `DCAClientInterface` is the public contract; the concrete `DCAClient` implements
 it.  Always depend on the interface in production code to allow mocking in
@@ -106,7 +108,7 @@ initial, 5 min cap) so it is safe to call early at startup.
 | `GetEndpointsCheckConfigs` | `GET api/v1/endpointschecks/configs/{node}` |
 | `PostLanguageMetadata` | `POST api/v1/languagedetection` |
 
-### CLCRunnerClient
+#### CLCRunnerClient interface (`CLCRunnerClientInterface`)
 
 Talks directly to individual CLC Runner pod IPs over HTTPS on the port
 configured by `cluster_checks.clc_runners_port`.
@@ -122,7 +124,9 @@ CLCRunnerClientInterface
 clcClient, err := clusteragent.GetCLCRunnerClient()
 ```
 
-### Diagnostics
+### Key functions
+
+#### Diagnostics
 
 Importing the package registers a `"Cluster Agent availability"` metadata
 diagnose check (via `diagnoseComp.RegisterMetadataAvail`) that fires

@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a type-safe, Fx-integrated pub/sub bus for low-frequency inter-component events, routing messages by Go generic type through buffered channels.
+
 # pkg/util/subscriptions
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/subscriptions`
@@ -19,7 +21,7 @@ not use a primitive type like `string` or `int`.
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -27,7 +29,9 @@ not use a primitive type like `string` or `int`.
 | `Transmitter[M Message]` | Sends messages to all subscribed receivers. Contains an `fx.In`-tagged slice of channels. |
 | `Receiver[M Message]` | Holds the channel a component reads from. Contains an `fx.Out`-tagged channel that Fx injects into the transmitter's slice. |
 
-### Transmitter
+### Key functions
+
+#### Transmitter
 
 ```go
 type Transmitter[M Message] struct {
@@ -42,7 +46,7 @@ func (tx Transmitter[M]) Notify(message M)
 if any receiver's channel is full, and **panics** if a channel is closed. Keep
 receivers drained.
 
-### Receiver
+#### Receiver
 
 ```go
 type Receiver[M Message] struct {

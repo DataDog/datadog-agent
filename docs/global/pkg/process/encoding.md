@@ -1,5 +1,7 @@
 # pkg/process/encoding
 
+> **TL;DR:** `pkg/process/encoding` provides content-negotiated (protobuf/JSON) serialization and deserialization of per-process stats exchanged between system-probe and the process-agent over a Unix socket.
+
 **Import path:** `github.com/DataDog/datadog-agent/pkg/process/encoding`
 
 ## Purpose
@@ -10,7 +12,9 @@ A sub-package `pkg/process/encoding/request` provides the same content-negotiati
 
 ## Key Elements
 
-### Interfaces (`encoding.go`)
+### Key interfaces
+
+#### Interfaces (`encoding.go`)
 
 | Interface | Method(s) | Description |
 |---|---|---|
@@ -19,31 +23,39 @@ A sub-package `pkg/process/encoding/request` provides the same content-negotiati
 
 Both interfaces are implemented by `protoSerializer` and `jsonSerializer`.
 
-### Content type constants
+### Key types
+
+#### Content type constants
 
 | Constant | Value | Defined in |
 |---|---|---|
 | `ContentTypeProtobuf` | `"application/protobuf"` | `protobuf.go` |
 | `ContentTypeJSON` | `"application/json"` | `json.go` |
 
-### Serializer selection
+### Key functions
+
+#### Serializer selection
 
 **`GetMarshaler(accept string) Marshaler`** — returns `protoSerializer` if the `Accept` header contains `"application/protobuf"`, otherwise `jsonSerializer`.
 
 **`GetUnmarshaler(ctype string) Unmarshaler`** — same logic against the `Content-Type` header.
 
-### Protobuf serializer (`protobuf.go`)
+#### Protobuf serializer (`protobuf.go`)
 
 Uses `github.com/gogo/protobuf/proto`. Fields mapped from `procutil.StatsWithPerm` to `model.ProcStatsWithPerm`:
 - `OpenFdCount`, `IOStat.ReadCount`, `IOStat.WriteCount`, `IOStat.ReadBytes`, `IOStat.WriteBytes`
 
 The serializer uses a **typed object pool** (`statPool`, backed by `ddsync.NewDefaultTypedPool`) to reuse `model.ProcStatsWithPerm` allocations; `returnToPool` is called after marshaling to return pooled objects.
 
-### JSON serializer (`json.go`)
+#### JSON serializer (`json.go`)
 
 Uses `github.com/gogo/protobuf/jsonpb` with `EmitDefaults: true` so zero-valued fields are included. Same field mapping and pool usage as the protobuf path.
 
-### Request sub-package (`encoding/request`)
+### Configuration and build flags
+
+No special build tags. The format is negotiated at runtime via HTTP `Accept`/`Content-Type` headers. Protobuf is the production default; JSON is a fallback for tests.
+
+#### Request sub-package (`encoding/request`)
 
 Mirrors the top-level package but operates on `pbgo.ProcessStatRequest` (the request type process-agent sends to system-probe):
 

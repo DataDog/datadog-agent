@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/transform` is the primary OTLP-to-Datadog APM translation layer — converting OTel spans and resources into `pb.Span` format, mapping attributes to Datadog fields, marshalling span events and links to JSON, and applying obfuscation for SQL, Redis, and Valkey span types.
+
 # pkg/trace/transform
 
 ## Purpose
@@ -8,7 +10,9 @@ translation layer between the OTLP ingestion path and the internal Datadog trace
 
 ## Key elements
 
-### Span conversion
+### Key functions
+
+#### Span conversion
 
 **`OtelSpanToDDSpan(otelspan, otelres, lib, conf)`** — Full conversion of an OTel span to a
 `*pb.Span`. In addition to the fields produced by the minimal variant, it copies all span and
@@ -23,12 +27,7 @@ metadata tags (`otel.trace_id`, `otel.status_code`, `otel.library.name`/`.versio
 top-level/measured markers, peer tags). Used by `pkg/trace/stats` to avoid the overhead of full
 attribute copying for concentrator inputs.
 
-**`OperationAndResourceNameV2Enabled(conf)`** — Returns true when the v2 operation/resource name
-logic should be used (i.e. `SpanNameAsResourceName` is off, no `SpanNameRemappings` are
-configured, and the `disable_operation_and_resource_name_logic_v2` feature flag is absent).
-Callers use this to choose between the v1 and v2 name resolution paths.
-
-### Attribute mapping helpers
+#### Attribute mapping helpers
 
 **`GetDDKeyForOTLPAttribute(k)`** — Maps an OTLP HTTP attribute key to its Datadog equivalent
 (via `attributes.HTTPMappings`). Handles `http.request.header.*` prefix rewriting. Returns
@@ -43,7 +42,7 @@ The `IfEmpty` variant skips fields that are already populated.
 **`SetMetricOTLP(s, k, v)` / `SetMetricOTLPIfEmpty(s, k, v)`** — Set a numeric attribute,
 mapping `sampling.priority` to `_sampling_priority_v1`.
 
-### Resource/metadata extraction helpers
+#### Resource/metadata extraction helpers
 
 | Function | Description |
 |---|---|
@@ -55,7 +54,7 @@ mapping `sampling.priority` to `_sampling_priority_v1`.
 | `GetOTelStatusCode(span, res)` | Returns the HTTP status code as `uint32`, or 0 if absent/negative. |
 | `GetOTelContainerTags(rattrs, tagKeys)` | Builds a list of normalized `key:value` container tags from resource attributes using `attributes.ContainerMappings`. |
 
-### Event and link marshalling
+#### Event and link marshalling
 
 **`MarshalEvents(events)`** — Serialises OTel `SpanEventSlice` to a compact JSON string
 stored in `span.Meta["events"]`. Errors in individual attribute serialisation are handled
@@ -67,13 +66,21 @@ in `span.Meta["_dd.span_links"]`.
 **`TagSpanIfContainsExceptionEvent(otelspan, ddspan)`** — Sets
 `_dd.span_events.has_exception = "true"` when any span event is named `"exception"`.
 
-### Error conversion
+#### Error conversion
 
 **`Status2Error(status, events, metaMap)`** — Returns `1` if the OTel status is `Error`,
 populating `error.msg` from the status message or HTTP status code text if not already set.
 Returns `0` otherwise.
 
-### Obfuscation (`obfuscate.go`)
+### Key types
+
+(See `pkg/obfuscate` for `*obfuscate.Obfuscator`, which is accepted by the obfuscation functions below.)
+
+### Configuration and build flags
+
+**`OperationAndResourceNameV2Enabled(conf)`** — Returns true when the v2 operation/resource name logic should be used (i.e. `SpanNameAsResourceName` is off, no `SpanNameRemappings` are configured, and the `disable_operation_and_resource_name_logic_v2` feature flag is absent). Callers use this to choose between the v1 and v2 name resolution paths.
+
+### Obfuscation helpers (`obfuscate.go`)
 
 Obfuscation functions accept an `*obfuscate.Obfuscator` (from `pkg/obfuscate`) and a `*pb.Span`.
 

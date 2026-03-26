@@ -1,3 +1,5 @@
+> **TL;DR:** Plugs the trace-agent into the agent's unified status framework by polling the trace-agent's `/debug/vars` endpoint and rendering receiver, sampling, and writer statistics under the "APM Agent" section of `agent status`.
+
 # comp/trace/status
 
 **Team:** agent-apm
@@ -17,7 +19,7 @@ registering the status provider at fx startup.
 
 ## Key elements
 
-### Component interface (`comp/trace/status/component.go`)
+### Key interfaces
 
 ```go
 type Component interface{}
@@ -26,7 +28,9 @@ type Component interface{}
 The interface is intentionally empty. The component is included solely for its
 fx output (see below).
 
-### `statusimpl.Module()` (`comp/trace/status/statusimpl`)
+### Key types
+
+#### `statusimpl.Module()`
 
 ```go
 func Module() fxutil.Module {
@@ -46,7 +50,7 @@ type provides struct {
 This is the standard pattern for contributing to the multi-valued
 `status.InformationProvider` group consumed by `comp/core/status`.
 
-### `statusProvider`
+#### `statusProvider`
 
 | Method | Behaviour |
 |---|---|
@@ -61,7 +65,11 @@ Data is fetched via `ipc.HTTPClient` (an authenticated TLS client) on each
 the provider returns a map containing `error` and `port` keys, which the
 template renders as `Status: Not running or unreachable on localhost:<port>`.
 
-### Status template fields
+### Configuration and build flags
+
+Data source: `apm_config.debug.port` (read via `comp/core/config`) determines the URL polled by the `JSON` method. No additional build flags gate this component.
+
+#### Status template fields
 
 The text template (`statusimpl/status_templates/traceagent.tmpl`) displays:
 
@@ -73,7 +81,7 @@ The text template (`statusimpl/status_templates/traceagent.tmpl`) displays:
 - **Writer (previous minute)**: trace/stats payloads and bytes; API error
   warnings.
 
-### Dependencies
+#### Dependencies
 
 | Dep | Purpose |
 |---|---|

@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/hostname` provides a consistent, cached hostname to all agent components by trying a prioritized provider chain (config, Fargate, GCE, Azure, FQDN, OS, EC2), with a remote variant that delegates to the core agent over gRPC for satellite processes.
+
 # comp/core/hostname — Hostname Resolution Component
 
 **Team:** agent-runtimes
@@ -15,7 +17,9 @@ runs in the core agent, a remote sub-agent, or a serverless context.
 
 ## Key elements
 
-### Component interface (`hostnameinterface/component.go`)
+### Key interfaces
+
+#### Component interface (`hostnameinterface/component.go`)
 
 ```go
 type Component interface {
@@ -31,7 +35,9 @@ type Component interface {
 | `GetWithProvider` | Returns both the hostname and the name of the provider that resolved it (e.g. `"gce"`, `"aws"`, `"config"`, `"remote"`). |
 | `GetSafe` | Same as `Get`, but returns `"unknown host"` instead of propagating an error. Safe to call during startup before logging is fully initialized. |
 
-### Data type (`hostnameinterface/component.go`)
+### Key types
+
+#### Data type (`hostnameinterface/component.go`)
 
 ```go
 type Data struct {
@@ -43,7 +49,9 @@ type Data struct {
 Returned by `GetWithProvider`. The `Provider` field identifies which source
 resolved the hostname — useful for diagnostics.
 
-### Provider resolution order (`pkg/util/hostname/providers.go`)
+### Key functions
+
+#### Provider resolution order (`pkg/util/hostname/providers.go`)
 
 The underlying `pkg/util/hostname.Get` function tries providers in order,
 stopping at the first successful `stopIfSuccessful` provider:
@@ -61,7 +69,7 @@ stopping at the first successful `stopIfSuccessful` provider:
 The result is cached in memory after the first successful resolution; subsequent
 calls return the cached value immediately.
 
-### Implementations
+#### Implementations
 
 | Package | Module function | When to use |
 |---|---|---|
@@ -69,13 +77,15 @@ calls return the cached value immediately.
 | `remotehostnameimpl` | `remotehostnameimpl.Module()` | Sub-agents (process-agent, security-agent, etc.) that want to use the hostname already determined by the core agent. Calls the core agent's gRPC `GetHostname` endpoint (via `ipc.Component` for TLS), with up to 6 retries. Falls back to local resolution if the core agent is unreachable. Caches the result for 15 minutes. |
 | `hostnameimpl` (serverless variant) | via build tag | Used in the serverless agent; resolves hostname from the Lambda function name. |
 
-### fx wiring
+### Configuration and build flags
+
+#### fx wiring
 
 Both `hostnameimpl.Module()` and `remotehostnameimpl.Module()` register their
 constructor with `fx.Provide`. They satisfy `hostname.Component` (which is a
 type alias for `hostnameinterface.Component`).
 
-### Mock (`hostnameinterface/component_mock.go`, build tag `test`)
+#### Mock (`hostnameinterface/component_mock.go`, build tag `test`)
 
 The `Mock` interface embeds `Component` without adding extra methods. Provide a
 custom implementation in tests by satisfying `hostname.Component` directly, or

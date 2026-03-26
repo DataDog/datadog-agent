@@ -1,3 +1,5 @@
+> **TL;DR:** The scheduling backbone for all periodic metadata collection — it spawns one goroutine per registered `MetadataProvider` callback, drives each at the interval the callback returns, and gracefully drains them on shutdown.
+
 # comp/metadata/runner — Metadata Collection Runner
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/metadata/runner`
@@ -17,7 +19,9 @@ Without the runner, no metadata payload (host, inventory-agent, inventory-host, 
 | `comp/metadata/runner` | Component interface (`Component`, empty marker) |
 | `comp/metadata/runner/runnerimpl` | Implementation (`runnerImpl`), `Provider` type, `NewProvider` helper, fx `Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface{}
@@ -25,9 +29,9 @@ type Component interface{}
 
 The `Component` interface is intentionally empty. Its fx type exists solely to give the fx dependency graph something to depend on so the runner's lifecycle hooks (start/stop) are guaranteed to execute. Consumers never call methods on it directly.
 
-## Key types
+### Key types
 
-### `runnerimpl.MetadataProvider`
+#### `runnerimpl.MetadataProvider`
 
 ```go
 type MetadataProvider func(context.Context) time.Duration
@@ -37,7 +41,7 @@ The callback signature every metadata provider must implement. It is called once
 1. Collect and send its metadata payload.
 2. Return the `time.Duration` the runner should wait before calling it again.
 
-### `runnerimpl.Provider`
+#### `runnerimpl.Provider`
 
 ```go
 type Provider struct {
@@ -48,13 +52,22 @@ type Provider struct {
 
 An fx value type. Wrap your `MetadataProvider` function in a `Provider` so fx can inject it into the runner's provider group.
 
-### `runnerimpl.NewProvider`
+### Key functions
+
+#### `runnerimpl.NewProvider`
 
 ```go
 func NewProvider(callback MetadataProvider) Provider
 ```
 
 Convenience constructor. Pass `nil` as callback to register a no-op provider (used by inventory payloads when the `enable_metadata_collection` flag is false).
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `enable_metadata_collection` | `true` | Master switch; set to `false` to disable all periodic metadata |
+| `metadata_provider_stop_timeout` | `2s` | Maximum time to wait for an in-flight provider to finish on stop |
 
 ## fx wiring
 

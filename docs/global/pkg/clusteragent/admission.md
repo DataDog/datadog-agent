@@ -1,3 +1,5 @@
+> **TL;DR:** Implements the Kubernetes Admission Controller for the Datadog Cluster Agent, intercepting pod-creation requests to automatically inject Datadog configuration, APM libraries, sidecars, and security instrumentation.
+
 # pkg/clusteragent/admission
 
 ## Purpose
@@ -33,6 +35,8 @@ admission/
 ```
 
 ## Key Elements
+
+### Key interfaces
 
 ### Startup
 

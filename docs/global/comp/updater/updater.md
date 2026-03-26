@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/updater/updater` wraps the Fleet daemon as an fx-managed component, handling remote-triggered install, update, and rollback of Datadog packages on the host via a local Unix socket or Windows named pipe API.
+
 # comp/updater/updater — Updater Daemon Component
 
 **Import path (interface):** `github.com/DataDog/datadog-agent/comp/updater/updater`
@@ -20,7 +22,9 @@ The component exists so the long-running daemon can participate in the standard 
 | `comp/updater/localapi/` | Local HTTP/Unix-socket API served on top of the Component |
 | `pkg/fleet/daemon/` | Core daemon logic (package install, RC polling, task DB) |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Component embeds the fleet daemon interface directly.
@@ -54,18 +58,9 @@ type Daemon interface {
 }
 ```
 
-## fx wiring
+### Key functions
 
 `updaterimpl.Module()` provides `updatercomp.Component` via `newUpdaterComponent`.
-
-Dependencies:
-
-| Dependency | Type | Notes |
-|---|---|---|
-| `hostname` | `hostname.Component` | Used to identify this host in RC messages |
-| `log` | `log.Component` | Logging |
-| `config` | `config.Component` | Agent configuration (API key, site, proxy, …) |
-| `RemoteConfig` | `option.Option[rcservice.Component]` | **Required** — returns `errRemoteConfigRequired` if absent |
 
 The constructor calls `daemon.NewDaemon(hostname, remoteConfig, config)` which:
 
@@ -77,6 +72,27 @@ The constructor calls `daemon.NewDaemon(hostname, remoteConfig, config)` which:
 `Start`/`Stop` are registered as fx lifecycle hooks so the daemon starts and stops with the application.
 
 Note: unlike most components that use `comp/remote-config/rcclient`, the fleet daemon constructs its own RC client directly from `rcservice.Component` rather than going through the `rcclient` fx component. This allows the daemon to manage its own subscription lifecycle and task database independently.
+
+### Configuration and build flags
+
+**fx wiring dependencies:**
+
+| Dependency | Type | Notes |
+|---|---|---|
+| `hostname` | `hostname.Component` | Used to identify this host in RC messages |
+| `log` | `log.Component` | Logging |
+| `config` | `config.Component` | Agent configuration (API key, site, proxy, …) |
+| `RemoteConfig` | `option.Option[rcservice.Component]` | **Required** — returns `errRemoteConfigRequired` if absent |
+
+**Runtime configuration options:**
+
+| Key | Description |
+|---|---|
+| `remote_updates` | Enables remote-triggered package updates |
+| `installer.mirror` | OCI registry mirror for package downloads |
+| `installer.registry.url` | Override the default OCI registry URL |
+| `installer.refresh_interval` | How often the daemon polls for RC updates |
+| `installer.gc_interval` | How often old package versions are garbage-collected |
 
 ## Usage in the codebase
 
@@ -93,16 +109,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 ```
 
 `NewLocalAPI` exposes the daemon's methods over a Unix socket (Linux/macOS) or a Windows named pipe, allowing the `datadog-installer` CLI to issue install/experiment commands to the running daemon.
-
-## Key configuration options
-
-| Key | Description |
-|---|---|
-| `remote_updates` | Enables remote-triggered package updates |
-| `installer.mirror` | OCI registry mirror for package downloads |
-| `installer.registry.url` | Override the default OCI registry URL |
-| `installer.refresh_interval` | How often the daemon polls for RC updates |
-| `installer.gc_interval` | How often old package versions are garbage-collected |
 
 ## Related components and packages
 

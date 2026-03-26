@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/tailers` provides the concrete tailer implementations (file, container, journald, socket, Windows Event Log, and channel) along with the `TailerTracker` and `TailerContainer` registry that launchers use to manage active tailers and surface them in `agent status`.
+
 # pkg/logs/tailers
 
 ## Purpose
@@ -6,7 +8,9 @@
 
 ## Key elements
 
-### `Tailer` interface (`tailer.go`)
+### Key interfaces
+
+#### `Tailer` interface (`tailer.go`)
 
 ```go
 type Tailer interface {
@@ -18,7 +22,9 @@ type Tailer interface {
 
 Minimal interface shared by all concrete tailer types. `GetID` returns a string that uniquely identifies the tailer (e.g. `"docker:<containerID>"` or a file path). `GetInfo` returns a registry of status key/value pairs surfaced in `agent status`.
 
-### `TailerTracker` (`tailer_tracker.go`)
+### Key types
+
+#### `TailerTracker` (`tailer_tracker.go`)
 
 ```go
 type TailerTracker struct { /* sync.RWMutex + containers */ }
@@ -30,7 +36,7 @@ func (t *TailerTracker) All() []Tailer
 
 Global registry of all active tailers in the agent. Each launcher registers its own `TailerContainer` at `Start` time. The tracker is passed to every launcher by the `Launchers` collection and is the source of truth for the `agent status` tailers view.
 
-### `TailerContainer[T Tailer]` (`tailer_tracker.go`)
+#### `TailerContainer[T Tailer]` (`tailer_tracker.go`)
 
 ```go
 type TailerContainer[T Tailer] struct { /* sync.RWMutex + map[string]T */ }
@@ -46,7 +52,9 @@ func (t *TailerContainer[T]) Count() int
 
 A type-safe, concurrency-safe map of tailers keyed by `GetID()`. Each launcher that manages a homogeneous set of tailers creates one `TailerContainer` for its concrete type and registers it with the `TailerTracker`. This lets the tracker aggregate all tailers without losing concrete type information inside the launcher.
 
-### Sub-packages
+### Key functions
+
+#### Sub-packages
 
 #### `file/` — file tailer (all platforms)
 
@@ -117,6 +125,16 @@ A `publishermetadatacache.Component` is used to resolve provider display names f
 Used for: serverless agent log ingestion, OTel collector log export, integration check log forwarding.
 
 `WaitFlush()` closes the input channel and blocks until the run goroutine drains it — this is the shutdown path called by the channel launcher.
+
+### Configuration and build flags
+
+| Config key / Build tag | Tailer | Description |
+|---|---|---|
+| `logs_config.use_sourcehost_tag` | `socket/` | Add a `source_host:<ip>` tag to each socket message. |
+| `logs_config.file_scan_period` (via launcher) | `file/` | Polling interval between empty reads. |
+| Build tag `kubelet \|\| docker` | `container/` | Required to compile the container tailer. |
+| Build tag `systemd` | `journald/` | Required to compile the journald tailer. |
+| Build tag `windows` | `windowsevent/` | Required to compile the Windows Event Log tailer. |
 
 ## Usage
 

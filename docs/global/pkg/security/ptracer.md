@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/ptracer` implements a ptrace-based syscall interceptor (the `cws-instrumentation` sidecar) that converts syscall events into SECL-compatible messages and streams them to `system-probe`'s `EBPFLessProbe`, providing eBPF-free CWS detection for constrained environments.
+
 # pkg/security/ptracer — ptrace-based CWS tracer (eBPF-less mode)
 
 ## Purpose
@@ -8,7 +10,7 @@ The package is **Linux-only** (`//go:build linux`). It is exposed as a binary th
 
 ## Key elements
 
-### Core types
+### Key types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -18,7 +20,9 @@ The package is **Linux-only** (`//go:build linux`). It is exposed as a binary th
 | `Creds` | `ptracer.go` | Optional UID/GID override (`*uint32`) applied to the tracee at fork time. |
 | `ProcProcess` | `proc.go` | Wraps `gopsutil/v4/process.Process` with a `CreateTime` field; used during procfs scans. |
 
-### Callback types
+### Key interfaces
+
+#### Callback types
 
 | Constant | Meaning |
 |----------|---------|
@@ -26,7 +30,9 @@ The package is **Linux-only** (`//go:build linux`). It is exposed as a binary th
 | `CallbackPostType` | Fired at syscall exit (after the return value is available). |
 | `CallbackExitType` | Fired when a traced PID exits. |
 
-### Syscall handler registration
+### Key functions
+
+#### Syscall handler registration
 
 `registerSyscallHandlers()` in `cws.go` aggregates three handler groups:
 
@@ -39,7 +45,7 @@ The package is **Linux-only** (`//go:build linux`). It is exposed as a binary th
 
 Each handler is a `syscallHandler` struct with optional `Func` (pre-hook), `ShouldSend` (filter on return value), and `RetFunc` (post-hook) fields.
 
-### Key functions
+#### Key entry-point functions
 
 | Function | Description |
 |----------|-------------|
@@ -52,14 +58,16 @@ Each handler is a `syscallHandler` struct with optional `Func` (pre-hook), `Shou
 | `(ctx) CWSCleanup()` | Cancels context, drains the message queue, and closes the connection. |
 | `forkExec1` | Low-level `clone(2)` + `execve(2)` in a `//go:nosplit` function; calls `PTRACE_TRACEME` and applies seccomp in the child before exec. |
 
-### Environment variable overrides (testing)
+### Configuration and build flags
+
+#### Environment variable overrides (testing)
 
 | Variable | Effect |
 |----------|--------|
 | `TEST_DD_PASSWD_PATH` (`EnvPasswdPathOverride`) | Override `/etc/passwd` path for user resolution. |
 | `TEST_DD_GROUP_PATH` (`EnvGroupPathOverride`) | Override `/etc/group` path for group resolution. |
 
-### Build flags
+#### Build flags
 
 The entire package is gated on `//go:build linux`. There are no additional build tags.
 

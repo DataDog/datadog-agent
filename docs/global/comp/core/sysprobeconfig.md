@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/sysprobeconfig` is the fx-injectable wrapper around the `system-probe.yaml` configuration store, exposing both a key-level `model.ReaderWriter` API and a strongly-typed `*sysconfigtypes.Config` struct for system-probe module settings.
+
 # comp/core/sysprobeconfig — System-Probe Configuration Component
 
 **Team:** ebpf-platform
@@ -26,7 +28,11 @@ It is listed as a `CoreConfig config.Component` dependency in its own constructo
 | `sysprobeconfigimpl/config_mock.go` | Test helpers (`MockModule`, `NewMock`) |
 | `sysprobeconfigimpl/mock_params.go` | `MockParams` (functional options + key override map for tests) |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -44,7 +50,9 @@ type Component interface {
 
 `SysProbeObject()` returns `*sysconfigtypes.Config`, which exposes per-module enable flags and typed settings (e.g. `HealthPort`, `MaxTrackedConnections`, module-specific `Enabled` booleans). Use this when you need to read system-probe module configuration directly rather than via a key string.
 
-## Params
+### Key types
+
+#### Params
 
 ```go
 // sysprobeconfigimpl.NewParams(options ...func(*Params)) Params
@@ -59,7 +67,9 @@ sysprobeconfigimpl.NewParams(
 | `WithSysProbeConfFilePath(path)` | Path to `system-probe.yaml`; usually from `--sysprobecfgpath` CLI flag |
 | `WithFleetPoliciesDirPath(dir)` | Directory containing Fleet Policy YAML files from Remote Configuration |
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 `sysprobeconfigimpl.Module()` is typically included as part of `core.Bundle()` in the main agent (via `core.BundleParams.SysprobeConfigParams`), and directly in the system-probe daemon:
 
@@ -80,7 +90,9 @@ sysprobeconfigimpl.Module(),
 
 `Module()` also calls `fxutil.ProvideOptional[sysprobeconfig.Component]()`, making the component available as `option.Option[sysprobeconfig.Component]` in addition to the concrete type. This is used by `rcclientimpl`, which accepts an optional sysprobeconfig to route `AGENT_CONFIG` log-level changes to the correct config store when running as system-probe.
 
-## Disabling the component
+### Configuration and build flags
+
+#### Disabling the component
 
 When a binary does not need system-probe configuration, use `sysprobeconfig.NoneModule()` to provide a disabled optional without linking the implementation:
 
@@ -88,7 +100,7 @@ When a binary does not need system-probe configuration, use `sysprobeconfig.None
 sysprobeconfig.NoneModule()  // provides option.None[sysprobeconfig.Component]()
 ```
 
-## Mock
+#### Mock
 
 `sysprobeconfigimpl.MockModule()` (build tag `test`) provides an in-memory configuration backed by `mock.NewSystemProbe(t)`. It strips all `DD_` environment variables for the duration of the test and restores them in a `t.Cleanup` hook.
 

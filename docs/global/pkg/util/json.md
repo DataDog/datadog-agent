@@ -1,3 +1,5 @@
+> **TL;DR:** Provides three focused JSON helpers — nested map traversal, a CLI pretty-printer, and a low-allocation streaming JSON builder — used by CLI commands and the metrics serializer hot path.
+
 # pkg/util/json
 
 ## Purpose

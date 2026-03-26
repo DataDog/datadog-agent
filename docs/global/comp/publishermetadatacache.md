@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/publishermetadatacache` caches expensive Windows Event Log publisher metadata handles opened via `EvtOpenPublisherMetadata`, providing a shared `FormatMessage` entry point to the Windows Event Log tailer and checks.
+
 # comp/publishermetadatacache
 
 **Team:** windows-products
@@ -10,7 +12,7 @@ The `publishermetadatacache` component caches Windows Event Log publisher metada
 
 ## Key Elements
 
-### Component interface
+### Key interfaces
 
 `comp/publishermetadatacache/def/component.go`
 
@@ -26,7 +28,7 @@ type Component interface {
 | `FormatMessage(publisher, event, flags)` | Format the message string for `event` using the cached handle for `publisher`. Opens and caches a new handle on the first call for a given publisher name. |
 | `Flush()` | Release all cached handles. Called automatically on component shutdown via the lifecycle `OnStop` hook. |
 
-### Implementation
+### Key types
 
 The component is a thin wrapper around `pkg/util/winutil/eventlog/publishermetadatacache` (`publishermetadatacachepkg`), which holds the actual handle map. The `impl` package (`comp/publishermetadatacache/impl/publishermetadatacache.go`) wires the package-level cache into the fx component lifecycle:
 
@@ -45,9 +47,13 @@ func NewComponent(reqs Requires) Provides {
 
 `Requires` only needs a `compdef.Lifecycle`; there are no other dependencies.
 
-### Handle lifecycle
+### Key functions
 
-Handles are opened lazily on the first `FormatMessage` call for a given publisher name and remain in the cache until `Flush()` is called at shutdown. There is no TTL or eviction; the cache grows monotonically over the agent's lifetime (bounded by the number of distinct publishers on the host).
+**Handle lifecycle:** Handles are opened lazily on the first `FormatMessage` call for a given publisher name and remain in the cache until `Flush()` is called at shutdown. There is no TTL or eviction; the cache grows monotonically over the agent's lifetime (bounded by the number of distinct publishers on the host).
+
+### Configuration and build flags
+
+The component requires only `compdef.Lifecycle` (no config dependencies). It is Windows-only (`//go:build windows`). The implementation calls `winevtapi.New()` to obtain the underlying Windows API handle.
 
 ## Usage
 

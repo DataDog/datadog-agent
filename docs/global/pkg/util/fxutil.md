@@ -1,3 +1,5 @@
+> **TL;DR:** Thin wrapper over Uber's fx dependency injection framework that standardises how the Datadog Agent starts, stops, and tests its fx applications, providing component registration conventions, lifecycle adapters, and a comprehensive set of test helpers.
+
 # pkg/util/fxutil
 
 ## Purpose
@@ -13,7 +15,15 @@ Most of the agent's binaries and components use this package instead of calling 
 
 ## Key elements
 
-### Application entrypoints
+### Key types
+
+**`Module`** / **`BundleOptions`** — thin structs that embed `fx.Option` and also carry an `Options []fx.Option` field for introspection (used by `TestBundle`). Returned by `Component` and `Bundle` respectively.
+
+**`NoDependencies`** — convenience struct (`fx.In` embedded, no fields) for use as the type parameter in `Test` when no resolved dependencies are needed.
+
+### Key functions
+
+#### Application entrypoints
 
 **`Run(opts ...fx.Option) error`**
 Builds and starts an fx application intended for long-running daemons (e.g. the trace-agent or system-probe). It blocks until the app signals shutdown (via `app.Done()`), then stops cleanly. Returns errors instead of calling `os.Exit`. Automatically prepends `FxAgentBase()` and `TemporaryAppTimeouts()` to every call. When the test override `fxAppTestOverride` is set (e.g. by `TestRun`), the real app is not constructed — this allows testing the dependency graph without launching the agent.
@@ -28,8 +38,6 @@ Wraps `fx.Module` and auto-derives the component name from the caller's file pat
 
 **`Bundle(opts ...fx.Option) BundleOptions`**
 Like `Component` but for bundle-level `bundle.go` files (`comp/<bundle>/`). Panics if called from outside a `comp/<bundle>` path.
-
-**`Module` / `BundleOptions`** — thin structs that embed `fx.Option` and also carry an `Options []fx.Option` field for introspection (used by `TestBundle`).
 
 ### fx-agnostic component constructors
 
@@ -99,7 +107,14 @@ Strips fx's `errArgumentsFailed` wrapper to surface the real underlying error me
 | `TestBundle(t, bundle, extraOpts...)` | Validates that every component registered inside a `BundleOptions` can be instantiated with `fx.ValidateApp`. Introspects `module.Options` to discover all provided types. |
 | `TestRunWithApp(opts...)` | Starts the real app (same logic as `Run`) and returns it — useful for testing graceful shutdown. |
 
-`NoDependencies` is a convenience struct (`fx.In` embedded, no fields) for use as the type parameter in `Test` when no resolved dependencies are needed.
+### Configuration and build flags
+
+| Environment variable | Effect |
+|---|---|
+| `DD_FX_START_TIMEOUT_SECONDS` | Overrides the default 5-minute fx app start timeout |
+| `DD_FX_STOP_TIMEOUT_SECONDS` | Overrides the default 5-minute fx app stop timeout |
+
+Testing helpers are activated by the build tags: `test`, `functionaltests`, or `stresstests`.
 
 ### Internal: `delayedFxInvocation`
 

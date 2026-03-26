@@ -1,3 +1,5 @@
+> **TL;DR:** A lightweight configuration helper that centralises the logic for deciding whether DogStatsD should start at all and whether the Core Agent or the Agent Data Plane is responsible for handling it.
+
 # comp/dogstatsd/config
 
 **Team:** agent-metric-pipelines
@@ -10,7 +12,7 @@ It is not an fx component in the traditional sense (no `Component` interface, no
 
 ## Key elements
 
-### Config struct
+### Key types
 
 `comp/dogstatsd/config/config.go`
 
@@ -22,7 +24,7 @@ type Config struct {
 func NewConfig(config config.Component) *Config
 ```
 
-### Methods
+### Key functions
 
 | Method | Description |
 |--------|-------------|
@@ -30,7 +32,7 @@ func NewConfig(config config.Component) *Config
 | `EnabledInternal() bool` | Returns `true` when DogStatsD is enabled **and** the Agent Data Plane is not handling it. Only this method should gate Core Agent DogStatsD startup. |
 | `enabledDataPlane() bool` (unexported) | Returns `true` when either the legacy `DD_ADP_ENABLED=true` env var is set, or both `data_plane.enabled` and `data_plane.dogstatsd.enabled` are `true`. |
 
-### Decision table
+### Configuration and build flags
 
 | `use_dogstatsd` | ADP active | `Enabled()` | `EnabledInternal()` |
 |-----------------|-----------|-------------|---------------------|
@@ -38,21 +40,10 @@ func NewConfig(config config.Component) *Config
 | true | false | true | true |
 | true | true | true | false |
 
-### ADP detection
-
-Two mechanisms are checked (either is sufficient):
+ADP detection uses two mechanisms (either is sufficient):
 
 1. **Legacy env var:** `DD_ADP_ENABLED=true` — deprecated, still supported for backward compatibility.
 2. **Config keys:** `data_plane.enabled` AND `data_plane.dogstatsd.enabled` both `true`.
-
-## Usage
-
-`NewConfig` is called by consuming components; it is not auto-wired by fx. Current call sites:
-
-- `comp/dogstatsd/status/statusimpl` — decides whether to register the DogStatsD status provider. If `EnabledInternal()` is `false`, no status section is added for DogStatsD.
-- Any future component needing to distinguish "DogStatsD disabled entirely" from "DogStatsD handed off to ADP" should use this helper rather than reading config keys directly.
-
-### Configuration keys
 
 | Key | Type | Description |
 |-----|------|-------------|
@@ -60,5 +51,12 @@ Two mechanisms are checked (either is sufficient):
 | `data_plane.enabled` | bool | Whether Agent Data Plane is running |
 | `data_plane.dogstatsd.enabled` | bool | Whether ADP handles DogStatsD traffic |
 | `DD_ADP_ENABLED` | env var | Legacy ADP signal (deprecated) |
+
+## Usage
+
+`NewConfig` is called by consuming components; it is not auto-wired by fx. Current call sites:
+
+- `comp/dogstatsd/status/statusimpl` — decides whether to register the DogStatsD status provider. If `EnabledInternal()` is `false`, no status section is added for DogStatsD.
+- Any future component needing to distinguish "DogStatsD disabled entirely" from "DogStatsD handed off to ADP" should use this helper rather than reading config keys directly.
 
 > Note: The package comment calls out that listener addresses and other shared DogStatsD settings should be ported here over time. If you find yourself adding a new setting used by multiple `comp/dogstatsd` packages, consider adding a method to `Config` rather than reading the config key directly in each package.

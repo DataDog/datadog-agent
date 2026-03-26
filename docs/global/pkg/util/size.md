@@ -1,3 +1,5 @@
+> **TL;DR:** Provides in-memory size accounting helpers for Go data structures and a human-readable byte-size string parser (e.g. `"512MB"`) used by the aggregator, DogStatsD packet pools, and configuration parsing.
+
 # pkg/util/size
 
 ## Purpose

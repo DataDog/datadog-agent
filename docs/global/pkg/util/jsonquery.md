@@ -1,3 +1,5 @@
+> **TL;DR:** Wraps the gojq library to run jq-style queries against JSON or YAML data, adding a compiled-query cache and a YAML normalization helper for agent compliance and autodiscovery use cases.
+
 # pkg/util/jsonquery
 
 ## Purpose

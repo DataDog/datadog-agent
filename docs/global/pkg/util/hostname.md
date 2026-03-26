@@ -1,3 +1,5 @@
+> **TL;DR:** Resolves and caches the agent's hostname via a prioritized provider chain (config, GCE, Azure, kubelet, EC2, OS, etc.), with background drift detection, RFC-1123 validation helpers, and a `validate` sub-package for hostname normalization.
+
 # pkg/util/hostname
 
 ## Purpose
@@ -19,13 +21,7 @@ The sub-package `pkg/util/hostname/validate` provides RFC-1123 validation and no
 
 ## Key elements
 
-### Public API
-
-| Function | Description |
-|---|---|
-| `Get(ctx) (string, error)` | Returns the cached hostname (or resolves it on first call) |
-| `GetWithProvider(ctx) (Data, error)` | Returns hostname plus the name of the provider that resolved it |
-| `GetWithLegacyResolutionProvider(ctx) (Data, error)` | Variant used during IMDSv2 transition: resolves without IMDSv2/MDI and caches under a separate key (`legacy_resolution_hostname`) |
+### Key types
 
 ```go
 // Data is an alias for hostnameinterface.Data
@@ -34,6 +30,16 @@ type Data struct {
     Provider string
 }
 ```
+
+`Data` is returned by `GetWithProvider` to bundle the resolved hostname with the name of the provider that produced it.
+
+### Key functions
+
+| Function | Description |
+|---|---|
+| `Get(ctx) (string, error)` | Returns the cached hostname (or resolves it on first call) |
+| `GetWithProvider(ctx) (Data, error)` | Returns hostname plus the name of the provider that resolved it |
+| `GetWithLegacyResolutionProvider(ctx) (Data, error)` | Variant used during IMDSv2 transition: resolves without IMDSv2/MDI and caches under a separate key (`legacy_resolution_hostname`) |
 
 `Get` is a thin wrapper around `GetWithProvider`. Both use the same in-process cache so repeated calls are free.
 
@@ -78,7 +84,7 @@ Drift is reported via the `hostname.drift_detected` telemetry counter and the `h
 | `NormalizeHost(host) (string, error)` | Liberal sanitization: strips `\n`, `\r`, `\t`; replaces `<`/`>` with `-`; rejects null bytes; enforces 253-char limit |
 | `CleanHostnameDir(hostname) string` | Converts a hostname to a safe directory name: replaces non-`[a-zA-Z0-9_-]` chars with `_`, truncates to 32 chars |
 
-### Build tags
+### Configuration and build flags
 
 | File | Build tag | Effect |
 |---|---|---|

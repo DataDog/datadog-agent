@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/dns` captures DNS packets off the wire, builds an IP-to-hostname reverse-DNS cache, and tracks per-connection DNS statistics (latency, timeouts, response codes) for the NPM tracer.
+
 # pkg/network/dns
 
 ## Purpose
@@ -15,7 +17,9 @@ The package is built under `linux_bpf` or `windows && npm`. On Linux the raw soc
 
 ## Key Elements
 
-### `ReverseDNS` interface (types.go)
+### Key interfaces
+
+#### `ReverseDNS` interface (types.go)
 
 The public contract consumed by the tracer:
 
@@ -40,7 +44,7 @@ Two implementations:
 
 ---
 
-### Core types
+### Key types
 
 | Type | Description |
 |---|---|
@@ -52,7 +56,9 @@ Two implementations:
 
 ---
 
-### `socketFilterSnooper` (snooper.go)
+### Key functions
+
+#### `socketFilterSnooper` (snooper.go)
 
 The internal implementation of the live packet capture loop.
 
@@ -79,7 +85,7 @@ Two goroutines are started at construction time: `pollPackets` (packet capture l
 
 ---
 
-### `dnsParser` (parser.go)
+#### `dnsParser` (parser.go)
 
 A `gopacket`-based parser supporting Ethernet/IPv4/IPv6/UDP/TCP stacks. TCP DNS uses a custom `tcpWithDNSSupport` layer to handle message framing (2-byte length prefix per RFC 1035 §4.2.2). Responses are decoded into a reusable `translation` object (IP → hostname mapping with timestamps) to avoid per-packet allocations.
 
@@ -92,7 +98,7 @@ Errors surfaced:
 
 ---
 
-### `reverseDNSCache` (cache.go)
+#### `reverseDNSCache` (cache.go)
 
 An in-memory LRU-like map of `util.Address → *dnsCacheVal`. Cache entries are bounded by a fixed size (100,000 entries) and expire after 1 minute. Each IP can map to at most 1,000 domain names; oversized mappings are logged and counted.
 
@@ -100,7 +106,7 @@ Telemetry counters (under the `network_tracer__dns_cache` module): `size`, `look
 
 ---
 
-### `dnsStatKeeper` (stats.go)
+#### `dnsStatKeeper` (stats.go)
 
 Tracks in-flight queries by transaction ID and computes latency once the matching response arrives. Stats are partitioned by `Key × Hostname × QueryType`. The entire state is drained atomically on `GetAndResetAllStats()` to provide a consistent snapshot to the tracer state machine.
 
@@ -116,13 +122,15 @@ Configuration parameters:
 
 ---
 
-### eBPF program (bpf.go / ebpf.go)
+### Configuration and build flags
+
+#### eBPF program (bpf.go / ebpf.go)
 
 On Linux with kernel ≥ 4.1.0 and eBPF enabled, an `ebpfProgram` wraps an `ebpf-manager` instance that loads a `SOCKET_FILTER` program (`socket__dns_filter`). This program filters DNS packets in kernel space before they are delivered to the AF_PACKET socket, reducing CPU cost for hosts with high non-DNS traffic. On older kernels or in eBPF-less mode the filter is replaced with a classic BPF filter generated in `generateBPFFilter`.
 
 ---
 
-### Telemetry
+#### Telemetry
 
 Snooper-level counters (under `network_tracer__dns`):
 

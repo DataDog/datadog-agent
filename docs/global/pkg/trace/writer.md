@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/writer` serializes, compresses, and delivers sampled trace chunks and aggregated stats payloads to the Datadog backend via two writers — `TraceWriter` and `DatadogStatsWriter` — backed by a shared sender with retry, backoff, and multi-endpoint failover support.
+
 # pkg/trace/writer
 
 ## Purpose

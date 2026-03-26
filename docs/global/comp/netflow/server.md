@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/netflow/server` binds one UDP listener per configured flow type (NetFlow 5/9, IPFIX, sFlow 5), decodes datagrams using goflow, and feeds decoded records into the flow aggregator for aggregation and forwarding to Datadog.
+
 # comp/netflow/server
 
 **Team:** ndm-integrations
@@ -20,7 +22,7 @@ goflow metrics for debugging.
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/netflow/server/component.go
@@ -32,7 +34,9 @@ lifecycle hooks (`OnStart` / `OnStop`). The `Component` type is registered in
 the fx graph so that other components can declare a dependency on the server
 being present without needing to call it directly.
 
-### Server struct
+### Key types
+
+#### Server struct
 
 ```go
 type Server struct {
@@ -52,15 +56,15 @@ type Server struct {
   configurable `StopTimeout` (seconds). Each listener shutdown runs
   concurrently; a per-listener select enforces the timeout.
 
-### netflowListener
+#### `netflowListener`
 
 An internal struct that wraps a `goflowlib.FlowStateWrapper` (the goflow state
 machine for one protocol) alongside its config, an atomic error string, and a
 flow counter used by the status page.
 
-### Configuration (`NetflowConfig`)
+### Configuration and build flags
 
-Read from `network_devices.netflow.*` in `datadog.yaml`:
+**`NetflowConfig`** — read from `network_devices.netflow.*` in `datadog.yaml`:
 
 | Key | Purpose |
 |-----|---------|
@@ -74,13 +78,13 @@ Read from `network_devices.netflow.*` in `datadog.yaml`:
 | `prometheus_listener_enabled` / `prometheus_listener_address` | Optional Prometheus endpoint |
 | `reverse_dns_enrichment_enabled` | Enrich flow source/dest addresses with rDNS hostnames |
 
-### Status provider
+### Key functions
 
 `newServer` registers a `status.InformationProvider` that exposes per-listener
 state (flow count, last error) in the agent status output. This is only
 registered when the server is enabled.
 
-### fx wiring
+**fx wiring:**
 
 ```go
 // Module registers the server with the fx container

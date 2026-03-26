@@ -1,3 +1,5 @@
+> **TL;DR:** The central metrics aggregation hub that receives raw samples from DogStatsD and checks, groups them by context, and flushes fully-aggregated series and sketches to the serializer at a configurable interval.
+
 # Package `pkg/aggregator`
 
 ## Purpose
@@ -43,7 +45,7 @@ Serializer (serializer.md) ─────────────────�
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | File | Description |
 |---|---|---|
@@ -58,7 +60,7 @@ Serializer (serializer.md) ─────────────────�
 | `FlushAndSerializeInParallel` | `aggregator.go` | Controls the buffer and channel sizes used when flushing series to the serializer in a parallel streaming mode. |
 | `Stats` | `aggregator.go` | Circular buffer of the last 32 flush statistics (count or duration). Exposed via `expvar`. |
 
-### Functions
+### Key functions
 
 | Function | Description |
 |---|---|
@@ -79,7 +81,7 @@ Serializer (serializer.md) ─────────────────�
 | `DefaultFlushInterval` | 15 s | How often `BufferedAggregator` flushes to the serializer. |
 | `MetricSamplePoolBatchSize` | 32 | Batch size for the `MetricSamplePool` shared between DogStatsD and the time sampler. |
 
-### Configuration keys
+### Configuration and build flags
 
 | Key | Default | Description |
 |---|---|---|

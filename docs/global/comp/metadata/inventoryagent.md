@@ -1,3 +1,5 @@
+> **TL;DR:** Builds and periodically sends the `datadog_agent` inventory payload, aggregating feature flags, configuration layers, and installation details from all co-located sub-agents to populate the Agent tab in the Datadog Infrastructure inventory UI.
+
 # comp/metadata/inventoryagent — Agent Inventory Payload Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/metadata/inventoryagent`
@@ -27,7 +29,9 @@ The component also subscribes to configuration changes (`config.OnUpdate`) and a
 | `comp/metadata/inventoryagent` | Component interface (`Component`) |
 | `comp/metadata/inventoryagent/inventoryagentimpl` | Implementation (`inventoryagent` struct), `Payload` type, fx `Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -42,9 +46,9 @@ type Component interface {
 }
 ```
 
-## Key types
+### Key types
 
-### `inventoryagentimpl.Payload`
+#### `inventoryagentimpl.Payload`
 
 The JSON structure sent to the backend:
 
@@ -75,13 +79,23 @@ type Payload struct {
 
 When `inventories_configuration_enabled` is true, scrubbed YAML snapshots of each configuration source layer are included, along with a `full_configuration` key containing the merged result.
 
-### `util.InventoryPayload` (embedded)
+#### `util.InventoryPayload` (embedded)
 
 The implementation embeds `comp/metadata/internal/util.InventoryPayload`, which provides:
 - `Refresh()` — schedule an out-of-cycle send (respects `inventories_min_interval`)
 - `GetAsJSON()` — return current payload as scrubbed JSON (used by the HTTP endpoint and flare)
 - `MetadataProvider()` — returns a `runnerimpl.Provider` for the runner
 - `FlareProvider()` — adds `metadata/inventory/agent.json` to flares
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `inventories_enabled` | `true` | Master switch for all inventory metadata |
+| `inventories_configuration_enabled` | `true` | Include per-source config layer snapshots in the payload |
+| `inventories_min_interval` | `60s` | Minimum time between two payload submissions |
+| `inventories_max_interval` | `600s` | Maximum time between two payload submissions |
+| `inventories_first_run_delay` | `60s` | Delay before the very first payload is sent after startup |
 
 ## fx wiring
 

@@ -1,3 +1,5 @@
+> **TL;DR:** Provides the agent's version string and a minimal SemVer library — build-time variables (`AgentVersion`, `Commit`, etc.) are injected via ldflags so any binary that links this package automatically carries the correct version.
+
 # pkg/version
 
 ## Purpose
@@ -11,6 +13,8 @@ injected at link time via `-X` ldflags. Any binary that links this package autom
 gets the correct version baked in; consuming code only needs to import the package.
 
 ## Key elements
+
+### Key types
 
 ### Build-time variables
 
@@ -39,7 +43,7 @@ type Version struct {
 }
 ```
 
-### Functions
+### Key functions
 
 ```go
 // Agent returns a Version parsed from AgentVersion and Commit.

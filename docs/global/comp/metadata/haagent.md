@@ -1,3 +1,5 @@
+> **TL;DR:** Periodically reports the High Availability Agent's enabled flag and current state (`active` or `standby`) to the Datadog inventory backend, contributing a section to the agent status page and a `ha-agent.json` file to flares.
+
 # comp/metadata/haagent
 
 **Team:** network-device-monitoring-core
@@ -16,7 +18,7 @@ In addition to the inventory backend, the component:
 
 ## Key elements
 
-### Interface (`comp/metadata/haagent/def/component.go`)
+### Key interfaces
 
 The component interface is empty — all integration points are registered as fx output values:
 
@@ -24,7 +26,9 @@ The component interface is empty — all integration points are registered as fx
 type Component interface{}
 ```
 
-### Payload (`comp/metadata/haagent/impl/haagentimpl.go`)
+### Key types
+
+#### Payload
 
 ```go
 type Payload struct {
@@ -41,15 +45,24 @@ type haAgentMetadata struct {
 
 `Metadata` is `nil` (omitted from the payload) when HA Agent is disabled. `State` reflects the value returned by `haagentcomp.Component.GetState()`.
 
-### Status page
+#### Status page
 
 The component implements `status.HeaderInformationProvider` (via `status.go`). It renders the HA Agent enabled flag and current state using Go templates in `impl/status_templates/`.
 
-### fx wiring (`comp/metadata/haagent/fx/fx.go`)
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `ha_agent.enabled` | `false` | Master switch; payload `Metadata` is `nil` and nothing is sent when `false` |
+| `inventories_enabled` | `true` | Globally disables all inventory metadata when `false` |
+| `inventories_min_interval` | `60s` | Minimum time between updates |
+| `inventories_max_interval` | `600s` | Maximum time between updates |
+
+#### fx wiring
 
 `fx.Module()` registers `NewComponent` and exposes `Component` as an optional value.
 
-### Dependencies (from `Requires`)
+#### Dependencies
 
 | Dependency | Purpose |
 |---|---|
@@ -59,7 +72,7 @@ The component implements `status.HeaderInformationProvider` (via `status.go`). I
 | `haagentcomp.Component` | Query HA Agent enabled/state at payload generation time |
 | `hostnameinterface.Component` | Resolve the hostname included in the payload |
 
-### Outputs (from `Provides`)
+#### Outputs
 
 | Output | Purpose |
 |---|---|

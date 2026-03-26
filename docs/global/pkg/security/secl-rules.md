@@ -1,12 +1,14 @@
+> **TL;DR:** `pkg/security/secl/rules` implements the runtime model for SECL policy and rule management — providing the data types, loading pipeline, evaluation engine, and kernel-filter (approver) derivation infrastructure used by the Runtime Security Agent.
+
 # pkg/security/secl/rules
 
 ## Purpose
 
 This package defines the runtime model for Datadog's **Security Events and Context Language (SECL)** rule and policy system. It provides the data types, loading pipeline, evaluation engine, and filtering infrastructure used by the Runtime Security Agent (CSM Threats) to decide whether a kernel event should trigger a security alert.
 
-## Key Elements
+## Key elements
 
-### Core types
+### Key types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -21,7 +23,9 @@ This package defines the runtime model for Datadog's **Security Events and Conte
 | `Action` / `ActionDefinition` | `actions.go` / `model.go` | Side-effects attached to a rule (e.g. `set` a scoped variable). Compile-time filter expressions control whether an action runs at event time. |
 | `Approvers` | `approvers.go` | `map[Field]FilterValues` — a pre-computed set of field-value constraints derived from the ruleset used to build kernel-level discarders (events that cannot match any rule are dropped early). |
 
-### Filtering sub-system (`rule_filters.go` + `filter/`)
+### Key interfaces
+
+#### Filtering sub-system (`rule_filters.go` + `filter/`)
 
 Three filter types gate whether a rule/macro is loaded at all:
 
@@ -33,7 +37,9 @@ Three filter types gate whether a rule/macro is loaded at all:
 
 Filters implement `RuleFilter` (for rules) or `MacroFilter` (for macros). `PolicyLoaderOpts` holds the slices passed to `LoadPolicies`.
 
-### Policy providers
+### Configuration and build flags
+
+#### Policy providers
 
 `PolicyProvider` is the interface for supplying raw policy data. Built-in constants:
 

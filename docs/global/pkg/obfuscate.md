@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/obfuscate` strips or redacts sensitive values from database queries, cache commands, HTTP URLs, and JSON before they reach Datadog as span resource names or tags, and is published as a standalone Go module so it can be shared by the trace agent, `dd-trace-go`, and the OTel Collector Datadog exporter.
+
 # Package `pkg/obfuscate`
 
 ## Purpose
@@ -23,13 +25,13 @@ minimized because of the shared external consumers.
 
 ## Key elements
 
-### Core type
+### Key types
 
 | Type | Description |
 |---|---|
 | `Obfuscator` | Central struct. Holds per-dialect obfuscators (SQL, MongoDB/ES/OpenSearch JSON, credit cards) plus a shared LRU query cache. Not safe for concurrent use without external locking. |
 
-### Constructor and lifecycle
+### Key functions
 
 | Element | Description |
 |---|---|
@@ -37,7 +39,7 @@ minimized because of the shared external consumers.
 | `(*Obfuscator) Stop()` | Shuts down the background cache stats goroutine. Call when the obfuscator is no longer needed. |
 | `Version` constant (= `1`) | Monotonically incrementing integer. Clients can embed this in cache keys so that stale cached results from an older obfuscation logic version are not reused. |
 
-### Configuration
+### Configuration and build flags
 
 `Config` is the top-level configuration struct passed to `NewObfuscator`. All
 fields are optional; zero values disable the corresponding feature.
@@ -81,6 +83,10 @@ fields are optional; zero values disable the corresponding feature.
 | `Enabled` | Must be `true` to activate JSON obfuscation for this dialect. |
 | `KeepValues` | Keys whose values should not be redacted. |
 | `ObfuscateSQLValues` | Keys whose values should be treated as SQL strings and run through SQL obfuscation. |
+
+### Key interfaces
+
+(No exported interfaces. The package is used entirely through the `*Obfuscator` concrete type and the `StatsClient` and `Logger` input interfaces documented under Configuration.)
 
 ### Public obfuscation methods
 

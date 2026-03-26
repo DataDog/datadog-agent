@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/protocols` implements the application-layer protocol classification and per-request statistics collection for USM, with each supported protocol (HTTP, HTTP/2, gRPC, Kafka, PostgreSQL, Redis, AMQP, MongoDB, MySQL) backed by a dedicated eBPF program and userspace `StatKeeper`.
+
 # `pkg/network/protocols` — Application-Layer Protocol Classification (USM)
 
 ## Purpose
@@ -18,21 +20,24 @@ connections payload.
 
 ## Key Elements
 
-### Core interfaces and types (root package)
+### Key interfaces
 
 | Symbol | File | Description |
 |--------|------|-------------|
 | `Protocol` (interface) | `protocols.go` (`linux_bpf`) | Contract every protocol implementation must satisfy. Lifecycle methods: `ConfigureOptions`, `PreStart`, `PostStart`, `Stop`. Data methods: `GetStats`, `DumpMaps`, `Name`, `IsBuildModeSupported`. |
+| `ModifierProvider` (interface) | `modifier.go` (`linux_bpf`) | Optional interface a `Protocol` can implement to attach additional `ddebpf.Modifier` instances (e.g., a perf event handler) to the eBPF manager. |
+
+### Key types
+
+| Symbol | File | Description |
+|--------|------|-------------|
 | `ProtocolSpec` | `protocols.go` | Registration record for a protocol: `Factory` function, `Instance`, eBPF `Maps`, `Probes`, and `TailCalls`. Used by `usm.ebpfProgram` to load and wire protocols at startup. |
 | `ProtocolFactory` | `protocols.go` | `func(*manager.Manager, *config.Config) (Protocol, error)` — called once during USM monitor initialization. |
 | `ProtocolStats` | `protocols.go` | Return type of `GetStats()`: a `{Type ProtocolType, Stats interface{}}` pair. |
-| `ModifierProvider` (interface) | `modifier.go` (`linux_bpf`) | Optional interface a `Protocol` can implement to attach additional `ddebpf.Modifier` instances (e.g., a perf event handler) to the eBPF manager. |
 | `ProtocolType` (enum) | `types.go` | `Unknown`, `HTTP`, `HTTP2`, `Kafka`, `TLS`, `Mongo`, `Postgres`, `AMQP`, `Redis`, `MySQL`, `GRPC`. |
 | `Stack` | `types.go` | Three-layer protocol descriptor attached to every `ConnectionStats`: `API` (e.g., gRPC), `Application` (e.g., HTTP2), `Encryption` (e.g., TLS). `MergeWith` / `Contains` / `IsUnknown` helpers are provided. |
 
-### eBPF dispatcher constants
-
-Defined in `protocols.go` and `ebpf_types.go` (cgo-generated from C headers):
+**eBPF dispatcher constants** (defined in `protocols.go` and `ebpf_types.go`, cgo-generated from C headers):
 
 | Constant | Description |
 |----------|-------------|
@@ -43,7 +48,11 @@ Defined in `protocols.go` and `ebpf_types.go` (cgo-generated from C headers):
 | `DefaultMapCleanerBatchSize` | Default batch size (100) for eBPF map cleanup. |
 | `ProgramType` / `DispatcherProgramType` | cgo enums mirroring C `protocol_prog_t` / `dispatcher_prog_t` used to reference tail-call slots. |
 
-### Supported protocols
+### Key functions
+
+**Per-protocol `StatKeeper` types and event pipelines:**
+
+#### Supported protocols
 
 #### `protocols/http/`
 
@@ -135,6 +144,8 @@ Provides DDSketch-based latency utilities shared across protocols:
   returns 0 for nil sketches.
 
 ## Build flags
+
+### Configuration and build flags
 
 | Build tag | Effect |
 |-----------|--------|

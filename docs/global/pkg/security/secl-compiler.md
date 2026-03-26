@@ -1,3 +1,5 @@
+> **TL;DR:** The SECL compiler translates human-readable security rule expressions into efficient zero-allocation Go closures via a two-stage pipeline: an `ast/` parser built on participle and an `eval/` code generator that produces typed evaluator functions run against live kernel events.
+
 # pkg/security/secl/compiler
 
 ## Purpose
@@ -9,9 +11,11 @@ The SECL (Security Event and Condition Language) compiler translates human-reada
 
 These packages are the foundation for all CWS (Cloud Workload Security) detection rules in `pkg/security/secl/rules` and `pkg/security/rules`.
 
-## ast/ — Parser
+## Key elements
 
-### ParsingContext
+### Key types
+
+#### `ParsingContext` (`ast/`)
 
 `ParsingContext` is the root factory for all parse operations. It holds three `participle` parser instances (for rules, macros, and standalone expressions) and an optional rule cache.
 
@@ -27,7 +31,7 @@ The EBNF lexer embedded in `NewParsingContext` defines all SECL token types: `CI
 | `ParseMacro(expr string)` | `*Macro, error` | Parses a macro body (expression, array, or primary). |
 | `ParseExpression(expr string)` | `*Expression, error` | Parses a standalone boolean expression. |
 
-### AST node types
+#### AST node types
 
 The grammar is a standard expression grammar. Key node types, from root to leaf:
 
@@ -45,9 +49,9 @@ The grammar is a standard expression grammar. Key node types, from root to leaf:
 | `Primary` | Leaf: identifier, CIDR, IP, integer, variable, field reference, string, pattern, regexp, duration, or sub-expression. |
 | `Array` | Right-hand side of `in`/`allin`: CIDR, variable, ident, or a literal list of strings/patterns/regexps/CIDRs/numbers/idents. |
 
-## eval/ — Expression evaluator
+### Key interfaces
 
-### Model interface
+#### `Model` interface (`eval/`)
 
 ```go
 type Model interface {
@@ -61,7 +65,9 @@ type Model interface {
 
 Each event model (e.g. `pkg/security/secl/model`) implements `Model`. `GetEvaluator` is the primary extension point: it maps a dotted field path (e.g. `process.file.path`) to a typed `Evaluator` closure backed by the concrete event struct.
 
-### Rule and Macro
+### Key functions
+
+#### `Rule` and `Macro`
 
 | Type | Key methods | Description |
 |------|-------------|-------------|
@@ -78,7 +84,7 @@ Each event model (e.g. `pkg/security/secl/model`) implements `Model`. `GetEvalua
 | | `NewStringValuesMacro(id, values, opts)` | Creates a macro from a static string slice without parsing. |
 | | `GenEvaluator(expr, model)` | Compiles the macro AST. |
 
-### Evaluator types
+#### Evaluator types
 
 Each expression node compiles to one of these typed evaluators, all implementing the `Evaluator` interface:
 
@@ -95,7 +101,7 @@ Each expression node compiles to one of these typed evaluators, all implementing
 | `CIDRArrayEvaluator` | `[]net.IPNet` |
 | `CIDRValuesEvaluator` | `*CIDRValues` |
 
-### Context
+#### Context and caching
 
 `Context` carries the event being evaluated and typed field caches that avoid redundant resolver calls within a single evaluation pass:
 
@@ -122,7 +128,9 @@ matched := rule.Eval(ctx)
 pool.Put(ctx)
 ```
 
-### Opts and stores
+### Configuration and build flags
+
+#### Opts and stores
 
 `Opts` is passed to `NewRule`/`NewMacro` and controls compilation behaviour:
 
@@ -134,11 +142,11 @@ pool.Put(ctx)
 | `LegacyFields` | Field alias map for backward compatibility. |
 | `Telemetry` | Optional evaluation telemetry (counters per rule). |
 
-### Iterator registers
+#### Iterator registers
 
 Fields with array subscript syntax `field[x]` introduce a register variable `x`. At evaluation time the rule is executed for each index `0..N-1` (capped at `maxRegisterIteration = 100`); the rule matches if any iteration returns `true`. Only one iterator register per rule is currently supported.
 
-### Operator weights
+#### Operator weights
 
 The compiler assigns weights to expression nodes to guide evaluation ordering. Higher-weight nodes are evaluated last to minimise unnecessary work:
 

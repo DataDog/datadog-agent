@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/log` is the fx-injectable structured logger for all agent code, wrapping `pkg/util/log` (seelog) so that log level, output targets, and format are driven by configuration and tests can capture output via `testing.TB.Log`.
+
 # comp/core/log — Logging Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/log/def`
@@ -21,7 +23,11 @@
 | `comp/core/log/fx` | `Module()` — fx wiring that registers `impl.NewComponent` |
 | `comp/core/log/mock` | Test helper `mock.New(t)` — redirects output to `t.Log` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 // Package: comp/core/log/def
@@ -50,7 +56,9 @@ type Component interface {
 
 `Warn`, `Error`, and `Critical` also return an `error` wrapping the message — useful for one-liner log-and-return patterns.
 
-## Params
+### Key types
+
+#### Params
 
 `Params` controls how the logger is initialised. It is built with one of two constructors:
 
@@ -78,7 +86,9 @@ params.LogToFile("/tmp/custom.log")
 params.LogToConsole(false)
 ```
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 `logfx.Module()` registers the component and is included in `core.Bundle()`. You supply `Params` through `core.BundleParams`:
 
@@ -92,7 +102,7 @@ core.Bundle(),
 
 The implementation (`impl.NewComponent`) receives `Params` and `config.Component` via dependency injection, calls `pkg/util/log/setup.SetupLogger`, and registers an `OnStop` hook to flush the logger during shutdown.
 
-## Injecting the component
+#### Injecting the component
 
 ```go
 import logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -108,7 +118,9 @@ func NewMyComp(deps Requires) MyComp {
 }
 ```
 
-## Mock
+### Configuration and build flags
+
+#### Mock
 
 `mock.New(t testing.TB)` returns a `Component` that writes to `t.Log` at trace level. It is gated by the `test` build tag and cleans up after itself via `t.Cleanup`.
 
@@ -123,7 +135,7 @@ func TestFoo(t *testing.T) {
 
 For fx-based tests use `fxutil.Test` and supply `logmock.New(t)` as the `logdef.Component` value, or use `core.MockBundle()`.
 
-## Escape hatch: `NewTemporaryLoggerWithoutInit`
+#### Escape hatch: `NewTemporaryLoggerWithoutInit`
 
 When migrating code that cannot yet receive `log.Component` via injection, `logimpl.NewTemporaryLoggerWithoutInit()` returns a component that delegates to the already-initialised global logger:
 

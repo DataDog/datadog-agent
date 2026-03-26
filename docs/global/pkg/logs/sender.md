@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/sender` is the batching and delivery layer that converts encoded log messages into `Payload` objects and distributes them to one or more remote destinations (HTTP or TCP), with at-least-once delivery guarantees for reliable destinations and best-effort non-blocking sends for unreliable ones.
+
 # pkg/logs/sender
 
 ## Purpose
@@ -13,7 +15,7 @@ The package also contains the two `Strategy` implementations (`BatchStrategy`, `
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 | Interface | Description |
 |-----------|-------------|
@@ -22,7 +24,9 @@ The package also contains the two `Strategy` implementations (`BatchStrategy`, `
 | `Sink` | `Channel() chan *message.Payload`. Receives payloads that have been acknowledged by a reliable destination (typically the auditor). `NoopSink` is provided for cases where no auditor is needed. |
 | `ServerlessMeta` | Carries `sync.WaitGroup` and `SenderDoneChan` used to synchronise serverless flush — the pipeline blocks `Flush()` until all in-flight payloads have been delivered. |
 
-### `Sender`
+### Key types
+
+#### `Sender`
 
 ```go
 type Sender struct {
@@ -51,7 +55,7 @@ Default topology (non-legacy, non-serverless HTTP):
 
 Legacy mode (one queue per pipeline) and serverless mode (one worker per pipeline, concurrency 1) are handled separately by `provider.go`.
 
-### `worker`
+#### `worker`
 
 Reads from a shared queue channel and sends each payload to all configured destinations:
 
@@ -60,7 +64,7 @@ Reads from a shared queue channel and sends each payload to all configured desti
 
 Serverless mode adds a `sync.WaitGroup` hand-off via `senderDoneChan` so that `pipeline.Flush()` blocks until all destinations have finished.
 
-### `DestinationSender`
+#### `DestinationSender`
 
 Wraps a single `client.Destination`. Maintains a retry flag (updated by the destination over `retryReader`) to decide whether to block or skip a send attempt. Key methods:
 
@@ -71,7 +75,9 @@ Wraps a single `client.Destination`. Maintains a retry flag (updated by the dest
 
 MRF destinations are enabled/disabled dynamically based on config reads inside `canSend()`.
 
-### `Strategy` implementations
+### Key functions
+
+#### `Strategy` implementations
 
 #### `batchStrategy` (HTTP)
 
@@ -95,22 +101,24 @@ Creates one `Payload` per `Message`. No batching. Compresses each message indivi
 sender.NewStreamStrategy(inputChan, outputChan, compression)
 ```
 
-### `Serializer`
+#### `Serializer`
 
 `NewArraySerializer()` — serialises a batch of messages as a JSON array `[{…},{…}]` by writing directly to a `StreamCompressor`-backed `io.Writer`.
 
-### `MessageBuffer`
+#### `MessageBuffer`
 
 Tracks metadata (not full content) of messages accumulating in the current batch. Enforces `batchSizeLimit` (count) and `contentSizeLimit` (total uncompressed bytes). Messages that exceed the content size limit alone are dropped with a warning.
 
-### Sub-packages
+#### Sub-packages
 
 | Package | Description |
 |---------|-------------|
 | `sender/http` | `NewHTTPSender` — constructs a `Sender` with HTTP destinations. Accepts min/max concurrency to configure adaptive concurrency inside `pkg/logs/client/http.NewDestination`. Supports an `evpCategory` header for Event Platform routes. |
 | `sender/tcp` | `NewTCPSender` — constructs a `Sender` with TCP destinations. TCP is synchronous; all concurrency is expressed as discrete workers. |
 
-### Telemetry
+### Configuration and build flags
+
+#### Telemetry
 
 | Metric | Tags | Description |
 |--------|------|-------------|
@@ -119,7 +127,7 @@ Tracks metadata (not full content) of messages accumulating in the current batch
 | `logs_sender.send_wait` | — | Cumulative ms spent waiting for destination sends to complete. |
 | `logs_sender_batch_strategy.dropped_too_large` | `pipeline` | Messages dropped because a single message exceeds `maxContentSize`. |
 
-### Constants
+#### Constants
 
 | Constant | Value | Description |
 |----------|-------|-------------|

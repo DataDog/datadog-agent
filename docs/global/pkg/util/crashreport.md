@@ -1,3 +1,5 @@
+> **TL;DR:** Windows-only helper that detects and deduplicates Windows BSOD events by querying the system-probe crash detection module and persisting a registry marker so each crash is reported exactly once across agent restarts.
+
 # pkg/util/crashreport
 
 ## Purpose

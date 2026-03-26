@@ -1,3 +1,5 @@
+> **TL;DR:** Provides lightweight `Startable`/`Stoppable` interfaces and serial/parallel collection helpers to manage the lifecycle of agent component groups.
+
 # pkg/util/startstop
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/startstop`
@@ -15,7 +17,7 @@ for the common collection patterns.
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 | Interface | Method | Description |
 |-----------|--------|-------------|
@@ -25,7 +27,7 @@ for the common collection patterns.
 | `Starter` | `Startable` + `Add(...Startable)` | A group of `Startable` objects that can be started together. |
 | `Stopper` | `Stoppable` + `Add(...Stoppable)` | A group of `Stoppable` objects that can be stopped together. |
 
-### Constructors
+### Key functions
 
 | Function | Description |
 |----------|-------------|

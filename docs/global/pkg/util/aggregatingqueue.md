@@ -1,3 +1,5 @@
+> **TL;DR:** A generic buffering queue that accumulates items and flushes them as a batch when a maximum item count or a maximum retention time is reached, used to batch SBOM and container image payloads before forwarding.
+
 # pkg/util/aggregatingqueue
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue`

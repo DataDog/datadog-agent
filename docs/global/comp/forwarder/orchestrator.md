@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a conditional `DefaultForwarder` dedicated to Kubernetes/ECS orchestrator metadata, absent by default so that non-container builds never link the Kubernetes client-go dependency.
+
 # comp/forwarder/orchestrator — Orchestrator Forwarder Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/forwarder/orchestrator`
@@ -18,6 +20,10 @@ Consumers call `Get()` and check the boolean return before forwarding. This appr
 | `orchestratorinterface/` | `Component` interface definition (`Get()` method) |
 | `orchestratorimpl/` | `Module()`, `Params`, and two build-tag-gated constructors |
 
+## Key Elements
+
+### Key interfaces
+
 ## Component interface
 
 ```go
@@ -29,6 +35,8 @@ type Component interface {
 
 `Component` is implemented as an `option.Option[defaultforwarder.Forwarder]`. When the forwarder is not needed, the option is empty and `Get()` returns `(nil, false)`.
 
+### Key types
+
 ## Build-tag gating
 
 Two implementations of `newOrchestratorForwarder` exist, selected at compile time:
@@ -39,6 +47,8 @@ Two implementations of `newOrchestratorForwarder` exist, selected at compile tim
 | `!orchestrator` (default) | `forwarder_no_orchestrator.go` | Always returns an empty or noop option; avoids pulling in Kubernetes dependencies |
 
 The `orchestrator` tag is set when building the cluster-agent or cluster-checks-runner.
+
+### Key functions
 
 ## Params
 
@@ -54,6 +64,8 @@ orchestratorimpl.NewNoopParams()
 ```
 
 `NewDefaultParams` still gates on `orchestrator_explorer.enabled` and the current environment (`IsKubernetes()`, `IsECS()`, `IsECSFargate()`, `IsECSManagedInstances()`). If either check fails, the component returns empty.
+
+### Configuration and build flags
 
 ## fx wiring
 

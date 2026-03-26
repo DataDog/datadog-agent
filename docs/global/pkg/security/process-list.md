@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/process_list` provides a generic, owner-driven process graph that serves as the shared data structure for both the runtime process resolver and activity dump/profile trees, delegating matching and key derivation to an `Owner` interface.
+
 # pkg/security/process_list — shared process graph for CWS
 
 ## Purpose
@@ -16,7 +18,7 @@ The package is **Linux-only** (`//go:build linux`).
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 #### `Owner`
 
@@ -36,7 +38,7 @@ Implemented by both `ActivityTree` and `ProcessResolver`. Tells `ProcessList` ho
 
 Implemented by both `ProcessNode` and `ProcessList` (the list acts as the virtual parent of root nodes). Provides a uniform tree traversal API: `GetCurrentParent`, `GetPossibleParents`, `GetChildren`, `GetCurrentSiblings`, `AppendChild`, `UnlinkChild`.
 
-### Core types
+### Key types
 
 #### `ProcessList`
 

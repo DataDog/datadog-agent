@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/secl` is the Security Evaluation and Control Language (SECL) module — providing the parser, typed evaluator, rule/policy management, and approver derivation engine that power all CWS detection rules.
+
 # pkg/security/secl
 
 ## Purpose
@@ -30,30 +32,13 @@ The module lives in its own `go.mod` so it can be imported by both the agent and
 
 ## Key elements
 
-### Language features (`compiler/ast`)
+### Key types
 
-`ParsingContext` is the root factory. Create one with `NewParsingContext(withCache bool)` and call:
+The sub-package table above lists the top-level modules. See the sections below for their key exported types and interfaces.
 
-| Method | Returns |
-|---|---|
-| `ParseRule(expr)` | `*ast.Rule` — root of the AST |
-| `ParseMacro(expr)` | `*ast.Macro` |
-| `ParseExpression(expr)` | `*ast.Expression` |
+### Key interfaces
 
-The SECL lexer supports the following literal kinds, all visible in the AST grammar:
-
-- **Scalar values**: string literals (`"foo"`), integers, booleans
-- **Pattern matching**: glob patterns (`~"foo*"`), regular expressions (`r"foo.*"`)
-- **Network types**: IP addresses and CIDR ranges
-- **Durations**: e.g., `5s`, `1m`, `2h`
-- **Variables**: `${varname}` — runtime-substituted values
-- **Field references**: `%{field}` — reference another field's value in-expression
-
-Operators available in expressions: `==`, `!=`, `<`, `<=`, `>`, `>=`, `=~` (regex match), `!~`, `in`, `notin`, `allin`, bitwise `&`, `|`, `^`, arithmetic `+`, `-`, unary `!` / `not` / `-` / `^`.
-
-### Evaluation engine (`compiler/eval`)
-
-#### Core interfaces
+#### Core interfaces (`compiler/eval`)
 
 ```go
 // Model bridges the data model to the evaluator.
@@ -75,6 +60,31 @@ type Event interface {
     GetTags() []string
 }
 ```
+
+### Key functions
+
+#### Language features (`compiler/ast`)
+
+`ParsingContext` is the root factory. Create one with `NewParsingContext(withCache bool)` and call:
+
+| Method | Returns |
+|---|---|
+| `ParseRule(expr)` | `*ast.Rule` — root of the AST |
+| `ParseMacro(expr)` | `*ast.Macro` |
+| `ParseExpression(expr)` | `*ast.Expression` |
+
+The SECL lexer supports the following literal kinds, all visible in the AST grammar:
+
+- **Scalar values**: string literals (`"foo"`), integers, booleans
+- **Pattern matching**: glob patterns (`~"foo*"`), regular expressions (`r"foo.*"`)
+- **Network types**: IP addresses and CIDR ranges
+- **Durations**: e.g., `5s`, `1m`, `2h`
+- **Variables**: `${varname}` — runtime-substituted values
+- **Field references**: `%{field}` — reference another field's value in-expression
+
+Operators available in expressions: `==`, `!=`, `<`, `<=`, `>`, `>=`, `=~` (regex match), `!~`, `in`, `notin`, `allin`, bitwise `&`, `|`, `^`, arithmetic `+`, `-`, unary `!` / `not` / `-` / `^`.
+
+### Evaluation engine (`compiler/eval`)
 
 #### Typed evaluators
 

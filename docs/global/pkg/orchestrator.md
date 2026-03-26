@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/orchestrator` provides the shared resource-type taxonomy, in-memory deduplication cache, chunking utilities, and configuration for the Orchestrator Explorer feature that streams Kubernetes and ECS resource manifests to Datadog.
+
 # pkg/orchestrator
 
 ## Purpose
@@ -12,7 +14,9 @@ This package is a shared foundation. The actual collection logic lives in `pkg/c
 
 ## Key elements
 
-### `model/` — resource type taxonomy and stats
+### Key types
+
+#### `model/` — resource type taxonomy and stats
 
 **`NodeType`** (`model/types.go`)
 
@@ -41,7 +45,9 @@ type CheckStats struct {
 
 ---
 
-### Root package — deduplication cache
+### Key functions
+
+#### Root package — deduplication cache
 
 **`KubernetesResourceCache`** (`cache.go`)
 
@@ -57,7 +63,11 @@ The primary deduplication function. Returns `true` (skip) when the UID is alread
 
 ---
 
-### `config/` — runtime configuration (`orchestrator` build tag)
+### Configuration and build flags
+
+Most files in `pkg/orchestrator/config/` are guarded by the `orchestrator` build tag. The `model/` and root `cache.go` files are unconditional.
+
+#### `config/` — runtime configuration (`orchestrator` build tag)
 
 **`OrchestratorConfig`** (`config/config.go`)
 
@@ -88,7 +98,7 @@ Helper functions:
 
 ---
 
-### `util/` — payload chunking
+#### `util/` — payload chunking
 
 **`ChunkPayloadsBySizeAndWeight`** (`util/chunking.go`)
 

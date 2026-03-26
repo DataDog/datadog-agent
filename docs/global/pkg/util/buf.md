@@ -1,3 +1,5 @@
+> **TL;DR:** Provides `BufferedChan`, a batching channel that accumulates values into fixed-size slices before sending, reducing synchronisation overhead for high-throughput producer-consumer pipelines.
+
 # pkg/util/buf
 
 ## Purpose
@@ -8,7 +10,9 @@ This package lives in its own Go module (`pkg/util/buf/go.mod`) and has no depen
 
 ## Key elements
 
-### `BufferedChan` (`buffered_chan.go`)
+### Key types
+
+#### `BufferedChan` (`buffered_chan.go`)
 
 ```go
 type BufferedChan struct { ... }

@@ -1,3 +1,5 @@
+> **TL;DR:** Enables OS-level core dump generation for agent processes on Linux/macOS by removing the `RLIMIT_CORE` limit and setting Go's crash traceback mode when the `go_core_dump` config key is true.
+
 # pkg/util/coredump
 
 ## Purpose
@@ -7,6 +9,8 @@
 ---
 
 ## Key elements
+
+### Key functions
 
 **`Setup(cfg model.Reader) error`** — reads `go_core_dump` from the agent config. If `true`:
 
@@ -18,6 +22,12 @@
 - **Windows** (`windows` build tag): returns `errors.New("Not supported on Windows")`.
 
 If `go_core_dump` is `false` (the default), `Setup` is a no-op on all platforms.
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `go_core_dump` | `false` | When `true`, removes the core file size limit and enables full crash tracebacks on Linux/macOS. Not supported on Windows. |
 
 ---
 

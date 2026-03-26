@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/ipc` manages the auth token and mutual-TLS certificate used for inter-process communication between agent processes, providing pre-configured HTTP client and server TLS configs plus a bearer-token validation middleware.
+
 # comp/core/ipc — Inter-Process Communication Component
 
 **Team:** agent-runtimes
@@ -21,7 +23,9 @@ this component.
 
 ## Key elements
 
-### Component interface (`def/component.go`)
+### Key interfaces
+
+#### Component interface (`def/component.go`)
 
 ```go
 type Component interface {
@@ -39,7 +43,7 @@ internal config, so callers can mutate the copy freely.
 `HTTPMiddleware` wraps an `http.Handler` and rejects requests whose
 `Authorization: Bearer <token>` header does not match the stored auth token.
 
-### HTTPClient interface (`def/component.go`)
+#### HTTPClient interface (`def/component.go`)
 
 `HTTPClient` is the interface callers use to talk to other agent processes.
 All methods automatically attach the bearer token and TLS configuration.
@@ -59,7 +63,7 @@ Key methods:
 `WithCloseConnection`) are provided in `comp/core/ipc/httphelpers` and passed
 as variadic arguments.
 
-### Endpoint interface (`def/component.go`)
+#### Endpoint interface (`def/component.go`)
 
 A lightweight wrapper for a single pre-configured path:
 
@@ -72,7 +76,9 @@ type Endpoint interface {
 Obtained via `HTTPClient.NewIPCEndpoint(path)`. It reads `cmd_host` and
 `cmd_port` from configuration to build the target URL.
 
-### Transport details (`httphelpers/client.go`)
+### Key functions
+
+#### Transport details (`httphelpers/client.go`)
 
 The underlying HTTP transport supports two connection modes, selected at
 construction time:
@@ -81,7 +87,9 @@ construction time:
   The scheme `https+unix://` is used internally.
 - **vsock** — used when `vsock_addr` is configured (VM guest/host scenarios).
 
-### fx module options (`fx/fx.go`)
+### Configuration and build flags
+
+#### fx module options (`fx/fx.go`)
 
 Three constructors are available, each as its own fx module:
 
@@ -95,7 +103,7 @@ The `Provides` struct returned by the implementation exposes both
 `ipc.Component` and `ipc.HTTPClient` as separate fx values, so components can
 depend on just the client without taking the full component.
 
-### Mock (`mock/mock.go`, build tag `test`)
+#### Mock (`mock/mock.go`, build tag `test`)
 
 `mock.New(t)` creates an `IPCMock` backed by a hard-coded test certificate.
 It also provides `NewMockServer(handler)`, which starts an `httptest.Server`

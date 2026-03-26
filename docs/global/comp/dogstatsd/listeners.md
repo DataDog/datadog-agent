@@ -1,3 +1,5 @@
+> **TL;DR:** A library of network listener implementations (UDP, UDS datagram, UDS stream, Windows named pipe) that read raw StatsD bytes off the wire and forward batched `packets.Packets` to the DogStatsD server's processing channel.
+
 # comp/dogstatsd/listeners — Packet Listeners
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/dogstatsd/listeners`
@@ -14,6 +16,20 @@ Each listener implementation handles one transport protocol and is responsible f
 - Optionally detecting the originating container (origin detection, UDS only, Linux only).
 - Optionally forwarding raw packets to `comp/dogstatsd/replay` for traffic capture.
 - Emitting per-listener telemetry.
+
+## Key elements
+
+### Key interfaces
+
+All implementations satisfy the same two-method interface (detailed in the [StatsdListener interface](#statsdlistener-interface) section below).
+
+### Key types
+
+Four listener types are provided: `UDPListener`, `UDSDatagramListener`, `UDSStreamListener`, and `NamedPipeListener`. A `ConnectionTracker` helper manages active stream connections. `TelemetryStore` holds all listener-level Prometheus metrics.
+
+### Configuration and build flags
+
+`UDSDatagramListener` and `UDSStreamListener` are only compiled on Linux/macOS (build-constrained). `NamedPipeListener` is Windows-only. Per-listener config keys are listed under each implementation below.
 
 ## Listener implementations
 

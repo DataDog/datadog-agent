@@ -1,3 +1,5 @@
+> **TL;DR:** Detects the runtime platform (Docker, Kubernetes, ECS, Cloud Foundry, bare-metal, etc.) and the available container features (containerd socket, NVML, PodResources, …), producing a `FeatureMap` that drives autodiscovery and hostname resolution throughout the agent.
+
 # pkg/config/env
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/config/env`
@@ -12,6 +14,8 @@
 The answers drive decisions throughout the agent: which autodiscovery listeners to activate, which socket paths to use, whether to mount `/host/proc`, how to resolve hostnames, and so on. The package is intentionally lightweight — it has no heavy dependencies — because it is imported by nearly every agent binary.
 
 ## Key Elements
+
+### Key types
 
 ### `Feature` and `FeatureMap`
 
@@ -44,6 +48,8 @@ A `Feature` is a named capability detected in the current environment. `FeatureM
 | `KubernetesDevicePlugins` | `"kubernetes_deviceplugins"` | Kubelet device-plugins socket directory exists |
 | `NonstandardCRIRuntime` | `"nonstandard-cri-runtime"` | A `cri_socket_path` was configured but is neither containerd nor CRI-O |
 | `KubeletConfigOrchestratorCheck` | `"kubelet_config_orchestrator_check"` | Kubernetes + `orchestrator_explorer.kubelet_config_check.enabled` |
+
+### Key functions
 
 ### Feature detection lifecycle
 
@@ -99,7 +105,7 @@ func IsAutoconfigEnabled(cfg model.Reader) bool
 
 Returns true if `autoconfig_from_environment` is enabled (default: true). Handles the deprecated `AUTOCONFIG_FROM_ENVIRONMENT` / `AUTCONFIG_FROM_ENVIRONMENT` env vars with a warning.
 
-### Build tags
+### Configuration and build flags
 
 `environment_containers.go` (which registers and detects all container features) is gated on `//go:build linux || windows`. On other platforms, `environment_nocontainers.go` is compiled instead and provides stub implementations that detect nothing. This means `IsFeaturePresent(Docker)` etc. always return false on macOS in production builds.
 

@@ -1,3 +1,5 @@
+> **TL;DR:** Thread-safe wrapper around the dd-trace-go profiler that manages start/stop of continuous internal profiling for all agent processes, with configurable CPU, heap, goroutine, block, and mutex profile types.
+
 # pkg/util/profiling
 
 ## Purpose

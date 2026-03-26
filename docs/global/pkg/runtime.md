@@ -1,3 +1,5 @@
+> **TL;DR:** Go runtime tuning functions called early in agent startup — correctly sets `GOMAXPROCS` for containerized CPU quotas, configures the soft `GOMEMLIMIT` from cgroup limits, and can disable Transparent Huge Pages to reduce latency spikes.
+
 # pkg/runtime
 
 ## Purpose
@@ -11,6 +13,8 @@
 No types are exported. All public symbols are functions.
 
 ## Key elements
+
+### Key functions
 
 ### `SetMaxProcs() bool`
 

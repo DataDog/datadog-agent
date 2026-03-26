@@ -1,3 +1,5 @@
+> **TL;DR:** Efficient, immutable and mutable tag-set data structures for the agent's high-throughput metrics path — pre-hashed `HashedTags`, mutable accumulators, a zero-copy `CompositeTags` view, and a `HashGenerator` for set-level hashing and deduplication.
+
 # pkg/tagset
 
 ## Purpose
@@ -20,6 +22,8 @@ The package delivers three things:
 
 ## Key Elements
 
+### Key interfaces
+
 ### Interface
 
 ```go
@@ -31,6 +35,8 @@ type TagsAccumulator interface {
 
 Both accumulator types implement this interface, enabling callers to be
 agnostic about whether hashing is performed.
+
+### Key types
 
 ### HashedTags
 

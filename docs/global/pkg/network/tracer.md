@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/tracer` is the top-level NPM connection tracer that orchestrates eBPF programs, DNS snooping, NAT translation, gateway lookup, and USM to observe, enrich, and expose TCP/UDP connections from the kernel.
+
 # pkg/network/tracer
 
 ## Purpose
@@ -17,7 +19,9 @@ The package is only built under the `linux_bpf` build tag (Linux eBPF) or `windo
 
 ## Key Elements
 
-### `Tracer` (tracer.go)
+### Key types
+
+#### `Tracer` (tracer.go)
 
 The central type. Owns references to every subsystem:
 
@@ -54,7 +58,9 @@ Tracer.Pause() / Resume()— bypasses eBPF programs without stopping
 
 ---
 
-### `connection/` sub-package — eBPF backend abstraction
+### Key interfaces
+
+#### `connection/` sub-package — eBPF backend abstraction
 
 Defines the `Tracer` interface and its three implementations:
 
@@ -96,7 +102,9 @@ type Tracer interface {
 
 ---
 
-### `offsetguess/` sub-package — kernel struct offset discovery
+### Key functions
+
+#### `offsetguess/` sub-package — kernel struct offset discovery
 
 Because the kprobe tracer reads fields out of kernel structs (`sock`, `inet_sock`, `flowi4/6`, `sk_buff`, conntrack tuples) whose offsets vary across kernel versions, `offsetguess` discovers the right offsets at startup by:
 
@@ -116,7 +124,7 @@ The entry point used by the kprobe backend is `offsetguess.TracerOffsets.Offsets
 
 ---
 
-### `networkfilter/` sub-package — connection exclusion filters
+#### `networkfilter/` sub-package — connection exclusion filters
 
 Translates the user configuration keys `network_config.excluded_source_connections` / `excluded_destination_connections` into `ConnectionFilter` structs and evaluates connections against them.
 
@@ -155,7 +163,7 @@ The module creates a `*tracer.Tracer`, registers it with the system-probe HTTP r
 
 Internally, `tracer.go` is the only file that wires together all sub-packages. Tests use `newTracer()` directly (without `start()`) and inject mock or test-mode variants of the sub-systems.
 
-### Build tags
+### Configuration and build flags
 
 | Tag | Meaning |
 |---|---|

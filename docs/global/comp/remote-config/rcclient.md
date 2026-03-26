@@ -1,3 +1,5 @@
+> **TL;DR:** Runs an in-process Remote Configuration client that polls the core agent's gRPC endpoint for config updates and dispatches changes to subscribed components at runtime without an agent restart.
+
 # comp/remote-config/rcclient — Remote Configuration Client Component
 
 **Team:** remote-config
@@ -25,6 +27,10 @@ Built-in behaviors handled by the client itself (no extra subscription needed):
 | `rcclientimpl/agent_failover.go` | MRF config parsing and `mrfUpdateCallback` |
 | `types` | Shared types: `RCListener`, `RCAgentTaskListener`, `TaskListenerProvider`, `AgentTaskConfig`, `TaskType` |
 
+## Key Elements
+
+### Key interfaces
+
 ## Component interface
 
 ```go
@@ -40,6 +46,8 @@ type Component interface {
 
 `Subscribe` is the generic path; `SubscribeAgentTask` is a convenience that wires the internal task dispatcher.
 
+### Key types
+
 ## Params
 
 ```go
@@ -51,6 +59,8 @@ type Params struct {
 ```
 
 `Params` is supplied via `fx.Supply` at the call site. Both `AgentName` and `AgentVersion` are required — the component returns an error during construction if either is empty.
+
+### Key functions
 
 ## fx group listeners — `types` package
 
@@ -92,6 +102,8 @@ return types.NewTaskListener(func(taskType types.TaskType, task types.AgentTaskC
 |---|---|---|
 | `types.TaskFlare` | `"flare"` | Request the agent to generate and send a flare |
 | `types.TaskDeviceScan` | `"ndm-device-scan"` | Trigger an NDM device scan |
+
+### Configuration and build flags
 
 ## fx wiring
 

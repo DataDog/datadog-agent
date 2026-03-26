@@ -1,3 +1,5 @@
+> **TL;DR:** Integrates DogStatsD runtime metrics into the agent's unified status page by implementing `status.InformationProvider`, rendering expvar counters as text and HTML under a "DogStatsD" section — or registering a no-op when DogStatsD is handled by the Agent Data Plane.
+
 # comp/dogstatsd/status
 
 **Team:** agent-metric-pipelines
@@ -10,7 +12,7 @@ When DogStatsD is handled by the Agent Data Plane, the component registers a no-
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 `comp/dogstatsd/status/component.go`
 
@@ -20,7 +22,9 @@ type Component interface{}
 
 The interface carries no exported methods. All behavior is expressed through the `status.InformationProvider` that the implementation registers with the core status framework via fx output tag.
 
-### statusProvider
+### Key types
+
+#### `statusProvider`
 
 `comp/dogstatsd/status/statusimpl/status.go`
 
@@ -34,7 +38,11 @@ The concrete type that implements `status.Provider`:
 | `Text(verbose bool, buffer io.Writer) error` | Renders `dogstatsd.tmpl` |
 | `HTML(verbose bool, buffer io.Writer) error` | Renders `dogstatsdHTML.tmpl` |
 
-### Data source: expvar
+### Configuration and build flags
+
+No dedicated config keys. Conditional registration is controlled by `dsdconfig.EnabledInternal()`, which reads `use_dogstatsd` and the ADP flags (see [config.md](config.md)).
+
+#### Data source: expvar
 
 The status is populated from three expvar keys published by the DogStatsD server:
 
@@ -46,14 +54,14 @@ The status is populated from three expvar keys published by the DogStatsD server
 
 All three are merged into a single `dogstatsdStats` map passed to both templates.
 
-### Templates
+#### Templates
 
 Embedded in the binary via `//go:embed status_templates`:
 
 - `status_templates/dogstatsd.tmpl` — plain-text template, iterates over `dogstatsdStats` and prints key/value pairs. Appends a tip about `dogstatsd_metrics_stats_enable`.
 - `status_templates/dogstatsdHTML.tmpl` — HTML variant for the web UI.
 
-### Conditional registration
+#### Conditional registration
 
 `newStatusProvider` creates a `statusProvider` only when `dsdconfig.EnabledInternal()` is `true`. It then wraps the provider (or `nil`) in `status.NewInformationProvider`. The core status framework ignores nil providers, so no DogStatsD section appears when the feature is disabled or handed off to ADP.
 

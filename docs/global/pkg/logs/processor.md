@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/processor` transforms decoded log messages before delivery by applying filtering and redaction rules, encoding messages into the wire format (JSON, protobuf, or syslog), tagging messages for Multi-Region Failover, and forwarding copies to the diagnostic `stream-logs` tap.
+
 # pkg/logs/processor
 
 ## Purpose
@@ -14,7 +16,9 @@ The processor runs in a single goroutine and is wired into each `Pipeline` insta
 
 ## Key elements
 
-### `Processor`
+### Key types
+
+#### `Processor`
 
 ```go
 type Processor struct {
@@ -48,7 +52,9 @@ For each message `processMessage` is called, which:
 
 **Config-driven failover**: the processor registers an `OnUpdate` callback with the config system. When `multi_region_failover.failover_logs` or `multi_region_failover.logs_service_allowlist` changes, the new configuration is sent through an internal `configChan` and applied on the next iteration of the run loop. This avoids locking during message processing.
 
-### `Encoder` interface
+### Key interfaces
+
+#### `Encoder` interface
 
 ```go
 type Encoder interface {
@@ -76,7 +82,9 @@ Three implementations are provided:
 
 `ValidUtf8Bytes` is a `[]byte` wrapper whose `MarshalText` replaces invalid UTF-8 runes with `utf8.RuneError`; it is used by the JSON encoder so invalid bytes do not cause marshalling to fail.
 
-### Processing rules (`comp/logs/agent/config.ProcessingRule`)
+### Key functions
+
+#### Processing rules (`comp/logs/agent/config.ProcessingRule`)
 
 Processing rules are defined in `comp/logs/agent/config` and are referenced and applied by the processor. The processor merges global rules (passed at construction) with per-source rules (`msg.Origin.LogSource.Config.ProcessingRules`) before evaluating them.
 
@@ -90,11 +98,13 @@ Processing rules are defined in `comp/logs/agent/config` and are referenced and 
 
 For `MaskSequences`, the processor uses `isMatchingLiteralPrefix` to short-circuit evaluation: if the regex has a literal prefix and the content does not contain it, the replacement is skipped without running the full regex.
 
-### MRF (Multi-Region Failover)
+#### MRF (Multi-Region Failover)
 
 When `multi_region_failover.failover_logs` is `true`, `filterMRFMessages` sets `msg.IsMRFAllow = true` on messages that should be routed to MRF destinations. If `multi_region_failover.logs_service_allowlist` is set, only messages whose `Origin.Service()` appears in the allowlist are tagged. An empty allowlist means all messages are tagged.
 
-### Telemetry
+### Configuration and build flags
+
+#### Telemetry
 
 | Metric | Description |
 |--------|-------------|
@@ -105,7 +115,7 @@ When `multi_region_failover.failover_logs` is `true`, `filterMRFMessages` sets `
 
 The `UnstructuredProcessingMetricName` constant (`"datadog.logs_agent.tailer.unstructured_processing"`) is also used by the journald and Windows event tailers to report when unstructured processing mode is active.
 
-### `processorOnlyProvider` (`pipeline/processor_only_provider.go`)
+#### `processorOnlyProvider` (`pipeline/processor_only_provider.go`)
 
 Not in this package, but closely related: a `Provider` implementation that wraps only a `Processor` with no sender. Used by `cmd/agent/subcommands/analyzelogs` to process logs locally and inspect the output.
 

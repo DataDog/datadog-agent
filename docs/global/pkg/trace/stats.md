@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/stats` aggregates APM RED metrics (hits, errors, durations, DDSketch latency distributions) from every span regardless of sampling decisions, bucketing them into fixed time windows and sending them independently to the Datadog backend for accurate p99 latency data without 100% trace retention.
+
 # pkg/trace/stats
 
 ## Purpose

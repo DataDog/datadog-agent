@@ -1,3 +1,5 @@
+> **TL;DR:** The core DogStatsD server that listens on UDP, UDS, and named-pipe sockets, parses StatsD payloads into enriched metric samples, and forwards them to the aggregator.
+
 # comp/dogstatsd/server — DogStatsD Server Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/dogstatsd/server`
@@ -33,7 +35,9 @@ All production code lives in the package root (`comp/dogstatsd/server`). There i
 | `server_mock.go` | Mock implementation for tests |
 | `stats_endpoint.go` | HTTP handler for `/dogstatsd-stats` (registered as an `api.AgentEndpointProvider`) |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -50,6 +54,19 @@ type Component interface {
     UDPLocalAddr() string
 }
 ```
+
+### Key types
+
+| Type | Description |
+|---|---|
+| `server` | Core unexported struct — holds listeners, workers, batcher, and pool managers |
+| `Params` | `Serverless bool` — selects the Lambda-extension code path when `true` |
+| `batcher` | Accumulates parsed samples and flushes batches to the demultiplexer |
+| `worker` | Goroutine that drains the packet channel and calls parse/enrich/batch |
+
+### Configuration and build flags
+
+See the [Configuration keys](#configuration-keys-selected) table below for all `dogstatsd_*` keys. Build tags that affect compilation: `serverless` (removes fx dependencies in `serverless.go`).
 
 ## fx wiring
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/flare` orchestrates the creation and upload of flare ZIP archives for Datadog Support, collecting logs, configs, and runtime state from all registered provider callbacks and scrubbing sensitive values before packaging.
+
 # comp/core/flare
 
 ## Purpose
@@ -21,7 +23,9 @@ The component also exposes a `POST /flare` IPC endpoint so the CLI process can t
 
 ## Key Elements
 
-### Component interface
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -35,7 +39,9 @@ type Component interface {
 - `Send` — upload the ZIP to Datadog and delete the local copy (unless `Params.KeepArchiveAfterSend` is set).
 - If `providerTimeout <= 0`, the value from `flare_provider_timeout` config key is used.
 
-### Params
+### Key types
+
+#### Params
 
 ```go
 type Params struct {
@@ -52,7 +58,7 @@ flare.NewLocalParams(distPath, ...)
 
 In local mode the archive is built directly in the CLI process without any runtime data; a `local` marker file is added to the archive explaining the reason.
 
-### Module
+#### Module
 
 ```go
 func Module(params Params) fxutil.Module
@@ -62,7 +68,9 @@ Supplies `params` via `fx.Supply` and wires `newFlare` as the provider. The impl
 - a `POST /flare` API endpoint
 - a Remote Config `TaskFlare` listener
 
-### Provider pattern (`comp/core/flare/types`)
+### Key functions
+
+#### Provider pattern (`comp/core/flare/types`)
 
 Any component can contribute files to every flare by returning a `types.Provider` from its `Provides` struct:
 
@@ -78,7 +86,7 @@ flaretypes.NewProviderWithTimeout(callback, timeoutFunc)
 
 `Provider` carries an `fx.Out` tag `group:"flare"`. The flare component collects all tagged fillers via `deps.Providers []*types.FlareFiller \`group:"flare"\``.
 
-### FlareBuilder interface (`comp/core/flare/builder`)
+#### FlareBuilder interface (`comp/core/flare/builder`)
 
 Passed to every provider callback. Key methods:
 
@@ -98,7 +106,9 @@ Passed to every provider callback. Key methods:
 
 The builder automatically scrubs known secret patterns from all content. Still, avoid adding data that contains credentials in the first place.
 
-### FlareArgs
+### Configuration and build flags
+
+#### FlareArgs
 
 ```go
 type FlareArgs struct {
@@ -111,7 +121,7 @@ type FlareArgs struct {
 
 Available to provider callbacks via `fb.GetFlareArgs()`. Default (zero) values are safe to ingest — providers should degrade gracefully when no profiling/streaming is requested.
 
-### Built-in providers (registered in `newFlare`)
+#### Built-in providers (registered in `newFlare`)
 
 Beyond FX-injected providers, the implementation always adds:
 - **Log files** — agent, JMX, DogStatsD logs from their configured directories.

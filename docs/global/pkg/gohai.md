@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/gohai` collects static host hardware and OS metadata (CPU, memory, network, platform, filesystems, processes) and packages it into the JSON payload submitted to Datadog as part of the host metadata check-in.
+
 # pkg/gohai
 
 ## Purpose
@@ -24,7 +26,9 @@ The package is a **standalone Go module** (`pkg/gohai/go.mod`) with minimal depe
 
 ## Key Elements
 
-### Root package
+### Key types
+
+#### Root package
 
 **`Payload`** — the JSON-serialisable wrapper:
 
@@ -46,7 +50,9 @@ The inner `gohai` struct holds one field per sub-package (`cpu`, `filesystem`, `
 
 **Hostname resolution** — when `useHostnameResolver=true`, the collected network info's primary IP is overridden by a reverse DNS lookup of `hostname`, controlled by `metadata_ip_resolution_from_hostname` in the agent config.
 
-### Sub-package patterns
+### Key interfaces
+
+#### Sub-package patterns
 
 Every sub-package exposes the same two-function API:
 
@@ -65,7 +71,7 @@ payload, warnings, err := info.AsJSON()
 
 Fields that cannot be collected (e.g. L3 cache on a platform that doesn't expose it) are stored as `utils.Value[T]` errors and are **silently omitted** from the JSON output rather than causing the whole collection to fail.
 
-### `utils.Value[T]`
+#### `utils.Value[T]`
 
 A generic result-or-error type used as the field type in all `Info` structs:
 
@@ -83,7 +89,11 @@ err      := v.Error()
 
 `AsJSON` (in `utils`) iterates struct fields via reflection; a field is included in the output only when its `Value()` returns `nil` error.
 
-### Platform-specific collection
+### Configuration and build flags
+
+`pkg/gohai` is a standalone Go module (`pkg/gohai/go.mod`) with minimal dependencies. Platform-specific collection paths are selected via build tags (Linux, macOS, Windows). There are no `datadog.yaml` keys; collection behavior is controlled by the `isContainerized` and `useHostnameResolver` arguments passed to `GetPayload`.
+
+#### Platform-specific collection
 
 | Sub-package | Linux | macOS | Windows |
 |---|---|---|---|

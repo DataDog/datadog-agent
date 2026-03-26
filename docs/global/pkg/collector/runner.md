@@ -1,3 +1,5 @@
+> **TL;DR:** The execution hub of the collector, owning a dynamically-scaled pool of worker goroutines that pull checks from a shared channel, monitor utilization, and coordinate graceful shutdown.
+
 # pkg/collector/runner
 
 ## Purpose
@@ -6,7 +8,7 @@ The `runner` package is the execution hub of the collector. It owns a pool of wo
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -27,6 +29,8 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 
 Reads `check_runners` from the agent config. When the value is `0` (the default), the worker count is managed dynamically via `UpdateNumWorkers`; otherwise it is fixed at the configured value. Immediately spawns the initial set of workers and starts the utilization monitor goroutine.
 
+### Key functions
+
 ### Important methods
 
 | Method | Description |
@@ -46,7 +50,7 @@ Reads `check_runners` from the agent config. When the value is `0` (the default)
 | `stopCheckTimeout` | 500 ms | Maximum wait for a single check to stop. |
 | `stopAllChecksTimeout` | 2 s | Maximum wait for all checks to stop during shutdown. |
 
-### Configuration keys
+### Configuration and build flags
 
 | Key | Default | Description |
 |-----|---------|-------------|

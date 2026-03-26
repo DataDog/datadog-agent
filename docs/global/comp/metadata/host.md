@@ -1,3 +1,5 @@
+> **TL;DR:** Periodically generates and ships the "v5" host metadata payload (CPU, memory, cloud provider, tags, install method) to the Datadog `/intake` endpoint, establishing each host's identity in the backend.
+
 # comp/metadata/host — Host Metadata Payload Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/metadata/host`
@@ -26,7 +28,9 @@ The component self-registers with the metadata runner so that collection happens
 | `comp/metadata/host/hostimpl/utils` | Payload data types (`Payload`, `Meta`, etc.) and collection helpers |
 | `comp/metadata/host/hostimpl/hosttags` | Host tag collection logic |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -38,9 +42,9 @@ type Component interface {
 
 The component exposes no mutation methods. Its primary job is to collect and send the payload on a schedule managed by `comp/metadata/runner`.
 
-## Key types
+### Key types
 
-### `hostimpl.Payload`
+#### `hostimpl.Payload`
 
 Top-level structure sent to the backend. Composes `utils.CommonPayload` (API key, agent version, UUID, hostname) with `utils.Payload`:
 
@@ -53,7 +57,7 @@ type Payload struct {
 }
 ```
 
-### `utils.Payload`
+#### `utils.Payload`
 
 Rich host details:
 
@@ -70,7 +74,7 @@ Rich host details:
 | `OtlpMeta` | Whether the OTLP pipeline is enabled |
 | `FipsMode` | Whether the agent is running in FIPS mode |
 
-### `utils.Meta`
+#### `utils.Meta`
 
 Host identity fields nested under `"meta"` in the payload:
 
@@ -84,6 +88,14 @@ Host identity fields nested under `"meta"` in the payload:
 | `Timezones` | Host timezone |
 | `ClusterName` | Kubernetes cluster name (if applicable) |
 | `CanonicalCloudResourceID` | CCRID for cross-product host linking |
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `enable_gohai` | `true` | Include gohai hardware/platform data in the payload |
+| `metadata_providers[name=host].interval` | `1800` s | Main collection interval |
+| `metadata_providers[name=host].early_interval` | `300` s | Initial fast collection interval |
 
 ## fx wiring
 

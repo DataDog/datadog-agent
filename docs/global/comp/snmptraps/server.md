@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/server` is the top-level orchestrator for the SNMP traps subsystem, running a UDP listener that receives SNMPv1/v2c/v3 traps, enriching them with OID metadata, and forwarding JSON payloads to the Datadog event platform.
+
 # comp/snmptraps/server — SNMP Traps Server Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/snmptraps/server`
@@ -24,7 +26,9 @@ The server component is the entry point for a bundle of sub-components. Each sub
 | `comp/snmptraps/status/statusimpl` | Tracks running state and startup errors |
 | `comp/snmptraps` | `Bundle()` — convenience function that includes `serverimpl.Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/snmptraps/server
@@ -35,6 +39,25 @@ type Component interface {
     Error() error
 }
 ```
+
+### Key functions
+
+`serverimpl.newServer` checks `trapsconfig.IsEnabled` first. If SNMP traps are not enabled in the agent configuration, it returns a `TrapsServer` with `running: false` and no lifecycle hooks registered — zero cost at runtime.
+
+When traps are enabled, the server creates a **nested `fx.App`** to wire the sub-components. The outer `Lifecycle` hooks start and stop the inner fx app. If the inner app fails to initialize (e.g. invalid config, port already in use), the error is recorded via `status.SetStartError` and `Running()` returns false without crashing the outer agent.
+
+### Configuration and build flags
+
+Key fields in `TrapsConfig` (under `network_devices.snmp_traps`):
+
+| Field | Description |
+|---|---|
+| `enabled` | Whether to start the listener |
+| `port` | UDP port to listen on (default 9162) |
+| `community_strings` | Allowed community strings for v1/v2c |
+| `users` | SNMPv3 user credentials |
+| `namespace` | Namespace tag attached to all traps |
+| `stop_timeout` | Seconds to wait for listener shutdown |
 
 ## Implementation details
 
@@ -108,19 +131,6 @@ if !c.trapsServer.Running() {
     log.Warnf("SNMP traps server not running: %v", c.trapsServer.Error())
 }
 ```
-
-## Configuration
-
-SNMP traps are configured under the `network_devices.snmp_traps` key in `datadog.yaml`. Key fields in `TrapsConfig`:
-
-| Field | Description |
-|---|---|
-| `enabled` | Whether to start the listener |
-| `port` | UDP port to listen on (default 9162) |
-| `community_strings` | Allowed community strings for v1/v2c |
-| `users` | SNMPv3 user credentials |
-| `namespace` | Namespace tag attached to all traps |
-| `stop_timeout` | Seconds to wait for listener shutdown |
 
 ## Notes
 

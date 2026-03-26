@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/networkdeviceconfig` retrieves running and startup configurations from network devices over SSH, used by the NDM subsystem to push device configuration data to the Datadog backend.
+
 # comp/networkdeviceconfig
 
 **Team:** ndm-integrations
@@ -15,7 +17,7 @@ runs the appropriate CLI command (`show running-config` or
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/networkdeviceconfig/def/component.go
@@ -29,7 +31,27 @@ Both methods take a device IP address and return the raw configuration string
 or an error. They look up authentication credentials from the pre-configured
 device map; if the IP is not found, an error is returned immediately.
 
-### Implementation (`comp/networkdeviceconfig/impl`)
+### Key types
+
+**`AuthCredentials` / `DeviceConfig`** — credential and device configuration types:
+
+```go
+type AuthCredentials struct {
+    Username string
+    Password string
+    Port     string
+    Protocol string
+}
+
+type DeviceConfig struct {
+    IPAddress string
+    Auth      AuthCredentials
+}
+```
+
+Read from the agent config key `network_device_config_management`.
+
+### Key functions
 
 **`NewComponent(reqs Requires) (Provides, error)`** — reads the NCM config
 block from `datadog.yaml`, builds an IP-keyed device map, and returns the
@@ -49,23 +71,9 @@ test doubles. The production factory calls `connectToHost`, which dials via
 > Note: The current implementation uses `ssh.InsecureIgnoreHostKey()`. SSH key
 > authentication is not yet implemented (see the TODO in `config.go`).
 
-### Configuration types
+### Configuration and build flags
 
-```go
-type AuthCredentials struct {
-    Username string
-    Password string
-    Port     string
-    Protocol string
-}
-
-type DeviceConfig struct {
-    IPAddress string
-    Auth      AuthCredentials
-}
-```
-
-Read from the agent config key `network_device_config_management`:
+Configuration under the agent config key `network_device_config_management`:
 
 ```yaml
 network_device_config_management:

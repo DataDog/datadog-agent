@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/status` tracks runtime metrics for the SNMP traps server (packets received, authentication failures, startup errors) and exposes them via `agent status` text/HTML output.
+
 # comp/snmptraps/status
 
 ## Purpose
@@ -6,7 +8,7 @@ The `status` component tracks runtime metrics for the SNMP traps server and make
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/snmptraps/status/component.go
@@ -29,9 +31,9 @@ type Component interface {
 | `SetStartError(err)` | Records an error that prevented the server from starting |
 | `GetStartError()` | Returns the recorded start error (nil if none) |
 
-### Implementation: `manager`
+### Key types
 
-Located in `comp/snmptraps/status/statusimpl/status.go`.
+**`manager`** — located in `comp/snmptraps/status/statusimpl/status.go`.
 
 The counters are stored as package-level `expvar.Int` values registered under the `snmp_traps` expvar map:
 
@@ -45,9 +47,9 @@ snmp_traps
 
 `startError` is a package-level `error` variable (not thread-safe by design; it is written once during startup and read-only afterward).
 
-### Status provider
+### Key functions
 
-`statusimpl.Provider` implements `status.InformationProvider`. It is registered in `serverimpl.Module()` via `coreStatus.NewInformationProvider(statusimpl.Provider{})`.
+**Status provider** — `statusimpl.Provider` implements `status.InformationProvider`. It is registered in `serverimpl.Module()` via `coreStatus.NewInformationProvider(statusimpl.Provider{})`.
 
 | Method | Output |
 |---|---|
@@ -59,7 +61,9 @@ snmp_traps
 
 The text template displays the error (if any) and then all metric keys formatted with `formatTitle` and `humanize`.
 
-### Module registration
+### Configuration and build flags
+
+**Module registration**
 
 ```go
 // The status component is not registered via a Module() call.

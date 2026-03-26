@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/languagedetection` detects the programming language of running processes in two tiers — unprivileged command-line classification and privileged ELF/interpreter analysis — to support APM auto-instrumentation library injection and workload metadata enrichment.
+
 # pkg/languagedetection
 
 ## Purpose
@@ -20,7 +22,9 @@ Detection works in two tiers:
 
 ## Key elements
 
-### `pkg/languagedetection` (root package)
+### Key types
+
+#### `pkg/languagedetection` (root package)
 
 | Symbol | Description |
 |--------|-------------|
@@ -29,7 +33,7 @@ Detection works in two tiers:
 | `knownPrefixes` / `exactMatches` | Package-level maps that define the classification rules used by `languageNameFromCommand`. |
 | `cliDetectors` | Slice of `Detector` implementations run before command-name matching. Currently contains `JRubyDetector` (detects JRuby from the JVM command line). |
 
-### `languagemodels/` — shared types
+#### `languagemodels/` — shared types
 
 | Symbol | Description |
 |--------|-------------|
@@ -46,7 +50,9 @@ Detection works in two tiers:
 | `GetLanguageAnnotationKey(containerName)` | Builds the full annotation key for a container (e.g. `internal.dd.datadoghq.com/my-container.detected_langs`). |
 | `AnnotationRegex` | Regex that matches and parses language detection annotation keys, extracting container name and init-container flag. |
 
-### `privileged/` — binary analysis (Linux, system-probe)
+### Key functions
+
+#### `privileged/` — binary analysis (Linux, system-probe)
 
 | Symbol | Description |
 |--------|-------------|
@@ -64,7 +70,11 @@ The privileged detectors live in
   the class path).
 - **InjectorDetector** — detects that the library injector has already run.
 
-### `util/` — Kubernetes owner utilities
+### Configuration and build flags
+
+The privileged detection tier is Linux-only and requires root or `CAP_PTRACE`. Unprivileged detection compiles on all platforms. The `system_probe_config.language_detection.enabled` key gates the fallback HTTP call from `DetectLanguage` to system-probe.
+
+#### `util/` — Kubernetes owner utilities
 
 | Symbol | Description |
 |--------|-------------|

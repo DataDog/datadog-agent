@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/process/checks` implements the individual data-collection checks (process, container, connections, discovery) run by the process-agent, each producing protobuf payloads passed to the submission pipeline.
+
 # pkg/process/checks
 
 ## Purpose
@@ -18,7 +20,9 @@ The package also provides shared helpers for host information collection, payloa
 
 ## Key elements
 
-### Check interface (`checks.go`)
+### Key interfaces
+
+#### Check interface (`checks.go`)
 
 ```go
 type Check interface {
@@ -35,7 +39,9 @@ type Check interface {
 
 Every check in the package implements this interface. The process-agent calls `Init` once at startup and then calls `Run` on a timer loop.
 
-### Check names (constants, `checks.go`)
+### Key types
+
+#### Check names (constants, `checks.go`)
 
 | Constant | Value | Check type |
 |----------|-------|------------|
@@ -46,14 +52,16 @@ Every check in the package implements this interface. The process-agent calls `I
 | `ConnectionsCheckName` | `"connections"` | Network connection stats (via system-probe) |
 | `DiscoveryCheckName` | `"process_discovery"` | Lightweight process metadata for integration discovery |
 
-### RunResult types (`checks.go`)
+#### RunResult types (`checks.go`)
 
 | Type | Use |
 |------|-----|
 | `StandardRunResult` | Single-frequency checks; `Payloads()` returns the payload slice, `RealtimePayloads()` returns nil. |
 | `CombinedRunResult` | Dual-frequency checks (process, container); carries both `Standard` and `Realtime` slices. |
 
-### ProcessCheck (`process.go`, `process_rt.go`)
+### Key functions
+
+#### ProcessCheck (`process.go`, `process_rt.go`)
 
 `ProcessCheck` is the primary check. It:
 
@@ -71,18 +79,18 @@ Every check in the package implements this interface. The process-agent calls `I
 
 Constructor: `NewProcessCheck(config, sysprobeYamlConfig, wmeta, gpuSubscriber, statsd, grpcTLSConfig, tagger) *ProcessCheck`
 
-### RTProcessCheck
+#### RTProcessCheck
 
 `runRealtime` is a method of `ProcessCheck`, not a separate type. The check is dual-mode: on standard ticks it collects the full process list; on realtime ticks it collects CPU/memory deltas only for the PIDs already known.
 
-### ContainerCheck (`container.go`, `container_rt.go`)
+#### ContainerCheck (`container.go`, `container_rt.go`)
 
 `ContainerCheck` and `RTContainerCheck` collect container metadata and CPU/memory stats respectively. Both are enabled only when `process_config.container_collection.enabled` is true and a container environment is detected. They are mutually exclusive with `ProcessCheck` (enabling process collection disables container-only collection).
 
 - Container data comes from `proccontainers.GetSharedContainerProvider()`, which pulls from workloadmeta.
 - Network ID is fetched from system-probe when `NetworkTracerModuleEnabled` is set.
 
-### ConnectionsCheck (`net.go`)
+#### ConnectionsCheck (`net.go`)
 
 `ConnectionsCheck` collects live TCP/UDP connection stats by querying the **system-probe** over a Unix socket. It:
 
@@ -95,11 +103,11 @@ Constructor: `NewProcessCheck(config, sysprobeYamlConfig, wmeta, gpuSubscriber, 
 The underlying HTTP-over-Unix-socket transport is provided by `pkg/process/net`; see [net.md](net.md).
 `GetNetworkID` is also called from this check (Linux only) when the local network namespace lookup fails.
 
-### ProcessDiscoveryCheck (`process_discovery_check.go`)
+#### ProcessDiscoveryCheck (`process_discovery_check.go`)
 
 A lightweight alternative to `ProcessCheck`. It collects only process name, PID, and command-line for the purpose of suggesting integrations to customers. It is enabled when `discovery.enabled` is true in the system-probe config and `process_config.process_collection.enabled` is false.
 
-### SysProbeConfig (`checks.go`)
+#### SysProbeConfig (`checks.go`)
 
 ```go
 type SysProbeConfig struct {
@@ -112,7 +120,7 @@ type SysProbeConfig struct {
 
 Passed to `Init` to give checks access to system-probe connectivity settings.
 
-### HostInfo (`host_info.go`)
+#### HostInfo (`host_info.go`)
 
 ```go
 type HostInfo struct {
@@ -124,7 +132,7 @@ type HostInfo struct {
 
 Collected once at startup via `CollectHostInfo(config, hostnameComp, ipc)`. All checks receive a pointer to the same `HostInfo` in `Init`.
 
-### RunnerWithRealTime (`runner.go`)
+#### RunnerWithRealTime (`runner.go`)
 
 `NewRunnerWithRealTime(RunnerConfig) (func(), error)` returns a scheduling loop function that drives dual-frequency checks:
 
@@ -133,15 +141,19 @@ Collected once at startup via `CollectHostInfo(config, hostnameComp, ipc)`. All 
 - Supports live RT interval updates via `RtIntervalChan`.
 - Exits when `ExitChan` is closed.
 
-### Chunking (`chunking.go`)
+#### Chunking (`chunking.go`)
 
 `chunkProcessesBySizeAndWeight` splits `[]*model.Process` slices into `model.CollectorProc` payloads bounded by both element count (`maxChunkSize`) and total serialized weight (`maxChunkWeight`). Containers are replicated into every chunk that contains one of their processes.
 
-### Output caching (`exports.go`)
+#### Output caching (`exports.go`)
 
 `StoreCheckOutput(checkName, payloads)` and `GetCheckOutput(checkName)` are a thread-safe map (`sync.Map`) that caches the most recent `[]model.MessageBody` for each check. These are read by the orchestrator checks (`pkg/collector/corechecks/orchestrator`) and workloadmeta process collector to reuse process data without running the check again.
 
 The cached output also drives the `WorkloadMetaExtractor` language detection pipeline; the `workloadmeta/collector` uses it when the process check is disabled and language detection is the only goal (see [metadata.md](metadata.md)).
+
+### Configuration and build flags
+
+Key configuration keys controlling which checks are enabled, scrubbing behavior, and payload sizes are listed in the `## Relevant configuration keys` table at the bottom of this file.
 
 ## Usage
 

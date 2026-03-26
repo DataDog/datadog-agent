@@ -1,5 +1,7 @@
 # pkg/process/runner
 
+> **TL;DR:** `pkg/process/runner` implements the check execution and real-time scheduling loop for the process-agent, handing completed payloads to `CheckSubmitter` which encodes, queues, and forwards them to the Datadog intake.
+
 **Import path:** `github.com/DataDog/datadog-agent/pkg/process/runner`
 
 ## Purpose
@@ -10,7 +12,9 @@ Implements the check execution loop for the process-agent (and the process compo
 
 ## Key Elements
 
-### CheckRunner (`runner.go`)
+### Key types
+
+#### CheckRunner (`runner.go`)
 
 | Field | Type | Purpose |
 |---|---|---|
@@ -38,7 +42,9 @@ Implements the check execution loop for the process-agent (and the process compo
 - **`basicRunner`** — for checks that do not support `RunOptions` or when RT is globally disabled. Ticks on the standard check interval; real-time checks run only when `realTimeEnabled` is true.
 - **`checks.NewRunnerWithRealTime`** — for checks that implement `SupportsRunOptions()`. Runs standard and RT collections on the same goroutine, interleaved based on the ratio of their intervals. Interval overrides that violate the divisibility constraint are silently reset to defaults with a warning log.
 
-### Submitter interface and CheckSubmitter (`submitter.go`)
+### Key interfaces
+
+#### Submitter interface and CheckSubmitter (`submitter.go`)
 
 ```go
 type Submitter interface {
@@ -60,9 +66,15 @@ type Submitter interface {
 
 **`NewSubmitter(...)`** — the constructor; resolves API endpoints via `endpoint.GetAPIEndpoints`, builds the queue map and submit-function map.
 
-### endpoint sub-package (`runner/endpoint`)
+### Key functions
+
+#### endpoint sub-package (`runner/endpoint`)
 
 **`GetAPIEndpoints(config) ([]apicfg.Endpoint, error)`** — reads `process_config.process_dd_url` (primary) and `process_config.additional_endpoints` (multi-endpoint) from config to build the list of intake endpoints.
+
+### Configuration and build flags
+
+Configuration keys for queue sizes, endpoint URLs, RT-mode, and payload dropping are listed in the `### Configuration keys` table in the `## Usage` section.
 
 ## Usage
 

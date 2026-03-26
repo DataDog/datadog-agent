@@ -1,3 +1,5 @@
+> **TL;DR:** Provides type-safe generic wrappers around `sync.Pool` (for structs, slices, and custom allocations) and an optional telemetry-instrumented variant to track pool efficiency.
+
 # pkg/util/sync
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/sync`
@@ -10,7 +12,7 @@ Provides type-safe wrappers around Go's `sync.Pool` so that callers get and put 
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 ```go
 type PoolGetter[K any] interface { Get() *K }
@@ -20,7 +22,9 @@ type Pool[K any] interface { PoolGetter[K]; PoolReleaser[K] }
 
 `Pool[K]` is the minimal interface accepted by consumers. Using it instead of `*TypedPool[K]` directly allows the telemetry variant to be swapped in transparently.
 
-### `TypedPool[K]` (struct)
+### Key types
+
+#### `TypedPool[K]` (struct)
 
 A thin, type-safe wrapper over `sync.Pool`.
 
@@ -39,7 +43,9 @@ func (t *TypedPool[K]) Put(x *K)
 | `NewSlicePool[K](size, capacity)` | Allocates `make([]K, size, capacity)`. Suitable for reusable byte buffers. |
 | `NewTypedPool[K](f)` | Custom allocator — use when the zero value is insufficient (e.g. a pool of pre-configured `DDSketch` objects). |
 
-### Telemetry variant
+### Key functions
+
+#### Telemetry variant
 
 ```go
 func NewDefaultTypedPoolWithTelemetry[K any](

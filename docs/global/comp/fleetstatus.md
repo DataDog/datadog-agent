@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/fleetstatus` contributes a "Fleet Automation" section to the agent status output, combining the `remote_updates` config flag and the installer daemon running state to report whether fleet automation is fully active.
+
 # comp/fleetstatus
 
 **Team:** fleet
@@ -19,7 +21,7 @@ separately.
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/fleetstatus/def/component.go
@@ -30,9 +32,9 @@ The component has no public methods. It contributes to the agent status
 framework via `status.InformationProvider` — the fx graph wires the status
 output without callers needing to interact with the component directly.
 
-### statusProvider
+### Key types
 
-The concrete implementation registers itself as a `status.InformationProvider`:
+**`statusProvider`** — the concrete implementation registers itself as a `status.InformationProvider`:
 
 ```go
 type statusProvider struct {
@@ -51,9 +53,9 @@ It implements the `status.Provider` interface:
 | `Text(_, buf)` | Renders `fleetstatus.tmpl` (text template) |
 | `HTML(_, buf)` | Renders `fleetstatus.tmpl` (HTML template) |
 
-### Status data shape
+### Key functions
 
-`populateStatus` produces the following map under `fleetAutomationStatus`:
+**`populateStatus`** produces the following map under `fleetAutomationStatus`:
 
 ```json
 {
@@ -68,12 +70,11 @@ It implements the `status.Provider` interface:
 - `installerRunning` — `true` when `daemonchecker.IsRunning()` returns true.
 - `fleetAutomationEnabled` — `true` only when both of the above are true.
 
-### Templates
+### Configuration and build flags
 
-The text and HTML templates are embedded at compile time from the
-`status_templates/` directory inside the `impl` package.
+The text and HTML templates are embedded at compile time from the `status_templates/` directory inside the `impl` package.
 
-### fx wiring
+**fx wiring:**
 
 ```go
 // comp/fleetstatus/fx/fx.go
@@ -82,10 +83,11 @@ func Module() fxutil.Module {
 }
 ```
 
-`NewComponent` depends on `config.Component` and `daemonchecker.Component`, and
-provides `status.InformationProvider` (not `fleetstatus.Component` directly —
-the component interface is empty and the value contribution is the status
-provider).
+`NewComponent` depends on `config.Component` and `daemonchecker.Component`, and provides `status.InformationProvider`.
+
+| Key | Description |
+|---|---|
+| `remote_updates` | When `true`, signals that fleet remote management is configured. Combined with `daemonchecker.IsRunning()` to set `fleetAutomationEnabled`. |
 
 ## Usage
 
@@ -112,14 +114,6 @@ To modify what is displayed, update `populateStatus` in
 | [`pkg/fleet`](../../pkg/fleet/fleet.md) | The fleet daemon (`pkg/fleet/daemon.Daemon`) is started by `comp/updater` when `remote_updates: true`. `comp/fleetstatus` only *reports* whether fleet automation is active — it does not interact with the daemon directly. |
 | [`comp/core/status`](core/status.md) | Provides the `status.InformationProvider` extension point. `comp/fleetstatus` registers one `InformationProvider` (section `"Fleet Automation"`) that the status component aggregates into the full `datadog-agent status` output. |
 | `comp/updater` | Hosts `pkg/fleet/daemon.Daemon`. Fleet automation is only fully active when both `remote_updates` is enabled (read by `comp/fleetstatus` via `config.Component`) and this daemon is running (detected by `daemonchecker.Component`). |
-
-### Configuration key
-
-`comp/fleetstatus` reads a single configuration key from [`comp/core/config`](core/config.md):
-
-| Key | Description |
-|---|---|
-| `remote_updates` | When `true`, signals that fleet remote management is configured. Combined with `daemonchecker.IsRunning()` to set `fleetAutomationEnabled`. |
 
 ### Adding new fleet status fields
 

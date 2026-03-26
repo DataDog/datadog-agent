@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/compliance` implements the continuous compliance sub-agent that evaluates CIS benchmarks and custom Rego/XCCDF rules against host, container, and Kubernetes configurations, reporting findings to Datadog as CSPM log events.
+
 # pkg/compliance — Compliance Monitoring (CIS Benchmarks / CSPM)
 
 ## Purpose
@@ -23,7 +25,9 @@ log reporter, and calls `Agent.Start()`.
 
 ## Key elements
 
-### Core types
+### Key types
+
+#### Core types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -37,7 +41,9 @@ log reporter, and calls `Agent.Start()`.
 | `ResourceLog` | `data.go` | Payload sent to the backend for configuration snapshots (K8s, APT, DB). |
 | `ResolvedInputs` | `data.go` | `map[string]interface{}` passed to the Rego evaluator; always contains a `"context"` key of type `ResolvingContext`. |
 
-### Interfaces
+### Key interfaces
+
+#### Interfaces
 
 | Interface | File | Description |
 |-----------|------|-------------|
@@ -46,7 +52,7 @@ log reporter, and calls `Agent.Start()`.
 | `SysProbeClient` | `sysprobe.go` | `FetchDBConfig(ctx, pid) (*dbconfig.DBResource, error)` — fetches DB config from system-probe for containerized processes. |
 | `RuleFilter` | `data.go` | `func(*Rule) bool` — predicate applied when loading benchmarks to skip irrelevant rules. |
 
-### Check results
+#### Check results
 
 ```go
 const (
@@ -57,7 +63,7 @@ const (
 )
 ```
 
-### Rule scopes
+#### Rule scopes
 
 ```go
 const (
@@ -71,7 +77,9 @@ const (
 Rules with a scope are automatically skipped when the corresponding client (Docker daemon,
 kube-apiserver) is unavailable.
 
-### Evaluators
+### Key functions
+
+#### Evaluators
 
 | Symbol | File | Description |
 |--------|------|-------------|
@@ -80,7 +88,7 @@ kube-apiserver) is unavailable.
 | Rego helpers | `evaluator_rego.go` | Built-in `datadog` package with `passed_finding`, `failing_finding`, `skipped_finding`, `error_finding`, `raw_finding`. Available to all rules. |
 | `parse_octal` | `evaluator_rego.go` | Custom Rego builtin that converts an octal string to an integer (used for file permission checks). |
 
-### Sub-packages
+#### Sub-packages
 
 #### `aptconfig/`
 
@@ -130,7 +138,7 @@ Thin wrapper over `github.com/gocomply/scap` that provides Go types for OpenSCAP
 - `SysChar(doc *Document) (*SystemCharacteristics, error)` — extracts a simplified
   `SystemCharacteristics` (system info + collected objects) from an OVAL syschar document.
 
-### Configuration keys
+### Configuration and build flags
 
 ```yaml
 compliance_config:

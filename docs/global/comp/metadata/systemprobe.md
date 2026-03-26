@@ -1,3 +1,5 @@
+> **TL;DR:** Periodically fetches the System Probe configuration via its Unix socket and sends a scrubbed per-source inventory payload to the Datadog backend, silently skipping collection when System Probe is not running and serving the data at `/metadata/system-probe` and in flares.
+
 # comp/metadata/systemprobe
 
 **Team:** agent-configuration
@@ -17,7 +19,7 @@ The `sysprobeconfig` dependency is optional (`option.Option[sysprobeconfig.Compo
 
 ## Key elements
 
-### Interface (`comp/metadata/systemprobe/def/component.go`)
+### Key interfaces
 
 The component interface is empty — all integration points are registered as fx output values:
 
@@ -25,7 +27,9 @@ The component interface is empty — all integration points are registered as fx
 type Component interface{}
 ```
 
-### Payload (`comp/metadata/systemprobe/impl/system_probe.go`)
+### Key types
+
+#### Payload
 
 ```go
 type Payload struct {
@@ -40,11 +44,20 @@ Fields inside `Metadata`:
 - `full_configuration` — complete scrubbed YAML (when `inventories_configuration_enabled` is `true` and System Probe config is available)
 - `file_configuration`, `environment_variable_configuration`, `agent_runtime_configuration`, `remote_configuration`, `fleet_policies_configuration`, `cli_configuration`, `source_local_configuration`, `provided_configuration` — per-source scrubbed YAML layers
 
-### fx wiring (`comp/metadata/systemprobe/fx/fx.go`)
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `inventories_configuration_enabled` | `true` | Include per-source config layer snapshots; only `agent_version` is sent when `false` or System Probe is absent |
+| `inventories_max_interval` | `600s` | Maximum interval between submissions |
+
+`sysprobeconfig` dependency is optional (`option.Option[sysprobeconfig.Component]`): absent when System Probe is disabled.
+
+#### fx wiring
 
 `fx.Module()` registers `NewComponent` and exposes `Component` as an optional value.
 
-### Dependencies (from `Requires`)
+#### Dependencies
 
 | Dependency | Purpose |
 |---|---|
@@ -55,7 +68,7 @@ Fields inside `Metadata`:
 | `option.Option[sysprobeconfig.Component]` | System Probe config accessor — absent when System Probe is not running |
 | `hostnameinterface.Component` | Resolve the hostname included in the payload |
 
-### Outputs (from `Provides`)
+#### Outputs
 
 | Output | Purpose |
 |---|---|

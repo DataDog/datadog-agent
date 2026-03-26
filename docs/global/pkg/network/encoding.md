@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/encoding` serializes and deserializes the network connections payload exchanged between system-probe and process-agent, splitting marshal (system-probe side) and unmarshal (process-agent side) into separate sub-packages to avoid binary bloat.
+
 # pkg/network/encoding
 
 ## Purpose
@@ -11,15 +13,24 @@ The split exists to avoid pulling all system-probe-internal imports (eBPF maps, 
 
 ## Key elements
 
-### Top-level package (`encoding`)
-
-The root `encoding.go` file contains only the package doc comment; its purpose is to explain the architectural rationale for the split. There is no exported API at this level.
-
-### `marshal/`
+### Key interfaces
 
 | Symbol | Description |
 |---|---|
 | `Marshaler` interface | `Marshal(*network.Connections, io.Writer, *ConnectionsModeler) error` + `ContentType() string`. All serialization backends implement this. |
+| `USMEncoder` interface | `EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{})`. Implemented by each application-layer protocol encoder (HTTP, HTTP/2, Kafka, Postgres, Redis). |
+| `Unmarshaler` interface | `Unmarshal([]byte) (*model.Connections, error)` + `ContentType() string`. |
+
+### Key types
+
+#### Top-level package (`encoding`)
+
+The root `encoding.go` file contains only the package doc comment; its purpose is to explain the architectural rationale for the split. There is no exported API at this level.
+
+#### `marshal/`
+
+| Symbol | Description |
+|---|---|
 | `GetMarshaler(accept string) Marshaler` | Returns a `protoSerializer` when the `Accept` header contains `application/protobuf`, otherwise returns a `jsonSerializer`. |
 | `ContentTypeProtobuf` | Constant `"application/protobuf"`. |
 | `ConnectionsModeler` | Aggregates all per-batch encoding state: IP cache, route index, DNS formatter, resolv-conf formatter, USM encoders, deduped tags set, and the system-probe PID. |
@@ -28,22 +39,35 @@ The root `encoding.go` file contains only the package doc comment; its purpose i
 | `FormatCompilationTelemetry`, `FormatConnectionTelemetry`, `FormatCORETelemetry` | Helper functions that populate telemetry maps on the `model.ConnectionsBuilder`. |
 | `FormatType`, `FormatProtocolStack` | Convert internal enums to protobuf equivalents. |
 | `RouteIdx` | Pairs a `model.Route` with its position in the deduplicated route slice. |
-| `USMEncoder` interface | `EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{})`. Implemented by each application-layer protocol encoder (HTTP, HTTP/2, Kafka, Postgres, Redis). |
 | `USMConnectionIndex[K, V]` | Generic container that groups USM aggregation objects by `types.ConnectionKey`. Populated via `GroupByConnection`. Handles PID collision via `IsPIDCollision`. |
 | `USMConnectionData[K, V]` | Per-connection bucket of `USMKeyValue` entries with PID-collision tracking. |
 | `GroupByConnection[K, V](protocol, data, keyGen)` | Builds a `USMConnectionIndex` from a flat protocol-keyed map. |
 | `InitializeUSMEncoders(*network.Connections)` | Platform-specific factory (Linux / Windows / unsupported) that constructs all active `USMEncoder` implementations for the current connections snapshot. |
 
-**Platform-gated files:**
-- `usm_encoders_linux.go` — HTTP, HTTP/2, Kafka, Postgres, Redis encoders on Linux.
-- `usm_encoders_windows.go` — HTTP/HTTP/2 encoders on Windows.
-- `usm_encoders_unsupported.go` — returns an empty slice on other platforms.
+### Key functions
 
-### `unmarshal/`
+| Function | Description |
+|---|---|
+| `GetMarshaler(accept string) Marshaler` | Selects protobuf or JSON serializer based on the HTTP `Accept` header. |
+| `NewConnectionsModeler(*network.Connections) (*ConnectionsModeler, error)` | Initializes all per-batch encoding helpers. Must be paired with `Close()`. |
+| `FormatConnection(...)` | Converts a single `ConnectionStats` to a protobuf `model.ConnectionBuilder`. |
+| `GroupByConnection[K, V](protocol, data, keyGen)` | Builds a `USMConnectionIndex` from a flat protocol-keyed map for efficient per-connection lookup. |
+| `GetUnmarshaler(ctype string) Unmarshaler` | Selects protobuf or JSON deserializer based on the HTTP `Content-Type` header. |
+
+### Configuration and build flags
+
+Platform-gated `USMEncoder` implementations in `marshal/`:
+
+| File | Platform | Encoders |
+|------|----------|---------|
+| `usm_encoders_linux.go` | `linux_bpf` | HTTP, HTTP/2, Kafka, Postgres, Redis |
+| `usm_encoders_windows.go` | `windows && npm` | HTTP, HTTP/2 |
+| `usm_encoders_unsupported.go` | all others | empty slice (no-op) |
+
+#### `unmarshal/`
 
 | Symbol | Description |
 |---|---|
-| `Unmarshaler` interface | `Unmarshal([]byte) (*model.Connections, error)` + `ContentType() string`. |
 | `GetUnmarshaler(ctype string) Unmarshaler` | Returns protobuf or JSON deserializer based on `Content-Type`. |
 | `ContentTypeProtobuf` | Constant `"application/protobuf"`. |
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/serializers` converts internal CWS event objects into the JSON payloads sent to the Datadog SIEM backend — it is the authoritative source of the public CWS event wire format and backend JSON schema.
+
 # pkg/security/serializers
 
 ## Purpose
@@ -20,7 +22,9 @@ All types annotated `// easyjson:json` have machine-generated marshalers in the 
 
 ## Key elements
 
-### Top-level entry points
+### Key functions
+
+#### Top-level entry points
 
 | Function | Description |
 |----------|-------------|
@@ -31,7 +35,9 @@ All types annotated `// easyjson:json` have machine-generated marshalers in the 
 | `UnmarshalEvent(raw []byte) (*model.Event, error)` | (Linux) Reconstructs a `model.Event` from a serialized JSON payload. Currently supports exec events only; used by the ptracer and test tooling. |
 | `DecodeEvent(file string) (*model.Event, error)` | (Linux) Reads a JSON file from disk and calls `UnmarshalEvent`. Useful for offline event replay and testing. |
 
-### Serializer hierarchy (Linux)
+### Key types
+
+#### Serializer hierarchy (Linux)
 
 ```
 EventSerializer
@@ -53,7 +59,7 @@ EventSerializer
     e.g. DNSEventSerializer, BPFEventSerializer, SELinuxEventSerializer, …
 ```
 
-### Shared types (`serializers_base.go`, Linux + Windows)
+#### Shared types (`serializers_base.go`, Linux + Windows)
 
 | Type | JSON key | Description |
 |------|----------|-------------|
@@ -75,7 +81,7 @@ EventSerializer
 | `Variables` | (various) | `map[string]interface{}` of rule-scoped variables, scrubbed before serialization. |
 | `EventStringerWrapper` | — | `fmt.Stringer` wrapper that marshals a `model.Event` or `events.CustomEvent` via `MarshalEvent`/`MarshalCustomEvent`; useful for structured logging. |
 
-### Linux-specific types (selected)
+#### Linux-specific types (selected)
 
 | Type | JSON key | Description |
 |------|----------|-------------|
@@ -125,7 +131,9 @@ This invokes `pkg/security/generators/backend_doc` and writes `docs/cloud-worklo
 3. Embed the new serializer as a pointer field in `EventSerializer` with a `json:"..."` tag.
 4. Run `go generate ./pkg/security/serializers/` to regenerate easyjson code and the backend schema.
 
-### `EventSerializerPatcher` interface (`patcher.go`)
+### Key interfaces
+
+#### `EventSerializerPatcher` interface (`patcher.go`)
 
 ```go
 type EventSerializerPatcher interface {

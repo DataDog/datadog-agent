@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/launchers` bridges log sources to the tailer/listener layer by defining the `Launcher` interface and a `Launchers` collection, with concrete sub-package implementations covering files, containers, journald, Windows Event Log, network sockets, in-process channels, and integration checks.
+
 # pkg/logs/launchers
 
 ## Purpose
@@ -6,7 +8,9 @@
 
 ## Key elements
 
-### `Launcher` interface
+### Key interfaces
+
+#### `Launcher` interface
 
 ```go
 type Launcher interface {
@@ -17,7 +21,7 @@ type Launcher interface {
 
 Every concrete launcher implements this interface. `Start` receives all shared resources and begins watching for sources; `Stop` blocks until the launcher has fully shut down. The `registry` (auditor) is used to persist read offsets/cursors so the agent can resume after a restart.
 
-### `SourceProvider` interface
+#### `SourceProvider` interface
 
 ```go
 type SourceProvider interface {
@@ -29,7 +33,9 @@ type SourceProvider interface {
 
 The concrete implementation is `*sources.LogSources`. Launchers call one of the subscribe methods at `Start` time and then select on the returned channels in their run loop.
 
-### `Launchers` collection
+### Key types
+
+#### `Launchers` collection
 
 ```go
 type Launchers struct { /* private */ }
@@ -44,7 +50,9 @@ func (ls *Launchers) Stop()
 
 Holds the full set of active launchers. If `AddLauncher` is called after `Start`, the launcher is started immediately. `Stop` stops all launchers concurrently and waits for all of them to finish.
 
-### Sub-packages
+### Key functions
+
+#### Sub-packages
 
 #### `file/` — file launcher (all platforms)
 
@@ -91,6 +99,23 @@ Enforces per-file and combined disk quotas:
 - `logs_config.integrations_logs_disk_ratio` — fraction of available disk the agent may use (takes precedence if smaller).
 
 When a file reaches its maximum size it is rotated (delete + recreate). When combined quota is exceeded, the least-recently-modified file is truncated first.
+
+### Configuration and build flags
+
+| Config key / Build tag | Launcher | Description |
+|---|---|---|
+| `logs_config.open_files_limit` | `file/` | Maximum number of simultaneously open file tailers. |
+| `logs_config.file_scan_period` | `file/` | Interval between glob rescans. |
+| `logs_config.file_wildcard_selection_mode` | `file/` | `by_name` (default) or `by_modification_time` prioritisation. |
+| `logs_config.validate_pod_container_id` | `file/` | Cross-check that a pod log file belongs to the expected container. |
+| `logs_config.frame_size` | `listener/` | Maximum TCP/UDP frame size. |
+| `logs_config.run_path` | `integration/` | Base directory for integration log files. |
+| `logs_config.integrations_logs_files_max_size` | `integration/` | Maximum size per integration log file (MB). |
+| `logs_config.integrations_logs_total_usage` | `integration/` | Combined disk quota for all integration log files (MB). |
+| `logs_config.integrations_logs_disk_ratio` | `integration/` | Fraction of available disk the agent may use (overrides the fixed quota if smaller). |
+| Build tag `kubelet \|\| docker` | `container/` | Required for the container launcher. |
+| Build tag `systemd` | `journald/` | Required for the journald launcher. |
+| Build tag `windows` | `windowsevent/` | Required for the Windows Event Log launcher. |
 
 ## Usage
 

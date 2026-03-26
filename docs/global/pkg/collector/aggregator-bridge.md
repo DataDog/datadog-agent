@@ -1,3 +1,5 @@
+> **TL;DR:** The CGo bridge between the Python/rtloader runtime and the Go aggregator, exporting C-callable functions (`SubmitMetric`, `SubmitEvent`, etc.) that Python checks invoke and wiring them to the sender pipeline via a global `CheckContext` singleton.
+
 # pkg/collector/aggregator
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/collector/aggregator`
@@ -9,6 +11,8 @@ This package is the Cgo bridge between the Python/rtloader runtime and the Go ag
 This package requires Cgo. It is used only when the agent is built with Python check support (the `python` build tag, implicitly required when linking against rtloader).
 
 ## Key Elements
+
+### Key types
 
 ### CheckContext (`check_context.go`)
 
@@ -24,6 +28,8 @@ The singleton that wires together the dependencies required by every submission 
 **`InitializeCheckContext(...)`** — must be called exactly once during agent startup (see `pkg/collector/python/loader.go`). Subsequent calls are silently ignored (the guard is a mutex + nil-check).
 
 **`GetCheckContext() (*CheckContext, error)`** — called by every exported C function to retrieve the singleton; returns an error if `InitializeCheckContext` was never called.
+
+### Key functions
 
 ### Exported C functions (`aggregator.go`)
 

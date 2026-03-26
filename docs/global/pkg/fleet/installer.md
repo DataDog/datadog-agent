@@ -1,3 +1,5 @@
+> **TL;DR:** Package manager at the heart of Fleet Automation — downloads OCI images, extracts them to a versioned on-disk repository, runs package-specific hooks, and manages stable/experiment version slots; always invoked as a subprocess of the fleet daemon so it can self-update.
+
 # pkg/fleet/installer — Package Installer
 
 ## Purpose
@@ -7,6 +9,32 @@
 The installer runs as a **subprocess** of the fleet daemon: the daemon calls the installer binary via `exec` rather than linking to it directly. This provides process isolation and allows the installer to self-update (the daemon can swap the installer binary between calls).
 
 ## Key elements
+
+### Key interfaces
+
+- `Installer` (`installer.go`) — full package lifecycle; all methods are safe to call concurrently.
+- `Hooks` (`packages/`) — per-package pre/post install hooks; implemented by `hooksCLI` which re-execs the installer binary.
+
+### Key types
+
+- `DownloadedPackage` (`oci/`) — metadata for a fetched OCI image; layers are extracted lazily.
+- `Repository` (`repository/`) — manages one package's versioned on-disk directory with atomic stable/experiment symlinks.
+- `Repositories` (`repository/`) — container of all per-package `Repository` objects.
+- `Env` (`env/`) — runtime configuration for the installer, populated from environment variables.
+- `InstallerExec` (`exec/`) — subprocess wrapper that forwards telemetry trace context.
+
+### Key functions
+
+- `NewInstaller(ctx, env)` — creates the concrete `Installer` implementation.
+- `DefaultPackages(env)` — resolves the OCI URLs to install based on the current environment.
+- `Setup(ctx, env, flavor)` — orchestrates first-run installs for standard, APM SSI, and Databricks/EMR/Dataproc scenarios.
+- `PackageURL(env, pkg, version)` — builds the canonical OCI URL for a package.
+
+### Configuration and build flags
+
+See `env.Env` fields and the `paths/` sub-package for well-known filesystem constants. The `PackagesPath` root is `/opt/datadog-packages` on Linux.
+
+---
 
 ### `Installer` interface (`installer.go`)
 

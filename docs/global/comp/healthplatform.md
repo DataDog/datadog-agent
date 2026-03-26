@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/healthplatform` collects and forwards structured health issue reports from the agent and its integrations to the Datadog backend, with persistent state across restarts and built-in issue modules for docker permissions and check failures.
+
 # comp/healthplatform
 
 **Team:** agent-health
@@ -24,7 +26,7 @@ used and no I/O occurs.
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/healthplatform/def/component.go
@@ -40,6 +42,8 @@ type Component interface {
     ClearAllIssues()
 }
 ```
+
+### Key functions
 
 **`ReportIssue`** — the primary integration entry point. Pass a non-nil
 `*IssueReport` to report an issue; pass `nil` to mark the issue as resolved.
@@ -57,7 +61,9 @@ proto-cloned copies to avoid external mutation.
 **`ClearIssuesForCheck` / `ClearAllIssues`** — mark issues as resolved, update
 on-disk state, and remove from in-memory map.
 
-### Internal structure
+### Key types
+
+**Internal structure:**
 
 ```
 healthPlatformImpl
@@ -75,7 +81,9 @@ Checks are independent: a slow check does not delay others.
 `https://event-platform-intake.<site>/api/v2/agenthealth` every 15 minutes.
 The report includes hostname, agent version, and all current issues.
 
-### Issue modules (`comp/healthplatform/impl/issues`)
+### Configuration and build flags
+
+**Issue modules** (`comp/healthplatform/impl/issues`):
 
 Issue modules bundle detection logic with remediation metadata. Each module:
 

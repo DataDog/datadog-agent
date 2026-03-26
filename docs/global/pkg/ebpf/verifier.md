@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ebpf/verifier` loads every eBPF program in a set of object files through the kernel verifier, collects per-program complexity statistics, and optionally maps those statistics back to C source lines for CI quality gates and dashboards.
+
 # pkg/ebpf/verifier
 
 ## Purpose
@@ -6,7 +8,7 @@ Provides tooling to load every eBPF program in a set of object files through the
 
 ## Key elements
 
-### Build flags
+### Configuration and build flags
 
 | Build tag | File | Notes |
 |-----------|------|-------|
@@ -16,7 +18,11 @@ Provides tooling to load every eBPF program in a set of object files through the
 
 Minimum kernel for statistics collection: **4.15** (checked at runtime by `BuildVerifierStats`).
 
-### Types
+### Key interfaces
+
+This package exposes no interfaces. All inputs and outputs use concrete struct types. Callers interact entirely through `BuildVerifierStats` and the `StatsOptions` / `StatsResult` structs.
+
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -30,7 +36,9 @@ Minimum kernel for statistics collection: **4.15** (checked at runtime by `Build
 | `SourceLine` | C source line text and DWARF line-info annotation. |
 | `RegisterState` | State of a single BPF register as reported by the verifier log. |
 
-### Statistics fields and kernel requirements
+### Key functions
+
+#### Statistics fields and kernel requirements
 
 | Field | JSON key | Min kernel |
 |-------|----------|-----------|
@@ -41,7 +49,7 @@ Minimum kernel for statistics collection: **4.15** (checked at runtime by `Build
 | `TotalStates` | `total_states` | 5.2 |
 | `PeakStates` | `peak_states` | 5.2 |
 
-### Key functions
+#### Main entry point
 
 | Function | Description |
 |----------|-------------|

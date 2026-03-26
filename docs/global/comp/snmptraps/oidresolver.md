@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/oidresolver` translates numeric SNMP OIDs into human-readable trap names and variable metadata (including enum mappings) by loading MIB database files at startup, with user-provided files overriding Datadog's built-in databases.
+
 # comp/snmptraps/oidresolver
 
 **Package:** `github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver`
@@ -11,7 +13,7 @@ The component loads one or more trap database files at startup and holds the res
 
 ## Key elements
 
-### Interface
+### Key interfaces
 
 ```go
 // comp/snmptraps/oidresolver/component.go
@@ -26,7 +28,7 @@ type Component interface {
 
 Both methods return an error if the OID is not found.
 
-### Core types
+### Key types
 
 Defined in `comp/snmptraps/oidresolver/traps_db.go`:
 
@@ -57,9 +59,11 @@ Helper functions also defined here:
 - `NormalizeOID(value string) string` — strips a leading dot, converting `.1.2.3` to `1.2.3`. All OIDs are stored and compared in the normalized (relative) form.
 - `IsValidOID(value string) bool` — validates that a string contains only digits and dots with no trailing dot or adjacent dots.
 
-### Implementation: multiFilesOIDResolver
+### Key functions
 
-`oidresolverimpl/oid_resolver.go` provides the production implementation via `oidresolverimpl.Module()`.
+**`multiFilesOIDResolver`** — production implementation (`oidresolverimpl/oid_resolver.go`).
+
+### Configuration and build flags
 
 **Database file loading**
 

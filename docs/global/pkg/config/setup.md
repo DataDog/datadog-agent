@@ -1,3 +1,5 @@
+> **TL;DR:** Authoritative registry for all agent configuration keys and their defaults — owns the two global `Config` singletons (`Datadog`, `SystemProbe`), the `InitConfig`/`LoadDatadog` startup sequence, and every `BindEnvAndSetDefault` call that defines the agent's configuration schema.
+
 # pkg/config/setup
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/config/setup`
@@ -15,6 +17,8 @@ Every part of the agent that needs to read configuration either calls `setup.Dat
 - [`comp/core/config`](../../comp/core/config.md) — the fx-injectable component that wraps this package's globals and injects `model.Reader` into components
 
 ## Key Elements
+
+### Key functions
 
 ### Global accessors
 
@@ -100,12 +104,16 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error
 
 Merges one or more additional YAML files into an existing config object. Used by the fleet policies feature and extra config paths.
 
+### Key types
+
 ### Structs for complex config keys
 
 | Type | Config key | Description |
 |---|---|---|
 | `ConfigurationProviders` | `config_providers` | Autodiscovery config providers (polling, templates, auth) |
 | `Listeners` | `listeners` | Autodiscovery listeners; exposes `IsProviderEnabled` |
+
+### Configuration and build flags
 
 ### Platform-specific path constants
 

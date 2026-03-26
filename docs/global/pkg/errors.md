@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a small set of typed agent errors (`NotFound`, `Retriable`, `Disabled`, `RemoteService`, `Timeout`) with matching `Is*` predicates that work correctly through error wrapping, enabling consistent error classification across the codebase.
+
 # pkg/errors
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/errors`
@@ -10,6 +12,8 @@ This keeps error classification consistent and avoids false positives: a string-
 
 ## Key Elements
 
+### Key types
+
 ### `AgentError`
 
 ```go
@@ -17,6 +21,8 @@ type AgentError struct { ... } // implements error
 ```
 
 The concrete error type. All constructors in this package return `*AgentError`. Its `Error()` method returns a human-readable message; the reason tag is unexported and can only be inspected through the `Is*` predicates.
+
+### Key functions
 
 ### Constructors and predicates
 

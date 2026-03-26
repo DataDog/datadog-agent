@@ -1,3 +1,5 @@
+> **TL;DR:** `autoexit` automatically shuts down the agent when all non-agent processes on the host have exited, enabling clean container sidecar lifecycle management.
+
 # comp/agent/autoexit
 
 **Package:** `github.com/DataDog/datadog-agent/comp/agent/autoexit`
@@ -11,7 +13,7 @@ The component reads configuration at startup and, if enabled, launches a backgro
 
 ## Key Elements
 
-### Interface
+### Key interfaces
 
 ```go
 // def/component.go
@@ -20,30 +22,28 @@ type Component interface{}
 
 The interface carries no methods; the component's entire value is the side effect of registering and starting the background watcher during `fx` application startup.
 
-### Configuration keys
+### Key types
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `auto_exit.noprocess.enabled` | bool | `false` | Enable the no-process exit detector |
-| `auto_exit.validation_period` | int (seconds) | — | How long the exit condition must be continuously true before triggering shutdown |
-| `auto_exit.noprocess.excluded_processes` | `[]string` | — | Additional regex patterns for processes that should be ignored when deciding whether to exit |
-
-### Shutdown detector: `noProcessExit`
-
-The only built-in detector. On each tick (every 30 seconds) it calls `gopsutil/process.Processes()` and checks whether every running process name matches at least one excluded-process regex. The built-in exclusion list covers:
+**`noProcessExit`** — the only built-in shutdown detector. On each tick (every 30 seconds) it calls `gopsutil/process.Processes()` and checks whether every running process name matches at least one excluded-process regex. The built-in exclusion list covers:
 
 - Supervisor processes: `pause`, `s6-svscan`, `s6-supervise`
 - Datadog processes: `agent`, `process-agent`, `trace-agent`, `security-agent`, `system-probe`, `privateactionrunner`
 
 Extra patterns can be added via `auto_exit.noprocess.excluded_processes`.
 
-### `startAutoExit`
+### Key functions
 
-Internal function that starts the polling goroutine. It respects the application context (`ctx.Done()`), so the watcher stops cleanly when the fx lifecycle ends. If `SIGINT` cannot be sent, it falls back to `os.Exit(1)`.
-
-### FX wiring
+**`startAutoExit`** — internal function that starts the polling goroutine. It respects the application context (`ctx.Done()`), so the watcher stops cleanly when the fx lifecycle ends. If `SIGINT` cannot be sent, it falls back to `os.Exit(1)`.
 
 `autoexitfx.Module()` wires `NewComponent` (from `autoexitimpl`) into the fx graph. `NewComponent` calls `configureAutoExit` immediately during startup, so the watcher is active as soon as the component is instantiated.
+
+### Configuration and build flags
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `auto_exit.noprocess.enabled` | bool | `false` | Enable the no-process exit detector |
+| `auto_exit.validation_period` | int (seconds) | — | How long the exit condition must be continuously true before triggering shutdown |
+| `auto_exit.noprocess.excluded_processes` | `[]string` | — | Additional regex patterns for processes that should be ignored when deciding whether to exit |
 
 ## Usage
 

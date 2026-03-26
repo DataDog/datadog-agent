@@ -1,3 +1,5 @@
+> **TL;DR:** Wraps a single fallible fetch function so that failures return the last successfully fetched value rather than propagating an error, giving cloud-provider metadata calls resilience against transient API outages.
+
 # pkg/util/cachedfetch
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/cachedfetch`
@@ -10,7 +12,9 @@ Cached values **do not expire**. The design philosophy is that stale cloud metad
 
 ## Key Elements
 
-### `Fetcher` (struct)
+### Key types
+
+#### `Fetcher` (struct)
 
 The only public type. Callers declare one `Fetcher` per piece of data they want to cache. Fields:
 
@@ -22,21 +26,23 @@ The only public type. Callers declare one `Fetcher` per piece of data they want 
 
 The struct embeds `sync.Mutex`, making it safe to call `Fetch` from multiple goroutines concurrently. Concurrent calls will each invoke `Attempt` independently (no coalescing), but the cached value is updated under the lock.
 
-### `(*Fetcher).Fetch(ctx context.Context) (interface{}, error)`
+### Key functions
+
+#### `(*Fetcher).Fetch(ctx context.Context) (interface{}, error)`
 
 Core method. Calls `Attempt(ctx)`. On success, stores and returns the result. On failure, returns the last cached value (if any) without an error. If no successful attempt has ever been made, returns the error from `Attempt` directly.
 
 Context cancellation and deadline-exceeded are treated as ordinary errors: they fall back to the cache just like any other failure.
 
-### `(*Fetcher).FetchString(ctx context.Context) (string, error)`
+#### `(*Fetcher).FetchString(ctx context.Context) (string, error)`
 
 Convenience wrapper that type-asserts the result of `Fetch` to `string`. Panics if `Attempt` returns a non-string on success — only use when the `Attempt` function is known to return a `string`.
 
-### `(*Fetcher).FetchStringSlice(ctx context.Context) ([]string, error)`
+#### `(*Fetcher).FetchStringSlice(ctx context.Context) ([]string, error)`
 
 Same as `FetchString` but for `[]string` results.
 
-### `(*Fetcher).Reset()`
+#### `(*Fetcher).Reset()`
 
 Clears the cached value. Intended for testing to force `Fetch` to behave as if no successful call has ever been made.
 

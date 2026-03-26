@@ -1,3 +1,5 @@
+> **TL;DR:** A thin fx-injectable factory for `datadog-go/v5/statsd` clients that gives any agent component a pre-configured DogStatsD client without needing to know the server address or tune client options.
+
 # comp/dogstatsd/statsd — StatsD Client Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def`
@@ -20,7 +22,9 @@ The component is intentionally minimal: it does not own a socket or parse packet
 | `comp/dogstatsd/statsd/mock` | Test mock backed by `ddgostatsd.NoOpClient` |
 | `comp/dogstatsd/statsd/otel` | OTel-flavoured wrapper (used by the OTel collector pipeline) |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -45,6 +49,10 @@ type Component interface {
 ```
 
 `ddgostatsd.ClientInterface` is defined in `github.com/DataDog/datadog-go/v5/statsd` and covers the full StatsD API: `Gauge`, `Count`, `Histogram`, `Distribution`, `Set`, `Timing`, `Event`, `ServiceCheck`, `Flush`, `Close`, etc.
+
+### Configuration and build flags
+
+Address resolution priority and default client options are described below.
 
 ## Address resolution
 

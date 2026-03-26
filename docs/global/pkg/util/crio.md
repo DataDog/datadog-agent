@@ -1,3 +1,5 @@
+> **TL;DR:** gRPC client for the CRI-O container runtime that implements the Kubernetes CRI API v1 to list containers, pod sandboxes, and images, and resolves overlay filesystem layer paths for SBOM scanning.
+
 # pkg/util/crio
 
 ## Purpose

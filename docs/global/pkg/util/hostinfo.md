@@ -1,3 +1,5 @@
+> **TL;DR:** Returns a cached snapshot of host OS metadata (hostname, uptime, boot time, platform, kernel version, virtualization, UUID) used by the host metadata pipeline and agent telemetry.
+
 # pkg/util/hostinfo
 
 ## Purpose

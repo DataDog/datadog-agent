@@ -1,3 +1,5 @@
+> **TL;DR:** Linux-specific kernel introspection utilities covering kernel version detection, container-aware `/proc`/`/sys`/`/boot` path resolution, CPU and process enumeration, kernel lockdown mode detection, and sub-packages for eBPF kernel header discovery and network namespace management.
+
 # pkg/util/kernel
 
 ## Purpose
@@ -20,6 +22,26 @@ All files in the root package are guarded by `//go:build linux`; `arch.go` is th
 ---
 
 ## Key Elements
+
+### Key types
+
+See `#### Types` inside the root package section below. Key types: `Version` (uint32 LINUX_VERSION_CODE), `LockdownMode` (string enum), `UbuntuKernelVersion` (struct).
+
+### Key functions
+
+See `#### Functions and variables` inside the root package section, and `#### Key functions` / `#### Key symbols` inside the sub-package sections below.
+
+### Configuration and build flags
+
+| Build constraint | Scope |
+|---|---|
+| `//go:build linux` | All root package files (except `arch.go`) |
+| `linux && linux_bpf` | `headers/` sub-package |
+| `linux` | `netns/` sub-package |
+
+`WithNS` in `netns/` calls `runtime.LockOSThread()` — do not use from goroutines that must not be locked to an OS thread.
+
+---
 
 ### Root package (`pkg/util/kernel`)
 

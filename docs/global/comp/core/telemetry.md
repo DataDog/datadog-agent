@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/telemetry` provides a shared Prometheus/OpenMetrics registry for agent-internal health metrics (counters, gauges, histograms), exposing them via an HTTP handler and an injectable mock with assertion helpers for tests.
+
 # comp/core/telemetry — Telemetry Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/telemetry`
@@ -23,7 +25,11 @@ Using this component instead of calling `prometheus` directly provides:
 | `telemetryimpl/` | Production implementation; Prometheus registry management; `Module()` and `MockModule()` fx wiring |
 | `noopsimpl/` | No-op implementation for builds where telemetry is disabled (e.g. serverless) |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -57,9 +63,9 @@ type Component interface {
 }
 ```
 
-## Metric types
+### Key types
 
-### Tagged vs. Simple variants
+#### Tagged vs. Simple variants
 
 Every instrument comes in two flavours:
 
@@ -70,7 +76,7 @@ Every instrument comes in two flavours:
 
 Tagged instruments also expose `.WithValues(tagValues...)` and `.WithTags(map)` to create a bound `Simple*` instance — useful in hot paths to avoid heap escapes.
 
-### Counter
+#### Counter
 
 ```go
 type Counter interface {
@@ -85,7 +91,7 @@ type Counter interface {
 }
 ```
 
-### Gauge
+#### Gauge
 
 ```go
 type Gauge interface {
@@ -101,7 +107,7 @@ type Gauge interface {
 }
 ```
 
-### Histogram
+#### Histogram
 
 ```go
 type Histogram interface {
@@ -112,7 +118,9 @@ type Histogram interface {
 }
 ```
 
-## Options
+### Configuration and build flags
+
+#### Options
 
 ```go
 type Options struct {
@@ -131,7 +139,9 @@ var DefaultOptions = Options{NoDoubleUnderscoreSep: false}
 
 The double-underscore separator (`subsystem__name`) is intentional: the agent pipeline replaces it with a dot before forwarding metrics to Datadog, producing `subsystem.name`.
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 `telemetryimpl.Module()` is included in `core.Bundle()` — no manual registration is needed.
 
@@ -160,7 +170,7 @@ func NewMyComp(deps Requires) MyComp {
 
 Metric instruments are typically created once at component construction time (package-level `var` or inside the constructor) and then mutated on each relevant event.
 
-## Registering a custom Prometheus Collector
+#### Registering a custom Prometheus Collector
 
 If you have an existing `prometheus.Collector` implementation:
 
@@ -170,7 +180,7 @@ deps.Telemetry.RegisterCollector(myCollector)
 deps.Telemetry.UnregisterCollector(myCollector)
 ```
 
-## Mock
+#### Mock
 
 `telemetryimpl.MockModule()` provides an fx module for tests. It exposes both `telemetry.Component` and `telemetry.Mock`. The mock adds assertion helpers:
 

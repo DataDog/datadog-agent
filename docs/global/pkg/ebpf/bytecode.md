@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ebpf/bytecode` abstracts eBPF object file delivery behind a single `AssetReader` interface, supporting both pre-compiled files bundled in the binary (bindata) and on-demand compilation from embedded C source via `clang`.
+
 # pkg/ebpf/bytecode
 
 ## Purpose
@@ -6,7 +8,13 @@ Provides the plumbing to load compiled eBPF object files into the agent at runti
 
 ## Key elements
 
-### Types
+### Key interfaces
+
+| Type | Description |
+|------|-------------|
+| `AssetReader` | `asset_reader.go` — combines `io.Reader`, `io.ReaderAt`, and `io.Closer`. All callers that load eBPF objects expect this interface; all three loading strategies (bindata, disk, runtime-compiled) satisfy it. |
+
+### Key types
 
 | Type | Location | Description |
 |------|----------|-------------|
@@ -16,7 +24,7 @@ Provides the plumbing to load compiled eBPF object files into the agent at runti
 | `CompileOptions` | `runtime/asset.go` | Options passed to the compiler: extra `clang` flags, an optional content-modification callback, and whether to resolve kernel headers. |
 | `ProtectedFile` | `runtime/protected_file.go` | A RAM-backed or disk-backed immutable copy of the C source, used to guarantee integrity before compilation starts. |
 
-### Functions
+### Key functions
 
 | Function | Description |
 |----------|-------------|
@@ -24,7 +32,7 @@ Provides the plumbing to load compiled eBPF object files into the agent at runti
 | `VerifyAssetPermissions(path string) error` | (`permissions.go`) Ensures the `.o` file is owned by root, preventing tampering. Called unconditionally on disk-mode paths. |
 | `asset.Compile(config, flags)` / `asset.CompileWithOptions(config, opts)` | Triggers runtime compilation: locates kernel headers, creates a `ProtectedFile`, optionally runs a `ModifyCallback`, then invokes `clang` via `pkg/ebpf/compiler`. Result is cached on disk; subsequent calls reuse the cached `.o` if the uname + source hash + flag hash are unchanged. |
 
-### Build flags
+### Configuration and build flags
 
 | Build tag | Effect |
 |-----------|--------|

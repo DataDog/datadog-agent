@@ -1,3 +1,5 @@
+> **TL;DR:** A small grab-bag of shared utilities providing a singleton main context for graceful shutdown, a string set type, reflection-based struct serialization, and a few math/slice helpers.
+
 # pkg/util/common
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/common`

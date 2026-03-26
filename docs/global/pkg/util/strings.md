@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a binary-search-based string matcher for efficient exact/prefix lookups against a fixed set of names and a byte-budget UTF-8 truncation function.
+
 # pkg/util/strings
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/strings`
@@ -12,7 +14,9 @@ It provides two focused utilities:
 
 ## Key elements
 
-### `Matcher` (struct)
+### Key types
+
+#### `Matcher` (struct)
 
 ```go
 type Matcher struct { ... }
@@ -28,7 +32,9 @@ Key behaviours:
 - When `matchPrefix` is `false`, `Test` is a pure exact-match lookup.
 - When `matchPrefix` is `true`, `Test` returns `true` if the probed string starts with any entry in the matcher.
 
-### `TruncateUTF8(s string, limit int) string`
+### Key functions
+
+#### `TruncateUTF8(s string, limit int) string`
 
 Truncates `s` to at most `limit` bytes while preserving valid UTF-8. If the cut falls inside a multi-byte sequence, bytes are dropped one at a time from the end until the suffix is again valid. A string that is already within the limit is returned unchanged.
 

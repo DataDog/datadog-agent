@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ebpf/uprobes` provides `UprobeAttacher`, a high-level component that monitors running processes and automatically attaches eBPF uprobes to matching shared libraries and executables, handling ELF inspection, process lifecycle, and `ebpf-manager` probe management transparently.
+
 # pkg/ebpf/uprobes
 
 ## Purpose
@@ -6,11 +8,17 @@ Provides a high-level `UprobeAttacher` that monitors running processes and autom
 
 ## Key elements
 
-### Build flags
+### Key interfaces
+
+| Type | Description |
+|------|-------------|
+| `BinaryInspector` | Interface that extracts function offsets from a binary given a set of `SymbolRequest`s. Implemented by `NativeBinaryInspector` (built-in ELF reader) and custom implementations for Go binaries via `bininspect`. |
+
+### Configuration and build flags
 
 Most files are gated on `//go:build linux_bpf`. `procfs.go` uses `//go:build linux` (no BPF dependency).
 
-### Core types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -20,11 +28,18 @@ Most files are gated on `//go:build linux_bpf`. `procfs.go` uses `//go:build lin
 | `AttachTarget` | Bitmask: `AttachToExecutable` and/or `AttachToSharedLibraries`. |
 | `ExcludeMode` | Bitmask to skip certain processes: `ExcludeSelf`, `ExcludeInternal` (other Datadog agents), `ExcludeBuildkit`, `ExcludeContainerdTmp`. |
 | `ProbeOptions` | Per-probe overrides: `IsManualReturn` (attach at all return sites instead of using uretprobes) and `Symbol` (useful for Go function names with non-C characters). |
-| `BinaryInspector` | Interface that extracts function offsets from a binary given a set of `SymbolRequest`s. |
 | `NativeBinaryInspector` | Built-in `BinaryInspector` that reads ELF symbol tables. Only supports 64-bit binaries matching the agent's own architecture. |
 | `ProcInfo` | Thin procfs wrapper that lazily reads `/proc/<pid>/exe` and `/proc/<pid>/comm`. Used in `ExecutableFilter` callbacks. |
 | `InspectionResult` | Map of symbol name to `bininspect.FunctionMetadata` (entry offset + optional return locations). |
 | `SymbolRequest` | Describes a single symbol fetch: `Name`, `BestEffort` flag, and `IncludeReturnLocations`. |
+
+### Key functions
+
+| Function | Description |
+|---|---|
+| `NewUprobeAttacher(module, name string, cfg AttacherConfig, mgr *ebpf.Manager, onAttach func, deps AttacherDependencies) (*UprobeAttacher, error)` | Creates and configures an attacher. Does not start background goroutines; call `Start()` separately. |
+| `(*UprobeAttacher).Start()` | Begins monitoring for new processes and library opens; attaches probes to already-running matching processes. |
+| `(*UprobeAttacher).Stop()` | Detaches all probes and stops background goroutines. |
 
 ### Key errors
 

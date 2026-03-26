@@ -1,3 +1,5 @@
+> **TL;DR:** A priority-ordered registry of check loader factories, separating loader registration (at `init` time) from instantiation (deferred until the catalog is first requested), so that each check runtime (Go, Python, shared library) can be tried in order for a given integration config.
+
 # pkg/collector/loaders
 
 ## Purpose
@@ -8,7 +10,7 @@ The package separates *registration* (which happens at `init` time, in each load
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 ```go
 // check.Loader — defined in pkg/collector/check/loader.go
@@ -22,13 +24,13 @@ Every loader must implement `Name()` (a string identifier used when a config spe
 
 `check.ErrSkipCheckInstance` may be returned by `Load()` to signal a deliberate, non-error refusal (e.g. a Go check rejecting a config intended for its Python counterpart). The scheduler handles this sentinel differently from an actual error — it does not log it unless all loaders return it.
 
-### Types in this package
+### Key types
 
 | Type | Description |
 |------|-------------|
 | `LoaderFactory` | `func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error)` — a factory that defers loader construction and also returns a priority integer. |
 
-### Functions
+### Key functions
 
 | Function | Description |
 |----------|-------------|

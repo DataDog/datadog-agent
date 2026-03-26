@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/process/procutil` is a cross-platform library that abstracts OS-level process data collection (Linux `/proc`, Windows PDH, macOS sysctl) behind a common `Probe` interface, providing the `Process`/`Stats` data model used by all process-related checks.
+
 # pkg/process/procutil
 
 ## Purpose
@@ -19,7 +21,9 @@ side) as well as from the process-agent (unprivileged side).
 
 ## Key elements
 
-### Probe interface (`probe.go`)
+### Key interfaces
+
+#### Probe interface (`probe.go`)
 
 ```go
 type Probe interface {
@@ -40,7 +44,9 @@ type Option func(p Probe)
 
 `NewProcessProbe(options ...Option)` is the constructor on every platform.
 
-### Data model (`process_model.go`)
+### Key types
+
+#### Data model (`process_model.go`)
 
 **Process** — full process snapshot:
 
@@ -98,7 +104,9 @@ service name, `DD_SERVICE` value, APM tracer metadata, and associated log files.
 **InjectionState** — APM auto-injector detection:
 `InjectionUnknown`, `InjectionInjected`, `InjectionNotInjected`.
 
-### Process identity helpers
+### Key functions
+
+#### Process identity helpers
 
 ```go
 // Stable string key for a process across exec scenarios where PID is recycled.
@@ -112,7 +120,7 @@ Identity is based on `(pid, createTime, FNV-1a hash of first 100 cmdline args)`.
 The 100-arg cap bounds CPU cost for pathological processes that pass tens of
 thousands of arguments.
 
-### DataScrubber (`data_scrubber.go`)
+#### DataScrubber (`data_scrubber.go`)
 
 Redacts values of sensitive command-line arguments before they leave the agent.
 `ProcessCheck` creates one scrubber per check instance and calls
@@ -139,7 +147,11 @@ scrubber.IncrementCacheAge()                 // call once per check cycle
 - The scrubber replaces matched values with `********` in-place on the joined
   cmdline string.
 
-### Platform-specific options (Linux, `process_linux.go`)
+### Configuration and build flags
+
+Platform implementations are selected via build tags (`linux`, `windows`, `darwin`). Options controlling privileged reads, procfs root override, and zombie-process handling are listed below.
+
+#### Platform-specific options (Linux, `process_linux.go`)
 
 All options are no-ops on non-Linux platforms (`option_unsupported.go`).
 
@@ -151,7 +163,7 @@ All options are no-ops on non-Linux platforms (`option_unsupported.go`).
 | `WithIgnoreZombieProcesses(bool)` | Skip zombie processes during full scan |
 | `WithBootTimeRefreshInterval(duration)` | How often to re-read `/proc/stat` to correct clock drift (default: 1 minute) |
 
-### Linux implementation notes (`process_linux.go`)
+#### Linux implementation notes (`process_linux.go`)
 
 - Reads `/proc/<pid>/stat`, `/proc/<pid>/status`, `/proc/<pid>/statm`,
   `/proc/<pid>/cmdline`, `/proc/<pid>/comm`, `/proc/<pid>/io`.
@@ -172,7 +184,7 @@ Note: container-level cgroup metrics (CPU throttling, memory limits, PSI) are
 (see [pkg/util/cgroups](../util/cgroups.md)), which operates on the cgroup
 filesystem independently of `/proc`.
 
-### Windows implementation (`process_windows.go`)
+#### Windows implementation (`process_windows.go`)
 
 - Uses PDH (Performance Data Helper) counters for CPU, memory, handle count,
   and IO metrics.
@@ -182,7 +194,7 @@ filesystem independently of `/proc`.
 - An LRU cache (`fileDescCache`, capacity 512) stores file descriptions keyed
   by executable path.
 
-### macOS implementation (`process_darwin.go`)
+#### macOS implementation (`process_darwin.go`)
 
 - Uses `sysctl` and `proc_pidinfo` (via `golang.org/x/sys/unix`) to enumerate
   processes and read per-process stats.

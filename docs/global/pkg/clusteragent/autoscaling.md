@@ -1,3 +1,5 @@
+> **TL;DR:** Implements autoscaling capabilities for the Datadog Cluster Agent, covering external/custom metrics for Kubernetes HPA, a native `DatadogPodAutoscaler` controller for horizontal and vertical pod scaling, and Karpenter-based cluster node-pool scaling.
+
 # pkg/clusteragent/autoscaling
 
 ## Purpose
@@ -27,6 +29,8 @@ autoscaling/
 ```
 
 ## Key Elements
+
+### Key types
 
 ### Base infrastructure (`autoscaling/`)
 

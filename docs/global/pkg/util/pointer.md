@@ -1,3 +1,5 @@
+> **TL;DR:** Small generic helpers for working with pointers in Go, primarily for taking the address of literal values and converting `*uint64` container stats to `*float64` metrics fields.
+
 # pkg/util/pointer
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/pointer`
@@ -8,11 +10,13 @@
 
 ## Key Elements
 
-### `Ptr[T any](v T) *T`
+### Key functions
+
+**`Ptr[T any](v T) *T`**
 
 Returns a pointer to a heap-allocated copy of `v`. The type parameter is inferred from the argument in almost all cases, so the explicit form `Ptr[T]` is only needed when the compiler cannot infer it (e.g. when passing an untyped literal to a `*uint64` field).
 
-### `UIntPtrToFloatPtr(u *uint64) *float64`
+**`UIntPtrToFloatPtr(u *uint64) *float64`**
 
 Converts a `*uint64` to a `*float64`, propagating `nil` as `nil`. Used when raw byte/nanosecond counters from container runtimes (which expose `*uint64`) need to be forwarded to the agent's metrics layer (which uses `*float64`).
 

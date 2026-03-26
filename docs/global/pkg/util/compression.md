@@ -1,3 +1,5 @@
+> **TL;DR:** Defines a `Compressor` interface with interchangeable backends (zlib, zstd, gzip, noop) so the serializer and forwarder can compress payloads via a single API, with the concrete algorithm chosen by build tags and runtime configuration.
+
 # pkg/util/compression
 
 ## Purpose
@@ -10,7 +12,9 @@ and/or runtime configuration.
 
 ## Key elements
 
-### `Compressor` interface
+### Key interfaces
+
+#### `Compressor` interface
 
 ```go
 type Compressor interface {
@@ -27,7 +31,7 @@ type Compressor interface {
 - `ContentEncoding()` — returns the HTTP `Content-Encoding` header value to attach to forwarded payloads (e.g. `"deflate"`, `"zstd"`, `"gzip"`).
 - `NewStreamCompressor(output)` — returns a `StreamCompressor` that writes compressed data incrementally into `output`; used for streaming large payloads.
 
-### `StreamCompressor` interface
+#### `StreamCompressor` interface
 
 ```go
 type StreamCompressor interface {
@@ -39,7 +43,9 @@ type StreamCompressor interface {
 Wraps a compressor writer so the serializer can stream chunks into it. The caller writes
 chunks, calls `Flush()` at boundaries, and `Close()` when done.
 
-### Kind constants and encoding constants
+### Configuration and build flags
+
+#### Kind constants and encoding constants
 
 | Constant | Value | Meaning |
 |---|---|---|
@@ -51,7 +57,9 @@ chunks, calls `Flush()` at boundaries, and `Close()` when done.
 | `ZstdEncoding` | `"zstd"` | HTTP Content-Encoding for zstd |
 | `GzipEncoding` | `"gzip"` | HTTP Content-Encoding for gzip |
 
-### `ZstdCompressionLevel`
+### Key types
+
+#### `ZstdCompressionLevel`
 
 ```go
 type ZstdCompressionLevel int
@@ -60,7 +68,7 @@ type ZstdCompressionLevel int
 A typed wrapper around `int` for the zstd compression level, used in `Requires` structs of
 zstd backends to keep the API self-documenting.
 
-### Backend implementations
+#### Backend implementations
 
 Each sub-package exposes a `New(Requires) compression.Compressor` constructor. The
 `Requires` struct carries backend-specific configuration (compression level).
@@ -73,7 +81,9 @@ Each sub-package exposes a `New(Requires) compression.Compressor` constructor. T
 | `impl-zstd-nocgo` | Zstandard via `github.com/klauspost/compress/zstd` (pure Go) | none | Not wired into the selector; selected explicitly via the fx component system. Concurrency and window size tunable via `ZSTD_NOCGO_CONCURRENCY` and `ZSTD_NOCGO_WINDOW` env vars |
 | `impl-noop` | No compression | none | Trivial pass-through |
 
-### `selector` sub-package
+### Key functions
+
+#### `selector` sub-package
 
 `selector.NewCompressor(kind string, level int) compression.Compressor` is the main factory
 used by the serializer. It dispatches on the `kind` string and respects what is compiled in

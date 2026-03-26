@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/config` is the single fx-injectable source of truth for agent configuration, wrapping a Viper-based store that parses `datadog.yaml`, resolves secrets, and applies CLI and Fleet Policy overrides at startup.
+
 # comp/core/config — Configuration Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/config`
@@ -20,7 +22,11 @@ The component initialises the configuration store at startup: it locates and par
 | `params.go` | `Params` type and functional option constructors |
 | `config_mock.go` | Test helpers (`NewMock`, `NewMockWithOverrides`, `NewMockFromYAML`, …) |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -41,7 +47,9 @@ type Component interface {
 
 The `Reader` alias (`config.Reader`) is available for components that only need read access.
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 The component is provided by `config.Module()`, which is included in `core.Bundle()`. You do not normally need to add it manually.
 
@@ -59,7 +67,9 @@ core.Bundle(),
 
 The component constructor receives `Params`, `secrets.Component`, and `delegatedauth.Component` via fx dependency injection, and provides both `config.Component` and a `flaretypes.Provider` (so config files are automatically included in flares).
 
-## Params and constructors
+### Key types
+
+#### Params and constructors
 
 `Params` is built with functional options. Pre-built constructors cover each agent flavor:
 
@@ -79,7 +89,7 @@ Common options:
 - `WithIgnoreErrors(true)` — tolerate missing/invalid config (errors stored in `Warnings()`)
 - `WithConfigName(name)` — use a different root filename (default `"datadog"`)
 
-## Mock
+#### Mock
 
 The `config_mock.go` file (build tag `test`) provides four helpers, all returning a `Component` backed by an in-memory store:
 

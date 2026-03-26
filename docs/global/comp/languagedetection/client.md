@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/languagedetection/client` detects programming languages used by Kubernetes pod processes on the node agent, then streams that metadata to the Cluster Agent so it can annotate pod owners for APM library auto-injection.
+
 # comp/languagedetection/client
 
 **Team:** container-platform
@@ -13,23 +15,20 @@ The component is optional: it is only instantiated when all three of the followi
 
 ## Key elements
 
-### Component interface
-
-`comp/languagedetection/client/def/component.go`
+### Key interfaces
 
 ```go
+// comp/languagedetection/client/def/component.go
 type Component interface{}
 ```
 
 The interface itself carries no exported methods. The component's behavior is entirely driven internally: it subscribes to workloadmeta events and runs a background loop. The `Provides` struct wraps the component in an `option.Option` so callers can check whether it is actually enabled at runtime.
 
-### Constructor
+### Key types
 
-`NewComponent(reqs Requires) (Provides, error)` — `comp/languagedetection/client/impl/client.go`
+**Constructor:** `NewComponent(reqs Requires) (Provides, error)` (`comp/languagedetection/client/impl/client.go`) — reads configuration, builds a `languageDetectionClientImpl`, and registers `OnStart`/`OnStop` lifecycle hooks. Returns `option.None` when the feature is disabled.
 
-Reads configuration, builds a `languageDetectionClientImpl`, and registers `OnStart`/`OnStop` lifecycle hooks. Returns `option.None` when the feature is disabled.
-
-### Internal types
+**Internal types:**
 
 | Type | Description |
 |------|-------------|
@@ -38,20 +37,22 @@ Reads configuration, builds a `languageDetectionClientImpl`, and registers `OnSt
 | `podInfo` | Tracks namespace, owner reference, container-to-language mapping, and the expected set of containers for a pod. |
 | `eventsToRetry` | Wraps process events that arrived before their pod was available in workloadmeta, with an expiration timestamp. |
 
-### Two-tier flush strategy
+### Key functions
+
+**Two-tier flush strategy**
 
 The component runs two independent timers:
 
 1. **Fresh-data timer** (`language_detection.reporting.buffer_period`, default ~10 s) — sends only the pods that were updated since the last flush. Limits the rate of messages to the Cluster Agent.
 2. **Periodic flush timer** (`language_detection.reporting.refresh_period`, default ~10 m) — sends the entire current batch, acting as a built-in retry for any previously missed data.
 
-### Race-condition handling
+**Race-condition handling**
 
 Because the kubelet collector and process collector run independently, process events can arrive before the corresponding pod is stored in workloadmeta. Events in that state are held in `processesWithoutPod` (keyed by container ID) and retried when the pod's `EventTypeSet` event is later received. Stale entries are pruned every hour (TTL: 5 min per entry).
 
-### Telemetry
+### Configuration and build flags
 
-Metrics are emitted under the `language_detection_dca_client` subsystem:
+Telemetry metrics emitted under the `language_detection_dca_client` subsystem:
 
 | Metric | Description |
 |--------|-------------|
@@ -71,7 +72,7 @@ The component is wired into the node Agent's fx graph in `cmd/agent/subcommands/
 
 The fx module is provided by `comp/languagedetection/client/fx/fx.go`. A no-op mock (`comp/languagedetection/client/mock/mock.go`) is available for tests that need to inject the option without real Cluster Agent connectivity.
 
-### Configuration keys
+Configuration keys:
 
 | Key | Default | Description |
 |-----|---------|-------------|

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/seclwin` is a standalone Go module containing the auto-generated Windows SECL event data model — providing Windows-specific event types, structs, and field accessors for CWS rule evaluation on Windows without pulling in Linux-only dependencies.
+
 # pkg/security/seclwin
 
 ## Purpose
@@ -8,7 +10,9 @@ A standalone Go module (`go.mod`) that contains the auto-generated Windows SECL 
 
 ## Key elements
 
-### Module structure
+### Key types
+
+#### Module structure
 
 ```
 pkg/security/seclwin/
@@ -30,7 +34,7 @@ pkg/security/seclwin/
     legacy_secl.go            # Backwards compatibility shims
 ```
 
-### Event struct (`model_win.go`)
+#### Event struct (`model_win.go`)
 
 ```go
 type Event struct {
@@ -56,7 +60,7 @@ type Event struct {
 }
 ```
 
-### Windows-specific event types (`events.go`)
+#### Windows-specific event types (`events.go`)
 
 Windows event types are defined as a contiguous block after the shared Linux types, bracketed by:
 
@@ -67,7 +71,7 @@ LastWindowsEventType  = ChangePermissionEventType
 
 Windows types: `CreateNewFileEventType`, `DeleteFileEventType`, `WriteFileEventType`, `CreateRegistryKeyEventType`, `OpenRegistryKeyEventType`, `SetRegistryKeyValueEventType`, `DeleteRegistryKeyEventType`, `ChangePermissionEventType`.
 
-### Key structs
+#### Key structs
 
 | Struct | Purpose |
 |--------|---------|
@@ -77,11 +81,13 @@ Windows types: `CreateNewFileEventType`, `DeleteFileEventType`, `WriteFileEventT
 | `ChangePermissionEvent` | `UserName`, `UserDomain`, `ObjectName`, `ObjectType`, `OldSd`, `NewSd` (security descriptors resolved by field handlers). |
 | `Process` | Windows process: `PIDContext`, `FileEvent`, `ContainerContext`, `CmdLine`, `OwnerSidString`, `User`, `Envs`, `Envp`, `PPid`. |
 
-### Constants (`consts_win.go`)
+### Configuration and build flags
+
+#### Constants (`consts_win.go`)
 
 Only `SIGKILL` and `SignalConstants` are populated on Windows. All Linux-specific constant init functions (`initOpenConstants`, `initBPFCmdConstants`, etc.) are present as no-ops to satisfy the shared interface.
 
-### Code generation
+#### Code generation
 
 `model_win.go` carries two `//go:generate` directives:
 - `accessors` — generates `accessors_win.go` and a SECL JSON doc at `docs/cloud-workload-security/secl_windows.json`.

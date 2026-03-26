@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/schedulers` is the bridge between external discovery systems (Autodiscovery, in-process channels, remote config) and the log source registry, defining the `Scheduler` interface and managing multiple scheduler implementations that call `SourceManager.AddSource`/`RemoveSource` as log sources appear and disappear.
+
 # pkg/logs/schedulers
 
 ## Purpose
@@ -8,7 +10,9 @@
 
 ## Key elements
 
-### Core interfaces and types (`schedulers.go`, `types.go`)
+### Key interfaces
+
+#### Core interfaces and types (`schedulers.go`, `types.go`)
 
 | Symbol | Description |
 |---|---|
@@ -19,7 +23,9 @@
 
 ---
 
-### `ad/` — Autodiscovery-based scheduler
+### Key types
+
+#### `ad/` — Autodiscovery-based scheduler
 
 Listens to the AutoConfig component and creates/removes log sources in response to integration configs (container labels, pod annotations, config files, remote config).
 
@@ -36,7 +42,7 @@ Listens to the AutoConfig component and creates/removes log sources in response 
 
 ---
 
-### `channel/` — Channel-based scheduler
+#### `channel/` — Channel-based scheduler
 
 Manages exactly one log source backed by an in-process `chan *config.ChannelMessage`. Used by internal components (e.g. the serverless agent, DogStatsD) that generate logs programmatically rather than tailing files or containers.
 
@@ -50,6 +56,27 @@ Manages exactly one log source backed by an in-process `chan *config.ChannelMess
 | `GetLogsTags() []string` | Returns a defensive copy of the current tags. |
 
 ---
+
+### Key functions
+
+| Function | Description |
+|---|---|
+| `schedulers.NewSchedulers(sources, services)` | Constructs the `Schedulers` aggregate. |
+| `(*Schedulers).AddScheduler(s)` | Registers and optionally starts a scheduler. Safe to call after `Start`. |
+| `(*Schedulers).Start()` / `Stop()` | Starts / stops all registered schedulers concurrently. |
+| `ad.New(ac)` | Creates the Autodiscovery-backed scheduler. |
+| `ad.CreateSources(config)` | Parses an `integration.Config` into one or more `*sources.LogSource` values. |
+| `channel.NewScheduler(name, source, logsChan)` | Creates a channel-backed scheduler for programmatic log injection. |
+| `(*channel.Scheduler).SetLogsTags(tags)` | Updates runtime tags on channel messages (thread-safe). |
+
+### Configuration and build flags
+
+| Config / Provider | Description |
+|---|---|
+| `file` provider | Logs from static configuration files; conflicting path sources are silently dropped when a `process_log` source exists for the same path. |
+| `container` / `kubernetes` / `kube_container` providers | Container annotation and label-based log configs processed by the AD scheduler. |
+| `remote_config` provider | Log source configs delivered via Remote Configuration. |
+| `datastreams_live_messages` provider | Data Streams live-message log sources. |
 
 ## Usage
 

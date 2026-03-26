@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/autoscaling/datadogclient` provides an authenticated Datadog metrics API client used by the Cluster Agent's external metrics provider to feed time-series data to Kubernetes HPA/WPA autoscalers.
+
 # comp/autoscaling/datadogclient
 
 **Team:** container-integrations
@@ -19,7 +21,9 @@ The component also registers a status information provider (visible in `datadog-
 
 ## Key Elements
 
-### Interface (`comp/autoscaling/datadogclient/def/component.go`)
+### Key interfaces
+
+#### Interface (`comp/autoscaling/datadogclient/def/component.go`)
 
 ```go
 type Component interface {
@@ -35,7 +39,9 @@ type Component interface {
 
 The interface is directly satisfied by `*datadog.Client` from `gopkg.in/zorkian/go-datadog-api.v2`. The component wraps it in a `datadogClientWrapper` that holds an `sync.RWMutex` so the client pointer can be swapped at runtime if API/app keys change.
 
-### Key implementation types (`comp/autoscaling/datadogclient/impl/`)
+### Key types
+
+#### Implementation types (`comp/autoscaling/datadogclient/impl/`)
 
 **`datadogClientWrapper`** — the active `Component` implementation when the provider is enabled. It delegates all calls to an inner `Component` and refreshes the inner pointer (via `OnUpdate` callbacks on `api_key` / `app_key` config changes) without restarting the process.
 
@@ -43,7 +49,9 @@ The interface is directly satisfied by `*datadog.Client` from `gopkg.in/zorkian/
 
 **`datadogSingleClient`** — a thin wrapper around `datadog.NewClient` that reads keys from `external_metrics_provider.api_key` / `api_key` and derives the endpoint from `external_metrics_provider.endpoint`, `DATADOG_HOST`, or `DD_SITE` (in that priority order).
 
-### Authentication and endpoint resolution
+### Key functions
+
+#### Authentication and endpoint resolution
 
 ```
 Priority for API key:  external_metrics_provider.api_key → api_key
@@ -53,11 +61,13 @@ Priority for endpoint: external_metrics_provider.endpoint → DATADOG_HOST env �
 
 Both the single and fallback clients set `User-Agent: Datadog-Cluster-Agent` and a 3-second retry timeout.
 
-### Status provider
+#### Status provider
 
 `impl/status.go` implements `comp/core/status.InformationProvider` under the section "External Metrics Endpoints". It exposes per-client URL, last success/failure timestamps, current retry interval, and overall status (`OK` / `Failed` / `Unknown`). The template lives at `impl/status_templates/externalmetrics.tmpl`.
 
-### fx module (`comp/autoscaling/datadogclient/fx/fx.go`)
+### Configuration and build flags
+
+**fx module** (`comp/autoscaling/datadogclient/fx/fx.go`):
 
 ```go
 func Module() fxutil.Module {
@@ -67,7 +77,7 @@ func Module() fxutil.Module {
 }
 ```
 
-### Dependencies
+**Dependencies:**
 
 ```go
 type Requires struct {
@@ -76,7 +86,7 @@ type Requires struct {
 }
 ```
 
-### Provides
+**Provides:**
 
 ```go
 type Provides struct {
@@ -84,6 +94,21 @@ type Provides struct {
     StatusProvider status.InformationProvider
 }
 ```
+
+Key configuration keys:
+
+```
+Priority for API key:  external_metrics_provider.api_key → api_key
+Priority for app key:  external_metrics_provider.app_key → app_key
+Priority for endpoint: external_metrics_provider.endpoint → DATADOG_HOST env → site-derived URL
+```
+
+| Key | Description |
+|---|---|
+| `external_metrics_provider.enabled` | Enables the provider; returns no-op when `false` |
+| `external_metrics_provider.endpoint` | Single Datadog endpoint URL |
+| `external_metrics_provider.endpoints` | List of endpoints with fallback and back-off |
+| `external_metrics_provider.api_key` / `app_key` | Override global API/app keys for metrics queries |
 
 ## Usage
 

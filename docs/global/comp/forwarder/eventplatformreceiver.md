@@ -1,3 +1,5 @@
+> **TL;DR:** Diagnostic tap for the Event Platform pipeline that captures in-flight messages for live inspection, powering the `agent stream-event-platform` command via a `/agent/stream-event-platform` HTTP endpoint.
+
 # comp/forwarder/eventplatformreceiver — Event Platform Receiver Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver`
@@ -19,6 +21,10 @@ The component also registers itself as a POST handler at `/agent/stream-event-pl
 | `comp/forwarder/eventplatformreceiver` (root) | `Component` interface, `Mock` interface |
 | `eventplatformreceiverimpl/` | `Module()`, `NewReceiver`, `epFormatter`, `MockModule()` |
 
+## Key Elements
+
+### Key interfaces
+
 ## Component interface
 
 ```go
@@ -37,6 +43,8 @@ type Component interface {
 
 The concrete implementation is `pkg/logs/diagnostic.BufferedMessageReceiver`, shared with the log pipeline diagnostic receiver.
 
+### Key types
+
 ## Message formatting
 
 `eventplatformreceiverimpl.epFormatter` formats payloads per event type:
@@ -50,9 +58,13 @@ The concrete implementation is `pkg/logs/diagnostic.BufferedMessageReceiver`, sh
 
 Each formatted line is prefixed with `type: <eventType> | `.
 
+### Key functions
+
 ## API endpoint
 
 `NewReceiver` returns both the component and an `api.AgentEndpointProvider` that registers the `/agent/stream-event-platform` POST route. The handler uses `apiutils.GetStreamFunc` to stream `Filter` output back to the HTTP client (used by `agent stream-event-platform`).
+
+### Configuration and build flags
 
 ## fx wiring
 

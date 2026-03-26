@@ -1,10 +1,14 @@
+> **TL;DR:** Minimal on-disk key-value cache that lets checks and agent components persist string state (typically JSON-encoded) across restarts, storing values as plain files under `run_path` with no expiration or locking.
+
 # pkg/persistentcache
 
-### Purpose
+## Purpose
 
 A minimal on-disk key-value cache that lets checks and components persist string state across Agent restarts. Values are stored as plain files under the Agent's `run_path` directory. There is no expiration, no locking, and no serialization beyond raw string content — the caller is responsible for encoding (typically JSON).
 
-### Key elements
+## Key elements
+
+### Key functions
 
 All four exported functions share the same key-to-file mapping logic via `GetFileForKey`.
 
@@ -35,7 +39,7 @@ Returns `true` if the cache file exists.
 
 Atomically renames the cache file. Used to migrate legacy cache keys without losing data.
 
-### Usage
+## Usage
 
 The cache is used by several components to persist state across restarts:
 
@@ -61,7 +65,7 @@ if err != nil || cached == "" {
 
 The cache location is determined by the `run_path` configuration key (typically `/opt/datadog-agent/run` on Linux). No cleanup of stale files is performed automatically; callers must manage their own keys.
 
-### Related packages
+## Related packages
 
 | Package | Relationship |
 |---------|-------------|

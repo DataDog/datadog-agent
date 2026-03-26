@@ -1,3 +1,5 @@
+> **TL;DR:** Sends pre-serialized agent payloads (metrics, events, service checks, orchestrator manifests, etc.) to the Datadog backend over HTTPS, with per-domain worker pools, configurable retry queues, and optional on-disk persistence.
+
 # comp/forwarder/defaultforwarder — Default Metric/Event Forwarder Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder`
@@ -19,6 +21,10 @@ It is the transport layer for everything that flows through the `pkg/aggregator`
 | `resolver/` | `DomainResolver` abstraction (single-domain, MRF, OPW/vector, local cluster-agent) |
 | `transaction/` | `HTTPTransaction`, `BytesPayloads`, priority/kind types, disk-serialization format |
 | `internal/retry/` | In-memory and on-disk retry queues, disk-usage limit, file removal policy |
+
+## Key Elements
+
+### Key interfaces
 
 ## Component and Forwarder interfaces
 
@@ -62,6 +68,8 @@ Process-like submitters return a `chan Response` so the caller can read back the
 
 `NoopForwarder` is a zero-value implementation (no sends, no errors) used when a process needs to satisfy the `Component` interface without actually forwarding.
 
+### Key types
+
 ## Internal architecture
 
 ```
@@ -83,6 +91,8 @@ blockedEndpoints              (shared by all workers in a domain)
 
 When the retry queue exceeds `forwarder_retry_queue_payloads_max_size`, the oldest transactions are dropped. Transactions flagged `StorableOnDisk` (all except those containing API keys) are serialised to disk via protobuf (`HttpTransactionProto.proto`) and reloaded on the next agent start.
 
+### Key functions
+
 ## Features bitmask
 
 `Options.EnabledFeatures` gates certain behaviour. The `Features` type is a bitmask:
@@ -93,6 +103,8 @@ When the retry queue exceeds `forwarder_retry_queue_payloads_max_size`, the olde
 | `TraceFeatures` | Reserved for trace-agent |
 | `ProcessFeatures` | Reserved for process-agent |
 | `SysProbeFeatures` | Reserved for system-probe |
+
+### Configuration and build flags
 
 ## fx wiring
 

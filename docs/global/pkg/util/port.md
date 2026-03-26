@@ -1,3 +1,5 @@
+> **TL;DR:** Cross-platform enumeration of TCP and UDP listening ports with owning process names and PIDs, used by the agent's diagnose suite to verify that required ports are held by the expected agent processes.
+
 # pkg/util/port
 
 **Import paths:**

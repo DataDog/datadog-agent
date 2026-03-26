@@ -1,3 +1,5 @@
+> **TL;DR:** Continuously monitors live network connections from system-probe, deduplicates and rate-limits traceroute scheduling, executes path probes via a worker pool, enriches results with reverse DNS, and forwards completed `NetworkPath` events to the Datadog event platform.
+
 # comp/networkpath/npcollector — Network Path Collector Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/networkpath/npcollector`
@@ -28,7 +30,9 @@ When `network_path.connections_monitoring.enabled` is `false` the component is i
 | `npcollectorimpl/connfilter` | Configurable inclusion/exclusion filters for connections |
 | `npcollectorimpl/common` | Shared constants and `Pathtest` / `PathtestMetadata` types |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/networkpath/npcollector
@@ -39,7 +43,9 @@ type Component interface {
 
 `ScheduleNetworkPathTests` is the only public method. It must be non-blocking: connections are enqueued into an internal buffered channel (`pathtestInputChan`) and dropped with a warning log if the channel is full.
 
-### `npmodel.NetworkPathConnection` (key fields)
+### Key types
+
+#### `npmodel.NetworkPathConnection` (key fields)
 
 Defined in `comp/networkpath/npcollector/model`:
 
@@ -54,6 +60,10 @@ Defined in `comp/networkpath/npcollector/model`:
 | `IntraHost` | If true, the connection is skipped |
 | `SystemProbeConn` | If true, the connection is skipped (avoids self-monitoring) |
 | `SourceContainerID` | Propagated to the path's source metadata |
+
+### Configuration and build flags
+
+All settings live under `network_path.collector.*` in `datadog.yaml` (see the [Configuration](#configuration) table below). Master switch: `network_path.connections_monitoring.enabled` (default `false`).
 
 ## fx wiring
 

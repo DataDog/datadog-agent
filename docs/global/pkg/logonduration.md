@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logonduration` measures macOS user logon duration by querying OSLogStore for login window, credential entry, and desktop-ready timestamps, exposing the results via a system-probe HTTP module.
+
 # pkg/logonduration
 
 ## Purpose
@@ -10,7 +12,9 @@
 
 ## Key elements
 
-### `LoginTimestamps`
+### Key types
+
+#### `LoginTimestamps`
 
 ```go
 type LoginTimestamps struct {
@@ -23,11 +27,13 @@ type LoginTimestamps struct {
 
 The aggregate result type. Zero `time.Time` values indicate that the corresponding timestamp could not be collected (e.g., the relevant log entry was not found).
 
-### `GetLoginTimestamps() LoginTimestamps`
+### Key functions
+
+#### `GetLoginTimestamps() LoginTimestamps`
 
 The main entry point. Calls all four sub-functions in order, logging warnings for any individual failure. Returns a `LoginTimestamps` with whatever timestamps were successfully collected. On non-macOS platforms it returns a zero-value struct.
 
-### Individual query functions (macOS only)
+#### Individual query functions (macOS only)
 
 All are implemented via CGO calling into Objective-C code in `timestamps_darwin.m` (linked with the `Foundation` and `OSLog` frameworks):
 
@@ -38,14 +44,18 @@ All are implemented via CGO calling into Objective-C code in `timestamps_darwin.
 | `GetLoginTime() (time.Time, error)` | Queries OSLogStore for `sessionDidLogin` — when the user successfully entered credentials |
 | `GetDesktopReadyTime() (time.Time, error)` | Queries OSLogStore for the Dock checking in with `launchservicesd`, which signals that the desktop is ready for interaction |
 
-### CGO / Objective-C layer
+### Configuration and build flags
+
+macOS only. All functions have no-op stub implementations on other platforms (`timestamps_noop.go`, build tag `!darwin`). Requires root to access OSLogStore and run `fdesetup`.
+
+#### CGO / Objective-C layer
 
 - `timestamps_darwin.h` — declares C functions: `queryLoginWindowTimestamp`, `queryLoginTimestamp`, `queryDesktopReadyTimestamp`, `checkFileVaultEnabled`
 - `timestamps_darwin.m` — Objective-C implementations using `OSLog` framework APIs
 - CGO flags: `-x objective-c`, linked with `-framework Foundation -framework OSLog`
 - Timestamps are returned as `C.double` (Unix seconds with sub-second precision) and converted to `time.Time` with nanosecond resolution by `unixFloatToTime`.
 
-### Noop stubs (`timestamps_noop.go`)
+#### Noop stubs (`timestamps_noop.go`)
 
 ```go
 //go:build !darwin

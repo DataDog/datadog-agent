@@ -1,3 +1,5 @@
+> **TL;DR:** Provides `ProtoCopier`, a reflection-based factory that generates reusable shallow-copy functions for protobuf message structs — useful for non-hot-path types where maintaining a hand-written `ShallowCopy()` method would be error-prone.
+
 # pkg/proto/utils
 
 ## Purpose
@@ -9,6 +11,8 @@ hand-written `ShallowCopy()` methods, but remains available for other protobuf t
 reflection overhead is acceptable.
 
 ## Key elements
+
+### Key functions
 
 **`ProtoCopier(v interface{}) func(v interface{}) interface{}`**
 

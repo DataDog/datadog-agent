@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a single cached function that returns a stable, platform-specific host UUID used to uniquely identify the agent instance in all inventory and metadata payloads.
+
 # pkg/util/uuid
 
 ## Purpose
@@ -11,6 +13,8 @@ to the Datadog backend.
 
 ## Key elements
 
+### Key functions
+
 **`GetUUID() string`**
 
 Returns the host UUID. The result is cached via `pkg/util/cache` (key
@@ -19,19 +23,21 @@ Returns the host UUID. The result is cached via `pkg/util/cache` (key
 Returns an empty string if the UUID cannot be determined (the error is logged but not returned to
 callers).
 
-The implementation is platform-specific:
-
-| Platform | Source |
-|---|---|
-| Linux / macOS | `gopsutil/v4/host.Info().HostID` — reads `/etc/machine-id` (Linux), `IOPlatformUUID` (macOS), or similar OS facility |
-| Windows | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` registry value |
-
 `GetUUID` is exposed as a package-level variable (not a direct function reference) so that tests
 can substitute a stub:
 
 ```go
 var GetUUID = getUUID
 ```
+
+### Configuration and build flags
+
+The implementation is platform-specific:
+
+| Platform | Source |
+|---|---|
+| Linux / macOS | `gopsutil/v4/host.Info().HostID` — reads `/etc/machine-id` (Linux), `IOPlatformUUID` (macOS), or similar OS facility |
+| Windows | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` registry value |
 
 ## Usage
 

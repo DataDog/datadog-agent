@@ -1,3 +1,5 @@
+> **TL;DR:** Canonical home for all inter-component communication contracts — `.proto` source files for every gRPC service and shared message type, generated Go code in `pbgo/`, a MessagePack-serialized `RemoteConfigKey` type, and a reflection-based `ProtoCopier` helper for shallow proto copies.
+
 # pkg/proto
 
 ## Purpose
@@ -24,6 +26,20 @@ well-known types, `go-proto-validators`) are pinned in `protodep.toml` and check
 `pkg/proto/protodep/`.
 
 ## Key elements
+
+### Key types
+
+- `RemoteConfigKey` (`pkg/proto/msgpgo`) — structured RC API key (AppKey, OrgID, Datacenter) serialized as base32-encoded MessagePack with the `DDRCM_` prefix.
+- Generated message types in `pkg/proto/pbgo/` — `Span`, `TraceChunk`, `TracerPayload`, `AgentPayload`, `LatestConfigsRequest/Response`, `ClientGetConfigsRequest/Response`, `Entity`, `WorkloadmetaStreamRequest`, etc.
+
+### Key functions
+
+- `ProtoCopier(v interface{}) func(v interface{}) interface{}` (`pkg/proto/utils`) — reflection-based shallow-copy factory for protobuf structs.
+- `data.ParseConfigPath(path)` (`pkg/config/remote/data`) — decodes a TUF target path into its structured fields.
+
+### Configuration and build flags
+
+Code generation is driven by `dda inv protobuf.generate`. External proto dependencies are pinned in `protodep.toml`. Patches in `patches/` are re-applied after every regeneration.
 
 ### Proto schemas (`pkg/proto/datadog/`)
 

@@ -1,3 +1,5 @@
+> **TL;DR:** Provides allocation-free in-place sorting and deduplication for string slices using insertion sort for short slices, optimised for the tag-processing hot paths in the aggregator and DogStatsD.
+
 # pkg/util/sort
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/sort`
@@ -10,15 +12,19 @@ The design is grounded in benchmark data (see `pkg/util/sort/sort_benchmarks_not
 
 ## Key Elements
 
-### `InsertionSortThreshold = 40` (const)
+### Configuration and build flags
+
+#### `InsertionSortThreshold = 40` (const)
 
 The crossover point. Below this length, `InsertionSort` is preferred; at or above it, `UniqInPlace` delegates to `sort.Strings`.
 
-### `InsertionSort(elements []string)`
+### Key functions
+
+#### `InsertionSort(elements []string)`
 
 In-place insertion sort. Zero allocations. Best for slices whose length is known to be small (tag counts, label lists). For slices larger than `InsertionSortThreshold` consider `sort.Strings` directly if allocation is acceptable.
 
-### `UniqInPlace(elements []string) []string`
+#### `UniqInPlace(elements []string) []string`
 
 Sorts `elements` and removes duplicates, returning a sub-slice of the original backing array. No additional memory is allocated for small slices (uses `InsertionSort`). The input slice is modified in place; the returned slice is the authoritative deduplicated view. Slices with fewer than 2 elements are returned unchanged.
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/containerlifecycle` tracks container, pod, and ECS task deletion events from workloadmeta and streams them as protobuf payloads to the Datadog backend, enabling reliable close-out of metrics and traces for short-lived workloads.
+
 # pkg/containerlifecycle
 
 ## Purpose
@@ -17,7 +19,9 @@ The check is a **long-running check** (interval 0); it subscribes to workloadmet
 
 ## Key elements
 
-### `pkg/containerlifecycle/types.go` — shared constants
+### Key types
+
+#### `pkg/containerlifecycle/types.go` — shared constants
 
 ```go
 const (
@@ -33,7 +37,9 @@ These are the only stable public symbols in the `pkg/containerlifecycle` package
 
 ---
 
-### `pkg/collector/corechecks/containerlifecycle/` — check implementation
+### Key interfaces
+
+#### `pkg/collector/corechecks/containerlifecycle/` — check implementation
 
 #### `Check` and `Config` (`check.go`)
 
@@ -55,6 +61,8 @@ The `Run()` loop subscribes to three workloadmeta streams:
 
 On Fargate sidecar shutdown, `sendFargateTaskEvent()` manually synthesizes a delete event for the current task before the check exits.
 
+### Key functions
+
 #### `processor` (`processor.go`)
 
 Converts raw workloadmeta events into protobuf `contlcycle.EventsPayload` messages and flushes them via `sender.EventPlatformEvent` with type `eventplatform.EventTypeContainerLifecycle`.
@@ -68,15 +76,21 @@ Processing per entity kind:
 
 #### `event` interface and `eventTransformer` (`event.go`)
 
+
 `event` is a builder interface. `newEvent()` returns a `*eventTransformer`. Callers chain `with*` methods then call `toPayloadModel()` (creates a new `contlcycle.EventsPayload` with host and cluster ID) or `toEventModel()` (adds to an existing payload).
 
 The `toPayloadModel()` call resolves the hostname and cluster ID at event creation time. On Kubernetes, cluster ID comes from `clustername.GetClusterID()`; on ECS, from `ecsutil.GetClusterMeta()`.
 
 #### `queue` (`queue.go`)
 
+
 Thread-safe, chunked queue backed by `[]*contlcycle.EventsPayload`. Events are appended to the last payload until it reaches `chunkSize`, then a new payload entry is started. `flush()` atomically swaps the accumulated payloads out and returns them.
 
 ---
+
+### Configuration and build flags
+
+No build tags. The check is disabled by default and requires `container_lifecycle.enabled: true` in `datadog.yaml`. ECS task events additionally require `ecs_task_collection_enabled: true`.
 
 ## Usage
 

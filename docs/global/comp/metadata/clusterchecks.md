@@ -1,3 +1,5 @@
+> **TL;DR:** Collects and periodically sends a metadata payload describing the dispatch state of Cluster Checks (which node each check is assigned to, dangling counts) from the leader cluster agent instance to the Datadog inventory backend.
+
 # comp/metadata/clusterchecks
 
 **Team:** container-platform
@@ -14,7 +16,7 @@ The `clusterHandler` dependency is injected at runtime via `SetClusterHandler`, 
 
 ## Key elements
 
-### Interface (`comp/metadata/clusterchecks/def/component.go`)
+### Key interfaces
 
 ```go
 type Component interface {
@@ -27,7 +29,9 @@ type Component interface {
 }
 ```
 
-### Payload (`comp/metadata/clusterchecks/impl/clusterchecks.go`)
+### Key types
+
+#### Payload
 
 ```go
 type Payload struct {
@@ -51,11 +55,15 @@ type Payload struct {
 - `dangling_count` — number of checks not assigned to any node
 - `node_count` — number of nodes available for dispatch
 
-### fx wiring (`comp/metadata/clusterchecks/fx/fx.go`)
+### Configuration and build flags
+
+Build tag: `clusterchecks` (both `impl/` and `fx/` are guarded). Collection is conditional on `inventories_checks_configuration_enabled` being `true` and cluster identification being available. The handler is injected at runtime via `SetClusterHandler`.
+
+#### fx wiring
 
 `fx.Module()` registers `NewComponent` and exposes `Component` as an optional value.
 
-### Dependencies (from `Requires`)
+#### Dependencies
 
 | Dependency | Purpose |
 |---|---|
@@ -63,7 +71,7 @@ type Payload struct {
 | `config.Component` | Read feature flags (`inventories_checks_configuration_enabled`) |
 | `serializer.MetricSerializer` | Submit the payload to the backend |
 
-### Outputs (from `Provides`)
+#### Outputs
 
 | Output | Purpose |
 |---|---|

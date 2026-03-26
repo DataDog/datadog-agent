@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/secl/model` defines the complete CWS event data model — Go structs that mirror kernel event layouts, expose every field to the SECL evaluator by dotted path, and serve as the source for JSON serialization of security signals.
+
 # pkg/security/secl/model
 
 ## Purpose
@@ -26,9 +28,11 @@ The `//go:generate` directives at the top of `model_unix.go` and `model_windows.
 
 ---
 
-## Key types
+## Key elements
 
-### Event and base contexts
+### Key types
+
+#### Event and base contexts
 
 | Type | Description |
 |---|---|
@@ -41,7 +45,7 @@ The `//go:generate` directives at the top of `model_unix.go` and `model_windows.
 | `CGroupContext` | cgroup ID and path, used for container/cgroup scoping. |
 | `SecurityProfileContext` | Which security profile (if any) was matched for this event. |
 
-### Event-type structs (Linux/Unix)
+#### Event-type structs (Linux/Unix)
 
 Each event category has a dedicated struct. The `field:"<name>" event:"<name>"` struct tags declare the SECL field prefix and event-type filter used by the generated accessors.
 
@@ -63,7 +67,7 @@ Each event category has a dedicated struct. The `field:"<name>" event:"<name>"` 
 **Windows-only:**
 `CreateNewFileEvent`, `DeleteFileEvent`, `WriteFileEvent`, `CreateRegistryKeyEvent`, `OpenRegistryKeyEvent`, `SetRegistryKeyValueEvent`, `DeleteRegistryKeyEvent`, `ChangePermissionEvent`
 
-### EventType constants
+#### EventType constants
 
 `EventType` is a `uint32` iota. Key sentinel values:
 
@@ -78,7 +82,7 @@ Each event category has a dedicated struct. The `field:"<name>" event:"<name>"` 
 
 Use `EventType.String()` to convert to the string form used in SECL rules (e.g., `"open"`, `"exec"`, `"dns"`).
 
-### Model
+#### Model
 
 `Model` is the concrete implementation of `eval.Model`. It holds:
 - Optional `ExtraValidateFieldFnc` / `ExtraValidateRule` hooks for platform-specific validation.
@@ -89,7 +93,9 @@ Use `EventType.String()` to convert to the string form used in SECL rules (e.g.,
 - `GetFieldRestrictions(field)` — returns which event types a field is restricted to (e.g., `network.*` only on `dns`/`imds`/`packet`).
 - `GetEventTypes()` — returns all supported event type strings.
 
-### FieldHandlers interface
+### Key interfaces
+
+#### FieldHandlers interface
 
 `FieldHandlers` (defined in the generated `field_handlers_unix.go` / `field_handlers_windows.go`) is an interface with one `Resolve*` method per lazy field. Each method is called on first access and caches the resolved value back into the event struct. The default (non-test) implementation lives in `pkg/security/probe`.
 
@@ -97,7 +103,9 @@ Use `EventType.String()` to convert to the string form used in SECL rules (e.g.,
 
 Calling `ev.ResolveFields()` eagerly resolves all fields for the current event type. `ResolveFieldsForAD()` does the same but skips fields tagged `opts:skip_ad` (anomaly-detection).
 
-### ProcessCacheEntry lifecycle
+### Key functions
+
+#### ProcessCacheEntry lifecycle
 
 `ProcessCacheEntry` is a refcounted node in the global process tree:
 
@@ -107,7 +115,9 @@ Calling `ev.ResolveFields()` eagerly resolves all fields for the current event t
 - `HasValidLineage()` walks ancestors to verify the chain reaches PID 1 without gaps.
 - `Releasable` embed provides `AppendReleaseCallback` / `CallReleaseCallback` for reference-counted pool return.
 
-### Constants
+### Configuration and build flags
+
+#### Constants
 
 Platform-independent constants are in `consts_common.go`:
 
@@ -124,7 +134,7 @@ Platform-independent constants are in `consts_common.go`:
 
 Linux-specific constant tables (open flags, capabilities, syscall numbers, BPF commands, etc.) live in `consts_linux.go` and architecture-specific files. They are exposed to the rule engine as named constant sets (e.g., `Constants:"Open flags"`) via the `eval` package.
 
-### Variables
+#### Variables
 
 `SECLVariables` (in `variables.go`) is the pre-seeded map of built-in SECL variables available in rule expressions:
 
@@ -133,7 +143,7 @@ Linux-specific constant tables (open flags, capabilities, syscall numbers, BPF c
 | `${process.pid}` | `int` | PID of the process triggering the event |
 | `${builtins.uuid4}` | `string` | Fresh random UUID4 |
 
-### Iterator helpers
+#### Iterator helpers
 
 `Iterator[T]` is a generic interface (`Front`, `Next`, `At`, `Len`) used by generated code to walk repeated fields (e.g., process ancestors, DNS answers). `newIterator` / `newIteratorArray` are internal helpers that collect iterator results while maintaining a `IteratorCountCache` entry for repeated evaluations of the same rule.
 

@@ -1,3 +1,5 @@
+> **TL;DR:** RC client-side state machine that handles TUF/Uptane root and target verification, config file caching, apply-status tracking, and product-config delivery — used by agent sub-processes via `pkg/config/remote/client` and directly by the Go tracer.
+
 # pkg/remoteconfig/state
 
 This package is the RC client-side state machine. It handles TUF/Uptane root and target verification, config file caching, and apply-status tracking for any process that needs to receive Remote Configuration updates from the Datadog backend (directly or via the core agent's IPC gRPC channel).
@@ -93,6 +95,20 @@ type ApplyStatus struct {
 ```
 
 Listeners must call `applyStateCallback(path, status)` after processing each config. The status is propagated back to the backend on the next poll.
+
+---
+
+## Key functions
+
+| Function | Description |
+|----------|-------------|
+| `state.NewRepository(embeddedRootBytes)` | Create a `Repository` with TUF verification enabled. |
+| `state.NewUnverifiedRepository()` | Create a `Repository` that skips TUF verification (testing/internal only). |
+| `repo.Update(Update)` | Apply a backend response; validates TUF and mutates state atomically. |
+| `repo.GetConfigs(product)` | Return the current config map for a product as `map[string]RawConfig`. |
+| `repo.CurrentState()` | Return the full `RepositoryState` used to build the next poll request. |
+| `repo.UpdateApplyStatus(cfgPath, ApplyStatus)` | Report whether a config was successfully applied. |
+| `state.MergeRCAgentConfig(applyStatus, updates)` | Merge layered `AGENT_CONFIG` updates into a `ConfigContent`. |
 
 ---
 

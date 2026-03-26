@@ -1,3 +1,5 @@
+> **TL;DR:** Top-level Fleet Automation package — hosts a long-running daemon that listens to Remote Configuration, orchestrates install/upgrade/rollback operations for Datadog packages on the local host, and exposes a local Unix-socket HTTP API for imperative operations.
+
 # pkg/fleet — Fleet Automation
 
 ## Purpose
@@ -7,6 +9,31 @@
 The package exposes a long-running **daemon** (`pkg/fleet/daemon`) that the Datadog Agent hosts inside its own process (via the `comp/updater` component). The daemon listens to RC, orchestrates all package lifecycle operations on the local host, and reports state back to the backend.
 
 ## Key elements
+
+### Key interfaces
+
+- `Daemon` (`daemon/daemon.go`) — central interface; all remote-triggered and local operations flow through it.
+
+### Key types
+
+- `PackageState` — holds stable/experiment version strings for one installed package.
+- `Package` / `catalog` — downloadable unit and the RC-delivered list of packages.
+- `APMInjectionStatus` — returned by the `/apm-injection-status` local API endpoint.
+
+### Key functions
+
+- `NewDaemon` — constructor; reads config, creates the task DB, sets up the RC client.
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `remote_updates` | `false` | Must be `true` for the daemon to start and process RC tasks |
+| `installer.mirror` | — | OCI mirror URL for all package downloads |
+| `installer.registry.url` | — | Override the default OCI registry |
+| `installer.registry.auth` | `docker` | Auth method: `docker`, `gcr`, or `password` |
+
+---
 
 ### pkg/fleet/daemon
 

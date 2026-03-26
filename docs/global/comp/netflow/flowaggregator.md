@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/netflow/flowaggregator` merges raw flow records by five-tuple within a configurable window, applies port rollup and optional TopN filtering, enriches IPs with reverse-DNS hostnames, and forwards aggregated payloads to the Datadog event platform.
+
 # comp/netflow/flowaggregator
 
 **Team:** ndm-integrations
@@ -25,7 +27,9 @@ hostname at construction time.
 
 ## Key elements
 
-### FlowAggregator
+### Key types
+
+#### `FlowAggregator`
 
 ```go
 type FlowAggregator struct {
@@ -55,17 +59,9 @@ goroutine by the server.
 **`GetFlowInChan() chan *common.Flow`** — returns the inbound channel. Each
 `netflowListener` writes decoded flows here.
 
-### flowAccumulator
+### Key interfaces
 
-An internal type that stores in-flight flows keyed by their aggregation hash
-(`common.Flow.AggregationHash()`).
-
-- `add(flow)` — merges a new flow into the accumulator; applies port rollup;
-  triggers async rDNS enrichment on the first occurrence of a hash.
-- `flush(ctx)` — returns all flows whose `nextFlush` time has been reached,
-  resets their counters, and removes contexts that have exceeded their TTL.
-
-### FlowFlushFilter interface
+#### `FlowFlushFilter`
 
 ```go
 type FlowFlushFilter interface {
@@ -77,25 +73,30 @@ Used to apply TopN (highest bytes/packets) filtering before emission. When
 `aggregator_max_flows_per_flush_interval > 0` the aggregator uses
 `topn.NewPerFlushFilter`; otherwise `topn.NoopFilter{}` is used.
 
-### Flush loop
+**`flowAccumulator`** — an internal type that stores in-flight flows keyed by their aggregation hash:
 
-The `flushLoop` runs two tickers:
+- `add(flow)` — merges a new flow into the accumulator; applies port rollup; triggers async rDNS enrichment on the first occurrence of a hash.
+- `flush(ctx)` — returns all flows whose `nextFlush` time has been reached, resets their counters, and removes contexts that have exceeded their TTL.
+
+### Key functions
+
+**Flush loop** — the `flushLoop` runs two tickers:
 
 | Ticker | Controlled by | Action |
 |--------|---------------|--------|
 | `flushFlowsToSendTicker` | `FlushConfig.FlushTickFrequency` (10 s fixed) | Calls `flush()`, sends flows and exporter metadata, commits metrics |
 | `rollupTrackersRefresh` | `aggregator_rollup_tracker_refresh_interval` | Promotes the "new" port-rollup store to "current" |
 
-### Sequence-number tracking
+**Sequence-number tracking**
 
 The aggregator tracks the maximum sequence number seen per exporter (keyed by
 namespace + exporter IP + flow type). On each flush it computes the delta and
 emits `datadog.netflow.aggregator.sequence.delta`. A large negative delta
 triggers a reset event (`datadog.netflow.aggregator.sequence.reset`).
 
-### Telemetry metrics emitted
+### Configuration and build flags
 
-All metrics share the prefix `datadog.netflow.`:
+**Telemetry metrics emitted** (all share the prefix `datadog.netflow.`):
 
 | Metric | Type | Description |
 |--------|------|-------------|

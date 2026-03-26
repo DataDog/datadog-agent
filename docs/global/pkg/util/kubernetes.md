@@ -1,3 +1,5 @@
+> **TL;DR:** Build-tag-independent Kubernetes helpers providing standard label/annotation constants, workload name-parsing utilities, Unified Service Tagging (UST) extraction, TLS/bearer-token authentication helpers, and resource quantity formatters shared across every agent component that interacts with Kubernetes objects.
+
 # pkg/util/kubernetes
 
 ## Purpose
@@ -22,6 +24,25 @@ The package intentionally has no dependency on the Kubernetes API machinery for 
 | `hostname_stub.go` | stub for builds without either tag |
 
 ## Key elements
+
+### Key types
+
+There are no exported struct types in the root package. Key constants grouped by category are documented under `### Constants` below. The `FormatCPURequests` and `FormatMemoryRequests` functions accept `k8s.io/apimachinery` `resource.Quantity` values.
+
+### Key functions
+
+See `### Name parsing helpers`, `### Tag extraction`, `### Authentication helpers`, `### Resource formatting`, and `### Hostname resolution` below.
+
+### Configuration and build flags
+
+| File | Build tag required |
+|---|---|
+| `auth.go`, `const.go`, `helpers.go`, `tags.go` | none (always compiled) |
+| `resource.go` | `kubeapiserver \|\| kubelet` |
+| `hostname.go` | `kubeapiserver && !kubelet` |
+| `hostname_stub.go` | stub for builds without either tag |
+
+---
 
 ### Constants (`const.go`)
 

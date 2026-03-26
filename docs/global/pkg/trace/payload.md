@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/payload` is a minimal abstraction package that defines the `TracerPayloadModifier` interface, allowing early mutation of `TracerPayload` objects in the agent pipeline while avoiding circular imports across `pkg/trace/*` packages.
+
 # pkg/trace/payload
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **TL;DR:** Central configuration system for the Datadog Agent — owns the schema of every recognized key, its defaults, env-var bindings, and the loading/merging logic that produces the two global `Config` singletons consumed by all agent components.
+
 # pkg/config
 
 ## Purpose
@@ -43,6 +45,12 @@ The package is organized into focused sub-packages rather than a single flat lib
 
 ## Key elements
 
+### Key types
+
+See `model.Source`, `model.Proxy`, `model.Warnings`, and `model.ValueWithSource` in `docs/global/pkg/config/model.md`.
+
+### Key functions
+
 ### Global singletons (`pkg/config/setup`)
 
 ```go
@@ -81,7 +89,7 @@ dependency injection, so most agent binaries never call these functions directly
 | `"enable-tee"` | Both backends; read from node-tree, log differences |
 | Agent version string (e.g. `"7.60"`) | Enable node-tree if agent version >= given value |
 
-### Build tags
+### Configuration and build flags
 
 - `serverless` — Omits core-agent-only settings from `initConfig`; only `initCommonConfigComponents`
   runs, producing a smaller schema for the serverless agent.

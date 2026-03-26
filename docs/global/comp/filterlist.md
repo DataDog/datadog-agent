@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/filterlist` maintains the metric and tag allow/deny lists used to block or strip metrics before forwarding, loaded from local config and updatable at runtime via Remote Config's `METRIC_CONTROL` product.
+
 # comp/filterlist
 
 **Team:** agent-metric-pipelines
@@ -14,7 +16,7 @@ Both lists are loaded from the local agent configuration on startup and can be u
 
 ## Key Elements
 
-### Component interface
+### Key interfaces
 
 `comp/filterlist/def/component.go`
 
@@ -36,9 +38,7 @@ type Component interface {
 | `GetHistoFilterList()` | Return a `utilstrings.Matcher` restricted to histogram aggregate suffixes (used by DogStatsD workers) |
 | `GetTagFilterList()` | Return the current `TagMatcher` |
 
-### `TagMatcher` interface
-
-`comp/filterlist/def/tagmatcher.go`
+**`TagMatcher` interface** — `comp/filterlist/def/tagmatcher.go`:
 
 ```go
 type TagMatcher interface {
@@ -48,15 +48,11 @@ type TagMatcher interface {
 
 `ShouldStripTags(name)` returns `(keepFn, configured)`. If `configured` is false the metric is not subject to tag filtering. If true, calling `keepFn(tag)` returns whether that tag should be retained on the metric. Tags are matched by name (the key part before `:`) using murmur3-hashed comparisons for efficiency.
 
-### Implementation details
+### Key types
 
-- `FilterList` struct (`comp/filterlist/impl/filterlist.go`) holds two independent RW-mutex-protected state pairs: one for the metric filter list and one for the tag filter list.
-- On every update (local or RC), all registered callbacks are called synchronously under the read lock.
-- The histogram-only list is derived automatically from the full metric list by matching known histogram aggregate suffixes and configured percentiles.
-- Tag conflict resolution when the same metric name appears multiple times in RC: `exclude` always wins over `include`.
-- Tags are stored as murmur3 hashes (`[]uint64`) to reduce memory usage and comparison cost.
+**`FilterList` struct** (`comp/filterlist/impl/filterlist.go`) — holds two independent RW-mutex-protected state pairs: one for the metric filter list and one for the tag filter list. On every update (local or RC), all registered callbacks are called synchronously under the read lock. Tags are stored as murmur3 hashes (`[]uint64`) to reduce memory usage and comparison cost.
 
-### `Requires` / `Provides`
+**`Requires` / `Provides`**:
 
 | Field | Description |
 |---|---|
@@ -65,7 +61,13 @@ type TagMatcher interface {
 | `Provides.Comp` | The `filterlist.Component` |
 | `Provides.RCListener` | Registers the RC callback for `state.ProductMetricControl` |
 
-### Configuration keys
+### Key functions
+
+Consumers register callbacks at construction time so updates propagate automatically:
+- `OnUpdateMetricFilterList(cb)` — called on each metric filter change; passes full list and histogram-only subset.
+- `OnUpdateTagFilterList(cb)` — called on each tag filter change.
+
+### Configuration and build flags
 
 | Key | Description |
 |---|---|

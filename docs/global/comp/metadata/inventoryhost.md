@@ -1,3 +1,5 @@
+> **TL;DR:** Builds and periodically sends the `host_metadata` inventory payload — structured hardware, OS, cloud-provider, and DMI data collected entirely at generation time — to the Datadog Infrastructure inventory API endpoint.
+
 # comp/metadata/inventoryhost — Host Inventory Payload Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/metadata/inventoryhost`
@@ -23,7 +25,9 @@ Unlike `inventoryagent`, this component has no `Set` method. Its data is fully d
 | `comp/metadata/inventoryhost` | Component interface (`Component`) |
 | `comp/metadata/inventoryhost/inventoryhostimpl` | Implementation (`invHost` struct), `Payload` and `hostMetadata` types, fx `Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 type Component interface {
@@ -35,9 +39,9 @@ type Component interface {
 
 `Refresh` is the only public method. Call it when you know host information has changed (e.g., after a cloud provider detection update) and want to avoid waiting for the next scheduled collection.
 
-## Key types
+### Key types
 
-### `inventoryhostimpl.Payload`
+#### `inventoryhostimpl.Payload`
 
 Top-level JSON structure sent to the backend:
 
@@ -50,7 +54,7 @@ type Payload struct {
 }
 ```
 
-### `inventoryhostimpl.hostMetadata`
+#### `inventoryhostimpl.hostMetadata`
 
 Flat struct covering all host dimensions:
 
@@ -68,13 +72,24 @@ Flat struct covering all host dimensions:
 
 When `metadata_ip_resolution_from_hostname` is enabled, the primary IP addresses are resolved by DNS lookup on the agent hostname rather than taken from the network interface.
 
-### `util.InventoryPayload` (embedded)
+#### `util.InventoryPayload` (embedded)
 
 The implementation embeds `comp/metadata/internal/util.InventoryPayload`, providing:
 - `Refresh()` — schedule an out-of-cycle send
 - `GetAsJSON()` — return current payload as scrubbed JSON
 - `MetadataProvider()` — returns a `runnerimpl.Provider`
 - `FlareProvider()` — adds `metadata/inventory/host.json` to flares
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `inventories_enabled` | `true` | Master switch for all inventory metadata |
+| `inventories_collect_cloud_provider_account_id` | `true` | Include cloud provider account ID in the payload |
+| `metadata_ip_resolution_from_hostname` | `false` | Resolve IP by DNS instead of network interface enumeration |
+| `inventories_min_interval` | `60s` | Minimum time between two payload submissions |
+| `inventories_max_interval` | `600s` | Maximum time between submissions |
+| `inventories_first_run_delay` | `60s` | Delay before the first send after startup |
 
 ## fx wiring
 

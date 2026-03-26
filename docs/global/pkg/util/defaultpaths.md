@@ -1,3 +1,5 @@
+> **TL;DR:** The single authoritative source for default file and directory paths (config, logs, dist, Python checks) used by all agent binaries across Linux, macOS, and Windows.
+
 # pkg/util/defaultpaths
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/defaultpaths`

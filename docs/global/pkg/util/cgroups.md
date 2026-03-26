@@ -1,3 +1,5 @@
+> **TL;DR:** Linux-only, zero-dependency cgroup v1/v2 filesystem parser that exposes CPU, memory, I/O, and PID statistics through stable interfaces, used as the foundation for all container-level resource metrics on Linux, with a `memorymonitor` sub-package for event-driven memory pressure notifications.
+
 # pkg/util/cgroups
 
 ## Purpose
@@ -15,6 +17,16 @@ All non-test files carry `//go:build linux`; the package is not usable on other
 platforms.
 
 ## Key elements
+
+### Key types
+
+**`CPUStats`**, **`MemoryStats`**, **`IOStats`**, **`PIDStats`**, **`PSIStats`** — stat structs with `*uint64`/`*float64` optional fields representing per-cgroup resource usage. See `### Stats types` below for field details.
+
+**`Stats`** — top-level wrapper: `CPU *CPUStats`, `Memory *MemoryStats`, `IO *IOStats`, `PID *PIDStats`.
+
+**Error types** (see `### Error types` below): `InvalidInputError`, `ControllerNotFoundError`, `FileSystemError`, `ValueError`.
+
+### Key interfaces
 
 ### `Cgroup` interface (`cgroup.go`)
 
@@ -41,6 +53,10 @@ previously filled fields.
 `GetStats(c Cgroup, stats *Stats) (allFailed bool, errs []error)` is a
 convenience wrapper that calls all four methods and returns whether every one
 failed.
+
+### Key functions
+
+See `### Reader`, `### SelfReader / NewSelfReader`, `### Filters`, and `### PID mapping` below for the full function reference.
 
 ### Stats types (`stats.go`)
 
@@ -208,6 +224,14 @@ Pre-built monitor factories:
 
 `MemoryMonitor` is a `func(cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error)`.
 Custom monitors can be provided.
+
+### Configuration and build flags
+
+All non-test files carry `//go:build linux`. The package is not usable on other platforms.
+
+The `memorymonitor/` sub-package also requires `//go:build linux` and uses cgroup v1 only via `containerd/cgroups/v3/cgroup1`.
+
+The package has its own `go.mod` (`pkg/util/cgroups/go.mod`) and can be imported as a standalone module. There are no agent-configuration keys — all behavior is controlled programmatically through `ReaderOption` builder functions.
 
 ## Usage
 

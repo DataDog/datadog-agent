@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmpscan` is the low-level SNMP execution engine that walks a device's full OID tree, batches results into `NetworkDevicesMetadata` payloads, and forwards them to the event platform — used by both the scan manager and the interactive CLI.
+
 # comp/snmpscan — SNMP Device Scanner Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/snmpscan/def`
@@ -22,16 +24,12 @@ It is the low-level execution engine used by `comp/snmpscanmanager` (periodic sc
 | `comp/snmpscan/fx` | fx `Module()` wiring `impl` |
 | `comp/snmpscan/mock` | Mock implementation for tests |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/snmpscan/def
-
-type ScanParams struct {
-    ScanType     metadata.ScanType   // e.g. DefaultScan, RCTriggeredScan
-    CallInterval time.Duration       // delay between SNMP calls (0 = no delay)
-    MaxCallCount int                 // max SNMP calls in a scan (0 = unlimited)
-}
 
 type Component interface {
     // RunSnmpWalk prints all OIDs reachable from firstOid to stdout, snmpwalk style.
@@ -44,18 +42,32 @@ type Component interface {
 }
 ```
 
-## Implementation details
+### Key types
+
+```go
+type ScanParams struct {
+    ScanType     metadata.ScanType   // e.g. DefaultScan, RCTriggeredScan
+    CallInterval time.Duration       // delay between SNMP calls (0 = no delay)
+    MaxCallCount int                 // max SNMP calls in a scan (0 = unlimited)
+}
+```
+
+### Key functions
 
 **`ScanDeviceAndSendData`** follows a structured protocol:
 
 1. Sends an `InProgress` scan-status event immediately (before connecting), so the backend can track long-running scans.
 2. Establishes the SNMP connection using `snmpparse.NewSNMP`. If the connection fails, sends an `Error` scan-status event and returns a `gosnmplib.ConnectionError`.
-3. Calls `gatherPDUs`, which uses `gosnmplib.ConditionalWalk` to walk the full OID tree. The walk collects one row per table (using `SkipOIDRowsNaive`) to keep payload sizes manageable. `CallInterval` and `MaxCallCount` in `ScanParams` are forwarded to the walk to rate-limit aggressive scans.
-4. Converts raw PDUs to `metadata.DeviceOID` records and batches them using `metadata.BatchDeviceScan` (respecting `PayloadMetadataBatchSize`).
-5. Sends each batch to the event platform via `eventplatform.EventTypeNetworkDevicesMetadata`.
-6. Sends a `Completed` scan-status event on success, or an `Error` event if the walk or send fails.
+3. Calls `gatherPDUs`, which uses `gosnmplib.ConditionalWalk` to walk the full OID tree. The walk collects one row per table (using `SkipOIDRowsNaive`) to keep payload sizes manageable. `CallInterval` and `MaxCallCount` in `ScanParams` are forwarded to rate-limit aggressive scans.
+4. Converts raw PDUs to `metadata.DeviceOID` records and batches them using `metadata.BatchDeviceScan`.
+5. Sends each batch via `eventplatform.EventTypeNetworkDevicesMetadata`.
+6. Sends a `Completed` or `Error` scan-status event.
 
-**Remote Config integration:** `NewComponent` also registers an `rctypes.TaskListenerProvider`. When the RC backend sends a `TaskDeviceScan` task (containing `ip_address` and optionally `namespace`), the component resolves the SNMP config via `snmpparse.GetParamsFromAgent` (which queries the running agent over IPC) and calls `ScanDeviceAndSendData` with `ScanType: RCTriggeredScan`.
+**Remote Config integration:** `NewComponent` also registers an `rctypes.TaskListenerProvider`. When the RC backend sends a `TaskDeviceScan` task, the component resolves the SNMP config via `snmpparse.GetParamsFromAgent` and calls `ScanDeviceAndSendData` with `ScanType: RCTriggeredScan`.
+
+### Configuration and build flags
+
+The module requires `log.Component`, `config.Component`, `eventplatform.Component`, and `ipc.HTTPClient`. In addition to `snmpscan.Component`, it provides an `rctypes.TaskListenerProvider`.
 
 ## fx wiring
 

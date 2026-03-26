@@ -1,3 +1,5 @@
+> **TL;DR:** Generic optional-value type (`Option[T]`) that makes the presence or absence of a value explicit and self-documenting, particularly for modeling optional components in the agent's fx dependency-injection graph and in configuration structs.
+
 # pkg/util/option
 
 ## Purpose
@@ -12,9 +14,9 @@ The package is especially important in the agent's dependency-injection graph: o
 
 ## Key elements
 
-### `Option[T any]`
+### Key types
 
-The core type. A struct with two fields — a value of type `T` and a boolean `set` flag. The zero value represents "no value" (i.e. `None`).
+**`Option[T any]`** — the core type. A struct with two fields — a value of type `T` and a boolean `set` flag. The zero value represents "no value" (i.e. `None`).
 
 ```go
 type Option[T any] struct {
@@ -25,7 +27,9 @@ type Option[T any] struct {
 
 Because `Option[T]` is a value type (not a pointer), the zero value `Option[T]{}` is always safe to use as "absent" without allocation. The pointer-returning constructors (`NewPtr`, `NonePtr`) exist for the rare cases where an `*Option[T]` is needed.
 
-### Constructors
+### Key functions
+
+**Constructors**
 
 | Function | Returns | Meaning |
 |---|---|---|
@@ -34,7 +38,7 @@ Because `Option[T]` is a value type (not a pointer), the zero value `Option[T]{}
 | `None[T]() Option[T]` | unset option | No value |
 | `NonePtr[T]() *Option[T]` | pointer to unset option | No value, as a pointer |
 
-### Methods on `*Option[T]`
+**Methods on `*Option[T]`**
 
 | Method | Description |
 |---|---|
@@ -49,7 +53,7 @@ Note that `Get`, `Set`, `Reset`, `SetIfNone`, and `SetOptionIfNone` are pointer-
 
 `UnmarshalYAML` sets the option to `None` on unmarshal error, rather than leaving it in a partially initialised state.
 
-### Free functions
+**Free functions**
 
 **`MapOption[T1, T2 any](optional Option[T1], fct func(T1) T2) Option[T2]`**
 Applies a transform function to a set option and returns the result wrapped in a new option. Returns `None` if the input is unset. Equivalent to `Option.map` in functional languages.

@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/host-profiler` implements Linux-only eBPF-based continuous host profiling, wrapping an OpenTelemetry Collector pipeline to collect system-wide CPU profiles and upload them along with debug symbols to the Datadog profiling backend.
+
 # comp/host-profiler
 
 ## Purpose
@@ -31,18 +33,58 @@ The bundle exposes two operational modes depending on whether a Datadog Agent co
 | With Agent Core | `ExtraFactoriesWithAgentCore` | Uses Agent tagger for infra attributes, DD profiling extension, Agent flare integration, Go runtime metrics |
 | Without Agent Core | `ExtraFactoriesWithoutAgentCore` | Uses K8s attributes processor, standalone config converters, no Agent dependencies |
 
-## Sub-packages
+## Key elements
 
-### `collector/def` — Component interface
+### Key interfaces
 
 ```go
 // Build tag: linux
+// comp/host-profiler/collector/def
 type Component interface {
     Run() error
 }
 ```
 
 `Run()` starts the OTel Collector main loop (blocking call). It is intended to be the entry point of the host-profiler binary.
+
+### Key types
+
+**`ExtraFactories` interface** — defined in `collector/impl/otel_col_factories.go`. Two concrete implementations:
+
+| Mode | Implementation |
+|---|---|
+| With Agent Core | `ExtraFactoriesWithAgentCore` |
+| Without Agent Core | `ExtraFactoriesWithoutAgentCore` |
+
+**`DatadogSymbolUploader`** — top-level orchestrator for the symbol upload pipeline:
+
+| Type | Description |
+|---|---|
+| `SymbolUploaderConfig` | Configuration: endpoints, dry-run mode, dynamic symbol upload, GoPCLnTab upload, HTTP/2, batch interval |
+| `SymbolEndpoint` | `{Site, APIKey}` pair for a single Datadog org |
+| `symbol.Elf` | Wrapper around an ELF file with helpers for build IDs, symbol sources, GoPCLnTab extraction |
+| `symbol.Source` | Enum: `None`, `DynamicSymbolTable`, `DebugInfo`, `GoPCLnTab` |
+
+### Key functions
+
+**`agentprovider`** — a custom OTel `confmap.Provider` (`scheme: agent`) that translates Agent configuration (API keys, sites, endpoints) into the OTel collector YAML format so the host-profiler can inherit `datadog.yaml` settings.
+
+**`oom` utilities** — `GetOOMScoreAdj` / `SetOOMScoreAdj` on `/proc/<pid>/oom_score_adj`. The collector resets its OOM score to `0` at startup to avoid preferential OOM kill.
+
+### Configuration and build flags
+
+| Setting | Default | Description |
+|---|---|---|
+| `host_profiler.*` | — | Master config namespace for the host profiler |
+| `enabled` | `true` | Symbol uploader enabled |
+| `upload_dynamic_symbols` | `false` | Upload `.dynsym` stripped library symbols |
+| `upload_go_pcln_tab` | `true` | Upload Go `pclntab` symbols |
+| `symbol_query_interval` | `5s` | Interval between backend symbol queries |
+| `dry_run` | `false` | Disable actual symbol uploads |
+
+Build tag: `linux` on all non-trivial files.
+
+## Sub-packages
 
 ### `collector/impl` — Collector implementation
 

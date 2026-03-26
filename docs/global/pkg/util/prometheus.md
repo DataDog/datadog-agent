@@ -1,3 +1,5 @@
+> **TL;DR:** Parses Prometheus text-format metric payloads from external endpoints (kubelet, containerd, OTel collector) into a simple Go data model without pulling in the full Prometheus SDK.
+
 # pkg/util/prometheus
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/prometheus`

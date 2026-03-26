@@ -1,3 +1,5 @@
+> **TL;DR:** Low-level memory-management primitives (zero-allocation pool, shared-ownership pool manager, batching buffer, and assembler) that move raw DogStatsD datagrams from the socket read loop to the server's parse workers without heap allocation on the hot path.
+
 # comp/dogstatsd/packets — Packet Buffer Pools for DogStatsD
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/dogstatsd/packets`
@@ -14,9 +16,11 @@ Three concerns are addressed in one place:
 2. **Shared-ownership pool management** — `PoolManager` extends a pool with reference counting so a single `Packet` can be handed to two consumers (e.g. server + replay capture) and returned to the pool only when both are done.
 3. **Batching and backpressure** — `Buffer` accumulates packets from a listener and flushes them as a `Packets` slice to the server's input channel either when full or on a timer tick. `Assembler` packs multiple small UDP datagrams into a single `Packet` before handing it to a `Buffer`.
 
-## Key types
+## Key elements
 
-### `Packet`
+### Key types
+
+#### `Packet`
 
 ```go
 type Packet struct {
@@ -31,11 +35,11 @@ type Packet struct {
 
 `Contents` is always a sub-slice of `Buffer` to avoid copies. Because `Buffer` is reused after `Pool.Put`, callers must finish reading or copy any data they need **before** returning the packet to the pool. Strings extracted via `string(Contents[n:m])` are safe because Go strings have independent storage.
 
-### `Packets`
+#### `Packets`
 
 `type Packets []*Packet` — a batch of packet pointers flushed together to the server channel. Both types implement `size.HasSizeInBytes` for memory-budget accounting.
 
-### `SourceType`
+#### `SourceType`
 
 ```go
 const (
@@ -45,7 +49,7 @@ const (
 )
 ```
 
-### `Pool`
+#### `Pool`
 
 ```go
 func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool
@@ -55,7 +59,7 @@ func (p *Pool) Put(packet *Packet)
 
 `Get` returns a packet with a pre-allocated `Buffer` of `bufferSize` bytes. `Put` resets `Origin` to `NoOrigin` and returns the object to the underlying `sync.Pool`. Telemetry counters (`dogstatsd.packet_pool_get`, `dogstatsd.packet_pool_put`, `dogstatsd.packet_pool`) are updated when the telemetry component is enabled.
 
-### `PoolManager[K]`
+#### `PoolManager[K]`
 
 ```go
 func NewPoolManager[K managedPoolTypes](gp genericPool[K]) *PoolManager[K]
@@ -73,7 +77,7 @@ In **passthru mode** (the default) `Put` returns the object immediately to the p
 
 The type parameter `K` is constrained to `[]byte | Packet`.
 
-### `Buffer`
+#### `Buffer`
 
 ```go
 func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets,
@@ -84,7 +88,7 @@ func (pb *Buffer) Close()
 
 `Append` adds a packet and immediately flushes if `len(packets) >= bufferSize`. A background goroutine flushes on each `flushTimer` tick. `Close` sends on `closeChannel`, which triggers a final flush, then waits up to one second for the goroutine to finish.
 
-### `Assembler`
+#### `Assembler`
 
 ```go
 func NewAssembler(flushTimer time.Duration, packetsBuffer *Buffer,
@@ -95,7 +99,7 @@ func (p *Assembler) Close()
 
 Used by the UDP listener to pack multiple datagrams into one `Packet`. `AddMessage` copies the datagram into the current packet's `Buffer` (separated by `'\n'`); when the buffer would overflow, the current packet is flushed to the `Buffer` and a new one is obtained from the pool.
 
-### `TelemetryStore`
+#### `TelemetryStore`
 
 Holds all Prometheus-style metrics for the packet pipeline:
 

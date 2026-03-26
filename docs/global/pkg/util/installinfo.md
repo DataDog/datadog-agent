@@ -1,3 +1,5 @@
+> **TL;DR:** Reads and writes metadata describing how the Datadog Agent was installed (tool, version), exposing it to inventory payloads and the agent's IPC API via a prioritized runtime-override → env-var → YAML-file lookup chain.
+
 # pkg/util/installinfo
 
 ## Purpose

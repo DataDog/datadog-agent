@@ -1,3 +1,5 @@
+> **TL;DR:** Single entry point for detecting the cloud or platform environment (EC2, GCP, Azure, Alibaba, Tencent, Oracle, IBM, CloudFoundry, Kubernetes) and collecting environment-specific metadata such as hostname aliases, NTP servers, public IPs, account IDs, instance types, and Canonical Cloud Resource IDs.
+
 # pkg/util/cloudproviders
 
 ## Purpose
@@ -37,7 +39,20 @@ Supported environments and their sub-packages:
 
 ## Key Elements
 
-### Top-level detection functions (`cloudproviders.go`)
+### Key types
+
+**`OrchestratorName`** — see `fargate` sub-package. At the root level, providers are identified by their `CloudProviderName` string constant (e.g. `"AWS"`, `"GCP"`, `"Azure"`).
+
+**Sentinel errors**
+
+```go
+var ErrNotPreemptible      = errors.New("instance is not preemptible")
+var ErrPreemptionUnsupported = errors.New("preemption detection not supported for this cloud provider")
+```
+
+### Key functions
+
+#### Top-level detection functions (`cloudproviders.go`)
 
 ```go
 func DetectCloudProvider(ctx context.Context, collectAccountID bool) (providerName, accountID string)
@@ -76,13 +91,6 @@ EC2, GCP, Azure, Oracle.
 preemptible instances. Currently only EC2 Spot is supported. Returns
 `ErrNotPreemptible` when the instance is not a spot/preemptible instance and
 `ErrPreemptionUnsupported` for providers without an implementation.
-
-### Sentinel errors
-
-```go
-var ErrNotPreemptible      = errors.New("instance is not preemptible")
-var ErrPreemptionUnsupported = errors.New("preemption detection not supported for this cloud provider")
-```
 
 ### Test mock (`mock.go`, build tag `test`)
 
@@ -153,6 +161,20 @@ application containers and their metadata. It is the most complex sub-package.
 
 Follow the same IMDS pattern as GCE/Azure, each with provider-specific
 endpoint URLs and header requirements.
+
+### Configuration and build flags
+
+| Config key | Effect |
+|---|---|
+| `cloud_provider_metadata` | Explicit allowlist of provider names to query; omit a name to skip that provider's IMDS endpoint |
+| `gce_metadata_timeout` | HTTP timeout (ms) for GCP IMDS requests |
+| `gce_send_project_id_tag` | Include the GCP project ID as a tag |
+| `exclude_gce_tags` | GCP instance attributes to suppress from host tags |
+| `azure_hostname_style` | Azure hostname format: `vmid`, `name`, `name_and_resource_group`, or `full` |
+| `azure_metadata_api_version` | Azure IMDS API version string |
+| `azure_metadata_timeout` | HTTP timeout (ms) for Azure IMDS requests |
+
+Build tag `test` activates `Mock(t, ...)` for replacing detector tables in unit tests.
 
 ## Usage
 

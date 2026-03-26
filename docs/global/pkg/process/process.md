@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/process` is the core library for the Datadog process-agent, implementing all checks, check scheduling, system-probe IPC, process data collection, metadata extraction, and payload serialization needed to collect and forward process, container, and network connection data.
+
 # pkg/process
 
 ## Purpose
@@ -24,7 +26,9 @@ binary (`cmd/process-agent`) is built almost entirely on top of this package.
 
 ## Key elements
 
-### Check names (constants in `checks/checks.go`)
+### Key types
+
+#### Check names (constants in `checks/checks.go`)
 
 ```go
 ProcessCheckName     = "process"
@@ -35,7 +39,9 @@ ConnectionsCheckName = "connections"
 DiscoveryCheckName   = "process_discovery"
 ```
 
-### Check interface (`checks/checks.go`)
+### Key interfaces
+
+#### Check interface (`checks/checks.go`)
 
 ```go
 type Check interface {
@@ -59,7 +65,7 @@ that implements `comp/process/types.CheckComponent` and registers itself in the
 and [comp/process/runner](../../comp/process/runner.md) for the dependency-injection
 wiring.
 
-### RunResult types
+#### RunResult types
 
 `StandardRunResult` — slice of `model.MessageBody` for standard (non-realtime) payloads.
 
@@ -67,7 +73,9 @@ wiring.
 produced by the process check when both standard and RT collection happen in the
 same tick.
 
-### Concrete checks
+### Key functions
+
+#### Concrete checks
 
 **ProcessCheck** (`checks/process.go`)
 Collects full process state: cmdline, CPU/memory/IO stats, container
@@ -91,7 +99,7 @@ Retrieves active TCP/UDP connections from the system-probe network tracer module
 via a Unix-socket HTTP call, then resolves PIDs to process names and enriches
 with container/DNS metadata.
 
-### SysProbeConfig (`checks/checks.go`)
+#### SysProbeConfig (`checks/checks.go`)
 
 ```go
 type SysProbeConfig struct {
@@ -106,7 +114,7 @@ Passed to `Check.Init` to give checks knowledge of system-probe availability.
 When `ProcessModuleEnabled` is true the process check delegates privileged stat
 collection (open FD count, IO bytes) to system-probe via `net.GetProcStats`.
 
-### HostInfo (`checks/host_info.go`)
+#### HostInfo (`checks/host_info.go`)
 
 ```go
 type HostInfo struct {
@@ -119,7 +127,7 @@ type HostInfo struct {
 Populated once at startup by `CollectHostInfo` and shared across all checks.
 Contains OS version, CPU count, and container host type (e.g. ECS, Fargate).
 
-### CheckRunner (`runner/runner.go`)
+#### CheckRunner (`runner/runner.go`)
 
 `CheckRunner` is the long-running goroutine that:
 1. Ticks on the standard check interval.
@@ -133,7 +141,7 @@ tick frequency without restarting.
 See [runner.md](runner.md) for complete API documentation including queue
 configuration, RT signaling, and endpoint resolution.
 
-### CheckSubmitter (`runner/submitter.go`)
+#### CheckSubmitter (`runner/submitter.go`)
 
 ```go
 type Submitter interface {
@@ -145,7 +153,7 @@ Serialises `model.MessageBody` payloads (protobuf or msgpack) and enqueues them
 into per-check `WeightedQueue` instances. The forwarder drains these queues and
 sends them to the Datadog intake.
 
-### ProcessMonitor (`monitor/process_monitor.go`, Linux only)
+#### ProcessMonitor (`monitor/process_monitor.go`, Linux only)
 
 A singleton that listens for kernel process exec/exit events via netlink
 (`PROC_EVENT_EXEC`, `PROC_EVENT_EXIT`). Other subsystems (e.g. USM, service
@@ -168,7 +176,7 @@ scan of `/proc` on reconnect to avoid missing events.
 See [monitor.md](monitor.md) for details on the two event-delivery modes
 (netlink vs. eBPF event stream), telemetry counters, and USM/uprobe integration.
 
-### net sub-package (`net/`)
+#### net sub-package (`net/`)
 
 `GetProcStats(client, pids)` — POST to system-probe's `/proc/stats` endpoint to
 retrieve `StatsWithPerm` for a list of PIDs (requires root on system-probe side).

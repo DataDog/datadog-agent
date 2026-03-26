@@ -1,3 +1,5 @@
+> **TL;DR:** Home for all built-in Go checks compiled into the agent binary, providing `CheckBase` and `GoCheckLoader` as the foundation every core check builds on, plus a large library of domain-specific sub-packages covering system, container, cluster, eBPF, and network metrics.
+
 # pkg/collector/corechecks
 
 ## Purpose
@@ -10,6 +12,8 @@
 Core checks are distinct from Python-based checks: they are compiled into the agent binary, cannot be installed independently, and carry no version string. They are loaded with priority 30 by default (overridable via `prioritize_go_check_loader`).
 
 ## Key Elements
+
+### Key types
 
 ### Root package (`pkg/collector/corechecks`)
 

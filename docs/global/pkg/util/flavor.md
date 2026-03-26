@@ -1,3 +1,5 @@
+> **TL;DR:** Identifies which Datadog agent binary is currently running by exposing a single global flavor string that binaries set at startup and shared packages read at runtime to adjust their behavior.
+
 # pkg/util/flavor
 
 ## Purpose

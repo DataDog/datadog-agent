@@ -1,3 +1,5 @@
+> **TL;DR:** Implements a GC-aware string interning pool that deduplicates logically equal strings to a single shared pointer, reducing memory footprint in high-frequency network tracer paths that process millions of events with repeated string values.
+
 # pkg/util/intern
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/intern`
@@ -12,15 +14,19 @@ The implementation is adapted from [go4.org/intern](https://pkg.go.dev/go4.org/i
 
 ## Key Elements
 
-### `StringValue` (struct)
+### Key types
+
+#### `StringValue` (struct)
 
 The handle to an interned string. Intentionally not comparable as a value type (contains a `[0]func()` field to break struct equality), so callers must use it as a pointer (`*StringValue`).
 
 **`(*StringValue).Get() string`** — returns the underlying string.
 
-### `StringInterner` (struct)
+#### `StringInterner` (struct)
 
 The pool itself. Safe for concurrent use (internally mutex-guarded).
+
+### Key functions
 
 **`NewStringInterner() *StringInterner`** — allocates a new, empty pool. Each logical domain (container IDs, topic names, etc.) should use its own interner.
 

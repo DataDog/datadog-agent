@@ -1,3 +1,5 @@
+> **TL;DR:** Implements the `%%variable%%` template variable system used by Autodiscovery to inject live container runtime values — IPs, ports, PIDs, env vars — into check configuration templates.
+
 # pkg/util/tmplvar
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **TL;DR:** A shared-types package that defines the common contracts (`CheckComponent`, `ProvidesCheck`, `Payload`, `RTResponse`) used by all process-agent check components to participate in the fx dependency-injection graph without creating circular imports.
+
 # comp/process/types — Shared Process Types
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/process/types`
@@ -15,9 +17,11 @@ The package defines:
 - The real-time notification channel type (`RTResponse`) that the submitter uses to signal the runner about real-time mode changes.
 - Test helpers for mocking check components.
 
-## Types
+## Key elements
 
-### `CheckComponent`
+### Key interfaces
+
+#### `CheckComponent`
 
 ```go
 type CheckComponent interface {
@@ -27,7 +31,9 @@ type CheckComponent interface {
 
 The interface implemented by every process check component (process, connections, container, rt-container, process-discovery). `Object()` returns the underlying `pkg/process/checks.Check` implementation, which carries `Name()`, `IsEnabled()`, `Run()`, `Realtime()`, and other check lifecycle methods.
 
-### `ProvidesCheck`
+### Key types
+
+#### `ProvidesCheck`
 
 ```go
 type ProvidesCheck struct {
@@ -49,7 +55,7 @@ type result struct {
 }
 ```
 
-### `Payload`
+#### `Payload`
 
 ```go
 type Payload struct {
@@ -60,7 +66,7 @@ type Payload struct {
 
 Carries the serialised output of a single check execution. `CheckName` identifies the source check; `Message` is a slice of protobuf-encoded `agent-payload` messages ready for submission.
 
-### `RTResponse`
+#### `RTResponse`
 
 ```go
 type RTResponse []*model.CollectorStatus

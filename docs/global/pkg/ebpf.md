@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ebpf` is the shared eBPF infrastructure for the Datadog Agent, providing unified program loading (CO-RE, runtime compilation, prebuilt), a `Manager` with lifecycle modifiers, type-safe map helpers, uprobe attachment, and telemetry for every eBPF-based feature.
+
 # pkg/ebpf
 
 ## Purpose
@@ -23,7 +25,9 @@ On other platforms the package exports only `ErrNotImplemented` and the platform
 
 ## Key elements
 
-### `Config` (`config.go`)
+### Key types
+
+#### `Config` (`config.go`)
 
 Central configuration struct for all eBPF features. Constructed with `NewConfig()`, which
 reads keys from the `system_probe_config` namespace:
@@ -44,9 +48,9 @@ reads keys from the `system_probe_config` namespace:
 `Config.ChooseSyscallProbe(tracepoint, indirectProbe, fallback)` picks the best hook
 attachment mechanism (tracepoint > arch-specific kprobe > plain kprobe) at runtime.
 
-### Program loading
+### Key functions
 
-#### CO-RE (`co_re.go`, `ebpf.go`, `btf.go`)
+#### Program loading: CO-RE (`co_re.go`, `ebpf.go`, `btf.go`)
 
 CO-RE is the preferred strategy. `Setup(cfg, rcclient)` initialises the singleton loader.
 `LoadCOREAsset(filename, startFn)` resolves BTF for the running kernel and calls `startFn`
@@ -67,7 +71,7 @@ Result codes are defined in `BTFResult` / `COREResult` (`status_codes.go`):
 the cache. `GetBTFLoaderInfo()` returns a human-readable string explaining which BTF source
 was used.
 
-#### Runtime compilation (`bytecode/runtime/`)
+#### Program loading: Runtime compilation (`bytecode/runtime/`)
 
 `runtime.Asset` represents a `.c` source file embedded in the binary. Calling
 `asset.Compile(cfg, flags)` or `asset.CompileWithOptions(cfg, opts)` invokes `clang` on-host
@@ -76,18 +80,20 @@ and writes the output `.o` to `RuntimeCompilerOutputDir`. Integrity is verified 
 `CompileOptions` allows injecting extra compiler flags and a `ModifyCallback` that
 pre-processes the source before compilation.
 
-#### Prebuilt (`prebuilt/`)
+#### Program loading: Prebuilt (`prebuilt/`)
 
 Pre-compiled `.o` files shipped with the agent, read via `bytecode.GetReader`.
 
-#### Asset reader (`bytecode/`)
+#### Program loading: Asset reader (`bytecode/`)
 
 `bytecode.AssetReader` is an `io.Reader + io.ReaderAt + io.Closer` interface satisfied by
 all three loading strategies. `bytecode.GetReader(dir, filename)` opens the object file from
 the given directory. On platforms where bindata is embedded, platform-specific
 `asset_reader_bindata_amd64.go` / `asset_reader_bindata_arm64.go` handle in-memory reads.
 
-### `Manager` and `Modifier` (`manager.go`)
+### Key interfaces
+
+#### `Manager` and `Modifier` (`manager.go`)
 
 `Manager` wraps `ebpf-manager.Manager` and adds a named list of `Modifier` instances:
 
@@ -123,7 +129,7 @@ Notable built-in modifiers:
 - `telemetry.ErrorsTelemetryModifier` — hooks into `BeforeInit`, `AfterInit`, and
   `BeforeStop` to instrument map and helper call errors at the eBPF level.
 
-### Map utilities (`maps/`, `map_cleaner.go`)
+#### Map utilities (`maps/`, `map_cleaner.go`)
 
 **`maps.GenericMap[K, V]`** — type-safe wrapper around `*ebpf.Map` with batch-iteration
 support (kernel ≥ 5.6). `maps.Map[K, V](emap)` converts a raw `*ebpf.Map`.
@@ -144,7 +150,7 @@ mc.Stop()
 `nowTS` in the predicate is in nanoseconds and is directly comparable to timestamps produced
 by `bpf_ktime_get_ns()`. Uses batch API automatically when available.
 
-### Perf / ring buffer event handling (`perf.go`, `perf_ring_buffer.go`)
+#### Perf / ring buffer event handling (`perf.go`, `perf_ring_buffer.go`)
 
 **`PerfHandler`** implements `EventHandler` for perf buffers:
 
@@ -159,7 +165,7 @@ ph.Stop()
 Records are pooled to reduce allocations. A ring-buffer variant lives in
 `perf_ring_buffer.go`.
 
-### Uprobes (`uprobes/`)
+#### Uprobes (`uprobes/`)
 
 `UprobeAttacher` attaches uprobes to user-space processes and shared libraries dynamically.
 It monitors new processes and `open` syscalls for new library loads.
@@ -181,7 +187,7 @@ ua.Start()
 ua.Stop()
 ```
 
-### Telemetry (`telemetry/`)
+#### Telemetry (`telemetry/`)
 
 Instruments eBPF internals at two levels:
 
@@ -196,32 +202,32 @@ Errors are surfaced as Prometheus counters with `module` and `map`/`helper` labe
 **CO-RE telemetry** (`co_re_telemetry.go`) — `StoreCORETelemetryForAsset` / `GetCORETelemetry`
 maintain a per-asset `COREResult` accessible from the agent status page.
 
-### Feature detection (`features/`)
+#### Feature detection (`features/`)
 
 `features.SupportsFentry(funcName)` probes whether the running kernel supports fentry/fexit
 programs for a specific function and checks known kernel bugs (e.g.
 `HasTasksRCUExitLockSymbol`) that make fentry unsafe.
 
-### Lock contention (`lockcontention.go`)
+#### Lock contention (`lockcontention.go`)
 
 On kernels where lock contention eBPF programs are supported, `LockContentionCollector`
 reads `LockRange` / `ContentionData` structs from a BPF map and exposes them as agent
 telemetry. A no-op implementation (`lockcontention_noop.go`) is used when the feature is
 unavailable.
 
-### Kernel symbol helpers (`ksyms.go`, `ksyms_bpf.go`)
+#### Kernel symbol helpers (`ksyms.go`, `ksyms_bpf.go`)
 
 `SymbolTable` loads `/proc/kallsyms` and resolves kernel symbol addresses. Used by probes
 that need to know a symbol's address before attaching.
 
-### Time (`time.go`)
+#### Time (`time.go`)
 
 `NowNanoseconds()` returns the current monotonic time in nanoseconds using the same clock as
 `bpf_ktime_get_ns()`, allowing direct comparison with BPF timestamps in map values.
 
 ---
 
-## Build flags
+### Configuration and build flags
 
 | Tag | Effect |
 |---|---|

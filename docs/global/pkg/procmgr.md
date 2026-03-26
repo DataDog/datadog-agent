@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/procmgr` contains a Rust-based process manager daemon (`dd-procmgrd`) that supervises Datadog sub-components declared via YAML configs, providing systemd-like lifecycle management with dependency ordering, restart policies, and gRPC control.
+
 # pkg/procmgr
 
 ## Purpose
@@ -10,7 +12,9 @@ The Go portion of the repository only holds the proto definition; all executable
 
 ## Key elements
 
-### Rust crate layout
+### Key types
+
+#### Rust crate layout
 
 | Path | Description |
 |------|-------------|
@@ -25,7 +29,11 @@ The Go portion of the repository only holds the proto definition; all executable
 | `src/state.rs` | `ProcessState` enum with valid transition rules. |
 | `proto/process_manager.proto` | gRPC service definition (Go package: `pbgo/procmgr`). |
 
-### Configuration
+### Configuration and build flags
+
+The crate is built with Cargo and also has a Bazel target. The config directory is controlled by the `DD_PM_CONFIG_DIR` environment variable (default `/etc/datadog-agent/processes.d/`). There are no `datadog.yaml` keys for the daemon itself.
+
+#### Configuration
 
 Process definitions are YAML files placed in `/etc/datadog-agent/processes.d/` (overridable via `DD_PM_CONFIG_DIR`). The filename stem (without extension) becomes the process name. Names must be ASCII alphanumeric, hyphens, underscores, or dots.
 
@@ -49,7 +57,9 @@ Key fields of `ProcessConfig`:
 | `after` / `before` | `[]` | Startup-order dependency declarations. Cycles are detected and logged as warnings. |
 | `stdout` / `stderr` | `inherit` | `inherit`, `null`, or a file path. |
 
-### `ProcessManager`
+### Key functions
+
+#### `ProcessManager`
 
 The central `ProcessManager` struct holds an `Arc<RwLock<Vec<ManagedProcess>>>` and a `startup_order` index vector. It runs a `tokio::select!` event loop handling:
 
@@ -57,7 +67,7 @@ The central `ProcessManager` struct holds an `Arc<RwLock<Vec<ManagedProcess>>>` 
 - Process exit events — applies restart policy and schedules delayed restarts
 - gRPC commands — `Create`, `Start`, `Stop`, `ReloadConfig`
 
-### `ManagedProcess` state machine
+#### `ManagedProcess` state machine
 
 ```
 Created -> Running -> Exited (exit 0 without stop request)
@@ -69,7 +79,9 @@ Transitions are validated; invalid transitions are logged (and panicked in debug
 
 Each process is placed in its own process group (`process_group(0)`) so that signals are delivered to the entire process tree.
 
-### gRPC service
+### Key interfaces
+
+#### gRPC service
 
 The `ProcessManager` proto service (defined in `proto/process_manager.proto`) exposes:
 

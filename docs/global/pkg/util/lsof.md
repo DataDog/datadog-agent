@@ -1,3 +1,5 @@
+> **TL;DR:** Lists the open file descriptors and loaded DLLs of a running agent process, with platform-specific implementations used exclusively to populate flare archives with fd and module diagnostics.
+
 # pkg/util/lsof
 
 ## Purpose

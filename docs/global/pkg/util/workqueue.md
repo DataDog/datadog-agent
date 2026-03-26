@@ -1,3 +1,5 @@
+> **TL;DR:** Bridges Kubernetes client-go work queue instrumentation hooks to the Datadog Agent's internal telemetry system, automatically emitting standard queue metrics (depth, latency, retries) for any `k8s.io/client-go/util/workqueue` instance.
+
 # pkg/util/workqueue
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry`

@@ -1,3 +1,5 @@
+> **TL;DR:** Decides when checks run by maintaining one interval-based job queue per unique check interval, spreading checks across time buckets with jitter, and pushing due checks onto the runner's channel.
+
 # pkg/collector/scheduler
 
 ## Purpose
@@ -12,7 +14,7 @@ The scheduler is responsible for:
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -27,6 +29,8 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler
 ```
 
 Accepts the write side of the runner's pending-checks channel. Does not start any goroutines; call `Run()` to activate.
+
+### Key functions
 
 ### Lifecycle methods
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/softwareinventory` periodically queries the System Probe's `SoftwareInventoryModule` for the list of installed software on a Windows host and forwards the results to the Datadog backend via the Event Platform forwarder.
+
 # comp/softwareinventory
 
 **Team:** windows-products
@@ -11,17 +13,18 @@ The component is useful for fleet-level visibility: it lets operators see what s
 
 ## Key Elements
 
-### Component interface
-
-`comp/softwareinventory/def/component.go`
+### Key interfaces
 
 ```go
+// comp/softwareinventory/def/component.go
 type Component interface{}
 ```
 
 The public interface is intentionally empty. The component's value comes from the side-effects it registers: an HTTP endpoint, a flare provider, and a status header provider.
 
-### `Requires` / `Provides` (impl)
+### Key types
+
+**`Requires` / `Provides`** (impl):
 
 | Field | Type | Description |
 |---|---|---|
@@ -33,7 +36,7 @@ The public interface is intentionally empty. The component's value comes from th
 | `Provides.StatusHeaderProvider` | `status.HeaderInformationProvider` | Adds a "Software Inventory Metadata" section to `agent status` |
 | `Provides.Endpoint` | `api.AgentEndpointProvider` | Serves current inventory at `GET /metadata/software` |
 
-### `Payload` / `HostSoftware`
+**`Payload` / `HostSoftware`** — wire format types:
 
 ```go
 type Payload struct {
@@ -48,9 +51,9 @@ type HostSoftware struct {
 
 `software.Entry` (defined in `pkg/inventory/software`) carries fields such as `DisplayName`, `Version`, `Publisher`, `InstallDate`, and `Source` (the registry hive or other origin).
 
-### Collection loop
+### Key functions
 
-On start, the component launches a goroutine (`startSoftwareInventoryCollection`) that:
+**Collection loop** — on start, the component launches a goroutine (`startSoftwareInventoryCollection`) that:
 
 1. Retries fetching from System Probe every 10 seconds until the probe is ready (up to the `check_system_probe_startup_time` window).
 2. Waits a random jitter (0 – `software_inventory.jitter` seconds, minimum 60 s) before sending the first payload.
@@ -58,7 +61,7 @@ On start, the component launches a goroutine (`startSoftwareInventoryCollection`
 
 The cached inventory is protected by a `sync.RWMutex`; reads from the HTTP endpoint or status page never block collection.
 
-### Configuration keys
+### Configuration and build flags
 
 | Key | Default | Description |
 |---|---|---|

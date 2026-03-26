@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/connectivitychecker` periodically tests the agent's ability to reach Datadog endpoints and publishes the results to the inventory agent for display in Datadog's connectivity diagnostics UI.
+
 # comp/connectivitychecker — Connectivity Checker Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/connectivitychecker/def`
@@ -19,7 +21,9 @@ It runs independently in the background, requiring no interaction from other com
 | `comp/connectivitychecker/checker` | Core diagnostic logic (`Check` function) |
 | `comp/connectivitychecker/fx` | fx `Module()` wiring `impl` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/connectivitychecker/def
@@ -28,19 +32,9 @@ type Component interface{}
 
 No methods are exported. The component operates entirely through its lifecycle hooks and an internal timer.
 
-## Implementation details
+### Key types
 
-**Timer loop:** After `OnStart`, the component waits an initial delay of 30 seconds before the first check (to avoid racing with agent startup), then repeats every 10 minutes. The loop runs in a goroutine and exits when the stop channel is closed or the component context is cancelled.
-
-**Config-change reactivity:** The component registers a `config.OnUpdate` hook. When any configuration value changes, the timer is restarted immediately (delay = 0), so updated proxy or endpoint settings take effect at the next check cycle without waiting the full 10-minute interval.
-
-**Diagnosis:** Each cycle calls `checker.Check`, which aggregates results from three sources:
-
-1. `connectivity.DiagnoseInventory` — tests HTTP reachability of the configured Datadog intake endpoints (metrics, logs, APM, etc.), using the agent's configured proxy settings.
-2. `eventplatformimpl.Diagnose` — tests event platform forwarder endpoints.
-3. `connectivity.Diagnose` — runs the general connectivity diagnose suite (same checks as `agent diagnose`).
-
-Each individual check produces a `DiagnosisPayload`:
+**`DiagnosisPayload`** — the result of a single connectivity check:
 
 ```go
 type DiagnosisPayload struct {
@@ -52,6 +46,24 @@ type DiagnosisPayload struct {
 ```
 
 Results are grouped under the key `"connectivity"` and stored via `inventoryAgent.Set("diagnostics", diagnoses)`.
+
+### Key functions
+
+**Timer loop:** After `OnStart`, the component waits an initial delay of 30 seconds before the first check (to avoid racing with agent startup), then repeats every 10 minutes. The loop runs in a goroutine and exits when the stop channel is closed or the component context is cancelled.
+
+**Config-change reactivity:** The component registers a `config.OnUpdate` hook. When any configuration value changes, the timer is restarted immediately (delay = 0), so updated proxy or endpoint settings take effect at the next check cycle without waiting the full 10-minute interval.
+
+Each cycle calls `checker.Check`, which aggregates results from three sources:
+
+1. `connectivity.DiagnoseInventory` — tests HTTP reachability of the configured Datadog intake endpoints (metrics, logs, APM, etc.), using the agent's configured proxy settings.
+2. `eventplatformimpl.Diagnose` — tests event platform forwarder endpoints.
+3. `connectivity.Diagnose` — runs the general connectivity diagnose suite (same checks as `agent diagnose`).
+
+### Configuration and build flags
+
+| Key | Description |
+|---|---|
+| `inventories_diagnostics_enabled` | Enable/disable the connectivity check loop (checked on each timer tick and on config update) |
 
 ## fx wiring
 
@@ -90,12 +102,6 @@ This call triggers `inventoryagent.Refresh()` if the value changed, so new check
 **Relationship to `agent diagnose`:**
 
 The `connectivity.DiagnoseInventory` and `connectivity.Diagnose` calls in `checker.Check` run the same checks as `datadog-agent diagnose --include connectivity-datadog-core-endpoints`. The connectivity checker automates this on a timer so the results are always fresh in the UI without manual intervention. See [`pkg/diagnose`](../pkg/diagnose/diagnose.md) for the full suite catalog and how to register additional suites.
-
-## Configuration
-
-| Key | Description |
-|---|---|
-| `inventories_diagnostics_enabled` | Enable/disable the connectivity check loop (checked on each timer tick and on config update) |
 
 When `inventories_diagnostics_enabled` is `false`, the timer goroutine starts but immediately returns without running any checks.
 

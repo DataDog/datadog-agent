@@ -1,12 +1,16 @@
+> **TL;DR:** `pkg/security/events` defines the shared event vocabulary for the CWS pipeline — including the `Event`/`EventSender` interfaces, `CustomEvent` for agent-generated telemetry, custom rule ID constants, and the token-bucket rate limiters that gate outbound security signals.
+
 # pkg/security/events
 
 ## Purpose
 
 `pkg/security/events` defines the types, constants, and interfaces used to represent, classify, rate-limit, and dispatch security events from the runtime security agent to the Datadog backend. It is the shared vocabulary for the event pipeline: the probe produces `model.Event` values; the rule engine matches them; this package provides the plumbing to send the results.
 
-## Key Elements
+## Key elements
 
-### `Event` interface and `EventSender` (`event.go`)
+### Key types
+
+#### `Event` interface and `EventSender` (`event.go`)
 
 ```go
 type Event interface {
@@ -24,7 +28,7 @@ type EventSender interface {
 
 `Event` is implemented by both `model.Event` (kernel-sourced events) and `CustomEvent` (agent-generated telemetry events). `EventSender` is implemented in `pkg/security/module` and routes events to the Datadog log intake.
 
-### `BackendEvent` and `AgentContext` (`event.go`)
+#### `BackendEvent` and `AgentContext` (`event.go`)
 
 JSON wrapper types for the wire format sent to the backend. `AgentContext` carries rule metadata (rule ID, version, policy name/version) plus agent context (OS, arch, kernel version, distribution). It is embedded in every outbound event.
 
@@ -47,7 +51,7 @@ type AgentContext struct {
 }
 ```
 
-### `CustomEvent` and `CustomEventCommonFields` (`custom.go`)
+#### `CustomEvent` and `CustomEventCommonFields` (`custom.go`)
 
 ```go
 type CustomEvent struct {
@@ -61,7 +65,9 @@ Agent-generated events (heartbeats, self-test results, anomaly detections, …) 
 
 `CustomEventCommonFields` embeds `Timestamp`, `Service` (`"runtime-security-agent"`), and `AgentContainerContext` (the agent's own container ID/start time). Call `FillCustomEventCommonFields(acc)` to populate them.
 
-### Custom rule ID constants (`custom.go`)
+### Key functions
+
+#### Custom rule ID constants (`custom.go`)
 
 | Constant | Value | Description |
 |----------|-------|-------------|
@@ -85,7 +91,9 @@ Agent-generated events (heartbeats, self-test results, anomaly detections, …) 
 
 `NewCustomRule(id, description, opts)` creates a minimal `*rules.Rule` with no SECL expression, used to send custom events on pseudo-rules.
 
-### Rate limiting (`rate_limiter.go`, `std_limiter.go`, `token_limiter.go`, `ad_limiter.go`)
+### Key interfaces
+
+#### Rate limiting (`rate_limiter.go`, `std_limiter.go`, `token_limiter.go`, `ad_limiter.go`)
 
 `RateLimiter` holds a map of `rule_id → Limiter` and gate-keeps all outbound events.
 
@@ -113,7 +121,9 @@ Default limits for custom rules:
 
 `RateLimiter.Apply(ruleSet, customRuleIDs)` rebuilds the limiter map when the rule set changes. `SendStats()` emits `datadog.security_agent.runtime.rate_limiter.drop` and `datadog.security_agent.runtime.rate_limiter.allow` counters.
 
-### JSON helpers (`json.go`, `event_easyjson.go`)
+### Configuration and build flags
+
+#### JSON helpers (`json.go`, `event_easyjson.go`)
 
 `EventMarshaler` interface:
 ```go

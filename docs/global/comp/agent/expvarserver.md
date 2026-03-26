@@ -1,3 +1,5 @@
+> **TL;DR:** `expvarserver` starts a localhost-only HTTP server exposing Go's standard `/debug/vars` endpoint so in-process counters and memory statistics can be inspected without a full Datadog pipeline.
+
 # comp/agent/expvarserver
 
 **Package:** `github.com/DataDog/datadog-agent/comp/agent/expvarserver`
@@ -11,7 +13,7 @@ The server is intentionally bound to `127.0.0.1` only, so it is not reachable fr
 
 ## Key Elements
 
-### Interface
+### Key interfaces
 
 ```go
 // def/component.go
@@ -20,13 +22,7 @@ type Component interface{}
 
 Like `autoexit`, the interface carries no callable methods. All behaviour is the side effect of starting and stopping the HTTP server as part of the fx lifecycle.
 
-### Configuration
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `expvar_port` | string | Port for the expvar HTTP server (e.g. `"5000"`) |
-
-### Implementation (`impl/expvarserver.go`)
+### Key functions
 
 `NewComponent` registers two lifecycle hooks:
 
@@ -39,9 +35,13 @@ The `expvar` package is imported as a blank import in the agent `run` command to
 _ "expvar"
 ```
 
-### FX wiring
-
 `expvarserverfx.Module()` wires `NewComponent` into the fx graph.
+
+### Configuration and build flags
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `expvar_port` | string | Port for the expvar HTTP server (e.g. `"5000"`) |
 
 ## Usage
 

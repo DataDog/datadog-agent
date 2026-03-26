@@ -1,3 +1,5 @@
+> **TL;DR:** Business logic for the Datadog Cluster Agent, centralising cluster-check dispatching, Kubernetes admission webhooks, pod/cluster autoscaling, and orchestrator metadata collection to reduce load on the Kubernetes API server.
+
 # pkg/clusteragent
 
 ## Purpose
@@ -14,6 +16,8 @@ The binary entry point is `cmd/cluster-agent`. This package provides the interna
 ---
 
 ## Key elements
+
+### Key types
 
 ### Root
 

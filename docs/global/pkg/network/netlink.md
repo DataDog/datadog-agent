@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/netlink` implements Linux Netlink-based connection tracking (conntrack) to resolve pre-NAT addresses for network connections that pass through DNAT rules such as Docker port mappings, iptables DNAT, or Kubernetes services.
+
 # pkg/network/netlink
 
 ## Purpose
@@ -8,7 +10,7 @@ Implements Linux Netlink-based connection tracking (conntrack) for NAT translati
 
 ## Key elements
 
-### Core types
+### Key types
 
 | Type | File | Description |
 |---|---|---|
@@ -22,7 +24,11 @@ Implements Linux Netlink-based connection tracking (conntrack) for NAT translati
 | `Socket` | `socket.go` | Optimised `netlink.Socket` implementation: avoids `MSG_PEEK`, uses a 32 KB pre-allocated receive buffer, and supports BPF filter attachment. |
 | `CircuitBreaker` | `circuit_breaker.go` | Rate-limiting guard using an EWMA. Trips when the event rate exceeds `maxEventsPerSec`; causes the Consumer to re-create the socket with a lower BPF sampling rate. |
 
-### Constructor functions
+### Key interfaces
+
+The `Conntracker` interface (in `conntracker.go`) exposes `GetTranslationForConn`, `DeleteTranslation`, `DumpCachedTable`, `Close`, and Prometheus `Describe`/`Collect`. Implemented by `realConntracker` (live, streaming Netlink events) and `noOpConntracker` (stub). The `Conntrack` interface (in `conntrack.go`) provides a single `Exists(*Con) (bool, error)` method for point lookups.
+
+### Key functions
 
 | Function | Description |
 |---|---|
@@ -32,15 +38,15 @@ Implements Linux Netlink-based connection tracking (conntrack) for NAT translati
 | `NewNoOpConntracker() Conntracker` | Returns a no-op implementation that always returns `nil` translations. |
 | `LoadNfConntrackKernelModule(cfg) error` | Sends a dummy Netlink request that side-effects loading the `nf_conntrack_netlink` kernel module. Called during system-probe startup. |
 
-### BPF sampling (`bpf_sampler.go`)
+#### BPF sampling (`bpf_sampler.go`)
 
 `GenerateBPFSampler(samplingRate float64) ([]bpf.RawInstruction, error)` generates a cBPF program that randomly drops `(1 - samplingRate)` of incoming Netlink messages using the kernel's `BPF_LD_W_ABS + ExtRand` extension. This is the mechanism used to stay within the configured `conntrack_rate_limit` without dropping the socket.
 
-### Debug helpers (`conntrack_debug.go`)
+#### Debug helpers (`conntrack_debug.go`)
 
 `DumpCachedTable` and `DumpHostTable` return `map[uint32][]DebugConntrackEntry` (keyed by network namespace inode) in a format matching `conntrack -L` output. Used by the agent flare and the `system-probe debug conntrack` CLI command.
 
-### Telemetry
+#### Telemetry
 
 All hot-path operations (gets, registers, unregisters, evictions) record latency histograms and counters under the `network_tracer__conntracker` Prometheus namespace. The Consumer tracks `enobufs`, `throttles`, `read_errors`, and `msg_errors`.
 
@@ -99,7 +105,7 @@ The `Debug` endpoints (`/debug/conntrack/cached`, `/debug/conntrack/host`) call 
 
 When `EnableConntrackAllNamespaces` is `true`, the Consumer uses `pkg/util/kernel/netns.GetNetNamespaces` to enumerate all network namespaces visible under `/proc` and opens a separate conntrack socket for each. This is required for Kubernetes node-local DNS and service-mesh environments where each pod has its own network namespace.
 
-## Configuration
+### Configuration and build flags
 
 Relevant fields from `pkg/network/config.Config`:
 

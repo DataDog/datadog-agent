@@ -1,3 +1,5 @@
+> **TL;DR:** Embeds a minimal OpenTelemetry Collector pipeline directly inside the Datadog Agent to receive OTLP telemetry over gRPC/HTTP and route it to Datadog-specific exporters without a standalone Collector process.
+
 # comp/otelcol/otlp — OTLP ingestion pipeline
 
 ## Purpose
@@ -16,7 +18,7 @@ The package requires the `otlp` build tag.
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Package | Description |
 |------|---------|-------------|
@@ -41,6 +43,10 @@ type PipelineConfig struct {
 }
 ```
 
+### Key interfaces
+
+`Pipeline` and `PipelineConfig` do not define a Go interface; they are concrete types used directly. The `Component` interface for this pipeline is provided by the enclosing `comp/otelcol/collector` component.
+
 ### Key functions
 
 | Function | Description |
@@ -52,7 +58,9 @@ type PipelineConfig struct {
 | `(*Pipeline).Stop()` | Shuts down the collector. |
 | `(*Pipeline).GetCollectorStatus()` | Returns a `CollectorStatus` with the current state string and any stored error. |
 
-### Embedded OTel components
+### Configuration and build flags
+
+#### Embedded OTel components
 
 The pipeline is assembled in `getComponents()`:
 

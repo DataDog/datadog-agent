@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/snmp` is a shared library of SNMP building blocks — credential types, session construction, OID walk helpers, and device-deduplication — consumed by the SNMP check, trap listener, scan manager, and CLI tools.
+
 # pkg/snmp — SNMP shared utilities
 
 ## Purpose
@@ -10,7 +12,9 @@ The package has **no external SNMP network logic of its own**; it is a library o
 
 ## Key elements
 
-### Root package (`pkg/snmp`)
+### Key types
+
+#### Root package (`pkg/snmp`)
 
 Parses and holds the SNMP autodiscovery (listener) configuration.
 
@@ -26,7 +30,9 @@ Parses and holds the SNMP autodiscovery (listener) configuration.
 | `Config.IsIPIgnored(ip)` | Returns true if `ip` is in `IgnoredIPAddresses`. |
 | `Authentication.BuildSNMPParams(deviceIP, port)` | Constructs a `*gosnmp.GoSNMP` ready to use. Infers the SNMP version from the fields (community → v2c, user → v3) and maps auth/priv protocol strings to gosnmp constants via `gosnmplib`. |
 
-### `gosnmplib/`
+### Key functions
+
+#### `gosnmplib/`
 
 Low-level helpers wrapping the `github.com/gosnmp/gosnmp` library.
 
@@ -47,7 +53,7 @@ Low-level helpers wrapping the `github.com/gosnmp/gosnmp` library.
 | `OIDRelation.IsAfter()` / `IsBefore()` | Convenience methods on `OIDRelation`. |
 | `NewConnectionError(err)` | Wraps a network error so callers can distinguish connection failures from protocol errors. |
 
-### `snmpintegration/`
+#### `snmpintegration/`
 
 Shared integration-level configuration types, consumed by both the SNMP check autodiscovery and the listener.
 
@@ -57,7 +63,7 @@ Shared integration-level configuration types, consumed by both the SNMP check au
 | `PingConfig` | ICMP ping settings bundled with a device: `Enabled`, `Interval`, `Timeout`, `Count`, and `Linux.UseRawSocket`. |
 | `PackedPingConfig` | A `PingConfig` that can unmarshal from either a YAML map or a JSON-encoded string (needed for autodiscovery template annotations). |
 
-### `snmpparse/`
+#### `snmpparse/`
 
 Utilities for extracting `SNMPConfig` values from the running agent (used by CLI tools such as `snmpwalk`).
 
@@ -70,7 +76,7 @@ Utilities for extracting `SNMPConfig` values from the running agent (used by CLI
 | `GetIPConfig(ip, configs)` | Finds the best `SNMPConfig` for a given IP: exact match first, then subnet containment. |
 | `GetParamsFromAgent(deviceIP, conf, client)` | One-call helper that retrieves the config for a device IP from the running agent, including namespace resolution. |
 
-### `devicededuper/`
+#### `devicededuper/`
 
 Prevents the listener from registering the same physical device twice when it has multiple IP addresses.
 
@@ -86,7 +92,11 @@ Prevents the listener from registering the same physical device twice when it ha
 | `ResetCounters()` | Resets all counters and the known-device list for the next discovery cycle. |
 | `IncrementIP(ip net.IP)` | Increments a `net.IP` in-place by 1; used by `initializeCounters` to walk subnets. |
 
-### `constants.go` / `utils/`
+### Configuration and build flags
+
+Configuration keys for the SNMP listener and autodiscovery are documented in the `## Configuration keys` section below. The package has no special build tags; all sub-packages compile unconditionally.
+
+#### `constants.go` / `utils/`
 
 Minor shared constants and utility functions (e.g. `firstNonEmpty`, `firstNonNil`).
 

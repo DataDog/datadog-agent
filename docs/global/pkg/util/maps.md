@@ -1,3 +1,5 @@
+> **TL;DR:** Provides generic, nil-safe functional helpers for transforming and filtering Go maps (key/value mapping, integer key casting, and predicate-based filtering).
+
 # pkg/util/maps
 
 **Import path:** `github.com/DataDog/datadog-agent/pkg/util/maps`
@@ -19,7 +21,7 @@ and predicate-based filtering, which the standard library does not provide.
 
 ## Key elements
 
-### Functions
+### Key functions
 
 | Function | Signature | Description |
 |----------|-----------|-------------|

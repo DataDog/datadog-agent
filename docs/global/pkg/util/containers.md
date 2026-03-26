@@ -1,3 +1,5 @@
+> **TL;DR:** Shared container identity, filtering, and metrics collection subsystem that provides canonical entity naming, regexp-based include/exclude filtering, an environment-variable allowlist, and a pluggable multi-backend provider that collects per-container CPU, memory, I/O, and network statistics from cgroups, Docker, containerd, CRI, kubelet, or ECS Fargate.
+
 # pkg/util/containers
 
 ## Purpose
@@ -43,7 +45,9 @@ The `metrics` sub-tree collects CPU, memory, I/O, network, and PID statistics fo
 
 ### Root package (`pkg/util/containers`)
 
-**Entity naming**
+#### Key types
+
+**Container filtering types**
 
 | Symbol | Description |
 |---|---|
@@ -53,8 +57,6 @@ The `metrics` sub-tree collects CPU, memory, I/O, network, and PID statistics fo
 | `BuildEntityName(runtime, id)` | Builds `"<runtime>://<id>"` |
 | `SplitEntityName(name)` | Splits a full entity name back into runtime and ID |
 | `ShortContainerID(id)` | Returns first 12 characters of a container ID |
-
-**Container filtering**
 
 ```go
 type FilterType string
@@ -81,7 +83,22 @@ Each filter entry is a string of the form `"image:<regex>"`, `"name:<regex>"`, o
 
 `Filter.GetResult()` returns a `workloadfilter.Result` (`Included`, `Excluded`, or `Unknown`). `Filter.IsExcluded()` is a convenience wrapper.
 
-Key constructors and helpers:
+**`EnvFilter`** — environment variable allowlist type. `EnvVarFilterFromConfig()` (singleton) merges `docker_env_as_tags` and `container_env_as_tags` config maps with a built-in allowlist. Default allowed variables include Datadog unified service tagging vars (`DD_ENV`, `DD_SERVICE`, `DD_VERSION`), OTEL vars, ECS/Fargate metadata URIs, Nomad job info, and Chronos job info.
+
+#### Key functions
+
+**Entity naming**
+
+| Symbol | Description |
+|---|---|
+| `ContainerEntityName` | `"container_id"` — the canonical entity-name prefix |
+| `ContainerEntityPrefix` | `"container_id://"` — ready-to-use prefix string |
+| `EntitySeparator` | `"://"` |
+| `BuildEntityName(runtime, id)` | Builds `"<runtime>://<id>"` |
+| `SplitEntityName(name)` | Splits a full entity name back into runtime and ID |
+| `ShortContainerID(id)` | Returns first 12 characters of a container ID |
+
+**Filter constructors and helpers**
 
 | Function | Description |
 |---|---|
@@ -94,18 +111,17 @@ Key constructors and helpers:
 **Environment variable allowlist**
 
 ```go
-type EnvFilter struct { ... }
 func EnvVarFilterFromConfig() EnvFilter
 func (f EnvFilter) IsIncluded(envVarName string) bool
 ```
-
-`EnvVarFilterFromConfig()` (singleton) merges `docker_env_as_tags` and `container_env_as_tags` config maps with a built-in allowlist. Default allowed variables include Datadog unified service tagging vars (`DD_ENV`, `DD_SERVICE`, `DD_VERSION`), OTEL vars, ECS/Fargate metadata URIs, Nomad job info, and Chronos job info.
 
 ### Metrics sub-system (`pkg/util/containers/metrics`)
 
 The `metrics` package is a thin facade. Import it to pull all collectors into the binary via side-effect imports; use `metrics.GetProvider(wmeta)` (or the `provider` package directly) for the actual API.
 
-#### Provider and registry (`metrics/provider`)
+#### Key interfaces
+
+**Provider and registry (`metrics/provider`)**
 
 **`Provider` interface**
 
@@ -225,7 +241,7 @@ func (c *Cache) Store(now time.Time, key string, value interface{}, err error)
 
 Pass `cacheValidity = 0` to bypass the cache. The cache is GC'd (map replaced) every `gcInterval`.
 
-#### Collector build tags
+#### Configuration and build flags
 
 | Collector package | Build tag |
 |---|---|

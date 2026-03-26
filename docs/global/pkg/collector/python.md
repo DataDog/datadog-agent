@@ -1,3 +1,5 @@
+> **TL;DR:** Embeds a CPython 3 interpreter inside the agent process via the rtloader CGo bridge, enabling Python-based integration checks to run alongside Go checks through the same loader and sender pipeline.
+
 # pkg/collector/python
 
 ## Purpose
@@ -7,6 +9,8 @@
 All Python checks—anything in `datadog_checks.*` wheels or in custom `conf.d/` check directories—pass through this package. Without it, only native Go checks are available.
 
 ## Key elements
+
+### Configuration and build flags
 
 ### Build tags
 
@@ -44,6 +48,8 @@ During `Initialize`, Go functions are registered as C callbacks so that Python c
 | `tagger` | `tagger.go` | `get_tags` |
 | `containers` | `containers.go` | `is_excluded` |
 | `kubeutil` | `kubeutil.go` | `get_connection_info` |
+
+### Key types
 
 ### PythonCheckLoader (`loader.go`)
 

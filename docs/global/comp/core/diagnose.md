@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/diagnose` runs focused health-check suites (connectivity, port conflicts, firewall, check execution) against a live agent and reports pass/fail/warning results via CLI, a `POST /diagnose` IPC endpoint, and a `diagnose.log` entry in every flare.
+
 # comp/core/diagnose
 
 ## Purpose
@@ -23,7 +25,9 @@ The output of `datadog-agent diagnose` feeds this component. Results are availab
 
 ## Key Elements
 
-### Component interface
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -39,7 +43,9 @@ type Component interface {
 
 `format` is `"text"` or `"json"`.
 
-### Available suites
+### Key types
+
+#### Available suites
 
 Suites must be declared in `AllSuites` before registration:
 
@@ -53,7 +59,7 @@ Suites must be declared in `AllSuites` before registration:
 | `FirewallScan` | `firewall-scan` | Outbound firewall rules |
 | `HealthPlatformIssues` | `health-issues` | Health platform status |
 
-### Global Catalog
+#### Global Catalog
 
 Suites are registered into a process-global singleton via `GetCatalog().Register`:
 
@@ -66,7 +72,7 @@ catalog.Register(diagnose.CoreEndpointsConnectivity, func(cfg diagnose.Config) [
 
 `Register` panics if the suite name is not in `AllSuites`. Only one function per suite name is allowed (silently ignored on duplicate for the metadata catalog `RegisterMetadataAvail`).
 
-### Config
+#### Config
 
 ```go
 type Config struct {
@@ -78,7 +84,7 @@ type Config struct {
 
 `Include`/`Exclude` are compiled as regular expressions and matched against suite names. If both are set, a suite must match `Include` AND not match `Exclude`.
 
-### Diagnosis and Result types
+#### Diagnosis and Result types
 
 ```go
 type Diagnosis struct {
@@ -102,7 +108,7 @@ type Result struct {
 
 `Diagnosis.MarshalJSON` adds a `connectivity_result` string field alongside the numeric `result` field for cross-language consumers (Python checks, rtloader).
 
-### Status constants
+#### Status constants
 
 ```go
 DiagnosisSuccess         Status = 0
@@ -113,7 +119,9 @@ DiagnosisUnexpectedError        = 3
 
 The numeric values are shared with Python (`integrations-core`) and the rtloader C header. Do not renumber them.
 
-### FX Module
+### Configuration and build flags
+
+#### FX Module
 
 ```go
 // comp/core/diagnose/fx
@@ -122,7 +130,7 @@ func Module() fxutil.Module
 
 Wires `diagnoseimpl.NewComponent` and exposes an optional `diagnose.Component` binding (the component is optional so agents that don't need diagnose can omit it without breaking the FX graph).
 
-### What the implementation provides
+#### What the implementation provides
 
 `diagnoseimpl.NewComponent` returns a `Provides` struct with:
 - `Comp` — the `diagnose.Component` implementation.

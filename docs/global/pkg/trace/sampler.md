@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/sampler` implements all agent-side sampling strategies — priority, errors, rare, and probabilistic — each voting independently to keep or drop trace chunks, while continuously publishing per-service rates back to tracers for closed-loop feedback.
+
 # pkg/trace/sampler
 
 ## Purpose

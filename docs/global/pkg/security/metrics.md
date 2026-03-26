@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/metrics` is the central registry of all CWS statsd metric name constants and tag constants, ensuring a single source of truth for metric naming across every `pkg/security` sub-package.
+
 # pkg/security/metrics
 
 ## Purpose
@@ -6,7 +8,15 @@ Central registry of all CWS (Cloud Workload Security) metric name constants and 
 
 ## Key elements
 
-### Metric prefixes
+### Key types
+
+#### `ITMetric`
+
+`ITMetric` is a struct (`Subsystem`, `Name`) used with Prometheus-style internal telemetry (`pkg/telemetry`). Created by `newITRuntimeMetric(subsystem, name)`. Helper constructors `NewITCounter` and `NewITGauge` wrap `telemetry.NewCounter` / `telemetry.NewGauge`.
+
+### Key functions
+
+#### Metric prefixes
 
 | Variable | Value |
 |----------|-------|
@@ -15,11 +25,7 @@ Central registry of all CWS (Cloud Workload Security) metric name constants and 
 
 Metric name variables are constructed by `newRuntimeMetric(suffix)` or `newAgentMetric(suffix)` which concatenate the appropriate prefix with the suffix.
 
-### Internal-telemetry metrics (`ITMetric`)
-
-`ITMetric` is a struct (`Subsystem`, `Name`) used with Prometheus-style internal telemetry (`pkg/telemetry`). Created by `newITRuntimeMetric(subsystem, name)`. Helper constructors `NewITCounter` and `NewITGauge` (in `compat_telemetry.go`) wrap `telemetry.NewCounter` / `telemetry.NewGauge`.
-
-### Metric groupings (selected)
+#### Metric groupings (selected)
 
 | Group | Example constants | Typical tags |
 |-------|-------------------|--------------|
@@ -38,7 +44,9 @@ Metric name variables are constructed by `newRuntimeMetric(suffix)` or `newAgent
 | Security agent | `MetricSecurityAgentRuntimeRunning`, `MetricSecurityAgentRuntimeContainersRunning` | — |
 | Windows-specific | `MetricWindowsETWEventsLost`, `MetricWindowsFileResolverNew`, etc. | — |
 
-### Tag constants
+### Configuration and build flags
+
+#### Tag constants
 
 Pre-built tag strings used when emitting the metrics above:
 
@@ -47,7 +55,7 @@ Pre-built tag strings used when emitting the metrics above:
 - `ProcessSourceEventTags`, `ProcessSourceKernelMapsTags`, `ProcessSourceProcTags`
 - `ReparentCallpathSetProcessContext`, `ReparentCallpathDoExit`, etc.
 
-### Windows-specific metrics (`metrics_windows.go`)
+#### Windows-specific metrics (`metrics_windows.go`)
 
 Compiled only on Windows. Covers ETW buffer stats, file/registry resolver sizes, process start/stop notifications, and approver rejects. All use the `datadog.runtime_security.windows.*` namespace.
 

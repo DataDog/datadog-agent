@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/senderhelper` is a test-only fx options bundle that wires a `MockSender` as the default demultiplexer sender, eliminating boilerplate from SNMP traps unit tests that need to assert on emitted metrics or event platform events.
+
 # comp/snmptraps/senderhelper
 
 ## Purpose
@@ -8,7 +10,9 @@ The package exists because `sender.Sender` is not yet exposed as a standalone fx
 
 ## Key elements
 
-### `Opts`
+### Key types
+
+#### `Opts`
 
 ```go
 var Opts = fx.Options(
@@ -37,7 +41,9 @@ var Opts = fx.Options(
 
 The `fx.Decorate` call replaces the default sender in the mock demultiplexer with the mock sender, so calls to `demux.GetDefaultSender()` inside the forwarder return the mock.
 
-### What it bundles
+### Key functions
+
+**What `Opts` bundles**
 
 - `defaultforwarder.MockModule()` — no-op forwarder, avoids real HTTP connections
 - `demultiplexerimpl.MockModule()` — in-memory demultiplexer mock

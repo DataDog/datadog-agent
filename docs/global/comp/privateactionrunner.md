@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/privateactionrunner/impl` is the fx wiring layer for the Private Action Runner, handling lifecycle, self-enrollment, and configuration persistence while delegating action execution to `pkg/privateactionrunner`.
+
 # comp/privateactionrunner/impl
 
 **Package:** `github.com/DataDog/datadog-agent/comp/privateactionrunner/impl`
@@ -11,7 +13,7 @@ The component is the entry point used when the agent binary starts the PAR. It d
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 ```go
 // comp/privateactionrunner/def/component.go
@@ -22,9 +24,11 @@ var ErrNotEnabled = errors.New("private action runner is not enabled")
 
 The `Component` interface is intentionally empty. The runner is started as a side effect via the fx lifecycle hook, not by callers holding a reference to the interface. `ErrNotEnabled` is returned by `NewComponent` when the feature flag is off; fx treats this as an optional component and continues startup.
 
-### Struct: `PrivateActionRunner`
+### Key types
 
-Central struct created by `NewComponent` and `NewPrivateActionRunner`. Holds:
+**`PrivateActionRunner`** struct:
+
+Central struct created by `NewComponent` and `NewPrivateActionRunner`:
 
 | Field | Purpose |
 |---|---|
@@ -35,7 +39,7 @@ Central struct created by `NewComponent` and `NewPrivateActionRunner`. Holds:
 | `commonRunner` | `*runners.CommonRunner` — the OPMS health-check loop |
 | `startChan` / `startOnce` | Ensure `Start` runs exactly once and allow `Stop` to wait for startup to complete before tearing down |
 
-### Configuration keys
+### Configuration and build flags
 
 | Key | Purpose |
 |---|---|
@@ -44,7 +48,9 @@ Central struct created by `NewComponent` and `NewPrivateActionRunner`. Holds:
 | `private_action_runner.private_key` | ECDSA private key PEM (read from config or written after enrollment) |
 | `private_action_runner.urn` | Runner URN `urn:dd:runner:<region>:<org>:<id>` (read or written after enrollment) |
 
-### `NewComponent(reqs Requires) (Provides, error)`
+### Key functions
+
+#### `NewComponent(reqs Requires) (Provides, error)`
 
 The fx constructor. Dependencies injected:
 

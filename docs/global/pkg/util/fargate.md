@@ -1,3 +1,5 @@
+> **TL;DR:** Fargate sidecar detection and hostname resolution package that answers whether the agent is in sidecar mode and what hostname to use, supporting ECS Fargate, EKS Fargate, and ECS Managed Instances orchestrator variants.
+
 # pkg/util/fargate
 
 ## Purpose
@@ -11,14 +13,14 @@ Detection relies entirely on feature flags set by `pkg/config/env` (e.g. `env.EC
 
 ## Key elements
 
-### Types
+### Key types
 
 | Symbol | Description |
 |--------|-------------|
 | `OrchestratorName` (`string`) | Discriminated string type for the detected orchestrator. |
 | `ECS`, `EKS`, `ECSManagedInstances`, `Unknown` | `OrchestratorName` constants covering every supported Fargate variant. |
 
-### Functions
+### Key functions
 
 | Symbol | Build tag | Description |
 |--------|-----------|-------------|
@@ -27,7 +29,7 @@ Detection relies entirely on feature flags set by `pkg/config/env` (e.g. `env.EC
 | `GetEKSFargateNodename() (string, error)` | — | Reads `kubernetes_kubelet_nodename` from agent config (injected via `DD_KUBERNETES_KUBELET_NODENAME` using the Kubernetes downward API). Returns an error with a descriptive message if the variable is missing. |
 | `GetFargateHost(ctx) (string, error)` | `fargateprocess` | Returns the hostname the **process-agent** should use. Routes to the appropriate helper based on `GetOrchestrator()`. Without the `fargateprocess` tag the function returns `("", nil)` as a no-op. |
 
-### Hostname conventions (fargateprocess tag only)
+**Hostname conventions (fargateprocess tag only)**
 
 | Orchestrator | Hostname format |
 |--------------|----------------|
@@ -35,7 +37,7 @@ Detection relies entirely on feature flags set by `pkg/config/env` (e.g. `env.EC
 | `EKS` | value of `kubernetes_kubelet_nodename` |
 | `ECSManagedInstances` | `sidecar_host:<TaskARN>` (from ECS metadata v4) |
 
-### Build tags
+### Configuration and build flags
 
 | Tag | Effect |
 |-----|--------|

@@ -1,3 +1,5 @@
+> **TL;DR:** Encodes agent metrics, sketches, events, service checks, and metadata into compressed, size-chunked wire payloads and routes them through the forwarder — sitting between the aggregator and the forwarder with streaming JSON and protobuf encoding paths.
+
 # pkg/serializer
 
 ## Purpose
@@ -13,6 +15,8 @@ The package also owns the streaming JSON path for large iterating workloads (ser
 checks) and the protobuf path for sketches and orchestrator manifests.
 
 ## Key elements
+
+### Key interfaces
 
 ### `MetricSerializer` interface
 
@@ -35,6 +39,8 @@ type MetricSerializer interface {
 
 This is the primary interface consumed by the aggregator. The `Serializer` struct (see below)
 implements it. Test code uses the mock in `pkg/serializer/mocks`.
+
+### Key types
 
 ### `Serializer` struct
 
@@ -170,6 +176,8 @@ Key expvars:
 | `jsonstream/ItemDrops` | Items silently dropped (too large or unexpected error) |
 | `jsonstream/PayloadFulls` | Number of times a new compressed chunk had to be opened |
 | `jsonstream/CompressorLocks` | (gauge) goroutines currently waiting for the shared compressor buffer |
+
+### Configuration and build flags
 
 ### Relevant config keys
 

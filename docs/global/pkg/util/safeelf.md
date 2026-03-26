@@ -1,3 +1,5 @@
+> **TL;DR:** Provides panic-safe wrappers around Go's standard ELF parser and re-exports all ELF constants, serving as the canonical and linter-enforced import point for ELF inspection across the agent's eBPF and profiling subsystems.
+
 # pkg/util/safeelf
 
 ## Purpose

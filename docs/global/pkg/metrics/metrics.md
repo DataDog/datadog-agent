@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/metrics` defines the core metric data model — every type from raw `MetricSample` through aggregated `Serie` to iterable sinks — shared between producers (checks, DogStatsD) and consumers (aggregator, serializer, forwarder).
+
 # pkg/metrics
 
 ## Purpose
@@ -22,7 +24,9 @@ graph.
 
 ## Key elements
 
-### MetricType and MetricSample
+### Key types
+
+#### MetricType and MetricSample
 
 `MetricType` (an `int` constant set) enumerates every aggregation type the agent understands:
 
@@ -64,7 +68,9 @@ type MetricSample struct {
 `MetricSample` implements the `MetricSampleContext` interface, which the aggregator uses to extract
 identity information (name, host, tags, source) without knowing the concrete type.
 
-### MetricSampleContext interface
+### Key interfaces
+
+#### MetricSampleContext interface
 
 ```go
 type MetricSampleContext interface {
@@ -80,7 +86,7 @@ type MetricSampleContext interface {
 Both `MetricSample` and `HistogramBucket` implement this interface, allowing the aggregator's
 context resolver to handle them uniformly.
 
-### Metric interface (internal)
+#### Metric interface (internal)
 
 ```go
 type Metric interface {
@@ -95,7 +101,9 @@ Each concrete aggregation type (`Gauge`, `Rate`, `Count`, `MonotonicCount`, `Cou
 `isStateful()` returns `true` for types that must remember their previous value across flushes
 (e.g. `Rate`, `MonotonicCount`).
 
-### ContextMetrics and CheckMetrics
+### Key functions
+
+#### ContextMetrics and CheckMetrics
 
 `ContextMetrics` is a `map[ckey.ContextKey]Metric` that holds all active metrics keyed by their
 context. It exposes:
@@ -111,7 +119,7 @@ context. It exposes:
 - Stateful metrics (e.g. `Rate`) are kept for a configurable `statefulTimeout` after `Expire()`
   to handle checks that emit metrics intermittently, and are purged by `RemoveExpired()`.
 
-### Serie and output types
+#### Serie and output types
 
 `Serie` is the wire-ready timeseries struct serialised to the Datadog metrics API:
 
@@ -138,7 +146,7 @@ integer enum in the agent-payload protobuf.
 `DistributionType`). The `SketchData` interface is satisfied by `*quantile.Sketch` and drives the
 serialiser.
 
-### Iterable sinks
+#### Iterable sinks
 
 For memory-efficient serialisation, the package provides sink/source pairs:
 
@@ -150,7 +158,7 @@ For memory-efficient serialisation, the package provides sink/source pairs:
 `IterableSeries` (and its sibling `IterableSketches`) let the serialiser stream series to the
 forwarder without buffering all of them in memory at once.
 
-### MetricSamplePool
+#### MetricSamplePool
 
 ```go
 type MetricSamplePool struct { ... }
@@ -162,14 +170,14 @@ func (m *MetricSamplePool) PutBatch(batch MetricSampleBatch)
 A `sync.Pool`-backed pool of `MetricSampleBatch` slices. DogStatsD uses this to reuse batch
 allocations across the high-throughput UDP/UDS receive path.
 
-### MetricSource
+#### MetricSource
 
 `MetricSource` (`uint16`) is a large enum that records how a metric entered the agent (e.g.
 `MetricSourceDogstatsd`, `MetricSourceKubernetesStateCore`, `MetricSourceInternal`, per-integration
 constants). It is attached to every `MetricSample` and propagated to `Serie` / `SketchSeries` for
 use by the v2 API serialiser to populate origin metadata.
 
-### HistogramBucket
+#### HistogramBucket
 
 ```go
 type HistogramBucket struct {
@@ -185,6 +193,10 @@ type HistogramBucket struct {
 
 Represents a single Prometheus/OpenMetrics histogram bucket coming from a check. Implements
 `MetricSampleContext` so the aggregator can handle it through the same path as `MetricSample`.
+
+### Configuration and build flags
+
+`pkg/metrics` lives in its own Go module (`pkg/metrics/go.mod`). There are no dedicated configuration keys; behavior is controlled by the `MetricType` passed with each `MetricSample` and by aggregator-level config options (e.g. histogram percentiles in `datadog.yaml`).
 
 ### Sub-packages
 

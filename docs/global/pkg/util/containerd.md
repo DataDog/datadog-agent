@@ -1,3 +1,5 @@
+> **TL;DR:** Agent-specific wrapper around the containerd gRPC client that provides automatic retry, namespace-scoped container and image queries, OCI spec parsing, event subscription, and image mounting for SBOM scanning, along with a mock client for unit testing.
+
 # pkg/util/containerd
 
 ## Purpose
@@ -16,6 +18,22 @@
 All files in the package require the `containerd` build tag. The package is not compiled into agent binaries that do not include containerd support.
 
 ## Key elements
+
+### Key types
+
+**`ContainerdUtil`** struct — the concrete implementation of `ContainerdItf`. Not instantiated directly; use `NewContainerdUtil()`.
+
+**`MockedContainerdClient`** — implements `ContainerdItf` via function fields for unit testing. See `### Fake client` below.
+
+**Constants**
+
+| Constant | Value | Use |
+|---|---|---|
+| `DefaultAllowedSpecMaxSize` | `2 * 1024 * 1024` | Recommended `maxSize` argument to `Spec()` |
+
+**Sentinel error**: `ErrSpecTooLarge` — returned when the OCI spec exceeds `maxSize`.
+
+### Key interfaces
 
 ### `ContainerdItf` interface (`containerd_util.go`)
 
@@ -73,17 +91,7 @@ func NewContainerdUtil() (ContainerdItf, error)
 
 The default socket path is `/var/run/containerd/containerd.sock`. It can be overridden via `cri_socket_path`.
 
-### Constants and errors
-
-```go
-const DefaultAllowedSpecMaxSize = 2 * 1024 * 1024  // recommended max for Spec()
-
-var ErrSpecTooLarge = errors.New("Container spec is too large")
-```
-
-`Spec` parses the OCI spec embedded in `containers.Container.Spec`; callers should pass `DefaultAllowedSpecMaxSize` as `maxSize` unless they have a specific reason to allow larger specs.
-
-### Helper functions
+### Key functions
 
 ```go
 func EnvVarsFromSpec(spec *oci.Spec, filter func(string) bool) (map[string]string, error)
@@ -116,7 +124,9 @@ func FiltersWithNamespaces(filters []string) []string
 
 `FiltersWithNamespaces` rewrites containerd event filter expressions (e.g. `topic=="/container/create"`) to add `namespace=="ns1"` (allowlist) or `namespace!="ns1"` (denylist) clauses, enabling namespace-scoped event subscriptions.
 
-### Config keys
+### Configuration and build flags
+
+All files in the package require the `containerd` build tag.
 
 | Key | Description |
 |---|---|

@@ -1,3 +1,5 @@
+> **TL;DR:** Provides a dedicated `DefaultForwarder` for network connection check payloads (CNM/USM), isolated from other process-agent forwarding so the connections pipeline can be independently started, stopped, and configured.
+
 # comp/forwarder/connectionsforwarder — Connections Forwarder Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def`
@@ -19,6 +21,10 @@ The component owns the full lifecycle of its inner `DefaultForwarder` (start on 
 | `fx/` | `Module()` wiring; also provides the component as optional via `ProvideOptional` |
 | `mock/` | `Mock()` — returns a `defaultforwarder.MockedForwarder` for tests |
 
+## Key Elements
+
+### Key interfaces
+
 ## Component interface
 
 ```go
@@ -29,6 +35,8 @@ type Component interface {
 
 The concrete implementation delegates directly to `defaultforwarder.DefaultForwarder.SubmitConnectionChecks`, which posts each `BytesPayload` to the `/api/v1/connections` endpoint with retry and queue support.
 
+### Key types
+
 ## Configuration
 
 `NewComponent` reads the following config keys to construct the inner forwarder:
@@ -38,6 +46,8 @@ The concrete implementation delegates directly to `defaultforwarder.DefaultForwa
 | `process_config.process_queue_bytes` | Max in-flight retry queue size in bytes (default: `DefaultProcessQueueBytes`) |
 
 Endpoints are resolved via `pkg/process/runner/endpoint.GetAPIEndpoints`, which reads `process_config.process_dd_url` / `process_config.endpoints`. API key checking is disabled on the forwarder options (`DisableAPIKeyChecking: true`) because key validation is handled upstream.
+
+### Key functions
 
 ## fx wiring
 
@@ -58,6 +68,8 @@ connectionsforwarder.Mock(t)
 - `config.Component` — reads queue size and endpoint configuration
 - `log.Component` — passed to the forwarder for internal logging
 - `secrets.Component` — used for secret resolution in forwarder options
+
+### Configuration and build flags
 
 ## Usage patterns
 

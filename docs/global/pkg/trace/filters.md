@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/trace/filters` provides two complementary data-control primitives: `Blacklister` drops entire traces whose resource names match deny-list regex patterns, and `Replacer` scrubs sensitive tag values in-place via configurable regex replacement rules.
+
 # pkg/trace/filters
 
 ## Purpose

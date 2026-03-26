@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/syntheticstestscheduler` runs Datadog Synthetics network tests (TCP, UDP, ICMP) directly from the agent host, receiving test configurations via Remote Config and forwarding results to the Datadog backend via the Event Platform.
+
 # comp/syntheticstestscheduler
 
 **Team:** synthetics-executing
@@ -13,17 +15,18 @@ The component is disabled unless `synthetics.collector.enabled: true` is set.
 
 ## Key Elements
 
-### Component interface
-
-`comp/syntheticstestscheduler/def/component.go`
+### Key interfaces
 
 ```go
+// comp/syntheticstestscheduler/def/component.go
 type Component interface{}
 ```
 
 The public interface is intentionally empty. The component self-registers its RC listener via `Provides.RCListener` and manages its own goroutine lifecycle.
 
-### `Requires` / `Provides` (impl)
+### Key types
+
+**`Requires` / `Provides`** (impl):
 
 | Field | Type | Description |
 |---|---|---|
@@ -33,7 +36,7 @@ The public interface is intentionally empty. The component self-registers its RC
 | `Requires.Statsd` | `statsd.ClientInterface` | Emit internal telemetry (checks received, errors, etc.) |
 | `Provides.RCListener` | `rctypes.ListenerProvider` | Registers `onConfigUpdate` for `state.ProductSyntheticsTest` |
 
-### Test configuration: `SyntheticsTestConfig`
+**Test configuration: `SyntheticsTestConfig`**
 
 `comp/syntheticstestscheduler/common/data.go`
 
@@ -55,7 +58,7 @@ type SyntheticsTestConfig struct {
 
 `ConfigRequest` is a sealed interface with three concrete types (`UDPConfigRequest`, `TCPConfigRequest`, `ICMPConfigRequest`). Custom JSON unmarshalling uses the `subtype` field to select the concrete type.
 
-### Assertions
+**Assertions**
 
 Each test carries a list of `Assertion` objects evaluated after the probe completes. Supported types:
 
@@ -70,9 +73,9 @@ Operators: `is`, `isNot`, `moreThan`, `moreThanOrEqual`, `lessThan`, `lessThanOr
 
 A test result is marked `"failed"` if any assertion is not satisfied, if the traceroute itself errors, or if 100% packet loss is observed and no explicit assertion expects it.
 
-### Concurrency model
+### Key functions
 
-The scheduler has three concurrent goroutines:
+**Concurrency model** — the scheduler has three concurrent goroutines:
 
 1. **Flush loop** (`flushLoop`): Ticks at `synthetics.collector.flush_interval`. On each tick, iterates the running test table under a write lock, enqueues tests whose `nextRun` has passed into a buffered channel (`syntheticsTestProcessingChan`, capacity 100), and advances `nextRun` by the test's configured interval.
 
@@ -80,7 +83,7 @@ The scheduler has three concurrent goroutines:
 
 3. **On-demand poller** (`onDemandPoller`): Polls `https://intake.synthetics.<site>/api/unstable/synthetics/agents/tests` every 2 seconds to retrieve tests that should run immediately (triggered from the Datadog UI). These are injected into `onDemandPoller.TestsChan` and consumed by workers with higher priority than scheduled tests.
 
-### RC update handling
+**RC update handling**
 
 When RC pushes a new `state.ProductSyntheticsTest` configuration:
 - New tests are added to the running table with `nextRun = now`.
@@ -89,7 +92,7 @@ When RC pushes a new `state.ProductSyntheticsTest` configuration:
 
 An empty RC update is not a special-case reset (unlike `filterlist`); tests are simply removed if not in the new set.
 
-### Configuration keys
+### Configuration and build flags
 
 | Key | Default | Description |
 |---|---|---|

@@ -1,3 +1,5 @@
+> **TL;DR:** Central hub between metric producers (checks, DogStatsD, APM) and the serialization/forwarding pipeline, owning multiple samplers and fanning samples out to the default, orchestrator, and event platform forwarders.
+
 # comp/aggregator/demultiplexer — Metric Demultiplexer Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer`
@@ -23,6 +25,10 @@ It also provides the `SenderManager` interface used by checks (`Sender`) so that
 | `pkg/aggregator/` | `AgentDemultiplexer`, `Demultiplexer`, `DemultiplexerWithAggregator`, `BufferedAggregator`, time samplers |
 
 The component struct in `demultiplexerimpl` is a thin wrapper over `aggregator.AgentDemultiplexer` from `pkg/aggregator`. The heavy logic (flush loops, bucket aggregation, serialization) lives in `pkg/aggregator`.
+
+## Key Elements
+
+### Key interfaces
 
 ## Component interface
 
@@ -70,6 +76,8 @@ type SenderManager interface {
 
 The `Sender` returned to each check exposes `Gauge`, `Rate`, `Count`, `Histogram`, `Distribution`, `ServiceCheck`, `Event`, `EventPlatformEvent`, and related methods. Calling `Commit()` on a `Sender` moves the buffered samples into the appropriate time or check sampler.
 
+### Key types
+
 ## fx wiring
 
 ```go
@@ -104,6 +112,8 @@ In addition to `demultiplexer.Component`, the constructor provides:
 | `hostnameinterface.Component` | Hostname attached to all metrics |
 | `filterlist.Component` | Metric filter list applied inside time samplers |
 
+### Key functions
+
 ## Params
 
 ```go
@@ -125,6 +135,8 @@ demultiplexerimpl.NewDefaultParams(
     demultiplexerimpl.WithFlushInterval(10 * time.Second),
 )
 ```
+
+### Configuration and build flags
 
 ## AgentDemultiplexerOptions
 

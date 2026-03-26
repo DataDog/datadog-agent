@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/client` defines the `Destination` abstraction for log transport and provides two concrete implementations — an async HTTP batching client and a persistent TCP client — along with the `DestinationsContext` that coordinates graceful shutdown across all active connections.
+
 # pkg/logs/client
 
 ## Purpose
@@ -6,7 +8,9 @@ Defines the shared abstractions for log transport destinations and provides two 
 
 ## Key Elements
 
-### Base package (`pkg/logs/client`)
+### Key interfaces
+
+#### Base package (`pkg/logs/client`)
 
 | Symbol | Description |
 |---|---|
@@ -16,7 +20,9 @@ Defines the shared abstractions for log transport destinations and provides two 
 | `DestinationMetadata` | Carries telemetry labels (`TelemetryName`, `MonitorTag`, `EvpCategory`) for a destination. Created with `NewDestinationMetadata(componentName, instanceID, kind, endpointID, evpCategory)`. Use `NewNoopDestinationMetadata()` for destinations that should not emit telemetry (e.g., test helpers, TCP). |
 | `RetryableError` | Wraps an error to signal that the send can be retried (network errors, HTTP 5xx). Non-retryable errors (HTTP 4xx) are returned as plain errors and cause payload drops. |
 
-### HTTP sub-package (`pkg/logs/client/http`)
+### Key types
+
+#### HTTP sub-package (`pkg/logs/client/http`)
 
 | Symbol | Description |
 |---|---|
@@ -32,7 +38,7 @@ HTTP requests include the following headers: `DD-API-KEY`, `Content-Type`, `User
 
 **Retry/backoff behavior:** 4xx responses (except `413`) are permanent drops. Network errors and 5xx responses are wrapped in `RetryableError` and retried with exponential backoff governed by `endpoint.BackoffFactor/Base/Max/RecoveryInterval/RecoveryReset`.
 
-### TCP sub-package (`pkg/logs/client/tcp`)
+#### TCP sub-package (`pkg/logs/client/tcp`)
 
 | Symbol | Description |
 |---|---|
@@ -42,6 +48,26 @@ HTTP requests include the following headers: `DD-API-KEY`, `Content-Type`, `User
 | `Delimiter` interface | Two implementations: `lengthPrefixDelimiter` (4-byte big-endian length header) and `lineBreakDelimiter` (appends `\n`). Created via `NewDelimiter(useProto bool)`. |
 | `prefixer` | Prepends the API key and a space to each payload before framing. |
 | `CheckConnectivityDiagnose(endpoint, timeoutSeconds)` | Attempts a TCP dial and returns the address + error for diagnostic purposes. |
+
+### Key functions
+
+#### `CheckConnectivity` / `CheckConnectivityDiagnose`
+
+| Function | Package | Description |
+|---|---|---|
+| `CheckConnectivity(endpoint, cfg)` | `http/` | Sends an empty JSON payload with a 5 s timeout to validate connectivity at agent startup. Returns a `config.HTTPConnectivity` bool. |
+| `CheckConnectivityDiagnose(endpoint, cfg)` | `http/` | Like `CheckConnectivity` but uses the configured `logs_config.http_timeout` and returns the URL + error for diagnostic reporting. |
+| `CheckConnectivityDiagnose(endpoint, timeoutSeconds)` | `tcp/` | Attempts a TCP dial and returns the address + error for diagnostic purposes. |
+
+### Configuration and build flags
+
+| Config key | Description |
+|---|---|
+| `endpoint.BackoffFactor` / `BackoffBase` / `BackoffMax` | HTTP exponential retry backoff parameters. |
+| `endpoint.RecoveryInterval` / `RecoveryReset` | HTTP retry-state recovery settings. |
+| `endpoint.ConnectionResetInterval` | TCP: if set, forces a periodic reconnect of the TCP connection. |
+| `endpoint.ExtraHTTPHeaders` | Additional HTTP headers sent with every log request. |
+| `logs_config.http_timeout` | HTTP request timeout used by `CheckConnectivityDiagnose`. |
 
 ## Usage
 

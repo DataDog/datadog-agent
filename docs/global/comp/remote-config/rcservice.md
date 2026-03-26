@@ -1,3 +1,5 @@
+> **TL;DR:** Server-side Remote Configuration service that polls the Datadog backend for config updates and distributes them to tracers, sub-agents, and other gRPC subscribers; optional — absent when `remote_configuration.enabled` is false.
+
 # comp/remote-config/rcservice
 
 **Team:** remote-config
@@ -10,7 +12,9 @@ The component is **optional**: if `remote_configuration.enabled` is `false` in t
 
 ## Key Elements
 
-### Interface (`comp/remote-config/rcservice/component.go`)
+### Key interfaces
+
+#### Interface (`comp/remote-config/rcservice/component.go`)
 
 ```go
 type Component interface {
@@ -28,7 +32,9 @@ type Component interface {
 | `ConfigResetState` | Clears the local uptane store and reinitializes the client (used to force a clean re-sync) |
 | `CreateConfigSubscription` | Opens a streaming gRPC subscription for push-based config delivery |
 
-### Params (`component.go`)
+### Key types
+
+#### Params (`component.go`)
 
 ```go
 type Params struct {
@@ -38,7 +44,9 @@ type Params struct {
 
 Callers can inject extra `service.Option` values at wiring time via `rcservice.Params`. If the `*rcservice.Params` dependency is absent (marked `optional:"true"`), the service still starts with only the defaults derived from the agent configuration.
 
-### fx module (`rcserviceimpl/rcservice.go`)
+### Key functions
+
+#### fx module (`rcserviceimpl/rcservice.go`)
 
 ```go
 func Module() fxutil.Module {
@@ -52,7 +60,9 @@ The internal constructor (`newRemoteConfigServiceOptional`) reads keys like `rem
 
 A startup failure reason (e.g., invalid API key) is exported as an `expvar` under `remoteConfigStartup.startupFailureReason` for observability.
 
-### Dependencies
+### Configuration and build flags
+
+#### Dependencies
 
 The component requires:
 - `comp/core/config` — agent configuration

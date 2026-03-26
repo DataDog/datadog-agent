@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/healthprobe` starts a lightweight, unauthenticated HTTP server exposing `/live`, `/ready`, and `/startup` endpoints so that Kubernetes and other orchestrators can poll agent health without going through the authenticated CMD API.
+
 # comp/core/healthprobe — Health Probe HTTP Server Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/healthprobe`
@@ -18,7 +20,11 @@ The server reads health status from `pkg/status/health`, which aggregates regist
 | `comp/core/healthprobe/impl` | `healthprobe` struct, HTTP server construction, `NewComponent` |
 | `comp/core/healthprobe/fx` | `Module()` — wires `NewComponent` into fx |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface{}
@@ -26,7 +32,9 @@ type Component interface{}
 
 The component has no public methods. Its value is in its side effect: it starts and stops a health HTTP server as part of the fx lifecycle.
 
-### Options
+### Key types
+
+#### Options
 
 `Options` must be supplied to fx before including `Module()`:
 
@@ -37,7 +45,9 @@ type Options struct {
 }
 ```
 
-## HTTP endpoints
+### Key functions
+
+#### HTTP endpoints
 
 All endpoints return a JSON object with `Healthy` and `Unhealthy` arrays (field names from `pkg/status/health.Status`).
 
@@ -50,7 +60,9 @@ All endpoints return a JSON object with `Healthy` and `Unhealthy` arrays (field 
 
 A 200 response means all registered checks in that category are healthy. A 500 response means at least one is unhealthy; the body still contains the full status object.
 
-## fx wiring
+### Configuration and build flags
+
+#### fx wiring
 
 ```go
 fx.Provide(func(config config.Component) healthprobe.Options {
@@ -64,7 +76,7 @@ healthprobefx.Module(),
 
 The `fx` module uses `fxutil.ProvideOptional` so the component is gracefully absent when the port is 0 or not configured. The server is registered with the fx lifecycle and shuts down cleanly with a 1-second timeout on `OnStop`.
 
-## Configuration keys
+#### Configuration keys
 
 | Key | Default | Description |
 |---|---|---|

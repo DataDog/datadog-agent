@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network/usm` implements Universal Service Monitoring (USM), using eBPF socket filters and uprobes to classify and aggregate application-layer traffic (HTTP, HTTP/2, gRPC, Kafka, PostgreSQL, Redis, TLS) without requiring application instrumentation.
+
 # pkg/network/usm
 
 ## Purpose
@@ -12,7 +14,13 @@ The package requires the `linux_bpf` build tag (Linux only; the Windows stub is 
 
 ## Key Elements
 
-### `Monitor` (monitor.go)
+### Key interfaces
+
+The `Monitor` type is a concrete struct; there is no `Monitor` interface. The `state/` sub-package exposes a global `MonitorState` string enum. File identity is abstracted through `PathIdentifier` and `FileRegistry` in `utils/`.
+
+### Key types
+
+#### `Monitor` (monitor.go)
 
 The entry point for USM. Created and owned by `pkg/network/tracer.Tracer`.
 
@@ -62,7 +70,9 @@ The central eBPF program is a `BPF_PROG_TYPE_SOCKET_FILTER` attached to a raw so
 
 ---
 
-### `config/` sub-package — support and feature checks
+### Key functions
+
+#### `config/` sub-package — support and feature checks
 
 ```go
 // Minimum kernel version for USM
@@ -84,7 +94,7 @@ ShouldUseNetifReceiveSKBCoreKprobe() bool
 
 ---
 
-### `sharedlibraries/` sub-package — shared library open event tracking
+#### `sharedlibraries/` sub-package — shared library open event tracking
 
 Detects when a process opens a library from a known set (crypto, GPU, libc) by hooking `open`/`openat`/`openat2` syscalls. This is the trigger for attaching TLS uprobes to the process.
 
@@ -112,7 +122,7 @@ Detects when a process opens a library from a known set (crypto, GPU, libc) by h
 
 ---
 
-### `state/` sub-package — USM monitor lifecycle state
+#### `state/` sub-package — USM monitor lifecycle state
 
 A tiny thread-safe global tracking the monitor's operational state.
 
@@ -132,7 +142,7 @@ Used by `Monitor` and exposed through `GetUSMStats()`. The `GetUSMStats` API rep
 
 ---
 
-### `maps/` sub-package — eBPF map leak detection
+#### `maps/` sub-package — eBPF map leak detection
 
 Provides tooling to detect leaked entries in PID-keyed TLS eBPF maps (entries whose owning PID has exited without cleanup).
 
@@ -153,7 +163,7 @@ Map names are truncated to 15 chars by the kernel; all USM map names are designe
 
 ---
 
-### `utils/` sub-package — file registry and path utilities
+#### `utils/` sub-package — file registry and path utilities
 
 Provides `FileRegistry`, the core data structure for tracking which processes currently have a given shared library open, and driving activation/deactivation callbacks.
 
@@ -195,7 +205,7 @@ The `connectionProtocolMap` eBPF map is shared between NPM and USM: NPM populate
 
 TLS protocol monitors (OpenSSL, Go TLS) use `sharedlibraries.GetEBPFProgram` to subscribe to library-open events, then attach uprobes to the specific process/function combination via `utils.FileRegistry`.
 
-### Build tags
+### Configuration and build flags
 
 | Tag | Meaning |
 |---|---|

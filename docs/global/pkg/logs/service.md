@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/service` provides a lightweight `Service` type representing a running container or process, and a `Services` fan-out registry that notifies launchers and schedulers when dynamic workloads (e.g. Docker containers, Kubernetes pods) start or stop.
+
 # pkg/logs/service
 
 ## Purpose
@@ -6,11 +8,18 @@ Provides a lightweight abstraction for a _service_ — a running process or cont
 
 ## Key Elements
 
-| Symbol | Description |
+### Key types
+
+| Type | Description |
 |---|---|
 | `Service` | Represents a single observable entity. Fields: `Type` (provider type, e.g. `"docker"`, `"kubernetes"`) and `Identifier` (unique ID within that type). `GetEntityID()` returns a URI-style string `"<type>://<identifier>"`. |
-| `NewService(providerType, identifier)` | Constructor for `Service`. |
 | `Services` | Thread-safe fan-out registry. Maintains the current list of active services and a set of subscriber channels, keyed by service type or a wildcard. |
+
+### Key functions
+
+| Function / Method | Description |
+|---|---|
+| `NewService(providerType, identifier)` | Constructor for `Service`. |
 | `NewServices()` | Constructor for `Services`. |
 | `(s *Services) AddService(service)` | Adds a service to the registry and pushes it to all matching subscriber channels. |
 | `(s *Services) RemoveService(service)` | Removes a service from the registry and notifies subscribers. |
@@ -20,6 +29,10 @@ Provides a lightweight abstraction for a _service_ — a running process or cont
 | `(s *Services) GetAllRemovedServices()` | Returns a `chan *Service` for removed services of any type. |
 
 **Replay semantics:** `GetAddedServicesForType` and `GetAllAddedServices` replay existing services from a goroutine (not inline) so callers must not hold locks while consuming from the channel. `GetRemovedServicesForType` / `GetAllRemovedServices` do _not_ replay history.
+
+### Configuration and build flags
+
+`pkg/logs/service` has no user-facing config keys. The `Type` field of a `Service` matches the provider type string used in `LogsConfig` (e.g. `"docker"`, `"kubernetes"`) and must be consistent with the type strings that launchers pass to `GetAddedServicesForType`.
 
 ## Usage
 

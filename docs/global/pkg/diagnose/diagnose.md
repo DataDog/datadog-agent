@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/diagnose` provides the concrete agent self-diagnostic suites — connectivity checks to Datadog endpoints, port-conflict detection, and Windows Firewall scanning — that are run by `datadog-agent diagnose` and attached to flares.
+
 # pkg/diagnose — Agent Self-Diagnostics Framework
 
 ## Purpose
@@ -17,7 +19,9 @@ implementations of individual diagnosis suites.
 
 ## Key elements
 
-### `comp/core/diagnose/def` framework types (used throughout)
+### Key types
+
+#### `comp/core/diagnose/def` framework types (used throughout)
 
 | Type | Description |
 |------|-------------|
@@ -26,7 +30,9 @@ implementations of individual diagnosis suites.
 | `diagnose.DiagnosisSuccess` / `DiagnosisFail` / `DiagnosisWarning` / `DiagnosisUnexpectedError` | Status constants. |
 | `diagnose.MetadataAvailCatalog` | Global map of named availability check functions used by `DiagnoseMetadataAutodiscoveryConnectivity`. |
 
-### Sub-packages
+### Key functions
+
+#### Sub-packages
 
 #### `connectivity/`
 
@@ -86,7 +92,11 @@ Platform-specific port listing:
 - `ports_windows.go` — Windows implementation using `iphlpapi.dll`.
 - `ports_others.go` — Linux/macOS stub calling `netstat`/`ss`.
 
-### Configuration keys
+### Configuration and build flags
+
+No dedicated config section for this package. Sub-packages read standard agent keys (see below). The `firewallscanner` sub-package implements Windows-only logic with a no-op stub on other platforms.
+
+#### Configuration keys
 
 No dedicated config section. `connectivity/` reads standard agent config keys:
 - `logs_enabled`, `logs_config.*`

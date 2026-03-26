@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/formatter` converts raw SNMP trap packets into enriched JSON payloads by resolving numeric OIDs to human-readable names and symbolic enum values from MIB databases.
+
 # comp/snmptraps/formatter
 
 **Package:** `github.com/DataDog/datadog-agent/comp/snmptraps/formatter`
@@ -11,7 +13,7 @@ Without this component, consumers of trap packets would receive low-level gosnmp
 
 ## Key elements
 
-### Interface
+### Key interfaces
 
 ```go
 // comp/snmptraps/formatter/component.go
@@ -22,11 +24,9 @@ type Component interface {
 
 `FormatPacket` accepts a `*packet.SnmpPacket` (the parsed UDP datagram with source address and timestamp) and returns a JSON-encoded byte slice or an error.
 
-### Implementation: JSONFormatter
+### Key types
 
-The sole concrete implementation is `JSONFormatter` in `formatterimpl/formatter.go`. It is provided as a fx component via `formatterimpl.Module()`.
-
-Dependencies injected at construction time:
+The sole concrete implementation is `JSONFormatter` in `formatterimpl/formatter.go`. Dependencies injected at construction time:
 
 | Dependency | Role |
 |---|---|
@@ -34,7 +34,9 @@ Dependencies injected at construction time:
 | `demultiplexer.Component` | Provides a `sender.Sender` for internal telemetry counters |
 | `log.Component` | Structured logger |
 
-### Output JSON shape
+### Key functions
+
+#### Output JSON shape
 
 ```json
 {
@@ -56,7 +58,7 @@ Dependencies injected at construction time:
 
 The top-level object always has a single `trap` key. SNMPv1 traps additionally carry `enterpriseOID`, `genericTrap`, and `specificTrap` fields.
 
-### Variable enrichment
+#### Variable enrichment
 
 For each variable bound to the trap, the formatter:
 
@@ -68,7 +70,9 @@ For each variable bound to the trap, the formatter:
 
 If the trap OID itself cannot be resolved, `snmpTrapName` and `snmpTrapMIB` are omitted and `datadog.snmp_traps.traps_not_enriched` is incremented.
 
-### Internal telemetry metrics
+### Configuration and build flags
+
+Internal telemetry metrics emitted by the formatter:
 
 | Metric | Meaning |
 |---|---|
@@ -76,9 +80,7 @@ If the trap OID itself cannot be resolved, `snmpTrapName` and `snmpTrapMIB` are 
 | `datadog.snmp_traps.vars_not_enriched` | One or more variable OIDs could not be resolved |
 | `datadog.snmp_traps.incorrect_format` | v2/v3 packet had fewer than 2 PDU variables or malformed sysUpTime/trapOID |
 
-### Mock
-
-`formatterimpl/mock.go` provides a `MockFormatter` for use in tests. It is configured with a fixed byte slice to return from `FormatPacket`.
+**Mock:** `formatterimpl/mock.go` provides a `MockFormatter` for use in tests. It is configured with a fixed byte slice to return from `FormatPacket`.
 
 ## Usage
 

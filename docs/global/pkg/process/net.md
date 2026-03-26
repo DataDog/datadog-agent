@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/process/net` is a thin IPC client that lets the process-agent query the system-probe daemon over its Unix socket for privileged per-PID stats and the VPC network ID.
+
 # pkg/process/net
 
 ## Purpose
@@ -11,16 +13,24 @@ The package is intentionally small. All socket lifecycle management and URL cons
 
 ## Key elements
 
+### Key functions
+
 | Symbol | File / Build constraint | Description |
 |--------|------------------------|-------------|
 | `GetProcStats(client *http.Client, pids []int32) (*model.ProcStatsWithPermByPID, error)` | `common.go` — `linux \|\| windows` | POSTs a protobuf-encoded `ProcessStatRequest` to system-probe's `/api/v1/modules/process/stats` endpoint. Deserialises the response using the content-type returned by the server. |
 | `GetNetworkID(client *http.Client) (string, error)` | `common_linux.go` — `linux` | GETs `/api/v1/modules/network_tracer/network_id` and returns the plain-text VPC ID. |
 | *(stub)* `GetProcStats` | `common_unsupported.go` — `!linux && !windows` | Always returns `errors.New("unsupported platform")`. |
 
+### Key interfaces
+
 ### Wire format
 
 - Request: protobuf via `pkg/proto/pbgo/process.ProcessStatRequest`.
 - Response: negotiated via `Accept`/`Content-type` headers. The unmarshaler is selected by `pkg/process/encoding.GetUnmarshaler(contentType)`.
+
+### Configuration and build flags
+
+The package compiles meaningful code only on `linux` and `windows`; a stub returns an error on other platforms. There are no agent config keys — the socket path is passed by the caller.
 
 ### HTTP client
 

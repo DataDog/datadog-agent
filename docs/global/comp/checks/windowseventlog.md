@@ -1,3 +1,5 @@
+> **TL;DR:** `windowseventlog` registers the `win32_event_log` check, which subscribes to Windows Event Log channels via the native EvtSubscribe API and forwards events to Datadog as Events, Logs, or security telemetry.
+
 # comp/checks/windowseventlog
 
 **Package:** `github.com/DataDog/datadog-agent/comp/checks/windowseventlog`
@@ -16,7 +18,7 @@ Common use cases:
 
 ## Key Elements
 
-### Interface
+### Key interfaces
 
 ```go
 // def/component.go
@@ -25,7 +27,9 @@ type Component interface{}
 
 The interface is a marker. The component's value is the side effect of registering the check factory with the collector on startup.
 
-### `Check` struct (`impl/check/check.go`)
+### Key types
+
+#### `Check` struct (`impl/check/check.go`)
 
 The core check type. Notable fields:
 
@@ -38,7 +42,7 @@ The core check type. Notable fields:
 | `logsAgent` | `option.Option[logsAgent.Component]` | Optional logs pipeline for integration log output |
 | `ddSecurityEventsFilter` | `eventdatafilter.Filter` | Filter for the built-in DD security events profile |
 
-### `Config` / `instanceConfig`
+#### `Config` / `instanceConfig`
 
 Key instance configuration fields (all `option.Option` to distinguish absent from zero value):
 
@@ -55,18 +59,20 @@ Key instance configuration fields (all `option.Option` to distinguish absent fro
 | `AuthType` | `auth_type` | Remote auth type (`default`, `negotiate`, `kerberos`, `ntlm`) |
 | `Server` / `User` / `Domain` / `Password` | — | Remote event log credentials |
 
-### Event pipeline
+### Key functions
+
+#### Event pipeline
 
 Event collection runs in a background goroutine (`fetchEventsLoop`) rather than synchronously in `Run()`. This decouples the check scheduler from event arrival latency. `Run()` is responsible for:
 
 1. Starting (or restarting) the subscription if it is not already running.
 2. Persisting the bookmark via `bookmarkManager.Save()`.
 
-### Bookmark persistence
+#### Bookmark persistence
 
 Position in the event log is stored in the agent's persistent cache (key `<checkID>_bookmark`). On restart the check reopens the subscription at the last saved position, preventing duplicate or missed events.
 
-### FX wiring and dependencies
+#### FX wiring and dependencies
 
 `Requires` in the implementation:
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/diagnostic` provides a zero-overhead diagnostic tap that intercepts rendered log messages in the pipeline and streams them to the `agent stream-logs` CLI command, with optional filtering by source name, type, log source, or service.
+
 # pkg/logs/diagnostic
 
 ## Purpose
@@ -8,14 +10,14 @@ The package is intentionally lightweight: it inserts no overhead into the hot pa
 
 ## Key elements
 
-### Interfaces
+### Key interfaces
 
 | Name | Description |
 |------|-------------|
 | `MessageReceiver` | Single-method interface (`HandleMessage(*message.Message, []byte, string)`) implemented by any type that wants to receive pipeline messages. The log `Processor` accepts a `MessageReceiver` and calls it for each processed message. |
 | `Formatter` | Converts a `message.Message` plus the already-rendered (redacted) bytes and an event-type string into a human-readable string for display. |
 
-### Types
+### Key types
 
 | Name | File | Description |
 |------|------|-------------|
@@ -24,7 +26,7 @@ The package is intentionally lightweight: it inserts no overhead into the hot pa
 | `Filters` | `message_receiver.go` | Struct with four optional string fields (`Name`, `Type`, `Source`, `Service`) used to narrow which messages are forwarded to the consumer. An empty filter passes all messages. |
 | `logFormatter` (unexported) | `format.go` | Default `Formatter` that emits a one-line string: `Integration Name | Type | Status | Timestamp | Hostname | Service | Source | Tags | Message`. |
 
-### Key functions and methods
+### Key functions
 
 | Signature | Description |
 |-----------|-------------|
@@ -33,6 +35,12 @@ The package is intentionally lightweight: it inserts no overhead into the hot pa
 | `(*BufferedMessageReceiver).HandleMessage(m, rendered, eventType)` | Called by the pipeline processor for each message. No-ops immediately if not enabled. |
 | `(*BufferedMessageReceiver).Filter(filters *Filters, done <-chan struct{}) <-chan string` | Launches a goroutine that reads from the internal channel, applies `filters`, formats matching messages, and writes them to the returned string channel. Close `done` to stop the goroutine. |
 | `(*BufferedMessageReceiver).Start()` / `Stop()` | Re-creates / closes the internal channel; call these in step with the pipeline lifecycle. |
+
+### Configuration and build flags
+
+| Config key | Description |
+|---|---|
+| `logs_config.message_channel_size` | Depth of the `BufferedMessageReceiver`'s internal channel; controls how many messages can be buffered before back-pressure reaches the pipeline. |
 
 ## Usage
 

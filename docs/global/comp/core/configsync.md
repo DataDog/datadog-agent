@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/configsync` keeps satellite agent processes (process-agent, security-agent, system-probe, etc.) in sync with the core agent by periodically polling the core agent's `/config/v1/` IPC endpoint and applying returned values to the local config store.
+
 # comp/core/configsync — Configuration Synchronization Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/configsync`
@@ -17,7 +19,11 @@ This means that runtime configuration changes made to the core agent (e.g. via `
 | `comp/core/configsync` (root) | `Component` interface (empty — side-effect component) |
 | `comp/core/configsync/configsyncimpl` | `configSync` struct, polling loop, `Module()`, `Params` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface{}
@@ -29,7 +35,9 @@ The component has no public methods. Its behavior is entirely driven by its fx l
 - **On `OnStart`** — begins a background goroutine that polls the core agent at `agent_ipc.config_refresh_interval` second intervals.
 - **On `OnStop`** — cancels the goroutine's context, stopping the loop.
 
-## Params
+### Key types
+
+#### Params
 
 ```go
 type Params struct {
@@ -42,7 +50,9 @@ func NewParams(syncTimeout, syncOnInit, syncOnInitTimeout) Params
 func NewDefaultParams() Params  // all zero values — async-only, no init sync
 ```
 
-## Configuration keys
+### Configuration and build flags
+
+#### Configuration keys
 
 | Key | Description |
 |---|---|
@@ -53,7 +63,9 @@ func NewDefaultParams() Params  // all zero values — async-only, no init sync
 
 If `config_refresh_interval` is 0 or negative, or the port is invalid, the component disables itself and logs a message.
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 ```go
 configsyncimpl.Module(configsyncimpl.NewDefaultParams()),

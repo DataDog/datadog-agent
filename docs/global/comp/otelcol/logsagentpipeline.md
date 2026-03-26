@@ -1,3 +1,5 @@
+> **TL;DR:** A slimmed-down send-only logs pipeline for the OTel Agent and core Agent OTLP ingestion path, providing the downstream `pipeline.Provider` channel that OTLP log exporters write into.
+
 # comp/otelcol/logsagentpipeline — OTel logs pipeline component
 
 ## Purpose
@@ -15,7 +17,9 @@ the sending side of the pipeline and is initialised only when
 
 ## Key elements
 
-### Interface
+### Key interfaces
+
+#### Interface
 
 Defined in `comp/otelcol/logsagentpipeline/component.go`:
 
@@ -36,7 +40,9 @@ type LogsAgent interface {
 `NextPipelineChan()` — the channel that OTLP log exporters write
 `*message.Message` values into.
 
-### Implementation: `logsagentpipelineimpl.Agent`
+### Key types
+
+#### Implementation: `logsagentpipelineimpl.Agent`
 
 Located in `comp/otelcol/logsagentpipeline/logsagentpipelineimpl/agent.go`.
 
@@ -62,7 +68,9 @@ type Dependencies struct {
 
 `IntakeOrigin` identifies the source of logs to the intake (e.g. `agent`, `otel`).
 
-### fx module
+### Key functions
+
+#### fx module
 
 ```go
 // logsagentpipelineimpl.Module()
@@ -73,7 +81,9 @@ The component is provided as `option.Option[logsagentpipeline.Component]` so
 that consumers like `comp/otelcol/collector/impl` can declare an optional
 dependency without failing when logs are disabled.
 
-### Pipeline internals
+### Configuration and build flags
+
+#### Pipeline internals
 
 `SetupPipeline` (called from `Start`) creates:
 

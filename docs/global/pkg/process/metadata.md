@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/process/metadata` enriches raw process data with service names (inferred from command lines and runtime-specific heuristics) and language/container context forwarded to WorkloadMeta, powering Service Discovery and APM auto-instrumentation tagging.
+
 # pkg/process/metadata
 
 ## Purpose
@@ -18,13 +20,17 @@ pkg/process/metadata/
 
 ## Key elements
 
-### `metadata.go` — core interface
+### Key interfaces
+
+#### `metadata.go` — core interface
 
 | Symbol | Kind | Description |
 |--------|------|-------------|
 | `Extractor` | `interface` | Single method `Extract(procs map[int32]*procutil.Process)`. All extractors in this package implement it. |
 
-### `parser/` — service name extraction
+### Key types
+
+#### `parser/` — service name extraction
 
 The main type is `ServiceExtractor`. It is created once per `ProcessCheck` and called on every collection cycle.
 
@@ -58,7 +64,9 @@ The main type is `ServiceExtractor`. It is created once per `ProcessCheck` and c
 
 `nodejsparser.FindNameFromNearestPackageJSON(absFilePath string) (string, bool)` walks parent directories from a `.js` file until it finds a `package.json` containing a `name` field.
 
-### `workloadmeta/` — language detection and WorkloadMeta integration
+### Key functions
+
+#### `workloadmeta/` — language detection and WorkloadMeta integration
 
 | Symbol | Kind | Description |
 |--------|------|-------------|
@@ -104,6 +112,8 @@ wlmExtractor.Extract(procs)        // detects languages, publishes diffs
 ### Language detection pipeline
 
 The `GRPCServer` started by `Collector` streams `ProcessEntity` diffs to the core agent's WorkloadMeta store, which then propagates language labels to the tagger and APM components.
+
+### Configuration and build flags
 
 ## Configuration
 

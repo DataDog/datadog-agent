@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/forwarder` drains the packet channel from the listener, formats each trap as JSON via the formatter, and delivers it to the Datadog Event Platform as an `snmp-traps` event.
+
 # comp/snmptraps/forwarder
 
 ## Purpose
@@ -8,7 +10,7 @@ Its role is to decouple the listener (which must handle UDP packets as fast as p
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/snmptraps/forwarder/component.go
@@ -17,9 +19,9 @@ type Component interface{}
 
 The interface is a marker type. The component's behavior is entirely driven by its fx lifecycle hooks (start/stop).
 
-### Implementation: `trapForwarder`
+### Key types
 
-Located in `comp/snmptraps/forwarder/forwarderimpl/forwarder.go`.
+**`trapForwarder`** — located in `comp/snmptraps/forwarder/forwarderimpl/forwarder.go`:
 
 | Field | Type | Role |
 |---|---|---|
@@ -28,7 +30,9 @@ Located in `comp/snmptraps/forwarder/forwarderimpl/forwarder.go`.
 | `sender` | `sender.Sender` | Submits metrics and events to the aggregator |
 | `stopChan` | `chan struct{}` | Signals the run loop to exit |
 
-### Run loop
+### Key functions
+
+#### Run loop
 
 The internal `run()` goroutine handles three cases:
 
@@ -38,9 +42,9 @@ The internal `run()` goroutine handles three cases:
 - **Flush ticker (10 s)** — calls `sender.Commit()` to flush aggregated metrics
 - **Stop signal** — exits the goroutine
 
-### Dependencies
+### Configuration and build flags
 
-The component is constructed via fx and requires:
+**Dependencies** — the component is constructed via fx and requires:
 
 | Dependency | Purpose |
 |---|---|
@@ -50,7 +54,7 @@ The component is constructed via fx and requires:
 | `listener.Component` | Provides the `PacketsChannel` via `Packets()` |
 | `log.Component` | Logging |
 
-### Module registration
+**Module registration**
 
 ```go
 // comp/snmptraps/forwarder/forwarderimpl/forwarder.go

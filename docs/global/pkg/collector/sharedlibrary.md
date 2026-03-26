@@ -1,3 +1,5 @@
+> **TL;DR:** An experimental, build-tag-gated mechanism for running agent checks implemented as native shared libraries (Rust/C-ABI `.so`/`.dll`), loaded at runtime via `dlopen` and wired into the standard check and aggregator pipeline at loader priority 40.
+
 # pkg/collector/sharedlibrary
 
 Import paths:
@@ -12,6 +14,8 @@ The feature is gated behind the `sharedlibrarycheck` build tag, so it compiles t
 
 ## Key elements
 
+### Configuration and build flags
+
 ### Build tag
 
 All active code in both sub-packages is compiled only when the build tag `sharedlibrarycheck` is present. When the tag is absent, `sharedlibraryimpl` compiles to a package with a single no-op `InitSharedLibraryChecksLoader()` function.
@@ -22,6 +26,8 @@ All active code in both sub-packages is compiled only when the build tag `shared
 |---|---|---|
 | `shared_library_check.enabled` | `false` | Whether shared library checks are activated |
 | `shared_library_check.library_folder_path` | platform default additional-checks path | Directory searched for shared library files |
+
+### Key types
 
 ### `ffi` sub-package — C bridge
 

@@ -1,3 +1,5 @@
+> **TL;DR:** Go wrapper around the Windows PDH API that provides locale-aware, lifecycle-managed access to Windows performance counters for core agent checks.
+
 # pkg/util/pdhutil
 
 ## Purpose

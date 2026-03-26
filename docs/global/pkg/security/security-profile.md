@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/security_profile` implements behavioral security profiles for CWS — collecting activity dumps of containerized workloads during a learning phase and then detecting real-time deviations (anomalies) from those learned behavioral baselines.
+
 # pkg/security/security_profile
 
 ## Purpose
@@ -17,9 +19,11 @@ Build tag: almost all files are `//go:build linux`. The `profile_unsupported.go`
 | `profile/` | `Profile`: the stabilized in-memory security profile object |
 | `storage/` | Persistence backends (local directory, remote forwarder to security-agent) |
 
-## Key Elements
+## Key elements
 
-### `Manager` (`manager.go`)
+### Key types
+
+#### `Manager` (`manager.go`)
 
 The single entry point for security profiles and activity dumps. Created once per probe in `pkg/security/probe/probe_ebpf.go`.
 
@@ -54,7 +58,7 @@ Key methods:
 
 The `Manager` receives workload lifecycle events via a single ordered channel (`workloadEvents`) to guarantee that `WorkloadSelectorResolved` and `WorkloadSelectorDeleted` events are processed in order.
 
-### `activity_tree` sub-package
+#### `activity_tree` sub-package
 
 #### `ActivityTree` (`activity_tree.go`)
 
@@ -124,7 +128,7 @@ type PathsReducer struct {
 }
 ```
 
-### `dump/ActivityDump` (`dump/activity_dump.go`)
+#### `dump/ActivityDump` (`dump/activity_dump.go`)
 
 An `ActivityDump` wraps a `*profile.Profile` with lifecycle state for the collection phase.
 
@@ -144,7 +148,7 @@ States: `Stopped` → `Disabled` → `Running` → `Paused` → `Stopped`.
 
 `OnNeedNewTracedPid` callback — invoked when the tree inserts a new process node; the `Manager` uses this to register the new PID in the kernel eBPF `traced_pids` map.
 
-### `profile/Profile` (`profile/profile.go`)
+#### `profile/Profile` (`profile/profile.go`)
 
 The consolidated security profile, shared between the dump and the stable profile phases.
 
@@ -183,7 +187,9 @@ type EventTypeState struct {
 
 Serialization/deserialization: `profile/protobuf.go` uses the `adproto` protobuf schema. `profile/json.go` provides a JSON representation. `profile/graph.go` generates Graphviz DOT output for debugging.
 
-### `storage` sub-package
+### Key interfaces
+
+#### `storage` sub-package
 
 **`ActivityDumpStorage` interface** (`storage/storage.go`):
 
@@ -204,7 +210,9 @@ Two implementations:
 
 Storage format is determined by `config.StorageFormat` (protobuf, JSON). Multiple formats can be configured simultaneously.
 
-### SECL/seccomp rule generation (`rules.go`)
+### Key functions
+
+#### SECL/seccomp rule generation (`rules.go`)
 
 `GenerateRules(ads []*profile.Profile, opts SECLRuleOpts) []*rules.RuleDefinition` — converts activity dump profiles into SECL rule definitions. Options:
 
@@ -221,7 +229,7 @@ type SECLRuleOpts struct {
 
 `SeccompProfile` / `SyscallPolicy` — types for generating seccomp profiles from the syscall mask recorded in the activity tree.
 
-### Anomaly detection (`secprofs.go`)
+#### Anomaly detection (`secprofs.go`)
 
 `LookupEventInProfiles(*model.Event)` looks up the profile for the event's workload (by image name + wildcard tag), then delegates to `profile.ActivityTree` to check if the event is in the profile. Result is written into `event.SecurityProfileContext.Status` (`NoProfile`, `InProfile`, `UnstableEventType`, `AnomalyDetectionEvent`, etc.).
 

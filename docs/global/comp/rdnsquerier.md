@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/rdnsquerier` enriches network telemetry (NetFlow records and Network Path traces) by asynchronously resolving private IP addresses to hostnames using a worker pool, rate limiter, and persistent cache.
+
 # comp/rdnsquerier — Reverse DNS Querier Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/rdnsquerier/def`
@@ -27,7 +29,9 @@ When neither condition holds, `NewComponent` returns a no-op implementation (`im
 | `comp/rdnsquerier/fx-mock` | fx mock module for tests |
 | `comp/rdnsquerier/mock` | Mock implementation for unit tests |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Package: github.com/DataDog/datadog-agent/comp/rdnsquerier/def
@@ -52,6 +56,28 @@ type Component interface {
     GetHostnames(ctx context.Context, ipAddrs []string) map[string]ReverseDNSResult
 }
 ```
+
+### Key types
+
+The full implementation (`comp/rdnsquerier/impl`) is composed of three layers:
+
+- **Querier** — a pool of worker goroutines (`reverse_dns_enrichment.workers`, default 10) that drain a buffered channel (`chan_size`, default 5000) of pending lookups. Each worker calls `net.LookupAddr` and invokes the callback with the result.
+- **Rate limiter** — an adaptive token-bucket limiter that automatically throttles to a lower rate when lookups start failing, and recovers after quiet intervals.
+- **Cache** — a read-through in-memory map keyed by IP string. On a cache hit the sync callback is invoked inline; on a miss a worker query is enqueued. Failed lookups are retried up to `max_retries` times. The cache is periodically cleaned and persisted via `pkg/persistentcache`.
+
+### Configuration and build flags
+
+| Key | Default | Description |
+|---|---|---|
+| `reverse_dns_enrichment.workers` | 10 | Number of lookup worker goroutines |
+| `reverse_dns_enrichment.chan_size` | 5000 | Capacity of the pending-lookup channel |
+| `reverse_dns_enrichment.cache.enabled` | — | Enable the in-memory + persistent cache |
+| `reverse_dns_enrichment.cache.entry_ttl` | 24h | Time before a cached entry is considered stale |
+| `reverse_dns_enrichment.cache.max_size` | 1 000 000 | Maximum number of cached entries |
+| `reverse_dns_enrichment.cache.max_retries` | 10 | Retries for a failed lookup before giving up |
+| `reverse_dns_enrichment.rate_limiter.enabled` | — | Enable the adaptive rate limiter |
+| `reverse_dns_enrichment.rate_limiter.limit_per_sec` | 1000 | Normal lookup rate |
+| `reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec` | 1 | Throttled lookup rate after repeated errors |
 
 ## Implementation internals
 
@@ -125,20 +151,6 @@ rdnsquerierfx.Module()  // activates the real implementation only if config enab
 import rdnsquerierfxnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-none"
 rdnsquerierfxnone.Module()  // always wires the no-op; zero overhead
 ```
-
-## Configuration keys
-
-| Key | Default | Description |
-|---|---|---|
-| `reverse_dns_enrichment.workers` | 10 | Number of lookup worker goroutines |
-| `reverse_dns_enrichment.chan_size` | 5000 | Capacity of the pending-lookup channel |
-| `reverse_dns_enrichment.cache.enabled` | — | Enable the in-memory + persistent cache |
-| `reverse_dns_enrichment.cache.entry_ttl` | 24h | Time before a cached entry is considered stale |
-| `reverse_dns_enrichment.cache.max_size` | 1 000 000 | Maximum number of cached entries |
-| `reverse_dns_enrichment.cache.max_retries` | 10 | Retries for a failed lookup before giving up |
-| `reverse_dns_enrichment.rate_limiter.enabled` | — | Enable the adaptive rate limiter |
-| `reverse_dns_enrichment.rate_limiter.limit_per_sec` | 1000 | Normal lookup rate |
-| `reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec` | 1 | Throttled lookup rate after repeated errors |
 
 ## Telemetry
 

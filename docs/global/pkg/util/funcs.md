@@ -1,3 +1,5 @@
+> **TL;DR:** Provides generic memoization and flushable caching helpers — covering zero-argument, keyed, error-returning, and thread-safe variants — to eliminate `sync.Once` boilerplate for one-time or invalidatable function results.
+
 # pkg/util/funcs
 
 Import path: `github.com/DataDog/datadog-agent/pkg/util/funcs`

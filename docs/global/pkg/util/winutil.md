@@ -1,3 +1,5 @@
+> **TL;DR:** Windows-only utility package providing Service Control Manager lifecycle management, Event Log writing, Windows version detection, user/SID helpers, and sub-packages for ETW tracing, Event Log subscriptions, IP Helper network introspection, and IIS configuration parsing.
+
 # pkg/util/winutil
 
 ## Purpose
@@ -27,6 +29,32 @@ The package has several sub-packages:
 ---
 
 ## Key Elements
+
+### Key types
+
+Key types across all sub-packages: `SCMMonitor`, `ServiceInfo`, `FileVersionInfo`, `StorageStats`, `MIB_TCPROW_OWNER_PID`, `MIB_IPFORWARDROW`, `DynamicIISConfig`. See the sub-package sections below for full field details.
+
+The `servicemain.Service` interface is the primary extension point for Windows Service binaries. Embed `servicemain.DefaultSettings` to get a default `HardStopTimeout`.
+
+### Key interfaces
+
+**`servicemain.Service`** interface — implementors provide `Name() string`, `Init() error`, `Run(ctx context.Context) error`, and `HardStopTimeout() time.Duration`. See `### servicemain/ sub-package` below.
+
+**`eventlog/subscription.PullSubscription`** interface — `Start`, `Stop`, `Running`, `GetEvents`, `Error`. See `### eventlog/subscription/ sub-package` below.
+
+### Key functions
+
+See per-sub-package sections below. Root package key functions: `StartService`, `StopService`, `RestartService`, `WaitForState`, `IsServiceRunning`, `GetWindowsBuildString`, `GetFileVersionInfoStrings`, `GetSidFromUser`, `IsUserAnAdmin`.
+
+### Configuration and build flags
+
+- All files require `//go:build windows`; `doc.go` provides a stub for cross-compilation.
+- The package lives in its own Go module (`pkg/util/winutil/go.mod`).
+- CGo is used only in `etw/` (C wrappers for `AdvApi32.dll`).
+- `servicemain.DefaultSettings.HardStopTimeout` defaults to 15 s and is overridable via `DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS`.
+- `DefaultServiceCommandTimeout` constant: 30 seconds.
+
+---
 
 ### Root package (`pkg/util/winutil`)
 

@@ -1,3 +1,5 @@
+> **TL;DR:** Reusable CLI building blocks for Datadog Agent binaries, providing a `standalone` package for in-process agent commands and a collection of ready-made Cobra subcommands shared across multiple agent binaries.
+
 # pkg/cli
 
 ## Purpose
@@ -8,6 +10,8 @@
 - **`pkg/cli/subcommands/`** — a collection of ready-made Cobra subcommands (one package per command) that multiple agent binaries can share.
 
 ## Key elements
+
+### Key functions
 
 ### `pkg/cli/standalone`
 

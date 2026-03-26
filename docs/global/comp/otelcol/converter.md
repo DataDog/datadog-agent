@@ -1,3 +1,5 @@
+> **TL;DR:** A `confmap.Converter` that automatically enriches a user-supplied OpenTelemetry Collector configuration with Datadog-specific extensions, processors, and receivers before the Collector validates it.
+
 # comp/otelcol/converter — OTel config converter component
 
 ## Purpose
@@ -15,7 +17,9 @@ is opt-in: activated by setting `otelcollector.converter.enabled: true` in
 
 ## Key elements
 
-### Interface
+### Key interfaces
+
+#### Interface
 
 ```go
 // comp/otelcol/converter/def
@@ -30,7 +34,9 @@ The standard `confmap.Converter` interface has a single method:
 Convert(ctx context.Context, conf *confmap.Conf) error
 ```
 
-### Implementation: `ddConverter`
+### Key types
+
+#### Implementation: `ddConverter`
 
 Located in `comp/otelcol/converter/impl/converter.go`.
 
@@ -50,7 +56,9 @@ integration tests).
 Default features: `infraattributes`, `prometheus`, `pprof`, `zpages`,
 `health_check`, `ddflare`, `datadog`.
 
-### Enhancement operations
+### Key functions
+
+#### Enhancement operations
 
 Each feature is idempotent: it is only applied if the relevant component or
 extension is not already present in the user config.
@@ -93,7 +101,9 @@ Collector health metrics are forwarded to Datadog. A `filter` processor
 - **Profiler env**: If a `ddprofiling` extension is configured, the `env` field
   of `profiler_options` is populated from the Agent's `env` config key.
 
-### Constructors
+### Configuration and build flags
+
+#### Constructors
 
 | Function | When to use |
 |----------|-------------|

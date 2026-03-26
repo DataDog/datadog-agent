@@ -1,3 +1,5 @@
+> **TL;DR:** The component that serialises process-check payloads and routes them to the correct Datadog intake endpoint (process, real-time, or connections), managing submission queues, retries, and real-time mode negotiation with the runner.
+
 # comp/process/submitter — Process Agent Payload Submitter Component
 
 **Import path (interface):** `github.com/DataDog/datadog-agent/comp/process/submitter`
@@ -19,7 +21,9 @@ Wrapping `pkg/process/runner.CheckSubmitter` as an fx component lets the rest of
 | `comp/process/submitter/submitterimpl/` | `Module()`, `newSubmitter` constructor, thin `submitterImpl` wrapper |
 | `pkg/process/runner/submitter.go` | Core `CheckSubmitter` and `Submitter` interface |
 
-## Component interface
+## Key elements
+
+### Key interfaces
 
 ```go
 // Component embeds pkg/process/runner.Submitter.
@@ -38,15 +42,19 @@ type Submitter interface {
 
 The implementation also exposes `Start() error` and `Stop()` which are called via fx lifecycle hooks (not part of the public interface, but present on `submitterImpl`).
 
-## Key types
+### Key types
 
-### `types.Payload`
+#### `types.Payload`
 
 Defined in `comp/process/types`. Carries a slice of protobuf messages for a single check run along with sizing metadata used to enforce queue limits.
 
-### `types.RTResponse`
+#### `types.RTResponse`
 
 A channel value signalling whether real-time mode should be enabled or disabled for a given check. The submitter emits these after each successful HTTP response; the runner consumes them to adjust check frequency.
+
+### Configuration and build flags
+
+Queue sizing is governed by `process_config.process_queue_bytes` (configured on the forwarder side). Lifecycle hooks are registered only when `agent.Enabled()` returns true.
 
 ## fx wiring
 

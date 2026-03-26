@@ -1,3 +1,5 @@
+> **TL;DR:** Implements the individual goroutine that executes checks, emits `datadog.agent.check_status` service checks, records runtime statistics, and tracks per-worker utilization via an exponential moving average.
+
 # pkg/collector/worker
 
 ## Purpose
@@ -8,7 +10,7 @@ Workers also track their own utilization (fraction of time spent running checks 
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -61,7 +63,7 @@ Utilization values are published to:
 - `expvar`: under `runner.Workers.<worker_name>.Utilization`
 - Telemetry gauge: `collector.worker_utilization{worker_name=<name>}`
 
-### Configuration keys
+### Configuration and build flags
 
 | Key | Description |
 |-----|-------------|

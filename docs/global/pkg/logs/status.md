@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/status` provides the runtime status snapshot for the logs agent, including running state, active integrations, transport, warnings, and pipeline metrics, through a global singleton `Builder` and a set of reusable building blocks (`LogStatus`, `InfoRegistry`, `CountInfo`) that sources and tailers attach to.
+
 # pkg/logs/status
 
 ## Purpose
@@ -12,7 +14,9 @@ Provides the runtime status snapshot for the logs agent: whether it is running, 
 
 ## Key Elements
 
-### `pkg/logs/status`
+### Key types
+
+#### `pkg/logs/status`
 
 | Symbol | Description |
 |---|---|
@@ -29,14 +33,18 @@ Provides the runtime status snapshot for the logs agent: whether it is running, 
 
 The `init()` function registers `Errors`, `Warnings`, and `IsRunning` as expvar entries under `LogsExpvars`.
 
-### `pkg/logs/status/statusinterface`
+### Key interfaces
+
+#### `pkg/logs/status/statusinterface`
 
 | Symbol | Description |
 |---|---|
 | `Status` interface | Minimal interface with `AddGlobalWarning(key, warning)` and `RemoveGlobalWarning(key)`. Used by `tcp.ConnectionManager` to surface connection errors without importing the full status package. |
 | `NewNoopStatusProvider()` | Returns a no-op implementation (used in tests and connectivity checks). |
 
-### `pkg/logs/status/utils`
+### Key functions
+
+#### `pkg/logs/status/utils`
 
 | Symbol | Description |
 |---|---|
@@ -46,6 +54,14 @@ The `init()` function registers `Errors`, `Warnings`, and `IsRunning` as expvar 
 | `MappedInfo` | Key-value map of string messages implementing `InfoProvider`. Created with `NewMappedInfo(key)`. |
 | `InfoRegistry` | Thread-safe collection of `InfoProvider`s keyed by `InfoKey()`. `Rendered()` returns a `map[string][]string` for status page display. |
 | `ProcessingInfo` | Implements `InfoProvider`; counts how many logs each named processing rule has matched. Displays as "Rule [name] applied to N log(s)". |
+
+### Configuration and build flags
+
+| Symbol / Constant | Description |
+|---|---|
+| `TransportHTTP` / `TransportTCP` | String constants identifying the current transport mode; set by `comp/logs/agent` via `status.SetCurrentTransport(...)`. |
+| `StatusNotStarted` / `StatusRunning` | Integer constants (0/1) for the atomic running flag written by `Init`. |
+| `LogsExpvars` | The `expvar.Map` key under which `Errors`, `Warnings`, and `IsRunning` are registered at `init()` time, enabling external metric collection. |
 
 ## Usage
 

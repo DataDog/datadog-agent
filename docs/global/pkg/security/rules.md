@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/rules` is the runtime rule engine for CWS — it coordinates policy loading from disk, Remote Config, and bundled sources, compiles SECL rules, pushes eBPF kernel filters, and dispatches matched security events to the Datadog backend.
+
 # pkg/security/rules
 
 ## Purpose
@@ -8,9 +10,11 @@
 - **`filtermodel/`** — implements the SECL evaluation model used to filter rules _before_ loading them. Evaluates conditions like kernel version, OS type, CORE support, and hostname so that rules that are not applicable to the current host are silently skipped.
 - **`monitor/`** — tracks the load status of every policy and rule, emits `ruleset_loaded` and `heartbeat` custom events, and exports per-policy / per-rule StatsD metrics.
 
-## Key Elements
+## Key elements
 
-### `RuleEngine` (`engine.go`)
+### Key types
+
+#### `RuleEngine` (`engine.go`)
 
 The central type. Holds references to all policy providers, the current rule set, rate limiter, policy monitor, and the probe.
 
@@ -40,7 +44,9 @@ Key methods:
 | `EventDiscarderFound(...)` | Forwarded to the probe to push a kernel-space discarder (suppresses future events of the same type for the same file/process). |
 | `Stop()` | Closes all policy providers and waits for goroutines. |
 
-### `APIServer` interface (`engine.go`)
+### Key interfaces
+
+#### `APIServer` interface (`engine.go`)
 
 ```go
 type APIServer interface {
@@ -52,7 +58,9 @@ type APIServer interface {
 
 Implemented by `pkg/security/module` to expose the current rule/policy state over gRPC.
 
-### Policy providers (`engine.go`, `bundled/`)
+### Key functions
+
+#### Policy providers (`engine.go`, `bundled/`)
 
 The engine aggregates three default providers, in priority order:
 
@@ -67,7 +75,7 @@ Internal rule IDs defined in `bundled/rules.go`:
 - `refresh_sbom` — triggers SBOM refresh
 - `need_refresh_sbom` — requests a new SBOM scan
 
-### `filtermodel` sub-package
+#### `filtermodel` sub-package
 
 `RuleFilterModel` / `RuleFilterEvent` implement the `eval.Model` / `eval.Event` interfaces against a virtual event that represents host properties. Fields available in rule `filters:` expressions:
 
@@ -84,7 +92,9 @@ Internal rule IDs defined in `bundled/rules.go`:
 
 `NewRuleFilterModel(cfg, hostname, os)` is the constructor (Linux-only; requires kernel version introspection).
 
-### `monitor` sub-package
+### Configuration and build flags
+
+#### `monitor` sub-package
 
 **`PolicyMonitor`** — started as a background goroutine by `RuleEngine.Start`. Emits:
 

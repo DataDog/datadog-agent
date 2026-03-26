@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/listener` opens a UDP socket to receive SNMP trap packets, validates community strings with constant-time comparison, and publishes accepted packets onto a buffered channel for the forwarder to consume.
+
 # comp/snmptraps/listener
 
 **Package:** `github.com/DataDog/datadog-agent/comp/snmptraps/listener`
@@ -11,7 +13,7 @@ The component decouples ingestion from processing: the listener does only the mi
 
 ## Key elements
 
-### Interface
+### Key interfaces
 
 ```go
 // comp/snmptraps/listener/component.go
@@ -22,11 +24,11 @@ type Component interface {
 
 `Packets()` returns the `packet.PacketsChannel` (a `chan *packet.SnmpPacket`) to which the listener publishes every accepted trap packet. Downstream consumers (the forwarder) read from this channel.
 
-### Implementation: trapListener
+### Key types
 
-`listenerimpl/listener.go` provides the concrete implementation via `listenerimpl.Module()`.
+**`trapListener`** — the concrete implementation (`listenerimpl/listener.go`):
 
-The `trapListener` struct holds:
+The struct holds:
 
 | Field | Description |
 |---|---|
@@ -37,20 +39,20 @@ The `trapListener` struct holds:
 | `sender` | `sender.Sender` for internal telemetry counters |
 | `status` | `status.Component` for exposing trap counts to the agent status page |
 
-### Lifecycle
+### Key functions
 
-Registration uses `fx.Lifecycle`. When `config.Enabled` is true:
+**Lifecycle** — registration uses `fx.Lifecycle`. When `config.Enabled` is true:
 
 - **OnStart**: calls `trapListener.start()`, which launches `listener.Listen(addr)` in a goroutine (blocking call) and then blocks until the `gosnmp.TrapListener.Listening()` channel fires or an error arrives from `errorsChannel`. This guarantees the socket is bound before `Start` returns.
 - **OnStop**: calls `trapListener.stop()`, which closes the gosnmp listener and enforces a timeout (`config.StopTimeout` seconds) via a `select` on a goroutine-closed channel.
 
-### Packet validation
+**Packet validation**
 
 SNMPv3 packets are authenticated/decrypted by gosnmp before the callback fires—the listener passes them through without additional checks.
 
 For v1/v2c packets, `validatePacket` performs a constant-time comparison of the packet's community string against every entry in `config.CommunityStrings`. If none matches, the packet is dropped, `datadog.snmp_traps.invalid_packet` is incremented with `reason:unknown_community_string`, and the `status` component records the unknown-community-string count.
 
-### SnmpPacket type
+**`SnmpPacket` type**
 
 ```go
 // comp/snmptraps/packet
@@ -64,16 +66,14 @@ type SnmpPacket struct {
 
 `GetTags()` on `SnmpPacket` produces the Datadog tags (`snmp_device:<ip>`, `namespace:<ns>`, etc.) that are propagated to both telemetry and the formatted payload.
 
-### Internal telemetry metrics
+### Configuration and build flags
 
 | Metric | Meaning |
 |---|---|
 | `datadog.snmp_traps.received` | Total datagrams received (before validation) |
 | `datadog.snmp_traps.invalid_packet` | Datagrams rejected for unknown community string |
 
-### Mock
-
-`listenerimpl/mock_listener.go` provides `MockListener`, which wraps an in-memory channel. Tests can inject packets by writing directly to that channel. The `mock.go` at the package root exposes the mock for use in external test packages.
+**Mock:** `listenerimpl/mock_listener.go` provides `MockListener`, which wraps an in-memory channel. Tests can inject packets by writing directly to that channel. The `mock.go` at the package root exposes the mock for use in external test packages.
 
 ## Usage
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `winregistry` registers the `windows_registry` check, which reads Windows registry values and emits them as Datadog gauge metrics and forwards change events as Datadog Logs.
+
 # comp/checks/winregistry
 
 **Package:** `github.com/DataDog/datadog-agent/comp/checks/winregistry`
@@ -15,7 +17,7 @@ Typical use cases include tracking software version keys, license information, O
 
 ## Key Elements
 
-### Interface
+### Key interfaces
 
 ```go
 // def/component.go
@@ -24,9 +26,23 @@ type Component interface{}
 
 Marker interface. All behaviour is the side effect of registering the check factory during startup.
 
-### `WindowsRegistryCheck`
+**Delegate interface:**
 
-The core check type. Key fields:
+```go
+type registryDelegate interface {
+    onMissing(valueName string, ...)
+    onAccessDenied(valueName string, ...)
+    onRetrievalError(valueName string, ...)
+    onSendNumber(valueName string, val float64, ...)
+    onSendMappedNumber(valueName string, originalVal string, mappedVal float64, ...)
+    onNoMappingFound(valueName string, val string, ...)
+    onUnsupportedDataType(valueName string, valueType uint32, ...)
+}
+```
+
+### Key types
+
+**`WindowsRegistryCheck`** — the core check type. Key fields:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -35,7 +51,7 @@ The core check type. Key fields:
 | `sender` | `sender.Sender` | Metrics sender |
 | `logsComponent` | `agent.Component` | Optional logs pipeline |
 
-### Configuration
+### Configuration and build flags
 
 Configuration is validated against a JSON Schema generated from the `checkCfg` struct at configure time.
 
@@ -67,9 +83,9 @@ Supported registry value types: `DWORD`, `QWORD`, `SZ`, `EXPAND_SZ`. `SZ`/`EXPAN
 send_on_start: true  # applies to all instances unless overridden
 ```
 
-### Delegate architecture
+### Key functions
 
-The check uses a delegate pattern to separate concerns. `compositeRegistryDelegate` fans events out to three implementations:
+**Delegate architecture** — the check uses a delegate pattern to separate concerns. `compositeRegistryDelegate` fans events out to three implementations:
 
 | Delegate | Output |
 |----------|--------|
@@ -77,25 +93,11 @@ The check uses a delegate pattern to separate concerns. `compositeRegistryDelega
 | `metricsRegistryDelegate` | Emits gauge metrics via the sender |
 | `integrationLogsRegistryDelegate` | Sends change events as Datadog Logs |
 
-Each delegate implements the `registryDelegate` interface:
-
-```go
-type registryDelegate interface {
-    onMissing(valueName string, ...)
-    onAccessDenied(valueName string, ...)
-    onRetrievalError(valueName string, ...)
-    onSendNumber(valueName string, val float64, ...)
-    onSendMappedNumber(valueName string, originalVal string, mappedVal float64, ...)
-    onNoMappingFound(valueName string, val string, ...)
-    onUnsupportedDataType(valueName string, valueType uint32, ...)
-}
-```
-
-### Integration logs behaviour
+#### Integration logs behaviour
 
 The `integrationLogsRegistryDelegate` is muted on the first check run when `send_on_start: false`, so the initial enumeration of all existing keys does not produce a flood of "created" log events. On subsequent runs, or when `send_on_start: true`, it forwards key creation, deletion, and value-change events.
 
-### FX wiring
+#### FX wiring
 
 `Requires`:
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/eventmonitor` is the kernel event monitoring framework for system-probe that wraps the security probe and exposes a stable subscription API so non-security subsystems can receive kernel-level process lifecycle events (fork, exec, exit) without depending on the security module.
+
 # pkg/eventmonitor
 
 ## Purpose
@@ -12,7 +14,9 @@ The module runs as a `system-probe` module (`module.Module`) and manages the lif
 
 ## Key elements
 
-### `EventMonitor` (`eventmonitor.go`)
+### Key types
+
+#### `EventMonitor` (`eventmonitor.go`)
 
 The central struct. Created via `NewEventMonitor` and registered as a `system-probe` module.
 
@@ -42,7 +46,9 @@ Stats:
 
 ---
 
-### `EventConsumer` and `EventConsumerHandler` interfaces (`consumer.go`)
+### Key interfaces
+
+#### `EventConsumer` and `EventConsumerHandler` interfaces (`consumer.go`)
 
 Every consumer must implement both interfaces.
 
@@ -76,7 +82,11 @@ Implement this when the consumer needs to perform work after the eBPF probe has 
 
 ---
 
-### `config/` — module configuration
+### Configuration and build flags
+
+Build constraint: `//go:build linux || windows`. A stub file satisfies the build on unsupported platforms. Configuration is loaded from `system-probe.yaml` under the `event_monitoring_config` namespace.
+
+#### `config/` — module configuration
 
 **`Config`** (`config/config.go`)
 
@@ -92,7 +102,9 @@ type Config struct {
 
 ---
 
-### `consumers/` — ready-made consumer: `ProcessConsumer`
+### Key functions
+
+#### `consumers/` — ready-made consumer: `ProcessConsumer`
 
 `ProcessConsumer` (`consumers/process.go`) is a reusable consumer of process exec/exit/fork events. Instead of implementing the full `EventConsumerHandler` interface, callers subscribe to typed callbacks.
 

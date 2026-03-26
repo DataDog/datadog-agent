@@ -1,3 +1,5 @@
+> **TL;DR:** Implements a DDSketch-based quantile estimator with logarithmic binning that provides relative-error guarantees for distribution metrics at a fraction of the memory cost of exact methods.
+
 # pkg/util/quantile
 
 ## Purpose
@@ -16,7 +18,9 @@ The package also contains:
 
 ## Key elements
 
-### Config
+### Key types
+
+#### Config
 
 ```go
 type Config struct { ... }
@@ -40,7 +44,7 @@ Pass `0` for any parameter to use its default value.
 **`(*Config).MaxCount() int`** — returns the maximum total count the sketch can hold (binLimit ×
 65535).
 
-### Key
+#### Key
 
 ```go
 type Key int16
@@ -51,7 +55,7 @@ mapping: a positive value `v` gets key `k` such that `γ^k ≤ v < γ^(k+1)`.  N
 to the corresponding negative key. Zero and values below `config.norm.min` map to key `0`.
 `±Inf` are represented by the sentinel keys `uvinf` / `uvneginf`.
 
-### Sketch
+#### Sketch
 
 ```go
 type Sketch struct {
@@ -79,7 +83,7 @@ Key methods:
 | `BasicStats() (cnt, min, max, sum, avg)` | Returns summary fields; satisfies `metrics.SketchData` |
 | `MemSize() (used, allocated int)` | Returns memory use in bytes |
 
-### Agent
+#### Agent
 
 ```go
 type Agent struct {
@@ -105,7 +109,9 @@ Key methods:
 
 The package-level `agentConfig` (`Default()`) is used implicitly by all `Agent` operations.
 
-### DDSketch interop
+### Key functions
+
+#### DDSketch interop
 
 **`ConvertDDSketchIntoSketch(inputSketch *ddsketch.DDSketch) (*Sketch, error)`**
 
@@ -114,7 +120,7 @@ This is used when receiving sketch data from OpenTelemetry or other sources that
 DDSketches. The conversion re-maps bin indexes to match the agent's gamma/bias convention and
 round-converts float bin counts to unsigned integers while preserving the total count.
 
-### summary.Summary
+#### summary.Summary
 
 ```go
 // pkg/util/quantile/summary

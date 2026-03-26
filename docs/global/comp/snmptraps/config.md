@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/config` parses and validates the SNMP traps listener configuration from `datadog.yaml`, derives the authoritative engine ID from the hostname, and exposes the resulting `TrapsConfig` struct to all other traps sub-components via a single `Get()` call.
+
 # comp/snmptraps/config
 
 **Team:** network-device-monitoring-core
@@ -8,7 +10,7 @@ This component parses and provides the SNMP traps listener configuration to the 
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 `comp/snmptraps/config/component.go`
 
@@ -20,7 +22,9 @@ type Component interface {
 
 `Get()` returns the fully-validated `TrapsConfig` parsed at startup. The struct is not reloaded at runtime; configuration changes require an agent restart.
 
-### TrapsConfig
+### Key types
+
+#### `TrapsConfig`
 
 `comp/snmptraps/config/config.go`
 
@@ -37,7 +41,7 @@ type TrapsConfig struct {
 }
 ```
 
-### UserV3
+#### `UserV3`
 
 SNMPv3 user credentials used to build the USM security parameters table:
 
@@ -52,7 +56,7 @@ type UserV3 struct {
 }
 ```
 
-### Key methods on TrapsConfig
+### Key functions
 
 | Method | Description |
 |--------|-------------|
@@ -61,7 +65,7 @@ type UserV3 struct {
 | `BuildSNMPParams(logger) (*gosnmp.GoSNMP, error)` | Constructs a `gosnmp.GoSNMP` struct ready to be used by the trap listener. Uses SNMPv2c when no users are configured; SNMPv3 with a USM security parameters table otherwise. |
 | `GetPacketChannelSize() int` | Returns the fixed channel buffer size (100) for the packets channel between listener and server. |
 
-### IsEnabled helper
+**`IsEnabled` helper:**
 
 ```go
 func IsEnabled(conf config.Component) bool
@@ -69,15 +73,27 @@ func IsEnabled(conf config.Component) bool
 
 A package-level convenience function that reads `network_devices.snmp_traps.enabled` directly, without constructing a full `TrapsConfig`. Used for fast early-exit checks.
 
-### Authoritative engine ID
-
-The engine ID is computed once during `SetDefaults` as:
+**Authoritative engine ID** — computed once during `SetDefaults` as:
 
 ```
 [0x80, 0xff, 0xff, 0xff, 0xff] + FNV-128(hostname)
 ```
 
-The first byte (`0x80`) and the next four bytes are SNMP-mandated framing. The remaining 16 bytes ensure the engine ID is unique per agent instance. This value is passed to `gosnmp` as `AuthoritativeEngineID` in the USM security parameters.
+The first byte (`0x80`) and the next four bytes are SNMP-mandated framing. The remaining 16 bytes ensure the engine ID is unique per agent instance.
+
+### Configuration and build flags
+
+All keys live under `network_devices.snmp_traps`:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Enable/disable the trap listener |
+| `port` | `9162` | UDP port to listen on |
+| `bind_host` | `0.0.0.0` | Interface to bind |
+| `stop_timeout` | `5` | Seconds to wait for graceful shutdown |
+| `community_strings` | `[]` | SNMPv1/v2c community strings |
+| `users` | `[]` | SNMPv3 user definitions |
+| `namespace` | (global `network_devices.namespace`) | Namespace tag for trap events |
 
 ## Usage
 
@@ -102,16 +118,3 @@ Dependencies: `comp/core/config`, `comp/core/hostname`.
 - `comp/snmptraps/forwarder` — uses `Get()` for the namespace tag applied to forwarded trap events.
 - `pkg/config/basic` — calls `IsEnabled()` during basic config validation.
 
-### Configuration reference
-
-All keys live under `network_devices.snmp_traps`:
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `enabled` | `false` | Enable/disable the trap listener |
-| `port` | `9162` | UDP port to listen on |
-| `bind_host` | `0.0.0.0` | Interface to bind |
-| `stop_timeout` | `5` | Seconds to wait for graceful shutdown |
-| `community_strings` | `[]` | SNMPv1/v2c community strings |
-| `users` | `[]` | SNMPv3 user definitions |
-| `namespace` | (global `network_devices.namespace`) | Namespace tag for trap events |

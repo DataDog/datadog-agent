@@ -1,3 +1,5 @@
+> **TL;DR:** A lightweight pub/sub bus that lets Go and Python check integrations register their log configurations and emit log lines without depending directly on the logs pipeline internals.
+
 # comp/logs/integrations
 
 **Team:** agent-log-pipelines
@@ -16,7 +18,9 @@ The component currently supports a single subscriber for each channel. The imple
 
 ## Key Elements
 
-### Interface (`comp/logs/integrations/def/component.go`)
+### Key interfaces
+
+#### Interface (`comp/logs/integrations/def/component.go`)
 
 ```go
 type Component interface {
@@ -36,7 +40,9 @@ type Component interface {
 
 Both `Send*` calls block until a consumer reads from the respective channel. The current design assumes a single reader per channel. If no consumer has called `Subscribe` / `SubscribeIntegration` yet, callers will block indefinitely, so the consumer must be started before producers.
 
-### Types (`comp/logs/integrations/def/types.go`)
+### Key types
+
+#### Types (`comp/logs/integrations/def/types.go`)
 
 ```go
 type IntegrationLog struct {
@@ -52,7 +58,9 @@ type IntegrationConfig struct {
 
 `IntegrationID` is the opaque identifier assigned by autodiscovery (e.g., `docker:abc123`). The `Launcher` maps this to a file on disk under `logs_config.run_path/integrations/<id>.log`.
 
-### Implementation (`comp/logs/integrations/impl/integrations.go`)
+### Key functions
+
+#### Implementation (`comp/logs/integrations/impl/integrations.go`)
 
 The `Logsintegration` struct holds two unbuffered channels:
 - `logChan chan IntegrationLog` — for log lines
@@ -60,7 +68,9 @@ The `Logsintegration` struct holds two unbuffered channels:
 
 `RegisterIntegration` is a no-op if `config.LogsConfig` is empty, avoiding unnecessary channel sends for integrations that have no log configuration.
 
-### Mock (`comp/logs/integrations/mock/mock.go`)
+### Configuration and build flags
+
+#### Mock (`comp/logs/integrations/mock/mock.go`)
 
 A mock implementation is available for unit tests that need to inject or observe integration log events without running the full logs pipeline.
 

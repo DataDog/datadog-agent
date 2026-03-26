@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/sources` is the thread-safe registry that connects schedulers (which discover log sources) to launchers (which tail them), providing pub/sub channels so launchers are notified when sources are added or removed.
+
 # pkg/logs/sources
 
 ## Purpose
@@ -8,7 +10,7 @@ When a scheduler detects that an integration, file, container, or Windows Event 
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | Description |
 |------|-------------|
@@ -18,7 +20,9 @@ When a scheduler detects that an integration, file, container, or Windows Event 
 | `ReplaceableSource` | A `sync.RWMutex`-protected wrapper around a `*LogSource` that allows a tailer to atomically swap its underlying source (used in container log collection when the source changes while the tailer stays alive). |
 | `SourceType` | String enum for the *origin* of log lines. Values: `DockerSourceType`, `KubernetesSourceType`, `IntegrationSourceType`. Distinct from `LogsConfig.Type`, which describes the tailer kind (file, TCP, journald, …). |
 
-### `LogSource` fields of interest
+### Key functions
+
+#### `LogSource` fields of interest
 
 | Field | Description |
 |-------|-------------|
@@ -30,7 +34,7 @@ When a scheduler detects that an integration, file, container, or Windows Event 
 | `ProcessingInfo *status.ProcessingInfo` | Tracks counts of processed/dropped messages. |
 | `ParentSource *LogSource` | Set when this source overrides a parent (e.g. per-container override of a `container_collect_all` source). Byte-read events bubble up to the parent. |
 
-### `LogSources` methods
+#### `LogSources` methods
 
 | Method | Description |
 |--------|-------------|
@@ -43,9 +47,13 @@ When a scheduler detects that an integration, file, container, or Windows Event 
 
 > Channels are **unbuffered**. Subscribers must consume promptly or they will block the goroutine calling `AddSource`/`RemoveSource`.
 
-### `ReplaceableSource` methods
+#### `ReplaceableSource` methods
 
 `Replace(source)`, `Config()`, `Status()`, `AddInput()`, `RemoveInput()`, `RecordBytes()`, `GetSourceType()`, `RegisterInfo()`, `GetInfo()`, `UnderlyingSource()` — all delegate to the wrapped `*LogSource` under a read lock, with `Replace` taking a write lock.
+
+### Configuration and build flags
+
+`pkg/logs/sources` has no user-facing config keys of its own. The source type strings that `SubscribeForType` filters on correspond to `LogsConfig.Type` values set by the agent configuration (`"file"`, `"docker"`, `"journald"`, `"tcp"`, `"udp"`, `"windows_event"`, `"string_channel"`, etc.). Per-source configuration is defined in `comp/logs/agent/config.LogsConfig`.
 
 ## Related documentation
 

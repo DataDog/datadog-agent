@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/snmptraps/snmplog` adapts gosnmp's `LoggerInterface` to the agent's structured `log.Component`, routing internal gosnmp protocol messages to the `Trace` level so they are suppressed during normal operation.
+
 # comp/snmptraps/snmplog
 
 **Package:** `github.com/DataDog/datadog-agent/comp/snmptraps/snmplog`
@@ -9,7 +11,9 @@
 
 ## Key elements
 
-### `SNMPLogger`
+### Key types
+
+#### `SNMPLogger`
 
 ```go
 type SNMPLogger struct {
@@ -29,9 +33,9 @@ Implements:
 
 gosnmp's internal logs are deliberately routed to `Trace` (the lowest agent log level) because they include the full decoded content of every trap packet, which would be too noisy at `Debug` or above.
 
-### `New(logger log.Component) *SNMPLogger`
+### Key functions
 
-The only constructor. Pass an `log.Component` obtained from fx.
+**`New(logger log.Component) *SNMPLogger`** — the only constructor. Pass a `log.Component` obtained from fx.
 
 ## Usage
 

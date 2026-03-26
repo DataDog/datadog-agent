@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/ebpf/maps` wraps `cilium/ebpf`'s `Map` with Go generics to provide type-safe CRUD and efficient batch iteration over eBPF maps, eliminating `unsafe.Pointer` boilerplate throughout the codebase.
+
 # pkg/ebpf/maps
 
 ## Purpose
@@ -6,19 +8,24 @@ Wraps `github.com/cilium/ebpf`'s `ebpf.Map` with Go generics to give callers a t
 
 ## Key elements
 
-### Build flags
+### Configuration and build flags
 
 The entire package is gated on `//go:build linux_bpf`. It compiles only on Linux with eBPF support enabled.
 
-### Types
+### Key interfaces
+
+| Type | Description |
+|------|-------------|
+| `GenericMapIterator[K, V any]` | Interface with `Next(*K, *V) bool` and `Err() error`. Returned by `Iterate()` and `IterateWithBatchSize()`. |
+
+### Key types
 
 | Type | Description |
 |------|-------------|
 | `GenericMap[K, V any]` | Core wrapper. Holds an `*ebpf.Map` and a flag indicating whether the key type supports the batch API. |
-| `GenericMapIterator[K, V any]` | Interface with `Next(*K, *V) bool` and `Err() error`. Returned by `Iterate()` and `IterateWithBatchSize()`. |
 | `IteratorOptions` | Configures batch size and forces single-item iteration when needed. |
 
-### Functions / constructors
+### Key functions
 
 | Function | Description |
 |----------|-------------|

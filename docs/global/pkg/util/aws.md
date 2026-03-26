@@ -1,3 +1,5 @@
+> **TL;DR:** AWS credential and environment detection helpers that retrieve temporary IAM credentials from IMDS and resolve the current region, used by components that need to sign AWS API calls without shipping long-lived keys.
+
 # pkg/util/aws
 
 ## Purpose
@@ -16,21 +18,27 @@ The sub-package `creds/internal` (package `ec2internal`) is an internal-only lay
 
 ## Key elements
 
-### creds (public API, `pkg/util/aws/creds`)
+### Key types
+
+**`SecurityCredentials`** struct — holds `AccessKeyID`, `SecretAccessKey`, and `Token` (session token) retrieved from IMDS. Returned by `GetSecurityCredentials`.
+
+**`Ec2IMDSVersionConfig`** enum (`ImdsV1`, `ImdsAllVersions`, `ImdsV2`) — controls which IMDS version(s) to use when making a request (internal, in `creds/internal`).
+
+### Key functions
+
+**`creds` (public API, `pkg/util/aws/creds`)**
 
 | Symbol | Build tag | Description |
 |--------|-----------|-------------|
-| `SecurityCredentials` struct | — | Holds `AccessKeyID`, `SecretAccessKey`, and `Token` (session token). |
 | `GetSecurityCredentials(ctx) (*SecurityCredentials, error)` | `ec2` | Queries IMDS at `/iam/security-credentials/<role>` to obtain temporary credentials for the attached IAM role. Returns an error stub when compiled without `ec2`. |
 | `HasAWSCredentialsInEnvironment() bool` | `ec2` | Returns `true` when `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are both set. |
 | `IsRunningOnAWS(ctx) bool` | `ec2` | Returns `true` if env credentials are present **or** the instance-identity document is reachable via IMDS. Always `false` without `ec2`. |
 | `GetAWSRegion(ctx) (string, error)` | `ec2` | Resolves the current region by checking `AWS_REGION` → `AWS_DEFAULT_REGION` → IMDS identity document. Always errors without `ec2`. |
 
-### creds/internal (ec2internal)
+**`creds/internal` (ec2internal)**
 
 | Symbol | Description |
 |--------|-------------|
-| `Ec2IMDSVersionConfig` enum (`ImdsV1`, `ImdsAllVersions`, `ImdsV2`) | Controls which IMDS version(s) to use when making a request. |
 | `UseIMDSv2() Ec2IMDSVersionConfig` | Reads `ec2_prefer_imdsv2` / `ec2_imdsv2_transition_payload_enabled` from agent config and returns the appropriate version policy. |
 | `DoHTTPRequest(ctx, url, versions, updateSource)` | Core IMDS HTTP helper. Fetches an IMDSv2 token when permitted, falls back to v1, and optionally updates the global `CurrentMetadataSource` counter. |
 | `GetInstanceIdentity(ctx)` | Fetches and parses the instance-identity document (`/latest/dynamic/instance-identity/document/`), returning `EC2Identity{Region, InstanceID, AccountID}`. |
@@ -38,7 +46,7 @@ The sub-package `creds/internal` (package `ec2internal`) is an internal-only lay
 | `SetCloudProviderSource(source int)` / `GetSourceName()` | Thread-safe bookkeeping for the "best" metadata source seen so far, exposed in the inventories payload. |
 | `MetadataURL`, `TokenURL`, `InstanceIdentityURL` | Package-level vars (overridable in tests) pointing to the IMDS link-local address. |
 
-### Build tags
+### Configuration and build flags
 
 | Tag | Effect |
 |-----|--------|

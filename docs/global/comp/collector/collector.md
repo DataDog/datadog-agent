@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/collector/collector` is the check scheduling and execution engine that accepts Go and Python check instances, runs them through a worker pool, and notifies autodiscovery and metadata components of lifecycle events.
+
 # comp/collector/collector
 
 **Team:** agent-runtimes
@@ -25,7 +27,9 @@ Responsibilities:
 
 ## Key elements
 
-### Interface (`comp/collector/collector/component.go`)
+### Key interfaces
+
+#### Interface (`comp/collector/collector/component.go`)
 
 ```go
 type Component interface {
@@ -57,7 +61,9 @@ type Component interface {
 }
 ```
 
-### EventType / EventReceiver
+### Key types
+
+#### EventType / EventReceiver
 
 ```go
 type EventType uint32
@@ -69,13 +75,15 @@ const (
 type EventReceiver func(checkid.ID, EventType)
 ```
 
-### `NoneModule()`
+### Key functions
+
+#### `NoneModule()`
 
 `NoneModule()` provides `option.None[Component]()` for processes that need to
 satisfy optional collector dependencies without linking the full implementation
 (e.g. serverless, some test helpers).
 
-### Internal structure (`collectorimpl`)
+#### Internal structure (`collectorimpl`)
 
 `collectorImpl` holds:
 
@@ -89,7 +97,7 @@ satisfy optional collector dependencies without linking the full implementation
 | `cancelCheckTimeout` | Max wait for `check.Cancel()` (`check_cancel_timeout`). |
 | `watchdogWarningTimeout` | Threshold before a watchdog warning is emitted. |
 
-### CheckWrapper (internal middleware)
+#### CheckWrapper (internal middleware)
 
 `middleware.CheckWrapper` decorates each `check.Check` with:
 
@@ -97,7 +105,7 @@ satisfy optional collector dependencies without linking the full implementation
 - Sender cleanup (`senderManager.DestroySender`) after cancellation.
 - Optional agent-telemetry span around each `Run()` call.
 
-### fx outputs
+#### fx outputs
 
 `collectorimpl.Module()` provides four values:
 
@@ -109,7 +117,9 @@ satisfy optional collector dependencies without linking the full implementation
 | `metadata.Provider` | Reports check metadata to the Agent's metadata pipeline. |
 | `api.AgentEndpointProvider` | Registers the `GET /py/status` endpoint. |
 
-### Dependencies
+### Configuration and build flags
+
+#### Dependencies
 
 | Dep | Purpose |
 |---|---|

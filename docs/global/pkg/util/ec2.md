@@ -1,3 +1,5 @@
+> **TL;DR:** AWS EC2 Instance Metadata Service (IMDS) client and detection library that fetches instance identity, hostname, tags, network/VPC information, and spot termination state, supporting both IMDSv1 and IMDSv2 with DMI fallback for Nitro instances.
+
 # pkg/util/ec2
 
 ## Purpose
@@ -36,7 +38,23 @@ The `ec2` build tag is required to compile the AWS SDK-backed tag fetching. With
 
 ## Key elements
 
-### Constants and detection (`ec2.go`, `internal/helpers.go`)
+### Key types
+
+**`EC2Identity`** struct — holds `Region`, `InstanceID`, and `AccountID`. Returned by `GetInstanceIdentity`.
+
+**`Ec2IMDSVersionConfig`** (`ImdsV1`, `ImdsAllVersions`, `ImdsV2`) — controls which IMDS protocol version to use for requests.
+
+**`Subnet`** struct — holds `ID` (subnet ID) and `Cidr` (CIDR block). Returned by `GetSubnetForHardwareAddr`.
+
+**Sentinel errors**
+
+| Error | Meaning |
+|---|---|
+| `ErrNotSpotInstance` | Instance is on-demand, not spot |
+
+### Key functions
+
+#### Detection and identity (`ec2.go`, `internal/helpers.go`)
 
 | Identifier | Description |
 |---|---|
@@ -68,12 +86,6 @@ func DoHTTPRequest(ctx, url, versions, updateSource) (string, error)
 ### Instance identity
 
 ```go
-type EC2Identity struct {
-    Region     string
-    InstanceID string
-    AccountID  string
-}
-
 func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error)
 func GetAccountID(ctx context.Context) (string, error)
 func GetRegion(ctx context.Context) (string, error)
@@ -153,7 +165,7 @@ func GetContainerInstanceARN(ctx context.Context) (string, error)  // docker bui
 
 `GetClusterName` scans EC2 tags for a `kubernetes.io/cluster/<name>` key and extracts the cluster name from it.
 
-#### Config keys
+### Configuration and build flags
 
 | Key | Description |
 |---|---|
@@ -167,6 +179,14 @@ func GetContainerInstanceARN(ctx context.Context) (string, error)  // docker bui
 | `collect_ec2_instance_info` | Enable instance info tag collection |
 | `exclude_ec2_tags` | List of tag keys to suppress |
 | `ec2_use_windows_prefix_detection` | Include `ec2amaz-` in default hostname detection |
+
+**Build tags**
+
+| File / package | Required tag |
+|---|---|
+| `pkg/util/ec2` (root) | none (always compiled) |
+| `tags/ec2_tags.go` | `ec2` |
+| `tags/container_instance_arn.go` | `docker` |
 
 ## Usage
 

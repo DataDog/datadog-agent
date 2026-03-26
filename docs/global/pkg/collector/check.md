@@ -1,3 +1,5 @@
+> **TL;DR:** Defines the canonical interfaces and shared types for all agent checks — `Check`, `Info`, and `Loader` — along with check IDs, runtime statistics, JMX helpers, and a retry utility, without containing any check implementations.
+
 # Package `pkg/collector/check`
 
 ## Purpose
@@ -14,6 +16,8 @@ Sub-packages:
 | `check/stub` | Minimal no-op `Check` for testing |
 
 ## Key Elements
+
+### Key interfaces
 
 ### `Check` interface
 
@@ -130,6 +134,8 @@ Telemetry counters emitted by this package (all under the `checks` namespace):
 | `checks.metrics_samples` | `check_name` | Metric sample count |
 | `checks.execution_time` | `check_name`, `check_loader` | Last execution time (ms) |
 | `checks.delay` | `check_name` | Check start delay (s) |
+
+### Key functions
 
 ### JMX helpers
 

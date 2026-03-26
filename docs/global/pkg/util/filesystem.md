@@ -1,3 +1,5 @@
+> **TL;DR:** Provides cross-platform helpers for file I/O, permission management, disk-usage queries, and a concurrency-safe artifact generation pattern that prevents multiple processes from regenerating the same file simultaneously.
+
 # pkg/util/filesystem
 
 ## Purpose
@@ -14,7 +16,9 @@ implementations selected by build tags; callers never need to branch on
 
 ## Key Elements
 
-### Basic File Utilities (`file.go`, `common.go`)
+### Key functions
+
+#### Basic File Utilities (`file.go`, `common.go`)
 
 | Function | Description |
 |---|---|
@@ -29,7 +33,9 @@ implementations selected by build tags; callers never need to branch on
 | `GetFileModTime(path string) (time.Time, error)` | Returns the file modification time. |
 | `OpenShared(path string) (*os.File, error)` | On Windows, opens a file with `FILE_SHARE_DELETE` to allow rotation while the file is held open. On Unix, delegates to `os.Open`. |
 
-### Permissions (`permission_nowindows.go` / `permission_windows.go`)
+### Key types
+
+#### Permissions (`permission_nowindows.go` / `permission_windows.go`)
 
 ```go
 type Permission struct{ /* platform-specific fields */ }
@@ -52,7 +58,7 @@ On Unix, if the `dd-agent` user does not exist or if `chown` is denied (e.g.
 the process is not root), `RestrictAccessToUser` returns `nil` and does not
 fail — the caller is expected to carry on.
 
-### File Rights Validation (`rights_nix.go` / `rights_windows.go`)
+#### File Rights Validation (`rights_nix.go` / `rights_windows.go`)
 
 ```go
 // Unix only
@@ -64,7 +70,7 @@ executable helper has safe permissions before running it. On Unix it asserts
 that the file has no group-write or other-write bits set (and optionally no
 group-read bits either), and that it is executable by the current process.
 
-### Disk Usage (`disk.go` / `disk_usage.go` / `disk_windows.go`)
+#### Disk Usage (`disk.go` / `disk_usage.go` / `disk_windows.go`)
 
 ```go
 type DiskUsage struct {
@@ -81,7 +87,9 @@ func (Disk) GetUsage(path string) (*DiskUsage, error)
 A thin wrapper around `gopsutil/disk.Usage` (Unix) and the Windows API. Returns
 total and available bytes for the filesystem hosting `path`.
 
-### Concurrent Artifact Management (`concurrent_write.go`)
+### Key interfaces
+
+#### Concurrent Artifact Management (`concurrent_write.go`)
 
 This is the most sophisticated part of the package. It solves the problem of
 multiple agent processes (or goroutines) trying to generate and cache the same

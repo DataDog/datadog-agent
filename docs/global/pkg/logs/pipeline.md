@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/logs/pipeline` orchestrates the processing and forwarding stages of the logs agent, wiring together the `Processor`, batching `Strategy`, and `Sender` into one or more parallel pipeline lanes, with a `Provider` interface that tailers use to obtain write channels.
+
 # pkg/logs/pipeline
 
 ## Purpose
@@ -11,7 +13,9 @@ The package exposes a `Provider` interface so the rest of the agent does not nee
 
 ## Key elements
 
-### `Pipeline`
+### Key types
+
+#### `Pipeline`
 
 ```go
 type Pipeline struct {
@@ -33,7 +37,9 @@ Represents one processing lane. Each `Pipeline` has its own `InputChan` (buffere
 
 Compression for `BatchStrategy` is configured from `endpoints.Main.UseCompression`, `CompressionKind`, and `CompressionLevel`.
 
-### `Provider` interface
+### Key interfaces
+
+#### `Provider` interface
 
 ```go
 type Provider interface {
@@ -48,7 +54,9 @@ type Provider interface {
 
 Launchers call `NextPipelineChan()` (or `NextPipelineChanWithMonitor()` when they track capacity) to obtain a channel they can write messages to. The provider round-robins across its internal pipelines.
 
-### `provider` (concrete implementation)
+### Key functions
+
+#### `provider` (concrete implementation)
 
 Created by `NewProvider`. Key constructor parameters:
 
@@ -64,7 +72,7 @@ The provider creates a `Sender` (HTTP or TCP) and a set of `Pipeline` instances 
 
 **Pipeline failover** (`logs_config.pipeline_failover.enabled`): when enabled, the provider adds a layer of router channels and forwarder goroutines. A message is first sent non-blocking to its primary pipeline; if that pipeline is full, the forwarder tries other pipelines before blocking. This allows one stalled pipeline to shed load to its siblings.
 
-### `processorOnlyProvider`
+#### `processorOnlyProvider`
 
 A lightweight `Provider` variant that runs only the processor stage with no network sender. Used by the `analyzelogs` subcommand to process log lines locally and inspect them without sending to Datadog.
 
@@ -74,13 +82,15 @@ pipeline.NewProcessorOnlyProvider(diagnosticReceiver, processingRules, hostname,
 
 `GetOutputChan()` returns the channel where processed messages appear (instead of going to a sender).
 
-### Constants
+### Configuration and build flags
+
+#### Constants
 
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `maxConcurrencyPerPipeline` | `10` | Upper bound on HTTP destination concurrency per pipeline (not user-configurable directly; use `BatchMaxConcurrentSend` on the endpoint). |
 
-### Config keys
+#### Config keys
 
 | Key | Default | Description |
 |-----|---------|-------------|

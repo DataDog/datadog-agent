@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/agenttelemetry` collects internal Prometheus metrics from the agent's own telemetry registry and ships them directly to the Datadog backend on a configurable schedule, independently of the normal metric pipeline.
+
 # comp/core/agenttelemetry — Agent Self-Telemetry Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/agenttelemetry`
@@ -20,7 +22,11 @@ The component is entirely self-contained: it uses its own HTTP sender and intern
 | `comp/core/agenttelemetry/impl` | `atel` struct, metric collection, aggregation, sender, runner, config |
 | `comp/core/agenttelemetry/fx` | `Module()` — wires `NewComponent` into fx |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -34,11 +40,13 @@ type Component interface {
 }
 ```
 
-## Configuration
+### Configuration and build flags
+
+#### Configuration
 
 Agent telemetry is enabled by default when `agent_telemetry.enabled` is `true` in `datadog.yaml` (controlled by `pkg/config/utils.IsAgentTelemetryEnabled`). When enabled without explicit profiles in the configuration, the component uses a built-in default profile set.
 
-### Profiles
+#### Profiles
 
 A profile groups a set of metrics (or events) with a collection schedule. Profiles are defined under `agent_telemetry.profiles` in `datadog.yaml`, or the default built-in profiles are used.
 
@@ -55,15 +63,17 @@ Key profile fields:
 | `schedule.period` | Seconds between collections (default 900 / 15 min) |
 | `events[]` | Named event types the profile can receive via `SendEvent` |
 
-### Built-in default profiles
+#### Built-in default profiles
 
 The default configuration ships many profiles including: `checks`, `logs-and-metrics`, `database`, `synthetics`, `connectivity`, `ondemand` (crash events), `service-discovery`, `runtime-started`, `trace-agent`, `otlp`, `gpu`, `cluster-agent`, `injector`, and others.
 
-### Metric naming convention
+#### Metric naming convention
 
 Metrics must be declared using the standard `telemetry.NewGauge(subsystem, name, ...)` API **without** `Options.NoDoubleUnderscoreSep`. The Prometheus name will be `<subsystem>__<name>`, which atel maps to the profile's `<subsystem>.<name>` format.
 
-## fx wiring
+### Key functions
+
+#### fx wiring
 
 ```go
 agenttelemetryfx.Module(),
@@ -75,7 +85,7 @@ Dependencies injected by fx: `config.Component`, `log.Component`, `telemetry.Com
 
 `comp/core/agenttelemetry` does **not** use `comp/forwarder/defaultforwarder`. It has its own lightweight HTTP sender that posts directly to the Datadog backend using the API key from `config.Component`. This means agent-telemetry payloads bypass the normal retry queue and disk-spill logic of the default forwarder. See [`comp/forwarder/defaultforwarder`](../forwarder/defaultforwarder.md) for the forwarder used by the regular metric pipeline.
 
-## Startup tracing
+#### Startup tracing
 
 On start, atel creates an `agent.startup` span using the `installertelemetry` lightweight tracer. The span automatically finishes after 1 minute or when the component stops. Callers can start child spans:
 

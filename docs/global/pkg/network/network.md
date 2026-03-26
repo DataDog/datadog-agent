@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/network` is the core library for Network Performance Monitoring (NPM), providing the shared connection types, stateful aggregation layer, and supporting sub-packages that the NPM tracer uses to collect and expose TCP/UDP connection data.
+
 # `pkg/network` — Network Performance Monitoring (NPM)
 
 ## Purpose
@@ -19,7 +21,9 @@ which exposes collected data to the Datadog Agent over a Unix socket.
 
 ## Key Elements
 
-### Connection representation
+### Key types
+
+**Connection types** (`event_common.go`, `buffer.go`):
 
 | Type | File | Description |
 |------|------|-------------|
@@ -29,8 +33,10 @@ which exposes collected data to the Datadog Agent over a Unix socket.
 | `Connections` | `event_common.go` | Batch payload returned to callers. Wraps a slice of `ConnectionStats` with associated DNS, resolv.conf, USM application-layer data, and telemetry maps. |
 | `BufferedData` / `ClientBuffer` | `event_common.go`, `buffer.go` | A recycled memory buffer used to avoid allocations when building `Connections` payloads. |
 | `StatCookie` (`uint64`) | `event_common.go` | A 64-bit hash that uniquely identifies a connection across poll cycles; derived from the eBPF 32-bit cookie via re-hashing. |
+| `Delta` | `state.go` | Return value of `State.GetDelta`: `Conns []ConnectionStats` + `USMData`. |
+| `networkState` | `state.go` | Concrete implementation of `State`. Handles stats underflow detection, cookie collisions, and per-client USM protocol stat accumulation. |
 
-### Enumerations
+**Enumerations:**
 
 | Type | Values |
 |------|--------|
@@ -39,24 +45,37 @@ which exposes collected data to the Datadog Agent over a Unix socket.
 | `ConnectionDirection` | `UNKNOWN`, `INCOMING`, `OUTGOING`, `LOCAL`, `NONE` |
 | `EphemeralPortType` | `EphemeralUnknown`, `EphemeralTrue`, `EphemeralFalse` |
 | `ConnTelemetryType` | String constants for internal telemetry metrics emitted in the connections payload (e.g., `MonotonicConnsClosed`, `ConnsBpfMapSize`). |
+| `TracerType` | `TracerTypeKProbePrebuilt`, `TracerTypeKProbeRuntimeCompiled`, `TracerTypeKProbeCORE`, `TracerTypeFentry`, `TracerTypeEbpfless`. |
 
-### Stateful aggregation
-
-| Symbol | File | Description |
-|--------|------|-------------|
-| `State` (interface) | `state.go` | Per-client stateful tracker. `RegisterClient` / `RemoveClient` manage tracked clients. `GetDelta` merges the latest active connection set with buffered closed connections to produce a `Delta`. `StoreClosedConnection` buffers connections received from the eBPF close event path. |
-| `Delta` | `state.go` | Return value of `GetDelta`: `Conns []ConnectionStats` + `USMData`. |
-| `networkState` | `state.go` | Concrete implementation of `State`. Handles stats underflow detection, cookie collisions, and per-client USM protocol stat accumulation. |
-
-### Tracer (`pkg/network/tracer/`)
+### Key interfaces
 
 | Symbol | File | Description |
 |--------|------|-------------|
-| `Tracer` | `tracer/tracer.go` | Top-level orchestrator. Owns an `ebpfTracer` (eBPF or eBPF-less), a `State`, a `ReverseDNS`, a `usm.Monitor`, a `netlink.Conntracker`, a `GatewayLookup`, and an optional process/container cache. `NewTracer` creates and starts all components. `GetActiveConnections` fetches the `Connections` payload for a given client ID. |
-| `connection.Tracer` (interface) | `tracer/connection/tracer.go` | Abstraction over the eBPF layer. `Start` / `Stop`, `GetConnections`, `FlushPending`, `Remove`, `GetMap`, `DumpMaps`, `GetType`. Concrete implementations: kprobe prebuilt, runtime-compiled, CO-RE, fentry (Linux), ETW (Windows), and eBPF-less (Fargate). |
-| `TracerType` | `tracer/connection/tracer.go` | Enum: `TracerTypeKProbePrebuilt`, `TracerTypeKProbeRuntimeCompiled`, `TracerTypeKProbeCORE`, `TracerTypeFentry`, `TracerTypeEbpfless`. |
+| `State` | `state.go` | Per-client stateful tracker. `RegisterClient` / `RemoveClient` manage tracked clients. `GetDelta` merges the latest active connection set with buffered closed connections to produce a `Delta`. `StoreClosedConnection` buffers connections received from the eBPF close event path. |
+| `connection.Tracer` | `tracer/connection/tracer.go` | Abstraction over the eBPF layer. `Start` / `Stop`, `GetConnections`, `FlushPending`, `Remove`, `GetMap`, `DumpMaps`, `GetType`. Concrete implementations: kprobe prebuilt, runtime-compiled, CO-RE, fentry (Linux), ETW (Windows), and eBPF-less (Fargate). |
 
-### Configuration (`pkg/network/config/`)
+### Key functions
+
+**`Tracer` (top-level orchestrator, `tracer/tracer.go`):**
+
+| Symbol | Description |
+|--------|-------------|
+| `Tracer` | Top-level orchestrator. Owns an `ebpfTracer` (eBPF or eBPF-less), a `State`, a `ReverseDNS`, a `usm.Monitor`, a `netlink.Conntracker`, a `GatewayLookup`, and an optional process/container cache. `NewTracer` creates and starts all components. `GetActiveConnections` fetches the `Connections` payload for a given client ID. |
+
+**Supporting sub-packages:**
+
+| Package | Description |
+|---------|-------------|
+| `pkg/network/dns/` | DNS packet inspection, reverse-DNS hostname mapping, and per-query stats. `ReverseDNS` interface; `StatsByKeyByNameByType` map type consumed by `State`. |
+| `pkg/network/netlink/` | Conntrack integration via netlink. `Conntracker` interface; `ebpfConntracker` and `netlinkConntracker` implementations translate NAT addresses. |
+| `pkg/network/ebpf/` | Auto-generated Go types mirroring eBPF C structs (e.g., `ConnTuple`, `ConnStats`, `ProtocolStackWrapper`). |
+| `pkg/network/filter/` | Socket-level BPF packet filter attachment used by the DNS and USM raw-socket paths. |
+| `pkg/network/encoding/` | Protobuf marshaling of `Connections` payloads for the system-probe HTTP API. |
+| `pkg/network/sender/` | Sends encoded connection payloads directly to the Datadog intake (when `DirectSend` is enabled). |
+| `pkg/network/usm/` | Universal Service Monitoring (USM) monitor that loads per-protocol eBPF programs. See also `pkg/network/protocols/`. |
+| `pkg/network/slice/` | Generic connection-slice utilities (e.g., group connections by type). |
+
+### Configuration and build flags
 
 `Config` (in `config/config.go`) extends `ebpf.Config` with NPM-specific options:
 
@@ -75,21 +94,6 @@ which exposes collected data to the Datadog Agent over a Unix socket.
 `USMConfig` (embedded via `*USMConfig`) adds per-protocol flags for HTTP, HTTP2,
 Kafka, Postgres, Redis, TLS (native, Go, Node.js, Istio), and tuning parameters
 for eBPF map sizing, ring buffers, and event consumers.
-
-### Supporting sub-packages
-
-| Package | Description |
-|---------|-------------|
-| `pkg/network/dns/` | DNS packet inspection, reverse-DNS hostname mapping, and per-query stats. `ReverseDNS` interface; `StatsByKeyByNameByType` map type consumed by `State`. |
-| `pkg/network/netlink/` | Conntrack integration via netlink. `Conntracker` interface; `ebpfConntracker` and `netlinkConntracker` implementations translate NAT addresses. |
-| `pkg/network/ebpf/` | Auto-generated Go types mirroring eBPF C structs (e.g., `ConnTuple`, `ConnStats`, `ProtocolStackWrapper`). |
-| `pkg/network/filter/` | Socket-level BPF packet filter attachment used by the DNS and USM raw-socket paths. |
-| `pkg/network/encoding/` | Protobuf marshaling of `Connections` payloads for the system-probe HTTP API. |
-| `pkg/network/sender/` | Sends encoded connection payloads directly to the Datadog intake (when `DirectSend` is enabled). |
-| `pkg/network/usm/` | Universal Service Monitoring (USM) monitor that loads per-protocol eBPF programs. See also `pkg/network/protocols/`. |
-| `pkg/network/slice/` | Generic connection-slice utilities (e.g., group connections by type). |
-
-### Build flags
 
 | Build tag | Effect |
 |-----------|--------|

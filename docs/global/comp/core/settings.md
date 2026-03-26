@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/settings` maintains a registry of named `RuntimeSetting` entries that can be read and written at runtime without restarting the agent, exposing them through a Go API and automatically registering `/config` HTTP endpoints on the agent's internal API.
+
 # comp/core/settings — Runtime Settings Component
 
 **Import path:** `github.com/DataDog/datadog-agent/comp/core/settings`
@@ -17,7 +19,11 @@ Values written through this component are stored in the underlying `config.Compo
 | `comp/core/settings` (root) | `Component` interface, `RuntimeSetting` interface, `Params`, `RuntimeSettingProvider` fx helper |
 | `comp/core/settings/settingsimpl` | `settingsRegistry` implementation, HTTP handlers, `Module()` |
 
-## Component interface
+## Key elements
+
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -40,7 +46,9 @@ type Component interface {
 
 `GetRuntimeSetting` / `SetRuntimeSetting` return `*SettingNotFoundError` when the requested name is not registered.
 
-### RuntimeSetting interface
+### Key types
+
+#### RuntimeSetting interface
 
 Every individual setting implements:
 
@@ -55,7 +63,9 @@ type RuntimeSetting interface {
 
 Built-in implementations live in `pkg/config/settings` and include `LogLevelRuntimeSetting`, `RuntimeMutexProfileFraction`, `RuntimeBlockProfileRate`, `ProfilingGoroutines`, and `LogPayloadsRuntimeSetting`.
 
-## HTTP endpoints registered
+### Key functions
+
+#### HTTP endpoints registered
 
 The implementation registers these routes on the agent API automatically:
 
@@ -67,7 +77,9 @@ The implementation registers these routes on the agent API automatically:
 | GET | `/config/{setting}` | Read a single setting (add `?sources=true` for per-source breakdown) |
 | POST | `/config/{setting}` | Write a single setting (`value` form field) |
 
-## fx wiring
+### Configuration and build flags
+
+#### fx wiring
 
 `settingsimpl.Module()` provides `settings.Component` and auto-registers the five HTTP endpoints as `api.AgentEndpointProvider` values consumed by `comp/api`.
 

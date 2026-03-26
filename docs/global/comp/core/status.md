@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/core/status` aggregates status data from all agent components via a provider pattern and renders it as the `datadog-agent status` output in text, JSON, or HTML, while also serving three IPC HTTP endpoints and contributing `status.log` to every flare.
+
 # comp/core/status
 
 ## Purpose
@@ -19,7 +21,9 @@ The component also exposes three HTTP endpoints on the agent IPC API (`/status`,
 
 ## Key Elements
 
-### Component interface
+### Key interfaces
+
+#### Component interface
 
 ```go
 type Component interface {
@@ -31,7 +35,7 @@ type Component interface {
 
 `format` is one of `"json"`, `"text"`, or `"html"`. `GetSections()` returns `["header", <sorted section names>...]`.
 
-### Provider interfaces
+#### Provider interfaces
 
 Providers are the extension point. Any component that wants to appear in the status output implements one of these interfaces and registers it via FX:
 
@@ -55,7 +59,9 @@ type HeaderProvider interface {
 
 `Provider` contributes to a named section (e.g., `"collector"`, `"dogstatsd"`). `HeaderProvider` contributes to the top-level header block shown before all sections.
 
-### FX registration types
+### Key types
+
+#### FX registration types
 
 The component uses [FX value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) to collect providers:
 
@@ -80,7 +86,7 @@ status.NewInformationProvider(myProvider)       // returns InformationProvider
 status.NewHeaderInformationProvider(myProvider) // returns HeaderInformationProvider
 ```
 
-### Params
+#### Params
 
 ```go
 type Params struct {
@@ -90,17 +96,21 @@ type Params struct {
 
 Injected via `fx.Supply(params)` at app construction time (see `statusimpl.Module()`).
 
-### Constants
+#### Constants
 
 `CollectorSection = "collector"` — the collector section is always rendered first regardless of alphabetical order.
 
-### Render helpers (`render_helpers.go`)
+### Key functions
+
+#### Render helpers (`render_helpers.go`)
 
 `HTMLFmap()` and `TextFmap()` return template function maps for use in provider templates. These include helpers like `humanize`, `formatUnixTime`, `formatFloat`, `printDashes`, and `doNotEscape`.
 
 `PrintDashes(text, sep string) string` — generates a separator line matching the length of `text`.
 
-### API endpoints (registered by the implementation)
+### Configuration and build flags
+
+#### API endpoints (registered by the implementation)
 
 | Method | Path | Description |
 |---|---|---|
@@ -108,7 +118,7 @@ Injected via `fx.Supply(params)` at app construction time (see `statusimpl.Modul
 | GET | `/{component}/status` | Status for a single section |
 | GET | `/status/sections` | JSON list of available section names |
 
-### Flare integration
+#### Flare integration
 
 `statusimpl` registers itself as a flare provider. Every flare automatically includes `status.log` (verbose text output of the full status).
 

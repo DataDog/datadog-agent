@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/security/rconfig` provides the Remote Configuration (RC) policy provider for CWS — subscribing to `CWSDefaultPolicies`, `CWSCustomPolicies`, and `CWSRemediation` RC products and feeding debounced policy updates into the `RuleEngine` for automatic rule reloads.
+
 # pkg/security/rconfig — Remote Configuration policy provider for CWS
 
 ## Purpose
@@ -8,7 +10,7 @@ The package has no build tag and works on all platforms where CWS runs.
 
 ## Key elements
 
-### Types
+### Key types
 
 | Type | File | Description |
 |------|------|-------------|
@@ -16,7 +18,9 @@ The package has no build tag and works on all platforms where CWS runs.
 
 `RCPolicyProvider` satisfies the `rules.PolicyProvider` interface — enforced by the compile-time assertion `var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)`.
 
-### Constructor
+### Key functions
+
+#### Constructor
 
 ```go
 func NewRCPolicyProvider(
@@ -31,7 +35,9 @@ func NewRCPolicyProvider(
 - `dumpPolicies`: when true, each received policy is written to a temp file for debugging.
 - `setEnforcementCallback`: called with `true` when RC connectivity is confirmed, and with whatever state RC reports when the connection changes.
 
-### Methods implementing `rules.PolicyProvider`
+### Key interfaces
+
+#### Methods implementing `rules.PolicyProvider`
 
 | Method | Description |
 |--------|-------------|
@@ -41,11 +47,13 @@ func NewRCPolicyProvider(
 | `Close()` | Stops the debouncer and closes the RC client. No-op if never started. |
 | `Type()` | Returns `rules.PolicyProviderTypeRC`. |
 
-### Debouncing
+### Configuration and build flags
+
+#### Debouncing
 
 Rapid policy pushes (e.g., several configs arriving in quick succession) are coalesced: each update callback calls `r.debouncer.Call()`, and `onNewPoliciesReady` fires only once after `debounceDelay = 5 s` of silence.
 
-### RC products subscribed
+#### RC products subscribed
 
 | Product constant | Policy type assigned |
 |-----------------|---------------------|
@@ -53,7 +61,7 @@ Rapid policy pushes (e.g., several configs arriving in quick succession) are coa
 | `state.ProductCWSCustom` | `rules.CustomPolicyType` |
 | `state.ProductCWSRemediation` | `rules.RemediationPolicyType` |
 
-### Constants
+#### Constants
 
 | Constant | Value |
 |----------|-------|

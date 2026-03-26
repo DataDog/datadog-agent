@@ -1,3 +1,5 @@
+> **TL;DR:** `comp/notableevents` subscribes to predefined Windows Event Log entries (reboots, crashes, failed updates) and forwards them to the Datadog Event Management v2 API using a persistent bookmark to avoid re-emission across restarts.
+
 # comp/notableevents
 
 **Team:** windows-products
@@ -17,7 +19,7 @@ is opened.
 
 ## Key elements
 
-### Component interface
+### Key interfaces
 
 ```go
 // comp/notableevents/def/component.go
@@ -29,7 +31,9 @@ hooks (`OnStart` / `OnStop`). Start/stop order is enforced internally: the
 submitter (consumer) starts before the collector (producer), and the collector
 stops before the channel is closed.
 
-### Internal architecture
+### Key types
+
+**Internal architecture:**
 
 ```
 Windows Event Log
@@ -57,9 +61,7 @@ Windows Event Log
 - Calls `eventplatform.Forwarder.SendEventPlatformEventBlocking` with event
   type `EventTypeEventManagement`.
 
-### Monitored events
-
-Defined in `getEventDefinitions()` (`collector.go`):
+**Monitored events** — defined in `getEventDefinitions()` (`collector.go`):
 
 | Provider | Event ID | Type |
 |----------|----------|------|
@@ -74,7 +76,7 @@ Each definition includes the XPath channel/query, a human-readable title and
 message, and an optional `FormatPayload` function to extract structured fields
 from the event XML (e.g., process name for application crashes).
 
-### eventPayload
+**`eventPayload`** — the internal event structure:
 
 ```go
 type eventPayload struct {
@@ -86,7 +88,9 @@ type eventPayload struct {
 }
 ```
 
-### fx wiring
+### Configuration and build flags
+
+**fx wiring:**
 
 ```go
 // comp/notableevents/fx/fx.go

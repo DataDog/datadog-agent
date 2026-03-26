@@ -1,3 +1,5 @@
+> **TL;DR:** Provides the concrete collection functions ("providers") that populate diagnostic flare archives — gathering config files, logs, runtime state, goroutine dumps, pprof profiles, and Kubernetes metadata — and exposes the entry points invoked by the agent CLI and the `comp/core/flare` component.
+
 # pkg/flare
 
 ## Purpose
@@ -23,6 +25,19 @@ Platform-specific files follow the standard Go build-tag naming (`_linux`, `_win
 ---
 
 ## Key Elements
+
+### Key types
+
+- `RemoteFlareProvider` — wraps an IPC component and makes authenticated HTTP calls to the running agent to fetch tagger/workload dumps and goroutine profiles.
+- `FlareFiller` (`comp/core/flare/types`) — pairs a `FlareCallback` with an optional timeout; run by the flare component per provider.
+- `Provider` (`comp/core/flare/types`) — FX-tagged wrapper (`group:"flare"`) for contributing a `FlareFiller` via dependency injection.
+- `FlareArgs` (`comp/core/flare/types`) — optional arguments (profiling durations, stream-logs duration) passed by the CLI caller.
+
+### Key interfaces
+
+- `FlareBuilder` (`comp/core/flare/types`) — `AddFile`, `AddFileFromFunc`, `CopyFileTo`, `CopyDirTo`, `AddFileWithoutScrubbing`, `RegisterFilePerm`, `Logf`, `IsLocal`.
+
+### Key functions
 
 ### Root package
 

@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/cloudfoundry` provides the Cloud Foundry container tagger, which injects host-level and CAPI application metadata tags into running CF containers by executing a script inside each container via the Garden API whenever workloadmeta reports a new container.
+
 # pkg/cloudfoundry
 
 ## Purpose
@@ -11,13 +13,17 @@ The package bridges two CF-specific subsystems:
 
 ## Key elements
 
-### `pkg/cloudfoundry/containertagger`
+### Key types
+
+#### `pkg/cloudfoundry/containertagger`
 
 | Symbol | Kind | Description |
 |--------|------|-------------|
 | `ContainerTagger` | struct | Main type. Subscribes to WorkloadMeta container events and, for each new/updated container, calls into the Garden API to run a tag-injection script inside that container. |
 | `NewContainerTagger(wmeta workloadmeta.Component) (*ContainerTagger, error)` | constructor | Obtains the Garden utility via `cloudfoundry.GetGardenUtil()` and reads `cloud_foundry_container_tagger.retry_count` / `retry_interval` from the agent config. |
 | `(*ContainerTagger).Start(ctx context.Context)` | method | Launches a goroutine that subscribes to `workloadmeta` events (`SourceClusterOrchestrator`, `KindContainer`) and dispatches to `processEvent`. Cancel the context to stop. |
+
+### Key functions
 
 #### Internal behaviour
 
@@ -28,6 +34,8 @@ The package bridges two CF-specific subsystems:
    - Runs `/home/vcap/app/.datadog/scripts/update_agent_config.sh` inside the container via the Garden `Run` API, passing `DD_NODE_AGENT_TAGS=<comma-separated tags>` as an environment variable. The shell interpreter path is read from `cloud_foundry_container_tagger.shell_path`.
    - Retries up to `retry_count` times with `retry_interval` delay on failure.
 2. On `EventTypeUnset`, removes the container's tag hash from the seen-set so resources are reclaimed.
+
+### Configuration and build flags
 
 #### Configuration keys
 

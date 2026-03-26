@@ -1,3 +1,5 @@
+> **TL;DR:** `pkg/system-probe` is the interface layer between the Datadog Agent and the privileged `system-probe` daemon, providing configuration loading, the module lifecycle contract, the HTTP server infrastructure, and the client library that agent components use to query modules over a Unix socket.
+
 # Package `pkg/system-probe`
 
 ## Purpose
@@ -42,9 +44,9 @@ Other agent processes (agent, process-agent, ...)
 
 ## Key elements
 
-### `pkg/system-probe/config` and `pkg/system-probe/config/types`
+### Key types
 
-#### Types
+#### `pkg/system-probe/config` and `pkg/system-probe/config/types`
 
 | Type | Description |
 |---|---|
@@ -93,11 +95,11 @@ Other agent processes (agent, process-agent, ...)
 
 ---
 
-### `pkg/system-probe/api/module`
+### Key interfaces
+
+#### `pkg/system-probe/api/module`
 
 This package owns the module contract and the global loader singleton.
-
-#### Types
 
 | Type | Description |
 |---|---|
@@ -137,12 +139,12 @@ Close()
 
 ---
 
-### `pkg/system-probe/api/client`
+### Key functions
+
+#### `pkg/system-probe/api/client`
 
 Client library for agent-side components to query system-probe over its Unix
 socket.
-
-#### Types
 
 | Type | Description |
 |---|---|
@@ -171,13 +173,17 @@ socket.
 
 ---
 
-### `pkg/system-probe/api/server`
+#### `pkg/system-probe/api/server`
 
 Provides the `net.Listener` factory (`listener_unix.go`, `listener_windows.go`,
 `listener_others.go`) that the system-probe HTTP server binds to. On Linux and
 macOS it uses a Unix domain socket; on Windows it uses a named pipe.
 
 `server.ErrNotImplemented` is returned on unsupported platforms.
+
+### Configuration and build flags
+
+Key build-tag-gated files and their purposes are documented in the `## Usage / Build tags` section. The primary config key is `system_probe_config.sysprobe_socket`. Module-specific keys are described per-module in the module name constants table above.
 
 ---
 
