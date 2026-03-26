@@ -27,6 +27,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
+	configEndpointMux.Use(observability.CaptureRouteTemplateMiddleware)
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(
