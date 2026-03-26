@@ -37,8 +37,12 @@ FLAGS_TO_CLEAR = frozenset(
 def _fix_value(key, value):
     if key in FLAGS_TO_CLEAR:
         return ""
-    if isinstance(value, str) and os.path.basename(value) in TOOL_BASENAMES:
-        return os.path.basename(value)
+    if isinstance(value, str):
+        # Replace tool name references with their basename anywhere they occur
+        tokens = value.split()
+        new_tokens = [os.path.basename(t) if os.path.basename(t) in TOOL_BASENAMES else t for t in tokens]
+        if new_tokens != tokens:
+            return " ".join(new_tokens)
     return value
 
 
