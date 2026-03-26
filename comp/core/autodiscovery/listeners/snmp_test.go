@@ -8,16 +8,19 @@ package listeners
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/datadog-agent/pkg/snmp/devicededuper"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
@@ -677,4 +680,108 @@ func TestMigrateCache(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDedupDeviceRegistrationUpdatesExpvar verifies that when device deduplication is enabled,
+// the autodiscovery status expvar for a subnet is updated once the device is registered through
+// the deduplication path (i.e. after a higher-IP subnet is processed and registerDedupedDevices
+// releases the pending lower-IP device).
+//
+// Without the fix, registerService() did not update the expvar, so the status remained
+// "No IPs found" for the entire scan interval even though the device was actively being collected.
+func TestDedupDeviceRegistrationUpdatesExpvar(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+
+	// Two /32 subnets. The deduper releases a device only once all numerically lower
+	// configured IPs have been processed, so 10.0.0.1 will be held as pending until
+	// 10.0.0.5 is marked as processed.
+	configs := []interface{}{
+		map[string]interface{}{
+			"network":   "10.0.0.1/32",
+			"community": "public",
+		},
+		map[string]interface{}{
+			"network":   "10.0.0.5/32",
+			"community": "public",
+		},
+	}
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.use_deduplication", true)
+
+	listener, err := NewSNMPListener(ServiceListernerDeps{})
+	require.NoError(t, err)
+
+	l, ok := listener.(*SNMPListener)
+	require.True(t, ok)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.newService = newSvc
+	l.delService = delSvc
+
+	subnets := l.initializeSubnets()
+	require.Len(t, subnets, 2)
+
+	subnet1 := &subnets[0] // 10.0.0.1/32
+	subnet2 := &subnets[1] // 10.0.0.5/32
+
+	subnet1Key := GetSubnetVarKey(subnet1.config.Network, subnet1.index)
+	subnet2Key := GetSubnetVarKey(subnet2.config.Network, subnet2.index)
+
+	// Reset expvars to empty, as checkDevices() does at the start of each scan cycle.
+	autodiscoveryStatusBySubnetVar.Set(subnet1Key, &expvar.String{})
+	autodiscoveryStatusBySubnetVar.Set(subnet2Key, &expvar.String{})
+
+	deviceInfo := devicededuper.DeviceInfo{
+		Name:        "router1",
+		Description: "Cisco IOS",
+		SysObjectID: "1.3.6.1.4.1.9",
+		BootTimeMs:  5000,
+	}
+
+	// Simulate checkDevice() for 10.0.0.1: mark as processed, then create the service.
+	// createService() with non-empty DeviceInfo takes the dedup path (AddPendingDevice),
+	// so the service is created with pending=true.
+	entityID1 := subnet1.config.Digest("10.0.0.1")
+	l.deviceDeduper.MarkIPAsProcessed("10.0.0.1")
+	l.registerDedupedDevices() // nothing to release yet — device not in pending list
+	l.createService(entityID1, subnet1, "10.0.0.1", deviceInfo, 0, 0, false)
+
+	// Simulate the expvar update that checkDevice() would write after creating the service:
+	// the device is still pending, so DevicesFoundList is empty.
+	autodiscoveryStatusBySubnetVar.Set(subnet1Key, &AutodiscoveryStatus{
+		DevicesFoundList:    l.getDevicesFoundInSubnet(*subnet1),
+		CurrentDevice:       "10.0.0.1",
+		DevicesScannedCount: 1,
+	})
+
+	// Confirm the expvar correctly shows no IPs at this point (device is pending).
+	v := autodiscoveryStatusBySubnetVar.Get(subnet1Key)
+	require.NotNil(t, v)
+	var statusBefore AutodiscoveryStatus
+	require.NoError(t, json.Unmarshal([]byte(v.String()), &statusBefore))
+	assert.Empty(t, statusBefore.DevicesFoundList, "device should be pending before dedup releases it")
+
+	// Simulate checkDevice() for 10.0.0.5: mark as processed, then call registerDedupedDevices.
+	// Now that all configured IPs ≤ 10.0.0.1 have been processed (counter=0),
+	// the deduper releases 10.0.0.1 and registerService() is called for it.
+	l.deviceDeduper.MarkIPAsProcessed("10.0.0.5")
+	l.registerDedupedDevices()
+
+	// The fix: registerService() must now update the expvar for subnet1 to reflect the
+	// registered device. Without the fix the expvar would remain empty until the next scan cycle.
+	v = autodiscoveryStatusBySubnetVar.Get(subnet1Key)
+	require.NotNil(t, v)
+	var statusAfter AutodiscoveryStatus
+	require.NoError(t, json.Unmarshal([]byte(v.String()), &statusAfter))
+	assert.Equal(t, []string{"10.0.0.1"}, statusAfter.DevicesFoundList,
+		"expvar for subnet 10.0.0.1/32 must show the registered device IP after dedup registration")
+
+	// The service must have been forwarded to the autodiscovery pipeline.
+	require.Len(t, newSvc, 1)
+	registeredSvc := (<-newSvc).(*SNMPService)
+	assert.Equal(t, "10.0.0.1", registeredSvc.deviceIP)
+	assert.False(t, registeredSvc.pending)
 }

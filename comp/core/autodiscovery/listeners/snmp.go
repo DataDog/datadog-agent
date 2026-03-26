@@ -312,10 +312,9 @@ func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port 
 	return devicededuper.DeviceInfo{Name: sysName, Description: sysDescr, BootTimeMs: bootTimestamp, SysObjectID: sysObjectID}
 }
 
-func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
-	l.Lock()
-	defer l.Unlock()
-
+// getDevicesFoundInSubnetLocked returns IPs of non-pending services for a subnet.
+// Caller must hold l.Lock().
+func (l *SNMPListener) getDevicesFoundInSubnetLocked(subnet snmpSubnet) []string {
 	ipsFound := []string{}
 	for _, svc := range l.services {
 		if svc.subnet.cacheKey == subnet.cacheKey && !svc.pending {
@@ -323,6 +322,12 @@ func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
 		}
 	}
 	return ipsFound
+}
+
+func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
+	l.Lock()
+	defer l.Unlock()
+	return l.getDevicesFoundInSubnetLocked(subnet)
 }
 
 func (l *SNMPListener) initializeSubnets() []snmpSubnet {
@@ -463,15 +468,16 @@ func (l *SNMPListener) createService(
 	writeCache bool,
 ) {
 	l.Lock()
-	defer l.Unlock()
 
 	if _, present := l.services[entityID]; present {
+		l.Unlock()
 		return
 	}
 
 	config := subnet.config
 	if authIndex < 0 || authIndex >= len(config.Authentications) {
 		log.Errorf("Invalid authentication index %d for device %s (max: %d)", authIndex, deviceIP, len(config.Authentications)-1)
+		l.Unlock()
 		return
 	}
 	authentication := config.Authentications[authIndex]
@@ -507,11 +513,14 @@ func (l *SNMPListener) createService(
 	}
 
 	if deviceInfo == (devicededuper.DeviceInfo{}) {
+		// Release lock before calling registerService, which acquires it internally.
+		l.Unlock()
 		l.registerService(pendingDevice)
 		return
 	}
 
 	l.deviceDeduper.AddPendingDevice(pendingDevice)
+	l.Unlock()
 }
 
 func (l *SNMPListener) registerDedupedDevices() {
@@ -526,17 +535,28 @@ func (l *SNMPListener) registerDedupedDevices() {
 func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice) {
 	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
+	l.Lock()
 	svc, ok := l.services[entityID]
 	if !ok {
+		l.Unlock()
 		return
 	}
 	svc.pending = false
-
 	svc.subnet.devices[svc.entityID] = deviceCache{
 		IP:        net.ParseIP(svc.deviceIP),
 		AuthIndex: pendingDevice.AuthIndex,
 		Failures:  pendingDevice.Failures,
 	}
+	ipsFound := l.getDevicesFoundInSubnetLocked(*svc.subnet)
+	network := svc.subnet.config.Network
+	index := svc.subnet.index
+	l.Unlock()
+
+	autodiscoveryStatusBySubnetVar.Set(
+		GetSubnetVarKey(network, index),
+		&AutodiscoveryStatus{DevicesFoundList: ipsFound},
+	)
+
 	if pendingDevice.WriteCache {
 		l.writeCache(svc.subnet)
 	}
