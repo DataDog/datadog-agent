@@ -3,19 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 // Package fx provides the fx module for the oidresolver component.
 package fx
 
 import (
-	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
+	"go.uber.org/fx"
+
 	oidresolverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
+// MockModule provides a dummy resolver with canned data for testing.
+// Set your own data with fx.Replace(&oidresolver.TrapDBFileContent{...})
+func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(oidresolverimpl.NewComponent),
-		fxutil.ProvideOptional[oidresolver.Component](),
+		fx.Provide(oidresolverimpl.NewMockResolver),
+		fx.Supply(oidresolverimpl.DummyTrapDB()),
 	)
 }
