@@ -23,7 +23,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/collector
 # gazelle:exclude comp/connectivitychecker
 # gazelle:exclude comp/dataobs
-# gazelle:exclude comp/def
 # gazelle:exclude comp/dogstatsd
 # gazelle:exclude comp/etw
 # gazelle:exclude comp/filterlist
@@ -66,7 +65,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/configsync
 # gazelle:exclude comp/core/delegatedauth
 # gazelle:exclude comp/core/diagnose
-# gazelle:exclude comp/core/flare
+# gazelle:exclude comp/core/flare/flareimpl
+# gazelle:exclude comp/core/flare/helpers
+# gazelle:exclude comp/core/flare/types
 # gazelle:exclude comp/core/fxinstrumentation
 # gazelle:exclude comp/core/gui
 # gazelle:exclude comp/core/healthprobe
@@ -85,7 +86,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
-# gazelle:exclude comp/core/secrets
+# gazelle:exclude comp/core/secrets/fx-noop
+# gazelle:exclude comp/core/secrets/fx
+# gazelle:exclude comp/core/secrets/impl
+# gazelle:exclude comp/core/secrets/mock
+# gazelle:exclude comp/core/secrets/noop-impl
+# gazelle:exclude comp/core/secrets/utils
 # gazelle:exclude comp/core/settings
 # gazelle:exclude comp/core/status
 # gazelle:exclude comp/core/sysprobeconfig
@@ -111,7 +117,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/k8s_metadata
 # gazelle:exclude comp/core/tagger/kubetags
 # gazelle:exclude comp/core/tagger/mock
-# gazelle:exclude comp/core/tagger/origindetection
 # gazelle:exclude comp/core/tagger/proto
 # gazelle:exclude comp/core/tagger/server
 # gazelle:exclude comp/core/tagger/subscriber
