@@ -202,6 +202,39 @@ func TestConcurrentSubscribePublish(_ *testing.T) {
 	wg.Wait()
 }
 
+// TestSubscribeDuplicateNamePanics asserts that subscribing with a name already
+// in use panics immediately rather than silently leaking a goroutine.
+func TestSubscribeDuplicateNamePanics(t *testing.T) {
+	h := NewHook[int]("dup-name")
+	unsub := h.Subscribe("consumer", func(_ int) {})
+	defer unsub()
+
+	assert.Panics(t, func() {
+		h.Subscribe("consumer", func(_ int) {})
+	})
+}
+
+// TestSubscriberCountReflectsSubscribeUnsubscribe verifies that the internal
+// subscriber counter is updated correctly, so the fast-path in Publish works.
+func TestSubscriberCountReflectsSubscribeUnsubscribe(t *testing.T) {
+	h := NewHook[int]("counter-test")
+	impl := h.(*hook[int])
+
+	require.Equal(t, int32(0), impl.subscriberCount.Load())
+
+	unsub1 := h.Subscribe("a", func(_ int) {})
+	require.Equal(t, int32(1), impl.subscriberCount.Load())
+
+	unsub2 := h.Subscribe("b", func(_ int) {})
+	require.Equal(t, int32(2), impl.subscriberCount.Load())
+
+	unsub1()
+	require.Equal(t, int32(1), impl.subscriberCount.Load())
+
+	unsub2()
+	require.Equal(t, int32(0), impl.subscriberCount.Load())
+}
+
 // TestNoGoroutineLeak asserts that the subscriber goroutine exits after
 // the unsubscribe function is called.
 func TestNoGoroutineLeak(t *testing.T) {
