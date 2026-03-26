@@ -269,7 +269,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 3) // bitset: bit 0 (argument) and bit 1 (template_segment) set
+	item = append(item, 5) // bitset: bit 0 (expr 0 present) and bit 2 (expr 1 present)
 	// First expression (argument) at offset 1
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
@@ -363,7 +363,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -556,7 +556,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// Build root data item
 	rootData := make([]byte, rootLen)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -775,7 +775,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// Build root data item
 	rootData := make([]byte, rootLen)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -1009,7 +1009,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -1131,7 +1131,7 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type
@@ -1546,4 +1546,76 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDecoderNilPointerCaptureExpression tests that a nil pointer dereference
+// during expression evaluation is reported as an evaluation error for captures.
+func TestDecoderNilPointerCaptureExpression(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Flip bitset so expression 0 (the argument capture) has nil-deref
+	// instead of present. Original bitset = 0b00000101 (bit 0 and bit 2 set).
+	// We want: expr 0 not-present + nil-deref (bit 0=0, bit 1=1),
+	//          expr 1 present (bit 2=1).
+	// Result: 0b00000110 = 6
+	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
+	input[bitsetOffset] = 6
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.Event(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	// The argument should not appear in captures (it was skipped).
+	require.Nil(t, e.Debugger.Snapshot.Captures.Entry.Arguments)
+
+	// An evaluation error should be reported for the nil pointer.
+	require.NotEmpty(t, e.Debugger.EvaluationErrors)
+	found := false
+	for _, evalErr := range e.Debugger.EvaluationErrors {
+		if evalErr.Message == "nil pointer dereference" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.EvaluationErrors)
+}
+
+// TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference
+// during template expression evaluation is formatted as an error in the message.
+func TestDecoderNilPointerTemplateExpression(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Flip bitset so expression 1 (the template segment) has nil-deref.
+	// Original bitset = 0b00000101 (bit 0 and bit 2 set).
+	// We want: expr 0 present (bit 0=1),
+	//          expr 1 not-present + nil-deref (bit 2=0, bit 3=1).
+	// Result: 0b00001001 = 9
+	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
+	input[bitsetOffset] = 9
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.Event(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	// The template message should contain the error, not {nil}.
+	require.Contains(t, e.Message, "nil pointer dereference")
+	require.NotContains(t, e.Message, "{nil}")
 }
