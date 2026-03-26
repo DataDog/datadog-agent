@@ -103,21 +103,23 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 
 	nodeName, _ := c.kubeUtil.GetNodename(ctx)
 
+	kubeletEntity := &workloadmeta.Kubelet{
+		EntityID: workloadmeta.EntityID{
+			ID:   workloadmeta.KubeletID,
+			Kind: workloadmeta.KindKubelet,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: workloadmeta.KubeletName,
+		},
+		ConfigDocument: wmetaConfigDocument,
+		RawConfig:      rawKubeletConfig,
+		NodeName:       nodeName,
+	}
+	kubeletEntity.InternStrings()
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
 		Source: workloadmeta.SourceNodeOrchestrator,
-		Entity: &workloadmeta.Kubelet{
-			EntityID: workloadmeta.EntityID{
-				ID:   workloadmeta.KubeletID,
-				Kind: workloadmeta.KindKubelet,
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: workloadmeta.KubeletName,
-			},
-			ConfigDocument: wmetaConfigDocument,
-			RawConfig:      rawKubeletConfig,
-			NodeName:       nodeName,
-		},
+		Entity: kubeletEntity,
 	}, nil
 }
 

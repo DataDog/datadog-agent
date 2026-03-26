@@ -36,7 +36,7 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
 	id := util.GenerateKubeMetadataEntityID(p.gvr.Group, p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
 
-	return &workloadmeta.KubernetesMetadata{
+	entity := &workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
 			ID:   string(id),
@@ -50,4 +50,6 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 		},
 		GVR: p.gvr,
 	}
+	entity.InternStrings()
+	return entity
 }

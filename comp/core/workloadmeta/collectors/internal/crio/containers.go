@@ -30,32 +30,34 @@ func (c *collector) convertContainerToEvent(ctx context.Context, ctr *v1.Contain
 	image := getContainerImage(containerStatus)
 	ports := parsePortsFromAnnotations(ctr.GetAnnotations())
 
+	containerEntity := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   ctr.GetId(),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      ctr.GetLabels(),
+			Annotations: ctr.GetAnnotations(),
+		},
+		Hostname: hostname,
+		Image:    image,
+		PID:      pid,
+		Ports:    ports,
+		Runtime:  workloadmeta.ContainerRuntimeCRIO,
+		State:    getContainerState(containerStatus),
+		Resources: workloadmeta.ContainerResources{
+			CPULimit:    cpuLimit,
+			MemoryLimit: memLimit,
+		},
+		CgroupPath: cgroupsPath,
+	}
+	containerEntity.InternStrings()
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
 		Source: workloadmeta.SourceRuntime,
-		Entity: &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   ctr.GetId(),
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:        name,
-				Namespace:   namespace,
-				Labels:      ctr.GetLabels(),
-				Annotations: ctr.GetAnnotations(),
-			},
-			Hostname: hostname,
-			Image:    image,
-			PID:      pid,
-			Ports:    ports,
-			Runtime:  workloadmeta.ContainerRuntimeCRIO,
-			State:    getContainerState(containerStatus),
-			Resources: workloadmeta.ContainerResources{
-				CPULimit:    cpuLimit,
-				MemoryLimit: memLimit,
-			},
-			CgroupPath: cgroupsPath,
-		},
+		Entity: containerEntity,
 	}
 }
 

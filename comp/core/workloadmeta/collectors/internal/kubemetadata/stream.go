@@ -243,21 +243,23 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
 
+	podEntity := &workloadmeta.KubernetesPod{
+		EntityID: pod.EntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      pod.Name,
+			Namespace: pod.Namespace,
+			// Labels and annotations are omitted because they're filled by
+			// the kubelet collector
+		},
+		KubeServices:         services,
+		NamespaceLabels:      nsLabels,
+		NamespaceAnnotations: nsAnnotations,
+	}
+	podEntity.InternStrings()
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
 		Type:   workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.KubernetesPod{
-			EntityID: pod.EntityID,
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      pod.Name,
-				Namespace: pod.Namespace,
-				// Labels and annotations are omitted because they're filled by
-				// the kubelet collector
-			},
-			KubeServices:         services,
-			NamespaceLabels:      nsLabels,
-			NamespaceAnnotations: nsAnnotations,
-		},
+		Entity: podEntity,
 	}
 }
 

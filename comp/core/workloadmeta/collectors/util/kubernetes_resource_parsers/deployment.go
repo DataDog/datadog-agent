@@ -69,7 +69,7 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
-	return &workloadmeta.KubernetesDeployment{
+	entity := &workloadmeta.KubernetesDeployment{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
@@ -85,4 +85,6 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 		Version:             deployment.Labels[ddkube.VersionTagLabelKey],
 		InjectableLanguages: containerLanguages,
 	}
+	entity.InternStrings()
+	return entity
 }

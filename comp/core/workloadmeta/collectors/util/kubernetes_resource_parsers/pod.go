@@ -98,7 +98,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		containersList = append(containersList, c)
 	}
 
-	return &workloadmeta.KubernetesPod{
+	entity := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   string(pod.UID),
@@ -120,4 +120,6 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
 	}
+	entity.InternStrings()
+	return entity
 }

@@ -391,6 +391,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	if err != nil {
 		return err
 	}
+	wlmImage.InternStrings()
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,

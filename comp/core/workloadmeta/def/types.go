@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run ../generators/genintern/main.go -input types.go -output intern_generated.go
+
 package workloadmeta
 
 import (
@@ -279,11 +281,11 @@ func (i EntityID) String(_ bool) string {
 
 // EntityMeta represents generic metadata about an Entity.
 type EntityMeta struct {
-	Name        string
-	Namespace   string
-	Annotations map[string]string
-	Labels      map[string]string
-	UID         string
+	Name        string            `intern:"true"`
+	Namespace   string            `intern:"true"`
+	Annotations map[string]string `intern:"true"`
+	Labels      map[string]string `intern:"true"`
+	UID         string            // unique per entity — not interned
 }
 
 // String returns a string representation of EntityMeta.
@@ -309,11 +311,11 @@ func (e EntityMeta) String(verbose bool) string {
 // will also be added to the container tags in tagger.
 type ContainerImage struct {
 	ID         string
-	RawName    string
-	Name       string
-	Registry   string
-	ShortName  string
-	Tag        string
+	RawName    string `intern:"true"`
+	Name       string `intern:"true"`
+	Registry   string `intern:"true"`
+	ShortName  string `intern:"true"`
+	Tag        string `intern:"true"`
 	RepoDigest string
 }
 
@@ -391,9 +393,9 @@ func (c ContainerState) String(verbose bool) string {
 
 // ContainerPort is a port open in the container.
 type ContainerPort struct {
-	Name     string
+	Name     string `intern:"true"`
 	Port     int
-	Protocol string
+	Protocol string `intern:"true"`
 	HostPort uint16
 }
 
@@ -474,7 +476,7 @@ const RequestAllGPUs = -1
 type ContainerResources struct {
 	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
 	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
-	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
+	GPUVendorList []string `intern:"true"` // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -488,8 +490,8 @@ type ContainerResources struct {
 	// but it is needed by kubelet check because it needs to emit metrics for
 	// all resources. This includes the typical ones defined above (cpu, memory,
 	// gpu) but also custom resources.
-	RawRequests map[string]string
-	RawLimits   map[string]string
+	RawRequests map[string]string `intern:"true"`
+	RawLimits   map[string]string `intern:"true"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -515,8 +517,8 @@ func (cr ContainerResources) String(bool) string {
 
 // ContainerResizePolicy represents a resize policy for a container
 type ContainerResizePolicy struct {
-	CPURestartPolicy    string
-	MemoryRestartPolicy string
+	CPURestartPolicy    string `intern:"true"`
+	MemoryRestartPolicy string `intern:"true"`
 
 	// Currently, the only supported resourceName values are "cpu" and "memory"
 	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
@@ -536,7 +538,7 @@ func (crp ContainerResizePolicy) String() string {
 // ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
 type ContainerAllocatedResource struct {
 	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
-	Name string
+	Name string `intern:"true"`
 
 	// ID is the unique ID of the resource, the format depends on the provider
 	ID string
@@ -550,7 +552,7 @@ func (c ContainerAllocatedResource) String() string {
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
 	ID        string
-	Name      string
+	Name      string `intern:"true"`
 	Image     ContainerImage
 	Resources ContainerResources
 }
@@ -574,13 +576,13 @@ type ECSContainer struct {
 	Networks      []ContainerNetwork
 	Volumes       []ContainerVolume
 	Health        *ContainerHealthStatus
-	DesiredStatus string
-	KnownStatus   string
-	Type          string
-	LogDriver     string
-	LogOptions    map[string]string
+	DesiredStatus string            `intern:"true"`
+	KnownStatus   string            `intern:"true"`
+	Type          string            `intern:"true"`
+	LogDriver     string            `intern:"true"`
+	LogOptions    map[string]string `intern:"true"`
 	ContainerARN  string
-	Snapshotter   string
+	Snapshotter   string `intern:"true"`
 }
 
 // String returns a string representation of ECSContainer.
@@ -630,8 +632,8 @@ type Container struct {
 	// ECSContainer contains properties specific to container running in ECS
 	*ECSContainer
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars       map[string]string
-	Hostname      string
+	EnvVars       map[string]string `intern:"true"`
+	Hostname      string            `intern:"true"`
 	Image         ContainerImage
 	NetworkIPs    map[string]string
 	PID           int
@@ -641,7 +643,7 @@ type Container struct {
 	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags   []string
+	CollectorTags   []string `intern:"true"`
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe
@@ -781,8 +783,8 @@ type ContainerSecurityContext struct {
 
 // Capabilities is the capabilities a certain Container security context is capable of
 type Capabilities struct {
-	Add  []string
-	Drop []string
+	Add  []string `intern:"true"`
+	Drop []string `intern:"true"`
 }
 
 // SeccompProfileType is the type of seccomp profile used
@@ -811,20 +813,20 @@ type KubernetesPod struct {
 	EntityID
 	EntityMeta
 	Owners                     []KubernetesPodOwner
-	PersistentVolumeClaimNames []string
+	PersistentVolumeClaimNames []string          `intern:"true"`
 	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
-	Phase                      string
+	Phase                      string            `intern:"true"`
 	IP                         string
-	PriorityClass              string
-	QOSClass                   string
-	GPUVendorList              []string
-	RuntimeClass               string
-	KubeServices               []string
-	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string
+	PriorityClass              string            `intern:"true"`
+	QOSClass                   string            `intern:"true"`
+	GPUVendorList              []string          `intern:"true"`
+	RuntimeClass               string            `intern:"true"`
+	KubeServices               []string          `intern:"true"`
+	NamespaceLabels            map[string]string `intern:"true"`
+	NamespaceAnnotations       map[string]string `intern:"true"`
 	FinishedAt                 time.Time
 	SecurityContext            *PodSecurityContext
 
@@ -834,8 +836,8 @@ type KubernetesPod struct {
 	CreationTimestamp          time.Time
 	DeletionTimestamp          *time.Time
 	StartTime                  *time.Time
-	NodeName                   string
-	HostIP                     string
+	NodeName                   string `intern:"true"`
+	HostIP                     string `intern:"true"`
 	HostNetwork                bool
 	InitContainerStatuses      []KubernetesContainerStatus
 	ContainerStatuses          []KubernetesContainerStatus
@@ -843,7 +845,7 @@ type KubernetesPod struct {
 	Conditions                 []KubernetesPodCondition
 	Volumes                    []KubernetesPodVolume
 	Tolerations                []KubernetesPodToleration
-	Reason                     string
+	Reason                     string `intern:"true"`
 }
 
 // GetID implements Entity#GetID.
@@ -1000,8 +1002,8 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
-	Kind       string
-	Name       string
+	Kind       string `intern:"true"`
+	Name       string `intern:"true"`
 	ID         string
 	Controller *bool
 }
@@ -1055,16 +1057,16 @@ type KubernetesPersistentVolumeClaim struct {
 type KubernetesEphemeralVolume struct {
 	Name        string
 	UID         string
-	Annotations map[string]string
-	Labels      map[string]string
+	Annotations map[string]string `intern:"true"`
+	Labels      map[string]string `intern:"true"`
 }
 
 // KubernetesPodToleration represents a toleration in a Kubernetes pod.
 type KubernetesPodToleration struct {
-	Key               string
-	Operator          string
-	Value             string
-	Effect            string
+	Key               string `intern:"true"`
+	Operator          string `intern:"true"`
+	Value             string `intern:"true"`
+	Effect            string `intern:"true"`
 	TolerationSeconds *int64
 }
 
@@ -1085,9 +1087,9 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type               string
-	Status             string
-	Reason             string
+	Type               string `intern:"true"`
+	Status             string `intern:"true"`
+	Reason             string `intern:"true"`
 	LastTransitionTime time.Time
 }
 
@@ -1099,8 +1101,8 @@ func (c KubernetesPodCondition) String(_ bool) string {
 // KubernetesContainerStatus represents the status of a container in a Kubernetes pod.
 type KubernetesContainerStatus struct {
 	ContainerID          string
-	Name                 string
-	Image                string
+	Name                 string `intern:"true"`
+	Image                string `intern:"true"`
 	ImageID              string
 	Ready                bool
 	RestartCount         int32
@@ -1152,7 +1154,7 @@ func (cs KubernetesContainerState) String(_ bool) string {
 
 // KubernetesContainerStateWaiting represents a waiting container state.
 type KubernetesContainerStateWaiting struct {
-	Reason string
+	Reason string `intern:"true"`
 }
 
 // KubernetesContainerStateRunning represents a running container state.
@@ -1165,7 +1167,7 @@ type KubernetesContainerStateTerminated struct {
 	ExitCode   int32
 	StartedAt  time.Time
 	FinishedAt time.Time
-	Reason     string
+	Reason     string `intern:"true"`
 }
 
 // KubeMetadataEntityID is a unique ID for Kube Metadata Entity

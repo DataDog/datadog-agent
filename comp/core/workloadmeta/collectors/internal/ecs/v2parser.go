@@ -149,25 +149,27 @@ func (c *collector) parseV2TaskContainers(
 			}
 		}
 
+		containerEntity := &workloadmeta.Container{
+			EntityID: entityID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:   container.DockerName,
+				Labels: container.Labels,
+			},
+			Image:      image,
+			Runtime:    containerRuntime,
+			NetworkIPs: ips,
+			State: workloadmeta.ContainerState{
+				StartedAt: startedAt,
+				CreatedAt: createdAt,
+				Running:   container.KnownStatus == "RUNNING",
+				Status:    c.parseStatus(container.KnownStatus),
+			},
+		}
+		containerEntity.InternStrings()
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: source,
 			Type:   workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				EntityID: entityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:   container.DockerName,
-					Labels: container.Labels,
-				},
-				Image:      image,
-				Runtime:    containerRuntime,
-				NetworkIPs: ips,
-				State: workloadmeta.ContainerState{
-					StartedAt: startedAt,
-					CreatedAt: createdAt,
-					Running:   container.KnownStatus == "RUNNING",
-					Status:    c.parseStatus(container.KnownStatus),
-				},
-			},
+			Entity: containerEntity,
 		})
 	}
 

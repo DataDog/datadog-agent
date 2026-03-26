@@ -96,6 +96,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	}
 
 	events = append(events, containerEvents...)
+	entity.InternStrings()
 	events = append(events, workloadmeta.CollectorEvent{
 		Source: source,
 		Type:   workloadmeta.EventTypeSet,
@@ -246,6 +247,7 @@ func ParseV4TaskContainers(
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
 		}
 
+		containerEvent.InternStrings()
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: source,
 			Type:   workloadmeta.EventTypeSet,
