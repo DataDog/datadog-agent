@@ -7,7 +7,7 @@
 // It has two mutually exclusive scoring modes:
 //
 //   - Default (F1 scoring): Reads a headless output JSON produced with time_cluster,
-//     resolves ground truth timestamps from the scenario's metadata.json, and computes
+//     resolves ground truth timestamps from the scenario's episode.json, and computes
 //     a Gaussian F1 score measuring whether the disruption was detected at the right time.
 //
 //   - --score-tp (TP metric scoring): Reads a headless output JSON produced with the
@@ -29,8 +29,8 @@ import (
 
 func main() {
 	outputPath := flag.String("input", "", "Path to headless output JSON to score (required)")
-	scenariosDir := flag.String("scenarios-dir", "./comp/observer/scenarios", "Directory containing scenario subdirectories (for metadata.json lookup)")
-	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides metadata.json)")
+	scenariosDir := flag.String("scenarios-dir", "./comp/observer/scenarios", "Directory containing scenario subdirectories (for episode.json lookup)")
+	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides episode.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
 	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from ground_truth.json. Requires passthrough correlator output.")
