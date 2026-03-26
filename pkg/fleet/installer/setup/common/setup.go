@@ -166,6 +166,8 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
+	// Detect fresh install before WriteConfigs creates the config file.
+	freshInstall := !fileExists(filepath.Join(s.configDir, "datadog.yaml"))
 	if !s.NoConfig {
 		err = config.WriteConfigs(s.Config, s.configDir)
 		if err != nil {
@@ -191,6 +193,9 @@ func (s *Setup) Run() (err error) {
 			return err
 		}
 	}
+	if !s.NoConfig && runtime.GOOS == "windows" && freshInstall {
+		s.backfillConfigTemplates()
+	}
 	err = s.restartServices(ctx, packages)
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)
@@ -200,6 +205,36 @@ func (s *Setup) Run() (err error) {
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
+}
+
+// backfillConfigTemplates merges .example template content into the config files
+// so that customers get the rich commented-out example options alongside their
+// fleet-configured values.
+//
+// Setup writes the configs before the Agent package/MSI writes the template files,
+// also, some packages/extensions read/modify the config, too, so we can't just strictly write the config
+// after package installation.
+func (s *Setup) backfillConfigTemplates() {
+	templates := []struct {
+		config   string
+		template string
+	}{
+		{"datadog.yaml", "datadog.yaml.example"},
+		{"security-agent.yaml", "security-agent.yaml.example"},
+		{"system-probe.yaml", "system-probe.yaml.example"},
+	}
+	for _, t := range templates {
+		configPath := filepath.Join(s.configDir, t.config)
+		templatePath := filepath.Join(s.configDir, t.template)
+		if err := config.BackfillFromTemplate(configPath, templatePath, 0640); err != nil {
+			s.Out.WriteString(fmt.Sprintf("Warning: could not backfill %s from template: %v\n", t.config, err))
+		}
+	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // installPackage mimicks the telemetry of calling the install package command
