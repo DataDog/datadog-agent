@@ -40,7 +40,7 @@ _PATH_SPLITTER_RE = re.compile(r"""(/[^\s='"]+)""")
 
 # Tokens containing these substrings are Bazel sandbox paths and should be dropped.
 # A "token" here is a maximal run of non-whitespace, non-single-quote characters.
-_BAZEL_PATH_RE = re.compile(r"[^\s']*(?:_bazel_root|bazel-out|execroot)[^\s']*\s*")
+_BAZEL_PATH_RE = re.compile(r"[^\s']*(?:_bazel_root|bazel-out|execroot)[^\s']*")
 
 
 def _fix_tool_path(segment):
