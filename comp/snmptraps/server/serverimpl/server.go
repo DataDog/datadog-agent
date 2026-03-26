@@ -97,6 +97,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	// elsewhere if possible.
 	app := fx.New(
 		logging.DefaultFxLoggingOption(),
+		fxutil.FxLifecycleAdapter(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,

@@ -47,7 +47,7 @@ func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 		configfx.MockModule(),
 		statusfx.MockModule(),
 		senderhelper.Opts,
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Replace(conf),
 	)
 	return &s
