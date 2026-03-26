@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 
@@ -357,7 +358,7 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	if configcheck.IsConfigEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
-		ln, err := loader.GetTCPListener(fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))
+		ln, err := loader.GetTCPListener(net.JoinHostPort(strings.Trim(traceCfgReceiverHost, "[]"), strconv.Itoa(grpcPort)))
 		if err != nil {
 			return tcpFD, listeners, fmt.Errorf("error listening to otlp receiver: %v", err)
 		}

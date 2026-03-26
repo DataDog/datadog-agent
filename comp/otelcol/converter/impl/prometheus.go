@@ -7,7 +7,8 @@
 package converterimpl
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -342,7 +343,7 @@ func findInternalMetricsAddress(conf *confmap.Conf) string {
 		if p, ok := promExpMap["port"]; ok {
 			port = p.(int)
 		}
-		return fmt.Sprintf("%s:%d", host, port)
+		return net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port))
 	}
 	return internalMetricsAddress
 }

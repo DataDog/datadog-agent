@@ -8,6 +8,9 @@ package config
 import (
 	"fmt"
 	"hash/fnv"
+	"net"
+	"strconv"
+	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -103,7 +106,7 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 
 // Addr returns the host:port address to listen on.
 func (c *TrapsConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
+	return net.JoinHostPort(strings.Trim(c.BindHost, "[]"), strconv.Itoa(int(c.Port)))
 }
 
 // BuildSNMPParams returns a valid GoSNMP params structure from configuration.
