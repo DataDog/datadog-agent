@@ -17,17 +17,18 @@ import (
 	"sort"
 	"strings"
 
+	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Requires defines the dependencies for the oidresolver component.
 type Requires struct {
-	compdef.In
+	fx.In
 
 	Conf   config.Component
 	Logger log.Component
@@ -35,7 +36,7 @@ type Requires struct {
 
 // Provides defines the output of the oidresolver component.
 type Provides struct {
-	compdef.Out
+	fx.Out
 
 	Comp oidresolver.Component
 }
@@ -47,6 +48,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	return Provides{Comp: comp}, nil
+}
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newResolver),
+	)
 }
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
