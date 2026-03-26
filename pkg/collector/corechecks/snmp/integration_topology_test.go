@@ -36,7 +36,7 @@ func TestTopologyPayload_LLDP(t *testing.T) {
 	setupHostname(t)
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[hook.MetricView]())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
@@ -807,7 +807,7 @@ profiles:
 func TestTopologyPayload_CDP(t *testing.T) {
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[hook.MetricView]())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
@@ -1568,7 +1568,7 @@ profiles:
 func TestTopologyPayload_CDPSecondaryIP(t *testing.T) {
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[hook.MetricView]())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
@@ -2330,7 +2330,7 @@ profiles:
 func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[hook.MetricView]())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 

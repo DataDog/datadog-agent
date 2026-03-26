@@ -19,7 +19,6 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -36,7 +35,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler(store *tags.Store) *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host", hook.NewNoopHook[hook.MetricView]())
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	return sampler
 }
 
@@ -676,7 +675,7 @@ func TestForcedFlush(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host", hook.NewNoopHook[hook.MetricView]())
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	matcher := filterlist.NewNoopTagMatcher()
 
 	sample := metrics.MetricSample{

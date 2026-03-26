@@ -43,7 +43,7 @@ func TestProfileMetadata_f5(t *testing.T) {
 	setupHostname(t)
 	cfg := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[hook.MetricView]())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	cfg.SetWithoutSource("confd_path", invalidPath)
 
