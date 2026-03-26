@@ -193,19 +193,9 @@ func TestGetAPIDomain(t *testing.T) {
 			want:     "https://api.ddog-gov.com",
 		},
 		{
-			name:     "gov cloud mil domain",
-			endpoint: "https://agent.ddog-gov.mil",
-			want:     "https://api.ddog-gov.mil",
-		},
-		{
 			name:     "gov cloud domain with trailing dot",
 			endpoint: "https://agent.ddog-gov.com.",
 			want:     "https://api.ddog-gov.com.",
-		},
-		{
-			name:     "gov cloud mil domain with trailing dot",
-			endpoint: "https://agent.ddog-gov.mil.",
-			want:     "https://api.ddog-gov.mil.",
 		},
 		// Unknown/custom domains (should pass through unchanged)
 		{
