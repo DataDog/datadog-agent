@@ -884,6 +884,19 @@ func analyzeAllProbes(
 			}
 		}
 
+		// Put the template segments first, so we explore their values earlier
+		// than snapshot values. If we're going to run out of space, we may as
+		// well do it for data that shows up below the fold rather than in the
+		// message.
+		exprKindToInt := func(kind ir.RootExpressionKind) int {
+			if kind == ir.RootExpressionKindTemplateSegment {
+				return 0
+			}
+			return 1
+		}
+		slices.SortStableFunc(ap.expressions, func(a, b analyzedExpression) int {
+			return cmp.Compare(exprKindToInt(a.exprKind), exprKindToInt(b.exprKind))
+		})
 		analyzed = append(analyzed, ap)
 	}
 
