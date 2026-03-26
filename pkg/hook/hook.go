@@ -25,6 +25,16 @@ var (
 // Option is a functional option for [Hook.Subscribe].
 type Option[T any] func(*consumer[T])
 
+// WithBufferSize sets the subscriber's channel capacity.
+// The default is 100.  Use a larger value for consumers that can temporarily
+// fall behind producers (e.g. a Unix-socket writer) and must absorb bursts
+// without dropping payloads.
+func WithBufferSize[T any](n int) Option[T] {
+	return func(c *consumer[T]) {
+		c.bufferSize = n
+	}
+}
+
 // WithRecycle configures pool-based recycling for a subscriber.
 //
 // clone is called by Publish to create a private copy of the payload for
@@ -108,11 +118,12 @@ func NewHook[T any](name string) Hook[T] {
 // dropLabel is pre-allocated at subscribe time so Publish's hot path
 // spreads an existing slice rather than building a new one on each call.
 type consumer[T any] struct {
-	ch        chan T
-	done      chan struct{}
-	dropLabel []string  // == []string{hookName, consumerName}
-	clone     func(T) T // optional: creates a private copy before channel send
-	recycle   func(T)   // optional: returns the copy to a pool after callback
+	ch         chan T
+	done       chan struct{}
+	dropLabel  []string  // == []string{hookName, consumerName}
+	bufferSize int       // channel capacity; 0 means use defaultBufferSize
+	clone      func(T) T // optional: creates a private copy before channel send
+	recycle    func(T)   // optional: returns the copy to a pool after callback
 }
 
 type hook[T any] struct {
@@ -162,15 +173,20 @@ func (h *hook[T]) Publish(_ string, payload T) {
 // Subscribe subscribes to the hook and calls callback with each payload.
 // name must be unique among active subscribers on this hook; panics if already in use.
 // The returned unsubscribe function stops delivery and terminates the consumer goroutine.
+const defaultBufferSize = 100
+
 func (h *hook[T]) Subscribe(name string, callback func(payload T), opts ...Option[T]) (unsubscribe func()) {
 	c := consumer[T]{
-		ch:        make(chan T, 100),
 		done:      make(chan struct{}),
 		dropLabel: []string{h.name, name},
 	}
 	for _, opt := range opts {
 		opt(&c)
 	}
+	if c.bufferSize == 0 {
+		c.bufferSize = defaultBufferSize
+	}
+	c.ch = make(chan T, c.bufferSize)
 
 	h.mu.Lock()
 	if _, exists := h.consumers[name]; exists {
