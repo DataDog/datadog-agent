@@ -1,5 +1,5 @@
 lading:
-  version: sha-122af85955a94700b10b9ff91166cd12c38f3171
+  version: sha-0bae8521d48563fddd7fd0589783c12d3f737afc
 
 target:
   ddprof_replicas: 1
