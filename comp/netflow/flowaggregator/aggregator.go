@@ -510,8 +510,8 @@ func (d *dedupFlushSubmitter) Submit(groups FlowGroupBatch, ctx common.FlushCont
 		activeFlows = append(activeFlows, group.Reporters...)
 	}
 
-	d.logger.Debugf("Flushing %d flow groups to the forwarder (flush_duration=%d)",
-		len(groups), time.Since(ctx.FlushTime).Milliseconds())
+	d.logger.Debugf("Flushing %d flow groups (%d active reporters) to the forwarder (flush_duration=%d)",
+		len(groups), len(activeFlows), time.Since(ctx.FlushTime).Milliseconds())
 
 	d.seqTracker.trackAndEmit(activeFlows)
 
@@ -519,7 +519,9 @@ func (d *dedupFlushSubmitter) Submit(groups FlowGroupBatch, ctx common.FlushCont
 		d.sendMergedFlows(groups, ctx.FlushTime)
 	}
 	sendExporterMetadata(activeFlows, ctx.FlushTime, d.epForwarder, d.logger)
-	return len(groups)
+	// Return total active reporter count so flows_flushed metric is comparable
+	// across standard and dedup modes.
+	return len(activeFlows)
 }
 
 // sendMergedFlows sends one merged event per 5-tuple group. All reporters (active +
@@ -529,7 +531,9 @@ func (d *dedupFlushSubmitter) sendMergedFlows(groups []FlowGroup, flushTime time
 		if len(group.Reporters) == 0 {
 			continue
 		}
-		reporters := append(group.Reporters, group.GhostReporters...)
+		reporters := make([]*common.Flow, 0, len(group.Reporters)+len(group.GhostReporters))
+		reporters = append(reporters, group.Reporters...)
+		reporters = append(reporters, group.GhostReporters...)
 		mergedPayload := buildMergedPayload(reporters, d.hostname, flushTime)
 		payloadBytes, err := json.Marshal(mergedPayload)
 		if err != nil {

@@ -111,9 +111,10 @@ func (b *flowAccumulatorBase) HashCollisionCount() *atomic.Uint64 {
 }
 
 // addCommon handles port rollup, locking, and the core accumulation logic.
+// postRollup, if non-nil, is called after port rollup but before the lock is acquired.
 // onNewFlow is called under lock when a new aggregation hash is first seen;
 // it may modify *nextFlush (e.g., to inherit a group's flush time in dedup mode).
-func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, onNewFlow func(aggHash uint64, nextFlush *time.Time)) {
+func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, postRollup func(), onNewFlow func(aggHash uint64, nextFlush *time.Time)) {
 	b.logger.Tracef("Add new flow: %+v", flowToAdd)
 
 	if !b.portRollupDisabled {
@@ -126,6 +127,10 @@ func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, onNewFlow func(a
 		case portrollup.IsEphemeralDestPort:
 			flowToAdd.DstPort = portrollup.EphemeralPort
 		}
+	}
+
+	if postRollup != nil {
+		postRollup()
 	}
 
 	b.flowsMutex.Lock()
@@ -281,7 +286,7 @@ func newStandardFlowAccumulator(flushConfig common.FlushConfig, flowScheduler Fl
 
 // Add accumulates a flow into the standard (per-reporter) accumulator.
 func (s *standardFlowAccumulator) Add(flowToAdd *common.Flow) {
-	s.addCommon(flowToAdd, nil)
+	s.addCommon(flowToAdd, nil, nil)
 }
 
 // Flush flushes flow contexts that are due, returning the flows to send.
@@ -344,16 +349,17 @@ func (s *standardFlowAccumulator) Flush(flushContext common.FlushContext) []*com
 type dedupFlowAccumulator struct {
 	flowAccumulatorBase
 
-	// fiveTupleGroups maps a FiveTupleHash to the set of full AggregationHashes (one per
+	// fiveTupleGroups maps a FlowKeyHash to the set of full AggregationHashes (one per
 	// reporter) that belong to that group.
 	fiveTupleGroups map[uint64][]uint64
 
 	// prevCycleReporters holds 0-byte snapshots of reporters from the most recent flush of
 	// each group. These are returned as GhostReporters in the next flush so the platform can
-	// use them as metadata for flow_role assignment. Keyed by FiveTupleHash.
+	// use them as metadata for flow_role assignment. Keyed by FlowKeyHash.
 	prevCycleReporters map[uint64][]*common.Flow
 }
 
+// Compile-time assertion that dedupFlowAccumulator implements FlowAccumulator[[]FlowGroup].
 var _ FlowAccumulator[[]FlowGroup] = (*dedupFlowAccumulator)(nil)
 
 func newDedupFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, flowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *dedupFlowAccumulator {
@@ -368,8 +374,12 @@ func newDedupFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowS
 // existing 5-tuple group inherit the group's flush time so all reporters in the
 // group flush together.
 func (d *dedupFlowAccumulator) Add(flowToAdd *common.Flow) {
-	fiveTupleHash := flowToAdd.FiveTupleHash()
-	d.addCommon(flowToAdd, func(aggHash uint64, nextFlush *time.Time) {
+	// fiveTupleHash is computed in the postRollup callback so it reflects
+	// any port-rollup rewrites (e.g. ephemeral port normalization).
+	var fiveTupleHash uint64
+	d.addCommon(flowToAdd, func() {
+		fiveTupleHash = flowToAdd.FlowKeyHash()
+	}, func(aggHash uint64, nextFlush *time.Time) {
 		// New reporter joining an existing group: inherit the group's flush time so
 		// all reporters flush together rather than at independently jittered times.
 		for _, h := range d.fiveTupleGroups[fiveTupleHash] {
@@ -453,6 +463,10 @@ func (d *dedupFlowAccumulator) Flush(flushContext common.FlushContext) []FlowGro
 			})
 			// Store 0-byte snapshots so they become GhostReporters on the next flush.
 			d.prevCycleReporters[fiveTupleHash] = zeroedSnapshots(activeFlows)
+		} else {
+			// No active reporters this cycle — discard stale ghost data so it
+			// doesn't accumulate indefinitely for groups with only dead contexts.
+			delete(d.prevCycleReporters, fiveTupleHash)
 		}
 
 		if len(liveHashes) == 0 {

@@ -18,6 +18,8 @@ import (
 // per-reporter fields (bytes, exporter, interfaces, etc.) populate the Reporters list.
 // Ghost reporters (Bytes == 0, Packets == 0) are included so the platform can use them as
 // metadata when assigning flow_role — they should not be counted.
+//
+// Callers must ensure reporters is non-empty; this function panics otherwise.
 func buildMergedPayload(reporters []*common.Flow, hostname string, flushTime time.Time) payload.MergedFlowPayload {
 	first := reporters[0]
 	p := payload.MergedFlowPayload{

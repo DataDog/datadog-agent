@@ -146,11 +146,12 @@ func (f *Flow) AggregationHash() uint64 {
 	return h.Sum64()
 }
 
-// FiveTupleHash returns a hash of the flow's 5-tuple plus ToS, used to group flows from
-// multiple reporters together in deduplication mode. Unlike AggregationHash, this excludes
-// the exporter address, namespace, and ingress interface so that the same flow observed by
-// different devices maps to the same key.
-func (f *Flow) FiveTupleHash() uint64 {
+// FlowKeyHash returns a hash of the flow's 5-tuple (src/dst addr, src/dst port,
+// IP protocol) plus ToS, used to group flows from multiple reporters together in
+// deduplication mode. Unlike AggregationHash, this excludes the exporter address,
+// namespace, and ingress interface so that the same flow observed by different
+// devices maps to the same key.
+func (f *Flow) FlowKeyHash() uint64 {
 	h := fnv.New64()
 	h.Write(f.SrcAddr)                                 //nolint:errcheck
 	h.Write(f.DstAddr)                                 //nolint:errcheck
