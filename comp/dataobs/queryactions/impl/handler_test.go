@@ -537,6 +537,57 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 	require.Contains(t, c.activeConfigs, "cfg-happy")
 }
 
+// TestOnRCUpdate_WithDODatabases_SchedulesCheck verifies the full path: a component with
+// dedicated DO database credentials receives an RC update and successfully schedules a check
+// using the DO credentials (not postgres check credentials).
+func TestOnRCUpdate_WithDODatabases_SchedulesCheck(t *testing.T) {
+	doDatabases := []DODatabaseConfig{
+		{Host: "localhost", Port: 5432, DBName: "mydb", Username: "do_reader", Password: "do_secret"},
+	}
+	c := newTestComponentWithDatabases(t, nil, doDatabases) // no postgres configs
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-do-creds",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       99,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "mydb", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	updates := map[string]state.RawConfig{
+		"path/cfg-do": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-do-id"}},
+	}
+	statuses, changes := collectStatuses(c, updates)
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-do"].State)
+	require.Len(t, changes.Schedule, 1)
+	assert.Equal(t, "do_query_actions", changes.Schedule[0].Name)
+	assert.Equal(t, "datadog.yaml", changes.Schedule[0].Provider, "should use synthetic provider from DO config")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	assert.Equal(t, "do_reader", instance["username"], "should use DO database credentials")
+	assert.Equal(t, "do_secret", instance["password"])
+	assert.Equal(t, "rc-do-id", instance["remote_config_id"])
+	assert.Equal(t, "localhost", instance["host"])
+
+	queries, ok := instance["queries"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	assert.Equal(t, "SELECT count(*) FROM orders", queries[0].(map[string]interface{})["query"])
+
+	require.Contains(t, c.activeConfigs, "cfg-do-creds")
+}
+
 // TestOnRCUpdate_UpdateReplacesExistingCheck verifies that two sequential onRCUpdate calls
 // with the same config_id correctly unschedule the previous check and schedule the updated one.
 func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
@@ -661,6 +712,21 @@ func TestResolveCredentials_DOConfigNoMatch_FallsBackToPostgres(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "pg_user", auth["username"], "should fall back to postgres when DO config doesn't match")
+}
+
+func TestResolveCredentials_SkipsNonMatchingEntry_UsesLaterMatch(t *testing.T) {
+	// First entry doesn't match, second does — should use second entry's credentials.
+	doDatabases := []DODatabaseConfig{
+		{Host: "otherhost", Port: 5432, DBName: "otherdb", Username: "wrong_user", Password: "wrong_pass"},
+		{Host: "localhost", Port: 5432, DBName: "mydb", Username: "correct_user", Password: "correct_pass"},
+	}
+	c := newTestComponentWithDatabases(t, nil, doDatabases)
+
+	auth, _, err := c.resolveCredentials(&DBIdentifier{Host: "localhost", DBName: "mydb"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "correct_user", auth["username"], "should use the second matching entry")
+	assert.Equal(t, "correct_pass", auth["password"])
 }
 
 func TestResolveCredentials_NoMatchAnywhere(t *testing.T) {

@@ -38,6 +38,20 @@ func TestDODatabaseConfig_ToInstanceMap(t *testing.T) {
 	assert.False(t, hasAWS, "zero-value aws field should not be in output")
 }
 
+func TestDODatabaseConfig_ToInstanceMap_ExplicitFalse(t *testing.T) {
+	cfg := DODatabaseConfig{
+		Host:      "localhost",
+		Port:      5432,
+		TLSVerify: false, // explicit false must be preserved
+		SSL:       false, // explicit false must be preserved
+	}
+
+	m := cfg.toInstanceMap()
+
+	assert.Equal(t, false, m["tls_verify"], "explicit false for tls_verify must be preserved")
+	assert.Equal(t, false, m["ssl"], "explicit false for ssl must be preserved")
+}
+
 func TestDODatabaseConfig_ToInstanceMap_WithNestedAWS(t *testing.T) {
 	cfg := DODatabaseConfig{
 		Host:     "mydb.rds.amazonaws.com",
@@ -79,6 +93,15 @@ func TestDODatabaseConfig_ToInstanceMap_OnlyAllowlistKeys(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "key %q in output is not in dbCredentialAllowList", key)
+	}
+}
+
+func TestDBCredentialAllowList_AllHaveMatchingStructTag(t *testing.T) {
+	// Every entry in dbCredentialAllowList must have a corresponding mapstructure tag
+	// in DODatabaseConfig. This catches drift between the two.
+	for _, key := range dbCredentialAllowList {
+		_, ok := fieldByMapstructureTag[key]
+		assert.True(t, ok, "dbCredentialAllowList entry %q has no matching mapstructure tag in DODatabaseConfig", key)
 	}
 }
 

@@ -155,9 +155,13 @@ func (c *component) resolveCredentials(dbID *DBIdentifier) (map[string]any, *int
 		return nil, nil, err
 	}
 
-	c.log.Warnf("Using credentials from postgres check for DO query actions (host=%s, dbname=%s). "+
-		"Configure dedicated credentials under data_observability.query_actions.databases "+
-		"in datadog.yaml to avoid sharing credentials with DBM.", dbID.Host, dbID.DBName)
+	key := dbID.Host + ":" + dbID.DBName
+	if !c.warnedFallback[key] {
+		c.warnedFallback[key] = true
+		c.log.Warnf("Using credentials from postgres check for DO query actions (host=%s, dbname=%s); "+
+			"none of the %d entries in data_observability.query_actions.databases matched.",
+			dbID.Host, dbID.DBName, len(c.databases))
+	}
 
 	return extractDBAuthFromInstance(instance), baseCfg, nil
 }

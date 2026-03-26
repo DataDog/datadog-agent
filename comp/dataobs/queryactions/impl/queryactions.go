@@ -8,6 +8,7 @@ package queryactionsimpl
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -46,6 +47,7 @@ type component struct {
 	rcclient        rcclient.Component
 	enabled         bool
 	databases       []DODatabaseConfig
+	warnedFallback  map[string]bool // dedup fallback warnings by "host:dbname"
 	activeConfigs   map[string]integration.Config
 	activeConfigsMu sync.Mutex
 }
@@ -58,16 +60,17 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Databases []DODatabaseConfig `mapstructure:"databases"`
 	}
 	if err := structure.UnmarshalKey(reqs.Config, "data_observability.query_actions", &doConfig); err != nil {
-		reqs.Log.Warnf("Failed to parse data_observability.query_actions config: %v", err)
+		return Provides{}, fmt.Errorf("failed to parse data_observability.query_actions config: %w", err)
 	}
 
 	c := &component{
-		log:           reqs.Log,
-		ac:            reqs.Ac,
-		rcclient:      reqs.RcClient,
-		enabled:       enabled,
-		databases:     doConfig.Databases,
-		activeConfigs: make(map[string]integration.Config),
+		log:            reqs.Log,
+		ac:             reqs.Ac,
+		rcclient:       reqs.RcClient,
+		enabled:        enabled,
+		databases:      doConfig.Databases,
+		warnedFallback: make(map[string]bool),
+		activeConfigs:  make(map[string]integration.Config),
 	}
 
 	reqs.Lc.Append(compdef.Hook{

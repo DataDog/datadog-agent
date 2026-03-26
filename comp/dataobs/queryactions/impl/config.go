@@ -44,7 +44,9 @@ func init() {
 }
 
 // toInstanceMap converts a DODatabaseConfig to a map[string]any using the same keys
-// as dbCredentialAllowList. Only non-zero fields are included.
+// as dbCredentialAllowList. Fields typed as `any` (interface) are included whenever
+// non-nil, even if the underlying value is a zero like false or 0. Concrete-typed
+// fields (string, int) are included only when non-zero.
 func (d *DODatabaseConfig) toInstanceMap() map[string]any {
 	out := make(map[string]any)
 	v := reflect.ValueOf(d).Elem()
@@ -54,7 +56,13 @@ func (d *DODatabaseConfig) toInstanceMap() map[string]any {
 			continue
 		}
 		field := v.Field(idx)
-		if field.IsZero() {
+		// For interface (any) fields, check IsNil rather than IsZero so that
+		// explicit false / 0 values (e.g. tls_verify: false) are preserved.
+		if field.Kind() == reflect.Interface {
+			if field.IsNil() {
+				continue
+			}
+		} else if field.IsZero() {
 			continue
 		}
 		out[key] = field.Interface()
@@ -64,6 +72,8 @@ func (d *DODatabaseConfig) toInstanceMap() map[string]any {
 
 // matchesIdentifier checks if this database config matches the given DB identifier
 // by host and dbname, same logic as the existing matchesIdentifier for postgres instances.
+// Port is intentionally not checked — the RC payload's DBIdentifier does not carry a port,
+// and the existing postgres-check matching also ignores port.
 func (d *DODatabaseConfig) matchesIdentifier(dbID *DBIdentifier) bool {
 	return d.Host == dbID.Host && d.DBName == dbID.DBName
 }
