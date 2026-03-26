@@ -481,7 +481,6 @@ _GAZELLE_BUILD_TAGS = [
     "orchestrator",
     "osusergo",
     "otlp",
-    "pcap",
     "podman",
     "python",
     "requirefips",
