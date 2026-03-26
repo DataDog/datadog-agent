@@ -115,6 +115,45 @@ func main() {
 	condSliceArg([]int{1, 2, 3}, "err")
 	condMapArg(map[string]int{"a": 1}, "err")
 	condStructDirect(condFields{I32: 42}, "err")
+
+	// len/isEmpty test functions: each called twice — once with a value that
+	// matches conditions, once with a different value.
+	lenString("hello", "match")
+	lenString("", "miss")
+	lenSlice([]int{1, 2, 3, 4, 5}, "match")
+	lenSlice(nil, "miss")
+	lenMap(map[string]int{"a": 1, "b": 2, "c": 3}, "match")
+	lenMap(nil, "miss")
+	str := "hello"
+	lenPtrString(&str, "match")
+	emptyStr := ""
+	lenPtrString(&emptyStr, "miss")
+
+	// len/isEmpty on struct fields (getmember + len)
+	sl := []int{1, 2, 3}
+	mp := map[string]int{"a": 1, "b": 2}
+	lenStructFields(lenFields{
+		S: "hello", Items: sl, Dict: mp,
+		PtrStr: &str, PtrSlice: &sl,
+	}, "match")
+	lenStructFields(lenFields{
+		S: "", Items: nil, Dict: nil,
+		PtrStr: &emptyStr, PtrSlice: nil,
+	}, "miss")
+
+	// len/isEmpty on pointer-to-struct fields
+	lenPtrStructFields(&lenFields{
+		S: "hello", Items: sl, Dict: mp,
+		PtrStr: &str, PtrSlice: &sl,
+	}, "match")
+	lenPtrStructFields(&lenFields{
+		S: "", Items: nil, Dict: nil,
+		PtrStr: &emptyStr, PtrSlice: nil,
+	}, "miss")
+
+	// len/isEmpty error cases: unsupported types
+	lenErrInt(42, "err")
+	lenErrStruct(condFields{I32: 1}, "err")
 }
 
 //go:noinline
@@ -362,6 +401,78 @@ func condMapArg(x map[string]int, tag string) {
 //
 //go:noinline
 func condStructDirect(x condFields, tag string) {
+	fmt.Println(x, tag)
+}
+
+// --- len/isEmpty test functions ---
+
+//go:noinline
+func sink(args ...any) {
+	// Prevent the compiler from optimizing away arguments.
+	_ = args
+}
+
+//go:noinline
+func lenString(s string, tag string) {
+	sink(s, tag)
+	fmt.Println(len(s), tag)
+}
+
+//go:noinline
+func lenSlice(s []int, tag string) {
+	sink(s, tag)
+	fmt.Println(len(s), tag)
+}
+
+//go:noinline
+func lenMap(m map[string]int, tag string) {
+	sink(m, tag)
+	fmt.Println(len(m), tag)
+}
+
+//go:noinline
+func lenPtrString(s *string, tag string) {
+	sink(s, tag)
+	fmt.Println(s, tag)
+}
+
+// lenFields is a struct with collection-typed fields for testing len/isEmpty
+// on field accesses (getmember + len), including pointer-to-collection fields.
+type lenFields struct {
+	S        string
+	Items    []int
+	Dict     map[string]int
+	PtrStr   *string
+	PtrSlice *[]int
+
+	pad [3]int16 // prevent this struct from being split to registers
+}
+
+//go:noinline
+func lenStructFields(x lenFields, tag string) {
+	sink(x, tag)
+	fmt.Println(x.S, x.Items, x.Dict, tag)
+}
+
+//go:noinline
+func lenPtrStructFields(x *lenFields, tag string) {
+	sink(x, tag)
+	fmt.Println(x.S, x.Items, x.Dict, tag)
+}
+
+// lenErrInt is a target for unsupported len on base type (int).
+//
+//go:noinline
+func lenErrInt(x int, tag string) {
+	sink(x, tag)
+	fmt.Println(x, tag)
+}
+
+// lenErrStruct is a target for unsupported len on a plain struct.
+//
+//go:noinline
+func lenErrStruct(x condFields, tag string) {
+	sink(x, tag)
 	fmt.Println(x, tag)
 }
 

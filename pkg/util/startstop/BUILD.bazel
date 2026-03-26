@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "startstop",
+    srcs = [
+        "parallel_stopper.go",
+        "serial_stopper.go",
+        "start.go",
+        "starter.go",
+        "startstop.go",
+        "stop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/startstop",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "startstop_test",
+    srcs = [
+        "helper_test.go",
+        "parallel_stopper_test.go",
+        "serial_stopper_test.go",
+        "starter_test.go",
+    ],
+    embed = [":startstop"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

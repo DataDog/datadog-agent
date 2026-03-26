@@ -225,6 +225,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
 	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)

@@ -14,6 +14,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -54,8 +55,11 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
+	a := semantics.NewStringMapAccessor(meta)
+	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
+	baseService := semantics.LookupString(ddRegistry, a, semantics.ConceptDDBaseService)
 	var pt []string
-	for _, t := range peerTagKeysToAggregateForSpan(meta[tagSpanKind], meta[tagBaseService], peerTagKeys) {
+	for _, t := range peerTagKeysToAggregateForSpan(spanKind, baseService, peerTagKeys) {
 		if v, ok := meta[t]; ok && v != "" {
 			v = obfuscate.QuantizePeerIPAddresses(v)
 			pt = append(pt, t+":"+v)
@@ -68,8 +72,9 @@ func matchingPeerTagsV1(s *idx.InternalSpan, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
+	a := semantics.NewDDSpanAccessorV1(s)
+	baseService := semantics.LookupString(ddRegistry, a, semantics.ConceptDDBaseService)
 	var pt []string
-	baseService, _ := s.GetAttributeAsString(tagBaseService)
 	for _, t := range peerTagKeysToAggregateForSpan(s.SpanKind(), baseService, peerTagKeys) {
 		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
 			v = obfuscate.QuantizePeerIPAddresses(v)
@@ -90,7 +95,7 @@ func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagK
 		// it's a service override on an internal span so it comes from custom instrumentation and does not represent
 		// a client|producer|consumer span which is talking to a peer entity
 		// in this case only the base service tag is relevant for stats aggregation
-		return []string{tagBaseService}
+		return []string{string(semantics.ConceptDDBaseService)}
 	}
 	if spanKind == "client" || spanKind == "producer" || spanKind == "consumer" {
 		return peerTagKeys
@@ -206,7 +211,9 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	if config.Metrics == nil {
 		config.Metrics = make(map[string]float64)
 	}
-	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(config.Meta["span.kind"])
+	a := semantics.NewDDSpanAccessor(config.Meta, config.Metrics)
+	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
+	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
 	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
 	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
 		return nil, false
@@ -223,7 +230,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		parentID:                       config.ParentID,
 		start:                          config.Start,
 		duration:                       config.Duration,
-		spanKind:                       config.Meta[tagSpanKind],
+		spanKind:                       spanKind,
 		serviceSource:                  config.Meta[tagServiceSource],
 		statusCode:                     getStatusCode(config.Meta, config.Metrics),
 		isTopLevel:                     isTopLevel,

@@ -324,11 +324,15 @@ func (s *message) init(
 		if whenDSL == "" {
 			whenDSL = "@when"
 		}
+		msg := "error evaluating condition"
+		if header.Condition_eval_error == 2 {
+			msg = errNilPointerEvaluating.Error()
+		}
 		s.Debugger.EvaluationErrors = append(
 			s.Debugger.EvaluationErrors,
 			evaluationError{
 				Expression: whenDSL,
-				Message:    "error evaluating condition",
+				Message:    msg,
 			},
 		)
 	}
@@ -361,11 +365,15 @@ func (s *message) init(
 			if whenDSL == "" {
 				whenDSL = "@when"
 			}
+			msg := "error evaluating condition"
+			if returnHeader.Condition_eval_error == 2 {
+				msg = errNilPointerEvaluating.Error()
+			}
 			s.Debugger.EvaluationErrors = append(
 				s.Debugger.EvaluationErrors,
 				evaluationError{
 					Expression: whenDSL,
-					Message:    "error evaluating condition",
+					Message:    msg,
 				},
 			)
 		}
