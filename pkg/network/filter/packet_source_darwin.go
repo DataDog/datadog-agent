@@ -125,10 +125,20 @@ type DarwinPacketInfo struct {
 	LayerType gopacket.LayerType
 }
 
-// OptSnapLen specifies the maximum length of the packet to read
-//
-// Defaults to 4096 bytes
-type OptSnapLen int
+// Option configures a LibpcapSource.
+type Option func(*libpcapConfig)
+
+type libpcapConfig struct {
+	snapLen int
+}
+
+// OptSnapLen specifies the maximum length of the packet to read.
+// Defaults to 4096 bytes.
+func OptSnapLen(n int) Option {
+	return func(c *libpcapConfig) {
+		c.snapLen = n
+	}
+}
 
 // isEligibleInterface reports whether an interface should be captured.
 // Skips loopback, virtual/tunnel interfaces that never carry TCP/UDP connections,
@@ -155,18 +165,14 @@ func isEligibleInterface(iface net.Interface) bool {
 }
 
 // NewLibpcapSource creates a LibpcapSource using libpcap
-func NewLibpcapSource(opts ...any) (*LibpcapSource, error) {
-	snapLen := defaultSnapLen
+func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
+	cfg := libpcapConfig{snapLen: defaultSnapLen}
 	for _, opt := range opts {
-		switch o := opt.(type) {
-		case OptSnapLen:
-			snapLen = int(o)
-			if snapLen <= 0 || snapLen > 65536 {
-				return nil, errors.New("snap len should be between 0 and 65536")
-			}
-		default:
-			return nil, fmt.Errorf("unknown option %+v", opt)
-		}
+		opt(&cfg)
+	}
+	snapLen := cfg.snapLen
+	if snapLen <= 0 || snapLen > 65536 {
+		return nil, errors.New("snap len should be between 0 and 65536")
 	}
 
 	ps := &LibpcapSource{
