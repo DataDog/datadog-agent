@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "awsimds",
+    srcs = [
+        "check.go",
+        "check_noop.go",
+        "issue.go",
+        "module.go",
+    ],
+    embedsrcs = [
+        "fix-aws-imds-hop-limit.sh",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/awsimds",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/healthplatform/issues",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
