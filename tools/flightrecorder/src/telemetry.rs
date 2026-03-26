@@ -86,6 +86,7 @@ impl TelemetryReporter {
         let mut prev_logs_rows: u64 = 0;
         let mut prev_tss_rows: u64 = 0;
         let mut prev_frames: u64 = 0;
+        let mut jemalloc_warned = false;
 
         loop {
             tokio::select! {
@@ -97,17 +98,25 @@ impl TelemetryReporter {
             // Advance the epoch first to refresh jemalloc's cached stats.
             unsafe { let _ = raw::write(b"epoch\0", 1u64); }
 
-            match unsafe { raw::read::<usize>(b"stats.resident\0") } {
-                Ok(v) => { let _ = self.client.gauge("memory.resident", v as u64); }
-                Err(e) => { warn!("jemalloc stats.resident read failed: {e}"); }
+            let mut jemalloc_ok = true;
+            if let Ok(v) = unsafe { raw::read::<usize>(b"stats.resident\0") } {
+                let _ = self.client.gauge("memory.resident", v as u64);
+            } else {
+                jemalloc_ok = false;
             }
-            match unsafe { raw::read::<usize>(b"stats.allocated\0") } {
-                Ok(v) => { let _ = self.client.gauge("memory.allocated", v as u64); }
-                Err(e) => { warn!("jemalloc stats.allocated read failed: {e}"); }
+            if let Ok(v) = unsafe { raw::read::<usize>(b"stats.allocated\0") } {
+                let _ = self.client.gauge("memory.allocated", v as u64);
+            } else {
+                jemalloc_ok = false;
             }
-            match unsafe { raw::read::<usize>(b"stats.active\0") } {
-                Ok(v) => { let _ = self.client.gauge("memory.active", v as u64); }
-                Err(e) => { warn!("jemalloc stats.active read failed: {e}"); }
+            if let Ok(v) = unsafe { raw::read::<usize>(b"stats.active\0") } {
+                let _ = self.client.gauge("memory.active", v as u64);
+            } else {
+                jemalloc_ok = false;
+            }
+            if !jemalloc_ok && !jemalloc_warned {
+                warn!("jemalloc stats unavailable (built without stats feature?), memory metrics disabled");
+                jemalloc_warned = true;
             }
 
             // --- Connection stats ---

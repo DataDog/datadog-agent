@@ -29,7 +29,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
 arrow = { version = "55", default-features = false, features = ["prettyprint"] }
 parquet = { version = "55", default-features = false, features = ["snap", "zstd", "arrow"] }
-tikv-jemallocator = "0.6"
+tikv-jemallocator = { version = "0.6", features = ["stats"] }
 tikv-jemalloc-ctl = "0.6"
 tokio-util = { version = "0.7", features = ["rt"] }
 cadence = "1"
