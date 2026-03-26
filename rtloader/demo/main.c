@@ -170,13 +170,13 @@ int main(int argc, char *argv[])
     // load the Directory check if available
     rtloader_pyobject_t *check;
 
-    ok = get_check(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", &check);
+    ok = get_check(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "config-provider", &check);
     if (!ok) {
         printf("warning: could not get_check with new api: trying with deprecated API\n");
         // clean error
         get_error(rtloader);
 
-        if (!get_check_deprecated(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "", &check)) {
+        if (!get_check_deprecated(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "", "config-provider", &check)) {
             if (has_error(rtloader)) {
                 printf("error loading check: %s\n", get_error(rtloader));
             }
