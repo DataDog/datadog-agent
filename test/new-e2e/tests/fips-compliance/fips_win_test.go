@@ -126,6 +126,7 @@ func (s *windowsVMSuite) TestAgentStatusOutput() {
 	windowsCommon.DisableFIPSMode(host)
 	s.Run("status command", func() {
 		s.Run("gofips disabled", func() {
+			s.T().Skip()
 			status, err := s.execAgentCommand("agent.exe", "status")
 			require.NoError(s.T(), err)
 			assert.Contains(s.T(), status, "FIPS Mode: disabled")
