@@ -17,12 +17,46 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/def"
 	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// Requires defines the dependencies for the forwarder component.
+type Requires struct {
+	fx.In
+
+	Lifecycle fx.Lifecycle
+	Config    config.Component
+	Formatter formatter.Component
+	Demux     demultiplexer.Component
+	Listener  listener.Component
+	Logger    log.Component
+}
+
+// Provides defines the output of the forwarder component.
+type Provides struct {
+	fx.Out
+
+	Comp forwarder.Component
+}
+
+// NewComponent creates a new forwarder component.
+func NewComponent(reqs Requires) (Provides, error) {
+	comp, err := newTrapForwarder(reqs.Lifecycle, dependencies{
+		Config:    reqs.Config,
+		Formatter: reqs.Formatter,
+		Demux:     reqs.Demux,
+		Listener:  reqs.Listener,
+		Logger:    reqs.Logger,
+	})
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: comp}, nil
+}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
