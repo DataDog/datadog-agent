@@ -7,6 +7,12 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
+# The list of go tags to be used by gazelle
+ALL_BUILD_TAGS = [
+    "test",
+    "seclmax",
+]
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
 # gazelle:exclude comp
@@ -22,7 +28,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/basic
 # gazelle:exclude pkg/config/create
 # gazelle:exclude pkg/config/env
 # gazelle:exclude pkg/config/fetcher
@@ -31,7 +36,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/config/helper
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/config/mock
-# gazelle:exclude pkg/config/model
 # gazelle:exclude pkg/config/nodetreemodel
 # gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
@@ -69,7 +73,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
 # gazelle:exclude pkg/dyninst/uprobe
-# gazelle:exclude pkg/errors
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/fips
 # gazelle:exclude pkg/flare
@@ -106,7 +109,29 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/redact
 # gazelle:exclude pkg/runtime
 # gazelle:exclude pkg/sbom
-# gazelle:exclude pkg/security
+# gazelle:exclude pkg/security/agent
+# gazelle:exclude pkg/security/clihelpers
+# gazelle:exclude pkg/security/common
+# gazelle:exclude pkg/security/config
+# gazelle:exclude pkg/security/ebpf
+# gazelle:exclude pkg/security/events
+# gazelle:exclude pkg/security/generators
+# gazelle:exclude pkg/security/metrics
+# gazelle:exclude pkg/security/module
+# gazelle:exclude pkg/security/probe
+# gazelle:exclude pkg/security/process_list
+# gazelle:exclude pkg/security/proto
+# gazelle:exclude pkg/security/ptracer
+# gazelle:exclude pkg/security/rconfig
+# gazelle:exclude pkg/security/reporter
+# gazelle:exclude pkg/security/resolvers
+# gazelle:exclude pkg/security/rules
+# gazelle:exclude pkg/security/seclog
+# gazelle:exclude pkg/security/security_profile
+# gazelle:exclude pkg/security/serializers
+# gazelle:exclude pkg/security/telemetry
+# gazelle:exclude pkg/security/tests
+# gazelle:exclude pkg/security/utils
 # gazelle:exclude pkg/serializer
 # gazelle:exclude pkg/serverless
 # gazelle:exclude pkg/snmp
@@ -212,6 +237,7 @@ package(default_visibility = ["//visibility:public"])
 gazelle(
     name = "gazelle",
     args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    build_tags = ALL_BUILD_TAGS,
     gazelle = ":gazelle_binary",
 )
 
