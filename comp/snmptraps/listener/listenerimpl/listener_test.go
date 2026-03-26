@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
+	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 

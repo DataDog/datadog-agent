@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
