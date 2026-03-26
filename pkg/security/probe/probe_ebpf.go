@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -838,16 +837,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		event.AddToFlags(model.EventFlagsFromReplay)
 
 		events = append(events, event)
-
-		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
-		if ok {
-			for _, s := range snapshotBoundSockets {
-				bindEvent := p.newBindEventFromReplay(entry, s)
-				bindEvent.Source = model.EventSourceReplay
-
-				events = append(events, bindEvent)
-			}
-		}
 
 		proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
 		if err != nil {
@@ -3562,30 +3551,6 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-
-	return event
-}
-
-// newBindEventFromReplay returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-	event := p.getPoolEvent()
-	event.Timestamp = time.Now()
-	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
-	event.Type = uint32(model.BindEventType)
-	event.ProcessCacheEntry = entry
-	event.ProcessContext = &entry.ProcessContext
-	event.AddToFlags(model.EventFlagsFromReplay)
-
-	event.Bind.SyscallEvent.Retval = 0
-	event.Bind.AddrFamily = snapshottedBind.Family
-	event.Bind.Addr.IPNet.IP = snapshottedBind.IP
-	event.Bind.Protocol = snapshottedBind.Protocol
-	if snapshottedBind.Family == unix.AF_INET {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
-	} else {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
-	}
-	event.Bind.Addr.Port = snapshottedBind.Port
 
 	return event
 }
