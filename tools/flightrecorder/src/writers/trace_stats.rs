@@ -1,17 +1,15 @@
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use arrow::array::{ArrayRef, BinaryArray, Int64Array, UInt32Array, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use parquet::arrow::ArrowWriter;
 
 use super::apply_permutation;
 use super::intern::StringInterner;
-use super::parquet_helpers::{default_writer_props, dict_utf8_type, interner_to_dict_array};
+use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
 use crate::generated::signals_generated::signals::TraceStatsBatch;
 
 /// Schema for the trace stats Parquet file (18 columns).
@@ -44,10 +42,7 @@ fn trace_stats_schema() -> Arc<Schema> {
 /// Trace stats are already aggregated (low volume: ~10-100 entries per 10s),
 /// so no context-key deduplication or split ring buffers are needed.
 pub struct TraceStatsWriter {
-    pub output_dir: PathBuf,
-    pub flush_rows: usize,
-    pub flush_interval: Duration,
-    pub last_flush: Instant,
+    pub base: BaseWriter,
 
     // Interned string columns (dictionary-encoded on flush).
     services: StringInterner,
@@ -73,11 +68,6 @@ pub struct TraceStatsWriter {
     ok_summaries: Vec<Vec<u8>>,
     error_summaries: Vec<Vec<u8>>,
 
-    // Telemetry counters (read by the telemetry reporter).
-    pub flush_count: u64,
-    pub flush_bytes: u64,
-    pub rows_written: u64,
-    pub last_flush_duration_ns: u64,
 }
 
 impl TraceStatsWriter {
@@ -86,12 +76,9 @@ impl TraceStatsWriter {
         flush_rows: usize,
         flush_interval: Duration,
     ) -> Self {
-        let output_dir = output_dir.as_ref().to_path_buf();
+        let output_dir = output_dir.as_ref();
         Self {
-            output_dir,
-            flush_rows,
-            flush_interval,
-            last_flush: Instant::now(),
+            base: BaseWriter::new(output_dir, flush_rows, flush_interval),
 
             services: StringInterner::with_capacity(flush_rows),
             names: StringInterner::with_capacity(flush_rows),
@@ -113,11 +100,6 @@ impl TraceStatsWriter {
 
             ok_summaries: Vec::with_capacity(flush_rows),
             error_summaries: Vec::with_capacity(flush_rows),
-
-            flush_count: 0,
-            flush_bytes: 0,
-            rows_written: 0,
-            last_flush_duration_ns: 0,
         }
     }
 
@@ -162,7 +144,7 @@ impl TraceStatsWriter {
             }
         }
 
-        if self.len() >= self.flush_rows || self.last_flush.elapsed() >= self.flush_interval {
+        if self.base.should_flush(self.len()) {
             return self.flush().await.map(Some);
         }
         Ok(None)
@@ -170,19 +152,10 @@ impl TraceStatsWriter {
 
     /// Flush accumulated columns to a new Parquet file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
-        let flush_start = Instant::now();
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
         }
-
-        let ts_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let path = self
-            .output_dir
-            .join(format!("flush-trace_stats-{}.parquet", ts_ms));
 
         // Take columns.
         let (service_vals, service_codes) = self.services.take();
@@ -270,28 +243,7 @@ impl TraceStatsWriter {
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building trace_stats RecordBatch")?;
 
-        let file =
-            File::create(&path).with_context(|| format!("creating {}", path.display()))?;
-        let props = default_writer_props();
-        let mut writer = ArrowWriter::try_new(file, schema, Some(props))
-            .context("creating Parquet writer for trace_stats")?;
-        writer
-            .write(&batch)
-            .context("writing trace_stats batch")?;
-        writer
-            .close()
-            .context("closing trace_stats Parquet writer")?;
-
-        let bytes_written = std::fs::metadata(&path)
-            .with_context(|| format!("reading metadata for {}", path.display()))?
-            .len();
-
-        self.flush_count += 1;
-        self.flush_bytes += bytes_written;
-        self.rows_written += row_count as u64;
-        self.last_flush_duration_ns = flush_start.elapsed().as_nanos() as u64;
-        self.last_flush = Instant::now();
-        Ok(path)
+        self.base.write_parquet("trace_stats", schema, batch)
     }
 
     /// Flush if any rows are buffered. Used on shutdown.
@@ -310,6 +262,7 @@ mod tests {
     use arrow::array::{Array, AsArray, BinaryArray, Int64Array, UInt32Array, UInt64Array};
     use arrow::datatypes::UInt32Type;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    use std::fs::File;
     use tempfile::tempdir;
 
     fn make_writer(dir: &Path) -> TraceStatsWriter {
@@ -553,16 +506,16 @@ mod tests {
         let mut w = make_writer(dir.path());
         add_rows(&mut w, 10);
 
-        assert_eq!(w.flush_count, 0);
-        assert_eq!(w.flush_bytes, 0);
+        assert_eq!(w.base.flush_count, 0);
+        assert_eq!(w.base.flush_bytes, 0);
 
         let path = w.flush().await.unwrap();
-        assert_eq!(w.flush_count, 1);
-        assert!(w.flush_bytes > 0);
-        assert!(w.last_flush_duration_ns > 0);
+        assert_eq!(w.base.flush_count, 1);
+        assert!(w.base.flush_bytes > 0);
+        assert!(w.base.last_flush_duration_ns > 0);
 
         // flush_bytes should match the file size on disk.
         let file_size = std::fs::metadata(&path).unwrap().len();
-        assert_eq!(w.flush_bytes, file_size);
+        assert_eq!(w.base.flush_bytes, file_size);
     }
 }

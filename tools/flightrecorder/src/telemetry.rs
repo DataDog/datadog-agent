@@ -123,49 +123,49 @@ impl TelemetryReporter {
                 let mw = metrics_writer.lock().await;
                 let _ = self.client.gauge_with_tags("buffered_rows", mw.len() as u64)
                     .with_tag("writer", "metrics").send();
-                let _ = self.client.count_with_tags("flush_count", (mw.flush_count - prev_metrics_flush_count) as i64)
+                let _ = self.client.count_with_tags("flush_count", (mw.base.flush_count - prev_metrics_flush_count) as i64)
                     .with_tag("writer", "metrics").send();
-                let _ = self.client.count_with_tags("flush_bytes", (mw.flush_bytes - prev_metrics_flush_bytes) as i64)
+                let _ = self.client.count_with_tags("flush_bytes", (mw.base.flush_bytes - prev_metrics_flush_bytes) as i64)
                     .with_tag("writer", "metrics").send();
-                let _ = self.client.count_with_tags("rows_written", (mw.rows_written - prev_metrics_rows) as i64)
+                let _ = self.client.count_with_tags("rows_written", (mw.base.rows_written - prev_metrics_rows) as i64)
                     .with_tag("writer", "metrics").send();
-                let _ = self.client.gauge_with_tags("flush_duration_ns", mw.last_flush_duration_ns)
+                let _ = self.client.gauge_with_tags("flush_duration_ns", mw.base.last_flush_duration_ns)
                     .with_tag("writer", "metrics").send();
-                prev_metrics_flush_count = mw.flush_count;
-                prev_metrics_flush_bytes = mw.flush_bytes;
-                prev_metrics_rows = mw.rows_written;
+                prev_metrics_flush_count = mw.base.flush_count;
+                prev_metrics_flush_bytes = mw.base.flush_bytes;
+                prev_metrics_rows = mw.base.rows_written;
             }
             {
                 let lw = logs_writer.lock().await;
                 let _ = self.client.gauge_with_tags("buffered_rows", lw.len() as u64)
                     .with_tag("writer", "logs").send();
-                let _ = self.client.count_with_tags("flush_count", (lw.flush_count - prev_logs_flush_count) as i64)
+                let _ = self.client.count_with_tags("flush_count", (lw.base.flush_count - prev_logs_flush_count) as i64)
                     .with_tag("writer", "logs").send();
-                let _ = self.client.count_with_tags("flush_bytes", (lw.flush_bytes - prev_logs_flush_bytes) as i64)
+                let _ = self.client.count_with_tags("flush_bytes", (lw.base.flush_bytes - prev_logs_flush_bytes) as i64)
                     .with_tag("writer", "logs").send();
-                let _ = self.client.count_with_tags("rows_written", (lw.rows_written - prev_logs_rows) as i64)
+                let _ = self.client.count_with_tags("rows_written", (lw.base.rows_written - prev_logs_rows) as i64)
                     .with_tag("writer", "logs").send();
-                let _ = self.client.gauge_with_tags("flush_duration_ns", lw.last_flush_duration_ns)
+                let _ = self.client.gauge_with_tags("flush_duration_ns", lw.base.last_flush_duration_ns)
                     .with_tag("writer", "logs").send();
-                prev_logs_flush_count = lw.flush_count;
-                prev_logs_flush_bytes = lw.flush_bytes;
-                prev_logs_rows = lw.rows_written;
+                prev_logs_flush_count = lw.base.flush_count;
+                prev_logs_flush_bytes = lw.base.flush_bytes;
+                prev_logs_rows = lw.base.rows_written;
             }
             {
                 let tw = trace_stats_writer.lock().await;
                 let _ = self.client.gauge_with_tags("buffered_rows", tw.len() as u64)
                     .with_tag("writer", "trace_stats").send();
-                let _ = self.client.count_with_tags("flush_count", (tw.flush_count - prev_tss_flush_count) as i64)
+                let _ = self.client.count_with_tags("flush_count", (tw.base.flush_count - prev_tss_flush_count) as i64)
                     .with_tag("writer", "trace_stats").send();
-                let _ = self.client.count_with_tags("flush_bytes", (tw.flush_bytes - prev_tss_flush_bytes) as i64)
+                let _ = self.client.count_with_tags("flush_bytes", (tw.base.flush_bytes - prev_tss_flush_bytes) as i64)
                     .with_tag("writer", "trace_stats").send();
-                let _ = self.client.count_with_tags("rows_written", (tw.rows_written - prev_tss_rows) as i64)
+                let _ = self.client.count_with_tags("rows_written", (tw.base.rows_written - prev_tss_rows) as i64)
                     .with_tag("writer", "trace_stats").send();
-                let _ = self.client.gauge_with_tags("flush_duration_ns", tw.last_flush_duration_ns)
+                let _ = self.client.gauge_with_tags("flush_duration_ns", tw.base.last_flush_duration_ns)
                     .with_tag("writer", "trace_stats").send();
-                prev_tss_flush_count = tw.flush_count;
-                prev_tss_flush_bytes = tw.flush_bytes;
-                prev_tss_rows = tw.rows_written;
+                prev_tss_flush_count = tw.base.flush_count;
+                prev_tss_flush_bytes = tw.base.flush_bytes;
+                prev_tss_rows = tw.base.rows_written;
             }
         }
     }
