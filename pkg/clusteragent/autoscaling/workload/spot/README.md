@@ -68,8 +68,10 @@ Rebalancing handles the following cases:
 ### TODO
 
 - [ ] Fallback ConfigMap RBAC
+- [ ] Watch Fallback ConfigMap instead of polling
 - [ ] Add StatefulSet tests
 - [ ] Implement Argo Rollout support
+- [ ] Implement CronJob support
 - [ ] Emit Kubernetes events
 - [ ] Add metrics and observability
 
