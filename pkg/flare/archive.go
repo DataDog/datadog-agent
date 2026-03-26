@@ -136,9 +136,12 @@ func getEndpointDNS() ([]byte, error) {
 	}
 	sort.Strings(hostnames)
 
+	resolver := &net.Resolver{}
 	var buf bytes.Buffer
 	for _, h := range hostnames {
-		addrs, lookupErr := net.LookupHost(h)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		addrs, lookupErr := resolver.LookupHost(ctx, h)
+		cancel()
 		if lookupErr != nil {
 			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
 			continue
