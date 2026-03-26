@@ -138,7 +138,8 @@ iot-agent-armhf:
     # we can only address 32 bits of memory, which is likely to OOM
     # if we use too many compression threads or a too agressive level
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
-    ARCH: arm64
+    # Needed to get bazelisk to load the right bazel, regardless of what we set later within the build.
+    GOARCH: arm64
 
 # ----- Dogstatsd -----
 
