@@ -44,7 +44,7 @@ func setUp(t *testing.T) *services {
 		senderhelper.Opts,
 		formatterfx.MockModule(),
 		listenerfx.MockModule(),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	return &s
 }
