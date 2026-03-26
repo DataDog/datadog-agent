@@ -6,6 +6,7 @@
 package flowaggregator
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -110,80 +111,44 @@ func (b *flowAccumulatorBase) HashCollisionCount() *atomic.Uint64 {
 	return b.hashCollisionFlowCount
 }
 
-// addCommon handles port rollup, locking, and the core accumulation logic.
-//
-// Callback locking contract:
-//   - postRollup runs WITHOUT flowsMutex held. It must not access b.flows or
-//     other mutex-protected state. It is safe for computing derived values from
-//     the (already-rewritten) flow, e.g. DeduplicationHash after port rollup.
-//   - onNewFlow runs WITH flowsMutex held. It may read/write b.flows and modify
-//     *nextFlush (e.g., to inherit a group's flush time in dedup mode).
-func (b *flowAccumulatorBase) addCommon(flowToAdd *common.Flow, postRollup func(), onNewFlow func(aggHash uint64, nextFlush *time.Time)) {
-	b.logger.Tracef("Add new flow: %+v", flowToAdd)
-
-	if !b.portRollupDisabled {
-		// Handle port rollup
-		b.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-		ephemeralStatus := b.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-		switch ephemeralStatus {
-		case portrollup.IsEphemeralSourcePort:
-			flowToAdd.SrcPort = portrollup.EphemeralPort
-		case portrollup.IsEphemeralDestPort:
-			flowToAdd.DstPort = portrollup.EphemeralPort
-		}
-	}
-
-	if postRollup != nil {
-		postRollup()
-	}
-
-	b.flowsMutex.Lock()
-	defer b.flowsMutex.Unlock()
-
-	aggHash := flowToAdd.PerReporterHash()
-	aggFlow, ok := b.flows[aggHash]
-	if !ok {
-		nextFlush := b.scheduler.ScheduleNewFlowFlush(timeNow())
-		if onNewFlow != nil {
-			onNewFlow(aggHash, &nextFlush)
-		}
-		b.flows[aggHash] = flowContext{
-			flow:      flowToAdd,
-			nextFlush: nextFlush,
-		}
-		b.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+// applyPortRollup rewrites ephemeral ports on the flow based on the port rollup store.
+// Must be called before computing any hash that depends on ports.
+func (b *flowAccumulatorBase) applyPortRollup(flowToAdd *common.Flow) {
+	if b.portRollupDisabled {
 		return
 	}
-	if aggFlow.flow == nil {
-		// flowToAdd is for the same hash as an aggregated flow that has been flushed
-		aggFlow.flow = flowToAdd
-		b.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
-	} else {
-		// use go routine for hash collision detection to avoid blocking critical path
-		go b.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+	b.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	ephemeralStatus := b.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	switch ephemeralStatus {
+	case portrollup.IsEphemeralSourcePort:
+		flowToAdd.SrcPort = portrollup.EphemeralPort
+	case portrollup.IsEphemeralDestPort:
+		flowToAdd.DstPort = portrollup.EphemeralPort
+	}
+}
 
-		// accumulate flowToAdd with existing flow(s) with same hash
-		aggFlow.flow.Bytes += flowToAdd.Bytes
-		aggFlow.flow.Packets += flowToAdd.Packets
-		aggFlow.flow.StartTimestamp = common.Min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
-		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
-		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
-		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+// accumulateInto merges flowToAdd's counters and metadata into an existing flow context.
+// Caller must hold flowsMutex.
+func (b *flowAccumulatorBase) accumulateInto(aggHash uint64, existing *common.Flow, flowToAdd *common.Flow) {
+	go b.detectHashCollision(aggHash, *existing, *flowToAdd)
 
-		// keep first non-null value for custom fields
-		if flowToAdd.AdditionalFields != nil {
-			if aggFlow.flow.AdditionalFields == nil {
-				aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
-			}
+	existing.Bytes += flowToAdd.Bytes
+	existing.Packets += flowToAdd.Packets
+	existing.StartTimestamp = common.Min(existing.StartTimestamp, flowToAdd.StartTimestamp)
+	existing.EndTimestamp = common.Max(existing.EndTimestamp, flowToAdd.EndTimestamp)
+	existing.SequenceNum = common.Max(existing.SequenceNum, flowToAdd.SequenceNum)
+	existing.TCPFlags |= flowToAdd.TCPFlags
 
-			for field, value := range flowToAdd.AdditionalFields {
-				if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
-					aggFlow.flow.AdditionalFields[field] = value
-				}
+	if flowToAdd.AdditionalFields != nil {
+		if existing.AdditionalFields == nil {
+			existing.AdditionalFields = make(common.AdditionalFields)
+		}
+		for field, value := range flowToAdd.AdditionalFields {
+			if _, ok := existing.AdditionalFields[field]; !ok {
+				existing.AdditionalFields[field] = value
 			}
 		}
 	}
-	b.flows[aggHash] = aggFlow
 }
 
 func (b *flowAccumulatorBase) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
@@ -290,7 +255,29 @@ func newStandardFlowAccumulator(flushConfig common.FlushConfig, flowScheduler Fl
 
 // Add accumulates a flow into the standard (per-reporter) accumulator.
 func (s *standardFlowAccumulator) Add(flowToAdd *common.Flow) {
-	s.addCommon(flowToAdd, nil, nil)
+	s.logger.Tracef("Add new flow: %+v", flowToAdd)
+	s.applyPortRollup(flowToAdd)
+
+	s.flowsMutex.Lock()
+	defer s.flowsMutex.Unlock()
+
+	aggHash := flowToAdd.PerReporterHash()
+	aggFlow, ok := s.flows[aggHash]
+	if !ok {
+		s.flows[aggHash] = flowContext{
+			flow:      flowToAdd,
+			nextFlush: s.scheduler.ScheduleNewFlowFlush(timeNow()),
+		}
+		s.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		return
+	}
+	if aggFlow.flow == nil {
+		aggFlow.flow = flowToAdd
+		s.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+	} else {
+		s.accumulateInto(aggHash, aggFlow.flow, flowToAdd)
+	}
+	s.flows[aggHash] = aggFlow
 }
 
 // Flush flushes flow contexts that are due, returning the flows to send.
@@ -378,26 +365,42 @@ func newDedupFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowS
 // existing 5-tuple group inherit the group's flush time so all reporters in the
 // group flush together.
 func (d *dedupFlowAccumulator) Add(flowToAdd *common.Flow) {
-	// fiveTupleHash is computed in the postRollup callback (runs unlocked — only
-	// reads flow fields, no shared state) so it reflects any port-rollup rewrites.
-	// The onNewFlow callback (runs under flowsMutex) safely accesses d.flows and
-	// d.fiveTupleGroups.
-	var fiveTupleHash uint64
-	d.addCommon(flowToAdd, func() {
-		fiveTupleHash = flowToAdd.DeduplicationHash()
-	}, func(aggHash uint64, nextFlush *time.Time) {
-		// New reporter joining an existing group: inherit the group's flush time so
-		// all reporters flush together rather than at independently jittered times.
-		// Prefer an active member's nextFlush; fall back to any member's nextFlush
-		// (e.g. a dead context that was flushed recently but has a valid schedule).
-		for _, h := range d.fiveTupleGroups[fiveTupleHash] {
+	d.logger.Tracef("Add new flow: %+v", flowToAdd)
+	d.applyPortRollup(flowToAdd)
+
+	// Compute the dedup hash after port rollup so ephemeral port rewrites are reflected.
+	dedupHash := flowToAdd.DeduplicationHash()
+
+	d.flowsMutex.Lock()
+	defer d.flowsMutex.Unlock()
+
+	reporterHash := flowToAdd.PerReporterHash()
+	aggFlow, ok := d.flows[reporterHash]
+	if !ok {
+		// First time seeing this reporter. Schedule its flush, inheriting the
+		// group's existing schedule if one exists so all reporters flush together.
+		nextFlush := d.scheduler.ScheduleNewFlowFlush(timeNow())
+		for _, h := range d.fiveTupleGroups[dedupHash] {
 			if existingCtx, exists := d.flows[h]; exists {
-				*nextFlush = existingCtx.nextFlush
+				nextFlush = existingCtx.nextFlush
 				break
 			}
 		}
-		d.fiveTupleGroups[fiveTupleHash] = append(d.fiveTupleGroups[fiveTupleHash], aggHash)
-	})
+		d.fiveTupleGroups[dedupHash] = append(d.fiveTupleGroups[dedupHash], reporterHash)
+		d.flows[reporterHash] = flowContext{
+			flow:      flowToAdd,
+			nextFlush: nextFlush,
+		}
+		d.addRDNSEnrichment(reporterHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		return
+	}
+	if aggFlow.flow == nil {
+		aggFlow.flow = flowToAdd
+		d.addRDNSEnrichment(reporterHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+	} else {
+		d.accumulateInto(reporterHash, aggFlow.flow, flowToAdd)
+	}
+	d.flows[reporterHash] = aggFlow
 }
 
 // Flush flushes reporters in deduplication mode, returning one FlowGroup per 5-tuple.
@@ -414,17 +417,16 @@ func (d *dedupFlowAccumulator) Flush(flushContext common.FlushContext) []FlowGro
 
 	for fiveTupleHash, reporterHashes := range d.fiveTupleGroups {
 		// Check if any active reporter in this group is due to flush.
-		groupReady := false
-		for _, hash := range reporterHashes {
+		groupReady := slices.ContainsFunc(reporterHashes, func(hash uint64) bool {
 			ctx, ok := d.flows[hash]
-			if !ok || ctx.flow == nil {
-				continue
+			if !ok {
+				return false
+			} else if ctx.flow == nil {
+				return false
 			}
-			if !ctx.nextFlush.After(now) {
-				groupReady = true
-				break
-			}
-		}
+
+			return !ctx.nextFlush.After(now)
+		})
 		if !groupReady {
 			continue
 		}
