@@ -547,19 +547,27 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 		AuthIndex: pendingDevice.AuthIndex,
 		Failures:  pendingDevice.Failures,
 	}
+	if pendingDevice.WriteCache {
+		l.writeCache(svc.subnet)
+	}
 	ipsFound := l.getDevicesFoundInSubnetLocked(*svc.subnet)
 	network := svc.subnet.config.Network
 	index := svc.subnet.index
 	l.Unlock()
 
-	autodiscoveryStatusBySubnetVar.Set(
-		GetSubnetVarKey(network, index),
-		&AutodiscoveryStatus{DevicesFoundList: ipsFound},
-	)
-
-	if pendingDevice.WriteCache {
-		l.writeCache(svc.subnet)
+	// Refresh DevicesFoundList in the expvar while preserving the scan progress
+	// fields (CurrentDevice, DevicesScannedCount) written by checkDevice().
+	subnetKey := GetSubnetVarKey(network, index)
+	var existing AutodiscoveryStatus
+	if v := autodiscoveryStatusBySubnetVar.Get(subnetKey); v != nil {
+		json.Unmarshal([]byte(v.String()), &existing) //nolint:errcheck
 	}
+	autodiscoveryStatusBySubnetVar.Set(subnetKey, &AutodiscoveryStatus{
+		DevicesFoundList:    ipsFound,
+		CurrentDevice:       existing.CurrentDevice,
+		DevicesScannedCount: existing.DevicesScannedCount,
+	})
+
 	l.newService <- svc
 }
 
