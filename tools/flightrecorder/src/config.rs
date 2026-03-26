@@ -47,6 +47,12 @@ pub struct Config {
     #[arg(long, env = "RECORDER_MERGE_INTERVAL_SECS", default_value_t = 300)]
     pub merge_interval_secs: u64,
 
+    /// When true, store tags inline in every metric flush file (higher RSS,
+    /// self-contained files). When false (default), use a shared context file
+    /// with context_key references (lower RSS, requires contexts.bin for reads).
+    #[arg(long, env = "RECORDER_INLINE_CONTEXTS", default_value_t = false)]
+    pub inline_contexts: bool,
+
     /// DogStatsD host for sidecar telemetry. Empty string disables telemetry.
     /// In Kubernetes pods, the sidecar shares the network namespace with the
     /// agent, so the default 127.0.0.1 reaches the agent's DogStatsD server.

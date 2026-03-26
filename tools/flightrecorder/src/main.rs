@@ -76,8 +76,22 @@ async fn main() -> Result<()> {
 pub async fn run(cfg: config::Config) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
 
+    let context_store = if !cfg.inline_contexts {
+        Some(Arc::new(tokio::sync::Mutex::new(
+            writers::context_store::ContextStore::new(&cfg.output_dir)?,
+        )))
+    } else {
+        None
+    };
+
     let metrics_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
-        writers::metrics::MetricsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
+        writers::metrics::MetricsWriter::new(
+            &cfg.output_dir,
+            cfg.flush_rows,
+            flush_interval,
+            cfg.inline_contexts,
+            context_store.clone(),
+        ),
     ));
     let logs_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
         writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
@@ -149,12 +163,18 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         let tw = trace_stats_writer.clone();
         let token = cancel.clone();
         let cs = conn_stats.clone();
+        let ctx_store = context_store.clone();
 
         cs.active_connections.fetch_add(1, Ordering::Relaxed);
 
         client_tasks.push(tokio::spawn(async move {
             // New connection — agent will re-send all context definitions.
             mw.lock().await.reset_context_map();
+            if let Some(store) = &ctx_store {
+                if let Err(e) = store.lock().await.reset() {
+                    warn!("context store reset error: {}", e);
+                }
+            }
 
             let mut reader = BufReader::new(stream);
             loop {
