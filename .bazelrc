@@ -70,7 +70,14 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Go Bazel migration - https://datadoghq.atlassian.net/browse/ABLD-409 ----------------------------------------
-build --@rules_go//go/config:tags=cel,consul,containerd,cri,crio,datadog.no_waf,docker,ec2,etcd,fargateprocess,jetson,jmx,kubeapiserver,kubelet,ncm,netcgo,no_dynamic_plugins,nvml,oracle,orchestrator,otlp,podman,python,sharedlibrarycheck,systemd,systemprobechecks,trivy,trivy_no_javadb,zk,zlib,zstd
+# Tags are split per platform mirroring tasks/build_tags.py (AGENT_TAGS + COMMON_TAGS + filter_incompatible_tags).
+# grpcnotrace and retrynotrace (COMMON_TAGS) are intentionally omitted: they break external dep BUILD files that
+# lack the complementary stub srcs. They will be re-added via per-binary config transitions in a later phase.
+build:linux   --@rules_go//go/config:tags=cel,consul,containerd,cri,crio,datadog.no_waf,docker,ec2,etcd,fargateprocess,jetson,jmx,kubeapiserver,kubelet,ncm,netcgo,no_dynamic_plugins,nvml,oracle,orchestrator,otlp,podman,python,sharedlibrarycheck,systemd,systemprobechecks,trivy,trivy_no_javadb,zk,zlib,zstd
+
+build:macos   --@rules_go//go/config:tags=cel,consul,datadog.no_waf,ec2,etcd,fargateprocess,jmx,kubeapiserver,kubelet,ncm,no_dynamic_plugins,oracle,orchestrator,otlp,python,sharedlibrarycheck,systemprobechecks,trivy_no_javadb,zk,zlib,zstd
+
+build:windows --@rules_go//go/config:tags=cel,consul,containerd,cri,datadog.no_waf,docker,ec2,etcd,fargateprocess,jmx,kubeapiserver,kubelet,ncm,no_dynamic_plugins,oracle,orchestrator,otlp,python,sharedlibrarycheck,systemprobechecks,trivy_no_javadb,wmi,zk,zlib,zstd
 
 # Global release config ------------------------------------------------------------------------------------------------
 # This should aggregate all the release configs for all the languages with enabled optimizations,
