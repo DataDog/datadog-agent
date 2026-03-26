@@ -191,7 +191,7 @@ func (v *ec2TCPCongestionSuite) runWithEscalatingNetem(
 		}
 		t.Logf("netem config %q did not trigger %s, trying next", netemArgs, description)
 	}
-	require.Fail(t, fmt.Sprintf("no netem configuration triggered %s", description))
+	require.Fail(t, "no netem configuration triggered "+description)
 }
 
 // pollForTCPCongestionSignal polls fakeintake until a TCP connection on the 172.28.0.0/16
