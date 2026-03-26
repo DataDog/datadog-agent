@@ -213,7 +213,7 @@ func main() {
 	 * As it has a `nil` serializer, it will panic if it tries to flush the metrics.
 	 * That’s why we need a big enough flush interval
 	 */
-	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[hook.MetricView]())
+	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	/*
 	 * Wait for informers to get populated
