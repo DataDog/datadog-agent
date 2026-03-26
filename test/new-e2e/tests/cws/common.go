@@ -58,6 +58,10 @@ func (a *agentSuite) Hostname() string {
 	return a.Env().Agent.Client.Hostname()
 }
 
+func (a *agentSuite) InstanceID() string {
+	return ""
+}
+
 func (a *agentSuite) Client() *api.Client {
 	return a.apiClient
 }
@@ -240,6 +244,7 @@ func (a *agentSuite) Test99CWSEnabled() {
 type testSuite interface {
 	Hostname() string
 	Client() *api.Client
+	InstanceID() string
 }
 
 type eventValidationCb[T any] func(e T)
@@ -261,7 +266,13 @@ func testRulesetLoaded(t assert.TestingT, ts testSuite, policySource string, pol
 }
 
 func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidations ...eventValidationCb[*api.RuleEvent]) {
-	query := fmt.Sprintf("rule_id:%s host:%s", ruleID, ts.Hostname())
+	query := "rule_id:" + ruleID
+	if hostname := ts.Hostname(); hostname != "" {
+		query = fmt.Sprintf("%s host:%s", query, hostname)
+	}
+	if instanceID := ts.InstanceID(); instanceID != "" {
+		query = fmt.Sprintf("%s instance_id:%s", query, instanceID)
+	}
 	ruleEvent, err := api.GetAppEvent[api.RuleEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get %s event for host %s", ruleID, ts.Hostname()) {
 		return
