@@ -14,6 +14,7 @@ import (
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -124,6 +125,75 @@ func (v *ec2TCPCongestionSuite) AfterTest(suiteName, testName string) {
 	v.BaseSuite.AfterTest(suiteName, testName)
 }
 
+// runWithEscalatingNetem tries progressively more aggressive netem configurations
+// until the signal is detected. For each config, it applies netem, starts iperf3,
+// and polls for 30 seconds before escalating. container is "client" or "server".
+func (v *ec2TCPCongestionSuite) runWithEscalatingNetem(
+	container string,
+	netemConfigs []string,
+	iperfArgs string,
+	description string,
+	predicate func(*agentmodel.Connection) bool,
+) {
+	t := v.T()
+	host := v.Env().RemoteHost
+	dockerContainer := "tcp-congestion-" + container
+
+	t.Cleanup(func() {
+		host.MustExecute(fmt.Sprintf("docker exec %s tc qdisc del dev eth0 root 2>/dev/null || true", dockerContainer))
+	})
+
+	for i, netemArgs := range netemConfigs {
+		if i == 0 {
+			host.MustExecute(fmt.Sprintf("docker exec %s tc qdisc add dev eth0 root netem %s", dockerContainer, netemArgs))
+		} else {
+			// Kill previous iperf3 client and change netem in place.
+			host.MustExecute("docker exec tcp-congestion-client killall -9 iperf3 2>/dev/null || true")
+			host.MustExecute(fmt.Sprintf("docker exec %s tc qdisc change dev eth0 root netem %s", dockerContainer, netemArgs))
+		}
+		v.startIperf3Client(iperfArgs)
+
+		found := false
+		deadline := time.Now().Add(30 * time.Second)
+		for time.Now().Before(deadline) && !found {
+			cnx, err := v.Env().FakeIntake.Client().GetConnections()
+			if err != nil || cnx == nil {
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			cnx.ForeachConnection(func(conn *agentmodel.Connection, _ *agentmodel.CollectorConnections, _ string) {
+				if found {
+					return
+				}
+				if conn.Type != agentmodel.ConnectionType_tcp || conn.Laddr == nil || conn.Raddr == nil {
+					return
+				}
+				if !strings.HasPrefix(conn.Laddr.Ip, "172.28.") && !strings.HasPrefix(conn.Raddr.Ip, "172.28.") {
+					return
+				}
+				if predicate(conn) {
+					t.Logf("%s (netem %d: %s): %s:%d -> %s:%d retransmits=%d rto=%d recovery=%d probe0=%d ce=%d reord=%d rcvooo=%d ecn=%v",
+						description, i, netemArgs,
+						conn.Laddr.Ip, conn.Laddr.Port, conn.Raddr.Ip, conn.Raddr.Port,
+						conn.LastRetransmits, conn.LastTcpRtoCount, conn.LastTcpRecoveryCount,
+						conn.LastTcpProbe0Count, conn.LastTcpDeliveredCe, conn.LastTcpReordSeen,
+						conn.LastTcpRcvOooPack, conn.TcpEcnNegotiated)
+					found = true
+				}
+			})
+			if !found {
+				time.Sleep(2 * time.Second)
+			}
+		}
+
+		if found {
+			return
+		}
+		t.Logf("netem config %q did not trigger %s, trying next", netemArgs, description)
+	}
+	require.Fail(t, fmt.Sprintf("no netem configuration triggered %s", description))
+}
+
 // pollForTCPCongestionSignal polls fakeintake until a TCP connection on the 172.28.0.0/16
 // tcp-congestion-net network matches the given predicate, or times out after 120 seconds.
 func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, predicate func(*agentmodel.Connection) bool) {
@@ -175,35 +245,42 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Retransmits() {
 	})
 }
 
-// TestTCPCongestion_RTOCount applies heavy correlated packet loss to trigger RTO timeouts.
-// Correlated loss creates burst drops that exhaust dupacks and force RTO.
+// TestTCPCongestion_RTOCount tries progressively more aggressive correlated
+// loss to trigger RTO timeouts. SACK effectiveness varies across kernels, so
+// we escalate until the RTO timer fires.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_RTOCount() {
-	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 15% 50%")
-	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
-	})
-	v.startIperf3Client("")
-
-	v.pollForTCPCongestionSignal("LastTcpRtoCount > 0", func(conn *agentmodel.Connection) bool {
-		return conn.LastTcpRtoCount > 0
-	})
+	v.runWithEscalatingNetem(
+		"client",
+		[]string{
+			"delay 100ms loss 15% 50%",
+			"delay 100ms loss 30% 75%",
+			"delay 100ms loss 50% 80%",
+		},
+		"", // no extra iperf3 args
+		"LastTcpRtoCount > 0",
+		func(conn *agentmodel.Connection) bool {
+			return conn.LastTcpRtoCount > 0
+		},
+	)
 }
 
-// TestTCPCongestion_RecoveryCount applies delay + moderate loss to trigger
-// SACK/NewReno fast recovery. Delay ensures enough in-flight packets for
-// SACK gap detection.
+// TestTCPCongestion_RecoveryCount tries progressively more aggressive loss to
+// trigger SACK/NewReno fast recovery. Delay ensures enough in-flight packets
+// for SACK gap detection.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_RecoveryCount() {
-	host := v.Env().RemoteHost
-	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem delay 50ms loss 10%")
-	v.T().Cleanup(func() {
-		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
-	})
-	v.startIperf3Client("")
-
-	v.pollForTCPCongestionSignal("LastTcpRecoveryCount > 0", func(conn *agentmodel.Connection) bool {
-		return conn.LastTcpRecoveryCount > 0
-	})
+	v.runWithEscalatingNetem(
+		"client",
+		[]string{
+			"delay 50ms loss 10%",
+			"delay 50ms loss 20% 50%",
+			"delay 50ms loss 30% 50%",
+		},
+		"", // no extra iperf3 args
+		"LastTcpRecoveryCount > 0",
+		func(conn *agentmodel.Connection) bool {
+			return conn.LastTcpRecoveryCount > 0
+		},
+	)
 }
 
 // TestTCPCongestion_ZeroWindowProbes starts a slow reader that accepts a connection with
