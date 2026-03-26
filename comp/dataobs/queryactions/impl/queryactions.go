@@ -21,6 +21,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -44,6 +45,7 @@ type component struct {
 	ac              autodiscovery.Component
 	rcclient        rcclient.Component
 	enabled         bool
+	databases       []DODatabaseConfig
 	activeConfigs   map[string]integration.Config
 	activeConfigsMu sync.Mutex
 }
@@ -52,11 +54,19 @@ type component struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	enabled := reqs.Config.GetBool("data_observability.query_actions.enabled")
 
+	var doConfig struct {
+		Databases []DODatabaseConfig `mapstructure:"databases"`
+	}
+	if err := structure.UnmarshalKey(reqs.Config, "data_observability.query_actions", &doConfig); err != nil {
+		reqs.Log.Warnf("Failed to parse data_observability.query_actions config: %v", err)
+	}
+
 	c := &component{
 		log:           reqs.Log,
 		ac:            reqs.Ac,
 		rcclient:      reqs.RcClient,
 		enabled:       enabled,
+		databases:     doConfig.Databases,
 		activeConfigs: make(map[string]integration.Config),
 	}
 
@@ -156,9 +166,8 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 			close(outCh)
 		}()
 
-		// Check immediately: the file config provider runs before this one in LoadAndRun,
-		// so postgres is typically already available when Stream() is called.
-		if c.hasPostgresIntegration() {
+		// Subscribe immediately if we have dedicated database credentials or a postgres check.
+		if len(c.databases) > 0 || c.hasPostgresIntegration() {
 			subscribeAndWait()
 			return
 		}
