@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,5 +19,12 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(formatterimpl.NewComponent),
 		fxutil.ProvideOptional[formatter.Component](),
+	)
+}
+
+// MockModule provides a dummy formatter that just hashes packets for testing.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(formatterimpl.NewDummyFormatter),
 	)
 }

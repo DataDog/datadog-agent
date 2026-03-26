@@ -13,20 +13,19 @@ import (
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Requires defines the dependencies for the formatter component.
 type Requires struct {
-	fx.In
+	compdef.In
 
 	OIDResolver oidresolver.Component
 	Demux       demultiplexer.Component
@@ -35,7 +34,7 @@ type Requires struct {
 
 // Provides defines the output of the formatter component.
 type Provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp formatter.Component
 }
@@ -47,13 +46,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	return Provides{Comp: comp}, nil
-}
-
-// Module implements the formatter component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newJSONFormatter),
-	)
 }
 
 const (
