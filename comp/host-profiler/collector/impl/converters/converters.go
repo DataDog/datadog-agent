@@ -312,7 +312,7 @@ func PrometheusReceiverConfig() map[string]any {
 					"fallback_scrape_protocol":      "PrometheusText0.0.4",
 					"static_configs": []any{
 						confMap{
-							"targets": []any{"0.0.0.0:8888"},
+							"targets": []any{"127.0.0.1:8888"},
 						},
 					},
 				},
