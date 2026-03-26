@@ -57,8 +57,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -827,8 +827,6 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	var events []*model.Event
 
-	socketSnapshotter := procfs.NewBoundSocketSnapshotter()
-
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
 		event.Source = model.EventSourceReplay
@@ -841,22 +839,19 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		// Snapshot and replay bound sockets and mmaped files on-the-fly from /proc
-		// to avoid storing this data permanently in the process cache
+		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
+		if ok {
+			for _, s := range snapshotBoundSockets {
+				bindEvent := p.newBindEventFromReplay(entry, s)
+				bindEvent.Source = model.EventSourceReplay
+
+				events = append(events, bindEvent)
+			}
+		}
+
 		proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
 		if err != nil {
 			return
-		}
-
-		// Replay bound sockets
-		boundSockets, err := socketSnapshotter.GetBoundSockets(proc)
-		if err != nil {
-			seclog.Debugf("error while listing sockets (pid: %v): %s", entry.Pid, err)
-		}
-		for _, s := range boundSockets {
-			bindEvent := p.newBindEventFromReplay(entry, s)
-			bindEvent.Source = model.EventSourceReplay
-			events = append(events, bindEvent)
 		}
 
 		// Replay mmaped files
