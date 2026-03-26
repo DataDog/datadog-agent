@@ -11,6 +11,7 @@ import (
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -57,6 +58,8 @@ type timeSamplerWorker struct {
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
+
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 type dumpTrigger struct {
@@ -67,7 +70,8 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
+	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher,
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -85,7 +89,8 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		metricFilterListChan: make(chan utilstrings.Matcher),
 		tagFilterListChan:    make(chan filterlist.TagMatcher),
 
-		tagsStore: tagsStore,
+		tagsStore:  tagsStore,
+		metricHook: metricHook,
 	}
 }
 
@@ -111,6 +116,13 @@ func (w *timeSamplerWorker) run() {
 			for i := 0; i < len(ms); i++ {
 				w.sampler.sample(&ms[i], t, w.tagFilterList)
 			}
+			// Publish a batch of snapshots before returning the slice to the pool.
+			// Snapshots are value copies, so this is safe even after PutBatch.
+			batch := make([]hook.MetricSampleSnapshot, len(ms))
+			for i := range ms {
+				batch[i] = hook.NewMetricSampleSnapshot(&ms[i])
+			}
+			w.metricHook.Publish("dogstatsd", batch)
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher

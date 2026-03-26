@@ -56,7 +56,7 @@ type noAggregationStreamWorker struct {
 
 	logThrottling util.SimpleThrottler
 
-	metricHook hook.Hook[hook.MetricView]
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -88,7 +88,7 @@ func init() {
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 	tagger tagger.Component,
-	metricHook hook.Hook[hook.MetricView],
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot],
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
@@ -197,8 +197,14 @@ func (w *noAggregationStreamWorker) run() {
 						countProcessed := 0
 						countUnsupportedType := 0
 
-						for idx, sample := range samples {
-							w.metricHook.Publish("dogstatsd-no-aggr", &samples[idx])
+						// Build snapshots before processing — must happen before PutBatch
+						// to avoid reading recycled memory.
+						hookBatch := make([]hook.MetricSampleSnapshot, len(samples))
+						for i := range samples {
+							hookBatch[i] = hook.NewMetricSampleSnapshot(&samples[i])
+						}
+
+						for _, sample := range samples {
 							mtype, supported := metricSampleAPIType(sample)
 
 							if !supported {
@@ -242,6 +248,7 @@ func (w *noAggregationStreamWorker) run() {
 						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
 						expvarNoAggSamplesProcessedUnsupportedType.Add(int64(countUnsupportedType))
 
+						w.metricHook.Publish("dogstatsd-no-aggr", hookBatch)
 						w.metricSamplePool.PutBatch(samples) // return the sample batch back to the pool for reuse
 
 						if serializedSamples > w.maxMetricsPerPayload {
