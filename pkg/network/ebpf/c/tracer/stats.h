@@ -326,15 +326,19 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     if (bpf_core_field_exists(struct tcp_sock, delivered_ce)) {
         BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
     }
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        val->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
     BPF_CORE_READ_INTO(&val->rcv_ooopack,  tcp_sk(sk), rcv_ooopack);
 #endif
-#endif
     BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
-    val->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    val->ecn_negotiated = ecn & 1;
+#endif
 #endif
 }
 
@@ -342,8 +346,9 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
 // connection close time and takes the max of the tcp_stats value vs the sock value.
 static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats_t *ts) {
 #if !defined(COMPILE_PREBUILT)
-#if defined(COMPILE_CORE)
     __u32 val = 0;
+    __u8 ecn = 0;
+#if defined(COMPILE_CORE)
     if (bpf_core_field_exists(struct tcp_sock, reord_seen)) {
         BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
         if (val > ts->reord_seen)
@@ -361,8 +366,11 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
         if (val > ts->delivered_ce)
             ts->delivered_ce = val;
     }
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        ts->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
-    __u32 val = 0;
     BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
     if (val > ts->reord_seen)
         ts->reord_seen = val;
@@ -376,10 +384,9 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
     if (val > ts->rcv_ooopack)
         ts->rcv_ooopack = val;
 #endif
-#endif
-    __u8 ecn = 0;
     BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
-    ts->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    ts->ecn_negotiated = ecn & 1;
+#endif
 #endif
 }
 
