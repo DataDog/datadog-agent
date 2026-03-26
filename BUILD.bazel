@@ -7,6 +7,12 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
+# The list of go tags to be used by gazelle
+ALL_BUILD_TAGS = [
+    "test",
+    "seclmax",
+]
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
 # gazelle:exclude comp
@@ -18,11 +24,22 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent
-# gazelle:exclude pkg/collector
+# gazelle:exclude pkg/collector/aggregator
+# gazelle:exclude pkg/collector/corechecks
+# gazelle:exclude pkg/collector/externalhost
+# gazelle:exclude pkg/collector/loaders
+# gazelle:exclude pkg/collector/python
+# gazelle:exclude pkg/collector/runner
+# gazelle:exclude pkg/collector/scheduler
+# gazelle:exclude pkg/collector/sharedlibrary
+# gazelle:exclude pkg/collector/worker
+# gazelle:exclude pkg/collector/check/id
+# gazelle:exclude pkg/collector/check/stats
+# gazelle:exclude pkg/collector/check/stub
+# gazelle:exclude pkg/collector/check/testdata
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/basic
 # gazelle:exclude pkg/config/create
 # gazelle:exclude pkg/config/env
 # gazelle:exclude pkg/config/fetcher
@@ -31,7 +48,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/config/helper
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/config/mock
-# gazelle:exclude pkg/config/model
 # gazelle:exclude pkg/config/nodetreemodel
 # gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
@@ -65,14 +81,11 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/dyninst/procsubscribe
 # gazelle:exclude pkg/dyninst/symbol
 # gazelle:exclude pkg/dyninst/symdb
-# gazelle:exclude pkg/dyninst/testdata
 # gazelle:exclude pkg/dyninst/testprogs
 # gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
 # gazelle:exclude pkg/dyninst/uprobe
-# gazelle:exclude pkg/errors
 # gazelle:exclude pkg/eventmonitor
-# gazelle:exclude pkg/fips
 # gazelle:exclude pkg/flare
 # gazelle:exclude pkg/fleet
 # gazelle:exclude pkg/gohai
@@ -103,12 +116,41 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/privileged-logs
 # gazelle:exclude pkg/process
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/proto
+# Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
+# into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
+# directories share the same go_package ("pkg/proto/pbgo/core"), making
+# per-directory go_proto_library targets impossible. Additionally, some directories
+# (remoteagent, privateactionrunner) contain multiple proto packages which
+# gazelle cannot handle at all.
+# gazelle:exclude pkg/proto/datadog
+# Vendored proto definitions used only for protoc code-gen, not Bazel builds.
+# gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/redact
-# gazelle:exclude pkg/remoteconfig
 # gazelle:exclude pkg/runtime
 # gazelle:exclude pkg/sbom
-# gazelle:exclude pkg/security
+# gazelle:exclude pkg/security/agent
+# gazelle:exclude pkg/security/clihelpers
+# gazelle:exclude pkg/security/common
+# gazelle:exclude pkg/security/config
+# gazelle:exclude pkg/security/ebpf
+# gazelle:exclude pkg/security/events
+# gazelle:exclude pkg/security/generators
+# gazelle:exclude pkg/security/metrics
+# gazelle:exclude pkg/security/module
+# gazelle:exclude pkg/security/probe
+# gazelle:exclude pkg/security/process_list
+# gazelle:exclude pkg/security/proto
+# gazelle:exclude pkg/security/ptracer
+# gazelle:exclude pkg/security/rconfig
+# gazelle:exclude pkg/security/reporter
+# gazelle:exclude pkg/security/resolvers
+# gazelle:exclude pkg/security/rules
+# gazelle:exclude pkg/security/seclog
+# gazelle:exclude pkg/security/security_profile
+# gazelle:exclude pkg/security/serializers
+# gazelle:exclude pkg/security/telemetry
+# gazelle:exclude pkg/security/tests
+# gazelle:exclude pkg/security/utils
 # gazelle:exclude pkg/serializer
 # gazelle:exclude pkg/serverless
 # gazelle:exclude pkg/snmp
@@ -118,14 +160,34 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/tagger
 # gazelle:exclude pkg/tagset
 # gazelle:exclude pkg/telemetry
-# gazelle:exclude pkg/trace
+# gazelle:exclude pkg/trace/agent
+# gazelle:exclude pkg/trace/api
+# gazelle:exclude pkg/trace/config
+# gazelle:exclude pkg/trace/containertags
+# gazelle:exclude pkg/trace/event
+# gazelle:exclude pkg/trace/filters
+# gazelle:exclude pkg/trace/info
+# gazelle:exclude pkg/trace/otel
+# gazelle:exclude pkg/trace/payload
+# gazelle:exclude pkg/trace/pb
+# gazelle:exclude pkg/trace/remoteconfighandler
+# gazelle:exclude pkg/trace/sampler
+# gazelle:exclude pkg/trace/semantics
+# gazelle:exclude pkg/trace/stats
+# gazelle:exclude pkg/trace/telemetry
+# gazelle:exclude pkg/trace/teststatsd
+# gazelle:exclude pkg/trace/testutil
+# gazelle:exclude pkg/trace/timing
+# gazelle:exclude pkg/trace/traceutil
+# gazelle:exclude pkg/trace/transform
+# gazelle:exclude pkg/trace/version
+# gazelle:exclude pkg/trace/watchdog
+# gazelle:exclude pkg/trace/writer
 # gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
 # gazelle:exclude pkg/util/aws
 # gazelle:exclude pkg/util/aws/creds
-# gazelle:exclude pkg/util/backoff
-# gazelle:exclude pkg/util/buf
 # gazelle:exclude pkg/util/cache
 # gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cgroups
@@ -144,7 +206,6 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
-# gazelle:exclude pkg/util/executable
 # gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/filesystem
 # gazelle:exclude pkg/util/flavor
@@ -171,12 +232,10 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
-# gazelle:exclude pkg/util/option
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/otel
 # gazelle:exclude pkg/util/pdhutil
 # gazelle:exclude pkg/util/podman
-# gazelle:exclude pkg/util/pointer
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
@@ -187,10 +246,7 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/scrubber
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/slices
-# gazelle:exclude pkg/util/sort
-# gazelle:exclude pkg/util/startstop
 # gazelle:exclude pkg/util/stat
-# gazelle:exclude pkg/util/statstracker
 # gazelle:exclude pkg/util/strings
 # gazelle:exclude pkg/util/subscriptions
 # gazelle:exclude pkg/util/sync
@@ -200,12 +256,10 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
-# gazelle:exclude pkg/util/utilizationtracker
 # gazelle:exclude pkg/util/uuid
 # gazelle:exclude pkg/util/winutil
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
-# gazelle:exclude pkg/version
 # gazelle:exclude pkg/windowsdriver
 # TODO(agent-build): This exclusion is ready for removal, blocked by issues caused by the interaction of
 # Bazel with directories named `build` created by the CMake builds. We can remove this once we remove CMake
@@ -220,6 +274,7 @@ package(default_visibility = ["//visibility:public"])
 gazelle(
     name = "gazelle",
     args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    build_tags = ALL_BUILD_TAGS,
     gazelle = ":gazelle_binary",
 )
 
