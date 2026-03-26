@@ -317,7 +317,16 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/serverless
 # gazelle:exclude pkg/snmp
 # gazelle:exclude pkg/ssi
-# gazelle:exclude pkg/status
+# gazelle:exclude pkg/status/clusteragent
+# gazelle:exclude pkg/status/collector
+# gazelle:exclude pkg/status/endpoints
+# gazelle:exclude pkg/status/httpproxy
+# gazelle:exclude pkg/status/jmx
+# gazelle:exclude pkg/status/render
+# gazelle:exclude pkg/status/status.go
+# gazelle:exclude pkg/status/status_test.go
+# gazelle:exclude pkg/status/systemprobe
+# gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe
 # gazelle:exclude pkg/tagger
 # gazelle:exclude pkg/tagset
