@@ -1236,15 +1236,20 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
         src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
         src_bin = os.path.join(bazel_bin, label_path, name)
 
+        # Only use mtime fast-path when strip mode hasn't changed;
+        # name != dest_name means .stripped suffix was removed, so the
+        # source identity changed and we must re-copy regardless of mtime.
+        same_mode = name == dest_name
+
         if os.path.exists(src_o):
             dst = os.path.join(dest_dir, f"{dest_name}.o")
-            if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
+            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
                 return
             shutil.copy2(src_o, dst)
             os.chmod(dst, 0o644)
         elif os.path.exists(src_bin):
             dst = os.path.join(dest_dir, dest_name)
-            if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
+            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
                 return
             shutil.copy2(src_bin, dst)
             os.chmod(dst, 0o755)
