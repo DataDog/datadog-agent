@@ -446,7 +446,10 @@ ALL_BUILD_TAGS = [
 # gazelle:prefix github.com/DataDog/datadog-agent
 gazelle(
     name = "gazelle",
-    args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    args = [
+        "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+        "-external=static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    ],
     build_tags = ALL_BUILD_TAGS,
     gazelle = ":gazelle_binary",
 )
