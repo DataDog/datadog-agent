@@ -220,6 +220,11 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/debug-disabled/agent.yaml",
 			expectedOTel: "provider/debug-disabled/otel.yaml",
 		},
+		{
+			name:         "debug-multi-field",
+			agentConfig:  "provider/debug-multi-field/agent.yaml",
+			expectedOTel: "provider/debug-multi-field/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {

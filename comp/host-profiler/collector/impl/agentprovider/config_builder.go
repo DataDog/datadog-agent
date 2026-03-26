@@ -10,13 +10,11 @@ package agentprovider
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 )
 
 type confMap = map[string]any
@@ -66,7 +64,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		}
 	}
 
-	debugEnabled := agent.hostProfilerConfig.debugVerbosity != configtelemetry.LevelNone
+	debugEnabled := len(agent.hostProfilerConfig.Debug) > 0
 	capacity := agent.endpointsTotalLength
 	if debugEnabled {
 		capacity++
@@ -85,7 +83,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 	}
 
 	if debugEnabled {
-		exporters[debugExporterName] = confMap{"verbosity": strings.ToLower(agent.hostProfilerConfig.debugVerbosity.String())}
+		exporters[debugExporterName] = agent.hostProfilerConfig.Debug
 		profilesExporters = append(profilesExporters, debugExporterName)
 	}
 

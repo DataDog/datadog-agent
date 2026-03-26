@@ -11,11 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.opentelemetry.io/collector/config/configtelemetry"
+	"github.com/go-viper/mapstructure/v2"
 )
 
+// hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
-	debugVerbosity configtelemetry.Level
+	Debug confMap `mapstructure:"debug"`
 }
 
 type endpoint struct {
@@ -30,20 +31,9 @@ type configManager struct {
 	hostProfilerConfig   hostProfilerConfig
 }
 
-func validateDebugVerbosity(value string) configtelemetry.Level {
-	var level configtelemetry.Level
-	if err := level.UnmarshalText([]byte(value)); err != nil {
-		log.Warnf("Invalid host_profiler.debug.verbosity %q: %v. Falling back to %q", value, err, configtelemetry.LevelNone)
-		return configtelemetry.LevelNone
-	}
-	return level
-}
-
 func newConfigManager(config config.Component) configManager {
 	if config == nil {
-		return configManager{
-			hostProfilerConfig: hostProfilerConfig{debugVerbosity: configtelemetry.LevelNone},
-		}
+		return configManager{}
 	}
 
 	endpointsTotalLength := 0
@@ -94,8 +84,11 @@ func newConfigManager(config config.Component) configManager {
 		log.Warnf("No API key registered for main site %s", usedSite)
 	}
 
-	hostProfilerConfig := hostProfilerConfig{
-		debugVerbosity: validateDebugVerbosity(config.GetString("host_profiler.debug.verbosity")),
+	var hostProfilerConfig hostProfilerConfig
+	if raw := config.GetStringMap("host_profiler"); len(raw) > 0 {
+		if err := mapstructure.Decode(raw, &hostProfilerConfig); err != nil {
+			log.Warnf("Failed to decode host_profiler config: %v", err)
+		}
 	}
 
 	return configManager{
