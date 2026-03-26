@@ -360,7 +360,7 @@ interface EfficiencyBarChartProps {
   onHover: (name: string | null) => void;
 }
 
-const EFF_MARGIN = { top: 44, right: 115, bottom: 12, left: 235 };
+const EFF_MARGIN = { top: 58, right: 115, bottom: 24, left: 235 };
 const EFF_BAR_H = 15;
 const EFF_BAR_GAP = 6;
 const EFF_GROUP_H = EFF_BAR_H + EFF_BAR_GAP;
