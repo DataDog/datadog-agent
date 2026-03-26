@@ -23,6 +23,7 @@ var allowlistCaller = []string{
 
 	// TestFullConfig assigns an object usersV3, which is a list of structs
 	"comp/snmptraps/config/config_test.go",
+	"comp/snmptraps/config/def/config_test.go",
 }
 
 // ValidateBasicTypes returns true if the argument is made of only basic types
