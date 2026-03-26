@@ -54,7 +54,7 @@ func newDriftService(cfg pkgconfigmodel.Reader, telComp coretelemetry.Component)
 		recurringInterval: defaultRecurringInterval,
 		driftDetected: telComp.NewCounter("hostname", "drift_detected",
 			[]string{"state", "provider"}, "Hostname drift detection status"),
-		driftResolutionTime: telComp.NewHistogram("hostname", "drift_resolution_time_ms",
+		driftResolutionTime: telComp.NewHistogram("hostname", "drift_resolution_time_seconds",
 			[]string{"state", "provider"}, "Hostname drift resolution time in seconds",
 			[]float64{.5, 1, 2.5, 5, 10, 60}),
 	}
@@ -142,7 +142,7 @@ func (ds *driftService) checkDrift(ctx context.Context, cacheKey string) {
 	current := hostnamedef.Data{Hostname: hostname, Provider: providerName}
 	drift := determineDriftState(baseline, current)
 
-	ds.driftResolutionTime.Observe(float64(resolutionTime), drift.state, providerName)
+	ds.driftResolutionTime.Observe(resolutionTime, drift.state, providerName)
 
 	if drift.hasDrift {
 		ds.driftDetected.Inc(drift.state, providerName)

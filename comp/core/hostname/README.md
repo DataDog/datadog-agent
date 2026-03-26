@@ -130,7 +130,7 @@ that waits for an initial delay (default: 20 minutes) and then re-resolves the h
 recurring interval (default: 6 hours). On each check, the new result is compared against the
 baseline stored in `pkg/util/cache` under `agent/hostname_check`. Any divergence in hostname
 value or provider is reported via the `hostname.drift_detected` counter and the
-`hostname.drift_resolution_time_ms` histogram.
+`hostname.drift_resolution_time_seconds` histogram.
 
 Both the initial delay and the recurring interval can be overridden via configuration keys
 `hostname_drift_initial_delay` and `hostname_drift_recurring_interval`.

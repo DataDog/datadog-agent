@@ -15,6 +15,7 @@ import (
 	hostnamedef "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	telemetrycomp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires defines the dependencies for the hostname component.
@@ -78,6 +79,7 @@ func (s *service) startDriftMonitoring(_ context.Context) error {
 	if err != nil {
 		// Hostname not resolved yet — drift monitoring will be skipped. This is acceptable;
 		// the hostname will still be resolved on the first caller of Get/GetWithProvider.
+		log.Warnf("Could not resolve hostname at startup; drift monitoring will not run for this process: %v", err)
 		return nil
 	}
 	s.drift.start(hostnameData)
