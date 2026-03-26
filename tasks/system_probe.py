@@ -219,145 +219,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         )
 
 
-def ninja_cgo_type_files(nw: NinjaWriter):
-    # TODO we could probably preprocess the input files to find out the dependencies
-    nw.pool(name="cgo_pool", depth=1)
-    if is_windows:
-        go_platform = "windows"
-        def_files = {
-            "pkg/network/driver/types.go": [
-                "pkg/network/driver/ddnpmapi.h",
-            ],
-            "pkg/windowsdriver/procmon/types.go": [
-                "pkg/windowsdriver/include/procmonapi.h",
-            ],
-        }
-        nw.rule(
-            name="godefs",
-            pool="cgo_pool",
-            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'ascii';"
-            + "(cd $in_dir);"
-            + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path | Out-File -encoding ascii $out_file);"
-            + "exit $$LastExitCode\"",
-        )
-    else:
-        go_platform = "linux"
-        def_files = {
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack/types.h"],
-            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer/tracer.h"],
-            "pkg/network/ebpf/kprobe_types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/tcp_states.h",
-                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
-                "pkg/network/ebpf/c/protocols/classification/defs.h",
-            ],
-            "pkg/network/protocols/ebpf_types.go": [
-                "pkg/network/ebpf/c/protocols/postgres/types.h",
-            ],
-            "pkg/network/protocols/http/gotls/go_tls_types.go": [
-                "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
-            ],
-            "pkg/network/protocols/http/types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/http/types.h",
-                "pkg/network/ebpf/c/protocols/classification/defs.h",
-            ],
-            "pkg/network/protocols/http2/types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
-            ],
-            "pkg/network/protocols/kafka/types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/kafka/types.h",
-                "pkg/network/ebpf/c/protocols/kafka/defs.h",
-            ],
-            "pkg/network/protocols/postgres/ebpf/types.go": [
-                "pkg/network/ebpf/c/protocols/postgres/types.h",
-            ],
-            "pkg/network/protocols/redis/types.go": [
-                "pkg/network/ebpf/c/protocols/redis/types.h",
-            ],
-            "pkg/network/protocols/tls/types.go": [
-                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
-            ],
-            "pkg/ebpf/telemetry/types.go": [
-                "pkg/ebpf/c/telemetry_types.h",
-            ],
-            "pkg/network/tracer/offsetguess/offsetguess_types.go": [
-                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
-            ],
-            "pkg/network/protocols/events/types.go": [
-                "pkg/network/ebpf/c/protocols/events-types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
-            ],
-            "pkg/network/usm/sharedlibraries/types.go": [
-                "pkg/network/ebpf/c/shared-libraries/types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
-            ],
-            "pkg/collector/corechecks/ebpf/probe/oomkill/c_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern-user.h",
-            ],
-            "pkg/ebpf/types.go": [
-                "pkg/ebpf/c/lock_contention.h",
-            ],
-            "pkg/gpu/ebpf/kprobe_types.go": [
-                "pkg/gpu/ebpf/c/types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
-            ],
-            "pkg/dyninst/output/framing.go": [
-                "pkg/dyninst/ebpf/framing.h",
-            ],
-            "pkg/dyninst/loader/types.go": [
-                "pkg/dyninst/ebpf/types.h",
-            ],
-        }
-        # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
-        # It is only generating cgo type definitions and changes are reviewed, so risk is low
-        nw.rule(
-            name="godefs",
-            pool="cgo_pool",
-            command="cd $in_dir && "
-            + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
-            + "go run $script_path $tests_file $package_name > $out_file",
-        )
-
-    script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
-    for f, headers in def_files.items():
-        in_dir, in_file = os.path.split(f)
-        in_base, _ = os.path.splitext(in_file)
-        out_file = f"{in_base}_{go_platform}.go"
-        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
-        tests_file = ""
-        package_name = ""
-        outputs = [os.path.join(in_dir, out_file)]
-        if go_platform == "linux":
-            tests_file = f"{in_base}_{go_platform}_test"
-            package_name = os.path.basename(in_dir)
-            outputs.append(os.path.join(in_dir, f"{tests_file}.go"))
-        nw.build(
-            inputs=[f],
-            outputs=outputs,
-            rule="godefs",
-            implicit=headers + [script_path],
-            variables={
-                "in_dir": in_dir,
-                "in_file": in_file,
-                "out_file": out_file,
-                "script_path": script_path,
-                "rel_import": rel_import,
-                "tests_file": tests_file,
-                "package_name": package_name,
-            },
-        )
-
-
 def ninja_generate(
     ctx: Context,
     ninja_path,
@@ -393,8 +254,6 @@ def ninja_generate(
 
             # Runtime bundles (eBPF .o and native binaries are handled by Bazel)
             ninja_runtime_compilation_files(nw, gobin)
-
-        ninja_cgo_type_files(nw)
 
 
 @task
@@ -1253,6 +1112,75 @@ _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
+# cgo_godefs _gen targets: produce Go type definitions from C headers.
+# Each target outputs <base>_linux.go and <base>_linux_test.go in bazel-bin.
+_BAZEL_CGO_GODEFS_TARGETS = [
+    "//pkg/ebpf:types_godefs_gen",
+    "//pkg/ebpf/telemetry:types_godefs_gen",
+    "//pkg/network/ebpf:conntrack_types_godefs_gen",
+    "//pkg/network/ebpf:tuple_types_godefs_gen",
+    "//pkg/network/ebpf:kprobe_types_godefs_gen",
+    "//pkg/network/protocols:ebpf_types_godefs_gen",
+    "//pkg/network/protocols/events:types_godefs_gen",
+    "//pkg/network/protocols/http:types_godefs_gen",
+    "//pkg/network/protocols/http/gotls:go_tls_types_godefs_gen",
+    "//pkg/network/protocols/http2:types_godefs_gen",
+    "//pkg/network/protocols/kafka:types_godefs_gen",
+    "//pkg/network/protocols/postgres/ebpf:types_godefs_gen",
+    "//pkg/network/protocols/redis:types_godefs_gen",
+    "//pkg/network/protocols/tls:types_godefs_gen",
+    "//pkg/network/tracer/offsetguess:offsetguess_types_godefs_gen",
+    "//pkg/network/usm/sharedlibraries:types_godefs_gen",
+    "//pkg/collector/corechecks/ebpf/probe/ebpfcheck:c_types_godefs_gen",
+    "//pkg/collector/corechecks/ebpf/probe/noisyneighbor:ebpf_types_godefs_gen",
+    "//pkg/collector/corechecks/ebpf/probe/oomkill:c_types_godefs_gen",
+    "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength:tcp_queue_length_kern_types_godefs_gen",
+    "//pkg/gpu/ebpf:kprobe_types_godefs_gen",
+    "//pkg/dyninst/loader:types_godefs_gen",
+    "//pkg/dyninst/output:framing_godefs_gen",
+]
+
+# Windows cgo_godefs _gen targets: produce <base>_windows.go (no test file).
+_BAZEL_CGO_GODEFS_WIN_TARGETS = [
+    "//pkg/network/driver:types_godefs_gen",
+    "//pkg/windowsdriver/procmon:types_godefs_gen",
+]
+
+
+def _bazel_verify_cgo_godefs(ctx: Context, targets: list[str], has_test_files: bool = True) -> None:
+    """Verify committed cgo godefs files are up to date.
+
+    Runs ``bazel test`` on the write_source_file diff tests (which also
+    builds the _gen targets as dependencies).  Raises Exit if any committed
+    file is stale.
+
+    Args:
+        has_test_files: If True (Linux), each target also produces a _test.go
+            file with a corresponding _test_file_test diff test.
+    """
+    godefs_test_targets = []
+    for target in targets:
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        macro_name = name.removesuffix("_gen")
+        godefs_test_targets.append(f"//{label_path}:{macro_name}_test")
+        if has_test_files:
+            godefs_test_targets.append(f"//{label_path}:{macro_name}_test_file_test")
+
+    print(f"Verifying {len(godefs_test_targets)} cgo godefs diff tests...")
+    result = ctx.run(
+        f"bazel test {' '.join(godefs_test_targets)}",
+        warn=True,
+    )
+    if not result.ok:
+        raise Exit(
+            "Committed cgo godefs files are out of date. Regenerate and commit them:\n"
+            "  bazel run //pkg/ebpf:types_godefs  # repeat for each stale target\n"
+            "Or regenerate all at once:\n"
+            f"  for t in {' '.join(t.removesuffix('_gen') for t in targets)}; "
+            "do bazel run $t; done",
+            code=1,
+        )
+
 
 _NON_EBPF_TARGETS = frozenset(
     [
@@ -1273,7 +1201,7 @@ def _ebpf_strip_targets(targets, strip):
 
 
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = True) -> None:
-    """Build eBPF object files using Bazel and copy them to the build directory.
+    """Build eBPF object files and cgo type definitions using Bazel.
 
     When strip=True, the Bazel-side .stripped target variants are built.
     Stripping is cached by Bazel alongside the compile step.
@@ -1335,6 +1263,8 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
 
     print(f"Copied eBPF objects to {build_dir}")
 
+    _bazel_verify_cgo_godefs(ctx, _BAZEL_CGO_GODEFS_TARGETS)
+
 
 @task(aliases=["object-files"])
 def build_object_files(
@@ -1350,7 +1280,10 @@ def build_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
-    if not is_windows:
+    if is_windows:
+        # Build and verify Windows cgo godefs via Bazel (committed files, no copy needed).
+        _bazel_verify_cgo_godefs(ctx, _BAZEL_CGO_GODEFS_WIN_TARGETS, has_test_files=False)
+    else:
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
