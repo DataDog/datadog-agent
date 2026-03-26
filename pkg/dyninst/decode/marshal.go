@@ -156,11 +156,14 @@ func (m *messageData) processJSONSegment(
 		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
-	if exprIdx >= int(presenceBitsetSize)*8 {
+	if 2*exprIdx >= int(presenceBitsetSize)*8 {
 		return errors.New("expression index out of bounds")
 	}
-	if !presenceBitSet.get(exprIdx) {
-		// Expression evaluation failed.
+	if !presenceBitSet.get(2 * exprIdx) {
+		// Expression evaluation failed. Check if it was due to nil pointer.
+		if presenceBitSet.get(2*exprIdx + 1) {
+			return errNilPointerEvaluating
+		}
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -324,6 +327,26 @@ func (ce *captureEvent) init(
 	ce.rootData = rootData
 	ce.skippedIndices.reset(len(rootType.Expressions))
 	ce.evaluationErrors = evalErrors
+
+	// Pre-scan presence bits for nil pointer dereferences. Mark those
+	// expressions as skipped and record evaluation errors up front so the
+	// serialization loop never needs to restart for them.
+	if rootType.PresenceBitsetSize > 0 && int(rootType.PresenceBitsetSize) <= len(rootData) {
+		presenceBits := bitset(rootData[:rootType.PresenceBitsetSize])
+		for i, expr := range rootType.Expressions {
+			if 2*i+1 >= int(rootType.PresenceBitsetSize)*8 {
+				break
+			}
+			if !presenceBits.get(2*i) && presenceBits.get(2*i+1) {
+				ce.skippedIndices.set(i)
+				*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+					Expression: expr.Name,
+					Message:    errNilPointerEvaluating.Error(),
+				})
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -336,6 +359,7 @@ func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
 }
 
 var errEvaluation = errors.New("evaluation error")
+var errNilPointerEvaluating = errors.New("nil pointer dereference")
 
 // processExpression processes a single expression from the root type expressions
 func (ce *captureEvent) processExpression(
@@ -361,8 +385,9 @@ func (ce *captureEvent) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if !presenceBitSet.get(expressionIndex) && parameterSize != 0 {
-		// Set not capture reason.
+	if !presenceBitSet.get(2*expressionIndex) && parameterSize != 0 {
+		// Nil-deref expressions are already handled in init() and marked
+		// as skipped, so we only reach here for genuinely unavailable data.
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),

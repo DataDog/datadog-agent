@@ -491,7 +491,7 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 
 // shouldEvictDeferred returns true if the time since the last action is greater than the resize pending period, false otherwise
 func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
-	var period = defaultResizePendingPeriod
+	period := defaultResizePendingPeriod
 	// If the DPA has a configured resize pending period, use that instead of the default
 	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod > 0 {
 		period = podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod
@@ -511,7 +511,7 @@ func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.D
 		return true
 	}
 
-	var delay = defaultRolloutFallbackDelay
+	delay := defaultRolloutFallbackDelay
 	// If the DPA has a configured rollout fallback delay, use that instead of the default
 	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay > 0 {
 		delay = podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
