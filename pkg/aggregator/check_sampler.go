@@ -76,7 +76,11 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilter 
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, _ := cs.contextResolver.get(ck)
+	ctx, ok := cs.contextResolver.get(ck)
+	if !ok || ctx == nil {
+		log.Errorf("Sketch context key %v not found in context resolver, dropping sketch", ck)
+		return nil
+	}
 	ss := &metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags(),
@@ -208,6 +212,9 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 	})
 	for ck, points := range pointsByCtx {
 		series := cs.newSketchSeries(ck, points)
+		if series == nil {
+			continue
+		}
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()

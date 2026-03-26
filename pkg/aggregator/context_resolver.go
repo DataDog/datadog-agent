@@ -121,7 +121,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
-	if tagFilter != nil {
+	if tagFilter != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if keepTag, ok := tagFilter.ShouldStripTags(metricSampleContext.GetName()); ok {
 			cr.taggerBuffer.RetainFunc(keepTag)
 			cr.metricBuffer.RetainFunc(keepTag)
