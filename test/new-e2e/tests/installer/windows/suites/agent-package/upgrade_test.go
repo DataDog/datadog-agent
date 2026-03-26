@@ -422,10 +422,10 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	})
 }
 
-// TestRevertsExperimentWhenPackagesDirMissing is a regression test for FA-1143.
+// TestRemoveExperimentNoTempDirError is a regression test for FA-1143.
 // It verifies that RemoveExperiment does not fail with "error creating temp dir"
 // when the packages directory has been deleted before the call.
-func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenPackagesDirMissing() {
+func (s *testAgentUpgradeSuite) TestRemoveExperimentNoTempDirError() {
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()

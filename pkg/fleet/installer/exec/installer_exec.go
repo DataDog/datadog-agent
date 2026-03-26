@@ -153,7 +153,7 @@ func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err e
 			// packages directory does not exist, fall back to system temp dir
 			tmpRootPath = ""
 		}
-		tmpDir, err := os.MkdirTemp(tmpRootPath, "tmp-installer-*")
+		tmpDir, err := os.MkdirTemp(tmpRootPath, "tmp-i-*")
 		if err != nil {
 			return fmt.Errorf("error creating temp dir: %w", err)
 		}
