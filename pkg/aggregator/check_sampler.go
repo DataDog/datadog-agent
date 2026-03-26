@@ -38,7 +38,7 @@ type CheckSampler struct {
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
 
-	metricHook hook.Hook[hook.MetricView]
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -51,7 +51,7 @@ func newCheckSampler(
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
-	metricHook hook.Hook[hook.MetricView],
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot],
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
@@ -69,7 +69,7 @@ func newCheckSampler(
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
-	cs.metricHook.Publish("checks", metricSample)
+	cs.metricHook.Publish("checks", []hook.MetricSampleSnapshot{hook.NewMetricSampleSnapshot(metricSample)})
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
