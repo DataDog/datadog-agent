@@ -848,7 +848,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 			mmapedFiles, err := procfs.GetMmapedFiles(proc)
 			if err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+				return
 			}
+
 			for _, f := range mmapedFiles {
 				openEvent := p.newOpenEventFromReplay(entry, f)
 				openEvent.Source = model.EventSourceReplay
