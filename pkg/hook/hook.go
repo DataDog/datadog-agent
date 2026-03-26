@@ -7,7 +7,9 @@ package hook
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -67,10 +69,11 @@ type consumer[T any] struct {
 }
 
 type hook[T any] struct {
-	ctx       context.Context
-	name      string
-	mu        sync.RWMutex
-	consumers map[string]consumer[T]
+	ctx             context.Context
+	name            string
+	mu              sync.RWMutex
+	consumers       map[string]consumer[T]
+	subscriberCount atomic.Int32
 }
 
 func (h *hook[T]) Name() string {
@@ -79,8 +82,11 @@ func (h *hook[T]) Name() string {
 
 // Publish delivers payload to every subscriber's buffered channel.
 // If a subscriber's channel is full the payload is dropped for that subscriber only.
-// The hot path (channel has space) allocates 0 bytes.
+// Returns immediately with no lock when there are no subscribers.
 func (h *hook[T]) Publish(_ string, payload T) {
+	if h.subscriberCount.Load() == 0 {
+		return
+	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for _, c := range h.consumers {
@@ -93,7 +99,7 @@ func (h *hook[T]) Publish(_ string, payload T) {
 }
 
 // Subscribe subscribes to the hook and calls callback with each payload.
-// name must be unique per consumer.
+// name must be unique among active subscribers on this hook; panics if already in use.
 // The returned unsubscribe function stops delivery and terminates the consumer goroutine.
 func (h *hook[T]) Subscribe(name string, callback func(payload T)) (unsubscribe func()) {
 	c := consumer[T]{
@@ -101,11 +107,17 @@ func (h *hook[T]) Subscribe(name string, callback func(payload T)) (unsubscribe 
 		done:      make(chan struct{}),
 		dropLabel: []string{h.name, name},
 	}
-	hooksSubscribedGauge.Inc(h.name)
 
 	h.mu.Lock()
+	if _, exists := h.consumers[name]; exists {
+		h.mu.Unlock()
+		panic(fmt.Sprintf("hook %q: consumer %q is already subscribed", h.name, name))
+	}
 	h.consumers[name] = c
+	h.subscriberCount.Add(1)
 	h.mu.Unlock()
+
+	hooksSubscribedGauge.Inc(h.name)
 
 	go func() {
 		for {
@@ -125,6 +137,7 @@ func (h *hook[T]) Subscribe(name string, callback func(payload T)) (unsubscribe 
 		defer h.mu.Unlock()
 		if _, ok := h.consumers[name]; ok {
 			delete(h.consumers, name)
+			h.subscriberCount.Add(-1)
 			close(c.done)
 			hooksSubscribedGauge.Dec(h.name)
 		}
