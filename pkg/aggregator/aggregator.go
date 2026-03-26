@@ -282,7 +282,7 @@ type BufferedAggregator struct {
 	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
 
-	metricHook hook.Hook[hook.MetricView]
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -300,7 +300,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component, metricHook hook.Hook[hook.MetricView]) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component, metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()

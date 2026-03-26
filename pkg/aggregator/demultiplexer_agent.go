@@ -138,7 +138,7 @@ func InitAndStartAgentDemultiplexer(
 	tagger tagger.Component,
 	filterList filterlist.Component,
 	hostname string,
-	metricHook hook.Hook[hook.MetricView]) *AgentDemultiplexer {
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *AgentDemultiplexer {
 	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname, metricHook)
 	go demux.run()
 	return demux
@@ -154,7 +154,7 @@ func initAgentDemultiplexer(log log.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
 	hostname string,
-	metricHook hook.Hook[hook.MetricView]) *AgentDemultiplexer {
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -186,13 +186,13 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname, metricHook)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
-			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
+			filterList.GetHistoFilterList(), filterList.GetTagFilterList(), metricHook)
 	}
 
 	var noAggWorker *noAggregationStreamWorker
