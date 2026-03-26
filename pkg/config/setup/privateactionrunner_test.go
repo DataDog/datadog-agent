@@ -54,7 +54,7 @@ func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
 
 	cfg := newTestConf(t)
 
-	assert.Equal(t, []string{defaultLogPath, defaultOsReleasePath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
@@ -62,7 +62,7 @@ func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
 
 	assert.Empty(t, cfg.GetStringSlice(PARActionsAllowlist))
 	assert.Empty(t, cfg.GetStringSlice(PARHttpAllowlist))
-	assert.Equal(t, []string{defaultLogPath, defaultOsReleasePath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
 func TestPrivateActionRunnerAllowedPathsBareMetal(t *testing.T) {
@@ -72,20 +72,19 @@ func TestPrivateActionRunnerAllowedPathsBareMetal(t *testing.T) {
 	cfg := newTestConf(t)
 
 	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
-	assert.Equal(t, []string{defaultLogPath, defaultOsReleasePath}, paths)
+	assert.Equal(t, []string{defaultLogPath}, paths)
 }
 
 func TestPrivateActionRunnerAllowedPathsContainerizedWithHostMounts(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	overrideParPathExists(t, mockParPathExists(map[string]bool{
-		"/host/var/log":        true,
-		"/host/etc/os-release": true,
+		"/host/var/log": true,
 	}))
 
 	cfg := newTestConf(t)
 
 	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
-	assert.Equal(t, []string{"/host/var/log", "/host/etc/os-release"}, paths)
+	assert.Equal(t, []string{"/host/var/log"}, paths)
 }
 
 func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testing.T) {
@@ -99,6 +98,5 @@ func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testin
 	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
 	assert.Equal(t, []string{
 		filepath.Join(containerizedPathPrefix, defaultLogPath),
-		filepath.Join(containerizedPathPrefix, defaultOsReleasePath),
 	}, paths)
 }

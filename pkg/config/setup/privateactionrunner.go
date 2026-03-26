@@ -42,8 +42,7 @@ const (
 
 const (
 	// Default allowed paths for restricted shell
-	defaultLogPath       = "/var/log"
-	defaultOsReleasePath = "/etc/os-release"
+	defaultLogPath = "/var/log"
 
 	containerizedPathPrefix = "/host"
 )
@@ -84,7 +83,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	defaultPaths := []string{defaultLogPath, defaultOsReleasePath}
+	defaultPaths := []string{defaultLogPath}
 	if env.IsContainerized() {
 		for i, v := range defaultPaths {
 			hostPath := filepath.Join(containerizedPathPrefix, v)
