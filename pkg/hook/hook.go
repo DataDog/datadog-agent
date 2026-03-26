@@ -22,6 +22,43 @@ var (
 	hooksSubscribedGauge = telemetry.NewGauge(subsystem, "subscribed_callbacks_gauge", []string{"hook_name"}, "The number of callbacks subscribed to the hook")
 )
 
+// Option is a functional option for [Hook.Subscribe].
+type Option[T any] func(*consumer[T])
+
+// WithRecycle configures pool-based recycling for a subscriber.
+//
+// clone is called by Publish to create a private copy of the payload for
+// this subscriber before it is enqueued.  Each subscriber therefore owns its
+// own copy of the data and can safely use it after other subscribers have
+// finished with theirs.
+//
+// recycle is called by the subscriber goroutine immediately after the
+// callback returns, so the copy can be returned to a pool.
+//
+// Together, clone+recycle eliminate heap allocations on the steady-state
+// delivery path: the same memory is reused across calls with no GC pressure.
+//
+// Example ([]MetricSampleSnapshot with a sync.Pool):
+//
+//	pool := sync.Pool{New: func() any {
+//	    return make([]hook.MetricSampleSnapshot, 0, 32)
+//	}}
+//	unsub := h.Subscribe("observer", process,
+//	    hook.WithRecycle(
+//	        func(src []hook.MetricSampleSnapshot) []hook.MetricSampleSnapshot {
+//	            dst := pool.Get().([]hook.MetricSampleSnapshot)
+//	            return append(dst[:0], src...)
+//	        },
+//	        func(b []hook.MetricSampleSnapshot) { pool.Put(b[:0]) },
+//	    ),
+//	)
+func WithRecycle[T any](clone func(T) T, recycle func(T)) Option[T] {
+	return func(c *consumer[T]) {
+		c.clone = clone
+		c.recycle = recycle
+	}
+}
+
 // Hook is a named, typed publish/subscribe channel.
 //
 // Producers call Publish to broadcast a payload to all registered subscribers.
@@ -48,11 +85,11 @@ type Hook[T any] interface {
 	HasSubscribers() bool
 
 	// Subscribe registers callback as a consumer of this hook.
-	// name must be unique among active subscribers on this hook.
+	// name must be unique among active subscribers on this hook; panics if already in use.
 	// The callback is invoked from a dedicated goroutine; it must return
 	// promptly and must not retain the payload beyond its own return.
 	// The returned function unsubscribes the consumer and terminates its goroutine.
-	Subscribe(consumerName string, callback func(payload T)) (unsubscribe func())
+	Subscribe(consumerName string, callback func(payload T), opts ...Option[T]) (unsubscribe func())
 }
 
 // NewHook creates a new Hook that fans out published payloads to all subscribers.
@@ -73,7 +110,9 @@ func NewHook[T any](name string) Hook[T] {
 type consumer[T any] struct {
 	ch        chan T
 	done      chan struct{}
-	dropLabel []string // == []string{hookName, consumerName}
+	dropLabel []string  // == []string{hookName, consumerName}
+	clone     func(T) T // optional: creates a private copy before channel send
+	recycle   func(T)   // optional: returns the copy to a pool after callback
 }
 
 type hook[T any] struct {
@@ -93,7 +132,10 @@ func (h *hook[T]) HasSubscribers() bool {
 }
 
 // Publish delivers payload to every subscriber's buffered channel.
-// If a subscriber's channel is full the payload is dropped for that subscriber only.
+// If a subscriber has a clone function, a private copy is made before
+// enqueuing so each subscriber owns independent data.
+// If a subscriber's channel is full the payload (or its clone) is dropped
+// for that subscriber only, and its recycle function is called if set.
 // Returns immediately with no lock when there are no subscribers.
 func (h *hook[T]) Publish(_ string, payload T) {
 	if h.subscriberCount.Load() == 0 {
@@ -102,9 +144,16 @@ func (h *hook[T]) Publish(_ string, payload T) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for _, c := range h.consumers {
+		item := payload
+		if c.clone != nil {
+			item = c.clone(payload)
+		}
 		select {
-		case c.ch <- payload:
+		case c.ch <- item:
 		default:
+			if c.recycle != nil {
+				c.recycle(item)
+			}
 			dropperCounter.Inc(c.dropLabel...)
 		}
 	}
@@ -113,11 +162,14 @@ func (h *hook[T]) Publish(_ string, payload T) {
 // Subscribe subscribes to the hook and calls callback with each payload.
 // name must be unique among active subscribers on this hook; panics if already in use.
 // The returned unsubscribe function stops delivery and terminates the consumer goroutine.
-func (h *hook[T]) Subscribe(name string, callback func(payload T)) (unsubscribe func()) {
+func (h *hook[T]) Subscribe(name string, callback func(payload T), opts ...Option[T]) (unsubscribe func()) {
 	c := consumer[T]{
 		ch:        make(chan T, 100),
 		done:      make(chan struct{}),
 		dropLabel: []string{h.name, name},
+	}
+	for _, opt := range opts {
+		opt(&c)
 	}
 
 	h.mu.Lock()
@@ -140,6 +192,9 @@ func (h *hook[T]) Subscribe(name string, callback func(payload T)) (unsubscribe 
 				return
 			case payload := <-c.ch:
 				callback(payload)
+				if c.recycle != nil {
+					c.recycle(payload)
+				}
 			}
 		}
 	}()
