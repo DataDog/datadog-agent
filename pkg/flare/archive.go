@@ -14,9 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -97,7 +100,52 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		))
 	}
 
+	providers = append(providers, flaretypes.NewFiller(provideEndpointDNSResolution))
+
 	return providers
+}
+
+func provideEndpointDNSResolution(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("connectivity/endpoint_dns.txt", getEndpointDNS) //nolint:errcheck
+	return nil
+}
+
+// getEndpointDNS resolves the hostnames of all configured agent endpoints.
+// The results can be used to determine whether the agent is using PrivateLink
+// (private IPs) vs. the public Datadog intake.
+func getEndpointDNS() ([]byte, error) {
+	cfg := pkgconfigsetup.Datadog()
+	endpointDescriptors, err := configUtils.GetMultipleEndpoints(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not get endpoints: %w", err)
+	}
+
+	// Collect unique hostnames from all configured endpoint URLs.
+	seen := make(map[string]bool)
+	var hostnames []string
+	for domain := range endpointDescriptors {
+		u, parseErr := url.Parse(domain)
+		if parseErr != nil || u.Hostname() == "" {
+			continue
+		}
+		h := u.Hostname()
+		if !seen[h] {
+			seen[h] = true
+			hostnames = append(hostnames, h)
+		}
+	}
+	sort.Strings(hostnames)
+
+	var buf bytes.Buffer
+	for _, h := range hostnames {
+		addrs, lookupErr := net.LookupHost(h)
+		if lookupErr != nil {
+			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
+			continue
+		}
+		fmt.Fprintf(&buf, "%s: %s\n", h, strings.Join(addrs, ", "))
+	}
+	return buf.Bytes(), nil
 }
 
 func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
