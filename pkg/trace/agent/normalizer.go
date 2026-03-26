@@ -166,7 +166,7 @@ func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 		if link == nil {
 			continue
 		}
-    
+
 		if val, ok := link.Attributes[string(semantics.ConceptLinkName)]; ok {
 			newName, err := normalizeutil.NormalizeName(val)
 			if err != nil {
