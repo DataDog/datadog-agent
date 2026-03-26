@@ -82,6 +82,9 @@ impl TelemetryReporter {
         let mut prev_metrics_flush_bytes: u64 = 0;
         let mut prev_logs_flush_bytes: u64 = 0;
         let mut prev_tss_flush_bytes: u64 = 0;
+        let mut prev_metrics_rows: u64 = 0;
+        let mut prev_logs_rows: u64 = 0;
+        let mut prev_tss_rows: u64 = 0;
         let mut prev_frames: u64 = 0;
 
         loop {
@@ -124,10 +127,13 @@ impl TelemetryReporter {
                     .with_tag("writer", "metrics").send();
                 let _ = self.client.count_with_tags("flush_bytes", (mw.flush_bytes - prev_metrics_flush_bytes) as i64)
                     .with_tag("writer", "metrics").send();
+                let _ = self.client.count_with_tags("rows_written", (mw.rows_written - prev_metrics_rows) as i64)
+                    .with_tag("writer", "metrics").send();
                 let _ = self.client.gauge_with_tags("flush_duration_ns", mw.last_flush_duration_ns)
                     .with_tag("writer", "metrics").send();
                 prev_metrics_flush_count = mw.flush_count;
                 prev_metrics_flush_bytes = mw.flush_bytes;
+                prev_metrics_rows = mw.rows_written;
             }
             {
                 let lw = logs_writer.lock().await;
@@ -137,10 +143,13 @@ impl TelemetryReporter {
                     .with_tag("writer", "logs").send();
                 let _ = self.client.count_with_tags("flush_bytes", (lw.flush_bytes - prev_logs_flush_bytes) as i64)
                     .with_tag("writer", "logs").send();
+                let _ = self.client.count_with_tags("rows_written", (lw.rows_written - prev_logs_rows) as i64)
+                    .with_tag("writer", "logs").send();
                 let _ = self.client.gauge_with_tags("flush_duration_ns", lw.last_flush_duration_ns)
                     .with_tag("writer", "logs").send();
                 prev_logs_flush_count = lw.flush_count;
                 prev_logs_flush_bytes = lw.flush_bytes;
+                prev_logs_rows = lw.rows_written;
             }
             {
                 let tw = trace_stats_writer.lock().await;
@@ -150,10 +159,13 @@ impl TelemetryReporter {
                     .with_tag("writer", "trace_stats").send();
                 let _ = self.client.count_with_tags("flush_bytes", (tw.flush_bytes - prev_tss_flush_bytes) as i64)
                     .with_tag("writer", "trace_stats").send();
+                let _ = self.client.count_with_tags("rows_written", (tw.rows_written - prev_tss_rows) as i64)
+                    .with_tag("writer", "trace_stats").send();
                 let _ = self.client.gauge_with_tags("flush_duration_ns", tw.last_flush_duration_ns)
                     .with_tag("writer", "trace_stats").send();
                 prev_tss_flush_count = tw.flush_count;
                 prev_tss_flush_bytes = tw.flush_bytes;
+                prev_tss_rows = tw.rows_written;
             }
         }
     }

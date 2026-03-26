@@ -60,6 +60,7 @@ pub struct LogsWriter {
     // Telemetry counters (read by the telemetry reporter).
     pub flush_count: u64,
     pub flush_bytes: u64,
+    pub rows_written: u64,
     pub last_flush_duration_ns: u64,
 }
 
@@ -90,6 +91,7 @@ impl LogsWriter {
 
             flush_count: 0,
             flush_bytes: 0,
+            rows_written: 0,
             last_flush_duration_ns: 0,
         }
     }
@@ -212,6 +214,7 @@ impl LogsWriter {
 
         self.flush_count += 1;
         self.flush_bytes += bytes_written;
+        self.rows_written += row_count as u64;
         self.last_flush_duration_ns = flush_start.elapsed().as_nanos() as u64;
         self.last_flush = Instant::now();
         Ok(path)
