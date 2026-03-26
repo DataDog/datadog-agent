@@ -48,46 +48,6 @@ function cumulativeFromStart(points: Point[]): Point[] {
   });
 }
 
-type CounterChartViewMode = 'raw' | 'rate-sec' | 'rate-min';
-
-/** Raw | evt/s | evt/min for counter series (first label describes raw: count per bucket or cumulative). */
-function CounterRateToggleBar({
-  viewMode,
-  onModeChange,
-  firstLabel,
-  firstTitle,
-  activeClassName,
-}: {
-  viewMode: CounterChartViewMode;
-  onModeChange: (m: CounterChartViewMode) => void;
-  firstLabel: string;
-  firstTitle: string;
-  activeClassName: string;
-}) {
-  const modes: { mode: CounterChartViewMode; label: string; title: string }[] = [
-    { mode: 'raw', label: firstLabel, title: firstTitle },
-    { mode: 'rate-sec', label: 'evt/s', title: 'Events per second (count ÷ bucket size)' },
-    { mode: 'rate-min', label: 'evt/min', title: 'Events per minute ((count ÷ bucket size) × 60)' },
-  ];
-  return (
-    <div className="inline-flex shrink-0 rounded overflow-hidden border border-slate-600 text-xs">
-      {modes.map(({ mode, label, title }) => (
-        <button
-          key={mode}
-          type="button"
-          onClick={() => onModeChange(mode)}
-          className={`px-2.5 py-1 transition-colors ${
-            viewMode === mode ? `${activeClassName} text-white` : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-          }`}
-          title={title}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 interface MetricGroup {
   key: string;
   namespace: string;
@@ -176,21 +136,13 @@ export function MetricsView({
     return dense.map((p) => ({ timestamp: p.timestamp, value: (p.value / bucketSec) * 60 }));
   };
 
-  /** Per-group display for counters: raw bucket values (or cumulative for telemetry), evt/s, evt/min. Pattern groups default to evt/s until changed. */
-  const [counterChartViewMode, setCounterChartViewMode] = useState<Map<string, CounterChartViewMode>>(new Map());
-  const setGroupCounterChartMode = (groupKey: string, mode: CounterChartViewMode) => {
-    setCounterChartViewMode((prev) => new Map([...prev, [groupKey, mode]]));
+  type PatternViewMode = 'raw' | 'rate-sec' | 'rate-min';
+
+  // Per-group view mode for pattern series. Defaults to 'rate-sec' when first selected.
+  const [patternViewMode, setPatternViewMode] = useState<Map<string, PatternViewMode>>(new Map());
+  const setGroupViewMode = (groupKey: string, mode: PatternViewMode) => {
+    setPatternViewMode((prev) => new Map([...prev, [groupKey, mode]]));
   };
-
-  function getCounterChartViewMode(
-    groupKey: string,
-    isPatternSeries: boolean
-  ): CounterChartViewMode {
-    const v = counterChartViewMode.get(groupKey);
-    if (v !== undefined) return v;
-    return isPatternSeries ? 'rate-sec' : 'raw';
-  }
-
 
   // When LogView requests a jump to a specific series group, select it, then clear the request
   // so the same groupKey can be requested again (same pattern as requestedPatternFilter in LogView).
@@ -201,7 +153,7 @@ export function MetricsView({
     setAggregationType('count');
     setSelectedGroups((prev) => new Set([...prev, requestedFocusedGroupKey]));
     if (getPatternHash(requestedFocusedGroupKey)) {
-      setCounterChartViewMode((prev) => new Map([...prev, [requestedFocusedGroupKey, 'rate-sec']]));
+      setPatternViewMode((prev) => new Map([...prev, [requestedFocusedGroupKey, 'rate-sec']]));
     }
     onRequestedFocusedGroupKeyConsumed?.();
   }, [requestedFocusedGroupKey, onRequestedFocusedGroupKeyConsumed]);
@@ -212,7 +164,7 @@ export function MetricsView({
     const prev = prevSelectedForRateRef.current;
     const added = [...selectedGroups].filter((k) => !prev.has(k) && getPatternHash(k) !== null);
     if (added.length > 0) {
-      setCounterChartViewMode((m) => {
+      setPatternViewMode((m) => {
         const next = new Map(m);
         for (const k of added) if (!next.has(k)) next.set(k, 'rate-sec');
         return next;
@@ -713,18 +665,6 @@ export function MetricsView({
                       return g && g.namespace !== 'telemetry' && !g.virtual;
                     })
                     .map((groupKey) => {
-                      const group = groupByKey.get(groupKey);
-                      if (!group) return null;
-                      const isCounterGroup = group.members.some((m) => m.metricKind === 'counter');
-                      const viewMode = getCounterChartViewMode(groupKey, false);
-                      const transformPoints =
-                        isCounterGroup
-                          ? (viewMode === 'rate-sec'
-                            ? toRateSeries
-                            : viewMode === 'rate-min'
-                              ? toRatePerMinSeries
-                              : (pts: Point[]) => pts)
-                          : (pts: Point[]) => pts;
                       const dataList = groupSeriesData.get(groupKey) ?? [];
                       if (dataList.length === 0) return null;
                       const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
@@ -739,31 +679,15 @@ export function MetricsView({
                       const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
                       const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
                         label: formatSeriesLabel(d.tags),
-                        points: transformPoints(d.points),
+                        points: d.points,
                         seriesId: d.id,
                       }));
                       const primary = chartSeries[0];
-                      const primaryPoints = transformPoints(primary.points);
-                      const modeLabel =
-                        isCounterGroup && viewMode === 'rate-sec'
-                          ? ' (evt/s)'
-                          : isCounterGroup && viewMode === 'rate-min'
-                            ? ' (evt/min)'
-                            : '';
-                      const subtitle = isCounterGroup ? (
-                        <CounterRateToggleBar
-                          viewMode={viewMode}
-                          onModeChange={(m) => setGroupCounterChartMode(groupKey, m)}
-                          firstLabel="Raw"
-                          firstTitle="Values per time bucket (counter deltas or aggregation)"
-                          activeClassName="bg-purple-700"
-                        />
-                      ) : undefined;
                       return (
                         <ChartWithAnomalyDetails
-                          key={`${groupKey}-${isCounterGroup ? viewMode : 'gauge'}`}
-                          name={`${primary.name}${modeLabel}`}
-                          points={primaryPoints}
+                          key={groupKey}
+                          name={primary.name}
+                          points={primary.points}
                           anomalyMarkers={anomalyMarkers}
                           anomalies={seriesAnomalies}
                           correlationRanges={[]}
@@ -773,7 +697,6 @@ export function MetricsView({
                           smoothLines={smoothLines}
                           seriesVariants={seriesVariants}
                           phaseMarkers={phaseMarkers}
-                          subtitle={subtitle}
                         />
                       );
                     })
@@ -801,20 +724,6 @@ export function MetricsView({
                           return g && g.virtual;
                         })
                         .map((groupKey) => {
-                          const grp = groupByKey.get(groupKey);
-                          if (!grp) return null;
-                          const patternHash = getPatternHash(groupKey);
-                          const isPatternSeries = patternHash !== null;
-                          const isCounterVirtual = grp.members.some((m) => m.metricKind === 'counter');
-                          const showCounterRateUi = isPatternSeries || isCounterVirtual;
-                          const viewMode = getCounterChartViewMode(groupKey, isPatternSeries);
-                          const transformPoints = showCounterRateUi
-                            ? (viewMode === 'rate-sec'
-                              ? toRateSeries
-                              : viewMode === 'rate-min'
-                                ? toRatePerMinSeries
-                                : (pts: Point[]) => pts)
-                            : (pts: Point[]) => pts;
                           const dataList = groupSeriesData.get(groupKey) ?? [];
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
@@ -824,6 +733,13 @@ export function MetricsView({
                           const seriesIDs = new Set(chartSeries.map((d) => d.id));
                           const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                           const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                          const patternHash = getPatternHash(groupKey);
+                          const isPatternSeries = patternHash !== null;
+                          const viewMode: PatternViewMode = (isPatternSeries && patternViewMode.get(groupKey)) || 'raw';
+                          const transformPoints =
+                            viewMode === 'rate-sec' ? toRateSeries :
+                            viewMode === 'rate-min' ? toRatePerMinSeries :
+                            (pts: Point[]) => pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
                             label: formatSeriesLabel(d.tags),
                             points: transformPoints(d.points),
@@ -832,13 +748,8 @@ export function MetricsView({
                           const primary = chartSeries[0];
                           const primaryPoints = transformPoints(primary.points);
                           const patternString = patternHash ? logPatternByHash.get(patternHash) : undefined;
-                          const modeLabel =
-                            showCounterRateUi && viewMode === 'rate-sec'
-                              ? ' (evt/s)'
-                              : showCounterRateUi && viewMode === 'rate-min'
-                                ? ' (evt/min)'
-                                : '';
-                          const subtitle = (patternString || showCounterRateUi) ? (
+                          const modeLabel = viewMode === 'rate-sec' ? ' (evt/s)' : viewMode === 'rate-min' ? ' (evt/min)' : '';
+                          const subtitle = (patternString || isPatternSeries) ? (
                             <div className="space-y-2">
                               {patternString && (
                                 <div>
@@ -848,33 +759,41 @@ export function MetricsView({
                                   </pre>
                                 </div>
                               )}
-                              {showCounterRateUi && (
-                                <div className="flex items-center gap-2">
-                                  <CounterRateToggleBar
-                                    viewMode={viewMode}
-                                    onModeChange={(m) => setGroupCounterChartMode(groupKey, m)}
-                                    firstLabel="Raw"
-                                    firstTitle="Count per bucket"
-                                    activeClassName="bg-cyan-700"
-                                  />
-                                  <div className="flex-1" />
-                                  {onJumpToPattern && patternHash && (
+                              <div className="flex items-center gap-2">
+                                <div className="flex rounded overflow-hidden border border-slate-600 text-xs">
+                                  {(
+                                    [
+                                      { mode: 'raw' as PatternViewMode, label: 'Raw', title: 'Count per bucket' },
+                                      { mode: 'rate-sec' as PatternViewMode, label: 'evt/s', title: 'Events per second (count ÷ bucket size)' },
+                                      { mode: 'rate-min' as PatternViewMode, label: 'evt/min', title: 'Events per minute (60 s sliding window)' },
+                                    ] as const
+                                  ).map(({ mode, label, title }) => (
                                     <button
-                                      type="button"
-                                      onClick={() => onJumpToPattern(patternHash)}
-                                      className="text-xs px-2.5 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
-                                      title="Filter logs by this pattern in the Logs tab"
+                                      key={mode}
+                                      onClick={() => setGroupViewMode(groupKey, mode)}
+                                      className={`px-2.5 py-1 transition-colors ${viewMode === mode ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                      title={title}
                                     >
-                                      ↗ View in logs
+                                      {label}
                                     </button>
-                                  )}
+                                  ))}
                                 </div>
-                              )}
+                                <div className="flex-1" />
+                                {onJumpToPattern && patternHash && (
+                                  <button
+                                    onClick={() => onJumpToPattern(patternHash)}
+                                    className="text-xs px-2.5 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                    title="Filter logs by this pattern in the Logs tab"
+                                  >
+                                    ↗ View in logs
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ) : undefined;
                           return (
                             <ChartWithAnomalyDetails
-                              key={`${groupKey}-${showCounterRateUi ? viewMode : 'nov'}`}
+                              key={`${groupKey}-${viewMode}`}
                               name={`${primary.name}${modeLabel}`}
                               points={primaryPoints}
                               anomalyMarkers={anomalyMarkers}
@@ -906,9 +825,9 @@ export function MetricsView({
                         </div>
                         <span
                           className="text-[10px] text-slate-500 max-w-md text-center px-2"
-                          title="Counter metrics: default chart is cumulative from start; use Raw | evt/s | evt/min on each chart for rates. Gauges follow the aggregation control."
+                          title="Counter metrics: sum of deltas per time bucket, displayed as a running total from scenario start. Gauges follow the aggregation control."
                         >
-                          Counters: use chart toggle for cumulative vs rate · Gauges: aggregation above
+                          Counters: cumulative from start · Gauges: aggregation above
                         </span>
                       </div>
                       <div className="flex-1 border-t border-purple-800/50" />
@@ -922,7 +841,6 @@ export function MetricsView({
                         .map((groupKey) => {
                           const group = groupByKey.get(groupKey);
                           const isCounterTelemetry = group?.members.some((m) => m.metricKind === 'counter');
-                          const viewMode = getCounterChartViewMode(groupKey, false);
                           const dataList = groupSeriesData.get(groupKey) ?? [];
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
@@ -932,12 +850,8 @@ export function MetricsView({
                           const seriesIDs = new Set(chartSeries.map((d) => d.id));
                           const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                           const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
-                          const mapPoints = (pts: Point[]) => {
-                            if (!isCounterTelemetry) return pts;
-                            if (viewMode === 'rate-sec') return toRateSeries(pts);
-                            if (viewMode === 'rate-min') return toRatePerMinSeries(pts);
-                            return cumulativeFromStart(pts);
-                          };
+                          const mapPoints = (pts: Point[]) =>
+                            isCounterTelemetry ? cumulativeFromStart(pts) : pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
                             label: formatSeriesLabel(d.tags),
                             points: mapPoints(d.points),
@@ -945,27 +859,10 @@ export function MetricsView({
                           }));
                           const primary = chartSeries[0];
                           const chartTitleBase = getBaseMetricName(primary.name);
-                          const counterSuffix =
-                            isCounterTelemetry && viewMode === 'rate-sec'
-                              ? ' (evt/s)'
-                              : isCounterTelemetry && viewMode === 'rate-min'
-                                ? ' (evt/min)'
-                                : isCounterTelemetry
-                                  ? ' (cumulative)'
-                                  : '';
-                          const chartTitle = isCounterTelemetry ? `${chartTitleBase}${counterSuffix}` : primary.name;
-                          const subtitle = isCounterTelemetry ? (
-                            <CounterRateToggleBar
-                              viewMode={viewMode}
-                              onModeChange={(m) => setGroupCounterChartMode(groupKey, m)}
-                              firstLabel="Cumulative"
-                              firstTitle="Running total from scenario start (sum of per-bucket deltas)"
-                              activeClassName="bg-purple-700"
-                            />
-                          ) : undefined;
+                          const chartTitle = isCounterTelemetry ? `${chartTitleBase} (cumulative)` : primary.name;
                           return (
                             <ChartWithAnomalyDetails
-                              key={`${groupKey}-${isCounterTelemetry ? viewMode : 'gauge'}`}
+                              key={groupKey}
                               name={chartTitle}
                               points={mapPoints(primary.points)}
                               anomalyMarkers={anomalyMarkers}
@@ -978,7 +875,6 @@ export function MetricsView({
                               seriesVariants={seriesVariants}
                               isTelemetry
                               phaseMarkers={phaseMarkers}
-                              subtitle={subtitle}
                             />
                           );
                         })}
