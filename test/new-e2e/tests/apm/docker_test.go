@@ -87,7 +87,7 @@ func TestDockerFakeintakeSuiteTCP(t *testing.T) {
 	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, options...)
 }
 
-func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
+func (s *DockerFakeintakeSuite) Test00TraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
@@ -95,7 +95,7 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
-func (s *DockerFakeintakeSuite) TestTraceAgentMetricTags() {
+func (s *DockerFakeintakeSuite) Test00TraceAgentMetricTags() {
 	service := fmt.Sprintf("tracegen-metric-tags-%s", s.transport)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
@@ -106,7 +106,7 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetricTags() {
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics with tags")
 }
 
-func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
+func (s *DockerFakeintakeSuite) Test00TracesHaveContainerTag() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -118,7 +118,7 @@ func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
-func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
+func (s *DockerFakeintakeSuite) Test00AutoVersionTraces() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -130,7 +130,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
-func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
+func (s *DockerFakeintakeSuite) Test00AutoVersionStats() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -142,7 +142,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
-func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
+func (s *DockerFakeintakeSuite) Test00IsTraceRootTag() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -154,7 +154,7 @@ func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding is_trace_root tag")
 }
 
-func (s *DockerFakeintakeSuite) TestStatsForService() {
+func (s *DockerFakeintakeSuite) Test00StatsForService() {
 	// Test both normal stats computed by agent, and client stats from tracer
 	s.testStatsForService(false)
 	s.testStatsForService(true)
@@ -183,7 +183,7 @@ func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) 
 	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
-func (s *DockerFakeintakeSuite) TestBasicTrace() {
+func (s *DockerFakeintakeSuite) Test00BasicTrace() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -201,7 +201,7 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
-func (s *DockerFakeintakeSuite) TestTPS() {
+func (s *DockerFakeintakeSuite) Test01TPS() {
 	agentTPS := 2.
 
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(
@@ -229,7 +229,7 @@ func (s *DockerFakeintakeSuite) TestTPS() {
 	}, 2*time.Minute, 10*time.Second, "Failed to test TargetTPS")
 }
 
-func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
+func (s *DockerFakeintakeSuite) Test01ProbabilitySampler() {
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(
 		scendocker.WithAgentOptions(append(dockerAgentOptions(s.transport),
 			dockeragentparams.WithAgentServiceEnvVariable(
@@ -261,7 +261,7 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
 
-func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
+func (s *DockerFakeintakeSuite) Test00APMModeDefault() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -279,7 +279,7 @@ func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=default")
 }
 
-func (s *DockerFakeintakeSuite) TestAPMModeEdge() {
+func (s *DockerFakeintakeSuite) Test01APMModeEdge() {
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(
 		scendocker.WithAgentOptions(append(dockerAgentOptions(s.transport),
 			dockeragentparams.WithAgentServiceEnvVariable(
