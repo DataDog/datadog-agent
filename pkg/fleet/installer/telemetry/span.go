@@ -75,6 +75,9 @@ func (s *Span) Finish(err error) {
 		} else {
 			s.setTag("error.stack", takeStacktrace(1))
 		}
+		if _, ok := err.(fmt.Formatter); ok {
+			s.setTag("error.details", fmt.Sprintf("%+v", err))
+		}
 	}
 	globalTracer.finishSpan(s)
 }
@@ -208,6 +211,7 @@ func formatStack(pcs []uintptr) string {
 	}
 	frames := runtime.CallersFrames(pcs)
 	var buf strings.Builder
+	first := true
 	for {
 		frame, more := frames.Next()
 		if isInternalFrame(frame.Function) {
@@ -216,7 +220,16 @@ func formatStack(pcs []uintptr) string {
 			}
 			continue
 		}
-		fmt.Fprintf(&buf, "%s\n\t%s:%d\n", frame.Function, frame.File, frame.Line)
+		if !first {
+			buf.WriteByte('\n')
+		}
+		first = false
+		buf.WriteString(frame.Function)
+		buf.WriteByte('\n')
+		buf.WriteByte('\t')
+		buf.WriteString(frame.File)
+		buf.WriteByte(':')
+		buf.WriteString(strconv.Itoa(frame.Line))
 		if !more {
 			break
 		}
