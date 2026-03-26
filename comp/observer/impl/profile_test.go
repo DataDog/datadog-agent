@@ -106,7 +106,7 @@ func BenchmarkGetSeriesRange(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.GetSeriesRange(observerdef.SeriesHandle(0), 0, 576, observerdef.AggregateAverage)
+		storage.GetSeriesRange(observerdef.SeriesRef(0), 0, 576, observerdef.AggregateAverage)
 	}
 }
 
@@ -118,7 +118,7 @@ func BenchmarkForEachPoint(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.ForEachPoint(observerdef.SeriesHandle(0), 0, 576, observerdef.AggregateAverage, func(_ *observerdef.Series, _ observerdef.Point) {})
+		storage.ForEachPoint(observerdef.SeriesRef(0), 0, 576, observerdef.AggregateAverage, func(_ *observerdef.Series, _ observerdef.Point) {})
 	}
 }
 
@@ -130,7 +130,7 @@ func BenchmarkForEachPoint_Small(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.ForEachPoint(observerdef.SeriesHandle(0), 570, 576, observerdef.AggregateAverage, func(_ *observerdef.Series, _ observerdef.Point) {})
+		storage.ForEachPoint(observerdef.SeriesRef(0), 570, 576, observerdef.AggregateAverage, func(_ *observerdef.Series, _ observerdef.Point) {})
 	}
 }
 
@@ -142,6 +142,6 @@ func BenchmarkPointCountUpTo(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		storage.PointCountUpTo(observerdef.SeriesHandle(0), 300)
+		storage.PointCountUpTo(observerdef.SeriesRef(0), 300)
 	}
 }

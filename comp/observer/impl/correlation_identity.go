@@ -11,35 +11,20 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-func sortedUniqueMetricNames(anomalies []observer.Anomaly) []observer.MetricName {
-	seen := make(map[observer.MetricName]struct{})
+// sortedUniqueMembers extracts unique SeriesDescriptors from anomalies' Source
+// fields, deduplicating by Key() and sorting by String() for deterministic output.
+func sortedUniqueMembers(anomalies []observer.Anomaly) []observer.SeriesDescriptor {
+	seen := make(map[string]observer.SeriesDescriptor)
 	for _, a := range anomalies {
-		display := observer.MetricName(a.Source.String())
-		if display == "" {
-			continue
+		key := a.Source.Key()
+		if _, ok := seen[key]; !ok {
+			seen[key] = a.Source
 		}
-		seen[display] = struct{}{}
 	}
-	names := make([]observer.MetricName, 0, len(seen))
-	for n := range seen {
-		names = append(names, n)
+	members := make([]observer.SeriesDescriptor, 0, len(seen))
+	for _, sd := range seen {
+		members = append(members, sd)
 	}
-	sort.Slice(names, func(i, j int) bool { return names[i] < names[j] })
-	return names
-}
-
-func sortedUniqueSeriesIDs(anomalies []observer.Anomaly) []observer.SeriesID {
-	seen := make(map[observer.SeriesID]struct{})
-	for _, a := range anomalies {
-		if a.SourceSeriesID == "" {
-			continue
-		}
-		seen[a.SourceSeriesID] = struct{}{}
-	}
-	ids := make([]observer.SeriesID, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	sort.Slice(members, func(i, j int) bool { return members[i].Key() < members[j].Key() })
+	return members
 }

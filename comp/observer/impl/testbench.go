@@ -872,7 +872,7 @@ func (tb *TestBench) GetMetricsAnomalies() []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return tb.resolveAnomalySeriesIDs(filterMetricAnomalies(tb.engine.StateView().Anomalies()))
+	return filterMetricAnomalies(tb.engine.StateView().Anomalies())
 }
 
 // GetMetricsAnomaliesByDetector returns metric anomalies grouped by detector name.
@@ -887,42 +887,45 @@ func (tb *TestBench) GetMetricsAnomaliesByDetector() map[string][]observerdef.An
 			delete(byDetector, k)
 			continue
 		}
-		byDetector[k] = tb.resolveAnomalySeriesIDs(filtered)
+		byDetector[k] = filtered
 	}
 	return byDetector
 }
 
-// GetMetricsAnomaliesForSeries returns metric anomalies associated with a specific series id.
-func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID) []observerdef.Anomaly {
+// GetMetricsAnomaliesForSource returns metric anomalies associated with a specific SeriesDescriptor.
+// Matches on Source.Key() equality. For anomalies from detectors that use a different
+// namespace (e.g. RRCF uses "rrcf" while the telemetry series uses "telemetry"),
+// falls back to matching via the telemetry series naming convention so that
+// /api/series/... and /api/anomalies still show markers.
+func (tb *TestBench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	// Resolve SourceSeriesIDs first, then filter by the requested series ID.
-	// We resolve all anomalies because the engine may store them with empty
-	// SourceSeriesID (e.g. RRCF anomalies) that resolve to the requested ID.
-	resolved := tb.resolveAnomalySeriesIDs(filterMetricAnomalies(tb.engine.StateView().Anomalies()))
+	targetKey := sd.Key()
+	all := filterMetricAnomalies(tb.engine.StateView().Anomalies())
 	var result []observerdef.Anomaly
-	for _, a := range resolved {
-		if a.SourceSeriesID == seriesID {
+	for _, a := range all {
+		if a.Source.Key() == targetKey {
 			result = append(result, a)
+			continue
+		}
+		// Fallback: detectors like RRCF emit anomalies with a different namespace
+		// (e.g. Source.Namespace="rrcf") while the telemetry series is stored as
+		// "telemetry.rrcf.score:avg" in namespace "telemetry". Map through the
+		// telemetry naming convention.
+		if a.Source.Namespace != sd.Namespace && a.Source.Name != "" {
+			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+			telemetrySD := observerdef.SeriesDescriptor{
+				Namespace: "telemetry",
+				Name:      telemetryName,
+				Aggregate: observerdef.AggregateAverage,
+			}
+			if telemetrySD.Key() == targetKey {
+				result = append(result, a)
+			}
 		}
 	}
 	return result
-}
-
-// resolveAnomalySeriesIDs applies testbench-specific SourceSeriesID resolution
-// to anomalies that have an empty SourceSeriesID. Detectors like RRCF that
-// operate on the full storage don't set SourceSeriesID; this maps them to the
-// corresponding telemetry series using the naming convention from handleTelemetry.
-func (tb *TestBench) resolveAnomalySeriesIDs(anomalies []observerdef.Anomaly) []observerdef.Anomaly {
-	for i := range anomalies {
-		a := &anomalies[i]
-		// This comes from the telemetry
-		if a.SourceSeriesID == "" && a.Source.Name != "" {
-			a.SourceSeriesID = observerdef.SeriesID(seriesKey(observerdef.TelemetryNamespace, a.Source.String()+":avg", nil))
-		}
-	}
-	return anomalies
 }
 
 // GetLogAnomalies returns all anomalies emitted directly by log detectors.
@@ -1033,23 +1036,47 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 
 	var groups []CompressedGroup
 	for i, corr := range correlations {
-		// Resolve member series from anomaly SourceSeriesIDs
-		memberSet := make(map[string]struct{})
+		// Resolve member series from anomaly Source descriptors
+		memberSet := make(map[string]bool)
 		var members []seriesCompact
 		for _, a := range corr.Anomalies {
-			if a.SourceSeriesID == "" {
+			srcKey := a.Source.Key()
+			if memberSet[srcKey] {
 				continue
 			}
-			sid := string(a.SourceSeriesID)
-			if _, seen := memberSet[sid]; seen {
-				continue
-			}
-			memberSet[sid] = struct{}{}
+			memberSet[srcKey] = true
 
-			ns, name, tags, ok := parseSeriesKey(sid)
-			if !ok {
-				continue
+			// Use SourceRef to get the actual stored series identity when available.
+			if a.SourceRef != nil {
+				meta := storage.GetSeriesMeta(a.SourceRef.Ref)
+				if meta != nil {
+					aggStr := observerdef.AggregateString(a.SourceRef.Aggregate)
+					members = append(members, seriesCompact{
+						Namespace: meta.Namespace,
+						Name:      meta.Name + ":" + aggStr,
+						Tags:      meta.Tags,
+					})
+					continue
+				}
 			}
+
+			// Fallback for cross-namespace detectors (e.g. RRCF): remap to the
+			// telemetry naming convention so CompactSeriesID can resolve it.
+			ns := a.Source.Namespace
+			aggStr := observerdef.AggregateString(a.Source.Aggregate)
+			name := a.Source.Name + ":" + aggStr
+			tags := a.Source.Tags
+
+			if a.DetectorName != "" && a.Source.Name != "" {
+				telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+				telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+				if storage.CompactSeriesID(telemetryKey) != telemetryKey {
+					ns = "telemetry"
+					name = telemetryName + ":avg"
+					tags = nil
+				}
+			}
+
 			members = append(members, seriesCompact{
 				Namespace: ns,
 				Name:      name,
@@ -1492,13 +1519,12 @@ func (tb *TestBench) loadDemoScenario() error {
 	for _, a := range demoAnomalies {
 		anomaly := observerdef.Anomaly{
 			Type:         observerdef.AnomalyTypeLog,
-			Source:       observerdef.AnomalySource{Name: "logs"},
+			Source:       observerdef.SeriesDescriptor{Name: "logs", Tags: []string{"service:" + a.service}},
 			DetectorName: a.detectorName,
 			Title:        a.title,
 			Description:  a.description,
 			Timestamp:    a.ts,
 			Score:        a.score,
-			Tags:         []string{"service:" + a.service},
 		}
 		tb.logAnomalies = append(tb.logAnomalies, anomaly)
 		tb.logAnomaliesByDetector[a.detectorName] = append(tb.logAnomaliesByDetector[a.detectorName], anomaly)
@@ -1556,7 +1582,7 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 		if storage != nil {
 			for _, m := range storage.ListSeriesMetadata(extractor.Name()) {
 				if m.Name == metricName {
-					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Handle))+":count")
+					seriesIDs = append(seriesIDs, strconv.Itoa(int(m.Ref))+":count")
 				}
 			}
 		}

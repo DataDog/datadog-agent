@@ -10,6 +10,12 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
+
 // team: agent-metric-pipelines
 
 // Component is the central observer that receives data via handles.
@@ -264,36 +270,74 @@ type LogMetricsExtractorOutput struct {
 	Telemetry []ObserverTelemetry
 }
 
-// MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").
-// Multiple series can share a MetricName if they differ by tags.
-type MetricName string
 
-// AnomalySource identifies the metric that an anomaly is about using
-// structured fields rather than string concatenation.
-type AnomalySource struct {
+// SeriesDescriptor is the fully resolved identity of a time series.
+// It carries namespace, metric name, tags, and aggregation — everything
+// needed to display, key, and compare series across correlators and API.
+type SeriesDescriptor struct {
 	// Namespace identifies the component that produced this metric
 	// (e.g. an extractor name like "log_metrics_extractor", or "dogstatsd").
 	Namespace string
 	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
 	Name string
+	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
+	Tags []string
 	// Aggregate is the aggregation applied when reading the series.
 	Aggregate Aggregate
 }
 
 // String returns a human-readable representation (e.g. "cpu.user:avg").
-// Namespace is structural and not included in the display string.
-func (s AnomalySource) String() string {
-	if s.Name == "" {
+// Namespace and tags are not included — use DisplayName() for that.
+func (sd SeriesDescriptor) String() string {
+	if sd.Name == "" {
 		return ""
 	}
-	if s.Aggregate == AggregateNone {
-		return s.Name
+	if sd.Aggregate == AggregateNone {
+		return sd.Name
 	}
-	return s.Name + ":" + AggregateString(s.Aggregate)
+	return sd.Name + ":" + AggregateString(sd.Aggregate)
 }
 
-// SeriesID uniquely identifies a time series (namespace + name + tags).
-type SeriesID string
+// DisplayName returns a display string with tags (e.g. "cpu.user:avg{host:web-1}").
+func (sd SeriesDescriptor) DisplayName() string {
+	base := sd.String()
+	if len(sd.Tags) == 0 {
+		return base
+	}
+	return base + "{" + strings.Join(sd.Tags, ",") + "}"
+}
+
+// Key returns a stable string suitable for use as a map key.
+// Format: "namespace|name:agg|tag1,tag2,..."
+func (sd SeriesDescriptor) Key() string {
+	aggStr := AggregateString(sd.Aggregate)
+	var tagStr string
+	if len(sd.Tags) > 0 {
+		sorted := make([]string, len(sd.Tags))
+		copy(sorted, sd.Tags)
+		sort.Strings(sorted)
+		tagStr = strings.Join(sorted, ",")
+	}
+	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
+}
+
+// SeriesRef is a compact numeric handle for a stored time series.
+// Storage assigns a SeriesRef when a series key is first created;
+// the ref remains stable for the lifetime of the storage instance.
+type SeriesRef int
+
+// QueryHandle pairs a storage series ref with its aggregate, providing
+// enough information to produce the compact ID ("42:avg") that the API
+// uses as a join key across endpoints.
+type QueryHandle struct {
+	Ref       SeriesRef
+	Aggregate Aggregate
+}
+
+// CompactID returns the compact series identifier (e.g. "42:avg").
+func (q QueryHandle) CompactID() string {
+	return strconv.Itoa(int(q.Ref)) + ":" + AggregateString(q.Aggregate)
+}
 
 // AnomalyType distinguishes the source type of an anomaly.
 type AnomalyType string
@@ -312,11 +356,12 @@ type Anomaly struct {
 	// Type distinguishes log-based anomalies from metric-based ones.
 	// Defaults to AnomalyTypeMetric if not set.
 	Type AnomalyType
-	// Source identifies which metric/signal the anomaly is about.
-	Source AnomalySource
-	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
-	// Empty for log anomalies.
-	SourceSeriesID SeriesID
+	// Source is the fully resolved series identity (namespace, name, tags, aggregate).
+	Source SeriesDescriptor
+	// SourceRef is the storage handle for this anomaly's series, enabling
+	// direct compact ID lookups without string-key reconstruction. Nil for
+	// anomalies without a storage-backed series (e.g. log anomalies, RRCF).
+	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
 	Title        string
@@ -324,7 +369,6 @@ type Anomaly struct {
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
-	Tags      []string
 	Timestamp int64    // when the anomaly was detected (unix seconds)
 	Score     *float64 // confidence/severity score (nil if not available)
 	// DebugInfo contains detector-specific debug information explaining the detection.
@@ -447,10 +491,8 @@ type Reporter interface {
 type ActiveCorrelation struct {
 	Pattern string // pattern name, e.g. "kernel_bottleneck"
 	Title   string // display title, e.g. "Correlated: Kernel network bottleneck"
-	// MemberSeriesIDs are the concrete series identities participating in this correlation.
-	MemberSeriesIDs []SeriesID
-	// MetricNames are display-oriented metric names participating in this correlation.
-	MetricNames []MetricName
+	// Members are the fully resolved series descriptors participating in this correlation.
+	Members     []SeriesDescriptor
 	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
 	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
 	LastUpdated int64     // most recent contributing signal (unix seconds, from data)
@@ -484,12 +526,10 @@ func WorkloadSeriesFilter() SeriesFilter {
 	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace}}
 }
 
-type SeriesHandle int
-
 // SeriesMeta describes a series discovered via ListSeries.
-// The Handle field is a stable numeric identifier for use in hot-path methods.
+// The Ref field is a stable numeric identifier for use in hot-path methods.
 type SeriesMeta struct {
-	Handle    SeriesHandle
+	Ref       SeriesRef
 	Namespace string
 	Name      string
 	Tags      []string
@@ -552,7 +592,7 @@ type MetricContext struct {
 // Detectors use this to pull whatever data they need.
 //
 // Use ListSeries to discover series and obtain their numeric handles.
-// All hot-path methods take a SeriesHandle for O(1) lookups.
+// All hot-path methods take a SeriesRef for O(1) lookups.
 //
 // Reading points: ForEachPoint and GetSeriesRange both read the same data;
 // they differ in allocation cost and ownership model.
@@ -576,27 +616,27 @@ type StorageReader interface {
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 	// Allocates a new []Point slice — see interface doc for when to prefer ForEachPoint.
-	GetSeriesRange(handle SeriesHandle, start, end int64, agg Aggregate) *Series
+	GetSeriesRange(handle SeriesRef, start, end int64, agg Aggregate) *Series
 
 	// ForEachPoint calls fn for every point in the time range (start, end].
 	// The Series pointer and its contents are valid only for the duration of
 	// the callback. Uses a pooled buffer internally so steady-state calls
 	// do not allocate. Returns false if the series was not found.
-	ForEachPoint(handle SeriesHandle, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
+	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.
-	PointCount(handle SeriesHandle) int
+	PointCount(handle SeriesRef) int
 
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
-	PointCountUpTo(handle SeriesHandle, endTime int64) int
+	PointCountUpTo(handle SeriesRef, endTime int64) int
 
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.
 	// Returns 0 if the series is not found.
-	WriteGeneration(handle SeriesHandle) int64
+	WriteGeneration(handle SeriesRef) int64
 
 	// SeriesGeneration returns a global counter that increments only when the
 	// set of known series changes. Use this to cache ListSeries results and
