@@ -39,6 +39,14 @@ type Hook[T any] interface {
 	// does not affect routing.
 	Publish(producerName string, payload T)
 
+	// HasSubscribers reports whether at least one consumer is currently subscribed.
+	// Producers can use this to skip payload construction when no one is listening:
+	//
+	//	if h.HasSubscribers() {
+	//	    h.Publish("producer", expensiveSnapshot())
+	//	}
+	HasSubscribers() bool
+
 	// Subscribe registers callback as a consumer of this hook.
 	// name must be unique among active subscribers on this hook.
 	// The callback is invoked from a dedicated goroutine; it must return
@@ -78,6 +86,10 @@ type hook[T any] struct {
 
 func (h *hook[T]) Name() string {
 	return h.name
+}
+
+func (h *hook[T]) HasSubscribers() bool {
+	return h.subscriberCount.Load() > 0
 }
 
 // Publish delivers payload to every subscriber's buffered channel.

@@ -69,7 +69,9 @@ func newCheckSampler(
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
-	cs.metricHook.Publish("checks", []hook.MetricSampleSnapshot{hook.NewMetricSampleSnapshot(metricSample)})
+	if cs.metricHook.HasSubscribers() {
+		cs.metricHook.Publish("checks", []hook.MetricSampleSnapshot{hook.NewMetricSampleSnapshot(metricSample)})
+	}
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
