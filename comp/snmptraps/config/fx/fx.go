@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,5 +19,14 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(configimpl.NewComponent),
 		fxutil.ProvideOptional[config.Component](),
+	)
+}
+
+// MockModule provides the default config for testing. Tests can override it
+// with fx.Replace(&config.TrapsConfig{...}) to supply custom configuration.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(configimpl.NewMockConfig),
+		fx.Supply(&config.TrapsConfig{Enabled: true}),
 	)
 }

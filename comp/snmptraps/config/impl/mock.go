@@ -8,37 +8,19 @@ package configimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockDependencies struct {
-	fx.In
-	HostnameService hostname.Component
-	Conf            *trapsconf.TrapsConfig
-}
-
-func newMockConfig(dep mockDependencies) (trapsconf.Component, error) {
-	host, err := dep.HostnameService.Get(context.Background())
+// NewMockConfig creates a config component for use in tests. It sets sensible
+// defaults on the provided TrapsConfig using the hostname service.
+func NewMockConfig(hn hostname.Component, conf *trapsconf.TrapsConfig) (trapsconf.Component, error) {
+	host, err := hn.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	tc := dep.Conf
-	if err := tc.SetDefaults(host, "default"); err != nil {
+	if err := conf.SetDefaults(host, "default"); err != nil {
 		return nil, err
 	}
-	return &configService{conf: tc}, nil
-}
-
-// MockModule provides the default config, and allows tests to override it by
-// providing `fx.Replace(&TrapsConfig{...})`; a value replaced this way will
-// have default values set sensibly if they aren't provided.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockConfig),
-		fx.Supply(&trapsconf.TrapsConfig{Enabled: true}),
-	)
+	return &configService{conf: conf}, nil
 }
