@@ -58,7 +58,7 @@ func (v *baseHostnameDriftSuite) TestHostnameDriftMetricsEmission() {
 		output := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
 
 		// Check that we have drift resolution time metrics in the output
-		assert.Contains(c, output, "drift_resolution_time_ms", "Should have drift_resolution_time_ms metrics in telemetry")
+		assert.Contains(c, output, "drift_resolution_time_seconds", "Should have drift_resolution_time_seconds metrics in telemetry")
 
 		// Check for specific metric components and their expected values
 		assert.Contains(c, output, "provider=", "Should have provider tag in metrics")
