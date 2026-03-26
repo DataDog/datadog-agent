@@ -23,8 +23,6 @@ var ddRegistry = semantics.DefaultRegistry()
 
 const (
 	tagSynthetics    = "synthetics"
-	tagSpanKind      = "span.kind"
-	tagBaseService   = "_dd.base_service"
 	tagServiceSource = "_dd.svc_src"
 )
 

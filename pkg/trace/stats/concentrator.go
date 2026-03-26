@@ -12,6 +12,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
@@ -205,7 +206,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ImageTag:        pt.ImageTag,
 		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
-		BaseService:     pt.Root.Meta[tagBaseService],
+		BaseService:     semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
@@ -232,7 +233,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		env = c.agentEnv
 	}
 	weight := weightV1(pt.Root)
-	baseService, _ := pt.Root.GetAttributeAsString(tagBaseService)
+	baseService := semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessorV1(pt.Root), semantics.ConceptDDBaseService)
 	aggKey := PayloadAggregationKey{
 		Env:             env,
 		Hostname:        hostname,

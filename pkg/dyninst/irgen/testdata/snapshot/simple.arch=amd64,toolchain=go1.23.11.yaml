@@ -21,7 +21,7 @@ Probes:
             - JSON: {Ref: ptr}
               DSL: ptr
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: PointerSmallChainArg
       version: 0
       type: LOG_PROBE
@@ -60,7 +60,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: condBool_cond_false
       version: 0
       type: LOG_PROBE
@@ -2764,7 +2764,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: noArgs
       version: 0
       type: LOG_PROBE
@@ -2806,7 +2806,7 @@ Probes:
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: stringArrayArg
       version: 0
       type: LOG_PROBE
@@ -4274,7 +4274,7 @@ Types:
       Expressions:
         - Name: ptr
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 132 PointerType *****int
             Operations:
@@ -4284,7 +4284,7 @@ Types:
                   ByteSize: 8
         - Name: ptr
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 132 PointerType *****int
             Operations:
@@ -4316,7 +4316,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 111 GoMapType map[string]main.bigStruct
             Operations:
@@ -4326,7 +4326,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 111 GoMapType map[string]main.bigStruct
             Operations:
@@ -6375,7 +6375,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 104 GoMapType map[string]int
             Operations:
@@ -6385,7 +6385,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 104 GoMapType map[string]int
             Operations:
@@ -6429,7 +6429,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 10 GoStringHeaderType string
             Operations:
@@ -6439,7 +6439,7 @@ Types:
                   ByteSize: 16
         - Name: s
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 10 GoStringHeaderType string
             Operations:

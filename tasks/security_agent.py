@@ -741,7 +741,7 @@ def go_generate_check(ctx):
     if failing_tasks:
         for ft in failing_tasks:
             task = ft.name.replace("_", "-")
-            print(f"Task `dda inv {task}` resulted in dirty files, please re-run it:")
+            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
         raise Exit(code=1)
@@ -838,9 +838,19 @@ def sync_secl_win_pkg(ctx):
         ("iterator.go", None),
     ]
 
-    ctx.run("rm -r pkg/security/seclwin/model")
-    ctx.run("mkdir -p pkg/security/seclwin/model")
+    seclwin_model = "pkg/security/seclwin/model"
+    build_bazel = os.path.join(seclwin_model, "BUILD.bazel")
+    preserve_build = os.path.exists(build_bazel)
+    if preserve_build:
+        build_bazel_content = open(build_bazel).read()
+
+    ctx.run(f"rm -r {seclwin_model}")
+    ctx.run(f"mkdir -p {seclwin_model}")
     ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
+
+    if preserve_build:
+        with open(build_bazel, "w") as f:
+            f.write(build_bazel_content)
 
     for ffrom, fto in files_to_copy:
         if not fto:

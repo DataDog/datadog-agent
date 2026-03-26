@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "actionsclient",
+    srcs = ["actionsclient.pb.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

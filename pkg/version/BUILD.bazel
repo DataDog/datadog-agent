@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "version",
+    srcs = [
+        "base.go",
+        "version.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/version",
+    visibility = ["//visibility:public"],
+    # TODO(agent-build): replace with proper per-binary stamping at final link time.
+    # Full stamping (--stamp) is intentionally avoid systematic cache invalidation
+    x_defs = {
+        "github.com/DataDog/datadog-agent/pkg/version.Commit": "dev",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentVersion": "0.0.0-dev",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentVersionURLSafe": "0.0.0-dev",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentPackageVersion": "0.0.0-dev",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentPayloadVersion": "0.0.0-dev",
+    },
+)
+
+go_test(
+    name = "version_test",
+    srcs = [
+        "base_test.go",
+        "version_test.go",
+    ],
+    embed = [":version"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

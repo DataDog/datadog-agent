@@ -73,6 +73,12 @@ type Provides struct {
 // NewComponent creates a new snmpscanmanager component
 func NewComponent(reqs Requires) (Provides, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	excludedIPs := make(ipSet)
+	for _, ip := range reqs.Config.GetStringSlice("network_devices.default_scan.excluded_ips") {
+		excludedIPs.add(ip)
+	}
+
 	scanManager := &snmpScanManagerImpl{
 		log:         reqs.Logger,
 		scanner:     reqs.Scanner,
@@ -84,6 +90,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		scanQueue:       make(chan snmpscanmanager.ScanRequest, scanQueueSize),
 		allRequestedIPs: make(ipSet),
+		excludedIPs:     excludedIPs,
 		deviceScans:     make(deviceScansByIP),
 
 		ctx:        ctx,
@@ -120,6 +127,7 @@ type snmpScanManagerImpl struct {
 
 	scanQueue       chan snmpscanmanager.ScanRequest
 	allRequestedIPs ipSet
+	excludedIPs     ipSet
 	deviceScans     deviceScansByIP
 
 	ctx        context.Context
@@ -158,6 +166,11 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest, force
 	}
 
 	if !m.agentConfig.GetBool("network_devices.default_scan.enabled") {
+		return
+	}
+
+	if m.excludedIPs.contains(req.DeviceIP) {
+		m.log.Debugf("Skipping default scan request for excluded device %s", req.DeviceIP)
 		return
 	}
 
