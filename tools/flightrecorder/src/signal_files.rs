@@ -29,16 +29,17 @@ pub struct SignalEntry {
 
 /// Parse a signal filename into its file type and timestamp.
 ///
-/// Recognizes: `flush-metrics-{ts}.parquet`, `flush-logs-{ts}.parquet`,
-///             `flush-trace_stats-{ts}.parquet`
+/// Recognizes: `metrics-{ts}.parquet`, `logs-{ts}.parquet`,
+///             `trace_stats-{ts}.parquet`
+/// Also accepts the legacy `flush-` prefix for backward compatibility.
 pub fn parse_signal_file(filename: &str) -> Option<(FileType, u64)> {
     let stem = filename.strip_suffix(".parquet")?;
     let (prefix, ts_str) = stem.rsplit_once('-')?;
     let ts: u64 = ts_str.parse().ok()?;
     let file_type = match prefix {
-        "flush-metrics" => FileType::Metrics,
-        "flush-logs" => FileType::Logs,
-        "flush-trace_stats" => FileType::TraceStats,
+        "metrics" | "flush-metrics" => FileType::Metrics,
+        "logs" | "flush-logs" => FileType::Logs,
+        "trace_stats" | "flush-trace_stats" => FileType::TraceStats,
         _ => return None,
     };
     Some((file_type, ts))
@@ -77,34 +78,37 @@ mod tests {
 
     #[test]
     fn test_parse_signal_file() {
+        // New naming (rotated files, no flush- prefix).
         assert_eq!(
-            parse_signal_file("flush-metrics-1710938400123.parquet"),
+            parse_signal_file("metrics-1710938400123.parquet"),
             Some((FileType::Metrics, 1710938400123))
         );
         assert_eq!(
-            parse_signal_file("flush-logs-9999999999999.parquet"),
+            parse_signal_file("logs-9999999999999.parquet"),
             Some((FileType::Logs, 9999999999999))
         );
         assert_eq!(
-            parse_signal_file("flush-trace_stats-1234567890.parquet"),
+            parse_signal_file("trace_stats-1234567890.parquet"),
             Some((FileType::TraceStats, 1234567890))
         );
-        // Old vortex files are not recognized
+        // Legacy flush- prefix still accepted.
+        assert_eq!(
+            parse_signal_file("flush-metrics-123.parquet"),
+            Some((FileType::Metrics, 123))
+        );
+        // Old vortex files are not recognized.
         assert_eq!(parse_signal_file("flush-metrics-123.vortex"), None);
-        // Not a parquet file
         assert_eq!(parse_signal_file("data.csv"), None);
-        // Unknown prefix
         assert_eq!(parse_signal_file("unknown-123.parquet"), None);
-        // No timestamp
         assert_eq!(parse_signal_file("metrics.parquet"), None);
     }
 
     #[tokio::test]
     async fn test_scan_signal_files() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("flush-metrics-100.parquet"), "data").unwrap();
-        std::fs::write(dir.path().join("flush-logs-200.parquet"), "data").unwrap();
-        std::fs::write(dir.path().join("flush-trace_stats-300.parquet"), "stats").unwrap();
+        std::fs::write(dir.path().join("metrics-100.parquet"), "data").unwrap();
+        std::fs::write(dir.path().join("logs-200.parquet"), "data").unwrap();
+        std::fs::write(dir.path().join("trace_stats-300.parquet"), "stats").unwrap();
         // Non-signal files should be ignored
         std::fs::write(dir.path().join("contexts.bin"), "ctx").unwrap();
         std::fs::write(dir.path().join("readme.txt"), "keep").unwrap();
