@@ -296,19 +296,28 @@ func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
 
 	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		statusOutput := v.caps.Agent().Status(agentclient.WithArgs([]string{"collector", "--json"}))
+		statusOutput, err := v.caps.Agent().StatusWithError(agentclient.WithArgs([]string{"collector", "--json"}))
+		if !assert.NoError(c, err, "failed to get agent collector status") {
+			return
+		}
 
 		// Keep only the second-to-last line of the output, which is the JSON status. The rest is standard error
 		// TODO: Make the status command return stdout/stderr separately
 		statusLines := strings.Split(statusOutput.Content, "\n")
-		assert.Greater(c, len(statusLines), 1, "status output should have at least 2 lines")
+		if !assert.Greater(c, len(statusLines), 1, "status output should have at least 2 lines") {
+			return
+		}
 		jsonStatus := statusLines[len(statusLines)-2]
 
 		var status collectorStatus
-		err := json.Unmarshal([]byte(jsonStatus), &status)
+		err = json.Unmarshal([]byte(jsonStatus), &status)
 
-		assert.NoError(c, err, "failed to unmarshal agent status")
-		assert.Contains(c, status.RunnerStats.Checks, "gpu", "gpu check should be enabled")
+		if !assert.NoError(c, err, "failed to unmarshal agent status") {
+			return
+		}
+		if !assert.Contains(c, status.RunnerStats.Checks, "gpu", "gpu check should be enabled") {
+			return
+		}
 
 		v.T().Logf("gpu check status: %+v", status.RunnerStats.Checks["gpu"])
 
