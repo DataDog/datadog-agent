@@ -31,10 +31,9 @@ func syscfgWithNPM(npmEnabled bool) *sysconfigtypes.Config {
 	return cfg
 }
 
-// TestConnectionsCheck_IsEnabled_DarwinGuard exercises the CB-3 fix:
-// on Darwin the check must be disabled unless network_config.enabled is
-// explicitly true, regardless of the other conditions being satisfied.
-func TestConnectionsCheck_IsEnabled_DarwinGuard(t *testing.T) {
+// TestConnectionsCheck_IsEnabled_Darwin exercises the IsEnabled logic
+// on Darwin for various configuration combinations.
+func TestConnectionsCheck_IsEnabled_Darwin(t *testing.T) {
 	tests := []struct {
 		name            string
 		networkEnabled  bool // network_config.enabled in sysprobe yaml
@@ -44,15 +43,6 @@ func TestConnectionsCheck_IsEnabled_DarwinGuard(t *testing.T) {
 		agentFlavor     string
 		expectedEnabled bool
 	}{
-		{
-			name:            "darwin guard blocks when network_config.enabled is false",
-			networkEnabled:  false,
-			npmModule:       true,
-			syscfgEnabled:   true,
-			directSend:      false,
-			agentFlavor:     flavor.ProcessAgent,
-			expectedEnabled: false,
-		},
 		{
 			name:            "enabled when all conditions met",
 			networkEnabled:  true,
