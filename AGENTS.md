@@ -163,6 +163,24 @@ Go build tags control feature inclusion, some examples are:
 - `README.md` - Project overview
 - `CONTRIBUTING.md` - Contribution guidelines
 
+### Package documentation (`docs/global/`)
+
+Before working on any `pkg/` or `comp/` package, check whether a doc exists:
+- `docs/global/pkg/<package-name>.md` — for packages under `pkg/`
+- `docs/global/comp/<group>/<package-name>.md` — for components under `comp/`
+
+Each doc has three sections: **TL;DR** (one-line summary), **Purpose**, **Key elements** (types/interfaces/functions/config), and **Usage** (how it fits in the codebase with cross-references to related docs).
+
+Use these docs to:
+- Understand a package's role before modifying it
+- Find which other packages to look at (cross-references section)
+- Understand what types/interfaces a package exposes
+
+**Index files** for orientation:
+- `docs/global/PKG.md` — annotated list of all `pkg/` packages
+- `docs/global/COMP.md` — annotated list of all `comp/` packages
+- `docs/global/USECASES.md` — "I want to do X, which package?" quick lookup
+
 ## CI/CD Pipeline
 
 ### GitLab CI
