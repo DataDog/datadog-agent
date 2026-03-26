@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -87,9 +86,6 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	if env.IsContainerized() {
 		for i, v := range defaultPaths {
 			hostPath := filepath.Join(containerizedPathPrefix, v)
-			if !parPathExists(hostPath) {
-				log.Warnf("PAR restricted shell: host mount %q not found; rshell may fail to execute because the path doesn't exist", hostPath)
-			}
 			defaultPaths[i] = hostPath
 		}
 	}

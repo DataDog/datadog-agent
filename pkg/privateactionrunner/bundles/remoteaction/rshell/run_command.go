@@ -81,15 +81,11 @@ func (h *RunCommandHandler) Run(
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
 
-	validPaths := make([]string, 0, len(h.allowedPaths))
 	for _, p := range h.allowedPaths {
-		if _, err := statFn(p); err == nil {
-			validPaths = append(validPaths, p)
-		} else {
-			log.Debugf("rshell: skipping allowed path %q (not found)", p)
+		if _, err := statFn(p); err != nil {
+			log.Warnf("path %q not found, rshell may fail to execute commands", p)
 		}
 	}
-
 	var stdout, stderr bytes.Buffer
 	cmdOpt := interp.AllowAllCommands()
 	if len(inputs.AllowedCommands) > 0 {
@@ -97,7 +93,7 @@ func (h *RunCommandHandler) Run(
 	}
 	opts := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
-		interp.AllowedPaths(validPaths),
+		interp.AllowedPaths(h.allowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		cmdOpt,
 	}
