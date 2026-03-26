@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 type TestConnectionHandler struct {
@@ -33,21 +32,21 @@ func (h *TestConnectionHandler) Run(
 	credential *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
 	if credential == nil || credential.HttpDetails.Testing == nil {
-		return nil, util.DefaultActionError(errors.New("connection does not have testing configuration"))
+		return nil, errors.New("connection does not have testing configuration")
 	}
 
 	if credential.HttpDetails.BaseURL == "" {
-		return nil, util.DefaultActionError(errors.New("connection does not have a base URL"))
+		return nil, errors.New("connection does not have a base URL")
 	}
 
 	testing := credential.HttpDetails.Testing
 	baseURL, err := url.Parse(credential.HttpDetails.BaseURL)
 	if err != nil {
-		return nil, util.DefaultActionError(fmt.Errorf("invalid base URL: %w", err))
+		return nil, fmt.Errorf("invalid base URL: %w", err)
 	}
 	testURL, err := baseURL.Parse(testing.Path)
 	if err != nil {
-		return nil, util.DefaultActionError(fmt.Errorf("invalid testing path: %w", err))
+		return nil, fmt.Errorf("invalid testing path: %w", err)
 	}
 
 	task.Data.Attributes.Inputs = map[string]interface{}{
