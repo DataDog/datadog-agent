@@ -33,16 +33,17 @@ type defaultHTTPClientProvider struct {
 // ProviderOption configures optional behavior on the default HTTP client provider.
 type ProviderOption func(*defaultHTTPClientProvider)
 
-// WithURLAllowlist enables URL allowlist enforcement on all clients created by this provider.
-func WithURLAllowlist() ProviderOption {
+// WithoutURLAllowlist disables URL allowlist enforcement on all clients created by this provider.
+func WithoutURLAllowlist() ProviderOption {
 	return func(p *defaultHTTPClientProvider) {
-		p.enforceURLAllowlist = true
+		p.enforceURLAllowlist = false
 	}
 }
 
 func NewDefaultProvider(runnerConfig *config.Config, opts ...ProviderOption) Provider {
 	p := &defaultHTTPClientProvider{
-		runnerConfig: runnerConfig,
+		runnerConfig:        runnerConfig,
+		enforceURLAllowlist: true,
 	}
 	for _, opt := range opts {
 		opt(p)

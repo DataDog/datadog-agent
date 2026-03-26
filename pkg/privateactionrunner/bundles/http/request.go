@@ -37,7 +37,7 @@ func NewHttpRequestAction(cfg *config.Config) *Handler {
 	return &Handler{
 		allowIMDSEndpoints: cfg.AllowIMDSEndpoint,
 		httpTimeout:        cfg.HTTPTimeout,
-		httpClientProvider: httpclient.NewDefaultProvider(cfg, httpclient.WithURLAllowlist()),
+		httpClientProvider: httpclient.NewDefaultProvider(cfg),
 	}
 }
 
