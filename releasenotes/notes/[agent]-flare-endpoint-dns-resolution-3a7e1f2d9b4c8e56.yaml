@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-new_features:
+features:
   - |
     Flares now include a ``connectivity/endpoint_dns.txt`` file that lists
     the IP addresses each configured Datadog intake endpoint hostname resolves
