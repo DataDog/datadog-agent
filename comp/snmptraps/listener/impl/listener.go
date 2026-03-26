@@ -15,13 +15,12 @@ import (
 	"time"
 
 	"github.com/gosnmp/gosnmp"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
@@ -30,9 +29,9 @@ import (
 
 // Requires defines the dependencies for the listener component.
 type Requires struct {
-	fx.In
+	compdef.In
 
-	Lifecycle fx.Lifecycle
+	Lifecycle compdef.Lifecycle
 	Config    config.Component
 	Demux     demultiplexer.Component
 	Logger    log.Component
@@ -41,7 +40,7 @@ type Requires struct {
 
 // Provides defines the output of the listener component.
 type Provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp listener.Component
 }
@@ -60,13 +59,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: comp}, nil
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTrapListener),
-	)
-}
-
 // trapListener opens an UDP socket and put all received traps in a channel
 type trapListener struct {
 	config        *config.TrapsConfig
@@ -79,7 +71,6 @@ type trapListener struct {
 }
 
 type dependencies struct {
-	fx.In
 	Config config.Component
 	Demux  demultiplexer.Component
 	Logger log.Component
@@ -87,7 +78,7 @@ type dependencies struct {
 }
 
 // newTrapListener creates a TrapListener and registers it with the lifecycle.
-func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, error) {
+func newTrapListener(lc compdef.Lifecycle, dep dependencies) (listener.Component, error) {
 	sender, err := dep.Demux.GetDefaultSender()
 	if err != nil {
 		return nil, err
@@ -111,7 +102,7 @@ func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, err
 
 	gosnmpListener.OnNewTrap = tl.receiveTrap
 	if cfg.Enabled {
-		lc.Append(fx.Hook{
+		lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return tl.start()
 			},

@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	listenerimpl "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,5 +19,12 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(listenerimpl.NewComponent),
 		fxutil.ProvideOptional[listener.Component](),
+	)
+}
+
+// MockModule provides a mock listener for testing.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(listenerimpl.NewMockListener),
 	)
 }
