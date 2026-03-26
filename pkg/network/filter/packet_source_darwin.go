@@ -146,7 +146,7 @@ func OptSnapLen(n int) Option {
 
 // isEligibleInterface reports whether an interface should be captured.
 // Skips loopback, virtual/tunnel interfaces that never carry TCP/UDP connections,
-// and Apple-internal interfaces (AWDL, P2P, LLW) that use proprietary protocols.
+// Apple-internal interfaces, and virtualization/hardware interconnect interfaces.
 func isEligibleInterface(iface net.Interface) bool {
 	if iface.Flags&net.FlagLoopback != 0 {
 		return false
@@ -156,10 +156,13 @@ func isEligibleInterface(iface net.Interface) bool {
 		"bridge", // virtual bridge interfaces
 		"vlan",   // virtual LAN interfaces
 		"awdl",   // Apple Wireless Direct Link (AirDrop) — not TCP/UDP
+		"ap",     // Apple private interfaces (AirDrop/AWDL related)
 		"p2p",    // peer-to-peer WiFi — not TCP/UDP
 		"llw",    // low-latency WLAN (Sidecar/Handoff) — not TCP/UDP
 		"gif",    // IPv6-in-IPv4 generic tunnel — rarely used
 		"stf",    // 6to4 IPv6 transition tunnel — rarely used
+		"anpi",   // Apple Network Processing Interconnect (Thunderbolt internal)
+		"vmenet", // virtualization network interfaces
 	} {
 		if strings.HasPrefix(name, prefix) {
 			return false
