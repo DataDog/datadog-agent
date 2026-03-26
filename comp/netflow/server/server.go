@@ -102,7 +102,7 @@ type Server struct {
 	Addr      string
 	config    *nfconfig.NetflowConfig
 	listeners []*netflowListener
-	FlowAgg   *flowaggregator.FlowAggregator
+	FlowAgg   flowaggregator.FlowAggregatorRunner
 	logger    log.Component
 	running   bool
 }

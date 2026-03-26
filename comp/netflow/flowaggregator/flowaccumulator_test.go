@@ -96,10 +96,10 @@ func Test_flowAccumulator_add(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, logger, rdnsQuerier)
-	acc.add(flowA1)
-	acc.add(flowA2)
-	acc.add(flowB1)
+	acc := newStandardFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc.Add(flowA1)
+	acc.Add(flowA2)
+	acc.Add(flowB1)
 
 	// Then
 	assert.Equal(t, 2, len(acc.flows))
@@ -147,9 +147,9 @@ func Test_flowAccumulator_addWithJitter(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, JitterFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, logger, rdnsQuerier)
+	acc := newStandardFlowAccumulator(flushConfig, JitterFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
 	setMockTimeNow(MockTimeNow())
-	acc.add(flowA1)
+	acc.Add(flowA1)
 
 	// Then
 	require.Len(t, acc.flows, 1)
@@ -159,7 +159,7 @@ func Test_flowAccumulator_addWithJitter(t *testing.T) {
 	assert.NotEqual(t, MockTimeNow(), wrappedFlowA.nextFlush)
 
 	setMockTimeNow(MockTimeNow().Add(10 * time.Minute))
-	acc.flush(common.FlushContext{
+	acc.Flush(common.FlushContext{
 		FlushTime: timeNow(),
 	})
 
@@ -221,32 +221,32 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval*time.Second, 3, false, false, logger, rdnsQuerier)
-	acc.add(flowA1)
-	acc.add(flowA2)
+	acc := newStandardFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval*time.Second, 3, false, logger, rdnsQuerier)
+	acc.Add(flowA1)
+	acc.Add(flowA2)
 
 	flowB1a := flowB1
-	acc.add(&flowB1a)
+	acc.Add(&flowB1a)
 	flowB1b := flowB1 // send flowB1 twice to test that it's not counted twice by portRollup tracker
-	acc.add(&flowB1b)
+	acc.Add(&flowB1b)
 	assert.Equal(t, uint16(1), acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80))
 	assert.Equal(t, uint16(1), acc.portRollup.GetDestToSourcePortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 2001))
 
 	flowB2 := flowB1
 	flowB2.DstPort = 2002
-	acc.add(&flowB2)
+	acc.Add(&flowB2)
 	flowB3 := flowB1
 	flowB3.DstPort = 2003
-	acc.add(&flowB3)
+	acc.Add(&flowB3)
 	flowB4 := flowB1
 	flowB4.DstPort = 2004
-	acc.add(&flowB4)
+	acc.Add(&flowB4)
 	flowB5 := flowB1
 	flowB5.DstPort = 2005
-	acc.add(&flowB5)
+	acc.Add(&flowB5)
 	flowB6 := flowB1
 	flowB6.DstPort = 2006
-	acc.add(&flowB6)
+	acc.Add(&flowB6)
 
 	flowBwithPortRollup := flowB1
 	flowBwithPortRollup.DstPort = portrollup.EphemeralPort
@@ -301,8 +301,8 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: flushInterval,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, logger, rdnsQuerier)
-	acc.add(flow)
+	acc := newStandardFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc.Add(flow)
 
 	// Then
 	assert.Equal(t, 1, len(acc.flows))
@@ -320,7 +320,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlushTime:     flushTime1,
 		LastFlushedAt: MockTimeNow(),
 	}
-	acc.flush(flushCtx)
+	acc.Flush(flushCtx)
 	wrappedFlow = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration), wrappedFlow.nextFlush)
 	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
@@ -332,7 +332,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlushTime:     flushTime2,
 		LastFlushedAt: MockTimeNow(),
 	}
-	acc.flush(flushCtx)
+	acc.Flush(flushCtx)
 	wrappedFlow = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration), wrappedFlow.nextFlush)
 	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
@@ -344,7 +344,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlushTime:     flushTime3,
 		LastFlushedAt: MockTimeNow(),
 	}
-	acc.flush(flushCtx)
+	acc.Flush(flushCtx)
 	wrappedFlow = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration*2), wrappedFlow.nextFlush)
 	// lastSuccessfulFlush time doesn't change because there is no new flow
@@ -357,8 +357,8 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlushTime:     flushTime4,
 		LastFlushedAt: MockTimeNow(),
 	}
-	acc.add(flow)
-	acc.flush(flushCtx)
+	acc.Add(flow)
+	acc.Flush(flushCtx)
 	wrappedFlow = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, MockTimeNow().Add(flushConfig.FlowCollectionDuration*3), wrappedFlow.nextFlush)
 	assert.Equal(t, flushTime4, wrappedFlow.lastSuccessfulFlush)
@@ -370,7 +370,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlushTime:     flushTime5,
 		LastFlushedAt: MockTimeNow(),
 	}
-	acc.flush(flushCtx)
+	acc.Flush(flushCtx)
 	_, ok := acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 
@@ -380,15 +380,15 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlushTime:     MockTimeNow(),
 		LastFlushedAt: MockTimeNow(),
 	}
-	acc.add(flow)
-	acc.flush(flushCtx)
+	acc.Add(flow)
+	acc.Flush(flushCtx)
 	flushTime6 := MockTimeNow().Add(flowContextTTL + 1*time.Second)
 	flushCtx = common.FlushContext{
 		FlushTime:     MockTimeNow().Add(flowContextTTL + 1*time.Second),
 		LastFlushedAt: MockTimeNow(),
 	}
 	setMockTimeNow(flushTime6)
-	acc.flush(flushCtx)
+	acc.Flush(flushCtx)
 	_, ok = acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 }
@@ -448,7 +448,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: flushInterval,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, logger, rdnsQuerier)
+	acc := newStandardFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
 
 	// Then
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())

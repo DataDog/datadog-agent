@@ -13,17 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
-// topByBytes returns the reporter with the highest Bytes value, or nil if the slice is empty.
-func topByBytes(reporters []*common.Flow) *common.Flow {
-	var top *common.Flow
-	for _, r := range reporters {
-		if top == nil || r.Bytes > top.Bytes {
-			top = r
-		}
-	}
-	return top
-}
-
 // buildMergedPayload builds a MergedFlowPayload from a group of reporter flows that share
 // the same 5-tuple. Flow-level fields (src/dst, protocol) are taken from the first reporter;
 // per-reporter fields (bytes, exporter, interfaces, etc.) populate the Reporters list.

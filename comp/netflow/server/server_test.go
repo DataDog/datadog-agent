@@ -28,7 +28,9 @@ import (
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
@@ -73,7 +75,7 @@ var testOptions = fx.Options(
 	rdnsquerierfxmock.MockModule(),
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
-		c.(*Server).FlowAgg.FlushConfig.FlushTickFrequency = 1 * time.Second
+		c.(*Server).FlowAgg.(*flowaggregator.FlowAggregator[[]*common.Flow]).FlushConfig.FlushTickFrequency = 1 * time.Second
 		lc.Append(fx.Hook{
 			OnStop: func(_ context.Context) error {
 				// Remove the flow processor to avoid a spurious race detection error
