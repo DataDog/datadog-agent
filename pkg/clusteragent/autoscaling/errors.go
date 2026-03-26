@@ -48,6 +48,8 @@ const (
 	// ConditionReasonLimitedByScalingBehavior indicates scaling was limited by behavior settings
 	// (e.g. stabilization window, scaling rules).
 	ConditionReasonLimitedByScalingBehavior ConditionReasonType = "LimitedByScalingBehavior"
+	// ConditionReasonFailedToEvict indicates a failure when evicting a pod.
+	ConditionReasonFailedToEvict ConditionReasonType = "FailedToEvict"
 )
 
 // ConditionReason is an interface that errors can implement to provide

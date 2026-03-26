@@ -224,7 +224,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
-	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", true)
+	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -818,6 +819,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 		})
 	})
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
+	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -974,21 +976,25 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
+	// Data Observability
+	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+
 	// Reverse DNS Enrichment
 	config.SetKnown("reverse_dns_enrichment.workers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.chan_size") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", time.Duration(0))
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", time.Duration(0))
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", time.Duration(0))
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_retries", -1)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", 24*time.Hour)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", 2*time.Hour)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", 2*time.Hour)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_retries", 10)
 	config.SetKnown("reverse_dns_enrichment.cache.max_size")                        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", 5*time.Second)
 
 	// Remote agents
 	config.BindEnvAndSetDefault("remote_agent.registry.enabled", true)
@@ -1027,6 +1033,21 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+
+	// Integration security
+
+	// When enabled, integrations will ignore configuration parameters that refer to file paths
+	// Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
+	config.BindEnvAndSetDefault("integration_ignore_untrusted_file_params", false)
+
+	// Allowlisted file paths for untrusted providers (empty = allow all).
+	config.BindEnvAndSetDefault("integration_file_paths_allowlist", []string{})
+
+	// Trusted config providers (others are untrusted). Defaults: file, remote-config.
+	config.BindEnvAndSetDefault("integration_trusted_providers", []string{"file", "remote-config"})
+
+	// Integrations excluded from these restrictions.
+	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1174,11 +1195,6 @@ func agent(config pkgconfigmodel.Setup) {
 		"winproc",
 		"windows_service",
 	})
-	// integration.basic.excluded: checks to exclude (user configured)
-	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
-	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
-	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
-
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
@@ -1236,9 +1252,11 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.workload.num_workers", 2)
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
 	// Cluster autoscaling product
@@ -1439,7 +1457,7 @@ func serverless(config pkgconfigmodel.Setup) {
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
-	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("enhanced_metrics", true, "DD_ENHANCED_METRICS_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
@@ -1576,6 +1594,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
 	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
 	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
+	config.BindEnvAndSetDefault("dogstatsd_experimental_http.enabled", false)
+	config.BindEnvAndSetDefault("dogstatsd_experimental_http.listen_address", "127.0.0.1:8125")
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)

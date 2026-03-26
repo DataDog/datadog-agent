@@ -237,7 +237,7 @@ def _extract_failure_info(
             stripped = output.strip()
             if stripped and (
                 stripped.startswith("goroutine ")
-                or re.match(r'\t.*:\d+', stripped)
+                or re.match(r'\t.*:\d+', output.rstrip("\n"))
                 or stripped.startswith("created by ")
                 or re.match(r'.*\.\w+\(', stripped)
             ):

@@ -90,21 +90,8 @@ def update_go(
 
     _update_references(warn, version)
     _update_go_mods(warn, version, include_otel_modules)
-
-    # check the installed go version before running tasks requiring the correct version
-    res = ctx.run("go version")
-    if res and res.stdout.startswith(f"go version go{version} "):
-        print("Updating the code in pkg/template...")
-        bazel("run", "//pkg/template:generate")
-        print("Running the tidy task...")
-        tidy(ctx)
-    else:
-        print(
-            color_message(
-                "WARNING: did not run `dda inv tidy` nor `dda inv pkg-template.generate` as the version of your `go` binary doesn't match the requested version",
-                "orange",
-            )
-        )
+    bazel(ctx, "run", "//pkg/template:generate")
+    tidy(ctx)
 
     if release_note:
         releasenote_path = _create_releasenote(ctx, version)

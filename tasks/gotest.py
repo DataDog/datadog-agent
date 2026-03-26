@@ -202,7 +202,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def _generate_unified_output(ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None) -> None:
+def _generate_unified_output(
+    ctx, test_result: TestResult, flavor: AgentFlavor, tw: TestWasher | None = None, test_system: str = "unit"
+) -> None:
     """Generate a UTOF JSON file alongside the test output JSON."""
     if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
         return
@@ -212,7 +214,7 @@ def _generate_unified_output(ctx, test_result: TestResult, flavor: AgentFlavor, 
         from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
 
         result_json = ResultJson.from_file(test_result.result_json_path)
-        metadata = generate_metadata(ctx, test_system="unit", flavor=flavor.name)
+        metadata = generate_metadata(ctx, test_system=test_system, flavor=flavor.name)
         utof = convert_unit_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
         utof_path = test_result.result_json_path.replace('.json', '_unified.json')
         utof.write_json(utof_path)
@@ -226,7 +228,13 @@ def _generate_unified_output(ctx, test_result: TestResult, flavor: AgentFlavor, 
 
 
 def process_test_result(
-    ctx, test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
+    ctx,
+    test_result: TestResult,
+    junit_tar: str,
+    junit_files: list[str],
+    flavor: AgentFlavor,
+    test_washer: bool,
+    test_system: str = "unit",
 ) -> bool:
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
@@ -236,7 +244,7 @@ def process_test_result(
 
     if success:
         print(color_message("All tests passed", "green"))
-        _generate_unified_output(ctx, test_result, flavor, tw=None)
+        _generate_unified_output(ctx, test_result, flavor, test_system=test_system)
         return True
 
     if test_washer or running_in_ci():
@@ -252,10 +260,10 @@ def process_test_result(
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
             )
-            _generate_unified_output(ctx, test_result, flavor, tw=tw)
+            _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
             return True
 
-    _generate_unified_output(ctx, test_result, flavor, tw=tw)
+    _generate_unified_output(ctx, test_result, flavor, tw=tw, test_system=test_system)
     return False
 
 
