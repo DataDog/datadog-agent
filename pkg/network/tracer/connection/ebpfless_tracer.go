@@ -128,7 +128,7 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		for {
 			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
 				var parser *gopacket.DecodingLayerParser
-				if extractLayerType(info) == layers.LayerTypeLoopback {
+				if info.LinkLayerType() == layers.LayerTypeLoopback {
 					parser = loopbackParser
 				} else {
 					parser = ethernetParser
@@ -137,8 +137,7 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
 
-				// Extract packet type from platform-specific PacketInfo
-				pktType := extractPacketType(info)
+				pktType := info.PacketType()
 
 				// only process PacketHost and PacketOutgoing packets
 				if pktType != filter.PacketHost && pktType != filter.PacketOutgoing {

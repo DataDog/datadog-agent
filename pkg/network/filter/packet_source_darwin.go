@@ -122,11 +122,25 @@ type DarwinPacketInfo struct {
 	// PktType indicates packet direction:
 	// PACKET_HOST (0) for incoming, PACKET_OUTGOING (4) for outgoing
 	PktType uint8
-	// LayerType is the gopacket layer type for this packet's link-layer
+	// layerType is the gopacket layer type for this packet's link-layer
 	// encapsulation. Callers must use this to select the correct decoder —
 	// different interfaces on macOS may use different encapsulations
 	// (e.g. LayerTypeEthernet for en0, LayerTypeLoopback for utun0).
-	LayerType gopacket.LayerType
+	layerType gopacket.LayerType
+}
+
+// PacketType returns the packet direction type
+func (d *DarwinPacketInfo) PacketType() uint8 {
+	return d.PktType
+}
+
+// LinkLayerType returns the gopacket layer type for this packet's
+// link-layer encapsulation. Falls back to LayerTypeEthernet if unset.
+func (d *DarwinPacketInfo) LinkLayerType() gopacket.LayerType {
+	if d.layerType != 0 {
+		return d.layerType
+	}
+	return layers.LayerTypeEthernet
 }
 
 // Option configures a LibpcapSource.
@@ -342,7 +356,7 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 		select {
 		case pkt := <-p.packetChan:
 			packetInfo.PktType = pkt.direction
-			packetInfo.LayerType = pkt.layerType
+			packetInfo.layerType = pkt.layerType
 
 			// Wrap in a closure so putBuffer runs via defer even if visitor
 			// panics, preventing a permanent pool leak.
@@ -470,7 +484,7 @@ func (p *LibpcapSource) collectStats(ih *interfaceHandle, prev *struct{ captured
 // LayerType returns a default layer type for this source. On Darwin, packets
 // may come from both Ethernet interfaces (LayerTypeEthernet) and BSD-loopback
 // interfaces such as utun* (LayerTypeLoopback). Callers that need the accurate
-// per-packet type should read DarwinPacketInfo.LayerType instead of relying on
+// per-packet type should use DarwinPacketInfo.LinkLayerType() instead of relying on
 // this method.
 func (p *LibpcapSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
