@@ -6,10 +6,9 @@ mod framing;
 mod generated;
 mod heap_prof;
 mod janitor;
-mod merge;
+mod signal_files;
 pub mod telemetry;
 mod transport;
-mod vortex_files;
 mod writers;
 
 use std::time::Duration;
@@ -46,8 +45,6 @@ async fn main() -> Result<()> {
         flush_interval_secs = cfg.flush_interval_secs,
         retention_hours = cfg.retention_hours,
         max_disk_mb = cfg.max_disk_mb,
-        merge_min_files = cfg.merge_min_files,
-        merge_interval_secs = cfg.merge_interval_secs,
         "flightrecorder starting"
     );
 
@@ -58,9 +55,6 @@ async fn main() -> Result<()> {
         &cfg.output_dir,
         Duration::from_secs(cfg.retention_hours * 3600),
         cfg.max_disk_mb * 1024 * 1024,
-        cfg.merge_enabled,
-        cfg.merge_min_files,
-        Duration::from_secs(cfg.merge_interval_secs),
     );
     let janitor_cancel = cancel.clone();
     let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });

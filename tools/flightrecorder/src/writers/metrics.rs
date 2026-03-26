@@ -1,22 +1,52 @@
 use std::collections::HashMap;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
+use arrow::array::{ArrayRef, Float64Array, Int64Array, UInt64Array};
+use arrow::datatypes::{DataType, Field, Schema};
+use arrow::record_batch::RecordBatch;
+use parquet::arrow::ArrowWriter;
 use tokio::sync::Mutex;
-use vortex::array::arrays::{DictArray, PrimitiveArray, StructArray, VarBinArray};
-use vortex::array::dtype::FieldNames;
-use vortex::array::validity::Validity;
-use vortex::array::IntoArray;
-use vortex::file::VortexWriteOptions;
-use vortex::session::VortexSession;
-use vortex::VortexSessionDefault;
 
 use super::context_store::ContextStore;
 use super::intern::StringInterner;
+use super::parquet_helpers::{default_writer_props, dict_utf8_type, interner_to_dict_array};
 use super::tags::{decompose_joined_into_interners, METRIC_RESERVED_KEYS};
 use crate::generated::signals_generated::signals::MetricBatch;
+
+/// Schema for inline mode (13 columns).
+fn inline_schema() -> Arc<Schema> {
+    let dt = dict_utf8_type();
+    Arc::new(Schema::new(vec![
+        Field::new("name", dt.clone(), false),
+        Field::new("tag_host", dt.clone(), false),
+        Field::new("tag_device", dt.clone(), false),
+        Field::new("tag_source", dt.clone(), false),
+        Field::new("tag_service", dt.clone(), false),
+        Field::new("tag_env", dt.clone(), false),
+        Field::new("tag_version", dt.clone(), false),
+        Field::new("tag_team", dt.clone(), false),
+        Field::new("tags_overflow", dt.clone(), false),
+        Field::new("value", DataType::Float64, false),
+        Field::new("timestamp_ns", DataType::Int64, false),
+        Field::new("sample_rate", DataType::Float64, false),
+        Field::new("source", dt, false),
+    ]))
+}
+
+/// Schema for context_key mode (5 columns).
+fn contextkey_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("context_key", DataType::UInt64, false),
+        Field::new("value", DataType::Float64, false),
+        Field::new("timestamp_ns", DataType::Int64, false),
+        Field::new("sample_rate", DataType::Float64, false),
+        Field::new("source", dict_utf8_type(), false),
+    ]))
+}
 
 /// Columnar accumulator for metric samples.
 ///
@@ -49,8 +79,6 @@ pub struct MetricsWriter {
     // Rate-limited logging for unresolved context keys (inline mode only).
     unresolved_count: u64,
     last_unresolved_log: Instant,
-
-    write_buf: Vec<u8>,
 
     // Telemetry counters (read by the telemetry reporter).
     pub flush_count: u64,
@@ -123,8 +151,6 @@ impl MetricsWriter {
 
             unresolved_count: 0,
             last_unresolved_log: Instant::now(),
-
-            write_buf: Vec::with_capacity(64 * 1024),
 
             flush_count: 0,
             flush_bytes: 0,
@@ -252,7 +278,7 @@ impl MetricsWriter {
         Ok(None)
     }
 
-    /// Flush accumulated columns to a new Vortex file. Returns the file path.
+    /// Flush accumulated columns to a new Parquet file. Returns the file path.
     pub async fn flush(&mut self) -> Result<PathBuf> {
         let flush_start = Instant::now();
         let row_count = self.len();
@@ -264,7 +290,7 @@ impl MetricsWriter {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let path = self.output_dir.join(format!("flush-metrics-{}.vortex", ts_ms));
+        let path = self.output_dir.join(format!("flush-metrics-{}.parquet", ts_ms));
 
         let (source_vals, source_codes) = self.sources.take();
         let values = std::mem::take(&mut self.values);
@@ -275,22 +301,10 @@ impl MetricsWriter {
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
-        let build_dict =
-            |vals: Vec<String>, codes: Vec<u32>, label: &str| -> Result<DictArray> {
-                DictArray::try_new(
-                    order
-                        .iter()
-                        .map(|&i| codes[i])
-                        .collect::<PrimitiveArray>()
-                        .into_array(),
-                    VarBinArray::from(vals).into_array(),
-                )
-                .with_context(|| format!("building {label} DictArray"))
-            };
+        let source_array: ArrayRef =
+            Arc::new(interner_to_dict_array(source_vals, source_codes, &order));
 
-        let source_array = build_dict(source_vals, source_codes, "source")?;
-
-        let st = match &mut self.mode {
+        let (schema, columns) = match &mut self.mode {
             MetricsMode::Inline {
                 names,
                 tag_host,
@@ -313,62 +327,71 @@ impl MetricsWriter {
                 let (team_vals, team_codes) = tag_team.take();
                 let (overflow_vals, overflow_codes) = tags_overflow.take();
 
-                StructArray::try_new(
-                    FieldNames::from(METRIC_FIELD_NAMES_INLINE),
-                    vec![
-                        build_dict(name_vals, name_codes, "name")?.into_array(),
-                        build_dict(host_vals, host_codes, "tag_host")?.into_array(),
-                        build_dict(device_vals, device_codes, "tag_device")?.into_array(),
-                        build_dict(tsource_vals, tsource_codes, "tag_source")?.into_array(),
-                        build_dict(service_vals, service_codes, "tag_service")?.into_array(),
-                        build_dict(env_vals, env_codes, "tag_env")?.into_array(),
-                        build_dict(version_vals, version_codes, "tag_version")?.into_array(),
-                        build_dict(team_vals, team_codes, "tag_team")?.into_array(),
-                        build_dict(overflow_vals, overflow_codes, "tags_overflow")?.into_array(),
-                        order.iter().map(|&i| values[i]).collect::<PrimitiveArray>().into_array(),
-                        order.iter().map(|&i| timestamps[i]).collect::<PrimitiveArray>().into_array(),
-                        order.iter().map(|&i| sample_rates[i]).collect::<PrimitiveArray>().into_array(),
-                        source_array.into_array(),
-                    ],
-                    row_count,
-                    Validity::NonNullable,
-                )
-                .context("building metrics StructArray (inline)")?
+                let columns: Vec<ArrayRef> = vec![
+                    Arc::new(interner_to_dict_array(name_vals, name_codes, &order)),
+                    Arc::new(interner_to_dict_array(host_vals, host_codes, &order)),
+                    Arc::new(interner_to_dict_array(device_vals, device_codes, &order)),
+                    Arc::new(interner_to_dict_array(tsource_vals, tsource_codes, &order)),
+                    Arc::new(interner_to_dict_array(service_vals, service_codes, &order)),
+                    Arc::new(interner_to_dict_array(env_vals, env_codes, &order)),
+                    Arc::new(interner_to_dict_array(version_vals, version_codes, &order)),
+                    Arc::new(interner_to_dict_array(team_vals, team_codes, &order)),
+                    Arc::new(interner_to_dict_array(
+                        overflow_vals,
+                        overflow_codes,
+                        &order,
+                    )),
+                    Arc::new(Float64Array::from_iter_values(
+                        order.iter().map(|&i| values[i]),
+                    )),
+                    Arc::new(Int64Array::from_iter_values(
+                        order.iter().map(|&i| timestamps[i]),
+                    )),
+                    Arc::new(Float64Array::from_iter_values(
+                        order.iter().map(|&i| sample_rates[i]),
+                    )),
+                    source_array,
+                ];
+
+                (inline_schema(), columns)
             }
             MetricsMode::ContextKey { context_keys, .. } => {
                 let keys = std::mem::take(context_keys);
-                StructArray::try_new(
-                    FieldNames::from(METRIC_FIELD_NAMES_CONTEXTKEY),
-                    vec![
-                        order.iter().map(|&i| keys[i]).collect::<PrimitiveArray>().into_array(),
-                        order.iter().map(|&i| values[i]).collect::<PrimitiveArray>().into_array(),
-                        order.iter().map(|&i| timestamps[i]).collect::<PrimitiveArray>().into_array(),
-                        order.iter().map(|&i| sample_rates[i]).collect::<PrimitiveArray>().into_array(),
-                        source_array.into_array(),
-                    ],
-                    row_count,
-                    Validity::NonNullable,
-                )
-                .context("building metrics StructArray (context_key)")?
+
+                let columns: Vec<ArrayRef> = vec![
+                    Arc::new(UInt64Array::from_iter_values(
+                        order.iter().map(|&i| keys[i]),
+                    )),
+                    Arc::new(Float64Array::from_iter_values(
+                        order.iter().map(|&i| values[i]),
+                    )),
+                    Arc::new(Int64Array::from_iter_values(
+                        order.iter().map(|&i| timestamps[i]),
+                    )),
+                    Arc::new(Float64Array::from_iter_values(
+                        order.iter().map(|&i| sample_rates[i]),
+                    )),
+                    source_array,
+                ];
+
+                (contextkey_schema(), columns)
             }
         };
 
-        let strategy = super::strategy::fast_flush_strategy();
-        let session = VortexSession::default();
+        let batch = RecordBatch::try_new(schema.clone(), columns)
+            .context("building metrics RecordBatch")?;
 
-        self.write_buf.clear();
-        VortexWriteOptions::new(session)
-            .with_strategy(strategy)
-            .write(&mut self.write_buf, st.into_array().to_array_stream())
-            .await
-            .context("writing metrics vortex file")?;
+        let file = File::create(&path)
+            .with_context(|| format!("creating {}", path.display()))?;
+        let props = default_writer_props();
+        let mut writer = ArrowWriter::try_new(file, schema, Some(props))
+            .context("creating Parquet writer for metrics")?;
+        writer.write(&batch).context("writing metrics batch")?;
+        writer.close().context("closing metrics Parquet writer")?;
 
-        tokio::fs::write(&path, &self.write_buf)
-            .await
-            .with_context(|| format!("writing {}", path.display()))?;
-
-        let bytes_written = self.write_buf.len() as u64;
-        self.write_buf = Vec::with_capacity(64 * 1024);
+        let bytes_written = std::fs::metadata(&path)
+            .with_context(|| format!("reading metadata for {}", path.display()))?
+            .len();
 
         self.flush_count += 1;
         self.flush_bytes += bytes_written;
@@ -396,43 +419,16 @@ impl MetricsWriter {
     }
 }
 
-/// Field names for the inline metric schema (13 columns).
-pub const METRIC_FIELD_NAMES_INLINE: [&str; 13] = [
-    "name",
-    "tag_host",
-    "tag_device",
-    "tag_source",
-    "tag_service",
-    "tag_env",
-    "tag_version",
-    "tag_team",
-    "tags_overflow",
-    "value",
-    "timestamp_ns",
-    "sample_rate",
-    "source",
-];
-
-/// Field names for the context_key metric schema (5 columns).
-pub const METRIC_FIELD_NAMES_CONTEXTKEY: [&str; 5] = [
-    "context_key",
-    "value",
-    "timestamp_ns",
-    "sample_rate",
-    "source",
-];
-
-// Keep the old name as an alias for backward compat in tests/readers.
-pub const METRIC_FIELD_NAMES: [&str; 13] = METRIC_FIELD_NAMES_INLINE;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::context_store::read_contexts_bin;
+    use super::*;
+    use arrow::array::{
+        Array, AsArray, Float64Array, Int64Array, UInt64Array,
+    };
+    use arrow::datatypes::UInt32Type;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use tempfile::tempdir;
-    use vortex::array::stream::ArrayStreamExt;
-    use vortex::array::Canonical;
-    use vortex::file::OpenOptionsSessionExt;
 
     fn make_inline_writer(dir: &Path) -> MetricsWriter {
         MetricsWriter::new(dir, 1000, Duration::from_secs(60), true, None)
@@ -476,6 +472,30 @@ mod tests {
         }
     }
 
+    fn read_parquet(path: &Path) -> RecordBatch {
+        let file = File::open(path).unwrap();
+        let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+            .unwrap()
+            .build()
+            .unwrap();
+        let batches: Vec<RecordBatch> = reader.collect::<Result<_, _>>().unwrap();
+        assert_eq!(batches.len(), 1, "expected exactly one row group");
+        batches.into_iter().next().unwrap()
+    }
+
+    fn read_dict_string_column(batch: &RecordBatch, name: &str) -> Vec<String> {
+        let col = batch.column_by_name(name).unwrap_or_else(|| panic!("column {name} not found"));
+        let dict = col.as_dictionary::<UInt32Type>();
+        let values = dict.values().as_string::<i32>();
+        let keys = dict.keys();
+        (0..dict.len())
+            .map(|i| {
+                let key = keys.value(i) as usize;
+                values.value(key).to_string()
+            })
+            .collect()
+    }
+
     #[tokio::test]
     async fn test_inline_push_and_flush() {
         let dir = tempdir().unwrap();
@@ -485,6 +505,31 @@ mod tests {
         let path = w.flush().await.unwrap();
         assert!(path.exists());
         assert!(path.metadata().unwrap().len() > 0);
+
+        // Verify we can read it back and it has 100 rows.
+        let batch = read_parquet(&path);
+        assert_eq!(batch.num_rows(), 100);
+        assert_eq!(batch.num_columns(), 13);
+
+        // Verify column names.
+        let schema = batch.schema();
+        let col_names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
+        assert_eq!(
+            col_names,
+            vec![
+                "name", "tag_host", "tag_device", "tag_source", "tag_service",
+                "tag_env", "tag_version", "tag_team", "tags_overflow",
+                "value", "timestamp_ns", "sample_rate", "source",
+            ]
+        );
+
+        // All names should be "cpu.user".
+        let names = read_dict_string_column(&batch, "name");
+        assert!(names.iter().all(|n| n == "cpu.user"));
+
+        // All sources should be "test".
+        let sources = read_dict_string_column(&batch, "source");
+        assert!(sources.iter().all(|s| s == "test"));
     }
 
     #[tokio::test]
@@ -523,38 +568,49 @@ mod tests {
         assert!(path.exists());
 
         // Read back and verify schema has 5 columns.
-        let session = VortexSession::default();
-        let array = session
-            .open_options()
-            .open_path(path)
-            .await
-            .unwrap()
-            .scan()
-            .unwrap()
-            .into_array_stream()
-            .unwrap()
-            .read_all()
-            .await
-            .unwrap();
-        let canonical = array.to_canonical().unwrap();
-        let st = canonical.into_struct();
+        let batch = read_parquet(&path);
 
-        let col_names: Vec<String> = st.names().iter().map(|s| s.as_ref().to_string()).collect();
+        let schema = batch.schema();
+        let col_names: Vec<&str> = schema
+            .fields()
+            .iter()
+            .map(|f| f.name().as_str())
+            .collect();
         assert_eq!(
             col_names,
             vec!["context_key", "value", "timestamp_ns", "sample_rate", "source"]
         );
-        assert_eq!(st.len(), 3);
+        assert_eq!(batch.num_rows(), 3);
 
-        // Verify context_key values (sorted by timestamp).
-        let ckey_arr = st.unmasked_field_by_name("context_key").unwrap();
-        let ckey_canon = ckey_arr.to_canonical().unwrap();
-        if let Canonical::Primitive(prim) = ckey_canon {
-            let keys: Vec<u64> = prim.as_slice::<u64>().to_vec();
-            assert_eq!(keys, vec![100, 200, 100]); // sorted by timestamp: 1000, 2000, 3000
-        } else {
-            panic!("expected Primitive u64 for context_key");
-        }
+        // Verify context_key values (sorted by timestamp: 1000, 2000, 3000).
+        let ckey_col = batch
+            .column_by_name("context_key")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        let keys: Vec<u64> = ckey_col.values().iter().copied().collect();
+        assert_eq!(keys, vec![100, 200, 100]);
+
+        // Verify values are sorted by timestamp order.
+        let val_col = batch
+            .column_by_name("value")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .unwrap();
+        let vals: Vec<f64> = val_col.values().iter().copied().collect();
+        assert_eq!(vals, vec![42.0, 99.0, 43.0]);
+
+        // Verify timestamps are sorted.
+        let ts_col = batch
+            .column_by_name("timestamp_ns")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
+        let ts: Vec<i64> = ts_col.values().iter().copied().collect();
+        assert_eq!(ts, vec![1000, 2000, 3000]);
     }
 
     #[tokio::test]
@@ -593,5 +649,24 @@ mod tests {
 
         assert_eq!(ctx_map[&100], ("cpu.user", "host:a|env:prod"));
         assert_eq!(ctx_map[&200], ("mem.usage", "host:b"));
+    }
+
+    #[tokio::test]
+    async fn test_telemetry_counters() {
+        let dir = tempdir().unwrap();
+        let mut w = make_inline_writer(dir.path());
+        add_inline_rows(&mut w, 10);
+
+        assert_eq!(w.flush_count, 0);
+        assert_eq!(w.flush_bytes, 0);
+
+        let path = w.flush().await.unwrap();
+        assert_eq!(w.flush_count, 1);
+        assert!(w.flush_bytes > 0);
+        assert!(w.last_flush_duration_ns > 0);
+
+        // flush_bytes should match the file size on disk.
+        let file_size = std::fs::metadata(&path).unwrap().len();
+        assert_eq!(w.flush_bytes, file_size);
     }
 }

@@ -27,7 +27,8 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
-vortex = { version = "0.61", features = ["tokio"] }
+arrow = { version = "55", default-features = false, features = ["prettyprint"] }
+parquet = { version = "55", default-features = false, features = ["snap", "zstd", "arrow"] }
 tikv-jemallocator = "0.6"
 tikv-jemalloc-ctl = "0.6"
 tokio-util = { version = "0.7", features = ["rt"] }
@@ -44,14 +45,6 @@ harness = false
 
 [[bench]]
 name = "framing_bench"
-harness = false
-
-[[bench]]
-name = "writer_bench"
-harness = false
-
-[[bench]]
-name = "compression_bench"
 harness = false
 
 [features]
