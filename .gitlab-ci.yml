@@ -910,8 +910,16 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_windows_e2e_changes:
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/common/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_windows_e2e_changes]
   - <<: *if_windows_installer_changes
     when: on_success
 
@@ -1113,10 +1121,12 @@ workflow:
 
 .on_installer_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_windows_e2e_changes]
   - changes:
       paths:
         - .gitlab/deploy/**/*
         - .gitlab/test/e2e_install_packages/**/*
+        - .gitlab/windows/test/e2e_install_packages/windows.yml
         - .gitlab/test/e2e/e2e.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
@@ -1219,6 +1229,7 @@ workflow:
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_windows_e2e_changes]
   - changes:
       paths:
         - cmd/agent/**/*
@@ -1236,6 +1247,7 @@ workflow:
 
 .on_windows_certificate_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_windows_e2e_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
