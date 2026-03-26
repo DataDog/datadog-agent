@@ -1,11 +1,9 @@
 exporters:
-    debug: {}
-    logging: {}
     otlphttp:
         headers:
             dd-api-key: test-api-key
-            dd-evp-origin: host-profiler
-            dd-evp-origin-version: 7.0.0-test
+            dd-evp-origin: custom-origin
+            dd-evp-origin-version: custom-version
 processors:
     resource/dd-profiler-internal-metadata:
         attributes:
@@ -36,8 +34,6 @@ service:
             processors: []
         profiles:
             exporters:
-                - logging
-                - debug
                 - otlphttp
             processors:
                 - resourcedetection/default

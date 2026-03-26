@@ -55,7 +55,9 @@ func buildExporters(conf confMap, agent configManager) []any {
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
 			"headers": confMap{
-				"dd-api-key": key,
+				"dd-api-key":            key,
+				"dd-evp-origin":         version.ProfilerName,
+				"dd-evp-origin-version": version.ProfilerVersion,
 			},
 		}
 	}
