@@ -838,20 +838,22 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
-		if err != nil {
-			return
-		}
+		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		if p.config.RuntimeSecurity.SBOMResolverEnabled {
+			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
+			if err != nil {
+				return
+			}
 
-		// Replay mmaped files
-		mmapedFiles, err := procfs.GetMmapedFiles(proc)
-		if err != nil {
-			seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
-		}
-		for _, f := range mmapedFiles {
-			openEvent := p.newOpenEventFromReplay(entry, f)
-			openEvent.Source = model.EventSourceReplay
-			events = append(events, openEvent)
+			mmapedFiles, err := procfs.GetMmapedFiles(proc)
+			if err != nil {
+				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+			}
+			for _, f := range mmapedFiles {
+				openEvent := p.newOpenEventFromReplay(entry, f)
+				openEvent.Source = model.EventSourceReplay
+				events = append(events, openEvent)
+			}
 		}
 	}
 
