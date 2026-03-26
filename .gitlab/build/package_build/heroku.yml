@@ -3,7 +3,6 @@
   extends: .bazel:defs:cache:omnibus-transition
   stage: package_build
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -25,7 +24,6 @@
     PACKAGE_ARCH: "amd64"
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
   artifacts:
     expire_in: 2 weeks
     paths:

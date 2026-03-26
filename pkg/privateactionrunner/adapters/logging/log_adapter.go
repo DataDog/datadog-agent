@@ -76,6 +76,11 @@ func Int(key string, value int) Field {
 	return Field{Key: key, Value: value}
 }
 
+// Int64 creates an int32 field
+func Int32(key string, value int32) Field {
+	return Field{Key: key, Value: value}
+}
+
 // Int64 creates an int64 field
 func Int64(key string, value int64) Field {
 	return Field{Key: key, Value: value}

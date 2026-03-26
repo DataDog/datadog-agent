@@ -20,9 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/gopsutil/host"
-
-	host2 "github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/host"
 	"github.com/yusufpapurcu/wmi"
 )
 
@@ -124,12 +122,17 @@ func (c *Collector) Init(_ config.Component, _ option.Option[workloadmeta.Compon
 		return err
 	}
 
-	c.platform, c.family, c.build, err = host.PlatformInformation()
+	c.platform, c.family, _, err = host.PlatformInformation()
 	if err != nil {
 		return err
 	}
 
-	c.arch, err = host2.KernelArch()
+	c.build, err = host.KernelVersion()
+	if err != nil {
+		return err
+	}
+
+	c.arch, err = host.KernelArch()
 	if err != nil {
 		return err
 	}
@@ -138,18 +141,19 @@ func (c *Collector) Init(_ config.Component, _ option.Option[workloadmeta.Compon
 
 // Scan performs a scan
 func (c *Collector) Scan(_ context.Context, _ sbom.ScanRequest) sbom.ScanResult {
-
 	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build, arch: c.arch}
 	q := wmi.CreateQuery(&report.KBS, "")
 	err := wmi.Query(q, &report.KBS)
 	if err != nil {
 		return sbom.ScanResult{
-			Error: err,
+			GenerationMethod: "wmi",
+			Error:            err,
 		}
 	}
 
 	return sbom.ScanResult{
-		Error:  err,
-		Report: &report,
+		Error:            err,
+		Report:           &report,
+		GenerationMethod: "wmi",
 	}
 }

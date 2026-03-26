@@ -441,6 +441,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			ddTags2 = append(ddTags2, "image_tag:"+t)
 		}
 
+		if img.SBOM.GenerationMethod != "" {
+			ddTags2 = append(ddTags2, sbom.ScanMethodTagName+":"+img.SBOM.GenerationMethod)
+		}
+
 		sbom := &model.SBOMEntity{
 			Type:        model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 			Id:          id,

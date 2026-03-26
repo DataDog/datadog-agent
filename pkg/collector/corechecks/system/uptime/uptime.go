@@ -11,15 +11,19 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
 // CheckName is the name of the check
 const CheckName = "uptime"
 
-// Check doesn't need additional fields
+// Check reports system uptime
 type Check struct {
 	core.CheckBase
 }
+
+// For testing purpose
+var uptime = host.Uptime
 
 // Run executes the check
 func (c *Check) Run() error {

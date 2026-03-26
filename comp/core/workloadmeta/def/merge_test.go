@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -190,4 +191,49 @@ func TestMerge(t *testing.T) {
 	err = merge(&fromSource2, &fromSource1)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, container1(testTime).Ports, fromSource2.Ports)
+}
+
+// TestContainerImageMetadataMergeSBOM verifies that merging two ContainerImageMetadata
+// entities that both carry a CompressedSBOM does NOT concatenate the Bom []byte fields.
+// Byte-level concatenation of two gzip streams produces a valid multistream gzip; when
+// decoded the inner protobuf repeated-field (Components) would be duplicated.
+func TestContainerImageMetadataMergeSBOM(t *testing.T) {
+	trivySBOM := &CompressedSBOM{
+		Bom:              []byte("trivy-sbom-bytes"),
+		GenerationMethod: "trivy",
+	}
+	enrichedSBOM := &CompressedSBOM{
+		Bom:              []byte("enriched-sbom-bytes"),
+		GenerationMethod: "runtime",
+	}
+
+	// dst has enriched SBOM, src has Trivy SBOM — dst must win.
+	dst := &ContainerImageMetadata{
+		EntityID: EntityID{Kind: KindContainerImageMetadata, ID: "img1"},
+		SBOM:     enrichedSBOM,
+	}
+	src := &ContainerImageMetadata{
+		EntityID: EntityID{Kind: KindContainerImageMetadata, ID: "img1"},
+		SBOM:     trivySBOM,
+	}
+	err := dst.Merge(src)
+	require.NoError(t, err)
+	assert.Equal(t, enrichedSBOM, dst.SBOM, "dst SBOM should not be overwritten by src SBOM")
+	assert.Equal(t, enrichedSBOM.Bom, dst.SBOM.Bom, "Bom bytes must not be concatenated")
+
+	// dst has no SBOM, src has Trivy SBOM — src must propagate.
+	dst2 := &ContainerImageMetadata{
+		EntityID: EntityID{Kind: KindContainerImageMetadata, ID: "img2"},
+		SBOM:     nil,
+	}
+	src2 := &ContainerImageMetadata{
+		EntityID: EntityID{Kind: KindContainerImageMetadata, ID: "img2"},
+		SBOM:     trivySBOM,
+	}
+	err = dst2.Merge(src2)
+	require.NoError(t, err)
+	assert.Equal(t, trivySBOM, dst2.SBOM, "src SBOM should be copied when dst has none")
+
+	// src mutation does not affect the original entity (shallow-copy safety).
+	assert.Equal(t, trivySBOM, src.SBOM, "src SBOM must not be modified by merge")
 }

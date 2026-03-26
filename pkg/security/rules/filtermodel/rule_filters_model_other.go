@@ -10,37 +10,39 @@ package filtermodel
 
 import (
 	"os"
-	"runtime"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // RuleFilterEvent represents a rule filtering event
 type RuleFilterEvent struct {
-	cfg RuleFilterEventConfig
-	ipc ipc.Component
+	cfg      RuleFilterEventConfig
+	hostname string
+	os       string
 }
 
 // RuleFilterModel represents a rule fitlering model
 type RuleFilterModel struct {
-	cfg RuleFilterEventConfig
-	ipc ipc.Component
+	cfg      RuleFilterEventConfig
+	hostname string
+	os       string
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel(cfg RuleFilterEventConfig, ipc ipc.Component) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig, hostname string, os string) (*RuleFilterModel, error) {
 	return &RuleFilterModel{
-		cfg: cfg,
-		ipc: ipc,
+		cfg:      cfg,
+		hostname: hostname,
+		os:       os,
 	}, nil
 }
 
 // NewEvent returns a new rule filtering event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
-		cfg: m.cfg,
-		ipc: m.ipc,
+		cfg:      m.cfg,
+		hostname: m.hostname,
+		os:       m.os,
 	}
 }
 
@@ -56,12 +58,12 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 
 	case "os":
 		return &eval.StringEvaluator{
-			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return m.os },
 			Field:   field,
 		}, nil
 	case "os.id", "os.platform_id", "os.version_id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return m.os },
 			Field:   field,
 		}, nil
 
@@ -83,7 +85,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 		}, nil
 	case "hostname":
 		return &eval.StringEvaluator{
-			Value: getHostname(m.ipc),
+			Value: m.hostname,
 			Field: field,
 		}, nil
 	}
@@ -99,9 +101,9 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return 0, nil
 
 	case "os":
-		return runtime.GOOS, nil
+		return e.os, nil
 	case "os.id", "os.platform_id", "os.version_id":
-		return runtime.GOOS, nil
+		return e.os, nil
 
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
 		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15", "kernel.core.enabled":
@@ -112,7 +114,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "origin":
 		return e.cfg.Origin, nil
 	case "hostname":
-		return getHostname(e.ipc), nil
+		return e.hostname, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

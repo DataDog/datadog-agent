@@ -3,21 +3,21 @@ system {
     host-name core-switch-01;
     time-zone America/Chicago;
     root-authentication {
-        encrypted-password <secret removed>;
+        encrypted-password <secret hidden>;
     }
     login {
         user admin {
             uid 2000;
             class super-user;
             authentication {
-                encrypted-password <secret removed>;
+                encrypted-password <secret hidden>;
             }
         }
         user readonly {
             uid 2001;
             class read-only;
             authentication {
-                encrypted-password <secret removed>;
+                encrypted-password <secret hidden>;
             }
         }
     }
@@ -49,13 +49,13 @@ system {
     snmp {
         location "Data Center 1 - Row C Rack 12";
         contact "noc@example.com";
-        community <hidden> {
+        community <secret hidden> {
             authorization read-only;
             clients {
                 10.10.10.10/32;
             }
         }
-        community <hidden> {
+        community <secret hidden> {
             authorization read-write;
             clients {
                 10.10.10.20/32;
@@ -129,12 +129,12 @@ protocols {
 security {
     ssh-key {
         rsa {
-            private-key <secret removed>;
-            public-key <secret removed>;
+            private-key <secret hidden>;
+            public-key <secret hidden>;
         }
         ecdsa {
-            private-key <secret removed>;
-            public-key <secret removed>;
+            private-key <secret hidden>;
+            public-key <secret hidden>;
         }
     }
 }

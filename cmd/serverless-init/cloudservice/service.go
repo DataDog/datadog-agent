@@ -6,9 +6,44 @@
 package cloudservice
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"maps"
+	"os"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// TraceAgent represents a trace agent that can process trace payloads, be flushed, and stopped.
+// This interface avoids an import cycle with pkg/serverless/trace.
+type TraceAgent interface {
+	Process(*api.Payload)
+	Flush()
+	Stop()
+}
+
+// TracingContext holds tracing dependencies used by cloud services that need them.
+// Only CloudRunJobs currently uses this context for span creation, but it's passed
+// to all services for interface consistency.
+type TracingContext struct {
+	TraceAgent TraceAgent
+	SpanTags   map[string]string
+}
+
+// EnhancedMetricTags holds base tags and high-cardinality tags for enhanced metrics.
+type EnhancedMetricTags struct {
+	Base  map[string]string
+	Usage map[string]string
+}
+
+// CloudRunType identifies the GCP Cloud Run variant.
+type CloudRunType string
+
+const (
+	CloudRunService  CloudRunType = "service"
+	CloudRunFunction CloudRunType = "function"
+	CloudRunJob      CloudRunType = "job"
 )
 
 // CloudService implements getting tags from each Cloud Provider.
@@ -17,9 +52,18 @@ type CloudService interface {
 	// the logs, traces, and metrics.
 	GetTags() map[string]string
 
+	// GetEnhancedMetricTags returns base tags and high cardinality tags for a given cloud service.
+	GetEnhancedMetricTags(map[string]string) EnhancedMetricTags
+
 	// GetDefaultLogsSource returns the value that will be used for the logs source
 	// if `DD_SOURCE` is not set by the user.
 	GetDefaultLogsSource() string
+
+	// GetMetricPrefix returns the prefix that will be used for the metrics
+	GetMetricPrefix() string
+
+	// GetUsageMetricSuffix returns the name that will be used for the usage metric
+	GetUsageMetricSuffix() string
 
 	// GetOrigin returns the value that will be used for the `origin` attribute for
 	// all logs, traces, and metrics.
@@ -29,15 +73,14 @@ type CloudService interface {
 	GetSource() metrics.MetricSource
 
 	// Init bootstraps the CloudService.
-	// traceAgent is optional and only used by CloudRunJobs
-	Init(traceAgent interface{}) error
+	// ctx is optional and only used by CloudRunJobs for span creation
+	Init(ctx *TracingContext) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	// traceAgent is optional and currently only used by CloudRunJobs
-	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error)
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error)
 
-	// GetStartMetricName returns the metric name for start events
-	GetStartMetricName() string
+	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
+	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
 
 	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
 	// forceFlushAll parameter on the call to forceFlushToSerializer in the
@@ -51,16 +94,52 @@ type CloudService interface {
 //nolint:revive // TODO(SERV) Fix revive linter
 type LocalService struct{}
 
-const defaultPrefix = "datadog.serverless_agent"
+const defaultPrefix = "datadog.serverless_agent."
+
+const localServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
+const localServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
+
+const defaultUsageMetricSuffix = "instance"
 
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
-	return map[string]string{}
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Warnf("failed to get hostname for local usage metric instance tag: %v", err)
+		hostname = "unknown"
+	}
+
+	return map[string]string{
+		"instance": hostname,
+		"local":    "true",
+	}
+}
+
+// GetEnhancedMetricTags is a default implementation that returns an empty tag set
+func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
+	baseTags := map[string]string{
+		"local": tagValueOrUnknown(tags["local"]),
+	}
+
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tagValueOrUnknown(tags["instance"])
+
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 // GetDefaultLogsSource is a default implementation that returns an empty logs source
 func (l *LocalService) GetDefaultLogsSource() string {
 	return "unknown"
+}
+
+// GetMetrixPrefix is a default implementation that returns the default prefix
+func (l *LocalService) GetMetricPrefix() string {
+	return defaultPrefix
+}
+
+// GetUsageMetricSuffix is a default implementation that returns the default usage metric suffix
+func (l *LocalService) GetUsageMetricSuffix() string {
+	return defaultUsageMetricSuffix
 }
 
 // GetOrigin is a default implementation that returns a local empty origin
@@ -74,18 +153,20 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 }
 
 // Init is not necessary for LocalService
-func (l *LocalService) Init(_ interface{}) error {
+func (l *LocalService) Init(_ *TracingContext) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
-	metric.Add(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), agent)
+func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(localServiceShutdownMetricName, 1.0, l.GetSource(), 0)
+	}
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (l *LocalService) GetStartMetricName() string {
-	return defaultPrefix + ".enhanced.cold_start"
+// AddStartMetric adds the start metric for LocalService
+func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(localServiceStartMetricName, 1.0, l.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
@@ -100,9 +181,9 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		if isCloudRunFunction() {
-			return &CloudRun{spanNamespace: cloudRunFunction}
+			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
 		}
-		return &CloudRun{spanNamespace: cloudRunService}
+		return &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
 	}
 
 	if isCloudRunJob() {
@@ -118,4 +199,11 @@ func GetCloudServiceType() CloudService {
 	}
 
 	return &LocalService{}
+}
+
+func tagValueOrUnknown(val string) string {
+	if val == "" {
+		return "unknown"
+	}
+	return val
 }

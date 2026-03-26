@@ -9,14 +9,15 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/mdlayher/vsock"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -53,8 +54,12 @@ type Stream interface {
 type StreamHandler interface {
 	// Port returns the targeted port
 	Port() int
+	// Address returns the targeted address of the gRPC server.
+	Address() string
 	// IsEnabled returns if the feature is enabled
 	IsEnabled() bool
+	// Credentials
+	Credentials() credentials.TransportCredentials
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
@@ -94,6 +99,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
+	address := c.StreamHandler.Address()
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
 			cid, err := socket.ParseVSockAddress(vsockAddr)
@@ -101,16 +107,20 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 				return nil, err
 			}
 			return vsock.Dial(cid, uint32(c.StreamHandler.Port()), &vsock.Config{})
+		} else if filepath.IsAbs(url) {
+			return net.Dial("unix", url)
 		}
+
 		return net.Dial("tcp", url)
 	})}
 
-	creds := credentials.NewTLS(c.IPC.GetTLSClientConfig())
-	opts = append(opts, grpc.WithTransportCredentials(creds))
+	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
+
+	log.Infof("initializing remote collector with address: %s", address)
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
-		fmt.Sprintf(":%v", c.StreamHandler.Port()),
+		address,
 		opts...,
 	)
 	if err != nil {
@@ -134,12 +144,11 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
 	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = maxElapsed
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
 		default:
 		}
 
@@ -159,12 +168,13 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			return err
+			return nil, err
 		}
 
 		log.Info("workloadmeta stream established successfully")
-		return nil
-	}, expBackoff)
+		return nil, nil
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(maxElapsed))
+	return err
 }
 
 // Run will run the generic collector streaming loop

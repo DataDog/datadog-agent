@@ -6,6 +6,7 @@
 package fakeintake
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -27,7 +28,7 @@ import (
 	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 )
 
 const (
@@ -107,20 +108,20 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 	output := pulumi.All(taskDef.TaskDefinition.Arn(), fargateService.Service.Name(), e.ECSFargateFakeintakeClusterArn()).ApplyT(func(args []any) ([]string, error) {
 		serviceName := args[1].(string)
 		fakeintakeECSArn := args[2].(string)
-		var ipAddress string
-		err := backoff.Retry(func() error {
+		ctx := context.Background()
+		ipAddress, err := backoff.Retry(ctx, func() (string, error) {
 			e.Ctx().Log.Debug("waiting for fakeintake task private ip", nil)
 			ecsClient, err := ecs.NewECSClient(e.Ctx().Context(), e)
 			if err != nil {
-				return err
+				return "", err
 			}
-			ipAddress, err = ecsClient.GetTaskPrivateIP(fakeintakeECSArn, serviceName)
+			ip, err := ecsClient.GetTaskPrivateIP(fakeintakeECSArn, serviceName)
 			if err != nil {
-				return err
+				return "", err
 			}
-			e.Ctx().Log.Info(fmt.Sprintf("fakeintake task private ip found: %s\n", ipAddress), nil)
-			return err
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sleepInterval), maxRetries))
+			e.Ctx().Log.Info(fmt.Sprintf("fakeintake task private ip found: %s\n", ip), nil)
+			return ip, nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(sleepInterval)), backoff.WithMaxTries(maxRetries))
 		if err != nil {
 			e.Ctx().Log.Warn(fmt.Sprintf("error while waiting for fakeintake task private ip: %v", err), nil)
 			return nil, err
@@ -129,19 +130,19 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 		// fail the deployment if the fakeintake is not healthy
 		e.Ctx().Log.Info(fmt.Sprintf("waiting for fakeintake at %s to be healthy", ipAddress), nil)
 		healthURL := buildFakeIntakeURL("http", ipAddress, "/fakeintake/health", httpPort)
-		err = backoff.Retry(func() error {
+		_, err = backoff.Retry(ctx, func() (any, error) {
 			e.Ctx().Log.Debug(fmt.Sprintf("getting fakeintake health at %s", healthURL), nil)
 			resp, err := http.Get(healthURL)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("error getting fakeintake health: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+				return nil, fmt.Errorf("error getting fakeintake health: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 			}
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sleepInterval), maxRetries))
+			return nil, nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(sleepInterval)), backoff.WithMaxTries(maxRetries))
 		if err != nil {
 			e.Ctx().Log.Warn(fmt.Sprintf("error while waiting for fakeintake at %s: %v", ipAddress, err), nil)
 			return nil, err

@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -27,14 +28,18 @@ func startServer(listener net.Listener, srv *http.Server, name string) {
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
-	go srv.Serve(tlsListener) //nolint:errcheck
+	go func() {
+		if err := srv.Serve(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("HTTP server '%s' exited with error: %s", name, err)
+		}
+	}()
 
 	log.Infof("Started HTTP server '%s' on %s", name, listener.Addr().String())
 }
 
-func stopServer(listener net.Listener, name string) {
-	if listener != nil {
-		if err := listener.Close(); err != nil {
+func stopServer(srv *http.Server, name string) {
+	if srv != nil {
+		if err := srv.Close(); err != nil {
 			log.Errorf("Error stopping HTTP server '%s': %s", name, err)
 		} else {
 			log.Infof("Stopped HTTP server '%s'", name)
@@ -44,7 +49,7 @@ func stopServer(listener net.Listener, name string) {
 
 // StartServers creates certificates and starts API + IPC servers
 func (server *apiServer) startServers() error {
-	apiAddr, err := getIPCAddressPort()
+	apiAddr, err := listener.GetIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
@@ -66,8 +71,8 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if _, ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
-		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
+	if ipcServerPath, enabled := listener.GetIPCServerPath(); enabled {
+		if err := server.startIPCServer(ipcServerPath, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)
@@ -79,8 +84,8 @@ func (server *apiServer) startServers() error {
 
 // StopServers closes the connections and the servers
 func (server *apiServer) stopServers() {
-	stopServer(server.cmdListener, cmdServerName)
-	stopServer(server.ipcListener, ipcServerName)
+	stopServer(server.cmdServer, cmdServerName)
+	stopServer(server.ipcServer, ipcServerName)
 }
 
 // authTagGetter returns a function that returns the auth tag for the given request

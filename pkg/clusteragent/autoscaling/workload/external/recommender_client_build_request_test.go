@@ -64,7 +64,7 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 							},
 						},
 					},
-					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{MinReplicas: pointer.Ptr[int32](2), MaxReplicas: 4},
+					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{MinReplicas: pointer.Ptr[int32](2), MaxReplicas: pointer.Ptr[int32](4)},
 				},
 				CurrentReplicas: pointer.Ptr[int32](3),
 				ScalingValues:   model.ScalingValues{Horizontal: &model.HorizontalScalingValues{Replicas: 3}},

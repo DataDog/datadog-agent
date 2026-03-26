@@ -18,6 +18,7 @@ import (
 type sshSessionPatcher interface {
 	IsResolved() error
 	PatchEvent(_ interface{})
+	MaxRetry() int
 }
 
 // createSSHSessionPatcher creates a no-op patcher for Windows
@@ -96,3 +97,5 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 }
 
 func (a *APIServer) collectOSReleaseData() {}
+
+func (a *APIServer) collectSBOMS() {}

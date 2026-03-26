@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Properly scrub sensitive information from Kubernetes pod specifications in agent flares.
+    Environment variables with sensitive names are now redacted.

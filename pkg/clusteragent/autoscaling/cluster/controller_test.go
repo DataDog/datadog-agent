@@ -10,8 +10,9 @@ package cluster
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
 )
 
 func TestIsCreatedByDatadog(t *testing.T) {

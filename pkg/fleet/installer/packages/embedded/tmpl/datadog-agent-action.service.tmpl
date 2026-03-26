@@ -1,0 +1,31 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog Private Action Runner
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-action-exp.service
+{{- else}}
+Description=Datadog Private Action Runner Experiment
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-action.service
+{{- end}}
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Stable}}
+Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
+{{- end}}
+ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner run --cfgpath={{.EtcDir}}/datadog.yaml
+StartLimitInterval=10
+StartLimitBurst=5
+{{- if .AmbiantCapabilitiesSupported}}
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+{{- end}}
+
+[Install]
+WantedBy=multi-user.target

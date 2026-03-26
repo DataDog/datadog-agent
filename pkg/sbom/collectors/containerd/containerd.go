@@ -117,18 +117,24 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 	var report sbom.Report
 	var scanner scannerFunc
+	var scanMethod string
 	if c.opts.UseMount {
 		scanner = c.trivyCollector.ScanContainerdImageFromFilesystem
+		scanMethod = "filesystem"
 	} else if c.opts.OverlayFsScan {
 		scanner = c.trivyCollector.ScanContainerdImageFromSnapshotter
+		scanMethod = "overlayfs"
 	} else {
 		scanner = c.trivyCollector.ScanContainerdImage
+		scanMethod = "tarball"
 	}
+
 	report, err = scanner(ctx, imageMeta, image, c.containerdClient, c.opts)
 	scanResult := sbom.ScanResult{
-		Error:   err,
-		Report:  report,
-		ImgMeta: imageMeta,
+		Error:            err,
+		Report:           report,
+		ImgMeta:          imageMeta,
+		GenerationMethod: scanMethod,
 	}
 
 	return scanResult

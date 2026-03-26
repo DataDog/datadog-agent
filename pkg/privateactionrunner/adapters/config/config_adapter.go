@@ -20,16 +20,18 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist  map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
-	Allowlist         []string
-	AllowIMDSEndpoint bool
-	DDHost            string
-	Modes             []modes.Mode
-	OrgId             int64
-	PrivateKey        *ecdsa.PrivateKey
-	RunnerId          string
-	Urn               string
-	Tags              []observability.Tag
+	ActionsAllowlist   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	Allowlist          []string
+	AllowIMDSEndpoint  bool
+	RShellAllowedPaths []string
+	DDHost             string
+	DDApiHost          string
+	Modes              []modes.Mode
+	OrgId              int64
+	PrivateKey         *ecdsa.PrivateKey
+	RunnerId           string
+	Urn                string
+	Tags               []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
@@ -45,6 +47,8 @@ type Config struct {
 	HealthCheckInterval        int32
 	HttpServerReadTimeout      int32
 	HttpServerWriteTimeout     int32
+	HTTPTimeout                time.Duration
+	TaskTimeoutSeconds         *int32
 	RunnerAccessTokenHeader    string
 	RunnerAccessTokenIdHeader  string
 	Port                       int32

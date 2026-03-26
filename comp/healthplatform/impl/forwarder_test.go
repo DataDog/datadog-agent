@@ -16,12 +16,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -60,12 +61,12 @@ func TestForwarderBuildReport(t *testing.T) {
 
 	// Add some test issues
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue 1",
 		Severity: "high",
 	})
 	provider.addIssue("check-2", &healthplatform.Issue{
-		ID:       "issue-2",
+		Id:       "issue-2",
 		Title:    "Test Issue 2",
 		Severity: "medium",
 	})
@@ -73,8 +74,9 @@ func TestForwarderBuildReport(t *testing.T) {
 	report := fwd.buildReport(provider.issues)
 
 	assert.Equal(t, "agent-health-issues", report.EventType)
+	assert.Equal(t, flavor.DefaultAgent, report.Service)
 	assert.Equal(t, "test-host", report.Host.Hostname)
-	assert.Equal(t, version.AgentVersion, report.Host.AgentVersion)
+	assert.Equal(t, version.AgentVersion, report.Host.GetAgentVersion())
 	assert.Len(t, report.Issues, 2)
 	assert.NotEmpty(t, report.EmittedAt)
 
@@ -107,7 +109,7 @@ func TestForwarderSend(t *testing.T) {
 	fwd.intakeURL = server.URL
 
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue",
 		Severity: "high",
 	})
@@ -167,7 +169,7 @@ func TestForwarderSendError(t *testing.T) {
 	fwd.intakeURL = server.URL
 
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue",
 		Severity: "high",
 	})
@@ -245,7 +247,7 @@ func TestForwarderSendWithoutAPIKey(t *testing.T) {
 	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
 
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue",
 		Severity: "high",
 	})

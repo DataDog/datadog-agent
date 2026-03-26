@@ -24,7 +24,7 @@ repos:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.7.8
+  rev: v1.7.11
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]
@@ -143,3 +143,10 @@ repos:
       language: system
       pass_filenames: false
       files: ^pkg/fleet/installer/packages/embedded/.*\.service$
+    - id: rst-releasenotes
+      name: rst-releasenotes
+      description: Check release notes for RST formatting issues (Markdown syntax detected)
+      entry: bash -c 'dda inv linter.rst-releasenotes --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true

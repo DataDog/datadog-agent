@@ -41,7 +41,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			catalog: workloadmeta.NodeAgent,
 		},
 	}, nil
 }

@@ -106,7 +106,8 @@ type AttacherTestConfigName string
 
 const (
 	// LibraryAndMainAttacherTestConfigName is the name of the test configuration for the attacher that attaches to a libssl library and the main executable
-	LibraryAndMainAttacherTestConfigName AttacherTestConfigName = "library-and-main"
+	LibraryAndMainAttacherTestConfigName         AttacherTestConfigName = "library-and-main"
+	LibraryAndMainAttacherWithSyncTestConfigName AttacherTestConfigName = "library-and-main-with-sync"
 )
 
 // AttacherTestConfigs is a map of attacher test config names to attacher configs.
@@ -302,7 +303,10 @@ func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName Attache
 
 	cfg := GetAttacherTestConfig(t, configName)
 
-	attacher, err := NewUprobeAttacher("test", "test", cfg, &mgr, r.onAttach, &NativeBinaryInspector{}, procMon)
+	attacher, err := NewUprobeAttacher("test", "test", cfg, &mgr, r.onAttach, AttacherDependencies{
+		Inspector:      &NativeBinaryInspector{},
+		ProcessMonitor: procMon,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, attacher)
 
@@ -470,6 +474,16 @@ func loadAttacherTestConfigs() {
 		ExcludeTargets:        ExcludeInternal | ExcludeSelf,
 		EnableDetailedLogging: true,
 		SharedLibsLibsets:     []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+	}
+
+	// Same config, but with scan enabled in case we're using the event stream, which can lose events sometimes.
+	AttacherTestConfigs[LibraryAndMainAttacherWithSyncTestConfigName] = AttacherConfig{
+		Rules:                          AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].Rules,
+		ExcludeTargets:                 AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].ExcludeTargets,
+		EnableDetailedLogging:          AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].EnableDetailedLogging,
+		SharedLibsLibsets:              AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].SharedLibsLibsets,
+		ScanProcessesInterval:          500 * time.Millisecond,
+		EnablePeriodicScanNewProcesses: true,
 	}
 }
 

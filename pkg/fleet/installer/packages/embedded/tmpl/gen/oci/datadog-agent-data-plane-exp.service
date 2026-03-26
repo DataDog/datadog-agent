@@ -11,7 +11,7 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
-ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/agent-data-plane run --config /etc/datadog-agent-exp/datadog.yaml --pidfile /opt/datadog-packages/datadog-agent/experiment/run/agent-data-plane.pid
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/agent-data-plane --config /etc/datadog-agent-exp/datadog.yaml run --pidfile /opt/datadog-packages/datadog-agent/experiment/run/agent-data-plane.pid
 StartLimitInterval=10
 StartLimitBurst=5
 AmbientCapabilities=CAP_NET_BIND_SERVICE

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -33,6 +33,7 @@ type Check struct {
 	libraryLoader  ffi.LibraryLoader // FFI handler
 	lib            *ffi.Library      // handle of the associated shared library and pointers to its symbols
 	source         string
+	provider       string
 	initConfig     string // json string of check init config
 	instanceConfig string // json string of specific instance config
 	cancelled      bool
@@ -65,13 +66,13 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 	// run the check through the library loader
 	err := c.libraryLoader.Run(c.lib, string(c.id), c.initConfig, c.instanceConfig)
 	if err != nil {
-		return fmt.Errorf("Run failed: %s", err)
+		return fmt.Errorf("Run failed: %w", err)
 	}
 
 	if commitMetrics {
 		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
-			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+			return fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 		}
 		s.Commit()
 	}
@@ -117,6 +118,11 @@ func (c *Check) ConfigSource() string {
 	return c.source
 }
 
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *Check) ConfigProvider() string {
+	return c.provider
+}
+
 // Loader returns the check loader
 func (c *Check) Loader() string {
 	return CheckLoaderName
@@ -138,7 +144,7 @@ func (*Check) GetWarnings() []error {
 }
 
 // Configure the shared library check from YAML data
-func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string, provider string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instanceConfig, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}
@@ -154,6 +160,7 @@ func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64
 
 	// configuration fields
 	c.source = source
+	c.provider = provider
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(instanceConfig)
 
@@ -164,7 +171,7 @@ func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64
 func (c *Check) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 	}
 	return sender.GetSenderStats(), nil
 }

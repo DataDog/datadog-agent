@@ -18,6 +18,14 @@ var _ slog.Handler = (*Async)(nil)
 
 // Async is a slog handler that asynchronously writes logs to another slog handler.
 type Async struct {
+	*asyncSharedState
+
+	innerHandler slog.Handler
+}
+
+// asyncSharedState is the shared state between instances of a same Async handler.
+// The condition synchronizes accesses to the shared state.
+type asyncSharedState struct {
 	wg sync.WaitGroup
 
 	// the condition is that either:
@@ -28,8 +36,6 @@ type Async struct {
 	closed   bool
 	msgQueue list.List
 	flush    *flushMsg
-
-	innerHandler slog.Handler
 }
 
 type flushMsg struct {
@@ -38,17 +44,24 @@ type flushMsg struct {
 }
 
 type msg struct {
-	ctx    context.Context
-	record slog.Record
+	ctx     context.Context
+	record  slog.Record
+	handler slog.Handler // the inner handler that should process this message
 }
 
 // NewAsync creates a new Async handler.
 //
 // The Async must be closed to avoid leaks.
+//
+// When using WithAttrs or WithGroup, a single goroutine and queue is still used to write the messages,
+// to guarantee that the log messages are still handled in correct order and the inner handler is not
+// called concurrently.
+// It also avoids leaks by ensuring we don't have to close handlers returned by WithAttrs or WithGroup.
+// For performance, we could have a different goroutine and queue for each derived handler.
 func NewAsync(innerHandler slog.Handler) *Async {
 	handler := &Async{
-		innerHandler: innerHandler,
-		cond:         sync.NewCond(&sync.Mutex{}),
+		innerHandler:     innerHandler,
+		asyncSharedState: &asyncSharedState{cond: sync.NewCond(&sync.Mutex{})},
 	}
 
 	handler.start()
@@ -56,17 +69,17 @@ func NewAsync(innerHandler slog.Handler) *Async {
 	return handler
 }
 
-func (h *Async) writeList(queue list.List) {
+func (h *asyncSharedState) writeList(queue list.List) {
 	for e := queue.Front(); e != nil; e = e.Next() {
-		msg := e.Value.(msg)
-		err := h.innerHandler.Handle(msg.ctx, msg.record)
+		m := e.Value.(msg)
+		err := m.handler.Handle(m.ctx, m.record)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "log: async internal error: %v\n", err)
 		}
 	}
 }
 
-func (h *Async) start() {
+func (h *asyncSharedState) start() {
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
@@ -153,7 +166,7 @@ func (h *Async) Handle(ctx context.Context, r slog.Record) error {
 		return nil
 	}
 
-	h.msgQueue.PushBack(msg{ctx, r})
+	h.msgQueue.PushBack(msg{ctx, r, h.innerHandler})
 	h.cond.Broadcast()
 	h.cond.L.Unlock()
 
@@ -177,10 +190,16 @@ func (h *Async) Close() {
 
 // WithAttrs returns a new handler with the given attributes.
 func (h *Async) WithAttrs(_attrs []slog.Attr) slog.Handler {
-	panic("not implemented")
+	return &Async{
+		innerHandler:     h.innerHandler.WithAttrs(_attrs),
+		asyncSharedState: h.asyncSharedState,
+	}
 }
 
 // WithGroup returns a new handler with the given group name.
 func (h *Async) WithGroup(_name string) slog.Handler {
-	panic("not implemented")
+	return &Async{
+		innerHandler:     h.innerHandler.WithGroup(_name),
+		asyncSharedState: h.asyncSharedState,
+	}
 }

@@ -26,7 +26,14 @@ func convertToFilterable(conn *network.ConnectionStats) filter.FilterableConnect
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
 //   - Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
-	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
+	isDNSConnection := false
+	for _, p := range t.config.DNSMonitoringPortList {
+		if conn.DPort == uint16(p) || conn.SPort == uint16(p) {
+			isDNSConnection = true
+			break
+		}
+	}
+
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
 	} else if filter.IsExcludedConnection(t.sourceExcludes, t.destExcludes, convertToFilterable(conn)) {

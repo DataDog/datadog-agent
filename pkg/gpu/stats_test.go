@@ -344,8 +344,8 @@ func TestGetStatsNormalization(t *testing.T) {
 	// Create two processes that each use 80% of GPU cores and 60% of memory
 	pid1 := uint32(1)
 	pid2 := uint32(2)
-	numThreads := uint64(testutil.DefaultGpuCores * 0.8)
-	memSize := uint64(float64(testutil.DefaultTotalMemory) * 0.6)
+	numThreads := uint64(testutil.DefaultGpuCores * 8 / 10)
+	memSize := uint64(testutil.DefaultTotalMemory * 6 / 10)
 
 	// Add kernels and memory allocations for both processes
 	for _, pid := range []uint32{pid1, pid2} {

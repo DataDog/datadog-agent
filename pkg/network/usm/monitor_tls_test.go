@@ -57,7 +57,7 @@ type tlsSuite struct {
 
 func TestTLSSuite(t *testing.T) {
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		if !usmconfig.TLSSupported(NewUSMEmptyConfig()) {
 			t.Skip("TLS not supported for this setup")
 		}
 		suite.Run(t, new(tlsSuite))
@@ -71,7 +71,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 		t.Skip("uretprobe segfault bug exists on kernel so skipping")
 	}
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 	/* enable protocol classification : TLS */
@@ -291,7 +291,7 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 		t.Skip("uretprobe segfault bug exists on kernel so skipping")
 	}
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
@@ -354,7 +354,7 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 		t.Skip("uretprobe segfault bug exists on kernel so skipping")
 	}
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 
@@ -524,15 +524,15 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		if !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, utils.NewUSMEmptyConfig(), false)
+			testHTTPGoTLSCaptureNewProcess(t, NewUSMEmptyConfig(), false)
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, utils.NewUSMEmptyConfig(), false)
+			testHTTPGoTLSCaptureAlreadyRunning(t, NewUSMEmptyConfig(), false)
 		})
 	})
 }
@@ -559,13 +559,13 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 func TestHTTP2GoTLSAttachProbes(t *testing.T) {
 	t.Run("netlink",
 		func(tt *testing.T) {
-			cfg := utils.NewUSMEmptyConfig()
+			cfg := NewUSMEmptyConfig()
 			cfg.EnableUSMEventStream = false
 			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 	t.Run("event stream",
 		func(tt *testing.T) {
-			cfg := utils.NewUSMEmptyConfig()
+			cfg := NewUSMEmptyConfig()
 			cfg.EnableUSMEventStream = true
 			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
@@ -575,15 +575,15 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	t.Skip("Skipping a flaky test")
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		if !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPSGoTLSCaptureNewProcessContainer(t, utils.NewUSMEmptyConfig())
+			testHTTPSGoTLSCaptureNewProcessContainer(t, NewUSMEmptyConfig())
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPSGoTLSCaptureAlreadyRunningContainer(t, utils.NewUSMEmptyConfig())
+			testHTTPSGoTLSCaptureAlreadyRunningContainer(t, NewUSMEmptyConfig())
 		})
 	})
 }
@@ -593,7 +593,7 @@ func TestOldConnectionRegression(t *testing.T) {
 
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		if !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -615,7 +615,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		defer conn.Close()
 
 		// Start USM monitor
-		cfg := utils.NewUSMEmptyConfig()
+		cfg := NewUSMEmptyConfig()
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableGoTLSSupport = true
 		cfg.GoTLSExcludeSelf = false
@@ -670,7 +670,7 @@ func TestOldConnectionRegression(t *testing.T) {
 func TestLimitListenerRegression(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		if !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -684,7 +684,7 @@ func TestLimitListenerRegression(t *testing.T) {
 		t.Cleanup(closeServer)
 
 		// Start USM monitor
-		cfg := utils.NewUSMEmptyConfig()
+		cfg := NewUSMEmptyConfig()
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableGoTLSSupport = true
 		cfg.GoTLSExcludeSelf = false
@@ -1005,7 +1005,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
 	require.NoError(t, err)
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
 
@@ -1078,6 +1078,54 @@ func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uin
 	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS container requests to be captured")
 }
 
+// TestNodeJSTLSWithLibnode tests Node.js TLS monitoring when Node.js is installed via
+// apt-get (e.g., `apt install nodejs` on Debian/Ubuntu). In this case, SSL symbols are
+// in libnode.so rather than statically linked in the node binary, unlike the official
+// Node.js Docker images which have SSL statically linked.
+func (s *tlsSuite) TestNodeJSTLSWithLibnode() {
+	t := s.T()
+
+	// Check if the current kernel has a bug that causes segfaults when uretprobes are used with seccomp filters.
+	hasKernelBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	require.NoError(t, err)
+	if hasKernelBug {
+		t.Skip("Skipping test due to kernel uretprobe/seccomp bug")
+	}
+
+	const (
+		expectedOccurrences = 10
+		serverPort          = "4445"
+	)
+
+	cert, key, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+
+	// Use apt-get installed Node.js (Ubuntu package) where SSL symbols are bundled in libnode.so
+	require.NoError(t, nodejs.RunServerNodeJSUbuntu(t, key, cert, serverPort))
+	nodeJSPID, err := nodejs.GetNodeJSUbuntuDockerPID()
+	require.NoError(t, err)
+
+	cfg := NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNodeJSMonitoring = true
+
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	t.Log("Testing Node.js TLS monitoring with Ubuntu apt-installed Node.js (SSL symbols bundled in libnode.so)")
+
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
+
+	client, requestFn := simpleGetRequestsGenerator(t, "localhost:"+serverPort)
+
+	var requests []*nethttp.Request
+	for i := 0; i < expectedOccurrences; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	client.CloseIdleConnections()
+	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS (apt-get installed, libnode.so) requests to be captured")
+}
+
 func (s *tlsSuite) TestOpenSSLTLSContainer() {
 	t := s.T()
 
@@ -1096,7 +1144,7 @@ func (s *tlsSuite) TestOpenSSLTLSContainer() {
 	pythonPID, err := testutil.GetPythonDockerPID()
 	require.NoError(t, err)
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 

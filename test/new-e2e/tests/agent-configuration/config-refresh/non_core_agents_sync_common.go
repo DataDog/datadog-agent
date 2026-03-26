@@ -16,12 +16,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 const (
+	agentIpcUseSocket        = false
 	agentIpcPort             = 5004
 	securityCmdPort          = 5010
 	apmCmdPort               = 5012
@@ -78,7 +79,7 @@ func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoke
 }
 
 // assertConfigHasKey checks that configYAML contains the given key.
-// As the config is scrubbed, it only checks the last 5 characters of the keys.
+// As the config is scrubbed, we only check the last 4 characters.
 func assertConfigHasKey(t assert.TestingT, configYAML, key string, context string) {
 	if h, ok := t.(testing.TB); ok {
 		h.Helper()
@@ -94,9 +95,9 @@ func assertConfigHasKey(t assert.TestingT, configYAML, key string, context strin
 		return
 	}
 
-	keyEnd := key[len(key)-5:]
+	keyEnd := key[len(key)-4:]
 	actual := cfg["api_key"].(string)
-	actualEnd := actual[len(actual)-5:]
+	actualEnd := actual[len(actual)-4:]
 
 	assert.Equal(t, keyEnd, actualEnd, context)
 }

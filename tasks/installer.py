@@ -107,6 +107,23 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, packa
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
     install_script = install_script.replace('PACKAGE_NAME', package)
 
+    if flavor in ("emr", "databricks", "dataproc"):
+        install_script = install_script.replace(
+            'DATADOG_AGENT_OPTIONAL_REMOVE_CMD',
+            """
+if command -v dpkg >/dev/null && dpkg -s datadog-agent >/dev/null 2>&1; then
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-agent purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" dpkg --purge datadog-agent >/dev/null 2>&1 || true
+  DATADOG_AGENT_OPTIONAL_REMOVE_DEB_CMD
+elif command -v rpm >/dev/null && rpm -q datadog-agent >/dev/null 2>&1; then
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-agent purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" rpm -e datadog-agent >/dev/null 2>&1 || true
+fi
+""",
+        )
+    else:
+        install_script = install_script.replace('DATADOG_AGENT_OPTIONAL_REMOVE_CMD', '')
+
     makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:
         f.write(install_script)

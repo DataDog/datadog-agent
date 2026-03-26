@@ -1,0 +1,61 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "cat /config/partitions/*/bigip*.conf"
+      ],
+      "processing_rules": {
+        "metadata": [
+          {
+
+          }
+        ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "^sys global-settings\\s*{"
+          }
+
+        ],
+        "redaction": [
+          {
+            "regex": "^([\\s\\t]*)secret \\S+",
+            "replacement": "${1}secret <secret hidden>"
+          },
+          {
+            "regex": "^([\\s\\t]*\\S*)password \\S+",
+            "replacement": "${1}password <secret hidden>"
+          },
+          {
+            "regex": "^([\\s\\t]*\\S*)passphrase \\S+",
+            "replacement": "${1}passphrase <secret hidden>"
+          },
+          {
+            "regex": "^(\\s*)community \\S+",
+            "replacement": "${1}community <secret hidden>"
+          },
+          {
+            "regex": "^(\\s*)community-name \\S+",
+            "replacement": "${1}community-name <secret hidden>"
+          },
+          {
+            "regex": "^([\\s\\t]*\\S*)encrypted \\S+$",
+            "replacement": "${1}encrypted <secret hidden>"
+          }
+        ]
+      }
+    },
+    {
+      "type": "metadata",
+      "values": [],
+      "processing_rules": {
+        "metadata": [
+          {
+
+          }
+        ]
+      }
+    }
+  ]
+}

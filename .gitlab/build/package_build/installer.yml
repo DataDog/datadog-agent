@@ -52,7 +52,6 @@ datadog-agent-oci-x64-a7:
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
@@ -73,7 +72,6 @@ datadog-agent-oci-arm64-a7:
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
     DD_CXX: "aarch64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -114,27 +112,6 @@ installer-install-scripts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-
-#
-# Windows install script
-#
-powershell_script_signing:
-  extends: .windows_docker_default
-  stage: package_build
-  needs: []
-  variables:
-    ARCH: "x64"
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $WINDOWS_POWERSHELL_DIR
-  script:
-    - mkdir $WINDOWS_POWERSHELL_DIR
-    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e CI -e IS_AWS_CONTAINER=true ${WINBUILDIMAGE} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
-    - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1
 
 #
 # The installer program

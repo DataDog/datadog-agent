@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -127,13 +128,13 @@ func TestNormalizeServicePassThru(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
-	s.Meta[peerServiceKey] = "foo"
-	s.Meta[baseServiceKey] = "bar"
+	s.Meta[string(semantics.ConceptPeerService)] = "foo"
+	s.Meta[string(semantics.ConceptDDBaseService)] = "bar"
 	before := s.Service
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, before, s.Service)
-	assert.Equal(t, "foo", s.Meta[peerServiceKey])
-	assert.Equal(t, "bar", s.Meta[baseServiceKey])
+	assert.Equal(t, "foo", s.Meta[string(semantics.ConceptPeerService)])
+	assert.Equal(t, "bar", s.Meta[string(semantics.ConceptDDBaseService)])
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -142,12 +143,12 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = ""
-	s.Meta[peerServiceKey] = ""
-	s.Meta[baseServiceKey] = ""
+	s.Meta[string(semantics.ConceptPeerService)] = ""
+	s.Meta[string(semantics.ConceptDDBaseService)] = ""
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, normalize.DefaultServiceName, s.Service)
-	assert.Equal(t, "", s.Meta[peerServiceKey]) // no fallback on peer service tag
-	assert.Equal(t, "", s.Meta[baseServiceKey]) // no fallback on base service tag
+	assert.Equal(t, "", s.Meta[string(semantics.ConceptPeerService)])   // no fallback on peer service tag
+	assert.Equal(t, "", s.Meta[string(semantics.ConceptDDBaseService)]) // no fallback on base service tag
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
 }
 
@@ -157,12 +158,12 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	s := newTestSpan()
 	s.Service = ""
 	ts.Lang = "java"
-	s.Meta[peerServiceKey] = ""
-	s.Meta[baseServiceKey] = ""
+	s.Meta[string(semantics.ConceptPeerService)] = ""
+	s.Meta[string(semantics.ConceptDDBaseService)] = ""
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, s.Service, fmt.Sprintf("unnamed-%s-service", ts.Lang))
-	assert.Equal(t, "", s.Meta[peerServiceKey]) // no fallback on peer service tag
-	assert.Equal(t, "", s.Meta[baseServiceKey]) // no fallback on base service tag
+	assert.Equal(t, "", s.Meta[string(semantics.ConceptPeerService)])   // no fallback on peer service tag
+	assert.Equal(t, "", s.Meta[string(semantics.ConceptDDBaseService)]) // no fallback on base service tag
 	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)})
 	tsExpected.Lang = ts.Lang
 	assert.Equal(t, tsExpected, ts)
@@ -173,12 +174,12 @@ func TestNormalizeLongService(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = strings.Repeat("CAMEMBERT", 100)
-	s.Meta[peerServiceKey] = strings.Repeat("BRIE", 100)
-	s.Meta[baseServiceKey] = strings.Repeat("ROQUEFORT", 100)
+	s.Meta[string(semantics.ConceptPeerService)] = strings.Repeat("BRIE", 100)
+	s.Meta[string(semantics.ConceptDDBaseService)] = strings.Repeat("ROQUEFORT", 100)
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, s.Service, s.Service[:normalize.MaxServiceLen])
-	assert.Equal(t, s.Meta[peerServiceKey], s.Meta[peerServiceKey][:normalize.MaxServiceLen])
-	assert.Equal(t, s.Meta[baseServiceKey], s.Meta[baseServiceKey][:normalize.MaxServiceLen])
+	assert.Equal(t, s.Meta[string(semantics.ConceptPeerService)], s.Meta[string(semantics.ConceptPeerService)][:normalize.MaxServiceLen])
+	assert.Equal(t, s.Meta[string(semantics.ConceptDDBaseService)], s.Meta[string(semantics.ConceptDDBaseService)][:normalize.MaxServiceLen])
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{
 		ServiceTruncate:     *atomic.NewInt64(1),
 		PeerServiceTruncate: *atomic.NewInt64(1),
@@ -495,12 +496,12 @@ func TestNormalizeServiceTag(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Service = "retargeting(api-Staging "
-	s.Meta[peerServiceKey] = "retargeting(api-Peer "
-	s.Meta[baseServiceKey] = "retargeting(api-Base "
+	s.Meta[string(semantics.ConceptPeerService)] = "retargeting(api-Peer "
+	s.Meta[string(semantics.ConceptDDBaseService)] = "retargeting(api-Base "
 	assert.NoError(t, a.normalize(ts, s))
 	assert.Equal(t, "retargeting_api-staging", s.Service)
-	assert.Equal(t, "retargeting_api-peer", s.Meta[peerServiceKey])
-	assert.Equal(t, "retargeting_api-base", s.Meta[baseServiceKey])
+	assert.Equal(t, "retargeting_api-peer", s.Meta[string(semantics.ConceptPeerService)])
+	assert.Equal(t, "retargeting_api-base", s.Meta[string(semantics.ConceptDDBaseService)])
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -545,6 +546,29 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 
 	span1.TraceID = 1
 	span2.TraceID = 2
+	trace := pb.Trace{span1, span2}
+	err := a.normalizeTrace(ts, trace)
+	assert.Error(t, err)
+	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
+}
+
+// TestNormalizeTraceTraceIdMismatch128Bit tests that spans with matching low 64 bits
+// but different high 64 bits (_dd.p.tid) are correctly detected as foreign spans.
+//
+// Note: In normal operation, two spans in the same chunk would NOT both have _dd.p.tid.
+// Tracers only set _dd.p.tid on the first span in each chunk to avoid redundant data.
+// This test validates an edge case where this invariant is violated.
+func TestNormalizeTraceTraceIdMismatch128Bit(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	span1, span2 := newTestSpan(), newTestSpan()
+
+	// Same low 64 bits, different high 64 bits (_dd.p.tid)
+	span1.TraceID = 1
+	span2.TraceID = 1
+	span1.Meta["_dd.p.tid"] = "0000000000000001"
+	span2.Meta["_dd.p.tid"] = "0000000000000002"
+
 	trace := pb.Trace{span1, span2}
 	err := a.normalizeTrace(ts, trace)
 	assert.Error(t, err)
@@ -697,13 +721,13 @@ func TestNormalizeServicePassThruV1(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
 	s.SetService("foo")
-	s.SetStringAttribute(peerServiceKey, "foo")
-	s.SetStringAttribute(baseServiceKey, "bar")
+	s.SetStringAttribute(string(semantics.ConceptPeerService), "foo")
+	s.SetStringAttribute(string(semantics.ConceptDDBaseService), "bar")
 	before := s.Service()
 	assert.NoError(t, a.normalizeV1(ts, s))
 	assert.Equal(t, before, s.Service())
-	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
-	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	peerSvc, _ := s.GetAttributeAsString(string(semantics.ConceptPeerService))
+	baseSvc, _ := s.GetAttributeAsString(string(semantics.ConceptDDBaseService))
 	assert.Equal(t, "foo", peerSvc)
 	assert.Equal(t, "bar", baseSvc)
 	assert.Equal(t, newTagStats(), ts)
@@ -714,12 +738,12 @@ func TestNormalizeEmptyServiceNoLangV1(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
 	s.SetService("")
-	s.SetStringAttribute(peerServiceKey, "")
-	s.SetStringAttribute(baseServiceKey, "")
+	s.SetStringAttribute(string(semantics.ConceptPeerService), "")
+	s.SetStringAttribute(string(semantics.ConceptDDBaseService), "")
 	assert.NoError(t, a.normalizeV1(ts, s))
 	assert.Equal(t, normalize.DefaultServiceName, s.Service())
-	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
-	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	peerSvc, _ := s.GetAttributeAsString(string(semantics.ConceptPeerService))
+	baseSvc, _ := s.GetAttributeAsString(string(semantics.ConceptDDBaseService))
 	assert.Equal(t, "", peerSvc) // no fallback on peer service tag
 	assert.Equal(t, "", baseSvc) // no fallback on base service tag
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
@@ -731,12 +755,12 @@ func TestNormalizeEmptyServiceWithLangV1(t *testing.T) {
 	s := newTestSpanV1(idx.NewStringTable())
 	s.SetService("")
 	ts.Lang = "java"
-	s.SetStringAttribute(peerServiceKey, "")
-	s.SetStringAttribute(baseServiceKey, "")
+	s.SetStringAttribute(string(semantics.ConceptPeerService), "")
+	s.SetStringAttribute(string(semantics.ConceptDDBaseService), "")
 	assert.NoError(t, a.normalizeV1(ts, s))
 	assert.Equal(t, s.Service(), fmt.Sprintf("unnamed-%s-service", ts.Lang))
-	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
-	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	peerSvc, _ := s.GetAttributeAsString(string(semantics.ConceptPeerService))
+	baseSvc, _ := s.GetAttributeAsString(string(semantics.ConceptDDBaseService))
 	assert.Equal(t, "", peerSvc) // no fallback on peer service tag
 	assert.Equal(t, "", baseSvc) // no fallback on base service tag
 	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)})
@@ -749,12 +773,12 @@ func TestNormalizeLongServiceV1(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
 	s.SetService(strings.Repeat("CAMEMBERT", 100))
-	s.SetStringAttribute(peerServiceKey, strings.Repeat("BRIE", 100))
-	s.SetStringAttribute(baseServiceKey, strings.Repeat("ROQUEFORT", 100))
+	s.SetStringAttribute(string(semantics.ConceptPeerService), strings.Repeat("BRIE", 100))
+	s.SetStringAttribute(string(semantics.ConceptDDBaseService), strings.Repeat("ROQUEFORT", 100))
 	assert.NoError(t, a.normalizeV1(ts, s))
 	assert.Equal(t, s.Service(), s.Service()[:normalize.MaxServiceLen])
-	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
-	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	peerSvc, _ := s.GetAttributeAsString(string(semantics.ConceptPeerService))
+	baseSvc, _ := s.GetAttributeAsString(string(semantics.ConceptDDBaseService))
 	assert.Equal(t, peerSvc, peerSvc[:normalize.MaxServiceLen])
 	assert.Equal(t, baseSvc, baseSvc[:normalize.MaxServiceLen])
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{
@@ -922,12 +946,12 @@ func TestNormalizeServiceTagV1(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
 	s.SetService("retargeting(api-Staging ")
-	s.SetStringAttribute(peerServiceKey, "retargeting(api-Peer ")
-	s.SetStringAttribute(baseServiceKey, "retargeting(api-Base ")
+	s.SetStringAttribute(string(semantics.ConceptPeerService), "retargeting(api-Peer ")
+	s.SetStringAttribute(string(semantics.ConceptDDBaseService), "retargeting(api-Base ")
 	assert.NoError(t, a.normalizeV1(ts, s))
 	assert.Equal(t, "retargeting_api-staging", s.Service())
-	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
-	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	peerSvc, _ := s.GetAttributeAsString(string(semantics.ConceptPeerService))
+	baseSvc, _ := s.GetAttributeAsString(string(semantics.ConceptDDBaseService))
 	assert.Equal(t, "retargeting_api-peer", peerSvc)
 	assert.Equal(t, "retargeting_api-base", baseSvc)
 	assert.Equal(t, newTagStats(), ts)

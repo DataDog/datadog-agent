@@ -12,9 +12,16 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/telemetry"
 )
 
-// createCELExcludeProgram is a stub to allow compilation without CEL support.
-func createCELExcludeProgram(_ string, _ string, _ workloadfilter.ResourceType, _ log.Component) program.FilterProgram {
+// createCELProgram is a stub to allow compilation without CEL support.
+func createCELProgram(
+	_ string,
+	_ string,
+	_ workloadfilter.ResourceType,
+	_ *telemetry.Store,
+	_ log.Component,
+) program.FilterProgram {
 	return nil
 }

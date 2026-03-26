@@ -16,8 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
@@ -217,7 +218,10 @@ func TestProxy(t *testing.T) {
 		{
 			name: "no values",
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
-				assert.Equal(t, map[string]interface{}{"http": "", "https": "", "no_proxy": []interface{}{}}, config.Get("proxy"))
+				proxyMap := config.Get("proxy").(map[string]interface{})
+				assert.Equal(t, "", proxyMap["http"])
+				assert.Equal(t, "", proxyMap["https"])
+				assert.Empty(t, proxyMap["no_proxy"])
 				assert.Nil(t, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -440,7 +444,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -557,7 +561,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1060,6 +1064,18 @@ func TestPeerTagsEnv(t *testing.T) {
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
 }
 
+func TestAdditionalProfileTagsEnv(t *testing.T) {
+	testConfig := newTestConf(t)
+	require.Empty(t, testConfig.GetStringMapString("apm_config.additional_profile_tags"))
+
+	t.Setenv("DD_APM_ADDITIONAL_PROFILE_TAGS", `{"_dd.origin":"appservice","env":"staging"}`)
+	testConfig = newTestConf(t)
+	require.Equal(t, map[string]string{
+		"_dd.origin": "appservice",
+		"env":        "staging",
+	}, testConfig.GetStringMapString("apm_config.additional_profile_tags"))
+}
+
 func TestLogDefaults(t *testing.T) {
 	// New config
 	c := newEmptyMockConf(t)
@@ -1120,9 +1136,6 @@ func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
-	// it for non-linux OSes. By adding it here the test passes on all OSes.
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
@@ -1153,8 +1166,6 @@ process_config:
     - fifth
     https://url2.eu:
     - modified
-  run_in_core_agent:
-    enabled: false
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1172,43 +1183,8 @@ use_proxy_for_cloud_metadata: true
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }
 
-// configRetrieveFromPath gets a setting from the config, handling URLs correctly
-// viper would do this by looking for "known" keys and reconstructing the url piece by piece
-// This method should only be needed by tests
-// In nodetreemodel, settings like additional_endpoints are leaf values
-// We should be able to simplify this implementation once ntm is in use everywhere
-func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (interface{}, error) {
-	parts := strings.Split(settingPath, ".")
-
-	if ncfg, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
-		for i := range parts {
-			if i == 0 {
-				continue
-			}
-			partial := strings.Join(parts[0:i], ".")
-			node, err := ncfg.GetNode(partial)
-			if err != nil {
-				return nil, err
-			}
-			if node.IsLeafNode() {
-				// if we find a leaf, can't get a child of it
-				leafValue := node.Get()
-				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
-					remain := strings.Join(parts[i:], ".")
-					return leafMap[remain], nil
-				}
-			}
-		}
-	}
-
-	return cfg.Get(settingPath), nil
-}
-
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
-
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1225,26 +1201,24 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "modified")
 	assert.NoError(t, err)
 
-	var expected interface{} = `different`
-	res, err := configRetrieveFromPath(config, "secret_backend_command")
-	assert.NoError(t, err)
-	require.Equal(t, expected, res)
+	require.Equal(t, "different", config.Get("secret_backend_command"))
 
-	expected = []interface{}([]interface{}{"first", "changed"})
-	res, err = configRetrieveFromPath(config, "additional_endpoints.https://url1.com")
-	assert.NoError(t, err)
-	require.Equal(t, expected, res)
-
-	expected = []interface{}([]interface{}{"modified"})
-	res, err = configRetrieveFromPath(config, "process_config.additional_endpoints.https://url2.eu")
-	assert.NoError(t, err)
-	require.Equal(t, expected, res)
+	assert.Equal(t,
+		map[string]interface{}(
+			map[string]interface{}{
+				"https://url1.com": []interface{}{"first", "changed"},
+				"https://url2.eu":  []interface{}{"third"},
+			}),
+		config.Get("additional_endpoints"))
+	assert.Equal(t,
+		map[string]interface{}(
+			map[string]interface{}{
+				"https://url1.com": []interface{}{"fourth", "fifth"},
+				"https://url2.eu":  []interface{}{"modified"}}),
+		config.Get("process_config.additional_endpoints"))
 }
 
-var testSimpleConf = []byte(`process_config:
-  run_in_core_agent:
-    enabled: false
-secret_backend_command: some command
+var testSimpleConf = []byte(`secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -1253,7 +1227,6 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1264,10 +1237,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `process_config:
-  run_in_core_agent:
-    enabled: false
-secret_backend_arguments:
+	expectedYaml := `secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1357,7 +1327,6 @@ additional_endpoints:
 `)
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1377,12 +1346,12 @@ additional_endpoints:
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, commonConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonWithServerless(conf)
+	initCommonConfigComponents(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1477,7 +1446,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -1487,9 +1456,9 @@ yet_another_key: 'dddd'`
 
 	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
-	expected := `api_key: '***************************aaaaa'
+	expected := `api_key: '****************************aaaa'
 some_other_key: "********"
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
 }

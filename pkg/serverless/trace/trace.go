@@ -20,7 +20,7 @@ import (
 	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
-	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -92,16 +92,16 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 		return nil, err
 	}
 
-	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
+	return traceconfigimpl.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
 }
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled             bool
-	LoadConfig          Load
-	AzureServerlessTags string
-	FunctionTags        string
-	RCService           *remoteconfig.CoreAgentService
+	Enabled               bool
+	LoadConfig            Load
+	AdditionalProfileTags map[string]string
+	FunctionTags          string
+	RCService             *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -124,7 +124,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			tc.AzureServerlessTags = args.AzureServerlessTags
+			tc.AdditionalProfileTags = args.AdditionalProfileTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 
 			// Check if trace stats should be disabled for serverless

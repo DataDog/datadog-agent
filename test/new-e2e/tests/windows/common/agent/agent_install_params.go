@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
@@ -52,6 +52,7 @@ type InstallAgentParams struct {
 	RemoteUpdates           string `installer_arg:"DD_REMOTE_UPDATES"`
 	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
 	InstallOnly             string `installer_arg:"DD_INSTALL_ONLY"`
+	LogonDurationAutologger string `installer_arg:"DD_LOGON_DURATION_AUTOLOGGER"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -352,6 +353,15 @@ func WithInfrastructureMode(infrastructureMode string) InstallAgentOption {
 func WithInstallOnly(installOnly string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.InstallOnly = installOnly
+		return nil
+	}
+}
+
+// WithLogonDurationAutologger specifies the DD_LOGON_DURATION_AUTOLOGGER parameter.
+// When set to "true", the MSI will configure the ETW AutoLogger for logon duration monitoring.
+func WithLogonDurationAutologger(enabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.LogonDurationAutologger = enabled
 		return nil
 	}
 }

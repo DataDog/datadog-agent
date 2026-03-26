@@ -135,49 +135,53 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     if (param_count == 0) {
         return;
     }
-    // GET message has 2 parameters, SET message has 3-5 parameters. Anything else is irrelevant for us.
+    // PING has 1 parameter, GET has 2 parameters, SET has 3-5 parameters.
     if (param_count < MIN_PARAM_COUNT || param_count > MAX_PARAM_COUNT) {
         return;
     }
 
-    // Read method
+    // Read method length
     const u16 method_len = get_key_len(pkt);
-    char method[METHOD_LEN + 1] = {};
-    // We only support GET and SET commands for now, both with length 3.
-    if (method_len != METHOD_LEN) {
+
+    if (method_len < MIN_METHOD_LEN || method_len > MAX_METHOD_LEN) {
         return;
     }
 
-    if (pktbuf_load_bytes_from_current_offset(pkt, method, METHOD_LEN) < 0) {
+    char method[MAX_METHOD_LEN + 1] = {};
+    if (pktbuf_load_bytes_from_current_offset(pkt, method, MAX_METHOD_LEN + 1) < 0) {
         return;
     }
-    pktbuf_advance(pkt, METHOD_LEN);
+    pktbuf_advance(pkt, method_len);
 
     // Read CRLF after method
     if (!read_crlf(pkt)) {
         return;
     }
-
     convert_method_to_upper_case(method);
 
+    // Declare transaction at function scope to help verifier
     redis_transaction_t transaction = {};
     transaction.tags = tags;
     transaction.request_started = bpf_ktime_get_ns();
-    if (bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) == 0) {
+    bool should_extract_key = false;
+    if (bpf_memcmp(method, REDIS_CMD_SET, sizeof(REDIS_CMD_SET)-1) == 0) {
         transaction.command = REDIS_SET;
-    } else if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) == 0) {
+        should_extract_key = true;
+    } else if (bpf_memcmp(method, REDIS_CMD_GET, sizeof(REDIS_CMD_GET)-1) == 0) {
         transaction.command = REDIS_GET;
+        should_extract_key = true;
+    } else if (bpf_memcmp(method, REDIS_CMD_PING, sizeof(REDIS_CMD_PING)-1) == 0) {
+        transaction.command = REDIS_PING;
     } else {
         return;
     }
 
-    // Read key name
-    __u16 len = get_key_len(pkt);
-    if (len == 0) {
-        return;
-    }
-
-    if (is_redis_with_key_monitoring_enabled()) {
+    if (should_extract_key && is_redis_with_key_monitoring_enabled()) {
+        // Read key name (only for GET/SET, not PING)
+        __u16 len = get_key_len(pkt);
+        if (len == 0) {
+            return;
+        }
         redis_key_data_t key = {
             .len = len,
         };
@@ -234,14 +238,58 @@ static __always_inline void redis_with_key_batch_enqueue_wrapper(conn_tuple_t *t
     redis_with_key_batch_enqueue(event);
 }
 
+// Checks if a byte represents a valid RESP (Redis Serialization Protocol) response type prefix.
+// Supports both RESP2 (Redis 1.2+) and RESP3 (Redis 6.0+) type prefixes.
+// Returns true if the byte is a valid RESP response type, false otherwise.
+static __always_inline bool is_valid_resp_response(char first_byte) {
+    switch (first_byte) {
+        // RESP2 types
+        case RESP_SIMPLE_STRING_PREFIX:  // '+' - Simple string (e.g., "+OK\r\n")
+        case RESP_ERROR_PREFIX:          // '-' - Error message (e.g., "-ERR unknown\r\n")
+        case RESP_INTEGER_PREFIX:        // ':' - Integer (e.g., ":1000\r\n")
+        case RESP_BULK_PREFIX:           // '$' - Bulk string (e.g., "$5\r\nhello\r\n")
+        case RESP_ARRAY_PREFIX:          // '*' - Array (e.g., "*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+
+        // RESP3 types (Redis 6.0+)
+        case RESP3_NULL_PREFIX:          // '_' - Null value
+        case RESP3_BOOLEAN_PREFIX:       // '#' - Boolean (e.g., "#t\r\n", "#f\r\n")
+        case RESP3_DOUBLE_PREFIX:        // ',' - Double precision float
+        case RESP3_BIG_NUMBER_PREFIX:    // '(' - Arbitrary precision integer
+        case RESP3_BULK_ERROR_PREFIX:    // '!' - Bulk error (e.g., "!21\r\nSYNTAX error\r\n")
+        case RESP3_VERBATIM_STRING_PREFIX: // '=' - Verbatim string with encoding
+        case RESP3_MAP_PREFIX:           // '%' - Map/Dictionary
+        case RESP3_SET_PREFIX:           // '~' - Set
+        case RESP3_PUSH_PREFIX:          // '>' - Push data (pub/sub)
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Checks if a response byte indicates an error condition.
+// Supports both RESP2 error prefix ('-') and RESP3 bulk error prefix ('!').
+static __always_inline bool is_resp_error(char first_byte) {
+    return first_byte == RESP_ERROR_PREFIX || first_byte == RESP3_BULK_ERROR_PREFIX;
+}
+
 // Processes Redis response messages and validates their format.
-// Handles error responses and command-specific response types.
+// Handles all RESP2 and RESP3 response types for comprehensive monitoring coverage.
 static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
-    redis_key_data_t *key;
+    redis_key_data_t *key = NULL;
+    redis_key_data_t empty_key = {};  // For PING commands when resource tracking is enabled
     if (is_redis_with_key_monitoring_enabled()) {
         key = bpf_map_lookup_elem(&redis_key_in_flight, tup);
+        // When resource tracking is enabled:
+        // - PING doesn't have a key, so key can be NULL for PING commands
+        // - GET/SET must have a key, so if key is NULL, it's an error
         if (key == NULL) {
-            goto cleanup;
+            if (transaction->command == REDIS_PING) {
+                // For PING commands, use an empty key when sending to keyed stream
+                key = &empty_key;
+            } else {
+                // For GET/SET commands, key is required when resource tracking is enabled
+                goto cleanup;
+            }
         }
     }
 
@@ -249,20 +297,24 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
     if (pktbuf_load_bytes_from_current_offset(pkt, &first_byte, sizeof(first_byte)) < 0) {
         return;
     }
-    if (first_byte == RESP_ERROR_PREFIX) {
+
+    // Check if this is a valid RESP response type (RESP2 or RESP3)
+    if (!is_valid_resp_response(first_byte)) {
+        goto cleanup;  // Not a valid RESP response
+    }
+
+    // Mark error responses (both RESP2 '-' and RESP3 '!' types)
+    if (is_resp_error(first_byte)) {
         transaction->is_error = true;
-        goto enqueue;
     }
-    if (transaction->command == REDIS_GET && first_byte == RESP_BULK_PREFIX) {
-        goto enqueue;
-    } else if (transaction->command == REDIS_SET && first_byte == RESP_SIMPLE_STRING_PREFIX){
-        goto enqueue;
-    } else {
-        goto cleanup;
-    }
+
+    // All valid RESP responses are accepted regardless of command type
+    goto enqueue;
 
 enqueue:
     transaction->response_last_seen = bpf_ktime_get_ns();
+    // When resource tracking is enabled, ALL commands (including PING) go to the keyed stream
+    // PING commands use an empty key, GET/SET commands use their actual keys
     if (is_redis_with_key_monitoring_enabled()) {
         redis_with_key_batch_enqueue_wrapper(tup, transaction, key);
     } else {

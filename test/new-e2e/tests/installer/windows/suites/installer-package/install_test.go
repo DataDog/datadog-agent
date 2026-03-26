@@ -101,9 +101,9 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Arrange
 
 	// Act
-	s.Require().NoError(s.Installer().Install(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile(logFilename),
-	))
+	)
 
 	// Assert
 	s.requireInstalled()
@@ -116,9 +116,9 @@ func (s *testInstallerSuite) repair() {
 	s.Require().NoError(s.Env().RemoteHost.Remove(consts.BinaryPath))
 
 	// Act
-	s.Require().NoError(s.Installer().Install(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile("repair.log"),
-	))
+	)
 
 	// Assert
 	s.requireInstalled()

@@ -52,7 +52,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 		{
 			name: "sysprobe",
 			configKeys: map[string]model.Reader{
-				"network_config.enabled":          sysprobeConf,
+				"network_config.enabled": sysprobeConf,
+				// NOTE: may be set at runtime if any modules are enabled (e.g. traceroute.enabled)
 				"system_probe_config.enabled":     sysprobeConf,
 				"windows_crash_detection.enabled": sysprobeConf,
 				"runtime_security_config.enabled": sysprobeConf,
@@ -78,6 +79,15 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			serviceName:    "Datadog Installer",
 			serviceInit:    installerInit,
+			shouldShutdown: true,
+		},
+		{
+			name: "private-action-runner",
+			configKeys: map[string]model.Reader{
+				"private_action_runner.enabled": coreConf,
+			},
+			serviceName:    "datadog-agent-action",
+			serviceInit:    parInit,
 			shouldShutdown: true,
 		},
 		{
@@ -113,6 +123,10 @@ func installerInit() error {
 }
 
 func otelInit() error {
+	return nil
+}
+
+func parInit() error {
 	return nil
 }
 

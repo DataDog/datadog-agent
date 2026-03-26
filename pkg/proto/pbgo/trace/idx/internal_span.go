@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 
@@ -17,8 +18,7 @@ import (
 )
 
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
-// Strings are not garbage collected automatically, so it is important to call RemoveUnusedStrings
-// on the tracer payload to remove any strings that are no longer referenced.
+// Strings are not garbage collected automatically, they will be compacted and unused strings will be removed when the tracer payload is serialized.
 type StringTable struct {
 	strings []string
 	lookup  map[string]uint32
@@ -32,15 +32,26 @@ func NewStringTable() *StringTable {
 	}
 }
 
-// StringTableFromArray creates a new string table from an array of already de-duplicated strings
+// NewStringTable creates a new string table, always starts with an empty string at index 0
+func NewStringTableWithCapacity(capacity int) *StringTable {
+	st := &StringTable{
+		strings: make([]string, 0, capacity),
+		lookup:  make(map[string]uint32, capacity),
+	}
+	st.strings = append(st.strings, "")
+	st.lookup[""] = 0
+	return st
+}
+
+// StringTableFromArray creates a new string table from an array of already de-duplicated strings, the first string must always be the empty string
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{
 		strings: make([]string, len(strings)),
 		lookup:  make(map[string]uint32, len(strings)),
 	}
 	for i, str := range strings {
-		st.strings[i+1] = str
-		st.lookup[str] = uint32(i + 1)
+		st.strings[i] = str
+		st.lookup[str] = uint32(i)
 	}
 	return st
 }
@@ -128,7 +139,7 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 }
 
-// Msgsize returns the size of the message when serialized.
+// Msgsize returns the size of the message when serialized to messagepack.
 func (tp *InternalTracerPayload) Msgsize() int {
 	size := 0
 	size += tp.Strings.Msgsize()
@@ -151,37 +162,318 @@ func (tp *InternalTracerPayload) Msgsize() int {
 	return size
 }
 
-// RemoveUnusedStrings removes any strings from the string table that are not referenced in the tracer payload
-// This should be called before marshalling or otherwise exposing the tracer payload to remove any sensitive
-// strings that are no longer referenced
-func (tp *InternalTracerPayload) RemoveUnusedStrings() {
-	usedStrings := make([]bool, tp.Strings.Len())
-	usedStrings[tp.containerIDRef] = true
-	usedStrings[tp.languageNameRef] = true
-	usedStrings[tp.languageVersionRef] = true
-	usedStrings[tp.tracerVersionRef] = true
-	usedStrings[tp.runtimeIDRef] = true
-	usedStrings[tp.envRef] = true
-	usedStrings[tp.hostnameRef] = true
-	usedStrings[tp.appVersionRef] = true
-	markAttributeMapStringsUsed(usedStrings, tp.Strings, tp.Attributes)
-	for _, chunk := range tp.Chunks {
-		chunk.markUsedStrings(usedStrings)
+// notMapped is a sentinel value indicating an unassigned/unused string reference
+const notMapped uint32 = ^uint32(0)
+
+// CompactStrings compacts the string table by removing unused strings and remapping all references.
+// This function creates a new smaller string table and updates all references throughout the payload to point to the new indices.
+// This produces a more compact serialized representation.
+func (x *TracerPayload) CompactStrings() {
+	if x == nil || len(x.Strings) == 0 {
+		return
 	}
-	for i, used := range usedStrings {
-		if !used {
-			// Remove the reverse lookup and set the string to the empty string
-			// We don't adjust the table itself to avoid changing the indices of the other strings
-			delete(tp.Strings.lookup, tp.Strings.strings[i])
-			tp.Strings.strings[i] = ""
+
+	// Build oldToNew mapping using sentinel value (avoids separate "used" array)
+	oldToNew := make([]uint32, len(x.Strings))
+	for i := range oldToNew {
+		oldToNew[i] = notMapped
+	}
+	nextIndex := uint32(0)
+
+	// markRef marks a string reference as used and assigns it a new index
+	markRef := func(oldRef uint32) {
+		if int(oldRef) < len(oldToNew) && oldToNew[oldRef] == notMapped {
+			oldToNew[oldRef] = nextIndex
+			nextIndex++
 		}
+	}
+
+	// Always mark index 0 (empty string) first to ensure it stays at index 0.
+	// This is required because index 0 is used as a sentinel for "not found" in lookups.
+	markRef(0)
+
+	// Collect all used refs - TracerPayload level
+	markRef(x.ContainerIDRef)
+	markRef(x.LanguageNameRef)
+	markRef(x.LanguageVersionRef)
+	markRef(x.TracerVersionRef)
+	markRef(x.RuntimeIDRef)
+	markRef(x.EnvRef)
+	markRef(x.HostnameRef)
+	markRef(x.AppVersionRef)
+	markAttributeRefs(x.Attributes, markRef)
+
+	// Collect refs from chunks and spans
+	for _, chunk := range x.Chunks {
+		if chunk == nil {
+			continue
+		}
+		markRef(chunk.OriginRef)
+		markAttributeRefs(chunk.Attributes, markRef)
+		for _, span := range chunk.Spans {
+			if span == nil {
+				continue
+			}
+			markRef(span.ServiceRef)
+			markRef(span.NameRef)
+			markRef(span.ResourceRef)
+			markRef(span.TypeRef)
+			markRef(span.EnvRef)
+			markRef(span.VersionRef)
+			markRef(span.ComponentRef)
+			markAttributeRefs(span.Attributes, markRef)
+			for _, link := range span.Links {
+				if link != nil {
+					markRef(link.TracestateRef)
+					markAttributeRefs(link.Attributes, markRef)
+				}
+			}
+			for _, event := range span.Events {
+				if event != nil {
+					markRef(event.NameRef)
+					markAttributeRefs(event.Attributes, markRef)
+				}
+			}
+		}
+	}
+
+	// Build new compact string table
+	newStrings := make([]string, nextIndex)
+	for oldIdx, newIdx := range oldToNew {
+		if newIdx != notMapped {
+			newStrings[newIdx] = x.Strings[oldIdx]
+		}
+	}
+
+	// remap returns the new index for an old reference
+	remap := func(oldRef uint32) uint32 {
+		if int(oldRef) >= len(oldToNew) {
+			return 0
+		}
+		newRef := oldToNew[oldRef]
+		if newRef == notMapped {
+			return 0
+		}
+		return newRef
+	}
+
+	// Track already-remapped objects to handle shared pointers across chunks
+	remappedSpans := make(map[*Span]struct{})
+	remappedLinks := make(map[*SpanLink]struct{})
+	remappedEvents := make(map[*SpanEvent]struct{})
+
+	// Remap TracerPayload level refs
+	x.ContainerIDRef = remap(x.ContainerIDRef)
+	x.LanguageNameRef = remap(x.LanguageNameRef)
+	x.LanguageVersionRef = remap(x.LanguageVersionRef)
+	x.TracerVersionRef = remap(x.TracerVersionRef)
+	x.RuntimeIDRef = remap(x.RuntimeIDRef)
+	x.EnvRef = remap(x.EnvRef)
+	x.HostnameRef = remap(x.HostnameRef)
+	x.AppVersionRef = remap(x.AppVersionRef)
+	remapAttributes(x.Attributes, remap)
+
+	// Remap chunks
+	for _, chunk := range x.Chunks {
+		if chunk == nil {
+			continue
+		}
+		chunk.OriginRef = remap(chunk.OriginRef)
+		remapAttributes(chunk.Attributes, remap)
+		for _, span := range chunk.Spans {
+			if span == nil {
+				continue
+			}
+			// Skip if already remapped (handles shared span pointers)
+			if _, seen := remappedSpans[span]; seen {
+				continue
+			}
+			remappedSpans[span] = struct{}{}
+
+			span.ServiceRef = remap(span.ServiceRef)
+			span.NameRef = remap(span.NameRef)
+			span.ResourceRef = remap(span.ResourceRef)
+			span.TypeRef = remap(span.TypeRef)
+			span.EnvRef = remap(span.EnvRef)
+			span.VersionRef = remap(span.VersionRef)
+			span.ComponentRef = remap(span.ComponentRef)
+			remapAttributes(span.Attributes, remap)
+			for _, link := range span.Links {
+				if link == nil {
+					continue
+				}
+				if _, seen := remappedLinks[link]; seen {
+					continue
+				}
+				remappedLinks[link] = struct{}{}
+				link.TracestateRef = remap(link.TracestateRef)
+				remapAttributes(link.Attributes, remap)
+			}
+			for _, event := range span.Events {
+				if event == nil {
+					continue
+				}
+				if _, seen := remappedEvents[event]; seen {
+					continue
+				}
+				remappedEvents[event] = struct{}{}
+				event.NameRef = remap(event.NameRef)
+				remapAttributes(event.Attributes, remap)
+			}
+		}
+	}
+
+	// Update the string table
+	x.Strings = newStrings
+}
+
+// markAttributeRefs marks all string refs in an attribute map
+func markAttributeRefs(attrs map[uint32]*AnyValue, markRef func(uint32)) {
+	for keyRef, value := range attrs {
+		markRef(keyRef)
+		markAnyValueRefs(value, markRef)
+	}
+}
+
+// markAnyValueRefs marks string refs in an AnyValue
+func markAnyValueRefs(value *AnyValue, markRef func(uint32)) {
+	if value == nil {
+		return
+	}
+	switch v := value.Value.(type) {
+	case *AnyValue_StringValueRef:
+		markRef(v.StringValueRef)
+	case *AnyValue_ArrayValue:
+		if v.ArrayValue != nil {
+			for _, elem := range v.ArrayValue.Values {
+				markAnyValueRefs(elem, markRef)
+			}
+		}
+	case *AnyValue_KeyValueList:
+		if v.KeyValueList != nil {
+			for _, kv := range v.KeyValueList.KeyValues {
+				if kv != nil {
+					markRef(kv.Key)
+					markAnyValueRefs(kv.Value, markRef)
+				}
+			}
+		}
+	}
+}
+
+// remapAttributes remaps all string refs in an attribute map in-place
+func remapAttributes(attrs map[uint32]*AnyValue, remap func(uint32) uint32) {
+	if len(attrs) == 0 {
+		return
+	}
+	// Collect keys that need remapping to avoid modifying map during iteration
+	type keyRemap struct {
+		oldKey uint32
+		newKey uint32
+		value  *AnyValue
+	}
+	var remaps []keyRemap
+	for oldKey, value := range attrs {
+		newKey := remap(oldKey)
+		if newKey != oldKey {
+			remaps = append(remaps, keyRemap{oldKey, newKey, value})
+		}
+		remapAnyValue(value, remap)
+	}
+	// Apply key remaps in two phases:
+	// 1. Delete all old keys first to avoid conflicts when new key == old key of another remap
+	// 2. Then add all new keys
+	// This prevents the bug where deleting an old key accidentally removes a newly-added value
+	for _, r := range remaps {
+		delete(attrs, r.oldKey)
+	}
+	for _, r := range remaps {
+		attrs[r.newKey] = r.value
+	}
+}
+
+// remapAnyValue remaps string refs in an AnyValue in-place
+func remapAnyValue(value *AnyValue, remap func(uint32) uint32) {
+	if value == nil {
+		return
+	}
+	switch v := value.Value.(type) {
+	case *AnyValue_StringValueRef:
+		v.StringValueRef = remap(v.StringValueRef)
+	case *AnyValue_ArrayValue:
+		if v.ArrayValue != nil {
+			for _, elem := range v.ArrayValue.Values {
+				remapAnyValue(elem, remap)
+			}
+		}
+	case *AnyValue_KeyValueList:
+		if v.KeyValueList != nil {
+			for _, kv := range v.KeyValueList.KeyValues {
+				if kv != nil {
+					kv.Key = remap(kv.Key)
+					remapAnyValue(kv.Value, remap)
+				}
+			}
+		}
+	}
+}
+
+// DeleteAttribute deletes an attribute from the tracer payload.
+func (tp *InternalTracerPayload) DeleteAttribute(key string) {
+	deleteAttribute(key, tp.Strings, tp.Attributes)
+}
+
+// FromProto creates an InternalTracerPayload from a proto TracerPayload
+func FromProto(tp *TracerPayload) *InternalTracerPayload {
+	strings := StringTableFromArray(tp.Strings)
+	chunks := make([]*InternalTraceChunk, len(tp.Chunks))
+	for i, chunk := range tp.Chunks {
+		chunks[i] = fromProtoChunk(strings, chunk)
+	}
+	return &InternalTracerPayload{
+		Strings:            strings,
+		containerIDRef:     tp.ContainerIDRef,
+		languageNameRef:    tp.LanguageNameRef,
+		languageVersionRef: tp.LanguageVersionRef,
+		tracerVersionRef:   tp.TracerVersionRef,
+		runtimeIDRef:       tp.RuntimeIDRef,
+		envRef:             tp.EnvRef,
+		hostnameRef:        tp.HostnameRef,
+		appVersionRef:      tp.AppVersionRef,
+		Attributes:         tp.Attributes,
+		Chunks:             chunks,
+	}
+}
+
+// fromProtoChunk creates an InternalTraceChunk from a proto TraceChunk
+func fromProtoChunk(strings *StringTable, chunk *TraceChunk) *InternalTraceChunk {
+	spans := make([]*InternalSpan, len(chunk.Spans))
+	for i, span := range chunk.Spans {
+		spans[i] = fromProtoSpan(strings, span)
+	}
+	return &InternalTraceChunk{
+		Strings:           strings,
+		Priority:          chunk.Priority,
+		originRef:         chunk.OriginRef,
+		Attributes:        chunk.Attributes,
+		DroppedTrace:      chunk.DroppedTrace,
+		TraceID:           chunk.TraceID,
+		samplingMechanism: chunk.SamplingMechanism,
+		Spans:             spans,
+	}
+}
+
+// fromProtoSpan creates an InternalSpan from a proto Span
+func fromProtoSpan(strings *StringTable, span *Span) *InternalSpan {
+	return &InternalSpan{
+		Strings: strings,
+		span:    span,
 	}
 }
 
 // ToProto converts an InternalTracerPayload to a proto TracerPayload
 // This returns the structure _AS IS_, so even strings that are no longer referenced
-// may be included in the resulting proto. To ensure that only used strings are included,
-// call RemoveUnusedStrings first.
+// may be included in the resulting proto.
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
@@ -200,6 +492,26 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 		AppVersionRef:      tp.appVersionRef,
 		Attributes:         tp.Attributes,
 		Chunks:             chunks,
+	}
+}
+
+// NewStringsClone returns a shallow copy of the tracer payload. where the strings are set to a new string table.
+// This can be used to split a payload into multiple payloads and remove unused strings from the new payloads without modifying the original payload.
+func (x *TracerPayload) NewStringsClone() *TracerPayload {
+	newStrings := make([]string, len(x.Strings))
+	copy(newStrings, x.Strings)
+	return &TracerPayload{
+		Strings:            newStrings,
+		ContainerIDRef:     x.ContainerIDRef,
+		LanguageNameRef:    x.LanguageNameRef,
+		LanguageVersionRef: x.LanguageVersionRef,
+		TracerVersionRef:   x.TracerVersionRef,
+		RuntimeIDRef:       x.RuntimeIDRef,
+		EnvRef:             x.EnvRef,
+		HostnameRef:        x.HostnameRef,
+		AppVersionRef:      x.AppVersionRef,
+		Attributes:         x.Attributes,
+		Chunks:             x.Chunks,
 	}
 }
 
@@ -304,46 +616,27 @@ func (tp *InternalTracerPayload) ReplaceChunk(i int, chunk *InternalTraceChunk) 
 
 // SetStringAttribute sets a string attribute for the tracer payload.
 func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
+	if tp.Attributes == nil {
+		tp.Attributes = make(map[uint32]*AnyValue)
+	}
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
+}
+
+// setStringRefAttribute sets a string attribute for the tracer payload from a known pre-existing string ref.
+func (tp *InternalTracerPayload) setStringRefAttribute(key string, valueRef uint32) {
+	if tp.Attributes == nil {
+		tp.Attributes = make(map[uint32]*AnyValue)
+	}
+	setAttribute(key, &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: valueRef,
+		},
+	}, tp.Strings, tp.Attributes)
 }
 
 // GetAttributeAsString gets a string attribute from the tracer payload.
 func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, tp.Strings, tp.Attributes)
-}
-
-// Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
-// and keeps [i, n-1] chunks in the original payload `p`.
-// The new payload will have a new string table, so it can be used concurrently with the original payload.
-func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
-	if i < 0 {
-		i = 0
-	}
-	if i > len(tp.Chunks) {
-		i = len(tp.Chunks)
-	}
-	newStrings := tp.Strings.Clone()
-	newPayload := InternalTracerPayload{
-		Strings:            newStrings, // Clone string table to protect against concurrent access
-		containerIDRef:     tp.containerIDRef,
-		languageNameRef:    tp.languageNameRef,
-		languageVersionRef: tp.languageVersionRef,
-		tracerVersionRef:   tp.tracerVersionRef,
-		runtimeIDRef:       tp.runtimeIDRef,
-		envRef:             tp.envRef,
-		hostnameRef:        tp.hostnameRef,
-		appVersionRef:      tp.appVersionRef,
-		Attributes:         tp.Attributes,
-	}
-	newPayload.Chunks = tp.Chunks[:i]
-	for _, chunk := range newPayload.Chunks {
-		chunk.Strings = newStrings
-		for _, span := range chunk.Spans {
-			span.Strings = newStrings
-		}
-	}
-	tp.Chunks = tp.Chunks[i:]
-	return &newPayload
 }
 
 // InternalTraceChunk is a trace chunk structure that is optimized for trace-agent usage
@@ -395,7 +688,6 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 // Msgsize returns the size of the message when serialized.
 func (c *InternalTraceChunk) Msgsize() int {
 	size := 0
-	size += c.Strings.Msgsize()
 	size += msgp.Int32Size     // Priority
 	size += msgp.Uint32Size    // OriginRef
 	size += msgp.MapHeaderSize // Attributes
@@ -415,6 +707,13 @@ func (c *InternalTraceChunk) Msgsize() int {
 // LegacyTraceID returns the trace ID of the trace chunk as a uint64, the lowest order 8 bytes of the trace ID are the legacy trace ID
 func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	return binary.BigEndian.Uint64(c.TraceID[8:])
+}
+
+// SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0
+// Warning: This method does not remove any attributes from the chunk or contained spans which might be referring to the upper 8 bytes of the trace ID.
+func (c *InternalTraceChunk) SetLegacyTraceID(legacyTraceID uint64) {
+	binary.BigEndian.PutUint64(c.TraceID[:8], 0)
+	binary.BigEndian.PutUint64(c.TraceID[8:], legacyTraceID)
 }
 
 // Origin returns the origin from the trace chunk.
@@ -444,15 +743,10 @@ func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
 
 // SetStringAttribute sets a string attribute for the trace chunk.
 func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
-	setStringAttribute(key, value, c.Strings, c.Attributes)
-}
-
-func (c *InternalTraceChunk) markUsedStrings(usedStrings []bool) {
-	usedStrings[c.originRef] = true
-	markAttributeMapStringsUsed(usedStrings, c.Strings, c.Attributes)
-	for _, span := range c.Spans {
-		span.markUsedStrings(usedStrings)
+	if c.Attributes == nil {
+		c.Attributes = make(map[uint32]*AnyValue)
 	}
+	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
 // ToProto converts an InternalTraceChunk to a proto TraceChunk
@@ -499,36 +793,9 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	}
 }
 
-func (s *InternalSpan) markUsedStrings(usedStrings []bool) {
-	usedStrings[s.span.ServiceRef] = true
-	usedStrings[s.span.NameRef] = true
-	usedStrings[s.span.ResourceRef] = true
-	usedStrings[s.span.TypeRef] = true
-	usedStrings[s.span.EnvRef] = true
-	usedStrings[s.span.VersionRef] = true
-	usedStrings[s.span.ComponentRef] = true
-	markAttributeMapStringsUsed(usedStrings, s.Strings, s.span.Attributes)
-	for _, link := range s.span.Links {
-		markSpanLinkUsedStrings(usedStrings, s.Strings, link)
-	}
-	for _, event := range s.span.Events {
-		markSpanEventUsedStrings(usedStrings, s.Strings, event)
-	}
-}
-
 // ToProto converts the internal span to a protobuf span.
 func (s *InternalSpan) ToProto() *Span {
 	return s.span
-}
-
-func markSpanLinkUsedStrings(usedStrings []bool, strTable *StringTable, link *SpanLink) {
-	usedStrings[link.TracestateRef] = true
-	markAttributeMapStringsUsed(usedStrings, strTable, link.Attributes)
-}
-
-func markSpanEventUsedStrings(usedStrings []bool, strTable *StringTable, event *SpanEvent) {
-	usedStrings[event.NameRef] = true
-	markAttributeMapStringsUsed(usedStrings, strTable, event.Attributes)
 }
 
 // ShallowCopy returns a shallow copy of the span
@@ -553,27 +820,84 @@ func (s *Span) ShallowCopy() *Span {
 	}
 }
 
+// Clone creates a deep copy of the span so it can be used and modified independently of the original span
+func (s *Span) Clone() *Span {
+	// Deep copy the attributes map
+	newAttributes := make(map[uint32]*AnyValue, len(s.Attributes))
+	maps.Copy(newAttributes, s.Attributes)
+
+	// Deep copy the links slice
+	newLinks := make([]*SpanLink, len(s.Links))
+	copy(newLinks, s.Links)
+
+	// Deep copy the events slice
+	newEvents := make([]*SpanEvent, len(s.Events))
+	copy(newEvents, s.Events)
+
+	return &Span{
+		ServiceRef:   s.ServiceRef,
+		NameRef:      s.NameRef,
+		ResourceRef:  s.ResourceRef,
+		SpanID:       s.SpanID,
+		ParentID:     s.ParentID,
+		Start:        s.Start,
+		Duration:     s.Duration,
+		Error:        s.Error,
+		Attributes:   newAttributes,
+		TypeRef:      s.TypeRef,
+		Links:        newLinks,
+		Events:       newEvents,
+		EnvRef:       s.EnvRef,
+		VersionRef:   s.VersionRef,
+		ComponentRef: s.ComponentRef,
+		Kind:         s.Kind,
+	}
+}
+
+// Clone creates a deep copy of the span and string table so it can be used and modified independently of the original span
+func (s *InternalSpan) Clone() *InternalSpan {
+	return &InternalSpan{
+		Strings: s.Strings.Clone(),
+		span:    s.span.Clone(),
+	}
+}
+
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
-	str := "Span {"
-	str += fmt.Sprintf("Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
-	str += fmt.Sprintf("Name: (%s, at %d), ", s.Name(), s.span.NameRef)
-	str += fmt.Sprintf("Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
-	str += fmt.Sprintf("SpanID: %d, ", s.span.SpanID)
-	str += fmt.Sprintf("ParentID: %d, ", s.span.ParentID)
-	str += fmt.Sprintf("Start: %d, ", s.span.Start)
-	str += fmt.Sprintf("Duration: %d, ", s.span.Duration)
-	str += fmt.Sprintf("Error: %t, ", s.span.Error)
-	str += fmt.Sprintf("Attributes: %v, ", s.span.Attributes)
-	str += fmt.Sprintf("Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
-	str += fmt.Sprintf("Links: %v, ", s.Links())
-	str += fmt.Sprintf("Events: %v, ", s.Events())
-	str += fmt.Sprintf("Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
-	str += fmt.Sprintf("Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
-	str += fmt.Sprintf("Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
-	str += fmt.Sprintf("Kind: %s, ", s.SpanKind())
-	str += "}"
-	return str
+	var sb strings.Builder
+	sb.WriteString("Span {")
+	fmt.Fprintf(&sb, "Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
+	fmt.Fprintf(&sb, "Name: (%s, at %d), ", s.Name(), s.span.NameRef)
+	fmt.Fprintf(&sb, "Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
+	fmt.Fprintf(&sb, "SpanID: %d, ", s.span.SpanID)
+	fmt.Fprintf(&sb, "ParentID: %d, ", s.span.ParentID)
+	fmt.Fprintf(&sb, "Start: %d, ", s.span.Start)
+	fmt.Fprintf(&sb, "Duration: %d, ", s.span.Duration)
+	fmt.Fprintf(&sb, "Error: %t, ", s.span.Error)
+
+	// Build attributes string with resolved keys and values
+	sb.WriteString("Attributes: {")
+	first := true
+	for keyRef, value := range s.span.Attributes {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		keyStr := s.Strings.Get(keyRef)
+		valueStr := value.AsString(s.Strings)
+		fmt.Fprintf(&sb, "%s: %s", keyStr, valueStr)
+	}
+	sb.WriteString("}, ")
+
+	fmt.Fprintf(&sb, "Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
+	fmt.Fprintf(&sb, "Links: %v, ", s.Links())
+	fmt.Fprintf(&sb, "Events: %v, ", s.Events())
+	fmt.Fprintf(&sb, "Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
+	fmt.Fprintf(&sb, "Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
+	fmt.Fprintf(&sb, "Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
+	fmt.Fprintf(&sb, "Kind: %s, ", s.SpanKind())
+	sb.WriteString("}")
+	return sb.String()
 }
 
 // Events returns the spans events in the InternalSpanEvent format
@@ -823,6 +1147,15 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 	return 0, false
 }
 
+// GetAttribute returns the attribute as the underlying AnyValue
+func (s *InternalSpan) GetAttribute(key string) (*AnyValue, bool) {
+	keyIdx := s.Strings.Lookup(key)
+	if keyIdx == 0 {
+		return nil, false
+	}
+	return s.span.Attributes[keyIdx], true
+}
+
 // SetStringAttribute sets the attribute with key and value
 // For backwards compatibility, env, version, component, and span.kind will be set as fields instead of attributes
 func (s *InternalSpan) SetStringAttribute(key, value string) {
@@ -903,15 +1236,19 @@ func (s *InternalSpan) DeleteAttribute(key string) {
 	deleteAttribute(key, s.Strings, s.span.Attributes)
 }
 
-// MapAttributesAsStrings maps over all string attributes and applies the given function to each attribute
+// MapFilterAttributes maps over all attributes where shouldMap returns true and applies the given function to each attribute
 // Note that this will only act on true attributes, fields like env, version, component, etc are not considered
 // The provided function will receive all attributes as strings, and should return the new value for the attribute
-func (s *InternalSpan) MapAttributesAsStrings(f func(k, v string) string) {
+func (s *InternalSpan) MapFilteredAttributes(shouldMap func(k string) bool, mapper func(k, v string) string) {
 	for k, v := range s.span.Attributes {
-		// TODO: we could cache the results of these transformations
+		kStr := s.Strings.Get(k)
+		if !shouldMap(kStr) {
+			continue
+		}
+		// TODO: we could cache the results of these transformations?
 		// TODO: This is only used for CC obfuscation today, we could optimize this to reduce the overhead here
 		vString := v.AsString(s.Strings)
-		newV := f(s.Strings.Get(k), vString)
+		newV := mapper(kStr, vString)
 		if newV != vString {
 			s.span.Attributes[k] = &AnyValue{
 				Value: &AnyValue_StringValueRef{
@@ -1026,14 +1363,19 @@ func (se *InternalSpanEvent) Attributes() map[uint32]*AnyValue {
 	return se.event.Attributes
 }
 
+// Time returns the time from the span event.
+func (se *InternalSpanEvent) Time() uint64 {
+	return se.event.Time
+}
+
 // Msgsize returns the size of the message when serialized.
-func (se *SpanEvent) Msgsize() int {
+func (spanEvent *SpanEvent) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                   // Map
 	size += msgp.Uint32Size + msgp.Uint64Size    // Time
 	size += msgp.Uint32Size + msgp.Uint32Size    // NameRef
 	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
-	for _, attr := range se.Attributes {
+	for _, attr := range spanEvent.Attributes {
 		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
 	}
 	return size
@@ -1050,9 +1392,18 @@ func (se *InternalSpanEvent) SetAttributeFromString(key, value string) {
 	setAttribute(key, FromString(se.Strings, value), se.Strings, se.event.Attributes)
 }
 
+// GetAttribute gets the attribute as the underlying AnyValue
+func (se *InternalSpanEvent) GetAttribute(key string) (*AnyValue, bool) {
+	keyIdx := se.Strings.Lookup(key)
+	if keyIdx == 0 {
+		return nil, false
+	}
+	return se.event.Attributes[keyIdx], true
+}
+
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior
-func (attr *AnyValue) AsString(strTable *StringTable) string {
-	switch v := attr.Value.(type) {
+func (av *AnyValue) AsString(strTable *StringTable) string {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		return strTable.Get(v.StringValueRef)
 	case *AnyValue_BoolValue:
@@ -1083,8 +1434,8 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 }
 
 // AsDoubleValue returns the attribute in float64 format, returning an error if the attribute is not a float64 or can't be converted to a float64
-func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
-	switch v := attr.Value.(type) {
+func (av *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		doubleVal, err := strconv.ParseFloat(strTable.Get(v.StringValueRef), 64)
 		if err != nil {
@@ -1112,7 +1463,7 @@ func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
 }
 
 // FromString creates an AnyValue from a string, attempting to use the most backwards compatible type possible
-// Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
+// Meaning we will prefer IntValue > DoubleValue > StringValue to match the previous metrics vs meta behavior
 func FromString(strTable *StringTable, s string) *AnyValue {
 	if intVal, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return &AnyValue{
@@ -1174,27 +1525,61 @@ func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*A
 	}
 }
 
-func markAttributeMapStringsUsed(usedStrings []bool, strTable *StringTable, attributes map[uint32]*AnyValue) {
-	for keyIdx, attr := range attributes {
-		usedStrings[keyIdx] = true
-		markAttributeStringUsed(usedStrings, strTable, attr)
-	}
-}
+// NewInternalTraceChunkWithSpan creates a new InternalTraceChunk with a single span from string parameters.
+// This is a convenience function for creating simple trace chunks without manually managing string tables.
+// The tags map is converted to span attributes.
+func NewInternalTraceChunkWithSpan(
+	service, name, resource, spanType string,
+	parentID uint64,
+	startTime int64,
+	tags map[string]string,
+	priority int32,
+	origin string,
+) *InternalTraceChunk {
+	// Create a string table to store all string values
+	strings := NewStringTable()
 
-// markAttributeStringUsed marks the string referenced by the value as used
-// This is used to track which strings are used in the span and can be removed from the string table
-func markAttributeStringUsed(usedStrings []bool, strTable *StringTable, value *AnyValue) {
-	switch v := value.Value.(type) {
-	case *AnyValue_StringValueRef:
-		usedStrings[v.StringValueRef] = true
-	case *AnyValue_ArrayValue:
-		for _, value := range v.ArrayValue.Values {
-			markAttributeStringUsed(usedStrings, strTable, value)
-		}
-	case *AnyValue_KeyValueList:
-		for _, kv := range v.KeyValueList.KeyValues {
-			usedStrings[kv.Key] = true
-			markAttributeStringUsed(usedStrings, strTable, kv.Value)
-		}
+	// Create attributes map from tags if provided
+	var attributes map[uint32]*AnyValue
+	if len(tags) > 0 {
+		attributes = make(map[uint32]*AnyValue, len(tags))
 	}
+
+	// Create the Span with string references
+	span := &Span{
+		ServiceRef:  strings.Add(service),
+		NameRef:     strings.Add(name),
+		ResourceRef: strings.Add(resource),
+		TypeRef:     strings.Add(spanType),
+		SpanID:      rand.Uint64(),
+		ParentID:    parentID,
+		Start:       uint64(startTime),
+		Duration:    0, // Will be set when the span is completed
+		Attributes:  attributes,
+	}
+
+	// Create an InternalSpan
+	internalSpan := NewInternalSpan(strings, span)
+
+	for key, value := range tags {
+		// Set attributes using SetStringAttribute to maintain backwards compatibility
+		// for special tags like env, version, component, and span.kind
+		internalSpan.SetStringAttribute(key, value)
+	}
+
+	// Follow the legacy behavior of only setting the low 64 bits of the trace ID
+	traceIDBytes := make([]byte, 16)
+	binary.BigEndian.PutUint64(traceIDBytes[8:], rand.Uint64())
+
+	// Create and return the InternalTraceChunk with the single span
+	return NewInternalTraceChunk(
+		strings,
+		priority,
+		origin,
+		nil, // chunk-level attributes
+		[]*InternalSpan{internalSpan},
+		false, // droppedTrace
+		traceIDBytes,
+		0, // samplingMechanism
+	)
 }

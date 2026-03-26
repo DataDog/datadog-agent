@@ -1,0 +1,5 @@
+# DO NOT EDIT
+
+common --repo_env=GOPROXY
+common --repo_env=GONOSUMDB
+common --repo_env=GOPRIVATE

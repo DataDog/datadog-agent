@@ -11,7 +11,7 @@ package usersessions
 import (
 	"testing"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -25,6 +25,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 		expectedPort       string
 		expectedAuthMethod int
 		expectedPublicKey  string
+		expectedSSHDPid    string
 		shouldAddToLRU     bool
 	}{
 		{
@@ -34,6 +35,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 			expectedPort:       "38835",
 			expectedAuthMethod: int(usersession.SSHAuthMethodPublicKey),
 			expectedPublicKey:  "J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU",
+			expectedSSHDPid:    "1234",
 			shouldAddToLRU:     true,
 		},
 		{
@@ -43,6 +45,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 			expectedPort:       "38835",
 			expectedAuthMethod: int(usersession.SSHAuthMethodPublicKey),
 			expectedPublicKey:  "J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU",
+			expectedSSHDPid:    "5678",
 			shouldAddToLRU:     true,
 		},
 		{
@@ -52,6 +55,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 			expectedPort:       "12345",
 			expectedAuthMethod: int(usersession.SSHAuthMethodPassword),
 			expectedPublicKey:  "",
+			expectedSSHDPid:    "5678",
 			shouldAddToLRU:     true,
 		},
 		{
@@ -73,22 +77,19 @@ func Test_parseSSHLogLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lru, err := simplelru.NewLRU[SSHSessionKey, SSHSessionValue](100, nil)
+			sshSessionParsed, err := lru.New[SSHSessionKey, SSHSessionValue](100)
 			assert.NoError(t, err)
-
-			sshSessionParsed := &sshSessionParsed{
-				Lru: lru,
-			}
 
 			parseSSHLogLine(tt.logLine, sshSessionParsed)
 
 			if tt.shouldAddToLRU {
 				key := SSHSessionKey{
-					IP:   tt.expectedIP,
-					Port: tt.expectedPort,
+					SSHDPid: tt.expectedSSHDPid,
+					IP:      tt.expectedIP,
+					Port:    tt.expectedPort,
 				}
 
-				value, found := sshSessionParsed.Lru.Get(key)
+				value, found := sshSessionParsed.Get(key)
 				assert.True(t, found, "SSH Session must be in LRU")
 
 				if found {
@@ -96,7 +97,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 					assert.Equal(t, tt.expectedPublicKey, value.PublicKey, "Public key must match")
 				}
 			} else {
-				assert.Equal(t, 0, sshSessionParsed.Lru.Len(), "LRU must be empty")
+				assert.Equal(t, 0, sshSessionParsed.Len(), "LRU must be empty")
 			}
 		})
 	}

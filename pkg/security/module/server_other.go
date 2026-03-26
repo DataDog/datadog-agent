@@ -17,6 +17,7 @@ import (
 type sshSessionPatcher interface {
 	IsResolved() error
 	PatchEvent(_ interface{})
+	MaxRetry() int
 }
 
 // createSSHSessionPatcher creates a no-op patcher for other platforms
@@ -29,3 +30,5 @@ func (a *APIServer) collectOSReleaseData() {}
 func (a *APIServer) fillStatusPlatform(_ *api.Status) error {
 	return nil
 }
+
+func (a *APIServer) collectSBOMS() {}

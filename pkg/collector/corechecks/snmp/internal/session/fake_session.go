@@ -148,6 +148,11 @@ func (fs *FakeSession) GetVersion() gosnmp.SnmpVersion {
 	return gosnmp.Version3
 }
 
+// IsUnconnectedUDP returns false for FakeSession
+func (fs *FakeSession) IsUnconnectedUDP() bool {
+	return false
+}
+
 // Get gets the values for the given OIDs. OIDs not in the session will return
 // PDUs of type NoSuchObject.
 func (fs *FakeSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {

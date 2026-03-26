@@ -25,6 +25,7 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +40,6 @@ import (
 	"strings"
 	"time"
 
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/time/rate"
@@ -85,13 +85,18 @@ func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
+	options ...Option,
 ) (*ir.Program, error) {
-	elfFile, err := g.config.objectLoader.Load(binaryPath)
+	cfg := g.config
+	for _, option := range options {
+		option.apply(&cfg)
+	}
+	elfFile, err := cfg.objectLoader.Load(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load elf file: %w", err)
 	}
 	defer elfFile.Close()
-	return generateIR(g.config, programID, elfFile, probeDefs)
+	return generateIR(cfg, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
@@ -145,9 +150,9 @@ func generateIR(
 		switch r := r.(type) {
 		case nil:
 		case error:
-			retErr = pkgerrors.Wrap(r, "GenerateIR: panic")
+			retErr = fmt.Errorf("GenerateIR: panic: %w", r)
 		default:
-			retErr = pkgerrors.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
+			retErr = fmt.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 
@@ -240,6 +245,14 @@ func generateIR(
 	}
 	defer cleanupCloser(ib, "method index builder")()
 
+	// Build a set of additional type names requested via
+	// WithAdditionalTypes for efficient lookup during the gotype iteration.
+	additionalTypeSet := make(map[string]struct{}, len(cfg.additionalTypes))
+	for _, name := range cfg.additionalTypes {
+		additionalTypeSet[name] = struct{}{}
+	}
+
+	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
@@ -261,6 +274,30 @@ func generateIR(
 			)
 			continue
 		}
+
+		// If this type was requested as an additional type, resolve it to
+		// a DWARF offset and add it to the type catalog for exploration.
+		if len(additionalTypeSet) > 0 {
+			name := goType.Name().UnsafeName()
+			if _, requested := additionalTypeSet[name]; requested {
+				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+					t, addErr := typeCatalog.addType(dwarfOffset)
+					if addErr != nil {
+						log.Debugf(
+							"failed to add additional type %q at offset %#x: %v",
+							name, dwarfOffset, addErr,
+						)
+					} else {
+						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+							typeID: t.GetID(),
+							budget: additionalTypeBudget,
+						})
+					}
+				}
+				delete(additionalTypeSet, name)
+			}
+		}
+
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get methods: %w", err)
@@ -288,10 +325,10 @@ func generateIR(
 				pcRange: pcRange,
 			})
 		}
-		for _, inlined := range sp.inlinePCRanges {
-			for _, pcRange := range inlined.RootRanges {
+		for _, inlined := range sp.inlined {
+			for _, pcRange := range inlined.inlinedPCRanges.RootRanges {
 				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
-					unit:    sp.unit,
+					unit:    inlined.unit,
 					pcRange: pcRange,
 				})
 			}
@@ -362,6 +399,9 @@ func generateIR(
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
 	{
+		// Include types discovered at runtime via interface decoding.
+		explorationRoots = append(explorationRoots, additionalTypeRoots...)
+
 		// Specialize any already-added container types before traversal.
 		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
 			return nil, err
@@ -436,6 +476,19 @@ type analyzedExpression struct {
 	// For template segments, the segment reference and index.
 	segment    *ir.JSONSegment
 	segmentIdx int // -1 if not a segment
+
+	// For capture expressions, the user-specified name.
+	captureExprName string
+}
+
+// analyzedCondition represents a single condition clause that has been
+// parsed and matched to a variable. For simple conditions (eq), there
+// is one of these. Future compound conditions (and/or) will decompose
+// into multiple clauses, potentially targeting different events.
+type analyzedCondition struct {
+	expr         exprlang.Expr
+	rootVariable *ir.Variable
+	eventKind    ir.EventKind
 }
 
 // analyzedProbe holds all analyzed expressions for a single probe.
@@ -443,6 +496,17 @@ type analyzedProbe struct {
 	probe       *ir.Probe
 	expressions []analyzedExpression
 	template    *ir.Template
+
+	// Condition clauses, one per leaf equality in the condition tree.
+	// For simple eq conditions, len == 0 or 1.
+	// For future compound conditions, may have multiple entries
+	// potentially targeting different event kinds.
+	condition *analyzedCondition
+
+	// conditionIssue is set when condition analysis fails (parse error,
+	// unsupported expression type, variable not found, etc.). Reported as
+	// a probe issue by populateProbeExpressions.
+	conditionIssue ir.Issue
 
 	// Budget for type exploration.
 	budget uint32
@@ -460,6 +524,12 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			return e.Ref, true
 		case *exprlang.GetMemberExpr:
 			expr = e.Base
+		case *exprlang.LenExpr:
+			expr = e.Operand
+		case *exprlang.IsEmptyExpr:
+			expr = e.Operand
+		case *exprlang.EqExpr:
+			expr = e.Left
 		default:
 			return "", false
 		}
@@ -487,12 +557,14 @@ func analyzeAllProbes(
 
 	for _, probe := range probes {
 		budget := budgets[probe.Subprogram.ID]
-		isSnapshot := probe.GetKind() == ir.ProbeKindSnapshot
+		kind := probe.GetKind()
+		isSnapshot := kind == ir.ProbeKindSnapshot
+		isCaptureExpression := kind == ir.ProbeKindCaptureExpression
 
 		ap := analyzedProbe{
 			probe:      probe,
 			budget:     budget,
-			isSnapshot: isSnapshot,
+			isSnapshot: isSnapshot || isCaptureExpression,
 		}
 
 		// Build variable lookup for this probe's subprogram.
@@ -513,6 +585,12 @@ func analyzeAllProbes(
 		haveEntry := slices.ContainsFunc(probe.Events, isKind(ir.EventKindEntry))
 		haveReturn := slices.ContainsFunc(probe.Events, isKind(ir.EventKindReturn))
 
+		// isFloatType returns true if the variable has a float32 or float64 type.
+		isFloatType := func(v *ir.Variable) bool {
+			k, ok := v.Type.GetGoKind()
+			return ok && (k == reflect.Float32 || k == reflect.Float64)
+		}
+
 		// Check variable availability at injection points.
 		variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
 			locIdx := 0
@@ -527,6 +605,26 @@ func analyzeAllProbes(
 				}
 			}
 			return false
+		}
+
+		// floatIsRegisterOnly returns true if a float variable's locations
+		// at the given injection points consist exclusively of register pieces.
+		// Such variables cannot be read by the eBPF runtime.
+		floatIsRegisterOnly := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
+			locIdx := 0
+			for _, ip := range ips {
+				for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
+					locIdx++
+				}
+				if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
+					for _, piece := range v.Locations[locIdx].Pieces {
+						if _, isReg := piece.Op.(ir.Register); !isReg {
+							return false
+						}
+					}
+				}
+			}
+			return true
 		}
 
 		// Build segment references for matching.
@@ -546,6 +644,15 @@ func analyzeAllProbes(
 			}
 		}
 
+		// Extract entry injection points for float register checks.
+		var entryIPs []ir.InjectionPoint
+		for _, ev := range probe.Events {
+			if ev.Kind == ir.EventKindEntry {
+				entryIPs = ev.InjectionPoints
+				break
+			}
+		}
+
 		// Process each variable.
 		for _, v := range probe.Subprogram.Variables {
 			var evKind ir.EventKind
@@ -554,6 +661,9 @@ func analyzeAllProbes(
 			switch {
 			case haveEntry && v.Role == ir.VariableRoleParameter:
 				// The entry event for a method probe.
+				if isFloatType(v) && floatIsRegisterOnly(entryIPs, v) {
+					continue
+				}
 				evKind = ir.EventKindEntry
 				exprKind = ir.RootExpressionKindArgument
 
@@ -573,6 +683,9 @@ func analyzeAllProbes(
 				if !variableIsAvailable(ips, v) {
 					continue
 				}
+				if isFloatType(v) && floatIsRegisterOnly(ips, v) {
+					continue
+				}
 				// TODO: the exprKind should be argument for available arguments.
 				evKind = ir.EventKindLine
 				exprKind = ir.RootExpressionKindLocal
@@ -582,7 +695,9 @@ func analyzeAllProbes(
 			}
 
 			// For snapshot probes, add variable itself as an expression.
-			if isSnapshot {
+			// Capture expression probes only capture explicitly listed
+			// expressions (handled below), not all variables.
+			if isSnapshot && !isCaptureExpression {
 				ap.expressions = append(ap.expressions, analyzedExpression{
 					expr:         &exprlang.RefExpr{Ref: v.Name},
 					dsl:          v.Name,
@@ -619,13 +734,145 @@ func analyzeAllProbes(
 					segment:      seg.segment,
 					segmentIdx:   seg.index,
 				})
-				// Log probe: add root variable type to exploration roots.
-				if !isSnapshot {
+				// Log/capture-expression probe: add root variable type to exploration roots.
+				// For snapshot probes, the variable was already added above.
+				if !isSnapshot || isCaptureExpression {
 					addRoot(v.Type.GetID(), budget)
 				}
 			}
 			delete(segmentRefs, v.Name)
 		}
+
+		// Process capture expressions.
+		for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
+			parsedExpr, err := exprlang.Parse(ce.GetJSON())
+			if err != nil {
+				continue
+			}
+			rootVarName, ok := extractRootVariableName(parsedExpr)
+			if !ok {
+				continue
+			}
+			rootVar := varByName[rootVarName]
+			if rootVar == nil {
+				continue
+			}
+			var evKind ir.EventKind
+			switch {
+			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
+					continue
+				}
+				evKind = ir.EventKindEntry
+			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
+				evKind = ir.EventKindReturn
+			case haveReturn && rootVar.Role == ir.VariableRoleLocal:
+				evKind = ir.EventKindReturn
+			case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
+				if !variableIsAvailable(probe.Events[0].InjectionPoints, rootVar) {
+					continue
+				}
+				if isFloatType(rootVar) && floatIsRegisterOnly(probe.Events[0].InjectionPoints, rootVar) {
+					continue
+				}
+				evKind = ir.EventKindLine
+			default:
+				continue
+			}
+			ap.expressions = append(ap.expressions, analyzedExpression{
+				expr:            parsedExpr,
+				dsl:             ce.GetDSL(),
+				rootVariable:    rootVar,
+				eventKind:       evKind,
+				exprKind:        ir.RootExpressionKindCaptureExpression,
+				segmentIdx:      -1,
+				captureExprName: ce.GetName(),
+			})
+			addRoot(rootVar.Type.GetID(), budget)
+		}
+
+		// conditionEventKind determines which event kind a condition variable belongs
+		// to, using the same variable-role-to-event mapping as expression analysis.
+		conditionEventKind := func(
+			rootVar *ir.Variable,
+		) (ir.EventKind, bool) {
+			events := probe.Events
+			switch {
+			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
+					return 0, false
+				}
+				return ir.EventKindEntry, true
+			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
+				return ir.EventKindReturn, true
+			case haveReturn && rootVar.Role == ir.VariableRoleLocal:
+				return ir.EventKindReturn, true
+			case len(events) == 1 && events[0].Kind == ir.EventKindLine:
+				if !variableIsAvailable(events[0].InjectionPoints, rootVar) {
+					return 0, false
+				}
+				if isFloatType(rootVar) && floatIsRegisterOnly(events[0].InjectionPoints, rootVar) {
+					return 0, false
+				}
+				return ir.EventKindLine, true
+			default:
+				return 0, false
+			}
+		}
+
+		// Analyze condition expression.
+		ap.condition, ap.conditionIssue = func() (*analyzedCondition, ir.Issue) {
+			whenJSON := probe.ProbeDefinition.GetWhen()
+			if len(whenJSON) == 0 {
+				return nil, ir.Issue{}
+			}
+			condExpr, err := exprlang.Parse(whenJSON)
+			if err != nil {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("failed to parse condition: %v", err),
+				}
+			}
+			var rootExpr exprlang.Expr
+			switch ce := condExpr.(type) {
+			case *exprlang.EqExpr:
+				rootExpr = ce.Left
+			case *exprlang.IsEmptyExpr:
+				rootExpr = ce.Operand
+			default:
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
+				}
+			}
+			rootVarName, ok := extractRootVariableName(rootExpr)
+			if !ok {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: "failed to extract root variable from condition",
+				}
+			}
+			rootVar := varByName[rootVarName]
+			if rootVar == nil {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: fmt.Sprintf("condition variable %q not found", rootVarName),
+				}
+			}
+			evKind, ok := conditionEventKind(rootVar)
+			if !ok {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
+				}
+			}
+			addRoot(rootVar.Type.GetID(), budget)
+			return &analyzedCondition{
+				expr:         condExpr,
+				rootVariable: rootVar,
+				eventKind:    evKind,
+			}, ir.Issue{}
+		}()
 
 		// Mark unmatched segments as invalid.
 		for name, segs := range segmentRefs {
@@ -637,6 +884,19 @@ func analyzeAllProbes(
 			}
 		}
 
+		// Put the template segments first, so we explore their values earlier
+		// than snapshot values. If we're going to run out of space, we may as
+		// well do it for data that shows up below the fold rather than in the
+		// message.
+		exprKindToInt := func(kind ir.RootExpressionKind) int {
+			if kind == ir.RootExpressionKindTemplateSegment {
+				return 0
+			}
+			return 1
+		}
+		slices.SortStableFunc(ap.expressions, func(a, b analyzedExpression) int {
+			return cmp.Compare(exprKindToInt(a.exprKind), exprKindToInt(b.exprKind))
+		})
 		analyzed = append(analyzed, ap)
 	}
 
@@ -678,6 +938,9 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 						continue
 					}
 				case *exprlang.GetMemberExpr:
+				case *exprlang.LenExpr:
+				case *exprlang.IsEmptyExpr:
+				case *exprlang.EqExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -708,17 +971,32 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 
 // computeDepthBudgets returns the maximum reference depth per subprogram ID
 // across all probes configured for that subprogram.
+//
+// TODO: Taking the max of all per-expression capture configs as the probe-level
+// limit is a short-term solution. This should be updated with logic to set the
+// depth per expression underneath eBPF.
 func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint32 {
 	budgets := make(map[ir.SubprogramID]uint32, len(pending))
 	for _, p := range pending {
 		var maxDepth uint32
 		for _, cfg := range p.probesCfgs {
 			maxDepth = max(maxDepth, cfg.GetCaptureConfig().GetMaxReferenceDepth())
+			for _, ce := range cfg.GetCaptureExpressions() {
+				if ceCfg := ce.GetCaptureConfig(); ceCfg != nil {
+					maxDepth = max(maxDepth, ceCfg.GetMaxReferenceDepth())
+				}
+			}
 		}
 		budgets[p.id] = maxDepth
 	}
 	return budgets
 }
+
+// additionalTypeBudget is the exploration budget assigned to types discovered
+// at runtime through interface decoding and fed back via WithAdditionalTypes.
+// A budget of 3 is enough to resolve fields and one level of indirection
+// without being excessively expensive.
+const additionalTypeBudget = 3
 
 // explorationRoot represents a type that should be explored with a budget.
 type explorationRoot struct {
@@ -1317,7 +1595,12 @@ func materializePending(
 			ID:                p.id,
 			Name:              p.name,
 			OutOfLinePCRanges: p.outOfLinePCRanges,
-			InlinePCRanges:    p.inlinePCRanges,
+		}
+		for _, inlined := range p.inlined {
+			if len(inlined.inlinedPCRanges.Ranges) == 0 {
+				continue
+			}
+			sp.InlinePCRanges = append(sp.InlinePCRanges, inlined.inlinedPCRanges)
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
@@ -1671,7 +1954,6 @@ type pendingSubprogram struct {
 	variables         []*dwarf.Entry
 	name              string
 	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
 
 	// Inlined instances associated with this (abstract) subprogram.
 	inlined    []*inlinedSubprogram
@@ -2069,7 +2351,6 @@ type abstractSubprogram struct {
 	name       string
 	// Aggregated ranges from out-of-line and inlined instances.
 	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
 	// Variables defined under the abstract DIE keyed by DIE offset.
 	variables map[dwarf.Offset]*dwarf.Entry
 	// Inlined instances discovered for this abstract subprogram.
@@ -2101,6 +2382,7 @@ func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 }
 
 type inlinedSubprogram struct {
+	unit           *dwarf.Entry
 	abstractOrigin dwarf.Offset
 	// Exactly one of the following is non-nil. If this is an out-of-line instance,
 	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
@@ -2196,11 +2478,11 @@ func convertAbstractSubprogramsToPending(
 			RootRanges: ctx.rootRanges,
 		}
 		abs.inlined = append(abs.inlined, &inlinedSubprogram{
+			unit:            ctx.unitEntry,
 			abstractOrigin:  ctx.abstractOrigin,
 			inlinedPCRanges: ranges,
 			variables:       ctx.variables,
 		})
-		abs.inlinePCRanges = append(abs.inlinePCRanges, ranges)
 	}
 
 	for ctx, err := range iterConcreteSubprograms(
@@ -2231,6 +2513,7 @@ func convertAbstractSubprogramsToPending(
 			continue
 		}
 		outOfLine := &inlinedSubprogram{
+			unit:              ctx.unitEntry,
 			abstractOrigin:    ctx.abstractOrigin,
 			outOfLinePCRanges: ctx.entryRanges,
 			variables:         ctx.variables,
@@ -2260,7 +2543,6 @@ func convertAbstractSubprogramsToPending(
 			subprogramEntry:   nil,
 			name:              abs.name,
 			outOfLinePCRanges: abs.outOfLinePCRanges,
-			inlinePCRanges:    abs.inlinePCRanges,
 			inlined:           abs.inlined,
 			variables:         varVars,
 			probesCfgs:        abs.probesCfgs,
@@ -2280,6 +2562,7 @@ func convertAbstractSubprogramsToPending(
 // contains it.
 type concreteSubprogramContext struct {
 	abstractOrigin dwarf.Offset
+	unitEntry      *dwarf.Entry
 	entry          *dwarf.Entry
 	entryRanges    []ir.PCRange
 	reader         *dwarf.Reader
@@ -2337,6 +2620,7 @@ func iterConcreteSubprograms(
 ) iter.Seq2[concreteSubprogramContext, error] {
 	var (
 		unitIdx               int
+		unitEntry             *dwarf.Entry
 		concreteSubprogramIdx int
 		currentSubprogram     struct {
 			offset dwarf.Offset
@@ -2357,6 +2641,7 @@ func iterConcreteSubprograms(
 			(unitIdx+1 >= len(units) || units[unitIdx+1] > refOffset) {
 			return nil // no advancement needed
 		}
+		unitEntry = nil
 		found, _ := slices.BinarySearch(units[unitIdx:], refOffset)
 		if found == 0 {
 			return fmt.Errorf("ref %#x precedes first unit", refOffset)
@@ -2364,7 +2649,8 @@ func iterConcreteSubprograms(
 		unitIdx += found - 1
 		reader = d.Reader()
 		reader.Seek(units[unitIdx])
-		if _, err := reader.Next(); err != nil {
+		var err error
+		if unitEntry, err = reader.Next(); err != nil {
 			return fmt.Errorf("failed to get next entry: %w", err)
 		}
 		return nil
@@ -2488,6 +2774,7 @@ func iterConcreteSubprograms(
 				entry:          entry,
 				entryRanges:    inlinedPCRanges,
 				variables:      variableVisitor.variableEntries,
+				unitEntry:      unitEntry,
 			}, nil) {
 				return
 			}
@@ -2903,6 +3190,34 @@ func exploreTypesForExpressions(
 				expr.rootVariable = nil
 			}
 		}
+
+		// Validate condition types.
+		if cond := ap.condition; cond != nil {
+			var condExploreExpr exprlang.Expr
+			switch ce := cond.expr.(type) {
+			case *exprlang.EqExpr:
+				condExploreExpr = ce.Left
+			case *exprlang.IsEmptyExpr:
+				condExploreExpr = ce.Operand
+			default:
+				ap.conditionIssue = ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("unsupported condition expression type: %T", cond.expr),
+				}
+				ap.condition = nil
+			}
+			if condExploreExpr != nil {
+				if _, err := exploreExpressionTypes(
+					condExploreExpr, cond.rootVariable.Type, tc, "",
+				); err != nil {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: fmt.Sprintf("condition type exploration failed: %v", err),
+					}
+					ap.condition = nil
+				}
+			}
+		}
 	}
 }
 
@@ -3090,11 +3405,126 @@ func exploreExpressionTypes(
 		}
 
 		return curType, nil
+	case *exprlang.LenExpr:
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+
+	case *exprlang.IsEmptyExpr:
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+
+	case *exprlang.EqExpr:
+		// Resolve the left and right expressions.
+		_, err := exploreExpressionTypes(e.Left, currentType, tc, exprPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := e.Right.(*exprlang.LiteralExpr); !ok {
+			return nil, fmt.Errorf("right expression is not a literal: %T", e.Right)
+		}
+		if tc.boolType == 0 {
+			return nil, errors.New("bool type not found")
+		}
+		return tc.typesByID[tc.boolType], nil
 
 	default:
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
 	}
+}
+
+// exploreLenExprTypes explores types for a len/isEmpty operand, resolving
+// through pointers and validating the collection type has a length field.
+func exploreLenExprTypes(
+	operand exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	// Explore the operand to resolve its type.
+	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Look up the canonical type from the catalog (may have been promoted
+	// from StructureType to GoStringHeaderType etc. by completeGoTypes).
+	resolvedType = tc.typesByID[resolvedType.GetID()]
+
+	// Unwrap GoMapType to its header type (maps are pointers to headers).
+	_, isMap := resolvedType.(*ir.GoMapType)
+	resolvedType = unwrapMapType(resolvedType, tc)
+
+	// If result is a pointer, dereference to get the collection type.
+	if ptrType, ok := resolvedType.(*ir.PointerType); ok {
+		pointee := ptrType.Pointee
+		pointee = tc.typesByID[pointee.GetID()]
+		if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+			newT, err := tc.addType(ppt.offset)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve pointee for len: %w", err)
+			}
+			resolvedType = newT
+		} else {
+			resolvedType = pointee
+		}
+	}
+
+	// Get the struct and field for the length.
+	structType, fieldName, err := lenFieldInfo(resolvedType)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := field(tc, structType, fieldName)
+	if err != nil {
+		return nil, fmt.Errorf("len field lookup failed: %w", err)
+	}
+
+	// Normalize map count types to uint64 for consistency across
+	// Go versions and architectures.
+	if isMap && tc.uint64Type != 0 {
+		return tc.typesByID[tc.uint64Type], nil
+	}
+	return f.Type, nil
+}
+
+// lenFieldInfo maps a collection type to the struct and field name containing
+// its length.
+func lenFieldInfo(typ ir.Type) (*ir.StructureType, string, error) {
+	switch t := typ.(type) {
+	case *ir.GoStringHeaderType:
+		return t.StructureType, "len", nil
+	case *ir.GoSliceHeaderType:
+		return t.StructureType, "len", nil
+	case *ir.GoHMapHeaderType:
+		return t.StructureType, "count", nil
+	case *ir.GoSwissMapHeaderType:
+		return t.StructureType, "used", nil
+	default:
+		var kindString string
+		if kind, ok := typ.GetGoKind(); ok {
+			kindString = kind.String()
+		} else {
+			// It's not clear how one could get here, but just in case
+			// we'll state the name of internal ir type. It might help
+			// debug the situation.
+			kindString = reflect.TypeOf(typ).Name()
+		}
+		return nil, "", fmt.Errorf(
+			"len/isEmpty not supported on type %q (%s)",
+			typ.GetName(), kindString,
+		)
+	}
+}
+
+// unwrapMapType returns the map's header type if typ is a GoMapType, otherwise
+// returns typ unchanged. GoMapType is an IR-level wrapper that hides the
+// pointer-to-header representation of Go maps; callers that need the header
+// (e.g. len/isEmpty) must see through it.
+func unwrapMapType(typ ir.Type, tc *typeCatalog) ir.Type {
+	if m, ok := typ.(*ir.GoMapType); ok {
+		return tc.typesByID[m.HeaderType.GetID()]
+	}
+	return typ
 }
 
 // resolveExpression resolves an expression AST to an IR Expression.
@@ -3160,6 +3590,8 @@ func resolveExpression(
 				}
 
 				// Check for unresolved pointee.
+				// TODO: Is this possible? It shouldn't be if we explored the
+				// expression correctly.
 				if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
 					return ir.Expression{}, fmt.Errorf(
 						"cannot resolve expression: pointee type %q not explored",
@@ -3238,6 +3670,7 @@ func resolveExpression(
 		}
 
 		// Final dereference if result is a pointer.
+		// TODO: should this deal with multiple levels of pointers like ***int?
 		if ptrType, ok := currentType.(*ir.PointerType); ok {
 			// Check for void pointer.
 			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
@@ -3276,11 +3709,449 @@ func resolveExpression(
 			Operations: operations,
 		}, nil
 
+	case *exprlang.LenExpr:
+		return resolveLenExpression(e.Operand, rootVar, tc)
+
+	case *exprlang.IsEmptyExpr:
+		return resolveIsEmptyComparison(e, rootVar, tc)
+
+	case *exprlang.EqExpr:
+		lhsExpr, err := resolveExpression(e.Left, rootVar, tc)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("failed to resolve eq LHS: %w", err)
+		}
+		litExpr, ok := e.Right.(*exprlang.LiteralExpr)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"unsupported eq RHS type: %T (only literals are supported)",
+				e.Right,
+			)
+		}
+		return resolveEqComparison(lhsExpr, litExpr, tc)
+
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// resolveLenExpression resolves a len/isEmpty operand to an IR expression
+// that reads the length field from the collection header.
+func resolveLenExpression(
+	operand exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Resolve the operand expression.
+	baseExpr, err := resolveExpression(operand, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve len operand: %w", err)
+	}
+
+	currentType := tc.typesByID[baseExpr.Type.GetID()]
+	operations := baseExpr.Operations
+
+	// GoMapType is a pointer to a map header; unwrap and dereference.
+	isMap := false
+	if m, ok := currentType.(*ir.GoMapType); ok {
+		isMap = true
+		headerType := tc.typesByID[m.HeaderType.GetID()]
+		operations = append(operations, &ir.DereferenceOp{
+			Bias:     0,
+			ByteSize: headerType.GetByteSize(),
+		})
+		currentType = headerType
+	}
+
+	// If the resolved type is a pointer to a collection, dereference it.
+	if _, ok := currentType.(*ir.PointerType); ok {
+		pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("failed to resolve pointee for len: %w", err)
+		}
+
+		pointeeSize := pointee.GetByteSize()
+		operations = append(operations, &ir.DereferenceOp{
+			Bias:     0,
+			ByteSize: pointeeSize,
+		})
+		currentType = tc.typesByID[pointee.GetID()]
+	}
+
+	// Look up the length field info.
+	structType, fieldName, err := lenFieldInfo(currentType)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+
+	f, err := field(tc, structType, fieldName)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("len field %q not found: %w", fieldName, err)
+	}
+
+	// Adjust the operations to read just the length field.
+	// This follows the same pattern as GetMemberExpr field access.
+	if len(operations) >= 1 {
+		lastOp := operations[len(operations)-1]
+		switch op := lastOp.(type) {
+		case *ir.LocationOp:
+			op.Offset += f.Offset
+			op.ByteSize = f.Type.GetByteSize()
+		case *ir.DereferenceOp:
+			op.Bias += f.Offset
+			op.ByteSize = f.Type.GetByteSize()
+		}
+	}
+
+	// Map count fields have varying types across Go versions and architectures
+	// (int vs uint64 etc.). Normalize to uint64 so that snapshots and
+	// downstream consumers see a consistent type. Note that it's only for the
+	// old hmap's that its an int and not a uint64.
+	exprType := f.Type
+	if isMap && tc.uint64Type != 0 {
+		exprType = tc.typesByID[tc.uint64Type]
+	}
+
+	return ir.Expression{
+		Type:       exprType,
+		Operations: operations,
+	}, nil
+}
+
+// coerceLiteral encodes a literal value into bytes matching the target type's
+// kind and size. It handles coercion between JSON literal types (int64, float64,
+// string, bool) and Go variable types, including string-to-numeric parsing for
+// values that exceed JSON's float64 precision (>2^53) or need hex/octal/binary
+// notation.
+func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte, error) {
+	litData := make([]byte, byteSize)
+
+	// Helper to determine if a kind is unsigned integer.
+	isUnsigned := func(k reflect.Kind) bool {
+		switch k {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			return true
+		default:
+			return false
+		}
+	}
+
+	// Helper to determine if a kind is any integer (signed or unsigned).
+	isInteger := func(k reflect.Kind) bool {
+		switch k {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			return true
+		default:
+			return false
+		}
+	}
+
+	// Helper to determine if a kind is a float.
+	isFloat := func(k reflect.Kind) bool {
+		return k == reflect.Float32 || k == reflect.Float64
+	}
+
+	// encodeInt encodes an int64 into litData at the given byte size.
+	encodeInt := func(v int64) {
+		switch byteSize {
+		case 1:
+			litData[0] = byte(v)
+		case 2:
+			binary.LittleEndian.PutUint16(litData, uint16(v))
+		case 4:
+			binary.LittleEndian.PutUint32(litData, uint32(v))
+		case 8:
+			binary.LittleEndian.PutUint64(litData, uint64(v))
+		}
+	}
+
+	// encodeUint encodes a uint64 into litData at the given byte size.
+	encodeUint := func(v uint64) {
+		switch byteSize {
+		case 1:
+			litData[0] = byte(v)
+		case 2:
+			binary.LittleEndian.PutUint16(litData, uint16(v))
+		case 4:
+			binary.LittleEndian.PutUint32(litData, uint32(v))
+		case 8:
+			binary.LittleEndian.PutUint64(litData, v)
+		}
+	}
+
+	// encodeFloat encodes a float64 into litData at the given byte size.
+	encodeFloat := func(v float64) error {
+		switch byteSize {
+		case 4:
+			binary.LittleEndian.PutUint32(litData, math.Float32bits(float32(v)))
+		case 8:
+			binary.LittleEndian.PutUint64(litData, math.Float64bits(v))
+		default:
+			return fmt.Errorf("condition: float with unsupported size %d", byteSize)
+		}
+		return nil
+	}
+
+	bitSize := int(byteSize * 8)
+
+	// checkInt validates that v fits in the target integer and encodes it.
+	checkInt := func(v int64) error {
+		if isUnsigned(targetKind) {
+			if v < 0 || (bitSize < 64 && uint64(v) >= 1<<bitSize) {
+				return fmt.Errorf(
+					"condition: literal %d out of range for %v (%d-bit)",
+					v, targetKind, bitSize,
+				)
+			}
+			encodeUint(uint64(v))
+		} else {
+			minVal := -(int64(1) << (bitSize - 1))
+			maxVal := int64(1)<<(bitSize-1) - 1
+			if v < minVal || v > maxVal {
+				return fmt.Errorf(
+					"condition: literal %d out of range for %v (%d-bit)",
+					v, targetKind, bitSize,
+				)
+			}
+			encodeInt(v)
+		}
+		return nil
+	}
+
+	switch v := value.(type) {
+	case int64:
+		switch {
+		case isInteger(targetKind):
+			if err := checkInt(v); err != nil {
+				return nil, err
+			}
+		case isFloat(targetKind):
+			return litData, encodeFloat(float64(v))
+		default:
+			return nil, fmt.Errorf(
+				"condition: int64 literal incompatible with target kind %v",
+				targetKind,
+			)
+		}
+
+	case float64:
+		switch {
+		case isFloat(targetKind):
+			return litData, encodeFloat(v)
+		case isInteger(targetKind):
+			if v != math.Trunc(v) {
+				return nil, fmt.Errorf(
+					"condition: non-integer float64 %v cannot be coerced to %v",
+					v, targetKind,
+				)
+			}
+			if err := checkInt(int64(v)); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf(
+				"condition: float64 literal incompatible with target kind %v",
+				targetKind,
+			)
+		}
+
+	case bool:
+		if v {
+			litData[0] = 1
+		}
+
+	case string:
+		// String-to-numeric coercion: parse the string as a number.
+		// Base 0 gives hex (0xff), octal (0o77), binary (0b1010) for free.
+		switch {
+		case isUnsigned(targetKind):
+			u, err := strconv.ParseUint(v, 0, bitSize)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"condition: string %q cannot be parsed as %v: %w",
+					v, targetKind, err,
+				)
+			}
+			encodeUint(u)
+		case isInteger(targetKind):
+			i, err := strconv.ParseInt(v, 0, bitSize)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"condition: string %q cannot be parsed as %v: %w",
+					v, targetKind, err,
+				)
+			}
+			encodeInt(i)
+		case isFloat(targetKind):
+			f, err := strconv.ParseFloat(v, bitSize)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"condition: string %q cannot be parsed as %v: %w",
+					v, targetKind, err,
+				)
+			}
+			return litData, encodeFloat(f)
+		default:
+			return nil, fmt.Errorf(
+				"condition: string literal incompatible with target kind %v", targetKind,
+			)
+		}
+
+	default:
+		return nil, fmt.Errorf(
+			"condition: unsupported literal type %T for base type comparison", value,
+		)
+	}
+
+	return litData, nil
+}
+
+// resolveEqComparison builds comparison ops for an equality check.
+// Returns a bool-typed Expression without ConditionCheckOp.
+func resolveEqComparison(
+	lhsExpr ir.Expression,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lhsType := lhsExpr.Type
+	ops := lhsExpr.Operations
+
+	// Check if LHS is a string type.
+	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
+		// String equality comparison.
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: string variable compared with non-string literal %T",
+				litExpr.Value,
+			)
+		}
+		if len(litStr) > ir.MaxStringLiteralLength {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: string literal too long (%d bytes, max %d)",
+				len(litStr), ir.MaxStringLiteralLength,
+			)
+		}
+
+		// Read the string content from userspace.
+		ops = append(ops, &ir.ExprReadStringOp{MaxLen: ir.MaxStringLiteralLength})
+
+		// Load the literal as [u32 len][bytes...].
+		litData := make([]byte, 4+len(litStr))
+		binary.LittleEndian.PutUint32(litData[:4], uint32(len(litStr)))
+		copy(litData[4:], litStr)
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare strings.
+		ops = append(ops, &ir.ExprCmpEqStringOp{})
+	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
+		// Base type equality comparison.
+		byteSize := baseType.GetByteSize()
+		if byteSize > 8 {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: base type too large for comparison (%d bytes)",
+				byteSize,
+			)
+		}
+
+		// Push LHS offset and advance.
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
+
+		// Determine target kind for coercion.
+		targetKind := reflect.Invalid
+		if goKind, ok := baseType.GetGoKind(); ok {
+			targetKind = goKind
+		}
+
+		// Encode the literal value with type coercion.
+		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare base values.
+		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+	} else {
+		return ir.Expression{}, fmt.Errorf(
+			"eq: unsupported LHS type %T for equality comparison",
+			lhsType,
+		)
+	}
+
+	boolType := tc.typesByID[tc.boolType]
+	return ir.Expression{Type: boolType, Operations: ops}, nil
+}
+
+// resolveIsEmptyComparison resolves isEmpty(x) as len(x) == 0, returning a
+// bool-typed Expression without ConditionCheckOp.
+func resolveIsEmptyComparison(
+	ie *exprlang.IsEmptyExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lenExpr, err := resolveLenExpression(ie.Operand, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
+	}
+	zeroLit := &exprlang.LiteralExpr{Value: int64(0)}
+	return resolveEqComparison(lenExpr, zeroLit, tc)
+}
+
+// resolveCondition resolves a condition expression AST into an IR Expression
+// that evaluates to bool. Only eq comparisons with literal values are supported.
+func resolveCondition(
+	condExpr exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	// Handle isEmpty as a standalone condition: semantically len(x) == 0.
+	if ie, ok := condExpr.(*exprlang.IsEmptyExpr); ok {
+		return resolveIsEmptyCondition(ie, rootVar, tc)
+	}
+
+	eqExpr, ok := condExpr.(*exprlang.EqExpr)
+	if !ok {
+		return nil, fmt.Errorf("unsupported condition expression type: %T", condExpr)
+	}
+
+	// Resolve the LHS operand (must be a variable reference).
+	lhsExpr, err := resolveExpression(eqExpr.Left, rootVar, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
+	}
+
+	// Get the RHS literal.
+	litExpr, ok := eqExpr.Right.(*exprlang.LiteralExpr)
+	if !ok {
+		return nil, fmt.Errorf(
+			"unsupported condition RHS type: %T (only literals are supported)",
+			eqExpr.Right,
+		)
+	}
+
+	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
+	if err != nil {
+		return nil, err
+	}
+	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
+	return &expr, nil
+}
+
+// resolveIsEmptyCondition resolves an isEmpty condition: semantically len(x) == 0.
+func resolveIsEmptyCondition(
+	ie *exprlang.IsEmptyExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	expr, err := resolveIsEmptyComparison(ie, rootVar, tc)
+	if err != nil {
+		return nil, err
+	}
+	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
+	return &expr, nil
 }
 
 func populateProbeEventsExpressions(
@@ -3307,7 +4178,25 @@ func populateProbeExpressions(
 	ap *analyzedProbe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
+	// Report condition analysis failures recorded during analyzeAllProbes
+	// or exploreTypesForExpressions.
+	if !ap.conditionIssue.IsNone() {
+		return ap.conditionIssue
+	}
+
 	for _, event := range probe.Events {
+		// Resolve condition for the matching event only.
+		if cond := ap.condition; cond != nil && cond.eventKind == event.Kind {
+			resolved, err := resolveCondition(cond.expr, cond.rootVariable, typeCatalog)
+			if err != nil {
+				return ir.Issue{
+					Kind:    ir.IssueKindConditionExpressionUnresolvable,
+					Message: fmt.Sprintf("failed to resolve condition: %v", err),
+				}
+			}
+			event.Condition = resolved
+		}
+
 		issue := populateEventExpressions(probe, event, ap, typeCatalog)
 		if !issue.IsNone() {
 			return issue
@@ -3355,14 +4244,18 @@ func populateEventExpressions(
 			seg.EventExpressionIndex = len(expressions)
 		}
 
+		name := expr.dsl
+		if expr.captureExprName != "" {
+			name = expr.captureExprName
+		}
 		expressions = append(expressions, &ir.RootExpression{
-			Name:       expr.dsl,
+			Name:       name,
 			Offset:     uint32(0),
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
 		})
 	}
-	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+	presenceBitsetSize := uint32((2*len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
 		e.Offset = uint32(byteSize)
@@ -3798,7 +4691,10 @@ func disassembleAmd64Function(
 		}
 		if !frameless &&
 			instruction.Op == x86asm.POP && instruction.Args[0] == x86asm.RBP &&
-			prevInst.Op == x86asm.ADD && prevInst.Args[0] == x86asm.RSP {
+			// Sometimes we see negative subtractions instead of additions,
+			// but at the time of writing, not sure why.
+			((prevInst.Op == x86asm.ADD || prevInst.Op == x86asm.SUB) &&
+				prevInst.Args[0] == x86asm.RSP) {
 
 			epilogueStart := addr + uint64(offset) - uint64(prevInst.Len)
 			maybeRet, err := x86asm.Decode(body[offset+instruction.Len:], 64)
@@ -3829,9 +4725,9 @@ func disassembleAmd64Function(
 					}
 				}
 			}
-			offset += nopLen + instruction.Len
 			instruction = maybeRet
 			if instruction.Op == x86asm.RET && collectReturnLocations {
+				offset += nopLen + instruction.Len
 				returnLocations = append(returnLocations, ir.InjectionPoint{
 					PC:                  epilogueStart,
 					Frameless:           frameless,
@@ -3929,22 +4825,41 @@ func collectLineDataForRange(
 	lineReader *dwarf.LineReader, r ir.PCRange,
 ) lineData {
 	var lineEntry dwarf.LineEntry
+	// Save position before seeking. Line tables are state-machine encoded and
+	// only support efficient forward iteration; seeking backward requires
+	// restarting from the beginning. By saving our position (which is already
+	// in the correct compile unit), we can restore it cheaply if SeekPC fails.
 	prevPos := lineReader.Tell()
-	// In general, SeekPC is not the function we're looking for.  We
-	// want to seek to the next line entry that's in the range but
-	// not necessarily the first one. We add some hacks here that
-	// work unless we're at the beginning of a sequence.
+	// SeekPC finds the line table entry covering a given PC, but we need the
+	// first entry whose address is >= r[0], which may be different. SeekPC
+	// also fails for PCs in "holes" - addresses not covered by any line table
+	// sequence.
 	//
-	// TODO: Find a way to seek to the first entry in a range rather
-	// than just
+	// DWARF line tables consist of sequences, each covering a contiguous PC
+	// range. A sequence is a state-machine-encoded log mapping PCs to source
+	// locations (file, line, column). Holes exist between sequences or at
+	// their boundaries.
+	//
+	// TODO: Find a way to seek to the first entry in a range rather than just
+	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// If we find that we have a hole, then we'll have our hands on
-	// a reader that's positioned after our PC. We can then seek to
-	// the instruction prior to that which should be in range of a
-	// real sequence. This is grossly inefficient.
+	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
+	// is experimentally observed to be left positioned at a preceding
+	// end_sequence marker. If that marker's address is at or before r[0],
+	// we can recover by:
+	//   1. Reading the next entry to find where the next sequence starts
+	//   2. Restoring the reader to prevPos (since seeking backward through
+	//      line tables is very inefficient - it requires restarting from
+	//      the beginning of the table)
+	//   3. Seeking to (next_address - 1) to land within the prior entry
+	//   4. If that puts us at an address >= r[0], we've found valid data
+	//
+	// The -1 works because lineEntry.Address marks an entry's start, so
+	// (address - 1) falls within the previous entry's range, and SeekPC
+	// will position us at that entry's start (a valid instruction boundary).
 	if err != nil &&
 		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address < r[0] {
+		lineEntry.Address <= r[0] {
 		nextErr := lineReader.Next(&lineEntry)
 		if nextErr == nil {
 			lineReader.Seek(prevPos)
@@ -3955,9 +4870,9 @@ func collectLineDataForRange(
 		}
 	}
 	if err != nil {
-		// Reset the reader to the previous position which is more efficient
-		// than starting from 0 for the next seek given the caller is exploring
-		// in PC order.
+		// Restore the reader to prevPos so the next call to this function
+		// can seek forward efficiently. The caller explores ranges in PC
+		// order, so prevPos is likely close to the next range we'll query.
 		lineReader.Seek(prevPos)
 		return lineData{err: err}
 	}
@@ -4120,7 +5035,7 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
 		switch probe.GetKind() {
-		case ir.ProbeKindSnapshot:
+		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
 		default:
 			issues = append(issues, ir.ProbeIssue{

@@ -21,7 +21,8 @@ var (
 	UnknownCommand = CommandType(0x0)
 	GetCommand     = CommandType(0x1)
 	SetCommand     = CommandType(0x2)
-	maxCommand     = CommandType(0x3)
+	PingCommand    = CommandType(0x3)
+	maxCommand     = CommandType(0x4)
 )
 
 type EbpfEvent struct {

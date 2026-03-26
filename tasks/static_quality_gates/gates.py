@@ -406,32 +406,38 @@ class DockerArtifactMeasurer:
 
     def _calculate_image_disk_size(self, ctx: Context, image_url: str) -> int:
         """Calculate Docker image uncompressed size by pulling and extracting"""
-        # Pull image locally to get on disk size
-        crane_output = ctx.run(f"crane pull {image_url} output.tar", warn=True)
-        if crane_output.exited != 0:
-            raise InfraError(f"Crane pull failed to retrieve {image_url}. Retrying... (infra flake)")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_tar = os.path.join(tmpdir, "output.tar")
+            # Pull image locally to get on disk size
+            crane_output = ctx.run(f"crane pull {image_url} {output_tar}", warn=True)
+            if crane_output.exited != 0:
+                raise InfraError(f"Crane pull failed to retrieve {image_url}. Retrying... (infra flake)")
 
-        # Extract and calculate uncompressed size
-        ctx.run("tar -xf output.tar")
-        image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True).stdout.splitlines()
+            # Extract and calculate uncompressed size
+            ctx.run(f"tar -xf {output_tar} -C {tmpdir}")
+            image_content = ctx.run(
+                f"tar -tvf {output_tar} | awk -F' ' '{{print $3; print $6}}'", hide=True
+            ).stdout.splitlines()
 
-        on_disk_size = 0
-        image_tar_gz = []
+            on_disk_size = 0
+            image_tar_gz = []
 
-        for k, line in enumerate(image_content):
-            if k % 2 == 0:
-                if "tar.gz" in image_content[k + 1]:
-                    image_tar_gz.append(image_content[k + 1])
-                else:
-                    on_disk_size += int(line)
+            for k, line in enumerate(image_content):
+                if k % 2 == 0:
+                    if "tar.gz" in image_content[k + 1]:
+                        image_tar_gz.append(image_content[k + 1])
+                    else:
+                        on_disk_size += int(line)
 
-        if image_tar_gz:
-            for image in image_tar_gz:
-                on_disk_size += int(ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
-        else:
-            print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
+            if image_tar_gz:
+                for image in image_tar_gz:
+                    on_disk_size += int(
+                        ctx.run(f"tar -xf {os.path.join(tmpdir, image)} --to-stdout | wc -c", hide=True).stdout
+                    )
+            else:
+                print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
 
-        return on_disk_size
+            return on_disk_size
 
 
 class StaticQualityGate:
@@ -714,6 +720,28 @@ class GateMetricHandler:
         with open(filename) as f:
             self.metrics = json.load(f)
 
+    def _should_skip_send_metrics(self) -> bool:
+        """
+        Check if we should skip sending SQG metrics to Datadog.
+
+        On main branch, we only want to send metrics for push pipelines
+        (not for manually triggered, downstream, or scheduled pipelines).
+
+        This is to avoid sending metrics for pipelines that override
+        integrations-core version that leads to inconsistent metrics.
+
+        Returns:
+            True if metrics should be skipped, False otherwise.
+        """
+        branch = os.getenv("CI_COMMIT_BRANCH", "")
+        pipeline_source = os.getenv("CI_PIPELINE_SOURCE", "")
+
+        # On main branch, only allow push pipelines to send metrics
+        if branch == "main" and pipeline_source != "push":
+            return True
+
+        return False
+
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
         metric_value = self.metrics[gate].get(metric_key)
         if metric_value is not None:
@@ -727,46 +755,66 @@ class GateMetricHandler:
             )
         return None
 
-    def generate_relative_size(
-        self, ctx, filename="static_gate_report.json", report_path="static_gate_report.json", ancestor=None
-    ):
-        if ancestor:
-            # Fetch the ancestor's static quality gates report json file
-            out = ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.S3_REPORT_PATH}/{ancestor}/{filename} {report_path}",
-                hide=True,
-                warn=True,
-            )
-            if out.exited == 0:
-                # Load the report inside of a GateMetricHandler specific to the ancestor
-                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, report_path)
-                for gate in self.metrics:
-                    ancestor_gate = ancestor_metric_handler.metrics.get(gate)
-                    if not ancestor_gate:
-                        continue
-                    # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
-                    for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
-                        current_value = self.metrics[gate].get(metric_key)
-                        ancestor_value = ancestor_gate.get(metric_key)
-                        if current_value is not None and ancestor_value is not None:
-                            relative_metric_size = current_value - ancestor_value
-                            self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
-            else:
-                print(
-                    color_message(
-                        f"[WARN] Unable to fetch quality gates {report_path} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
-                        "orange",
-                    )
+    def generate_relative_size(self, ancestor=None):
+        """
+        Calculate relative sizes by querying Datadog for ancestor metrics.
+
+        Args:
+            ancestor: The ancestor commit SHA to compare against
+        """
+        import time
+
+        from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
+
+        if not ancestor:
+            print(color_message("[WARN] Unable to find this commit ancestor", "orange"))
+            return
+
+        # Query Datadog once for all gates
+        ancestor_metrics = query_gate_metrics_for_commit(ancestor)
+
+        # Retry once after delay if no metrics found (race condition with ancestor job)
+        if not ancestor_metrics:
+            print(
+                color_message(
+                    "[INFO] No ancestor metrics found, waiting 3 minutes for metrics to be available...",
+                    "blue",
                 )
+            )
+            time.sleep(180)  # 3 minutes
+            ancestor_metrics = query_gate_metrics_for_commit(ancestor)
+
+        datadog_gates_found = 0
+        for gate in self.metrics:
+            ancestor_gate = ancestor_metrics.get(gate)
+
+            if ancestor_gate:
+                datadog_gates_found += 1
+                # Calculate relative sizes using Datadog data
+                for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
+                    current_value = self.metrics[gate].get(metric_key)
+                    ancestor_value = ancestor_gate.get(metric_key)
+                    if current_value is not None and ancestor_value is not None:
+                        relative_metric_size = current_value - ancestor_value
+                        self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
+
+        if datadog_gates_found == 0:
+            print(
+                color_message(
+                    f"[WARN] No Datadog metrics found for ancestor {ancestor}",
+                    "orange",
+                )
+            )
         else:
             print(
                 color_message(
-                    "[WARN] Unable to find this commit ancestor",
-                    "orange",
+                    f"[INFO] Successfully fetched ancestor metrics from Datadog for {datadog_gates_found} gate(s)",
+                    "green",
                 )
             )
 
     def _generate_series(self):
+        """Generate metric series for sending to Datadog."""
         if not self.git_ref or not self.bucket_branch:
             return None
 
@@ -789,14 +837,6 @@ class GateMetricHandler:
                 gauge = self._add_gauge(timestamp, common_tags, gate, metric_name, metric_key)
                 if gauge:
                     series.append(gauge)
-                elif "relative" in metric_key:
-                    # Relative metrics may be missing if ancestor predates delta tracking - this is expected
-                    print(
-                        color_message(
-                            f"[INFO] gate {gate} doesn't have the {metric_name} metric registered (ancestor may predate delta tracking)",
-                            "blue",
-                        )
-                    )
                 else:
                     print(
                         color_message(
@@ -808,6 +848,13 @@ class GateMetricHandler:
         return series
 
     def send_metrics_to_datadog(self):
+        """Send all metrics to Datadog (backward compatible)."""
+        if self._should_skip_send_metrics():
+            branch = os.getenv("CI_COMMIT_BRANCH", "")
+            source = os.getenv("CI_PIPELINE_SOURCE", "")
+            print(color_message(f"[INFO] Skipping SQG metrics: branch={branch}, pipeline_source={source}", "blue"))
+            return
+
         series = self._generate_series()
 
         if series:

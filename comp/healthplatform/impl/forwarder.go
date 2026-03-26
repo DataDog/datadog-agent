@@ -14,11 +14,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -147,14 +150,26 @@ func (f *forwarder) sendHealthReport() {
 	f.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
 }
 
+// safeGetFlavor returns the current agent flavor, falling back to the default
+// if flavor.GetFlavor() panics (e.g. called before main init).
+func safeGetFlavor() (f string) {
+	defer func() {
+		if r := recover(); r != nil {
+			f = flavor.DefaultAgent
+		}
+	}()
+	return flavor.GetFlavor()
+}
+
 // buildReport creates a HealthReport from the current issues
 func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Host: healthplatform.HostInfo{
+		Service:   safeGetFlavor(),
+		Host: &healthplatform.HostInfo{
 			Hostname:     f.hostname,
-			AgentVersion: version.AgentVersion,
+			AgentVersion: pointer.Ptr(version.AgentVersion),
 		},
 		Issues: issues,
 	}

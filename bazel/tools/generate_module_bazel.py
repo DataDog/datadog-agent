@@ -28,7 +28,7 @@ def generate_module_bazel(args, files):
     lines = [
         """# This file is generated. Do not hand edit.""",
         "",
-        """http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")""",
+        """http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")""",
         "",
         "http_archive(",
         f'    name = "{args.module}",',

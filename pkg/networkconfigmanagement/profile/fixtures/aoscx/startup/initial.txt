@@ -1,0 +1,12 @@
+Startup configuration:
+!
+!Version AOS-CX TL.xx.xx.xxxx
+hostname Leaf2
+user admin group administrators password ciphertext AQBapaGi+KZp4g8gw63UqK+zCtvO5zigFLv2DFBEH+lztqjdYgAAABwrJ+5GayUWArgv9tVFo9AzMY6gmI7x/KBEkGBJDXjpFson2qM83CXBUI673qWHDQ0pEIZXeuig0XogCVuId4oZiQVZlOe2MfxnqZL+E9hXaMNVowBwbD0
+cli-session
+    timeout 0
+!
+!
+!
+ssh server vrf mgmt
+

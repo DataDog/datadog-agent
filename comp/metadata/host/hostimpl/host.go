@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -127,8 +127,6 @@ func newHostProvider(deps dependencies) provides {
 		RandomizationFactor: 0,
 		Multiplier:          3.0,
 		MaxInterval:         collectInterval, // max interval is the user configured interval
-		MaxElapsedTime:      0,
-		Clock:               backoff.SystemClock,
 	}
 	bo.Reset()
 

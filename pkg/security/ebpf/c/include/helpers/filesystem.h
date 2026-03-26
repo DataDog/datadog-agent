@@ -11,111 +11,60 @@
 #include "dentry_resolver.h"
 #include "discarders.h"
 
-static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
-    u32 key = mount_id % PATH_ID_MAP_SIZE;
+static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
+    u32 key = mount_id % PATH_ID_HIGH_MAP_SIZE;
 
-    u32 *id = bpf_map_lookup_elem(&path_id, &key);
+    u32 *id = bpf_map_lookup_elem(&path_id_high, &key);
     if (id) {
         __sync_fetch_and_add(id, 1);
     }
 }
 
-#define PATH_ID_LOW_MASK 0xFFFFFF
-#define PATH_ID(high, low) ((u32)((high << 24) | (low & PATH_ID_LOW_MASK)))
+#define PATH_ID_LOW_MASK 0xFFFF
+#define PATH_ID(high, low) ((u32)((high << 16) | (low & PATH_ID_LOW_MASK)))
 
-static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, int invalidate) {
-    u32 key = mount_id % PATH_ID_MAP_SIZE;
+// get the path id for a given inode, mount id and nlink
+// the path id is a 32 bit integer composed of a 16 bit high id and a 16 bit low id
+// the high id is the mount id and the low id is the inode id
+// the low id is incremented when the nlink is greater than 1 or when the invalidate type is PATH_ID_INVALIDATE_TYPE_LOCAL, meaning rename or unlink of a regular file
+// the high id is incremented when the invalidate type is PATH_ID_INVALIDATE_TYPE_GLOBAL, meaning rename or unlink of a directory
+static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
+    u32 key = mount_id % PATH_ID_HIGH_MAP_SIZE;
 
-    u32 *id = bpf_map_lookup_elem(&path_id, &key);
-    if (!id) {
+    u32 *high_id_ptr = bpf_map_lookup_elem(&path_id_high, &key);
+    if (!high_id_ptr) {
         return 0;
     }
 
-    u32 id_value = *id;
+    u32 high_id_value = *high_id_ptr;
 
-    // need to invalidate the current path id for event which may change the association inode/name like
-    // unlink, rename, rmdir.
-    if (invalidate) {
-        __sync_fetch_and_add(id, 1);
+    key = ino % PATH_ID_LOW_MAP_SIZE;
+    u32 *low_id_ptr = bpf_map_lookup_elem(&path_id_low, &key);
+    if (!low_id_ptr) {
+        // will never happen
+        return PATH_ID(0, 0);
     }
-
-    u8 link_id_value;
 
     if (nlink > 1) {
-        u8 *link_id = bpf_map_lookup_elem(&hardlink_ids, &ino);
-        if (!link_id) {
-            link_id_value = 1; // start at 1 to avoid conflicts with the nlink <= 1 case
-        } else {
-            link_id_value = (*link_id) + 1;
-        }
-        bpf_map_update_elem(&hardlink_ids, &ino, &link_id_value, BPF_ANY);
-    } else {
-        link_id_value = 0;
+        __sync_fetch_and_add(low_id_ptr, 1);
     }
 
-    id_value = PATH_ID(link_id_value, id_value);
+    u32 low_id_value = *low_id_ptr % PATH_ID_LOW_MASK;
 
-    return id_value;
-}
-
-static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int nlink, int invalidate) {
-    path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate);
-}
-
-static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
-    u32 key = mount_id;
-    struct mount_ref_t zero = {};
-
-    bpf_map_update_elem(&mount_ref, &key, &zero, BPF_NOEXIST);
-    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (ref) {
-        __sync_fetch_and_add(&ref->counter, 1);
-    }
-}
-
-static __attribute__((always_inline)) void dec_mount_ref(ctx_t *ctx, u32 mount_id) {
-    u32 key = mount_id;
-    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (ref) {
-        __sync_fetch_and_add(&ref->counter, -1);
-        if (ref->counter > 0 || !ref->umounted) {
-            return;
-        }
-        bpf_map_delete_elem(&mount_ref, &key);
-    } else {
-        return;
+    // need to invalidate the current path id for event which may change the association inode/name like.
+    // After the operation, the path id should be incremented.
+    // unlink, rename, rmdir.
+    if (invalidate_type == PATH_ID_INVALIDATE_TYPE_LOCAL) {
+        __sync_fetch_and_add(low_id_ptr, 1);
+    } else if (invalidate_type == PATH_ID_INVALIDATE_TYPE_GLOBAL) {
+        __sync_fetch_and_add(high_id_ptr, 1);
     }
 
-    bump_mount_discarder_revision(mount_id);
-    bump_path_id(mount_id);
-
-    struct mount_released_event_t event = {
-        .mount_id = mount_id,
-    };
-
-    send_event(ctx, EVENT_MOUNT_RELEASED, event);
+    return PATH_ID(high_id_value, low_id_value);
 }
 
-static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mount_id) {
-    u32 key = mount_id;
-    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (ref) {
-        if (ref->counter <= 0) {
-            bpf_map_delete_elem(&mount_ref, &key);
-        } else {
-            ref->umounted = 1;
-            return;
-        }
-    }
-
-    bump_mount_discarder_revision(mount_id);
-    bump_path_id(mount_id);
-
-    struct mount_released_event_t event = {
-        .mount_id = mount_id,
-    };
-
-    send_event(ctx, EVENT_MOUNT_RELEASED, event);
+static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
+    path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate_type);
 }
 
 static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry, struct file_t *file) {
@@ -125,7 +74,7 @@ static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry,
     }
 }
 
-void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file_t *file) {
+static __attribute__((always_inline)) void fill_file(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     file->dev = get_dentry_dev(dentry);
@@ -202,7 +151,7 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
         .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) \
     }
 
-static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
+static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
     }
@@ -217,7 +166,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
         set_overlayfs_nlink(dentry, file);
     }
 
-    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate);
+    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate_type);
 }
 
 #endif

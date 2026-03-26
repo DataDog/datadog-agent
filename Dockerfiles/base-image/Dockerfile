@@ -1,7 +1,8 @@
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
+ARG BASE_IMAGE_REGISTRY=docker.io
 
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
 ARG BASE_IMAGE_UBUNTU_VERSION
 ARG BASE_IMAGE_UBUNTU_NAME
 LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
@@ -25,10 +26,9 @@ RUN if [ "$CI" = "true" ]; then \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
@@ -43,7 +43,8 @@ LABEL maintainer="Datadog <package@datadoghq.com>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y && \
+RUN apt update && \
+    apt full-upgrade -y && \
     apt install -y tzdata ca-certificates adduser && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*

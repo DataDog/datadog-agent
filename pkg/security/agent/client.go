@@ -19,13 +19,14 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/mdlayher/vsock"
+	empty "google.golang.org/protobuf/types/known/emptypb"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/mdlayher/vsock"
 )
 
 // RuntimeSecurityCmdClient is used to send request to security module
@@ -54,6 +55,7 @@ type SecurityModuleCmdClientWrapper interface {
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
+	GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -144,6 +146,15 @@ func (c *RuntimeSecurityCmdClient) ReloadPolicies() (*api.ReloadPoliciesResultMe
 // GetRuleSetReport gets the currently ruleset loaded status
 func (c *RuntimeSecurityCmdClient) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
 	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// GetLoadedPolicies returns the currently loaded policies as JSON
+func (c *RuntimeSecurityCmdClient) GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error) {
+	response, err := c.apiClient.GetLoadedPolicies(context.Background(), &api.GetLoadedPoliciesParams{IncludeBundled: includeBundled})
 	if err != nil {
 		return nil, err
 	}
@@ -273,9 +284,16 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
 		}
 
+		cid := uint32(vsock.Host)
+		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+			if cid, err = socket.ParseVSockAddress(vsockAddr); err != nil {
+				return nil, err
+			}
+		}
+
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
-			log.Infof("Dialing vsock socket on CID %d and port %d", vsock.Host, cmdPort)
-			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
+			log.Infof("Dialing vsock socket on CID %d and port %d", cid, cmdPort)
+			return vsock.Dial(cid, uint32(cmdPort), &vsock.Config{})
 		}))
 	}
 

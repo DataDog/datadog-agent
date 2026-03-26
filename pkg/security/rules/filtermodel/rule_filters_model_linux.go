@@ -10,54 +10,58 @@ package filtermodel
 
 import (
 	"os"
-	"runtime"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // RuleFilterEvent defines a rule filter event
 type RuleFilterEvent struct {
-	kv  *kernel.Version
-	cfg RuleFilterEventConfig
-	ipc ipc.Component
+	kv       *kernel.Version
+	cfg      RuleFilterEventConfig
+	hostname string
+	os       string
 }
 
 // RuleFilterModel defines a filter model
 type RuleFilterModel struct {
-	kv  *kernel.Version
-	cfg RuleFilterEventConfig
-	ipc ipc.Component
+	kv       *kernel.Version
+	cfg      RuleFilterEventConfig
+	hostname string
+	os       string
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel(cfg RuleFilterEventConfig, ipc ipc.Component) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig, hostname string, os string) (*RuleFilterModel, error) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		return nil, err
 	}
 	return &RuleFilterModel{
-		kv:  kv,
-		cfg: cfg,
-		ipc: ipc,
+		kv:       kv,
+		cfg:      cfg,
+		hostname: hostname,
+		os:       os,
 	}, nil
 }
 
 // NewRuleFilterModelWithKernelVersion returns a new rule filter model
-func NewRuleFilterModelWithKernelVersion(cfg RuleFilterEventConfig, kv *kernel.Version) *RuleFilterModel {
+func NewRuleFilterModelWithKernelVersion(cfg RuleFilterEventConfig, kv *kernel.Version, hostname string, os string) *RuleFilterModel {
 	return &RuleFilterModel{
-		kv:  kv,
-		cfg: cfg,
+		kv:       kv,
+		cfg:      cfg,
+		hostname: hostname,
+		os:       os,
 	}
 }
 
 // NewEvent returns a new event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
-		kv:  m.kv,
-		cfg: m.cfg,
-		ipc: m.ipc,
+		kv:       m.kv,
+		cfg:      m.cfg,
+		hostname: m.hostname,
+		os:       m.os,
 	}
 }
 
@@ -121,7 +125,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 		}, nil
 	case "os":
 		return &eval.StringEvaluator{
-			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return m.os },
 			Field:   field,
 		}, nil
 	case "os.id":
@@ -204,7 +208,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 		}, nil
 	case "hostname":
 		return &eval.StringEvaluator{
-			Value: getHostname(m.ipc),
+			Value: m.hostname,
 			Field: field,
 		}, nil
 	case "kernel.core.enabled":
@@ -250,7 +254,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return "", nil
 
 	case "os":
-		return runtime.GOOS, nil
+		return e.os, nil
 	case "os.id":
 		return e.kv.OsRelease["ID"], nil
 	case "os.platform_id":
@@ -283,7 +287,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "origin":
 		return e.cfg.Origin, nil
 	case "hostname":
-		return getHostname(e.ipc), nil
+		return e.hostname, nil
 	case "kernel.core.enabled":
 		return e.cfg.COREEnabled && e.kv.SupportCORE(), nil
 	}

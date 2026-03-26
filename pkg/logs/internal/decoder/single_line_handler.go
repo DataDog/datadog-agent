@@ -51,7 +51,8 @@ func addTruncatedTag(msg *message.Message) {
 func (h *SingleLineHandler) process(msg *message.Message) {
 	lastWasTruncated := h.shouldTruncate
 	content := msg.GetContent()
-	h.shouldTruncate = len(content) >= h.lineLimit
+	// Check if content exceeds limit OR if framer already detected truncation
+	h.shouldTruncate = len(content) > h.lineLimit || msg.ParsingExtra.IsTruncated
 
 	content = bytes.TrimSpace(content)
 

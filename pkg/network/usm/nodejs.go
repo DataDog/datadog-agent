@@ -10,6 +10,7 @@ package usm
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/cilium/ebpf"
@@ -22,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -206,18 +209,33 @@ func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protoco
 
 	attachCfg := uprobes.AttacherConfig{
 		ProcRoot: kernel.ProcFSRoot(),
-		Rules: []*uprobes.AttachRule{{
-			Targets:          uprobes.AttachToExecutable,
-			ProbesSelector:   nodeJSProbes,
-			ExecutableFilter: isNodeJSBinary,
-		}},
+		Rules: []*uprobes.AttachRule{
+			{
+				// Statically linked Node.js (SSL symbols in node binary)
+				Targets:          uprobes.AttachToExecutable,
+				ProbesSelector:   nodeJSProbes,
+				ExecutableFilter: isNodeJSBinary,
+			},
+			{
+				// Dynamically linked Node.js (SSL symbols in libnode.so)
+				Targets:          uprobes.AttachToSharedLibraries,
+				ProbesSelector:   nodeJSProbes,
+				LibraryNameRegex: regexp.MustCompile(`libnode\.so`),
+			},
+		},
 		EbpfConfig:                     &c.Config,
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 	}
 
 	procMon := monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
+		Inspector:      &uprobes.NativeBinaryInspector{},
+		ProcessMonitor: procMon,
+		Telemetry:      telemetry.GetCompatComponent(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}

@@ -49,6 +49,13 @@ dd_agent_expand_template(
 )
 
 dd_agent_expand_template(
+    name = "upstart_debian_action_conf_gen",
+    out = "etc/init/datadog-agent-action.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.action.conf.in",
+)
+
+dd_agent_expand_template(
     name = "sysvinit_debian_gen",
     out = "etc/init.d/datadog-agent",
     attributes = pkg_attributes(mode = "0755"),
@@ -83,14 +90,23 @@ dd_agent_expand_template(
     template = "sysvinit_debian.data-plane.in",
 )
 
+dd_agent_expand_template(
+    name = "sysvinit_debian_action_gen",
+    out = "etc/init.d/datadog-agent-action",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.action.in",
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
+        ":sysvinit_debian_action_gen",
         ":sysvinit_debian_data_plane_gen",
         ":sysvinit_debian_gen",
         ":sysvinit_debian_process_gen",
         ":sysvinit_debian_security_gen",
         ":sysvinit_debian_trace_gen",
+        ":upstart_debian_action_conf_gen",
         ":upstart_debian_conf_gen",
         ":upstart_debian_data_plane_conf_gen",
         ":upstart_debian_process_conf_gen",

@@ -1,0 +1,6 @@
+service:
+  pipelines: not-a-map
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

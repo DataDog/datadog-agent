@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type YamlConfigTestSuite struct {

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -40,9 +42,11 @@ func NewWorkflowRunner(
 	keysManager taskverifier.KeysManager,
 	verifier *taskverifier.TaskVerifier,
 	opmsClient opms.Client,
+	traceroute traceroute.Component,
+	eventPlatform eventplatform.Component,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,
@@ -51,10 +55,11 @@ func NewWorkflowRunner(
 	}, nil
 }
 
-func (n *WorkflowRunner) Start(ctx context.Context) {
+func (n *WorkflowRunner) Start(ctx context.Context) error {
+	log.FromContext(ctx).Info("Starting Workflow runner")
 	if n.taskLoop != nil {
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
-		return
+		return nil
 	}
 	startTime := time.Now()
 	n.keysManager.Start(ctx)
@@ -65,12 +70,16 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
 		n.taskLoop.Run(ctx)
 	}()
+	return nil
 }
 
-func (n *WorkflowRunner) Close(ctx context.Context) {
+func (n *WorkflowRunner) Stop(ctx context.Context) error {
+	log.FromContext(ctx).Info("Stopping Workflow runner")
+
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
+	return nil
 }
 
 func (n *WorkflowRunner) RunTask(

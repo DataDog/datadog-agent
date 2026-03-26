@@ -109,7 +109,7 @@ type State interface {
 	StoreClosedConnection(connection *ConnectionStats)
 
 	// GetStats returns a map of statistics about the current network state
-	GetStats() map[string]interface{}
+	GetStats() map[string]any
 
 	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
@@ -267,12 +267,13 @@ type networkState struct {
 	maxRedisStats               int
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
+	dnsMonitoringPorts          []int
 
 	localResolver LocalResolver
 }
 
 // NewState creates a new network state
-func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool, dnsMonitoringPorts []int) State {
 	ns := &networkState{
 		clients:                     map[string]*client{},
 		clientExpiry:                clientExpiry,
@@ -286,6 +287,7 @@ func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClo
 		enableConnectionRollup:      enableConnectionRollup,
 		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 		processEventConsumerEnabled: processEventConsumerEnabled,
+		dnsMonitoringPorts:          dnsMonitoringPorts,
 	}
 
 	if ns.enableConnectionRollup && !processEventConsumerEnabled {
@@ -373,7 +375,7 @@ func (ns *networkState) GetDelta(
 		ns.storeDNSStats(dnsStats)
 	}
 
-	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats)
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats, ns.dnsMonitoringPorts)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -793,11 +795,11 @@ func (ns *networkState) RemoveConnections(conns []*ConnectionStats) {
 }
 
 // GetStats returns a map of statistics about the current network state
-func (ns *networkState) GetStats() map[string]interface{} {
+func (ns *networkState) GetStats() map[string]any {
 	ns.Lock()
 	defer ns.Unlock()
 
-	clientInfo := map[string]interface{}{}
+	clientInfo := map[string]any{}
 	for id, c := range ns.clients {
 		clientInfo[id] = map[string]int{
 			"stats":              len(c.stats),
@@ -806,7 +808,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
 			"closed_conn_dropped": stateTelemetry.closedConnDropped.Load(),
@@ -1030,14 +1032,16 @@ type connectionAggregator struct {
 	dnsStats                    dns.StatsByKeyByNameByType
 	enablePortRollups           bool
 	processEventConsumerEnabled bool
+	dnsMonitoringPorts          []int
 }
 
-func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
+func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType, dnsMonitoringPorts []int) *connectionAggregator {
 	return &connectionAggregator{
 		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
 		dnsStats:                    dnsStats,
 		enablePortRollups:           enablePortRollups,
 		processEventConsumerEnabled: processEventConsumerEnabled,
+		dnsMonitoringPorts:          dnsMonitoringPorts,
 	}
 }
 
@@ -1128,7 +1132,7 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 }
 
 func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.QueryType]dns.Stats {
-	key, isDNS := DNSKey(c)
+	key, isDNS := DNSKey(c, a.dnsMonitoringPorts)
 	if !isDNS {
 		return nil
 	}

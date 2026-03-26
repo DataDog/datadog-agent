@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 	"testing"
 
@@ -106,10 +107,19 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Direction: model.ConnectionDirection_local,
 
 				RouteIdx:         0,
+				ResolvConfIdx:    -1,
 				HttpAggregations: httpOutBlob,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
 				},
+
+				LastTcpRtoCount:      301,
+				LastTcpRecoveryCount: 302,
+				LastTcpReordSeen:     303,
+				LastTcpRcvOooPack:    304,
+				LastTcpDeliveredCe:   305,
+				LastTcpProbe0Count:   306,
+				TcpEcnNegotiated:     true,
 			},
 			{
 				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
@@ -125,6 +135,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
 				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
 				RouteIdx:                    -1,
+				ResolvConfIdx:               -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -204,16 +215,28 @@ func TestSerialization(t *testing.T) {
 					Direction: network.LOCAL,
 				},
 					Monotonic: network.StatCounters{
-						SentBytes:   1,
-						RecvBytes:   100,
-						Retransmits: 201,
+						SentBytes:        1,
+						RecvBytes:        100,
+						Retransmits:      201,
+						TCPRTOCount:      301,
+						TCPRecoveryCount: 302,
+						TCPReordSeen:     303,
+						TCPRcvOOOPack:    304,
+						TCPDeliveredCE:   305,
+						TCPProbe0Count:   306,
 					},
 					Last: network.StatCounters{
-						SentBytes:      2,
-						RecvBytes:      101,
-						TCPEstablished: 1,
-						TCPClosed:      1,
-						Retransmits:    201,
+						SentBytes:        2,
+						RecvBytes:        101,
+						TCPEstablished:   1,
+						TCPClosed:        1,
+						Retransmits:      201,
+						TCPRTOCount:      301,
+						TCPRecoveryCount: 302,
+						TCPReordSeen:     303,
+						TCPRcvOOOPack:    304,
+						TCPDeliveredCE:   305,
+						TCPProbe0Count:   306,
 					},
 					LastUpdateEpoch: 50,
 
@@ -229,8 +252,9 @@ func TestSerialization(t *testing.T) {
 							Alias: "subnet-foo",
 						},
 					},
-					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
-					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
+					ProtocolStack:    protocols.Stack{Application: protocols.HTTP},
+					TLSTags:          tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
+					TCPECNNegotiated: true,
 				},
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),
@@ -574,14 +598,16 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				ResolvConfIdx:    -1,
+				Protocol:         &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				ResolvConfIdx:    -1,
+				Protocol:         &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

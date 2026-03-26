@@ -25,6 +25,8 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -51,7 +53,7 @@ var (
 		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 
-	imageResolver = newNoOpImageResolver()
+	imageResolver = imageresolver.NewNoOpResolver()
 )
 
 func TestNewTargetMutator(t *testing.T) {
@@ -141,6 +143,34 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectNoChange: true,
 		},
+		// Re-admission guard: when the webhook runs again on an already-injected pod we must not
+		// mutate further (e.g. must not append to LD_PRELOAD or add duplicate init containers).
+		"re-admission with init_container mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: "datadog-lib-python-init", Image: "registry/dd-lib-python-init:v3"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		"re-admission with image_volume mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
 		"tracer configs get applied": {
 			configPath: "testdata/filter_simple_configs.yaml",
 			in: mutatecommon.WithLabels(
@@ -214,7 +244,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -319,7 +349,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -405,7 +435,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -485,7 +515,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -503,7 +533,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 }
 
 func TestGetTargetLibraries(t *testing.T) {
-	imageResolver := newNoOpImageResolver()
+	imageResolver := imageresolver.NewNoOpResolver()
 
 	tests := map[string]struct {
 		configPath string

@@ -92,9 +92,13 @@ const (
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 
-	// SourceRemoteProcessCollector reprents processes entities detected
+	// SourceRemoteProcessCollector represents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceRemoteSBOMCollector represents SBOM entities computed
+	// by the RemoteSBOMCollector.
+	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
 
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
@@ -181,7 +185,6 @@ type AgentType uint8
 const (
 	NodeAgent AgentType = 1 << iota
 	ClusterAgent
-	ProcessAgent
 	Remote
 )
 
@@ -364,6 +367,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	SBOM       *SBOM
 }
 
 // String returns a string representation of ContainerState.
@@ -657,6 +661,8 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+
+	SBOM *SBOM
 }
 
 // GetID implements Entity#GetID.
@@ -1079,9 +1085,10 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type   string
-	Status string
-	Reason string
+	Type               string
+	Status             string
+	Reason             string
+	LastTransitionTime time.Time
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1540,6 +1547,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
@@ -1549,6 +1557,7 @@ type CompressedSBOM struct {
 	Bom                []byte
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
 }
@@ -1565,7 +1574,31 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
-	return merge(i, otherImage)
+	// Save SBOM pointers before the generic merge to prevent mergo from
+	// concatenating the compressed Bom []byte fields across sources. Two
+	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
+	// gzip that decodes to a concatenated protobuf, which duplicates all
+	// repeated Components.  We apply our own "prefer dst if non-nil" rule
+	// instead: the remote SBOM collector (alphabetically first) always
+	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	dstSBOM := i.SBOM
+	srcSBOM := otherImage.SBOM
+
+	// Shallow-copy src with SBOM cleared so the generic merge skips it.
+	otherImageCopy := *otherImage
+	otherImageCopy.SBOM = nil
+	i.SBOM = nil
+
+	err := merge(i, &otherImageCopy)
+
+	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
+	if dstSBOM != nil {
+		i.SBOM = dstSBOM
+	} else {
+		i.SBOM = srcSBOM
+	}
+
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -1605,6 +1638,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:
 			}
+			_, _ = fmt.Fprintln(&sb, "Method:", i.SBOM.GenerationMethod)
 		} else {
 			fmt.Fprintln(&sb, "SBOM is nil")
 		}
@@ -1675,9 +1709,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1740,6 +1771,7 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
+	UsesGPU        bool           // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1818,7 +1850,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
@@ -1906,6 +1937,11 @@ type Event struct {
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
 	// fail.
 	Entity Entity
+
+	// IsComplete indicates whether all expected collectors have reported data
+	// for this entity. For example, in Kubernetes, a pod is complete when both
+	// the kubelet and kubemetadata collectors have reported.
+	IsComplete bool
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
@@ -1993,6 +2029,12 @@ type GPU struct {
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
 	Device string
+
+	// GPUType is the normalized model type of the GPU (e.g., "a100", "t4", "h100").
+	// This is extracted from the Device name and normalized to lowercase.
+	// For RTX cards, includes the rtx prefix (e.g., "rtx_a6000").
+	// Empty string if the type cannot be determined.
+	GPUType string
 
 	// DriverVersion is the version of the driver used for the gpu device
 	DriverVersion string
@@ -2087,6 +2129,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
 	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "GPU Type:", g.GPUType)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
@@ -2103,6 +2146,15 @@ func (g GPU) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+func (g GPU) SlicingMode() string {
+	if g.DeviceType == GPUDeviceTypeMIG {
+		return "mig"
+	} else if len(g.ChildrenGPUUUIDs) > 0 {
+		return "mig-parent"
+	}
+	return "none"
 }
 
 // GPUComputeCapability represents the compute capability version of a GPU.
@@ -2159,8 +2211,8 @@ func (crd *CRD) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (crd CRD) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(crd).(*CRD)
-	return copyCrd
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return &copyCrd
 }
 
 // String return the string representation of the given CRD entity.
@@ -2179,6 +2231,10 @@ func (crd CRD) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
 
 	return sb.String()
+}
+
+func (crd CRD) BuildGVK() string {
+	return crd.Group + "/" + crd.Version + "/" + crd.Kind
 }
 
 // FeatureGateStage represents the maturity level of a Kubernetes feature gate

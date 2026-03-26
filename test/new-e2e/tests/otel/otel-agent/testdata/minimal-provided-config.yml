@@ -62,6 +62,8 @@ exporters:
         flush_timeout: 200ms
         max_size: 0
         min_size: 8192
+        partition:
+          metadata_keys: []
         sizer: {}
       block_on_overflow: false
       num_consumers: 10
@@ -102,6 +104,7 @@ receivers:
         read_header_timeout: 0s
         tls: null
         traces_url_path: /v1/traces
+        transport: tcp
         write_timeout: 0s
 service:
   pipelines:

@@ -52,13 +52,13 @@ func TestResolvConfBuilder(t *testing.T) {
 	})
 
 	py1Idx := getResolvConfIndex(t, resolvConfFormatter, mockConnWithContainer(containerPy1))
-	require.Equal(t, int32(1), py1Idx, "first connection should have idx=1")
+	require.Equal(t, int32(0), py1Idx, "first connection should have idx=0")
 
 	py2Idx := getResolvConfIndex(t, resolvConfFormatter, mockConnWithContainer(containerPy2))
-	require.Equal(t, int32(1), py2Idx, "second connection with same resolv.conf should have idx=1 too")
+	require.Equal(t, int32(0), py2Idx, "second connection with same resolv.conf should have idx=0 too")
 
 	java1Idx := getResolvConfIndex(t, resolvConfFormatter, mockConnWithContainer(containerJava1))
-	require.Equal(t, int32(2), java1Idx, "third connection has a new resolv.conf and should have idx=2")
+	require.Equal(t, int32(1), java1Idx, "third connection has a new resolv.conf and should have idx=1")
 
 	streamer := NewProtoTestStreamer[*model.Connections]()
 	builder := model.NewConnectionsBuilder(streamer)
@@ -67,12 +67,32 @@ func TestResolvConfBuilder(t *testing.T) {
 
 	conns := streamer.Unwrap(t, &model.Connections{})
 
-	expectedStrings := []string{"", resolvConfData1234.Get(), resolvConfData5678.Get()}
+	expectedStrings := []string{resolvConfData1234.Get(), resolvConfData5678.Get()}
 	require.Equal(t, expectedStrings, conns.ResolvConfs, "resolv.confs should appear in the order of connections")
 }
 
 func TestResolvConfEmptyBuilder(t *testing.T) {
 	resolvConfFormatter := newResolvConfFormatter(&network.Connections{})
+
+	streamer := NewProtoTestStreamer[*model.Connections]()
+	builder := model.NewConnectionsBuilder(streamer)
+
+	resolvConfFormatter.FormatResolvConfs(builder)
+
+	conns := streamer.Unwrap(t, &model.Connections{})
+
+	require.Nil(t, conns.ResolvConfs)
+}
+
+func TestResolvConfMissing(t *testing.T) {
+	containerPy1 := intern.GetByString("test-python-container-1")
+
+	resolvConfFormatter := newResolvConfFormatter(&network.Connections{
+		ResolvConfs: map[network.ContainerID]network.ResolvConf{},
+	})
+
+	py1Idx := getResolvConfIndex(t, resolvConfFormatter, mockConnWithContainer(containerPy1))
+	require.Equal(t, int32(-1), py1Idx, "missing container should have idx=-1")
 
 	streamer := NewProtoTestStreamer[*model.Connections]()
 	builder := model.NewConnectionsBuilder(streamer)

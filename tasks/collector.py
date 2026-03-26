@@ -28,7 +28,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.143.0"
+OCB_VERSION = "0.147.0"
+# The version the the core collector and collector-contrib may or may not match
+OTEL_CONTRIB_VERSION = "0.147.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -53,20 +55,17 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-# TODO(songy23): OCB is not released in v0.143.0, revert this in the next release
-BASE_URL = (
-    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
-)
+BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
-        "x86_64": "ocb_0.142.0_linux_amd64",
-        "arm64": "ocb_0.142.0_linux_arm64",
-        "aarch64": "ocb_0.142.0_linux_arm64",
+        "x86_64": f"ocb_{OCB_VERSION}_linux_amd64",
+        "arm64": f"ocb_{OCB_VERSION}_linux_arm64",
+        "aarch64": f"ocb_{OCB_VERSION}_linux_arm64",
     },
     "Darwin": {
-        "x86_64": "ocb_0.142.0_darwin_amd64",
-        "arm64": "ocb_0.142.0_darwin_arm64",
+        "x86_64": f"ocb_{OCB_VERSION}_darwin_amd64",
+        "arm64": f"ocb_{OCB_VERSION}_darwin_arm64",
     },
 }
 
@@ -370,8 +369,27 @@ def read_old_version(filepath):
     return None
 
 
+def update_variables_in_file(filepath, variables_new_values: dict[str, str]):
+    """Updates all assignations of provided variables in file."""
+    with open(filepath) as f:
+        content = []
+        for line in f:
+            if '=' in line:
+                left, _ = map(str.strip, line.split('=', 1))
+                if left in variables_new_values:
+                    content.append(f'{left} = "{variables_new_values[left]}"\n')
+                    continue
+            content.append(line)
+    with open(filepath, 'w') as f:
+        for line in content:
+            f.write(line)
+    print(f"Updated all assignations of : {', '.join(variables_new_values)}")
+
+
 def update_file(filepath, old_version, new_version):
     """Updates all instances of the old version to the new version in the file."""
+    if old_version == new_version:
+        return
     print(f"Updating all instances of {old_version} to {new_version} in {filepath}")
     with open(filepath) as file:
         content = file.read()
@@ -513,17 +531,23 @@ class CollectorVersionUpdater:
         files = [
             MANIFEST_FILE,
             "./comp/otelcol/collector/impl/collector.go",
-            "./tasks/collector.py",
-            "./.gitlab/integration_test/otel.yml",
+            "./.gitlab/test/integration_test/otel.yml",
             "./test/otel/testdata/ocb_build_script.sh",
         ]
+        collector_version = self.core_collector.get_version()[1:]
+        contrib_version = self.contrib_collector.get_version()[1:]
+        variables = {
+            "OCB_VERSION": collector_version,
+            "OTEL_CONTRIB_VERSION": contrib_version,
+        }
+
         for root, _, testfiles in os.walk("./tasks/unit_tests/testdata/collector"):
             for file in testfiles:
                 files.append(os.path.join(root, file))
-        collector_version = self.core_collector.get_version()[1:]
-        os.environ["OCB_VERSION"] = collector_version
+        os.environ |= variables
         for file in files:
             update_file(file, self.core_collector.get_old_version(), collector_version)
+        update_variables_in_file("./tasks/collector.py", variables)
 
     def update(self):
         self.update_all_go_mod()

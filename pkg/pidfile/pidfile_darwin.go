@@ -13,8 +13,3 @@ import (
 func isProcess(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
-
-// Path returns a suitable location for the pidfile under OSX
-func Path() string {
-	return "/var/run/datadog/datadog-agent.pid"
-}

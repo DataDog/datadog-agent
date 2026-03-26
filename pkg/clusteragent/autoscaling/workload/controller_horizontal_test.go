@@ -75,7 +75,18 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	}
 
 	autoscalerInternal := fakePai.Build()
-	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal)
+
+	// Pre-fetch scale subresource, mirroring what handleScaling does in the parent controller.
+	var scale *autoscalingv1.Scale
+	var gr schema.GroupResource
+	var scaleErr error
+	if autoscalerInternal.Spec() != nil {
+		if gvk, err := autoscalerInternal.TargetGVK(); err == nil {
+			scale, gr, scaleErr = f.scaler.get(context.Background(), fakePai.Namespace, autoscalerInternal.Spec().TargetRef.Name, gvk)
+		}
+	}
+
+	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
 	return autoscalerInternal, res, err
 }
 
@@ -123,7 +134,7 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 			Time:                metav1.NewTime(f.clock.Now()),
 			FromReplicas:        args.currentReplicas,
 			ToReplicas:          args.scaleReplicas,
-			RecommendedReplicas: pointer.Ptr[int32](args.recReplicas),
+			RecommendedReplicas: pointer.Ptr(args.recReplicas),
 		}
 		if args.scaleLimitReason != "" {
 			action.LimitedReason = &args.scaleLimitReason
@@ -131,9 +142,15 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 
 		args.fakePai.AddHorizontalAction(action.Time.Time, action)
 		args.fakePai.HorizontalLastActionError = nil
+		args.fakePai.HorizontalActionSuccessCount++
 	} else if args.scaleError != nil {
 		args.fakePai.HorizontalLastActionError = args.scaleError
+		// Counter is only incremented when the scale update itself fails (not for internal errors like policy restrictions)
+		if scaleActionExpected {
+			args.fakePai.HorizontalActionErrorCount++
+		}
 	}
+	// No scale action needed (fromReplicas == toReplicas): no counter increment
 
 	args.fakePai.HorizontalLastLimitReason = args.scaleLimitReason
 
@@ -156,18 +173,6 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	autoscaler, result, err := f.runSync(fakePai)
 	assert.Equal(t, result, autoscaling.NoRequeue)
 	assert.Nil(t, err)
-	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
-
-	// Test case: Spec has been added, but no GVK
-	fakePai.Spec = &datadoghq.DatadogPodAutoscalerSpec{
-		TargetRef: v2.CrossVersionObjectReference{
-			Name: "test",
-		},
-	}
-	autoscaler, result, err = f.runSync(fakePai)
-	assert.Equal(t, result, autoscaling.NoRequeue)
-	assert.EqualError(t, err, "failed to parse API version '', err: %!w(<nil>)")
-	fakePai.Error = testutil.NewErrorString("failed to parse API version '', err: %!w(<nil>)")
 	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
 
 	// Test case: Correct Spec and GVK, but no scaling values
@@ -196,7 +201,6 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 			},
 		},
 	}
-	fakePai.Error = nil
 	f.scaler.On("get", mock.Anything, autoscalerNamespace, autoscalerName, expectedGVK).Return(
 		&autoscalingv1.Scale{
 			Spec: autoscalingv1.ScaleSpec{
@@ -231,12 +235,13 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	assert.Equal(t, result, autoscaling.Requeue)
 	assert.EqualError(t, err, "failed to get scale subresource for autoscaler default/test, err: some k8s error")
 	model.AssertPodAutoscalersEqual(t, model.FakePodAutoscalerInternal{
-		Namespace:                 autoscalerNamespace,
-		Name:                      autoscalerName,
-		Spec:                      fakePai.Spec,
-		CurrentReplicas:           pointer.Ptr[int32](5),
-		TargetGVK:                 expectedGVK,
-		HorizontalLastActionError: testutil.NewErrorString("failed to get scale subresource for autoscaler default/test, err: some k8s error"),
+		Namespace:                  autoscalerNamespace,
+		Name:                       autoscalerName,
+		Spec:                       fakePai.Spec,
+		CurrentReplicas:            pointer.Ptr[int32](5),
+		TargetGVK:                  expectedGVK,
+		HorizontalLastActionError:  testutil.NewErrorString("failed to get scale subresource for autoscaler default/test, err: some k8s error"),
+		HorizontalActionErrorCount: 1,
 	}, autoscaler)
 
 	// Test case: Any scaling disabled by policy
@@ -442,7 +447,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](2),
-		MaxReplicas: 8,
+		MaxReplicas: pointer.Ptr[int32](8),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -462,7 +467,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](2),
-		MaxReplicas: 8,
+		MaxReplicas: pointer.Ptr[int32](8),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -483,7 +488,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](8),
-		MaxReplicas: 10,
+		MaxReplicas: pointer.Ptr[int32](10),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -503,7 +508,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](8),
-		MaxReplicas: 10,
+		MaxReplicas: pointer.Ptr[int32](10),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -911,7 +916,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr[int32](90),
-				MaxReplicas: 120,
+				MaxReplicas: pointer.Ptr[int32](120),
 			},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
@@ -1050,10 +1055,11 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 
-	// Setting Downscaling strategy to Disabled, nothing allowed
+	// Setting Downscaling strategy to Disabled, Upscaling allowed
 	// Moving clock 10 minutes forward to avoid the 5 pods rule
 	f.clock.Step(10 * time.Minute)
 	fakePai.Spec.ApplyPolicy.ScaleDown.Strategy = pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect)
+	fakePai.Spec.ApplyPolicy.ScaleUp.Strategy = nil
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -1191,7 +1197,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr[int32](90),
-				MaxReplicas: 120,
+				MaxReplicas: pointer.Ptr[int32](120),
 			},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
@@ -1310,7 +1316,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr[int32](90),
-				MaxReplicas: 120,
+				MaxReplicas: pointer.Ptr[int32](120),
 			},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{

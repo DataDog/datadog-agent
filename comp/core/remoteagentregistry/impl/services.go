@@ -9,6 +9,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -145,54 +146,77 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 		log.Warnf("Failed to parse prometheus text: %v", err)
 		return
 	}
+
 	for _, mf := range metricFamilies {
 		help := ""
 		if mf.Help != nil {
 			help = *mf.Help
 		}
+
 		for _, metric := range mf.Metric {
 			if metric == nil {
 				continue
 			}
 
+			// Check if the metric already has a remote_agent label.
+			// With explicit agent identity, metrics should already have the correct value.
+			// We only add the label if it's missing (for backward compatibility).
+			hasRemoteAgentLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
+				return *label.Name == remoteAgentMetricTagName
+			})
+
 			labelNames := make([]string, 0, len(metric.Label)+1)
 			labelValues := make([]string, 0, len(metric.Label)+1)
-			labelNames = append(labelNames, remoteAgentMetricTagName)
-			labelValues = append(labelValues, remoteAgentName)
+			// Only add remote_agent label if the metric doesn't already have one
+			if !hasRemoteAgentLabel {
+				labelNames = append(labelNames, remoteAgentMetricTagName)
+				labelValues = append(labelValues, remoteAgentName)
+			}
 			for _, label := range metric.Label {
 				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)
 			}
+
+			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
+
 			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				metric, err := prometheus.NewConstMetric(
-					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
-					prometheus.CounterValue,
-					*metric.Counter.Value,
-					labelValues...,
-				)
+				value := *metric.Counter.Value
+
+				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...)
 				if err != nil {
-					log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					continue
 				}
 				ch <- metric
 			case dto.MetricType_GAUGE:
-				metric, err := prometheus.NewConstMetric(
-					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
-					prometheus.GaugeValue,
-					*metric.Gauge.Value,
-					labelValues...,
-				)
+				value := *metric.Gauge.Value
+
+				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, value, labelValues...)
 				if err != nil {
-					log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					continue
 				}
 				ch <- metric
 
-			// It's not currently possible to merge two bucket-based metrics when they don't share the same amount of buckets
 			case dto.MetricType_SUMMARY:
 				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
+				continue
 
 			case dto.MetricType_HISTOGRAM:
-				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented histogram aggregation logic", mf.GetName(), remoteAgentName)
+				count := metric.Histogram.GetSampleCount()
+				sum := metric.Histogram.GetSampleSum()
+				buckets := make(map[float64]uint64)
+				for _, bucket := range metric.Histogram.GetBucket() {
+					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+				}
+
+				metric, err := prometheus.NewConstHistogram(desc, count, sum, buckets, labelValues...)
+				if err != nil {
+					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					continue
+				}
+				ch <- metric
 
 			default:
 				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())

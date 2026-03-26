@@ -97,7 +97,7 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 		}, nil
 	}
 
-	// add pid one for hash resolution outside of a container
+	// add pid one for hash resolution outside a container
 	process := event.ProcessContext.Process
 	rootPIDs := []uint32{process.Pid, 1}
 	if process.ContainerContext.ContainerID != "" && r.cgroupResolver != nil {

@@ -1,0 +1,131 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config | no-more | exclude ! Time:"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "! Command: show running-config"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(secret \\w+) (\\S+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(password \\d+) (\\S+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(service unsupported-transceiver).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server key \\d+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server .+ key \\d) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "( {6}key) ([0-9a-fA-F]+ 7) ([0-9a-fA-F]+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(localized|auth (md5|sha\\d{0,3})|priv (des|aes\\d{0,3})) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^! Command:.*$\\n(?:^! device:.*$\\n)?(?:^!$\\n)*(?:^! boot system.*$\\n)?(?:^!$\\n)*",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "startup",
+      "values": [
+        "show startup-config | no-more | exclude ! Time:"
+      ],
+      "processing_rules": {
+        "metadata": [
+          {
+            "type": "timestamp",
+            "regex": "(?m)^! Startup-config last modified at\\s+(.+?)\\s+by",
+            "format": "Mon Jan 2 15:04:05 2006"
+          },
+          {
+            "type": "author",
+            "regex": "(?m)^! Startup-config last modified at\\s+.*\\s+by\\s(.*)\\s"
+          }
+        ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "! Command: show startup-config"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(secret \\w+) (\\S+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(password \\d+) (\\S+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(service unsupported-transceiver).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server key \\d+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server .+ key \\d) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "( {6}key) ([0-9a-fA-F]+ 7) ([0-9a-fA-F]+).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(localized|auth (md5|sha\\d{0,3})|priv (des|aes\\d{0,3})) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^! Command: show startup-config.*$\\n",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^! Startup-config last modified at.*$\\n",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "^!\\n",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -12,7 +12,6 @@ package tailerfactory
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -63,15 +62,12 @@ type factory struct {
 	dockerUtilGetter dockerUtilGetter
 
 	tagger tagger.Component
-
-	// healthPlatform is the health platform component for reporting issues
-	healthPlatform option.Option[healthplatform.Component]
 }
 
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore option.Option[workloadmeta.Component], tagger tagger.Component, healthPlatform option.Option[healthplatform.Component]) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore option.Option[workloadmeta.Component], tagger tagger.Component) Factory {
 	return &factory{
 		sources:           sources,
 		pipelineProvider:  pipelineProvider,
@@ -80,7 +76,6 @@ func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, regist
 		cop:               containersorpods.NewChooser(),
 		dockerUtilGetter:  &dockerUtilGetterImpl{},
 		tagger:            tagger,
-		healthPlatform:    healthPlatform,
 	}
 }
 

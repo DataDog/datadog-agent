@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 // Package hpflareextension defines the OpenTelemetry Extension implementation.
 package hpflareextension
 
@@ -11,13 +13,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
 )
 
 func getTestConfig() *Config {
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 	}
 }
@@ -28,7 +34,7 @@ func TestValidate(t *testing.T) {
 	err := cfg.Validate()
 	assert.NoError(t, err)
 
-	cfg.HTTPConfig.Endpoint = ""
+	cfg.HTTPConfig.NetAddr.Endpoint = ""
 	err = cfg.Validate()
 	assert.ErrorIs(t, err, errHTTPEndpointRequired)
 
@@ -54,5 +60,5 @@ func TestUnmarshal(t *testing.T) {
 	err = cfg.Validate()
 	assert.NoError(t, err)
 
-	assert.Equal(t, endpoint, cfg.HTTPConfig.Endpoint)
+	assert.Equal(t, endpoint, cfg.HTTPConfig.NetAddr.Endpoint)
 }

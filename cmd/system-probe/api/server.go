@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -30,7 +29,7 @@ import (
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, telemetry telemetry.Component, rcclient rcclient.Component, deps module.FactoryDependencies) error {
+func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclient rcclient.Component, deps module.FactoryDependencies) error {
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
@@ -40,14 +39,15 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 
 	err = module.Register(cfg, mux, modules.All(), rcclient, deps)
 	if err != nil {
+		_ = conn.Close()
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
 
 	// Register stats endpoint. Note that this endpoint is also used by core
 	// agent checks as a means to check if system-probe is ready to serve
 	// requests, see pkg/system-probe/api/client.
-	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
-		utils.WriteAsJSON(w, module.GetStats(), utils.CompactOutput)
+	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		utils.WriteAsJSON(req, w, module.GetStats(), utils.CompactOutput)
 	}))
 
 	setupConfigHandlers(mux, settings)
@@ -57,7 +57,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 
 	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
-	mux.Handle("/telemetry", telemetry.Handler())
+	mux.Handle("/telemetry", deps.Telemetry.Handler())
 
 	if runtime.GOOS == "linux" {
 		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)

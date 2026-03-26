@@ -8,6 +8,8 @@
 package modules
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -20,10 +22,9 @@ import (
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
 func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
@@ -38,6 +39,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.StatsdClient = deps.Statsd
 	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	opts.ProbeOpts.Tagger = deps.Tagger
+	opts.ProbeOpts.WorkloadMeta = deps.WMeta
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options
@@ -47,14 +49,24 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, deps.Ipc, opts)
+	hostname, err := deps.Hostname.Get(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+
+	// there is no hostname on Fargate instance
+	if !fargate.IsSidecar() && hostname == "" {
+		return nil, errors.New("hostname from core agent is empty")
+	}
+
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, hostname, opts)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts, deps.Compression, deps.Ipc)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname)
 		if err != nil {
 			return nil, err
 		}
@@ -77,13 +89,13 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		log.Info("event monitoring network consumer initialized")
 
 		if netconfig.DirectSend {
-			dp, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
+			ds, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
 			if err != nil {
 				return nil, err
 			}
-			if dp != nil {
-				evm.RegisterEventConsumer(dp)
-				log.Info("event monitoring docker proxy consumer initialized")
+			if ds != nil {
+				evm.RegisterEventConsumer(ds)
+				log.Info("event monitoring direct sender consumer initialized")
 			}
 		}
 	}

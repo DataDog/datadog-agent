@@ -13,6 +13,7 @@ package libraryinjection
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/version"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -70,6 +71,10 @@ type LibraryConfig struct {
 
 // LibraryInjectionConfig contains all configuration needed to perform APM library injection.
 type LibraryInjectionConfig struct {
+	// InjectionMode determines the method for injecting libraries into pods.
+	// Possible values: "auto" (default), "init_container" and "csi".
+	InjectionMode string
+
 	// DefaultResourceRequirements are the default resource requirements for init containers.
 	// If empty, the provider will compute requirements based on the pod's existing resources.
 	DefaultResourceRequirements map[corev1.ResourceName]resource.Quantity
@@ -85,6 +90,10 @@ type LibraryInjectionConfig struct {
 	// Wmeta is the workloadmeta component for accessing namespace metadata.
 	// Used to resolve security context based on namespace labels.
 	Wmeta workloadmeta.Component
+
+	// KubeServerVersion is the Kubernetes API server version.
+	// Used for gating features that depend on cluster version support (e.g. image volumes).
+	KubeServerVersion *version.Info
 
 	// Debug enables debug mode for the APM libraries.
 	// When true, additional debug environment variables are injected.

@@ -165,11 +165,12 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 	}
 
 	if dpa.Spec().Constraints != nil {
-		req.Constraints = &kubeAutoscaling.WorkloadRecommendationConstraints{
-			MaxReplicas: dpa.Spec().Constraints.MaxReplicas,
-		}
+		req.Constraints = &kubeAutoscaling.WorkloadRecommendationConstraints{}
 		if dpa.Spec().Constraints.MinReplicas != nil {
 			req.Constraints.MinReplicas = *dpa.Spec().Constraints.MinReplicas
+		}
+		if dpa.Spec().Constraints.MaxReplicas != nil {
+			req.Constraints.MaxReplicas = *dpa.Spec().Constraints.MaxReplicas
 		}
 	}
 

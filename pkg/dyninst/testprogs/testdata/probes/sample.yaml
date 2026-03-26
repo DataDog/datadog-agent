@@ -1939,7 +1939,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "211"
+        - "230"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1954,7 +1954,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "218"
+        - "237"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1969,7 +1969,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "223"
+        - "242"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -2322,3 +2322,174 @@ probes:
         dsl: "@duration"
       - str: "ms"
     captureSnapshot: true
+  - id: testInlinedFuncFromOtherPackage
+    type: LOG_PROBE
+    where:
+      methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+    template: "testInlinedFuncFromOtherPackage"
+    segments:
+      - str: "testInlinedFuncFromOtherPackage"
+    captureSnapshot: true
+  # This test observes that when you have a value receiver on a type that doesn't
+  # do anything with the value it gets wholly inlined into the pointer receiver
+  # and those two methods then have overlapping PC ranges which tickled a bug
+  # in irgen. This test acts as a regression test for that bug.
+  - id: testWhollyInlinedSubroutine
+    type: LOG_PROBE
+    where:
+      methodName: main.firstBehavior.DoSomething
+    template: "testWhollyInlinedSubroutine"
+    segments:
+      - str: "testWhollyInlinedSubroutine"
+    captureSnapshot: true
+  # Capture expression probes
+  - id: testCaptureExprSimple
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprGetmember
+    type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
+    where:
+      methodName: main.testStruct
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x.aString"
+        expr:
+          dsl: "x.aString"
+          json:
+            getmember:
+              - ref: "x"
+              - "aString"
+  - id: testCaptureExprWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprLine
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureExprLineWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureExprLineCond
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    when:
+      dsl: "x == 3"
+      json: {eq: [{"ref": "x"}, 3]}
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureTenStringsMethodEntryCond
+    type: LOG_PROBE
+    where:
+      methodName: main.testTenStrings
+    captureSnapshot: false
+    when:
+      dsl: "x.tenth == \"ten\""
+      json: {eq: [{"getmember": [{"ref": "x"}, "tenth"]}, "ten"]}
+    sampling:
+      snapshotsPerSecond: 100
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+  # Test for error interface at line probe - captures error variable in scope
+  - id: testErrorAtLine
+    type: LOG_PROBE
+    tags:
+      - "config_diff:arch=amd64,toolchain=go1.26rc1"
+      - "skip_integration:arch=arm64,toolchain=go1.25.0" # https://github.com/golang/go/issues/74576
+    where:
+      methodName: main.testErrorAtLine
+      sourceFile: complex.go
+      lines:
+        - "108"
+    template: "x={x}, err={err}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+      - str: ", err="
+      - json:
+          ref: "err"
+        dsl: "err"
+    captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 100

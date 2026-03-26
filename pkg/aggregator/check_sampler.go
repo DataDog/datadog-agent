@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -62,7 +63,7 @@ func newCheckSampler(
 	}
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList *TagMatcher) {
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
@@ -75,7 +76,11 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, _ := cs.contextResolver.get(ck)
+	ctx, ok := cs.contextResolver.get(ck)
+	if !ok {
+		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
+		return nil
+	}
 	ss := &metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags(),
@@ -88,7 +93,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList *TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -111,7 +116,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList *T
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket, filterList)
+	contextKey := cs.contextResolver.trackContext(bucket, tagFilterList)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
@@ -207,6 +212,9 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 	})
 	for ck, points := range pointsByCtx {
 		series := cs.newSketchSeries(ck, points)
+		if series == nil {
+			continue
+		}
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
