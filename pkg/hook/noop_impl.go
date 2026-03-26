@@ -9,6 +9,7 @@ package hook
 type noopHook[T any] struct{}
 
 func (noopHook[T]) Name() string                                       { return "noop" }
+func (noopHook[T]) HasSubscribers() bool                               { return false }
 func (noopHook[T]) Publish(_ string, _ T)                              {}
 func (noopHook[T]) Subscribe(_ string, _ func(T)) (unsubscribe func()) { return func() {} }
 
