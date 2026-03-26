@@ -291,7 +291,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGUnsupported {
+			if isMIGOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -377,7 +377,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return 0, 0, false, false, nvml.SUCCESS
 		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
-			if isMIGUnsupported || opts.hasUnsupportedNVLinkFields() {
+			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
