@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	oidresolverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,5 +19,14 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(oidresolverimpl.NewComponent),
 		fxutil.ProvideOptional[oidresolver.Component](),
+	)
+}
+
+// MockModule provides a dummy resolver with canned data for testing.
+// Set your own data with fx.Replace(&oidresolver.TrapDBFileContent{...})
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(oidresolverimpl.NewMockResolver),
+		fx.Supply(oidresolverimpl.DummyTrapDB()),
 	)
 }
