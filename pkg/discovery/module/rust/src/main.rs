@@ -92,6 +92,63 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     Ok(sock)
 }
 
+/// Drops all Linux capabilities except CAP_SYS_PTRACE from every capability set.
+///
+/// Must be called after socket setup (which needs CAP_CHOWN for chown).
+/// Failure is non-fatal: SPL logs a warning and continues with inherited capabilities
+/// rather than refusing to start.
+///
+/// Sets modified:
+/// - Effective:    {CAP_SYS_PTRACE} (or empty if not in permitted)
+/// - Permitted:    {CAP_SYS_PTRACE} (or empty)
+/// - Inheritable:  {} (empty — exec'd children get nothing)
+/// - Ambient:      {} (empty — requires kernel ≥ 4.3, silently skipped otherwise)
+/// - Bounding:     {CAP_SYS_PTRACE} (prevents future escalation)
+fn drop_capabilities() {
+    match try_drop_capabilities() {
+        Ok(true) => info!("Capabilities restricted to CAP_SYS_PTRACE"),
+        Ok(false) => warn!(
+            "CAP_SYS_PTRACE is not in the permitted set; capabilities fully dropped, /proc access for other processes will fail"
+        ),
+        Err(e) => {
+            warn!("Failed to restrict capabilities: {e}; continuing with inherited capabilities")
+        }
+    }
+}
+
+fn try_drop_capabilities() -> Result<bool> {
+    use caps::{CapSet, Capability};
+
+    let current_permitted = caps::read(None, CapSet::Permitted)?;
+    let has_ptrace = current_permitted.contains(&Capability::CAP_SYS_PTRACE);
+
+    let mut keep = caps::CapsHashSet::new();
+    if has_ptrace {
+        keep.insert(Capability::CAP_SYS_PTRACE);
+    }
+
+    // Clear inheritable set (children cannot inherit capabilities).
+    caps::clear(None, CapSet::Inheritable)?;
+
+    // Clear ambient set (kernel ≥ 4.3; older kernels return EINVAL, which we ignore).
+    let _ = caps::clear(None, CapSet::Ambient);
+
+    // Lower the bounding set BEFORE restricting effective/permitted, because
+    // CAP_SETPCAP (needed for bounding set drops) must still be in the effective
+    // set at this point. Ignores errors for capabilities absent from the bounding set.
+    for cap in caps::all() {
+        if cap != Capability::CAP_SYS_PTRACE {
+            let _ = caps::drop(None, CapSet::Bounding, cap);
+        }
+    }
+
+    // Restrict effective and permitted to {CAP_SYS_PTRACE} (or empty).
+    caps::set(None, CapSet::Effective, &keep)?;
+    caps::set(None, CapSet::Permitted, &keep)?;
+
+    Ok(has_ptrace)
+}
+
 async fn handle_services<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
 where
     B: hyper::body::Body<Data = Bytes>,
@@ -277,6 +334,8 @@ where
 async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
     let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
+
+    drop_capabilities();
 
     // Setup signal handlers
     let mut sigterm = signal(SignalKind::terminate()).context("Failed to setup SIGTERM handler")?;
@@ -466,6 +525,33 @@ mod tests {
         assert!(
             !nonexistent_path.exists(),
             "Nonexistent file should remain nonexistent"
+        );
+    }
+
+    /// Verifies the effective set contains only CAP_SYS_PTRACE (or nothing) after drop.
+    #[test]
+    fn test_drop_capabilities_restricts_effective_set() {
+        use caps::{CapSet, Capability};
+
+        drop_capabilities();
+
+        let effective = caps::read(None, CapSet::Effective)
+            .unwrap_or_else(|e| panic!("should be able to read effective caps after drop: {e}"));
+
+        let unexpected: Vec<_> = effective
+            .iter()
+            .filter(|c| **c != Capability::CAP_SYS_PTRACE)
+            .collect();
+        assert!(
+            unexpected.is_empty(),
+            "unexpected capabilities in effective set after drop: {unexpected:?}"
+        );
+
+        let inheritable = caps::read(None, CapSet::Inheritable)
+            .unwrap_or_else(|e| panic!("should be able to read inheritable caps: {e}"));
+        assert!(
+            inheritable.is_empty(),
+            "inheritable caps should be empty after drop, got: {inheritable:?}"
         );
     }
 }
