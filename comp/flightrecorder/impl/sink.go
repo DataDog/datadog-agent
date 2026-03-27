@@ -67,15 +67,15 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 	ptCapacity := req.Config.GetInt("flightrecorder.point_buffer_capacity")
 	if ptCapacity <= 0 {
-		ptCapacity = 20000
+		ptCapacity = 10000
 	}
 	defCapacity := req.Config.GetInt("flightrecorder.def_buffer_capacity")
 	if defCapacity <= 0 {
-		defCapacity = 2000
+		defCapacity = 1000
 	}
 	logCapacity := req.Config.GetInt("flightrecorder.log_buffer_capacity")
 	if logCapacity <= 0 {
-		logCapacity = 5000
+		logCapacity = 2500
 	}
 	traceStatsCapacity := req.Config.GetInt("flightrecorder.trace_stats_buffer_capacity")
 	if traceStatsCapacity <= 0 {
@@ -87,7 +87,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
 	if contextCap <= 0 {
-		contextCap = 500000
+		contextCap = 50000
 	}
 
 	c := &counters{}
@@ -131,14 +131,16 @@ func NewComponent(req Requires) (Provides, error) {
 						Source:      source,
 					})
 				} else {
-					sp := tagPool.Get().(*[]string)
-					tags := append((*sp)[:0], s.RawTags...)
+					// MetricSampleSnapshot owns its Name and RawTags
+					// (value-type copies). Safe to reference directly —
+					// Go GC keeps the strings alive as long as the
+					// contextDef holds them in the ring buffer.
 					bat.AddContextDef(contextDef{
 						ContextKey:   ckey,
 						Name:         s.Name,
 						Value:        s.Value,
-						Tags:         tags,
-						TagPoolSlice: sp,
+						Tags:         s.RawTags,
+						TagPoolSlice: nil,
 						TimestampNs:  ts,
 						SampleRate:   s.SampleRate,
 						Source:       source,
