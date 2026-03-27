@@ -8,6 +8,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -94,6 +95,10 @@ func (c *Client) TableQuery(query string) (*DDSQLTableResponse, error) {
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ddsql table query failed with status %d: %s", resp.StatusCode, string(data))
 	}
 
 	var ddSQLResp DDSQLTableResponse
