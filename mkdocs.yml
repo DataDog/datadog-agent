@@ -82,6 +82,7 @@ nav:
   - Documentation: guidelines/docs.md
   - Languages:
     - Go: guidelines/languages/go.md
+    - Rust: guidelines/languages/RUST.md
   - Testing:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
