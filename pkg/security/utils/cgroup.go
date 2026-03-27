@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/sys/unix"
@@ -156,6 +157,7 @@ type CGroupContext struct {
 	CGroupID          containerutils.CGroupID
 	CGroupFileMountID uint32
 	CGroupFileInode   uint64
+	CreatedAt         time.Time
 }
 
 var defaultCGroupMountpoints = []string{
@@ -267,8 +269,10 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				if err = unix.Statx(unix.AT_FDCWD, cgroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
 					cgroupContext.CGroupFileMountID = uint32(fileStatx.Mnt_id)
 					cgroupContext.CGroupFileInode = fileStatx.Ino
+					cgroupContext.CreatedAt = time.Unix(fileStatx.Mtime.Sec, int64(fileStatx.Mtime.Nsec))
 				} else if err = unix.Stat(cgroupPath, &fileStats); err == nil {
 					cgroupContext.CGroupFileInode = fileStats.Ino
+					cgroupContext.CreatedAt = time.Unix(fileStats.Mtim.Sec, int64(fileStats.Mtim.Nsec))
 				}
 				if err == nil {
 					return true, nil
