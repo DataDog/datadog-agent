@@ -10,6 +10,7 @@ package spot
 import (
 	"context"
 	"sync"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,12 +29,18 @@ type workloadConfigStore interface {
 	run(ctx context.Context)
 	// getConfig returns the spotConfig for the workload if present.
 	getConfig(key workload) (spotConfig, bool)
+	// disable disables spot scheduling for workload.
+	// If already disabled returns existing timestamp and false,
+	// otherwise sets disabledUntil and returns the new timestamp and true.
+	disable(key workload, now time.Time, until time.Time) (time.Time, bool)
 }
 
-var spotWorkloadResources = []struct {
+type workloadResource struct {
 	gvr  schema.GroupVersionResource
 	kind string
-}{
+}
+
+var spotWorkloadResources = []workloadResource{
 	{schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, kubernetes.DeploymentKind},
 	{schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, kubernetes.StatefulSetKind},
 }
@@ -103,6 +110,18 @@ func (s *kubeWorkloadConfigStore) getConfig(key workload) (spotConfig, bool) {
 	defer s.mu.RUnlock()
 	cfg, ok := s.configs[key]
 	return cfg, ok
+}
+
+func (s *kubeWorkloadConfigStore) disable(key workload, now time.Time, until time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cfg := s.configs[key]
+	if now.Before(cfg.disabledUntil) {
+		return cfg.disabledUntil, false
+	}
+	cfg.disabledUntil = until
+	s.configs[key] = cfg
+	return until, true
 }
 
 func (s *kubeWorkloadConfigStore) onUpdated(kind string, obj any) {

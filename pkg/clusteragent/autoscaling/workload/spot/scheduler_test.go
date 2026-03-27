@@ -194,8 +194,7 @@ func TestScenarios(t *testing.T) {
 
 		// Then
 		require.Eventually(t, func() bool {
-			_, disabled := s.IsSpotSchedulingDisabled()
-			return disabled
+			return s.IsSpotSchedulingDisabledForOwner("default", kubernetes.ReplicaSetKind, rs)
 		}, 1*time.Second, 50*time.Millisecond)
 
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
@@ -217,8 +216,7 @@ func TestScenarios(t *testing.T) {
 		// Advance past disabled interval to re-enable spot scheduling
 		clk.Step(s.Config().FallbackDuration + epsilon)
 		require.Eventually(t, func() bool {
-			_, disabled := s.IsSpotSchedulingDisabled()
-			return !disabled
+			return !s.IsSpotSchedulingDisabledForOwner("default", kubernetes.ReplicaSetKind, rs)
 		}, 1*time.Second, 50*time.Millisecond)
 
 		// Rebalancing

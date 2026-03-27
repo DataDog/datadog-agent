@@ -15,6 +15,8 @@ const (
 	SpotPercentageAnnotation = "autoscaling.datadoghq.com/spot-percentage"
 	// SpotMinOnDemandReplicasAnnotation is the annotation key for the minimum number of on-demand replicas
 	SpotMinOnDemandReplicasAnnotation = "autoscaling.datadoghq.com/spot-min-on-demand-replicas"
+	// SpotDisabledUntilAnnotation is the annotation key for the timestamp until spot scheduling is disabled (RFC3339).
+	SpotDisabledUntilAnnotation = "autoscaling.datadoghq.com/spot-disabled-until"
 
 	// SpotAssignedLabel is the label key set by the admission webhook on pods assigned to spot instances.
 	SpotAssignedLabel = "autoscaling.datadoghq.com/spot-assigned"

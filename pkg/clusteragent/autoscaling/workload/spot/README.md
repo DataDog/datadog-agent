@@ -17,7 +17,7 @@ Cluster Agent defines default values for spot scheduling configuration options a
 ## Scheduling algorithm
 
 At pod admission time, Cluster Agent checks whether the pod belongs to a spot-eligible workload,
-counts existing pods for the same workload owner, and selects spot placement based on the configured:
+counts existing pods for the same workload, and selects spot placement based on the configured:
 - spot instance percentage
 - minimum on-demand replicas
 - spot disabled timestamp
@@ -35,20 +35,18 @@ Important:
   so Cluster Agent cannot directly fix spot-assigned pods that fail to schedule — it must evict them and let the workload to recreate them.
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
-Cluster Agent periodically checks all tracked pods and if spot-assigned pods are pending longer than the configured
-timeout it disables spot scheduling for a configured duration and evicts the pending spot-assigned pods.
-The workload controller replaces the evicted pods, and since spot scheduling is disabled at this point,
-newly admitted pods are scheduled on-demand (on-demand fallback).
+Cluster Agent periodically checks all tracked pods and if spot-assigned pods for a given workload are pending longer
+than the configured timeout it disables spot scheduling for that workload for a configured duration and evicts
+the pending spot-assigned pods. The workload controller replaces the evicted pods, and since spot scheduling is
+disabled for the workload at this point, newly admitted pods are scheduled on-demand (on-demand fallback).
 
-The disabled-until timestamp is persisted to a ConfigMap by the leader Cluster Agent.
-Non-leader replicas sync the disabled state from the ConfigMap, ensuring their admission webhooks do not assign pods to spot nodes.
-
-Cluster Agent re-enables spot scheduling after the fallback duration elapses.
+The disabled-until timestamp is persisted as the `autoscaling.datadoghq.com/spot-disabled-until` annotation on the workload.
+Cluster Agent re-enables spot scheduling for the workload after the fallback duration elapses.
 
 ### Rebalancing
 
-The leader periodically checks whether each owner's actual spot/on-demand ratio matches the configured target.
-When a deviation is detected, it evicts one excess pod per owner per stabilization period, letting the
+The leader periodically checks whether each workload actual spot/on-demand ratio matches the configured target.
+When a deviation is detected, it evicts one excess pod per workload per stabilization period, letting the
 workload controller recreate it under the current scheduling policy. Rebalancing is skipped while spot scheduling
 is disabled (on-demand fallback duration) or when there are in-flight admissions.
 
@@ -67,11 +65,9 @@ Rebalancing handles the following cases:
 
 ### TODO
 
-- [ ] Fallback ConfigMap RBAC
-- [ ] Watch Fallback ConfigMap instead of polling
-- [ ] Add StatefulSet tests
+- [ ] Complete StatefulSet support (needs patch permission)
 - [ ] Implement Argo Rollout support
-- [ ] Implement CronJob support
+- [ ] Implement CronJob support (needs patch permission)
 - [ ] Emit Kubernetes events
 - [ ] Add metrics and observability
 

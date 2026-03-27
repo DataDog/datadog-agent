@@ -9,7 +9,6 @@ package spot
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,35 +27,37 @@ const (
 
 // Scheduler schedules eligible pods onto spot instances.
 type Scheduler struct {
-	config        Config
-	clock         clock.WithTicker
-	wlm           workloadmeta.Component
-	evictor       podEvictor
-	fallbackStore fallbackStore
-	configStore   workloadConfigStore
-	isLeader      func() bool
-	tracker       *podTracker
-	subscribed    chan struct{}
-
-	mu                sync.RWMutex
-	spotDisabledUntil time.Time
+	config      Config
+	clock       clock.WithTicker
+	wlm         workloadmeta.Component
+	evictor     podEvictor
+	patcher     workloadPatcher
+	configStore workloadConfigStore
+	isLeader    func() bool
+	tracker     *podTracker
+	subscribed  chan struct{}
 }
 
 // NewScheduler creates a new spot Scheduler.
-func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client k8sclient.Interface, dynamicClient dynamic.Interface, namespace string, isLeader func() bool) *Scheduler {
-	return newScheduler(cfg, clk, wlm, newKubePodEvictor(client), newConfigMapFallbackStore(client, namespace), newKubeWorkloadConfigStore(dynamicClient, cfg), isLeader)
+func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client k8sclient.Interface, dynamicClient dynamic.Interface, isLeader func() bool) *Scheduler {
+	return newScheduler(
+		cfg, clk, wlm,
+		newKubePodEvictor(client),
+		newKubeWorkloadPatcher(dynamicClient),
+		newKubeWorkloadConfigStore(dynamicClient, cfg),
+		isLeader)
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, fallbackStore fallbackStore, configStore workloadConfigStore, isLeader func() bool) *Scheduler {
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, configStore workloadConfigStore, isLeader func() bool) *Scheduler {
 	s := &Scheduler{
-		config:        cfg,
-		clock:         clk,
-		wlm:           wlm,
-		evictor:       evictor,
-		fallbackStore: fallbackStore,
-		configStore:   configStore,
-		isLeader:      isLeader,
-		subscribed:    make(chan struct{}),
+		config:      cfg,
+		clock:       clk,
+		wlm:         wlm,
+		evictor:     evictor,
+		patcher:     patcher,
+		configStore: configStore,
+		isLeader:    isLeader,
+		subscribed:  make(chan struct{}),
 	}
 	s.tracker = newPodTracker(clk, spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
 	return s
@@ -117,8 +118,6 @@ func (s *Scheduler) checkOnDemandFallback(ctx context.Context) {
 		case now := <-ticker.C():
 			if s.isLeader() {
 				s.checkOnDemandFallbackOnce(ctx, now)
-			} else {
-				s.syncOnDemandFallbackState(ctx)
 			}
 		}
 	}
@@ -136,10 +135,6 @@ func (s *Scheduler) rebalance(ctx context.Context) {
 			return
 		case <-ticker.C():
 			if !s.isLeader() {
-				continue
-			}
-			_, disabled := s.isSpotSchedulingDisabled()
-			if disabled {
 				continue
 			}
 			uid, name, namespace := s.tracker.getPodToDelete(s.config.RebalanceStabilizationPeriod)
@@ -164,20 +159,20 @@ func (s *Scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 		return false, nil
 	}
 
-	if !s.isSpotEligible(pod) {
+	owner, ok := resolveCoreV1PodOwner(pod)
+	if !ok {
 		return unchanged()
 	}
 
-	owner, ok := resolveCoreV1PodOwner(pod)
+	cfg, ok := s.getSpotConfig(owner)
 	if !ok {
 		return unchanged()
 	}
 
 	log.Debugf("Pod created via webhook for owner %s", owner)
 
-	disabledUntil, disabled := s.isSpotSchedulingDisabled()
-	if disabled {
-		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", disabledUntil, owner)
+	if cfg.isDisabled(s.clock.Now()) {
+		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", cfg.disabledUntil, owner)
 		s.tracker.admitNewOnDemandPod(owner)
 		return unchanged()
 	}
@@ -256,93 +251,64 @@ func assignToSpot(pod *corev1.Pod) {
 	pod.Labels[SpotAssignedLabel] = SpotAssignedSpot
 }
 
-// checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and evicts timed-out pods if needed.
+// checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and evicts pending pods for affected workloads.
 func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time) {
-	if s.reEnableSpotScheduling(now) {
-		log.Infof("Spot scheduling re-enabled")
-	}
-
-	if !s.tracker.hasPendingSpotPods(now.Add(-s.config.ScheduleTimeout)) {
+	pending := s.tracker.getPendingSpotPods(now.Add(-s.config.ScheduleTimeout))
+	if len(pending) == 0 {
 		return
 	}
 
-	disabledUntil, updated := s.disableSpotScheduling(ctx, now)
-	if updated {
-		log.Infof("Disabling spot scheduling until %v", disabledUntil)
-	}
-
-	for uid, pod := range s.tracker.getPendingSpotPods() {
-		if err := s.evictor.evictPod(ctx, pod.owner.Namespace, pod.name, corev1.PodPending); err != nil {
-			log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.owner.Namespace, pod.name, err)
+	byWorkload, orphaned := groupByWorkload(pending)
+	for workload, pods := range byWorkload {
+		if err := s.disableSpotScheduling(ctx, workload, now); err != nil {
+			log.Errorf("Failed to disable spot scheduling for %s: %v", workload, err)
 			continue
 		}
-		log.Infof("Evicted timed-out pending spot pod %s/%s for on-demand fallback", pod.owner.Namespace, pod.name)
-		s.tracker.deletePendingSpotPod(uid)
-	}
-}
-
-// syncFallbackState reads the disabled-until timestamp from the store and updates in-memory state.
-func (s *Scheduler) syncOnDemandFallbackState(ctx context.Context) {
-	until, err := s.fallbackStore.read(ctx)
-	if err != nil {
-		log.Errorf("Failed to sync spot fallback state: %v", err)
-		return
-	}
-
-	updated := false
-	s.mu.Lock()
-	if !until.IsZero() && until.After(s.spotDisabledUntil) {
-		s.spotDisabledUntil = until
-		updated = true
-	}
-	s.mu.Unlock()
-
-	if updated {
-		log.Infof("Spot scheduling disabled until %v", until)
-	}
-}
-
-func (s *Scheduler) isSpotSchedulingDisabled() (time.Time, bool) {
-	s.mu.RLock()
-	spotDisabledUntil := s.spotDisabledUntil
-	s.mu.RUnlock()
-
-	return spotDisabledUntil, s.clock.Now().Before(spotDisabledUntil)
-}
-
-// reEnableSpotScheduling enables spot scheduling if it was disabled and can be re-enabled and
-// returns true if scheduling was re-enabled.
-func (s *Scheduler) reEnableSpotScheduling(now time.Time) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	reEnabled := !s.spotDisabledUntil.IsZero() && now.After(s.spotDisabledUntil)
-	if reEnabled {
-		s.spotDisabledUntil = time.Time{}
-	}
-	return reEnabled
-}
-
-// disableSpotScheduling disables spot scheduling if it is not disabled yet, persists the timestamp
-// to the store, and returns timestamp until scheduling is disabled and a boolean signaling if it was just disabled.
-func (s *Scheduler) disableSpotScheduling(ctx context.Context, now time.Time) (time.Time, bool) {
-	disabledUntil := now.Add(s.config.FallbackDuration)
-	updated := false
-
-	s.mu.Lock()
-	if now.Before(s.spotDisabledUntil) {
-		// already disabled
-		disabledUntil = s.spotDisabledUntil
-	} else {
-		s.spotDisabledUntil = disabledUntil
-		updated = true
-	}
-	s.mu.Unlock()
-
-	if updated {
-		if err := s.fallbackStore.store(ctx, disabledUntil); err != nil {
-			log.Errorf("Failed to persist spot fallback state: %v", err)
+		for uid, pod := range pods {
+			if err := s.evictor.evictPod(ctx, pod.owner.Namespace, pod.name, corev1.PodPending); err != nil {
+				log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.owner.Namespace, pod.name, err)
+				continue
+			}
+			log.Infof("Evicted timed-out pending spot pod %s/%s for on-demand fallback", pod.owner.Namespace, pod.name)
+			s.tracker.deletePendingSpotPod(uid)
 		}
 	}
-	return disabledUntil, updated
+
+	// There should not be any orphaned pods due to admission check
+	for uid, pod := range orphaned {
+		log.Warnf("Cannot resolve workload for pending spot pod %s/%s (owner %s, uid %s)", pod.owner.Namespace, pod.name, pod.owner, uid)
+	}
+}
+
+// groupByWorkload resolves each pending pod's owner to its top-level workload and groups by it.
+// It returns the grouped pods and a map of pods whose owner could not be resolved (keyed by pod UID).
+func groupByWorkload(pods map[string]pendingSpotPod) (map[workload]map[string]pendingSpotPod, map[string]pendingSpotPod) {
+	result := make(map[workload]map[string]pendingSpotPod)
+	var orphaned map[string]pendingSpotPod
+	for uid, pod := range pods {
+		w, ok := resolveOwnerWorkload(pod.owner)
+		if !ok {
+			// Should not happen but collect them for logging.
+			if orphaned == nil {
+				orphaned = make(map[string]pendingSpotPod)
+			}
+			orphaned[uid] = pod
+			continue
+		}
+		if _, ok := result[w]; !ok {
+			result[w] = make(map[string]pendingSpotPod)
+		}
+		result[w][uid] = pod
+	}
+	return result, orphaned
+}
+
+// disableSpotScheduling disables spot scheduling for the workload.
+func (s *Scheduler) disableSpotScheduling(ctx context.Context, workload workload, now time.Time) error {
+	disabledUntil, updated := s.configStore.disable(workload, now, now.Add(s.config.FallbackDuration))
+	if !updated {
+		return nil
+	}
+	log.Infof("Disabling spot scheduling for %s until %v", workload, disabledUntil)
+	return s.patcher.setDisabledUntil(ctx, workload, disabledUntil)
 }

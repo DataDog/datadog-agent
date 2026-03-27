@@ -83,12 +83,21 @@ func ReadConfig(cfg pkgconfigmodel.Reader) Config {
 
 // spotConfig holds per-workload spot scheduling parameters.
 type spotConfig struct {
-	percentage  int
-	minOnDemand int
+	percentage    int
+	minOnDemand   int
+	disabledUntil time.Time
 }
 
 func (c spotConfig) String() string {
+	if !c.disabledUntil.IsZero() {
+		return fmt.Sprintf("percentage=%d%%, minOnDemand=%d, disabledUntil=%v", c.percentage, c.minOnDemand, c.disabledUntil)
+	}
 	return fmt.Sprintf("percentage=%d%%, minOnDemand=%d", c.percentage, c.minOnDemand)
+}
+
+// isDisabled returns true if spot scheduling is disabled at time now.
+func (c spotConfig) isDisabled(now time.Time) bool {
+	return now.Before(c.disabledUntil)
 }
 
 // overrideFromAnnotations overrides cfg fields from spot annotations, leaving unset fields unchanged.
@@ -101,6 +110,13 @@ func overrideFromAnnotations(cfg *spotConfig, annotations map[string]string) {
 	if v := annotations[SpotMinOnDemandReplicasAnnotation]; v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			cfg.minOnDemand = n
+		}
+	}
+	if v := annotations[SpotDisabledUntilAnnotation]; v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			cfg.disabledUntil = t
+		} else {
+			cfg.disabledUntil = time.Time{}
 		}
 	}
 }

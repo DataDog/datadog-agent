@@ -201,6 +201,9 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 	lastUpdatedBefore := now.Add(-rebalanceStabilizationPeriod)
 	for owner, pods := range t.podsPerOwner {
 		t.refreshConfigLocked(owner, pods)
+		if pods.config.isDisabled(now) {
+			continue
+		}
 		if uid, name := pods.getPodToDelete(lastUpdatedBefore); uid != "" {
 			pods.lastUpdate = now // suppress re-selection until stabilization period elapses
 			return uid, name, owner.Namespace
@@ -209,27 +212,16 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 	return "", "", ""
 }
 
-// hasPendingSpotPods returns true if any spot-assigned pod has been pending since before the given time.
-func (t *podTracker) hasPendingSpotPods(since time.Time) bool {
+// getPendingSpotPods returns spot-assigned pods that have been pending since before the given time keyed by pod UID.
+func (t *podTracker) getPendingSpotPods(since time.Time) map[string]pendingSpotPod {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	for _, info := range t.pendingSpotPods {
-		if info.createdAt.Before(since) {
-			return true
-		}
-	}
-	return false
-}
-
-// getPendingSpotPods returns all pending spot-assigned pods, keyed by pod UID.
-func (t *podTracker) getPendingSpotPods() map[string]pendingSpotPod {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	result := make(map[string]pendingSpotPod, len(t.pendingSpotPods))
+	result := make(map[string]pendingSpotPod)
 	for uid, info := range t.pendingSpotPods {
-		result[uid] = info
+		if info.createdAt.Before(since) {
+			result[uid] = info
+		}
 	}
 	return result
 }

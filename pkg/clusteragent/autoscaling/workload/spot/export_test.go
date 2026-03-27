@@ -26,7 +26,10 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	evictorFunc := podEvictorFunc(func(_ context.Context, namespace, name string) error {
 		return evictPod(namespace, name)
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, noopFallbackStore{}, store, isLeader)
+	patcherFunc := workloadPatcherFunc(func(ctx context.Context, owner workload, until time.Time) error {
+		return nil
+	})
+	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, store, isLeader)
 }
 
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given owner.
@@ -50,9 +53,15 @@ func (s *Scheduler) Config() Config {
 	return s.config
 }
 
-// IsSpotSchedulingDisabled returns true if spot scheduling is disabled and a timestamp until it is disabled.
-func (s *Scheduler) IsSpotSchedulingDisabled() (time.Time, bool) {
-	return s.isSpotSchedulingDisabled()
+// IsSpotSchedulingDisabledForOwner returns whether spot scheduling is currently disabled
+// for the workload that owns the given resource.
+func (s *Scheduler) IsSpotSchedulingDisabledForOwner(namespace, kind, name string) bool {
+	owner := podOwner{Kind: kind, Namespace: namespace, Name: name}
+	cfg, ok := s.getSpotConfig(owner)
+	if !ok {
+		return false
+	}
+	return cfg.isDisabled(s.clock.Now())
 }
 
 // IsSpotAssigned reports whether the pod is assigned to a spot instance.
@@ -67,12 +76,12 @@ func (f podEvictorFunc) evictPod(ctx context.Context, namespace, name string, _ 
 	return f(ctx, namespace, name)
 }
 
-// noopFallbackStore is a test-only fallbackStore.
-type noopFallbackStore struct{}
+// workloadPatcherFunc is a function type implementing workloadPatcher for testing.
+type workloadPatcherFunc func(ctx context.Context, owner workload, until time.Time) error
 
-func (noopFallbackStore) store(context.Context, time.Time) error { return nil }
-
-func (noopFallbackStore) read(context.Context) (time.Time, error) { return time.Time{}, nil }
+func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner workload, until time.Time) error {
+	return f(ctx, owner, until)
+}
 
 // TestWorkloadConfigStore is a test-only workloadConfigStore backed by a mutable map.
 type TestWorkloadConfigStore struct {
@@ -107,4 +116,16 @@ func (s *TestWorkloadConfigStore) Update(namespace, kind, name string, annotatio
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.configs[key] = cfg
+}
+
+func (s *TestWorkloadConfigStore) disable(key workload, now time.Time, until time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cfg := s.configs[key]
+	if now.Before(cfg.disabledUntil) {
+		return cfg.disabledUntil, false
+	}
+	cfg.disabledUntil = until
+	s.configs[key] = cfg
+	return until, true
 }
