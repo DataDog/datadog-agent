@@ -30,7 +30,15 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/forwarder
 # gazelle:exclude comp/haagent
 # gazelle:exclude comp/healthplatform
-# gazelle:exclude comp/host-profiler
+# gazelle:exclude comp/host-profiler/collector
+# gazelle:exclude comp/host-profiler/flare
+# gazelle:exclude comp/host-profiler/oom
+# gazelle:exclude comp/host-profiler/symboluploader/cgroup
+# gazelle:exclude comp/host-profiler/symboluploader/pclntab
+# gazelle:exclude comp/host-profiler/symboluploader/pipeline
+# gazelle:exclude comp/host-profiler/symboluploader/symbol
+# gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
+# gazelle:exclude comp/host-profiler/version
 # gazelle:exclude comp/languagedetection
 # gazelle:exclude comp/logonduration
 # gazelle:exclude comp/logs-library
@@ -148,7 +156,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/types
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
-# gazelle:exclude internal/tools/gotest-custom
 # gazelle:exclude pkg/aggregator
 # gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
@@ -317,7 +324,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/serializer
 # gazelle:exclude pkg/serverless
 # gazelle:exclude pkg/snmp
-# gazelle:exclude pkg/ssi
 # gazelle:exclude pkg/status
 # gazelle:exclude pkg/system-probe
 # gazelle:exclude pkg/tagger
@@ -359,8 +365,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/clusteragent
 # gazelle:exclude pkg/util/compression
 # gazelle:exclude pkg/util/containerd
-# gazelle:exclude pkg/util/containers
-# gazelle:exclude pkg/util/containers/image
+# gazelle:exclude pkg/util/containers/cri
+# gazelle:exclude pkg/util/containers/metadata
+# gazelle:exclude pkg/util/containers/metrics
 # gazelle:exclude pkg/util/coredump
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/crio
@@ -402,8 +409,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/quantile
-# gazelle:exclude pkg/util/quantile/sketchtest
+# gazelle:exclude pkg/util/quantile/summary
 # gazelle:exclude pkg/util/retry
 # gazelle:exclude pkg/util/safeelf
 # gazelle:exclude pkg/util/scrubber
@@ -431,7 +437,15 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude rtloader
 # gazelle:exclude tasks
 # gazelle:exclude test
-# gazelle:exclude tools
+# gazelle:exclude tools/NamedPipeCmd
+# gazelle:exclude tools/agent_QA
+# gazelle:exclude tools/ci
+# gazelle:exclude tools/ebpf
+# gazelle:exclude tools/gdb
+# gazelle:exclude tools/go-update
+# gazelle:exclude tools/host-profiler
+# gazelle:exclude tools/retry_file_dump
+# gazelle:exclude tools/windows
 # gazelle:exclude .gitlab
 # gazelle:prefix github.com/DataDog/datadog-agent
 gazelle(
