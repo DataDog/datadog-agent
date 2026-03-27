@@ -4258,3 +4258,112 @@ func TestTraceChunkContainsProbabilitySamplingV1(t *testing.T) {
 		})
 	}
 }
+
+// TestProcessedTraceV1GitCommitSha verifies that processedTraceV1 resolves _dd.git.commit.sha
+// using the correct priority: payload-level > span-level > container tags. When the payload
+// attribute is set, span attributes are not scanned.
+// The span-level fallback is needed for direct ProcessV1 callers (tests, future integrations,
+// V10 payloads from non-conforming tracers) that bypass ConvertToIdx / UnmarshalMsgConverted.
+func TestProcessedTraceV1GitCommitSha(t *testing.T) {
+	makePT := func(payloadSha, rootSpanSha, otherSpanSha, containerTagSha string) *traceutil.ProcessedTraceV1 {
+		st := idx.NewStringTable()
+
+		root := idx.NewInternalSpan(st, &idx.Span{
+			SpanID:      1,
+			ServiceRef:  st.Add("svc"),
+			NameRef:     st.Add("op"),
+			ResourceRef: st.Add("res"),
+			Attributes: map[uint32]*idx.AnyValue{
+				st.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+			},
+		})
+		if rootSpanSha != "" {
+			root.SetStringAttribute("_dd.git.commit.sha", rootSpanSha)
+		}
+
+		other := idx.NewInternalSpan(st, &idx.Span{
+			SpanID:      2,
+			ParentID:    1,
+			ServiceRef:  st.Add("svc"),
+			NameRef:     st.Add("op2"),
+			ResourceRef: st.Add("res2"),
+		})
+		if otherSpanSha != "" {
+			other.SetStringAttribute("_dd.git.commit.sha", otherSpanSha)
+		}
+
+		chunk := idx.NewInternalTraceChunk(st, int32(sampler.PriorityAutoKeep), "", nil,
+			[]*idx.InternalSpan{root, other}, false,
+			[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, 0)
+
+		tp := &idx.InternalTracerPayload{
+			Strings: st,
+			Chunks:  []*idx.InternalTraceChunk{chunk},
+		}
+		if payloadSha != "" {
+			tp.SetStringAttribute("_dd.git.commit.sha", payloadSha)
+		}
+
+		p := &api.PayloadV1{
+			TracerPayload: tp,
+		}
+		return processedTraceV1(p, chunk, root, "", containerTagSha)
+	}
+
+	tests := []struct {
+		name            string
+		payloadSha      string
+		rootSpanSha     string
+		otherSpanSha    string
+		containerTagSha string
+		wantSha         string
+	}{
+		{
+			name:            "container tag only",
+			containerTagSha: "ctag-sha",
+			wantSha:         "ctag-sha",
+		},
+		{
+			name:            "root span attribute overrides container tag",
+			rootSpanSha:     "root-sha",
+			containerTagSha: "ctag-sha",
+			wantSha:         "root-sha",
+		},
+		{
+			name:            "non-root span attribute used when root has none",
+			otherSpanSha:    "other-sha",
+			containerTagSha: "ctag-sha",
+			wantSha:         "other-sha",
+		},
+		{
+			name:         "root span takes precedence over non-root span",
+			rootSpanSha:  "root-sha",
+			otherSpanSha: "other-sha",
+			wantSha:      "root-sha",
+		},
+		{
+			name:        "payload attribute overrides span-level",
+			payloadSha:  "payload-sha",
+			rootSpanSha: "root-sha",
+			wantSha:     "payload-sha",
+		},
+		{
+			name:            "payload attribute overrides all sources",
+			payloadSha:      "payload-sha",
+			rootSpanSha:     "root-sha",
+			containerTagSha: "ctag-sha",
+			wantSha:         "payload-sha",
+		},
+		{
+			name:    "no sha anywhere",
+			wantSha: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pt := makePT(tc.payloadSha, tc.rootSpanSha, tc.otherSpanSha, tc.containerTagSha)
+			assert.Equal(t, tc.wantSha, pt.GitCommitSha)
+		})
+	}
+}

@@ -467,7 +467,6 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRootV1(chunk)
-		// We skip setting chunk attributes as we expect the tracer to have set them in the new payload format.
 		if allowed, denyingRule := a.Blacklister.AllowsString(root.Resource()); !allowed {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
 			ts.TracesFiltered.Inc()
@@ -582,8 +581,29 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
+	// Prefer payload-level _dd.git.commit.sha when present so we skip scanning spans (common after
+	// ConvertToIdx / v05 promotion). Otherwise fall back to span attributes, then the container-tag
+	// value already set on pt.
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
 		pt.GitCommitSha = payloadGitCommitSha
+		return pt
+	}
+	// Span-level fallback: older tracers (and direct ProcessV1 callers that bypass ConvertToIdx) may
+	// set _dd.git.commit.sha only in span attributes rather than as a payload-level attribute.
+	// Search the root span first, then remaining spans, to match GetGitCommitShaFromTrace behaviour.
+	if spanSha, ok := root.GetAttributeAsString("_dd.git.commit.sha"); ok && spanSha != "" {
+		pt.GitCommitSha = spanSha
+	} else {
+		rootSpanID := root.SpanID()
+		for _, span := range chunk.Spans {
+			if span == nil || span.SpanID() == rootSpanID {
+				continue
+			}
+			if spanSha, ok := span.GetAttributeAsString("_dd.git.commit.sha"); ok && spanSha != "" {
+				pt.GitCommitSha = spanSha
+				break
+			}
+		}
 	}
 	return pt
 }
