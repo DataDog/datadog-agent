@@ -66,10 +66,8 @@ func (c *Cluster) ToClusterInfo() ClusterInfo {
 
 // ClusterResult is returned when processing a new log message.
 type ClusterResult struct {
-	Cluster   *Cluster
-	IsNew     bool
-	Signature string
-	Pattern   string
+	Cluster *Cluster
+	IsNew   bool
 }
 
 // SignatureClusterer groups logs by exact signature match.
@@ -108,12 +106,7 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 
 	if c, ok := sc.clusters[sig]; ok {
 		c.Count++
-		return &ClusterResult{
-			Cluster:   c,
-			IsNew:     false,
-			Signature: sig,
-			Pattern:   c.PatternString(),
-		}
+		return &ClusterResult{Cluster: c, IsNew: false}
 	}
 
 	c := &Cluster{
@@ -126,12 +119,7 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
 
-	return &ClusterResult{
-		Cluster:   c,
-		IsNew:     true,
-		Signature: sig,
-		Pattern:   c.PatternString(),
-	}
+	return &ClusterResult{Cluster: c, IsNew: true}
 }
 
 func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) *ClusterResult {
@@ -198,12 +186,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		if canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
-			return &ClusterResult{
-				Cluster:   c,
-				IsNew:     false,
-				Signature: sig,
-				Pattern:   c.PatternString(),
-			}
+			return &ClusterResult{Cluster: c, IsNew: false}
 		}
 	}
 
@@ -217,12 +200,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 			if canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
-				return &ClusterResult{
-					Cluster:   c,
-					IsNew:     false,
-					Signature: c.Signature,
-					Pattern:   c.PatternString(),
-				}
+				return &ClusterResult{Cluster: c, IsNew: false}
 			}
 		}
 	}
@@ -237,12 +215,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
 
-	return &ClusterResult{
-		Cluster:   c,
-		IsNew:     true,
-		Signature: sig,
-		Pattern:   c.PatternString(),
-	}
+	return &ClusterResult{Cluster: c, IsNew: true}
 }
 
 func (pc *PatternClusterer) GetClusters() []*Cluster {
