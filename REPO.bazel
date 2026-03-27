@@ -1,0 +1,6 @@
+ignore_directories([
+    "**/build",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+    ".cache",  # in-workspace cache: GitLab jobs, GitHub actions
+    "bazel-*",  # bazel convenience symlinks: suddenly caused issues inside arm64 Linux containers
+    "target",  # cargo build creates it where Cargo.toml lives
+])

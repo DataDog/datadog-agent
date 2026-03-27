@@ -175,7 +175,6 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_template",
     "com_github_datadog_datadog_agent_pkg_trace",
     "com_github_datadog_datadog_agent_pkg_trace_log",
-    "com_github_datadog_datadog_agent_pkg_trace_otel",
     "com_github_datadog_datadog_agent_pkg_trace_stats",
     "com_github_datadog_datadog_agent_pkg_trace_traceutil",
     "com_github_datadog_datadog_agent_pkg_util_backoff",
