@@ -46,6 +46,12 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 		return language.GenerateResult{}
 	}
 
+	// Only remove test-only files from go_library when there is a go_test
+	// target to receive them. If there is none (e.g. pure helper packages),
+	// leave them in go_library: downstream tests that embed the library with
+	// gotags = ["test"] will recompile all its srcs, including the helpers.
+	removeFromLibrary := hasTestTarget(args.OtherGen)
+
 	testSrcSet := make(map[string]bool, len(testSrcs))
 	for _, s := range testSrcs {
 		testSrcSet[s] = true
@@ -54,6 +60,9 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	for _, r := range args.OtherGen {
 		switch r.Kind() {
 		case "go_library":
+			if !removeFromLibrary {
+				continue
+			}
 			srcs := r.AttrStrings("srcs")
 			filtered := make([]string, 0, len(srcs))
 			for _, s := range srcs {
@@ -70,6 +79,16 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 		}
 	}
 	return language.GenerateResult{}
+}
+
+// hasTestTarget reports whether any go_test rule is present in rules.
+func hasTestTarget(rules []*rule.Rule) bool {
+	for _, r := range rules {
+		if r.Kind() == "go_test" {
+			return true
+		}
+	}
+	return false
 }
 
 // addStringToListIfMissing appends value to the named string-list attribute of r
@@ -94,8 +113,8 @@ func classifyFiles(dir string, regularFiles []string) (testSrcs []string) {
 		if expr == nil {
 			continue
 		}
-		withoutTest := expr.Eval(func(tag string) bool { return tag != "test" })
-		withTest := expr.Eval(func(tag string) bool { return true })
+		withoutTest := expr.Eval(func(tag string) bool { return false })
+		withTest := expr.Eval(func(tag string) bool { return tag == "test" })
 
 		switch {
 		case !withoutTest && withTest:
