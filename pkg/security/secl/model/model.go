@@ -536,6 +536,10 @@ type SnapshottedMmapedFile struct {
 type ProcessCacheEntry struct {
 	ProcessContext
 	Children []*ProcessCacheEntry `field:"-" copy:"-"`
+
+	// Snapshot data (only populated during initial snapshot, used for event replay)
+	SnapshottedBoundSockets []SnapshottedBoundSocket `field:"-"`
+	SnapshottedMmapedFiles  []SnapshottedMmapedFile  `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
