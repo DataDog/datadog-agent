@@ -66,9 +66,21 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 			}
 		case "go_test":
 			r.SetAttr("srcs", append(r.AttrStrings("srcs"), testSrcs...))
+			addStringToListIfMissing(r, "gotags", "test")
 		}
 	}
 	return language.GenerateResult{}
+}
+
+// addStringToListIfMissing appends value to the named string-list attribute of r
+// if it is not already present.
+func addStringToListIfMissing(r *rule.Rule, attr, value string) {
+	for _, s := range r.AttrStrings(attr) {
+		if s == value {
+			return
+		}
+	}
+	r.SetAttr(attr, append(r.AttrStrings(attr), value))
 }
 
 // classifyFiles returns the non-_test.go Go files whose build constraint
