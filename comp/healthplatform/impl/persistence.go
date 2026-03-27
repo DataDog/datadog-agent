@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 // issuesPersistence abstracts loading and saving persisted issue state.
@@ -26,17 +28,19 @@ type issuesPersistence interface {
 // diskPersistence persists issue state to a JSON file using an atomic write
 // (temp file + rename) to avoid corruption on crash.
 type diskPersistence struct {
-	path string
+	path   string
+	logger log.Component
 }
 
-func newDiskPersistence(path string) *diskPersistence {
-	return &diskPersistence{path: path}
+func newDiskPersistence(path string, logger log.Component) *diskPersistence {
+	return &diskPersistence{path: path, logger: logger}
 }
 
 func (d *diskPersistence) load() (*PersistedState, error) {
 	data, err := os.ReadFile(d.path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			d.logger.Info("No persisted issues found, starting fresh")
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to read persisted issues: %w", err)

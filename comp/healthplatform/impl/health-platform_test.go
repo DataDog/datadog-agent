@@ -69,6 +69,11 @@ func (m *mockLifecycle) Stop(ctx context.Context) error {
 
 // testRequires creates a Requires struct for testing with health platform enabled
 func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
+	// Clear Kubernetes env vars so tests are not sensitive to the CI runner environment.
+	// Without this, tests that expect diskPersistence may get noopPersistence on K8s runners.
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	t.Setenv("KUBERNETES", "")
+
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("health_platform.enabled", true)
 	// Use temp directory to avoid test interference

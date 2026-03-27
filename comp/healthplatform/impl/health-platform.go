@@ -227,7 +227,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	} else {
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
-		persistence = newDiskPersistence(persistencePath)
+		persistence = newDiskPersistence(persistencePath, reqs.Log)
 	}
 
 	// Create unified issue registry and register all self-registered modules
@@ -607,18 +607,11 @@ func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
 
 // loadFromDisk loads persisted issues via the persistence backend
 func (h *healthPlatformImpl) loadFromDisk() error {
-	// Skip entirely when the backend doesn't store state (e.g. noopPersistence on Kubernetes).
-	// Calling load() would return (nil, nil) and emit a misleading "starting fresh" log.
-	if _, isNoop := h.persistence.(*noopPersistence); isNoop {
-		return nil
-	}
-
 	state, err := h.persistence.load()
 	if err != nil {
 		return err
 	}
 	if state == nil {
-		h.log.Info("No persisted issues found, starting fresh")
 		return nil
 	}
 
