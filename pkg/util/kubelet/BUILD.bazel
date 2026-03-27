@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubelet",
+    srcs = [
+        "docs.go",
+        "hostname_stub.go",
+        "no_host_alias.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubelet",
+    visibility = ["//visibility:public"],
+)

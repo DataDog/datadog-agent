@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "safeelf",
+    srcs = [
+        "elf.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/safeelf",
+    visibility = ["//visibility:public"],
+)

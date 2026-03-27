@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "trie",
+    srcs = ["trie.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/trie",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "trie_test",
+    srcs = ["trie_test.go"],
+    embed = [":trie"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

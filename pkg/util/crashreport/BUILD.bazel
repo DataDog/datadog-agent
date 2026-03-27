@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "crashreport",
+    srcs = ["crashreport.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/crashreport",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/retry",
+            "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
+            "@com_github_datadog_datadog_agent_pkg_util_log//:log",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
