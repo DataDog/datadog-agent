@@ -9,13 +9,12 @@
 package model
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"math"
 	"net"
 	"reflect"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // to always require the math package
@@ -29128,39 +29127,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "socket.domain":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Socket.Domain)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "socket.type":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Socket.Type)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "socket.protocol":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Socket.Protocol)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -36048,6 +36014,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "socket.domain":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Domain)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "splice.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -39389,8 +39399,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.user_session.ssh_session_id",
 		"signal.type",
 		"socket.domain",
-		"socket.type",
 		"socket.protocol",
+		"socket.retval",
+		"socket.type",
 		"splice.file.change_time",
 		"splice.file.extension",
 		"splice.file.filesystem",
@@ -43929,9 +43940,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "socket.domain":
 		return "socket", reflect.Int, "int", false, nil
-	case "socket.type":
-		return "socket", reflect.Int, "int", false, nil
 	case "socket.protocol":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.retval":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.type":
 		return "socket", reflect.Int, "int", false, nil
 	case "splice.file.change_time":
 		return "splice", reflect.Int, "int", false, nil
@@ -53653,11 +53666,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.type":
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
 	case "socket.domain":
-		return ev.setIntFieldValue("socket.domain", &ev.Socket.Domain, value)
-	case "socket.type":
-		return ev.setIntFieldValue("socket.type", &ev.Socket.Type, value)
+		return ev.setUint16FieldValue("socket.domain", &ev.Socket.Domain, value)
 	case "socket.protocol":
-		return ev.setIntFieldValue("socket.protocol", &ev.Socket.Protocol, value)
+		return ev.setUint16FieldValue("socket.protocol", &ev.Socket.Protocol, value)
+	case "socket.retval":
+		return ev.setInt64FieldValue("socket.retval", &ev.Socket.SyscallEvent.Retval, value)
+	case "socket.type":
+		return ev.setUint16FieldValue("socket.type", &ev.Socket.Type, value)
 	case "splice.file.change_time":
 		return ev.setUint64FieldValue("splice.file.change_time", &ev.Splice.File.FileFields.CTime, value)
 	case "splice.file.extension":
