@@ -52,7 +52,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
-# gazelle:exclude comp/core/secrets
 # gazelle:exclude comp/core/settings
 # gazelle:exclude comp/core/status
 # gazelle:exclude comp/core/sysprobeconfig
@@ -146,12 +145,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
+# gazelle:exclude comp/core/secrets/def
 # gazelle:exclude comp/core/secrets/fx-noop
 # gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/impl
 # gazelle:exclude comp/core/secrets/mock
 # gazelle:exclude comp/core/secrets/noop-impl
-# gazelle:exclude comp/core/secrets/utils
 # gazelle:exclude comp/core/settings
 # gazelle:exclude comp/core/status
 # gazelle:exclude comp/core/sysprobeconfig
