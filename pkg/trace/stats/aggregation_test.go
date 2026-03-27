@@ -175,6 +175,63 @@ func TestGetGRPCStatusCode(t *testing.T) {
 	}
 }
 
+func TestGetGRPCStatusCodeV1(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   *idx.InternalSpan
+		out  string
+	}{
+		{"empty", newTestInternalSpanV1(), ""},
+		{"int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("rpc.grpc.status_code", "10")
+			return s
+		}(), "10"},
+		{"numeric string value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "15")
+			return s
+		}(), "15"},
+		{"enum name", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status_code", "aborted")
+			return s
+		}(), "10"},
+		{"StatusCode prefix", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("grpc.status.code", "StatusCode.ABORTED")
+			return s
+		}(), "10"},
+		{"CANCELLED", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "CANCELLED")
+			return s
+		}(), "1"},
+		{"Canceled", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "Canceled")
+			return s
+		}(), "1"},
+		{"InvalidArgument", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status_code", "InvalidArgument")
+			return s
+		}(), "3"},
+		{"invalid unrecognized string", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("grpc.status.code", "StatusCodee.ABORTED")
+			return s
+		}(), ""},
+		{"fallback key", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("grpc.code", "7")
+			return s
+		}(), "7"},
+	} {
+		assert.Equal(t, tt.out, getGRPCStatusCodeV1(tt.in), tt.name)
+	}
+}
+
 func TestNewAggregation(t *testing.T) {
 	peerSvcOnlyHash := uint64(3430395298086625290)
 	peerTagsHash := uint64(9894752672193411515)
