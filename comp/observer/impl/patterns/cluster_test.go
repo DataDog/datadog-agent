@@ -21,7 +21,7 @@ func TestSignatureClustererSameMessage(t *testing.T) {
 
 	msg := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
 	r1, _ := sc.Process(msg)
-	if !r1.IsNew {
+	if r1.Count != 1 {
 		t.Error("first message should create a new cluster")
 	}
 	if len(sc.GetClusters()) != 1 {
@@ -29,7 +29,7 @@ func TestSignatureClustererSameMessage(t *testing.T) {
 	}
 
 	r2, _ := sc.Process(msg)
-	if r2.IsNew {
+	if r2.Count == 1 {
 		t.Error("same message should not create a new cluster")
 	}
 	if len(sc.GetClusters()) != 1 {
@@ -465,17 +465,17 @@ func TestEndToEndClustering(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{})
 
 	r1, _ := pc.Process("user login from 192.168.1.1")
-	if !r1.IsNew {
+	if r1.Count != 1 {
 		t.Error("first message should be new")
 	}
 
 	r2, _ := pc.Process("user login from 10.0.0.1")
-	if r2.IsNew {
+	if r2.Count == 1 {
 		t.Error("similar message should match existing cluster")
 	}
 
 	r3, _ := pc.Process("server started on port 8080")
-	if !r3.IsNew {
+	if r3.Count != 1 {
 		t.Error("different message should create new cluster")
 	}
 

@@ -123,22 +123,20 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	clusterResult, ok := e.PatternClusterer.Process(message)
+	cluster, ok := e.PatternClusterer.Process(message)
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 	// Not enough patterns yet, don't emit metric
-	if clusterResult.Cluster != nil {
-		// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
-		if clusterResult.Cluster.Count == e.MinPatternsBeforeEmit {
-			telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
-		} else if clusterResult.Cluster.Count < e.MinPatternsBeforeEmit {
-			return observerdef.LogMetricsExtractorOutput{}
-		}
+	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
+	if cluster.Count == e.MinPatternsBeforeEmit {
+		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+	} else if cluster.Count < e.MinPatternsBeforeEmit {
+		return observerdef.LogMetricsExtractorOutput{}
 	}
 
-	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)
-	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), clusterResult.Cluster.ID+1)
+	patternKey := NewPatternKeyInfo(cluster.ID)
+	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), cluster.ID+1)
 	contextKey := metricContextKey(metricName, log.GetTags())
 
 	if e.patternContext == nil {
