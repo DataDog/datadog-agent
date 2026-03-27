@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "origindetection",
+    srcs = ["origindetection.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/origindetection",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "origindetection_test",
+    srcs = ["origindetection_test.go"],
+    embed = [":origindetection"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

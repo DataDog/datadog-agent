@@ -228,7 +228,7 @@ pkg_files(
     name = "rtloader_three_pkg_files",
     srcs = [":datadog-agent-three"],
     prefix = select({
-        "@platforms//os:windows": "",
+        "@platforms//os:windows": "bin/agent",
         "//conditions:default": "lib",
     }),
 )
@@ -250,6 +250,10 @@ pkg_filegroup(
             ":rtloader_with_symlinks",
         ],
     }),
+    prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "embedded",
+    }),
     visibility = ["//packages:__subpackages__"],
 )
 
@@ -270,4 +274,35 @@ pkg_files(
     renames = {
         ":rtloader_static": "libdatadog-agent-rtloader.a",
     },
+)
+
+# Dev-only: installs rtloader + the full Python environment (CPython + deps) in one shot.
+# Used by the invoke tasks instead of separate per-dependency bazel run calls.
+
+# OpenSSL shared libs only — exclude headers to avoid conflict with CPython's include/.
+pkg_filegroup(
+    name = "openssl_libs_embedded",
+    srcs = [
+        "@openssl//:libcrypto_with_symlink",
+        "@openssl//:libssl_with_symlink",
+    ],
+    prefix = "embedded",
+)
+
+pkg_filegroup(
+    name = "python_env_files",
+    srcs = [
+        ":all_files",
+        ":openssl_libs_embedded",
+        "@bzip2//:all_files",
+        "@cpython//:all_files",
+        "@sqlite3//:all_files",
+        "@xz//:all_files",
+        "@zlib//:all_files",
+    ],
+)
+
+pkg_install(
+    name = "install_python_env",
+    srcs = [":python_env_files"],
 )
