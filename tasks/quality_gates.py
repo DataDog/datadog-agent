@@ -611,7 +611,7 @@ def display_pr_comment(
                 with_non_blocking_error = True
 
     if with_blocking_error:
-        body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+        body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\nPlease either fix the size violation or [request an exception](https://datadoghq.atlassian.net/wiki/spaces/ABLD/pages/6034456675/Static+Quality+Gates+runbooks#Exception-process).\n"
         final_error_body = body_error + body_error_footer
     elif with_non_blocking_error:
         body_error_footer += "\n</details>\n\nNote: Some gates exceeded limits but are non-blocking because the size hasn't increased from the ancestor commit.\n"
