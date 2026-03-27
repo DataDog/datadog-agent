@@ -336,4 +336,3 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
 	})
 }
-

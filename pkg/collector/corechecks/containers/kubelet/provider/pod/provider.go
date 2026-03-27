@@ -71,7 +71,7 @@ func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Compon
 }
 
 // Provide provides the metrics related to Kubelet pods using workloadmeta
-func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
+func (p *Provider) Provide(_ kubelet.KubeUtilInterface, sender sender.Sender) error {
 	if kubeletMetrics, err := p.store.GetKubeletMetrics(); err == nil && kubeletMetrics != nil {
 		sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(kubeletMetrics.ExpiredPodCount), "", p.config.Tags)
 	}
