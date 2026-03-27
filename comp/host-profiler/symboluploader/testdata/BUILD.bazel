@@ -5,10 +5,12 @@ go_library(
     srcs = ["helloworld.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/testdata",
     visibility = ["//visibility:private"],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 go_binary(
     name = "testdata",
     embed = [":testdata_lib"],
     visibility = ["//visibility:public"],
+    target_compatible_with = ["@platforms//os:linux"],
 )
