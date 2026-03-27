@@ -120,7 +120,6 @@ type Token struct {
 
 	// Merging
 	IsWild bool
-	Values []string
 }
 
 func WordToken(text string) Token {

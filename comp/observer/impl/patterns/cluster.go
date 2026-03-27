@@ -326,18 +326,8 @@ func mergeTokenLists(pattern, incoming []Token) {
 	for i := range pattern {
 		if pattern[i].Value != incoming[i].Value {
 			pattern[i].IsWild = true
-			pattern[i].Values = appendUnique(pattern[i].Values, incoming[i].Value)
 		}
 	}
-}
-
-func appendUnique(slice []string, s string) []string {
-	for _, v := range slice {
-		if v == s {
-			return slice
-		}
-	}
-	return append(slice, s)
 }
 
 // Classify returns the cluster matching the given message without modifying any state.
