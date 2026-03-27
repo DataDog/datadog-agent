@@ -1245,12 +1245,16 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
             dst = os.path.join(dest_dir, f"{dest_name}.o")
             if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
                 return
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
             shutil.copy2(src_o, dst)
             os.chmod(dst, 0o644)
         elif os.path.exists(src_bin):
             dst = os.path.join(dest_dir, dest_name)
             if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
                 return
+            if os.path.exists(dst):
+                os.chmod(dst, 0o755)
             shutil.copy2(src_bin, dst)
             os.chmod(dst, 0o755)
         else:

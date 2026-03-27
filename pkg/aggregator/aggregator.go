@@ -301,12 +301,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if agentName == flavor.IotAgent && !pkgconfigsetup.Datadog().GetBool("iot_host") {
-		agentName = flavor.DefaultAgent
-	} else if pkgconfigsetup.Datadog().GetBool("iot_host") {
-		// Override the agentName if this Agent is configured to report as IotAgent
-		agentName = flavor.IotAgent
-	}
 	if pkgconfigsetup.Datadog().GetBool("heroku_dyno") {
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
