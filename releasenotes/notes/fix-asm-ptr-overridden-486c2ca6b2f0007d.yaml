@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes Workload Protection raw-packet eBPF programs when multiple packet filters are
+    compiled together. The generated assembly reused register R8 both as the event
+    pointer expected by the filter chain and to hold immediate values, which corrupted the pointer 
+    and caused the kernel BPF verifier to reject the program. 
+    The code now uses a separate register for those
+    immediates so the pointer is preserved across filters.
