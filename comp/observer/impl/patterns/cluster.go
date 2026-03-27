@@ -275,13 +275,13 @@ func canMergeTokens(a, b Token) bool {
 	case TypeNumericValue:
 		return true
 	case TypeDate, TypeLocalTime:
-		return a.DateFormat == b.DateFormat
+		return a.extra.DateFormat == b.extra.DateFormat
 	case TypeIPv4Address:
 		return true
 	case TypeAbsolutePath, TypePathQueryFragment:
-		return sameSegmentCount(a.Segments, b.Segments)
+		return sameSegmentCount(a.extra.Segments, b.extra.Segments)
 	case TypeURI:
-		if a.Scheme != b.Scheme {
+		if a.extra.Scheme != b.extra.Scheme {
 			return false
 		}
 		return true
@@ -296,10 +296,10 @@ func canMergeTokens(a, b Token) bool {
 	case TypeSeverity:
 		return true
 	case TypeHexDump:
-		return a.DispLen == b.DispLen
+		return a.extra.DispLen == b.extra.DispLen
 	case TypeKVSequence:
-		return a.KVSep == b.KVSep && a.KVPairSep == b.KVPairSep &&
-			a.KVQuote == b.KVQuote && sameKeys(a.KVKeys, b.KVKeys)
+		return a.extra.KVSep == b.extra.KVSep && a.extra.KVPairSep == b.extra.KVPairSep &&
+			a.extra.KVQuote == b.extra.KVQuote && sameKeys(a.extra.KVKeys, b.extra.KVKeys)
 	default:
 		return a.Value == b.Value
 	}

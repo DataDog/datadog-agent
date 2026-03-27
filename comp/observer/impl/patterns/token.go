@@ -76,50 +76,64 @@ func (t TokenType) String() string {
 	}
 }
 
+// Token is the lean, public representation stored in cluster patterns.
+// Simple token types (word, number, special character, whitespace, severity,
+// HTTP method/status, IPv4/IPv6) carry no extra allocation.
+// Complex types (date, path, URI, authority, email, hex-dump, KV) store
+// their type-specific fields in the private tokenExtra pointer.
 type Token struct {
 	Type  TokenType
 	Value string
 
-	// Word-specific
+	// TypeWord: used for signature ("specialWord" vs "word") and merge guard.
 	HasDigits     bool
 	NeverWildcard bool
 
-	// Date-specific
+	// Set by mergeTokenLists when two differing values collapse to a wildcard.
+	IsWild bool
+
+	// Non-nil only for complex token types; nil for word/number/special/whitespace/
+	// severity/http-method/http-status/ipv4/ipv6.
+	extra *tokenExtra
+}
+
+// tokenExtra holds all type-specific fields for complex token types.
+// Keeping them in a separate heap-allocated struct lets the common simple
+// tokens (TypeWord etc.) avoid carrying ~300 bytes of zero-valued fields.
+type tokenExtra struct {
+	// TypeDate, TypeLocalTime
 	DateFormat string
 
-	// Path-specific
+	// TypeAbsolutePath, TypePathQueryFragment, TypeURI
 	Segments []string
 	Query    *string
 	Fragment *string
 
-	// URI-specific
+	// TypeURI
 	Scheme    string
 	Authority *Token
 	Path      *Token
 
-	// Authority-specific
+	// TypeAuthority
 	Host     *Token
 	Port     int
 	HasPort  bool
 	UserInfo string
 	HasUser  bool
 
-	// Email-specific
+	// TypeEmailAddress
 	LocalPart string
 	Domain    string
 
-	// HexDump-specific
+	// TypeHexDump
 	DispLen  int
 	HasASCII bool
 
-	// KV-specific
+	// TypeKVSequence
 	KVKeys    []string
 	KVSep     string
 	KVPairSep string
 	KVQuote   string
-
-	// Merging
-	IsWild bool
 }
 
 func WordToken(text string) Token {
@@ -143,11 +157,11 @@ func WhitespaceToken(count int) Token {
 }
 
 func DateToken(format, rawText string) Token {
-	return Token{Type: TypeDate, Value: rawText, DateFormat: format}
+	return Token{Type: TypeDate, Value: rawText, extra: &tokenExtra{DateFormat: format}}
 }
 
 func LocalTimeToken(format, rawText string) Token {
-	return Token{Type: TypeLocalTime, Value: rawText, DateFormat: format}
+	return Token{Type: TypeLocalTime, Value: rawText, extra: &tokenExtra{DateFormat: format}}
 }
 
 func IPv4Token(text string, _, _, _, _ int) Token {
@@ -156,9 +170,9 @@ func IPv4Token(text string, _, _, _, _ int) Token {
 
 func PathToken(segments []string) Token {
 	return Token{
-		Type:     TypeAbsolutePath,
-		Value:    "/" + strings.Join(segments, "/"),
-		Segments: segments,
+		Type:  TypeAbsolutePath,
+		Value: "/" + strings.Join(segments, "/"),
+		extra: &tokenExtra{Segments: segments},
 	}
 }
 
@@ -171,11 +185,9 @@ func PathQueryFragmentToken(segments []string, query, fragment *string) Token {
 		v += "#" + *fragment
 	}
 	return Token{
-		Type:     TypePathQueryFragment,
-		Value:    v,
-		Segments: segments,
-		Query:    query,
-		Fragment: fragment,
+		Type:  TypePathQueryFragment,
+		Value: v,
+		extra: &tokenExtra{Segments: segments, Query: query, Fragment: fragment},
 	}
 }
 
@@ -194,13 +206,9 @@ func URIToken(scheme string, authority *Token, path *Token, query, fragment *str
 		v += "#" + *fragment
 	}
 	return Token{
-		Type:      TypeURI,
-		Value:     v,
-		Scheme:    scheme,
-		Authority: authority,
-		Path:      path,
-		Query:     query,
-		Fragment:  fragment,
+		Type:  TypeURI,
+		Value: v,
+		extra: &tokenExtra{Scheme: scheme, Authority: authority, Path: path, Query: query, Fragment: fragment},
 	}
 }
 
@@ -216,22 +224,17 @@ func AuthorityToken(host *Token, port int, hasPort bool, userInfo string, hasUse
 		v += fmt.Sprintf(":%d", port)
 	}
 	return Token{
-		Type:     TypeAuthority,
-		Value:    v,
-		Host:     host,
-		Port:     port,
-		HasPort:  hasPort,
-		UserInfo: userInfo,
-		HasUser:  hasUser,
+		Type:  TypeAuthority,
+		Value: v,
+		extra: &tokenExtra{Host: host, Port: port, HasPort: hasPort, UserInfo: userInfo, HasUser: hasUser},
 	}
 }
 
 func EmailToken(localPart, domain string) Token {
 	return Token{
-		Type:      TypeEmailAddress,
-		Value:     localPart + "@" + domain,
-		LocalPart: localPart,
-		Domain:    domain,
+		Type:  TypeEmailAddress,
+		Value: localPart + "@" + domain,
+		extra: &tokenExtra{LocalPart: localPart, Domain: domain},
 	}
 }
 
@@ -249,21 +252,16 @@ func SeverityToken(level string) Token {
 
 func HexDumpToken(text string, dispLen int, hasASCII bool) Token {
 	return Token{
-		Type:     TypeHexDump,
-		Value:    text,
-		DispLen:  dispLen,
-		HasASCII: hasASCII,
+		Type:  TypeHexDump,
+		Value: text,
+		extra: &tokenExtra{DispLen: dispLen, HasASCII: hasASCII},
 	}
 }
 
 func KVSequenceToken(keys []string, sep, pairSep, quote string) Token {
 	return Token{
-		Type:      TypeKVSequence,
-		Value:     "",
-		KVKeys:    keys,
-		KVSep:     sep,
-		KVPairSep: pairSep,
-		KVQuote:   quote,
+		Type:  TypeKVSequence,
+		extra: &tokenExtra{KVKeys: keys, KVSep: sep, KVPairSep: pairSep, KVQuote: quote},
 	}
 }
 
@@ -279,9 +277,9 @@ func (t Token) Signature() string {
 	case TypeWhitespace:
 		return " "
 	case TypeDate:
-		return t.DateFormat
+		return t.extra.DateFormat
 	case TypeLocalTime:
-		return "local-time:" + t.DateFormat
+		return "local-time:" + t.extra.DateFormat
 	case TypeIPv4Address:
 		return "ipv4"
 	case TypeIPv6Address:
@@ -320,41 +318,41 @@ func wordSignature(t Token) string {
 
 func pathQueryFragSignature(t Token) string {
 	sig := "AbsolutePath"
-	if t.Query != nil {
-		sig += "?" + *t.Query
+	if t.extra.Query != nil {
+		sig += "?" + *t.extra.Query
 	}
-	if t.Fragment != nil {
-		sig += "#" + *t.Fragment
+	if t.extra.Fragment != nil {
+		sig += "#" + *t.extra.Fragment
 	}
 	return sig
 }
 
 func uriSignature(t Token) string {
-	sig := t.Scheme + "://"
-	if t.Authority != nil {
-		sig += t.Authority.Signature()
+	sig := t.extra.Scheme + "://"
+	if t.extra.Authority != nil {
+		sig += t.extra.Authority.Signature()
 	}
-	if t.Path != nil {
-		sig += t.Path.Signature()
+	if t.extra.Path != nil {
+		sig += t.extra.Path.Signature()
 	}
-	if t.Query != nil {
-		sig += "?" + *t.Query
+	if t.extra.Query != nil {
+		sig += "?" + *t.extra.Query
 	}
-	if t.Fragment != nil {
-		sig += "#" + *t.Fragment
+	if t.extra.Fragment != nil {
+		sig += "#" + *t.extra.Fragment
 	}
 	return sig
 }
 
 func authoritySignature(t Token) string {
 	sig := ""
-	if t.HasUser {
-		sig += t.UserInfo + "@"
+	if t.extra.HasUser {
+		sig += t.extra.UserInfo + "@"
 	}
-	if t.Host != nil {
-		sig += hostSignature(*t.Host)
+	if t.extra.Host != nil {
+		sig += hostSignature(*t.extra.Host)
 	}
-	if t.HasPort {
+	if t.extra.HasPort {
 		sig += ":port"
 	}
 	return sig
@@ -373,24 +371,24 @@ func hostSignature(t Token) string {
 
 func hexDumpSignature(t Token) string {
 	ascii := "F"
-	if t.HasASCII {
+	if t.extra.HasASCII {
 		ascii = "T"
 	}
-	return fmt.Sprintf("HexDump[dl:%d|ascii:%s]", t.DispLen, ascii)
+	return fmt.Sprintf("HexDump[dl:%d|ascii:%s]", t.extra.DispLen, ascii)
 }
 
 func kvSignature(t Token) string {
-	sorted := make([]string, len(t.KVKeys))
-	copy(sorted, t.KVKeys)
+	sorted := make([]string, len(t.extra.KVKeys))
+	copy(sorted, t.extra.KVKeys)
 	sortStrings(sorted)
 	unique := uniqueStrings(sorted)
 	return fmt.Sprintf("KV%d=[%s][q:%s|s:%s%s|ps:%s]KV",
 		len(unique),
 		strings.Join(unique, ", "),
-		t.KVQuote,
-		t.KVSep,
-		t.KVSep,
-		t.KVPairSep,
+		t.extra.KVQuote,
+		t.extra.KVSep,
+		t.extra.KVSep,
+		t.extra.KVPairSep,
 	)
 }
 

@@ -72,25 +72,25 @@ func TestTokenizePathWithQuery(t *testing.T) {
 	if len(tokens) != 1 || tokens[0].Type != TypePathQueryFragment {
 		t.Errorf("expected PathQueryFragment, got %v", tok(tokens))
 	}
-	if tokens[0].Query == nil {
+	if tokens[0].extra.Query == nil {
 		t.Error("expected non-nil query")
 	}
 
 	tokens = NewTokenizer().Tokenize("/reports/search_by_client?query")
-	if tokens[0].Query == nil || *tokens[0].Query != "query" {
-		t.Errorf("expected query='query', got %v", tokens[0].Query)
+	if tokens[0].extra.Query == nil || *tokens[0].extra.Query != "query" {
+		t.Errorf("expected query='query', got %v", tokens[0].extra.Query)
 	}
 
 	tokens = NewTokenizer().Tokenize("/reports/search_by_client#fragment")
-	if tokens[0].Fragment == nil || *tokens[0].Fragment != "fragment" {
-		t.Errorf("expected fragment='fragment', got %v", tokens[0].Fragment)
+	if tokens[0].extra.Fragment == nil || *tokens[0].extra.Fragment != "fragment" {
+		t.Errorf("expected fragment='fragment', got %v", tokens[0].extra.Fragment)
 	}
 
 	tokens = NewTokenizer().Tokenize("/reports/search_by_client?query#fragment")
-	if tokens[0].Query == nil || *tokens[0].Query != "query" {
+	if tokens[0].extra.Query == nil || *tokens[0].extra.Query != "query" {
 		t.Error("expected query='query'")
 	}
-	if tokens[0].Fragment == nil || *tokens[0].Fragment != "fragment" {
+	if tokens[0].extra.Fragment == nil || *tokens[0].extra.Fragment != "fragment" {
 		t.Error("expected fragment='fragment'")
 	}
 }
@@ -110,7 +110,7 @@ func TestTokenizePathQuerySpace(t *testing.T) {
 	if tokens[2].Type != TypePathQueryFragment {
 		t.Errorf("token[2] expected PathQueryFragment, got %v", tokens[2].Type)
 	}
-	if tokens[2].Query == nil || *tokens[2].Query != "param1=value1" {
+	if tokens[2].extra.Query == nil || *tokens[2].extra.Query != "param1=value1" {
 		t.Errorf("token[2] expected query 'param1=value1'")
 	}
 }
@@ -380,8 +380,8 @@ func TestTokenizeIPv4(t *testing.T) {
 	if len(tokens) != 1 || tokens[0].Type != TypeAuthority {
 		t.Errorf("expected Authority for IP:port, got %v", tok(tokens))
 	}
-	if !tokens[0].HasPort || tokens[0].Port != 40032 {
-		t.Errorf("expected port 40032, got port=%d hasPort=%v", tokens[0].Port, tokens[0].HasPort)
+	if !tokens[0].extra.HasPort || tokens[0].extra.Port != 40032 {
+		t.Errorf("expected port 40032, got port=%d hasPort=%v", tokens[0].extra.Port, tokens[0].extra.HasPort)
 	}
 
 	// @IP
@@ -403,7 +403,7 @@ func TestTokenizeIPv4FromSlash(t *testing.T) {
 	tokens := NewTokenizer().Tokenize("connection from /172.20.162.38:40032 is closed")
 	found := false
 	for _, tok := range tokens {
-		if tok.Type == TypeAuthority && tok.HasPort {
+		if tok.Type == TypeAuthority && tok.extra.HasPort {
 			found = true
 			break
 		}
@@ -425,26 +425,26 @@ func TestTokenizeHexDump(t *testing.T) {
 		dumpTokens(t, "0010: DB 8A")
 		t.Fatal("expected HexDump token")
 	}
-	if tokens[0].DispLen != 4 {
-		t.Errorf("expected DispLen=4, got %d", tokens[0].DispLen)
+	if tokens[0].extra.DispLen != 4 {
+		t.Errorf("expected DispLen=4, got %d", tokens[0].extra.DispLen)
 	}
-	if tokens[0].HasASCII {
+	if tokens[0].extra.HasASCII {
 		t.Error("expected HasASCII=false")
 	}
 
 	tokens = tokenizer.Tokenize("00000000: 02 f3 82 00")
-	if tokens[0].Type != TypeHexDump || tokens[0].DispLen != 8 {
+	if tokens[0].Type != TypeHexDump || tokens[0].extra.DispLen != 8 {
 		t.Errorf("expected HexDump with DispLen=8")
 	}
 
 	tokens = tokenizer.Tokenize("0000: AA AA AA")
-	if tokens[0].Type != TypeHexDump || tokens[0].DispLen != 4 {
+	if tokens[0].Type != TypeHexDump || tokens[0].extra.DispLen != 4 {
 		t.Errorf("expected HexDump with DispLen=4")
 	}
 
 	tokens = tokenizer.Tokenize("1C40: 82 0B A2")
-	if tokens[0].Type != TypeHexDump || tokens[0].DispLen != 4 {
-		t.Errorf("expected HexDump '1C40: 82 0B A2' with DispLen=4, got type=%v dl=%d", tokens[0].Type, tokens[0].DispLen)
+	if tokens[0].Type != TypeHexDump || tokens[0].extra.DispLen != 4 {
+		t.Errorf("expected HexDump '1C40: 82 0B A2' with DispLen=4, got type=%v dl=%d", tokens[0].Type, tokens[0].extra.DispLen)
 	}
 }
 
@@ -457,7 +457,7 @@ func TestTokenizeHexDumpWithAscii(t *testing.T) {
 		dumpTokens(t, "00000000: 01 02 03 04 05 Ascii")
 		t.Fatal("expected HexDump token")
 	}
-	if !tokens[0].HasASCII {
+	if !tokens[0].extra.HasASCII {
 		t.Error("expected HasASCII=true")
 	}
 
@@ -466,7 +466,7 @@ func TestTokenizeHexDumpWithAscii(t *testing.T) {
 		dumpTokens(t, "0010: DB 8A 8E 01 00 .....")
 		t.Fatal("expected HexDump")
 	}
-	if !tokens[0].HasASCII {
+	if !tokens[0].extra.HasASCII {
 		t.Error("expected HasASCII=true for '.....''")
 	}
 }
