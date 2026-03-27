@@ -64,7 +64,7 @@ func newTestPod(id string) *workloadmeta.KubernetesPod {
 // TestComputePodStartupTimings tests the pure timing computation.
 func TestComputePodStartupTimings(t *testing.T) {
 	t.Run("normal pod", func(t *testing.T) {
-		timings, err := computePodStartupTimings(newTestPod("normal"), false)
+		timings, err := computePodStartupTimings(newTestPod("normal"))
 		assert.NoError(t, err)
 		assert.Equal(t, 14*time.Second, timings.timeToReady)
 		assert.Equal(t, 10*time.Second, timings.timeToRunning)
@@ -75,7 +75,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 		p.Conditions = []workloadmeta.KubernetesPodCondition{
 			{Type: podConditionTypeReady, Status: "True", LastTransitionTime: readyTime},
 		}
-		_, err := computePodStartupTimings(p, false)
+		_, err := computePodStartupTimings(p)
 		assert.Error(t, err)
 	})
 
@@ -84,7 +84,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 		p.Conditions = []workloadmeta.KubernetesPodCondition{
 			{Type: podConditionTypePodScheduled, Status: "True", LastTransitionTime: scheduledTime},
 		}
-		timings, err := computePodStartupTimings(p, false)
+		timings, err := computePodStartupTimings(p)
 		assert.NoError(t, err)
 		assert.Equal(t, time.Duration(0), timings.timeToReady)
 		assert.Equal(t, 10*time.Second, timings.timeToRunning)
@@ -95,7 +95,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 		p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
 			{Name: "app", State: workloadmeta.KubernetesContainerState{}},
 		}
-		timings, err := computePodStartupTimings(p, false)
+		timings, err := computePodStartupTimings(p)
 		assert.NoError(t, err)
 		assert.Equal(t, 14*time.Second, timings.timeToReady)
 		assert.Equal(t, time.Duration(0), timings.timeToRunning)
@@ -118,7 +118,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 				},
 			},
 		}
-		timings, err := computePodStartupTimings(p, false)
+		timings, err := computePodStartupTimings(p)
 		assert.NoError(t, err)
 		assert.Equal(t, 14*time.Second, timings.timeToReady)
 		assert.Equal(t, 7*time.Second, timings.timeToRunning)
@@ -134,7 +134,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 				},
 			},
 		}
-		timings, err := computePodStartupTimings(p, false)
+		timings, err := computePodStartupTimings(p)
 		assert.NoError(t, err)
 		assert.Equal(t, 14*time.Second, timings.timeToReady)
 		assert.Equal(t, 10*time.Second, timings.timeToRunning)
@@ -143,7 +143,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 	t.Run("container restart returns error", func(t *testing.T) {
 		p := newTestPod("restarted")
 		p.ContainerStatuses[0].RestartCount = 1
-		_, err := computePodStartupTimings(p, false)
+		_, err := computePodStartupTimings(p)
 		assert.Error(t, err)
 	})
 
@@ -152,22 +152,41 @@ func TestComputePodStartupTimings(t *testing.T) {
 		p.InitContainerStatuses = []workloadmeta.KubernetesContainerStatus{
 			{Name: "init", RestartCount: 2},
 		}
-		_, err := computePodStartupTimings(p, false)
+		_, err := computePodStartupTimings(p)
 		assert.Error(t, err)
 	})
 
-	t.Run("readiness failure skips time_to_ready but keeps time_to_running", func(t *testing.T) {
-		timings, err := computePodStartupTimings(newTestPod("flaky"), true)
+	t.Run("ready time within maxReadyLag of latest container start emits time_to_ready", func(t *testing.T) {
+		// Container started at runningTime (+11s), ready at readyTime (+15s): gap = 4s, well within maxReadyLag.
+		timings, err := computePodStartupTimings(newTestPod("normal"))
+		assert.NoError(t, err)
+		assert.Equal(t, 14*time.Second, timings.timeToReady)
+	})
+
+	t.Run("ready time beyond maxReadyLag of latest container start skips time_to_ready", func(t *testing.T) {
+		p := newTestPod("re-ready")
+		// Container started at runningTime (+11s after base), ready at +11s + maxReadyLag + 1s.
+		p.Conditions[1].LastTransitionTime = runningTime.Add(maxReadyLag + 1*time.Second)
+		timings, err := computePodStartupTimings(p)
 		assert.NoError(t, err)
 		assert.Equal(t, time.Duration(0), timings.timeToReady)
+		// time_to_running is unaffected
 		assert.Equal(t, 10*time.Second, timings.timeToRunning)
+	})
+
+	t.Run("ready time at exactly maxReadyLag from latest container start emits time_to_ready", func(t *testing.T) {
+		p := newTestPod("boundary")
+		p.Conditions[1].LastTransitionTime = runningTime.Add(maxReadyLag)
+		timings, err := computePodStartupTimings(p)
+		assert.NoError(t, err)
+		assert.Greater(t, timings.timeToReady, time.Duration(0))
 	})
 
 	t.Run("durations exceeding max are discarded", func(t *testing.T) {
 		p := newTestPod("exceed")
 		p.Conditions[1].LastTransitionTime = scheduledTime.Add(2 * time.Hour)
 		p.ContainerStatuses[0].State.Running.StartedAt = scheduledTime.Add(2 * time.Hour)
-		_, err := computePodStartupTimings(p, false)
+		_, err := computePodStartupTimings(p)
 		assert.Error(t, err)
 	})
 
@@ -177,7 +196,7 @@ func TestComputePodStartupTimings(t *testing.T) {
 		p.Conditions[1].LastTransitionTime = scheduledTime.Add(-5 * time.Second)
 		// Container started before scheduled
 		p.ContainerStatuses[0].State.Running.StartedAt = scheduledTime.Add(-3 * time.Second)
-		_, err := computePodStartupTimings(p, false)
+		_, err := computePodStartupTimings(p)
 		assert.Error(t, err)
 	})
 }
@@ -229,7 +248,7 @@ func newTestProvider(t *testing.T) (*Provider, *mocksender.MockSender) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// Register tags for test pod UIDs at orchestrator cardinality
-	for _, uid := range []string{"normal", "restarted", "flaky", "not-ready", "exceed-max"} {
+	for _, uid := range []string{"normal", "restarted", "flaky", "not-ready", "exceed-max", "re-ready", "boundary"} {
 		entityID := taggertypes.NewEntityID(taggertypes.KubernetesPodUID, uid)
 		fakeTagger.SetTags(entityID, "test",
 			[]string{"kube_namespace:default", "kube_deployment:test-deployment"},
@@ -263,7 +282,7 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 		provider, mockSender := newTestProvider(t)
 		pod := newTestPod("normal")
 
-		provider.generatePodStartupMetrics(mockSender, pod, nil)
+		provider.generatePodStartupMetrics(mockSender, pod)
 
 		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", 14.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-normal", "cluster:test"})
 		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-normal", "cluster:test"})
@@ -274,21 +293,19 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 		pod := newTestPod("restarted")
 		pod.ContainerStatuses[0].RestartCount = 1
 
-		provider.generatePodStartupMetrics(mockSender, pod, nil)
+		provider.generatePodStartupMetrics(mockSender, pod)
 
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
 	})
 
-	t.Run("skips time_to_ready but emits time_to_running when readiness probes failed", func(t *testing.T) {
+	t.Run("skips time_to_ready but emits time_to_running when ready time exceeds maxReadyLag", func(t *testing.T) {
 		provider, mockSender := newTestProvider(t)
 		pod := newTestPod("flaky")
+		// Set ready time beyond maxReadyLag after the latest container start
+		pod.Conditions[1].LastTransitionTime = runningTime.Add(maxReadyLag + 1*time.Second)
 
-		failures := readinessFailureCounts{
-			"flaky": {"app": 5},
-		}
-
-		provider.generatePodStartupMetrics(mockSender, pod, failures)
+		provider.generatePodStartupMetrics(mockSender, pod)
 
 		mockSender.AssertMetricNotTaggedWith(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", []string{"pod_name:test-pod-flaky"})
 		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-flaky", "cluster:test"})
@@ -299,7 +316,7 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 		pod := newTestPod("not-ready")
 		pod.Ready = false
 
-		provider.generatePodStartupMetrics(mockSender, pod, nil)
+		provider.generatePodStartupMetrics(mockSender, pod)
 
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
@@ -313,54 +330,10 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 		// Set running time to 2 hours after scheduled
 		pod.ContainerStatuses[0].State.Running.StartedAt = scheduledTime.Add(2 * time.Hour)
 
-		provider.generatePodStartupMetrics(mockSender, pod, nil)
+		provider.generatePodStartupMetrics(mockSender, pod)
 
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
 		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
 	})
 }
 
-// TestPodHasTooManyReadinessFailures tests the per-container failure threshold logic.
-func TestPodHasTooManyReadinessFailures(t *testing.T) {
-	t.Run("no failures returns false", func(t *testing.T) {
-		pod := newTestPod("clean")
-		assert.False(t, podHasTooManyReadinessFailures(pod, nil, nil))
-	})
-
-	t.Run("failures below default threshold returns false", func(t *testing.T) {
-		pod := newTestPod("below")
-		failures := readinessFailureCounts{
-			"below": {"app": 2},
-		}
-		assert.False(t, podHasTooManyReadinessFailures(pod, failures, nil))
-	})
-
-	t.Run("failures at default threshold returns true", func(t *testing.T) {
-		pod := newTestPod("at")
-		failures := readinessFailureCounts{
-			"at": {"app": 3},
-		}
-		assert.True(t, podHasTooManyReadinessFailures(pod, failures, nil))
-	})
-
-	t.Run("failures above default threshold returns true", func(t *testing.T) {
-		pod := newTestPod("above")
-		failures := readinessFailureCounts{
-			"above": {"app": 4},
-		}
-		assert.True(t, podHasTooManyReadinessFailures(pod, failures, nil))
-	})
-
-	t.Run("pod not in failures map returns false", func(t *testing.T) {
-		pod := newTestPod("missing")
-		failures := readinessFailureCounts{
-			"other-pod": {"app": 100},
-		}
-		assert.False(t, podHasTooManyReadinessFailures(pod, failures, nil))
-	})
-
-	t.Run("nil failures map returns false", func(t *testing.T) {
-		pod := newTestPod("nil-map")
-		assert.False(t, podHasTooManyReadinessFailures(pod, nil, nil))
-	})
-}
