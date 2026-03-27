@@ -577,16 +577,17 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
-	// Build a set of containers that actually exist in the pod so we only patch
-	// containers present in the running pod, not every container in the recommendation.
-	podContainers := make(map[string]struct{}, len(pod.Containers))
-	for _, c := range pod.Containers {
-		podContainers[c.Name] = struct{}{}
+	// Build a map from container name to container resources.
+	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(containersResources))
+	for _, cr := range containersResources {
+		recoByName[cr.Name] = cr
 	}
 
+	// Build the list of patches ordered to API server pod container order.
 	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
-	for _, cr := range containersResources {
-		if _, ok := podContainers[cr.Name]; !ok {
+	for _, c := range pod.Containers {
+		cr, ok := recoByName[c.Name]
+		if !ok {
 			continue
 		}
 		patches = append(patches, workloadpatcher.ContainerResourcePatch{
