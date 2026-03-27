@@ -17,8 +17,8 @@ import (
 
 	"go.uber.org/fx"
 
-	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
@@ -104,7 +104,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 			Logger:    deps.Logger,
 			Status:    stat,
 		}),
-		configimpl.Module(),
+		configfx.Module(),
 		formatterimpl.Module(),
 		forwarderimpl.Module(),
 		listenerimpl.Module(),
