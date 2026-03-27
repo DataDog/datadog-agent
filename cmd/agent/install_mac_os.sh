@@ -5,18 +5,20 @@
 # Copyright 2016-present Datadog, Inc.
 
 # Datadog Agent install script for macOS.
+# Downloads the correct DMG and runs the pkg installer.
+# Configuration (API key, site) is passed to the pkg's postinst via a temp file.
+# All installation logic lives in the pkg's preinst and postinst scripts.
 set -e
-install_script_version=1.6.0
+install_script_version=2.0.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
-# This prevents ANSI escape codes from appearing in logs or breaking through SSH layers
 if [ -t 1 ]; then
     RED='\033[31m'
     GREEN='\033[32m'
     YELLOW='\033[33m'
     BLUE='\033[34m'
-    NC='\033[0m'  # No Color
+    NC='\033[0m'
 else
     RED=''
     GREEN=''
@@ -26,21 +28,10 @@ else
 fi
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
-etc_dir=/opt/datadog-agent/etc
-log_dir=/opt/datadog-agent/logs
-run_dir=/opt/datadog-agent/run
-service_name="com.datadoghq.agent"
-systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
-sysprobe_service_name=com.datadoghq.sysprobe
-sysprobe_servicefile_name="/Library/LaunchDaemons/${sysprobe_service_name}.plist"
+install_config_file="/tmp/datadog-install-config"
 
 if [ -n "$DD_REPO_URL" ]; then
     dmg_base_url=$DD_REPO_URL
-fi
-
-upgrade=
-if [ -n "$DD_UPGRADE" ]; then
-    upgrade=$DD_UPGRADE
 fi
 
 # Root user detection
@@ -63,6 +54,11 @@ fi
 agent_dist_channel=
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
+fi
+
+gui_app_menu_enabled=false
+if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
+    gui_app_menu_enabled=true
 fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
@@ -123,114 +119,34 @@ macos_full_version=$(sw_vers -productVersion)
 macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
 macos_minor_version=$(echo "${macos_full_version}" | cut -d '.' -f 2)
 
-agent_major_version=7
-if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
-  if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
-    echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
-    exit 1;
-  fi
-  agent_major_version=$DD_AGENT_MAJOR_VERSION
-else
-  echo -e "${YELLOW}Warning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 7 by default.${NC}"
-fi
-
-dmg_version=
-if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 12 ]; }; then
-    echo -e "${RED}Datadog Agent doesn't support macOS < 10.12.${NC}\n"
+if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 14 ]; }; then
+    echo -e "${RED}Datadog Agent requires macOS 10.14 (Mojave) or later.${NC}\n"
     exit 1
-elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
-    if [ -n "${clean_agent_minor_version}" ]; then
-        if [ "${agent_minor_version_without_patch}" -gt 34 ]; then
-            echo -e "${RED}macOS 10.12 only supports Datadog Agent $agent_major_version up to $agent_major_version.34.${NC}\n"
-            exit 1;
-        fi
-    else
-        echo -e "${YELLOW}Warning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.${NC}"
-        agent_minor_version_without_patch=34
-        agent_patch_version=0
-    fi
-elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
-    if [ -n "${clean_agent_minor_version}" ]; then
-        if [ "${agent_minor_version_without_patch}" -gt 38 ]; then
-            echo -e "${RED}macOS 10.13 only supports Datadog Agent $agent_major_version up to $agent_major_version.38.${NC}\n"
-            exit 1;
-        fi
-    else
-        echo -e "${YELLOW}Warning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.${NC}"
-        agent_minor_version_without_patch=38
-        agent_patch_version=2
-    fi
-else
-    if [ "${agent_major_version}" -eq 6 ]; then
-        echo -e "${RED}The latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7${NC}\n"
-        exit 1
-    else
-        if [ -z "${agent_minor_version}" ]; then
-            dmg_version="7-latest"
-        fi
-    fi
 fi
 
-if [ -z "$dmg_version" ]; then
+# Determine version to download (always Agent 7)
+dmg_version=
+if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
     if [ -z "$agent_patch_version" ]; then
-        agent_patch_version=$(find_latest_patch_version_for "${agent_major_version}.${agent_minor_version_without_patch}")
+        agent_patch_version=$(find_latest_patch_version_for "7.${agent_minor_version_without_patch}")
         if [ -z "$agent_patch_version" ] || [ "$agent_patch_version" -lt 0 ]; then
-            echo -e "${YELLOW}Warning: Failed to obtain latest patch version for Agent ${agent_major_version}.${agent_minor_version_without_patch}. Defaulting to '0'.${NC}"
+            echo -e "${YELLOW}Warning: Failed to obtain latest patch version for Agent 7.${agent_minor_version_without_patch}. Defaulting to '0'.${NC}"
             agent_patch_version=0
         fi
     fi
-    # Check if the version is a classic release version or a pre-release version
-    if [ "$agent_minor_version" = "$clean_agent_minor_version" ];then
-        dmg_version="${agent_major_version}.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+    if [ "$agent_minor_version" = "$clean_agent_minor_version" ]; then
+        dmg_version="7.${agent_minor_version_without_patch}.${agent_patch_version}-1"
     else
-        dmg_version="${agent_major_version}.${agent_minor_version}-1"
+        dmg_version="7.${agent_minor_version}-1"
     fi
-fi
-
-# COMPAT: agent 5 used DD_UPGRADE + datadog.conf. Can be removed once agent 5 upgrades are no longer supported.
-if [ "$upgrade" ]; then
-    if [ ! -f $etc_dir/datadog.conf ]; then
-        printf "${RED}DD_UPGRADE set but no config was found at $etc_dir/datadog.conf.${NC}\n"
-        exit 1;
-    fi
-fi
-
-if [ ! "$apikey" ]; then
-    # if it's an upgrade, then we will use the transition script
-    if [ ! "$upgrade" ]; then
-        printf "${RED}API key not available in DD_API_KEY environment variable.${NC}\n"
-        exit 1;
-    fi
-fi
-
-
-
-# SUDO_USER is defined in man sudo: https://linux.die.net/man/8/sudo
-# "SUDO_USER Set to the login name of the user who invoked sudo."
-
-# USER is defined in man login: https://ss64.com/osx/login.html
-# "Login enters information into the environment (see environ(7))
-#  specifying the user's home directory (HOME), command interpreter (SHELL),
-#  search path (PATH), terminal type (TERM) and user name (both LOGNAME and USER)."
-
-# We want to get the real user who executed the command. Two situations can happen:
-# - the command was run as the current user: then $USER contains the user which launched the command, and $SUDO_USER is empty,
-# - the command was run with sudo: then $USER contains the name of the user targeted by the sudo command (by default, root)
-#   and $SUDO_USER contains the user which launched the sudo command.
-# The following block covers both cases so that we have tbe username we want in the real_user variable.
-real_user=`if [ "$SUDO_USER" ]; then
-  echo "$SUDO_USER"
 else
-  echo "$USER"
-fi`
-cmd_real_user="sudo -Eu $real_user"
+    dmg_version="7-latest"
+fi
 
-TMPDIR=`sudo -u "$real_user" getconf DARWIN_USER_TEMP_DIR`
-export TMPDIR
-
-# In order to install with the right user
-rm -f /tmp/datadog-install-user
-echo "$real_user" > /tmp/datadog-install-user
+if [ -z "$apikey" ]; then
+    printf "${RED}API key not available in DD_API_KEY environment variable.${NC}\n"
+    exit 1
+fi
 
 function on_error() {
     printf "${RED}$ERROR_MESSAGE
@@ -245,33 +161,6 @@ with the contents of ddagent-install.log and we'll do our very best to help you
 solve your problem.\n${NC}\n"
 }
 trap on_error ERR
-
-cmd_agent="$cmd_real_user /opt/datadog-agent/bin/agent/agent"
-
-function sed_inplace_arg() {
-    # Check for vanilla OS X sed or GNU sed
-    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then
-        echo "-i"
-    fi
-
-    echo "-i ''"
-}
-
-function new_config() {
-    i_cmd="$(sed_inplace_arg)"
-    $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"$etc_dir/datadog.yaml\""
-    if [ "$site" ]; then
-        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
-    fi
-    $sudo_cmd chown "$real_user":admin "$etc_dir/datadog.yaml"
-    $sudo_cmd chmod 660 $etc_dir/datadog.yaml
-}
-
-# COMPAT: agent 5 used datadog.conf; this converts it to datadog.yaml. Can be removed once agent 5 upgrades are no longer supported.
-function import_config() {
-    printf "${BLUE}\n* Converting old datadog.conf file to new datadog.yaml format\n${NC}\n"
-    $cmd_agent import $etc_dir $etc_dir -f
-}
 
 # Determine agent flavor to install
 if [ -z "$agent_dist_channel" ]; then
@@ -289,67 +178,34 @@ if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent 
     fi
 fi
 
-# # Install the agent
+# Write configuration for the pkg's postinst to consume
+$sudo_cmd rm -f "$install_config_file"
+{
+    echo "DD_API_KEY=$apikey"
+    [ -n "$site" ] && echo "DD_SITE=$site"
+    [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
+    echo "DD_INSTALL_METHOD=install_script_mac"
+    echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
+} | $sudo_cmd tee "$install_config_file" > /dev/null
+$sudo_cmd chmod 600 "$install_config_file"
+
+# Download and install
 printf "${BLUE}\n* Downloading datadog-agent\n${NC}"
 prepare_dmg_file $dmg_file
 if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
     printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
+    $sudo_cmd rm -f "$install_config_file"
     exit 1;
 fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
-$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
+$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse >/dev/null
 printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a minute) ...\n${NC}"
-# COMPAT: old DMG postinst checks for /tmp/install-ddagent/system-wide to take the system-wide path.
-# Can be removed once all supported DMG versions have the updated postinst baked in.
-$sudo_cmd mkdir -p /tmp/install-ddagent
-$sudo_cmd touch /tmp/install-ddagent/system-wide
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
-$sudo_cmd rm -rf /tmp/install-ddagent
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
-# Creating or overriding the install information
-install_info_content="---
-install_method:
-  tool: install_script_mac
-  tool_version: install_script_mac
-  installer_version: install_script_mac-$install_script_version
-"
-$sudo_cmd sh -c "echo '$install_info_content' > $etc_dir/install_info"
-$sudo_cmd chown "$real_user":admin "$etc_dir/install_info"
-$sudo_cmd chmod 660 $etc_dir/install_info
-
-# Set the configuration
-if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
-    if [ "$upgrade" ]; then
-        import_config
-    else
-        new_config
-    fi
-    printf "\n${BLUE}* Agent will be started after service setup ...\n${NC}\n"
-else
-    printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
-fi
-
-# Restart agent to pick up the injected API key (agent was started by postinst)
-printf "${BLUE}\n* Restarting agent to apply configuration...\n${NC}"
-$sudo_cmd launchctl kickstart -k "system/$service_name"
-
-
-# Set up and start the system-probe service if this version includes support for it
-sysprobe_plist_example_file="${etc_dir}/${sysprobe_service_name}.plist.example"
-if [ -f "$sysprobe_plist_example_file" ]; then
-    printf "${BLUE}\n* Setting up system-probe ($sysprobe_service_name) as a system-wide LaunchDaemon ...\n\n${NC}"
-    $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
-    $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
-    $sudo_cmd chmod 644 "$sysprobe_servicefile_name"
-    $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
-    $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
-fi
-
-# Agent works, echo some instructions and exit
 printf "${GREEN}
 
 Your Agent is running properly. It will continue to run in the

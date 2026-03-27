@@ -12,90 +12,65 @@ CONF_DIR=$INSTALL_DIR/etc
 RUN_DIR=$INSTALL_DIR/run
 
 # On Mac, the real log folder is located under /opt/datadog-agent/logs, because MacOS upgrades delete /var/log
-# /var/log log folder now becomes a symbolic link to the new folder.
 LOG_DIR=/opt/datadog-agent/logs
+
+INSTALL_CONFIG_FILE="/tmp/datadog-install-config"
+SAVED_CONF_DIR="/tmp/datadog-install-conf"
 
 # Let's log the standard outputs of this script
 LOG_FILE="$LOG_DIR/postinstall.log"
 mkdir -vp $LOG_DIR
-chmod 750 $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
+chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
-# Let's talk to our user installing the Agent a bit
 echo "# State at the beginning"
 echo "## Agent version"
-datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+datadog-agent version || true
 echo "## $INSTALL_DIR"
-ls -al $INSTALL_DIR || "No agent installed"
+ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
-ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
-
-# Determine current user if he is using the Graphical installer
-# shellcheck disable=SC2009
-INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
-
-# Otherwise, we hope he is using the install script and try to use this user
-# If it fails, no choice but to use root :'(
-if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
-    rm -v /tmp/datadog-install-user || true
-fi
-echo "INSTALL_USER: $INSTALL_USER"
+ls -al "$APP_DIR/Contents/Resources" || true
 
 # Stop any running GUI instances before installation/upgrade
 # This prevents "Load failed" errors when KeepAlive=true
 echo "# Stopping GUI app if running"
-INSTALL_USER_UID=$(id -u "$INSTALL_USER" 2>/dev/null)
+for logged_user in $(who | awk '{print $1}' | sort -u); do
+    logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
+    launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+done
 
-if [ -n "$INSTALL_USER_UID" ]; then
-    # Stop GUI for current user
-    launchctl bootout "gui/$INSTALL_USER_UID/com.datadoghq.gui" 2>/dev/null || true
-
-    # Stop GUI for all other logged-in users (system-wide installations)
-    for logged_user in $(who | awk '{print $1}' | sort -u); do
-        logged_uid=$(id -u "$logged_user" 2>/dev/null)
-        if [ -n "$logged_uid" ] && [ "$logged_uid" != "$INSTALL_USER_UID" ]; then
-            launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
-        fi
-    done
-
-    # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
-    max_wait=100  # 100 * 0.1s = 10 seconds
-    count=0
-    while [ $count -lt $max_wait ]; do
-        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
-            echo "GUI app processes terminated"
-            break
-        fi
-        sleep 0.1
-        count=$((count + 1))
-    done
-
-    if [ $count -ge $max_wait ]; then
-        echo "Warning: GUI processes still running after 10s, proceeding anyway"
+# Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
+max_wait=100  # 100 * 0.1s = 10 seconds
+count=0
+while [ $count -lt $max_wait ]; do
+    if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+        echo "GUI app processes terminated"
+        break
     fi
-else
-    echo "Could not determine user UID, skipping GUI stop"
+    sleep 0.1
+    count=$((count + 1))
+done
+if [ $count -ge $max_wait ]; then
+    echo "Warning: GUI processes still running after 10s, proceeding anyway"
 fi
 
 echo "# Preparing log dir"
-chown -vR _datadog:admin "$LOG_DIR"
+DDAGENT_USER="_dd-agent"
+
+chown -vR "$DDAGENT_USER:admin" "$LOG_DIR"
 chmod -v 770 "$LOG_DIR"  # admin group can read and write logs
 
 echo "# Installing the app"
 mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
 
 # Set the run directory for the agent
-# This directory is used for agent runtime files including databases and registries
 mkdir -vp "$RUN_DIR"
-chown -vR _datadog:admin "$RUN_DIR"
+chown -vR "$DDAGENT_USER:admin" "$RUN_DIR"
 chmod -v 775 "$RUN_DIR"  # admin group can read and write runtime files
 
 # Create separate world-writable directory ONLY for multi-user GUI sockets
 mkdir -vp "$RUN_DIR/ipc"
-# Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
-# or installation over a partial installation or partial cleanup of a previous installation.
-# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+# Remove stale GUI socket files before chown to prevent "Address already in use" on reinstall
 find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
@@ -111,30 +86,56 @@ for user_home in /Users/*; do
     sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
 done
 
-echo "# Copying conf"
+# Restore config from pre-install (upgrade) or create default (fresh install)
+echo "# Setting up configuration"
 mkdir -vp $CONF_DIR/checks.d
 
-if [ -e "/tmp/datadog.conf" ] || [ -e "/tmp/datadog.yaml" ]; then
-    mv -vf /tmp/datadog.conf /tmp/datadog.yaml $CONF_DIR
-    cp -vfR /tmp/conf.d/* $CONF_DIR/conf.d
-    cp -vn /tmp/checks.d/* $CONF_DIR/checks.d
-    rm -vrf /tmp/datadog.conf /tmp/conf.d /tmp/checks.d
+if [ -d "$SAVED_CONF_DIR" ]; then
+    cp -vf "$SAVED_CONF_DIR/datadog.yaml" $CONF_DIR/ 2>/dev/null || true
+    cp -vfR "$SAVED_CONF_DIR/conf.d/"* $CONF_DIR/conf.d 2>/dev/null || true
+    cp -vn "$SAVED_CONF_DIR/checks.d/"* $CONF_DIR/checks.d 2>/dev/null || true
+    rm -vrf "$SAVED_CONF_DIR"
 fi
-# Or copying default
+
 if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
 fi
 
+# Read configuration written by the install script (if present).
+# When the pkg is installed via GUI Installer or MDM (no install script),
+# this file won't exist and the config is left as-is for the admin to configure.
+install_method="macos_dmg"
+install_method_version="macos_dmg"
+if [ -f "$INSTALL_CONFIG_FILE" ]; then
+    dd_api_key=$(grep '^DD_API_KEY=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
+    dd_site=$(grep '^DD_SITE=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
+    dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
+    dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
+    dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
+    rm -f "$INSTALL_CONFIG_FILE"
+
+    if [ -n "$dd_api_key" ]; then
+        sed -i '' "s/^api_key:.*/api_key: $dd_api_key/" "$CONF_DIR/datadog.yaml"
+    fi
+    if [ -n "$dd_site" ]; then
+        sed -i '' "s/^#* *site:.*/site: $dd_site/" "$CONF_DIR/datadog.yaml"
+    fi
+    if [ -n "$dd_install_method" ]; then
+        install_method="$dd_install_method"
+        install_method_version="${dd_install_method}-${dd_install_version}"
+    fi
+fi
+
 install_info_content="---
 install_method:
-  tool: macos_dmg
-  tool_version: macos_dmg
-  installer_version: macos_dmg
+  tool: $install_method
+  tool_version: $install_method
+  installer_version: $install_method_version
 "
 echo "$install_info_content" > $CONF_DIR/install_info
 
 echo "# Setting correct rights on conf"
-chown -vR _datadog:admin $CONF_DIR
+chown -vR "$DDAGENT_USER:admin" $CONF_DIR
 chmod -v 770 $CONF_DIR
 find $CONF_DIR -type f -exec chmod 660 {} \;
 
@@ -154,19 +155,37 @@ chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
 launchctl load -w /Library/LaunchDaemons/com.datadoghq.agent.plist
 launchctl kickstart system/com.datadoghq.agent
 
+# Install system-probe as system-wide LaunchDaemon (if this version includes support for it)
+SYSPROBE_PLIST_EXAMPLE="$CONF_DIR/com.datadoghq.sysprobe.plist.example"
+if [ -f "$SYSPROBE_PLIST_EXAMPLE" ]; then
+    echo "# Installing system-probe as system-wide LaunchDaemon"
+    mv -vf "$SYSPROBE_PLIST_EXAMPLE" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+    chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+    chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+    launchctl load -w /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+    launchctl kickstart system/com.datadoghq.sysprobe
+fi
+
 # Install GUI LaunchAgent for all users (system-wide)
 echo "# Configuring GUI app for system-wide installation"
-
 cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
 
-# Set proper ownership and permissions for system-wide LaunchAgent
+# The GUI plist template includes --headless by default (no menu bar icon).
+# DD_GUI_APP_MENU_ENABLED=true removes it to show the menu bar icon.
+if [ "$dd_gui_menu" = "true" ]; then
+    echo "# Enabling GUI menu bar icon (removing --headless)"
+    sed -i '' '/<string>--headless<\/string>/d' /Library/LaunchAgents/com.datadoghq.gui.plist
+fi
+
 chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
 chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
 
-# Load GUI immediately if the installing user has an active GUI session
-if [ -n "$INSTALL_USER_UID" ] && sudo -u "$INSTALL_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
-    echo "# Loading GUI app for current user session"
-    sudo -Hu "$INSTALL_USER" launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
+# Load GUI immediately for the console user if they have an active GUI session
+CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo 'root')
+CONSOLE_USER_UID=$(id -u "$CONSOLE_USER" 2>/dev/null)
+if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
+    echo "# Loading GUI app for $CONSOLE_USER"
+    sudo -Hu "$CONSOLE_USER" launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
 else
     echo "# No GUI session detected; GUI app will launch at next user login"
 fi
@@ -187,11 +206,10 @@ echo ""
 # A little debriefing won't hurt
 echo "# State at the end"
 echo "## Agent version"
-grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
-datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+datadog-agent version || true
 echo "## $INSTALL_DIR"
-ls -al $INSTALL_DIR || echo "No agent installed :("
+ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
-ls -al "$APP_DIR/Contents/Resources" || echo "No app installed ;-("
+ls -al "$APP_DIR/Contents/Resources" || true
 
 exit 0
