@@ -69,7 +69,7 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 			for s := 0; s < numSeries; s++ {
 				logs[s] = &logObs{
 					content:     []byte(fmt.Sprintf(`{"msg":"log from series %d","level":"info"}`, s)),
-					status:      "info",
+					status:      "error",
 					tags:        []string{fmt.Sprintf("series:%d", s)},
 					timestampMs: 0,
 				}
@@ -106,7 +106,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 			for s := 0; s < numSeries; s++ {
 				logs[s] = &logObs{
 					content:     diverseLogContent(s),
-					status:      "info",
+					status:      "error",
 					tags:        []string{fmt.Sprintf("series:%d", s)},
 					timestampMs: 0,
 				}
