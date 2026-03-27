@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-// MetricGroundTruth holds the TP/FP metric lists from a scenario's metadata.json.
+// MetricGroundTruth holds the TP/FP metric lists from a scenario's episode.json.
 type MetricGroundTruth struct {
 	TruePositives  []MetricGroundTruthEntry `json:"true_positives"`
 	FalsePositives []MetricGroundTruthEntry `json:"false_positives"`
@@ -65,7 +65,7 @@ type MetricScoreResult struct {
 
 // LoadMetricGroundTruth reads TP metric lists from ground_truth.json in the
 // scenarios directory. This file is committed and keyed by scenario name,
-// separate from metadata.json which is downloaded from S3.
+// separate from episode.json which is downloaded from S3.
 func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTruth, error) {
 	path := filepath.Join(scenariosDir, "ground_truth.json")
 	data, err := os.ReadFile(path)
@@ -87,7 +87,7 @@ func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTrut
 }
 
 // LoadDisruptionStartUnix returns the disruption start timestamp in unix seconds
-// from a scenario's metadata.json, or 0 if unavailable.
+// from a scenario's episode.json, or 0 if unavailable.
 func LoadDisruptionStartUnix(scenariosDir, scenarioName string) int64 {
 	sm, err := loadScoringMetadata(scenariosDir, scenarioName)
 	if err != nil || len(sm.groundTruthTimestamps) == 0 {
