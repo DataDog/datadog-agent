@@ -351,6 +351,11 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
+static __attribute__((always_inline)) int is_cgroup2fs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == CGROUP2_SUPER_MAGIC;
+}
+
 static struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
