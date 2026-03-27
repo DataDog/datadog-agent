@@ -126,7 +126,11 @@ func (s *windowsVMSuite) TestAgentStatusOutput() {
 	windowsCommon.DisableFIPSMode(host)
 	s.Run("status command", func() {
 		s.Run("gofips disabled", func() {
-			s.T().Skip()
+			// FIPS Mode is determined on init so have to restart the agent for the System FIPS status to reflect correctly
+			err := windowsCommon.StopService(host, "datadogagent")
+			require.NoError(s.T(), err)
+			err = windowsCommon.StartService(host, "datadogagent")
+			require.NoError(s.T(), err)
 			status, err := s.execAgentCommand("agent.exe", "status")
 			require.NoError(s.T(), err)
 			assert.Contains(s.T(), status, "FIPS Mode: disabled")

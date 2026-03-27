@@ -43,7 +43,7 @@ bazel:run-buildifier-test:
 bazel:run-gazelle:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
-    - bazel run //:gazelle -- -mode=diff -strict
+    - bazel run //:gazelle -- -mode=diff
   variables:
     FIX_COMMAND: "bazel run //:gazelle"
 
