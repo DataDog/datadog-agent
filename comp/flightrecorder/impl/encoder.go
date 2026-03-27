@@ -91,35 +91,54 @@ type capturedLog struct {
 // Builder pool (optimisation 1B)
 // ---------------------------------------------------------------------------
 
-// builderPool recycles FlatBuffers builders between flushes. Builder.Reset()
-// preserves the grown backing slice so subsequent encodes skip the resize path.
+// builderPool recycles FlatBuffers builders and offset slices between flushes.
 type builderPool struct {
-	pool sync.Pool
+	builders sync.Pool
+	offsets  sync.Pool // reusable []flatbuffers.UOffsetT slices
 }
+
+// maxRetainedBuilderBytes caps the builder's internal byte buffer.
+// Builders that grew beyond this (from a one-off large batch) are discarded.
+const maxRetainedBuilderBytes = 256 * 1024
 
 func newBuilderPool() *builderPool {
 	return &builderPool{
-		pool: sync.Pool{New: func() any { return flatbuffers.NewBuilder(4096) }},
+		builders: sync.Pool{New: func() any { return flatbuffers.NewBuilder(4096) }},
+		offsets:  sync.Pool{New: func() any { s := make([]flatbuffers.UOffsetT, 0, 256); return &s }},
 	}
 }
 
 func (p *builderPool) get() *flatbuffers.Builder {
-	return p.pool.Get().(*flatbuffers.Builder)
+	return p.builders.Get().(*flatbuffers.Builder)
 }
 
-// maxRetainedBuilderBytes is the maximum builder backing-buffer size to keep
-// in the pool. Builders that grew beyond this are discarded on put, limiting
-// the peak retained memory from the pool to ~256 KB per pooled builder.
-const maxRetainedBuilderBytes = 256 * 1024
-
 func (p *builderPool) put(b *flatbuffers.Builder) {
-	// FinishedBytes length reflects the current buffer usage. If the builder
-	// grew large (from a one-off big batch), drop it instead of pooling.
-	if len(b.FinishedBytes()) > maxRetainedBuilderBytes {
+	// Check cap(Bytes) — the internal buffer capacity — not FinishedBytes length.
+	// Reset() preserves cap(Bytes), so a builder that once grew to 5 MB stays
+	// at 5 MB forever. Discard oversized builders to bound pool memory.
+	if cap(b.Bytes) > maxRetainedBuilderBytes {
 		return
 	}
 	b.Reset()
-	p.pool.Put(b)
+	p.builders.Put(b)
+}
+
+// getOffsets borrows a reusable offset slice from the pool, grown to at least n.
+func (p *builderPool) getOffsets(n int) (*[]flatbuffers.UOffsetT, []flatbuffers.UOffsetT) {
+	sp := p.offsets.Get().(*[]flatbuffers.UOffsetT)
+	s := *sp
+	if cap(s) < n {
+		s = make([]flatbuffers.UOffsetT, n)
+	} else {
+		s = s[:n]
+	}
+	return sp, s
+}
+
+// putOffsets returns an offset slice to the pool.
+func (p *builderPool) putOffsets(sp *[]flatbuffers.UOffsetT, s []flatbuffers.UOffsetT) {
+	*sp = s[:0]
+	p.offsets.Put(sp)
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +167,7 @@ func EncodeSplitMetricBatch(
 	b := pool.get()
 
 	var tagBuf []flatbuffers.UOffsetT
-	sampleOffsets := make([]flatbuffers.UOffsetT, total)
+	offSp, sampleOffsets := pool.getOffsets(total)
 
 	// Encode data points (references) first in reverse — they'll appear after
 	// definitions in the final vector.
@@ -157,7 +176,7 @@ func EncodeSplitMetricBatch(
 		p := &pts[idx]
 		var sourceOff flatbuffers.UOffsetT
 		if p.Source != "" {
-			sourceOff = b.CreateString(p.Source)
+			sourceOff = b.CreateSharedString(p.Source)
 		}
 		signals.MetricSampleStart(b)
 		signals.MetricSampleAddContextKey(b, p.ContextKey)
@@ -178,7 +197,7 @@ func EncodeSplitMetricBatch(
 		nameOff := b.CreateString(d.Name)
 		var sourceOff flatbuffers.UOffsetT
 		if d.Source != "" {
-			sourceOff = b.CreateString(d.Source)
+			sourceOff = b.CreateSharedString(d.Source)
 		}
 		if cap(tagBuf) < len(d.Tags) {
 			tagBuf = make([]flatbuffers.UOffsetT, len(d.Tags))
@@ -212,6 +231,7 @@ func EncodeSplitMetricBatch(
 		b.PrependUOffsetT(sampleOffsets[i])
 	}
 	samplesVec := b.EndVector(total)
+	pool.putOffsets(offSp, sampleOffsets)
 
 	signals.MetricBatchStart(b)
 	signals.MetricBatchAddSamples(b, samplesVec)
@@ -309,15 +329,15 @@ func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capac
 	b := pool.get()
 
 	var tagBuf []flatbuffers.UOffsetT
-	entryOffsets := make([]flatbuffers.UOffsetT, count)
+	offSp, entryOffsets := pool.getOffsets(count)
 	for ri := count - 1; ri >= 0; ri-- {
 		idx := (tail + ri) % capacity
 		e := &buf[idx]
 
 		contentOff := b.CreateByteVector(e.Content)
-		statusOff := b.CreateString(e.Status)
-		hostnameOff := b.CreateString(e.Hostname)
-		sourceOff := b.CreateString(e.Source)
+		statusOff := b.CreateSharedString(e.Status)
+		hostnameOff := b.CreateSharedString(e.Hostname)
+		sourceOff := b.CreateSharedString(e.Source)
 
 		if cap(tagBuf) < len(e.Tags) {
 			tagBuf = make([]flatbuffers.UOffsetT, len(e.Tags))
@@ -348,6 +368,7 @@ func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capac
 		b.PrependUOffsetT(entryOffsets[i])
 	}
 	entriesVec := b.EndVector(count)
+	pool.putOffsets(offSp, entryOffsets)
 
 	signals.LogBatchStart(b)
 	signals.LogBatchAddEntries(b, entriesVec)
@@ -429,19 +450,19 @@ func encodeLogBatchWith(b *flatbuffers.Builder, entries []capturedLog) ([]byte, 
 func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail, count, capacity int) (*flatbuffers.Builder, error) {
 	b := pool.get()
 
-	entryOffsets := make([]flatbuffers.UOffsetT, count)
+	offSp, entryOffsets := pool.getOffsets(count)
 	for ri := count - 1; ri >= 0; ri-- {
 		idx := (tail + ri) % capacity
 		e := &buf[idx]
 
-		serviceOff := b.CreateString(e.Service)
-		nameOff := b.CreateString(e.Name)
-		resourceOff := b.CreateString(e.Resource)
-		typeOff := b.CreateString(e.Type)
-		spanKindOff := b.CreateString(e.SpanKind)
-		hostnameOff := b.CreateString(e.Hostname)
-		envOff := b.CreateString(e.Env)
-		versionOff := b.CreateString(e.Version)
+		serviceOff := b.CreateSharedString(e.Service)
+		nameOff := b.CreateSharedString(e.Name)
+		resourceOff := b.CreateSharedString(e.Resource)
+		typeOff := b.CreateSharedString(e.Type)
+		spanKindOff := b.CreateSharedString(e.SpanKind)
+		hostnameOff := b.CreateSharedString(e.Hostname)
+		envOff := b.CreateSharedString(e.Env)
+		versionOff := b.CreateSharedString(e.Version)
 
 		var okSummaryOff flatbuffers.UOffsetT
 		if len(e.OkSummary) > 0 {
@@ -483,6 +504,7 @@ func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail,
 		b.PrependUOffsetT(entryOffsets[i])
 	}
 	entriesVec := b.EndVector(count)
+	pool.putOffsets(offSp, entryOffsets)
 
 	signals.TraceStatsBatchStart(b)
 	signals.TraceStatsBatchAddEntries(b, entriesVec)
