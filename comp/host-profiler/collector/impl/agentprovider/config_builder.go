@@ -10,6 +10,7 @@ package agentprovider
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
@@ -51,12 +52,16 @@ func buildExporters(conf confMap, agent configManager) []any {
 	exporters := make(confMap)
 
 	createOtlpHTTPFromEndpoint := func(site, key string) confMap {
+		headers := confMap{
+			"dd-api-key": key,
+		}
+		if tags := os.Getenv("DD_TAGS"); tags != "" {
+			headers["x-datadog-additional-tags"] = tags
+		}
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
-			"headers": confMap{
-				"dd-api-key": key,
-			},
+			"headers":           headers,
 		}
 	}
 
