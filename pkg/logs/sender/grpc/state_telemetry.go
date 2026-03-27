@@ -27,8 +27,9 @@ var (
 
 	tlmPipelinePatternLogsProcessed      = telemetry.NewCounter("logs_sender_grpc", "pattern_logs", []string{"pipeline"}, "# Patterned logs processed")
 	tlmPipelinePatternLogsProcessedBytes = telemetry.NewCounter("logs_sender_grpc", "pattern_logs_bytes", []string{"pipeline"}, "Bytes of patterned logs sent")
-	tlmPipelineRawLogsProcessed          = telemetry.NewCounter("logs_sender_grpc", "raw_logs", []string{"pipeline"}, "# raw logs sent")
-	tlmPipelineRawLogsProcessedBytes     = telemetry.NewCounter("logs_sender_grpc", "raw_logs_bytes", []string{"pipeline"}, "Bytes of raw logs sent")
+	// TODO: raw log sending is not yet connected; register counters to avoid losing them at implementation time.
+	_ = telemetry.NewCounter("logs_sender_grpc", "raw_logs", []string{"pipeline"}, "# raw logs sent")
+	_ = telemetry.NewCounter("logs_sender_grpc", "raw_logs_bytes", []string{"pipeline"}, "Bytes of raw logs sent")
 )
 
 // Per-worker metrics

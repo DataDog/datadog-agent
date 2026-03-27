@@ -8,7 +8,7 @@
 package automaton
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"unicode"
 
@@ -222,7 +222,7 @@ func (t *Tokenizer) handleSpecialState(_ rune) bool {
 // classifyToken attempts to classify a single token's type using trie and terminal rules.
 func (t *Tokenizer) classifyToken(value string) (token.TokenType, error) {
 	if len(value) == 0 {
-		return token.TokenUnknown, fmt.Errorf("cannot classify empty string token value")
+		return token.TokenUnknown, errors.New("cannot classify empty string token value")
 	}
 	return globalTrie.Match(value), nil
 }

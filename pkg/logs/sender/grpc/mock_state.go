@@ -275,19 +275,6 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 	}
 }
 
-// sendRawLog creates and sends a raw log datum
-func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
-	logDatum := buildRawLog(contentStr, ts, tagSet)
-
-	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
-	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
-
-	outputChan <- &message.StatefulMessage{
-		Datum:    logDatum,
-		Metadata: &msg.MessageMetadata,
-	}
-}
-
 // sendStructuredLog creates and sends a StructuredLog datum
 func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) {
 	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, jsonContext)
@@ -350,14 +337,15 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.DynamicValue, uint64, bool) {
 	// Skip int conversion for values with leading zeros (e.g. "01", "-007") to preserve them as strings.
 	// len > 1 check allows literal "0" to still be converted.
-	if len(value) > 1 && (value[0] == '0' || (value[0] == '-' && len(value) > 2 && value[1] == '0')) {
-		// fall through to string dictionary encoding
-	} else if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
-		return &statefulpb.DynamicValue{
-			Value: &statefulpb.DynamicValue_IntValue{
-				IntValue: intVal,
-			},
-		}, 0, false
+	hasLeadingZero := len(value) > 1 && (value[0] == '0' || (value[0] == '-' && len(value) > 2 && value[1] == '0'))
+	if !hasLeadingZero {
+		if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return &statefulpb.DynamicValue{
+				Value: &statefulpb.DynamicValue_IntValue{
+					IntValue: intVal,
+				},
+			}, 0, false
+		}
 	}
 
 	// Dictionary encoding for non-integer values
@@ -381,21 +369,6 @@ func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*stat
 						DynamicValues: dynamicValues,
 						JsonContext:   jsonContext,
 					},
-				},
-				Tags: tagSet,
-			},
-		},
-	}
-}
-
-// buildRawLog creates a Datum containing a raw log (no pattern)
-func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_Logs{
-			Logs: &statefulpb.Log{
-				Timestamp: ts.UnixNano() / nanoToMillis,
-				Content: &statefulpb.Log_Raw{
-					Raw: content,
 				},
 				Tags: tagSet,
 			},

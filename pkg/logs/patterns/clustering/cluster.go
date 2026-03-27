@@ -155,10 +155,5 @@ func getPathPattern(path string) string {
 	}
 
 	parts := strings.Split(trimmed, "/")
-	result := ""
-	for i := 0; i < len(parts); i++ {
-		result += "/*"
-	}
-
-	return result
+	return strings.Repeat("/*", len(parts))
 }
