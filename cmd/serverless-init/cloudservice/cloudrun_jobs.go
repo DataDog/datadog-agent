@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"time"
@@ -100,7 +101,8 @@ func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMet
 		"project_id": tagValueOrUnknown(tags["project_id"]),
 	}
 
-	usageTags := map[string]string{}
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tagValueOrUnknown(tags["container_id"])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
@@ -117,7 +119,7 @@ func (c *CloudRunJobs) GetMetricPrefix() string {
 }
 
 func (c *CloudRunJobs) GetUsageMetricSuffix() string {
-	return ""
+	return cloudRunUsageMetricSuffix
 }
 
 // GetOrigin returns the `origin` attribute type for the given cloud service.
