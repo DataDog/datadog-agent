@@ -27,6 +27,8 @@ import (
 type workloadConfigStore interface {
 	// run starts the store's background update and blocks until ctx is cancelled.
 	run(ctx context.Context)
+	// waitSynced blocks until the store has completed its initial sync.
+	waitSynced()
 	// getConfig returns the spotConfig for the workload if present.
 	getConfig(key workload) (spotConfig, bool)
 	// disable disables spot scheduling for workload.
@@ -53,6 +55,7 @@ type kubeWorkloadConfigStore struct {
 
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	hasSynced       []cache.InformerSynced
+	synced          chan struct{}
 
 	mu      sync.RWMutex
 	configs map[workload]spotConfig
@@ -62,6 +65,7 @@ func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig C
 	s := &kubeWorkloadConfigStore{
 		defaultConfig: spotConfig{percentage: defaultConfig.Percentage, minOnDemand: defaultConfig.MinOnDemandReplicas},
 		configs:       make(map[workload]spotConfig),
+		synced:        make(chan struct{}),
 	}
 
 	s.informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(
@@ -99,10 +103,16 @@ func (s *kubeWorkloadConfigStore) run(ctx context.Context) {
 	s.informerFactory.Start(ctx.Done())
 	if !cache.WaitForCacheSync(ctx.Done(), s.hasSynced...) {
 		log.Error("Failed to sync informer caches")
+		close(s.synced)
 		return
 	}
 	log.Info("Spot workload config store synced")
+	close(s.synced)
 	<-ctx.Done()
+}
+
+func (s *kubeWorkloadConfigStore) waitSynced() {
+	<-s.synced
 }
 
 func (s *kubeWorkloadConfigStore) getConfig(key workload) (spotConfig, bool) {
@@ -127,6 +137,12 @@ func (s *kubeWorkloadConfigStore) disable(key workload, now time.Time, until tim
 func (s *kubeWorkloadConfigStore) onUpdated(kind string, obj any) {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
+		return
+	}
+	// Guard against watch events delivered without label selector filtering for dynamicfake client,
+	// see https://github.com/kubernetes/kubernetes/issues/106754
+	// With a real API server the informer factory label selector ensures only spot-enabled workloads reach this handler.
+	if u.GetLabels()[SpotEnabledLabelKey] != SpotEnabledLabelValue {
 		return
 	}
 	key := workload{Kind: kind, Namespace: u.GetNamespace(), Name: u.GetName()}

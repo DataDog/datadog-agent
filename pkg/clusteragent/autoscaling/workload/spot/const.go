@@ -9,8 +9,12 @@ package spot
 
 // Spot scheduling constants.
 const (
+	// SpotEnabledLabelKey is the label key used to opt-in workload into spot scheduling.
+	SpotEnabledLabelKey = "autoscaling.datadoghq.com/spot-enabled"
+	// SpotEnabledLabelValue is the label value used to opt-in workload into spot scheduling.
+	SpotEnabledLabelValue = "true"
 	// SpotEnabledLabelSelector is used to opt-in workload into spot scheduling.
-	SpotEnabledLabelSelector = "autoscaling.datadoghq.com/spot-enabled=true"
+	SpotEnabledLabelSelector = SpotEnabledLabelKey + "=" + SpotEnabledLabelValue
 	// SpotPercentageAnnotation is the annotation key for the desired percentage of replicas on spot (0-100)
 	SpotPercentageAnnotation = "autoscaling.datadoghq.com/spot-percentage"
 	// SpotMinOnDemandReplicasAnnotation is the annotation key for the minimum number of on-demand replicas

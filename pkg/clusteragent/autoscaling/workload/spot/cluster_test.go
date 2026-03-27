@@ -19,11 +19,17 @@ import (
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/client-go/dynamic"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -33,7 +39,10 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	spot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
+
+var deploymentsGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
 // fakeCluster simulates a Kubernetes cluster for testing.
 // It maintains a set of nodes and a workloadmeta store,
@@ -42,6 +51,7 @@ type fakeCluster struct {
 	t               *testing.T
 	wlm             workloadmetamock.Mock
 	subscribed      chan struct{}
+	dynamicClient   dynamic.Interface
 	podCreatedHooks []admissionHook
 	podDeletedHooks []deletionHook
 
@@ -57,6 +67,14 @@ type admissionHook func(pod *corev1.Pod) (bool, error)
 // deletionHook is called immediately when a pod is deleted.
 type deletionHook func(pod *corev1.Pod)
 
+// fakeDeployment simulates a Kubernetes Deployment in tests.
+type fakeDeployment struct {
+	cluster            *fakeCluster
+	namespace          string
+	name               string
+	existingReplicaSet string
+}
+
 // newFakeCluster creates a fakeCluster.
 func newFakeCluster(t *testing.T) *fakeCluster {
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -66,10 +84,11 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	cluster := &fakeCluster{
-		t:           t,
-		wlm:         wlm,
-		subscribed:  make(chan struct{}),
-		pendingPods: make(map[types.UID]*corev1.Pod),
+		t:             t,
+		wlm:           wlm,
+		dynamicClient: dynamicfake.NewSimpleDynamicClient(k8sscheme.Scheme),
+		subscribed:    make(chan struct{}),
+		pendingPods:   make(map[types.UID]*corev1.Pod),
 	}
 	go cluster.runPodScheduler()
 	<-cluster.subscribed
@@ -196,6 +215,10 @@ func (c *fakeCluster) WLM() workloadmetamock.Mock {
 	return c.wlm
 }
 
+func (c *fakeCluster) DynamicClient() dynamic.Interface {
+	return c.dynamicClient
+}
+
 // AssertOwnerPods checks that all pods owned by ownerKind/namespace/ownerName eventually satisfy check.
 func (c *fakeCluster) AssertOwnerPods(ownerKind, namespace, ownerName string, check func(wlm []*workloadmeta.KubernetesPod) bool) {
 	const assertWaitFor = 1 * time.Second
@@ -270,6 +293,81 @@ func (c *fakeCluster) trySchedule(uid string) {
 	pod.Status.Phase = corev1.PodRunning
 
 	async(c.wlm.Set, corePodToWlmPod(pod))
+}
+
+func (c *fakeCluster) CreateDeployment(namespace, name string, labels, annotations map[string]string, replicas int) *fakeDeployment {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("apps/v1")
+	u.SetKind("Deployment")
+	u.SetName(name)
+	u.SetNamespace(namespace)
+	u.SetLabels(labels)
+	u.SetAnnotations(annotations)
+
+	d := &fakeDeployment{
+		cluster:   c,
+		namespace: namespace,
+		name:      name,
+	}
+
+	_, err := c.dynamicClient.Resource(deploymentsGVR).Namespace(namespace).Create(context.Background(), u, metav1.CreateOptions{})
+	require.NoError(c.t, err)
+
+	d.rolloutWithDelay(replicas)
+	return d
+}
+
+// ReplicaSet returns the name of the current ReplicaSet.
+func (d *fakeDeployment) ReplicaSet() string {
+	return d.existingReplicaSet
+}
+
+// Rollout simulates a Deployment rollout by creating a new ReplicaSet with the given replicas,
+// then deleting all pods of the previous ReplicaSet (if any).
+// Returns the name of the new ReplicaSet.
+func (d *fakeDeployment) Rollout(labels, annotations map[string]string, replicas int) string {
+	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(context.Background(), d.name, metav1.GetOptions{})
+	require.NoError(d.cluster.t, err)
+
+	if labels != nil {
+		lbl := u.GetLabels()
+		if lbl == nil {
+			lbl = make(map[string]string)
+		}
+		maps.Copy(lbl, labels)
+		u.SetLabels(lbl)
+	}
+	if annotations != nil {
+		ann := u.GetAnnotations()
+		if ann == nil {
+			ann = make(map[string]string)
+		}
+		maps.Copy(ann, annotations)
+		u.SetAnnotations(ann)
+	}
+	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(context.Background(), u, metav1.UpdateOptions{})
+	require.NoError(d.cluster.t, err)
+
+	return d.rolloutWithDelay(replicas)
+}
+
+func (d *fakeDeployment) rolloutWithDelay(replicas int) string {
+	// TODO: fixme
+	// Let workload config store pick up the change so test do not rely on rebalancing.
+	// Real Deployment creates ReplicaSet which in turn creates pods.
+	time.Sleep(100 * time.Millisecond)
+
+	// A new ReplicaSet created
+	newReplicaSet := replicaSetName(d.name)
+	for range replicas {
+		d.cluster.CreatePod(newPod(d.namespace, kubernetes.ReplicaSetKind, newReplicaSet))
+	}
+	// Existing ReplicaSet is scaled down
+	if d.existingReplicaSet != "" {
+		d.cluster.DeleteOwnerPods(kubernetes.ReplicaSetKind, d.namespace, d.existingReplicaSet)
+	}
+	d.existingReplicaSet = newReplicaSet
+	return newReplicaSet
 }
 
 func async(f func(workloadmeta.Entity), e workloadmeta.Entity) {

@@ -35,7 +35,7 @@ type Scheduler struct {
 	configStore workloadConfigStore
 	isLeader    func() bool
 	tracker     *podTracker
-	subscribed  chan struct{}
+	synced      chan struct{}
 }
 
 // NewScheduler creates a new spot Scheduler.
@@ -44,20 +44,20 @@ func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 		cfg, clk, wlm,
 		newKubePodEvictor(client),
 		newKubeWorkloadPatcher(dynamicClient),
-		newKubeWorkloadConfigStore(dynamicClient, cfg),
+		dynamicClient,
 		isLeader)
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, configStore workloadConfigStore, isLeader func() bool) *Scheduler {
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, isLeader func() bool) *Scheduler {
 	s := &Scheduler{
 		config:      cfg,
 		clock:       clk,
 		wlm:         wlm,
 		evictor:     evictor,
 		patcher:     patcher,
-		configStore: configStore,
+		configStore: newKubeWorkloadConfigStore(dynamicClient, cfg),
 		isLeader:    isLeader,
-		subscribed:  make(chan struct{}),
+		synced:      make(chan struct{}),
 	}
 	s.tracker = newPodTracker(clk, spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
 	return s
@@ -68,17 +68,23 @@ func (s *Scheduler) Start(ctx context.Context) {
 	log.Infof("Starting spot scheduler: %s", s.config)
 
 	// Run in separate goroutines to not not delay pod updates processing.
+	go s.configStore.run(ctx)
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)
 	go s.rebalance(ctx)
-	go s.configStore.run(ctx)
 }
 
 // trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
 func (s *Scheduler) trackPodUpdates(ctx context.Context) {
+	// Wait for the config store to sync before subscribing to workloadmeta events.
+	// The WLM subscription delivers an initial event bundle for all existing pods filtered by spotEligibleFilter.
+	// If the config store is not yet synced, spotEligibleFilter returns false for all pods
+	// and existing spot-eligible pods would be missed.
+	s.configStore.waitSynced()
+
 	filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(workloadmeta.KindKubernetesPod, s.spotEligibleFilter).Build()
 	ch := s.wlm.Subscribe("spot-scheduler", workloadmeta.NormalPriority, filter)
-	close(s.subscribed)
+	close(s.synced)
 	defer s.wlm.Unsubscribe(ch)
 
 	for {
