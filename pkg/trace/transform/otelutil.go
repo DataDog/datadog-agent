@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package traceutil provides utilities for converting OTel semantics to DD semantics.
-package traceutil
+package transform
 
 import (
 	"encoding/binary"
@@ -553,39 +552,6 @@ func GetOTelOperationNameV1(
 	return name
 }
 
-// GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
-// Tags are always normalized.
-func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
-	var containerTags []string
-	containerTagsMap := attributes.ContainerTagsFromResourceAttributes(rattrs)
-	for _, key := range tagKeys {
-		if mappedKey, ok := attributes.ContainerMappings[key]; ok {
-			// If the key has a mapping in ContainerMappings, use the mapped key
-			if val, ok := containerTagsMap[mappedKey]; ok {
-				t := normalizeutil.NormalizeTag(mappedKey + ":" + val)
-				containerTags = append(containerTags, t)
-			}
-		} else {
-			// Otherwise populate as additional container tags
-			if val := GetOTelAttrVal(rattrs, false, key); val != "" {
-				t := normalizeutil.NormalizeTag(key + ":" + val)
-				containerTags = append(containerTags, t)
-			}
-		}
-	}
-	return containerTags
-}
-
-// OTelTraceIDToUint64 converts an OTel trace ID to an uint64
-func OTelTraceIDToUint64(b [16]byte) uint64 {
-	return binary.BigEndian.Uint64(b[len(b)-8:])
-}
-
-// OTelSpanIDToUint64 converts an OTel span ID to an uint64
-func OTelSpanIDToUint64(b [8]byte) uint64 {
-	return binary.BigEndian.Uint64(b[:])
-}
-
 var spanKindNames = map[ptrace.SpanKind]string{
 	ptrace.SpanKindUnspecified: "unspecified",
 	ptrace.SpanKindInternal:    "internal",
@@ -602,4 +568,14 @@ func OTelSpanKindName(k ptrace.SpanKind) string {
 		return "unspecified"
 	}
 	return name
+}
+
+// OTelTraceIDToUint64 converts an OTel trace ID to an uint64
+func OTelTraceIDToUint64(b [16]byte) uint64 {
+	return binary.BigEndian.Uint64(b[len(b)-8:])
+}
+
+// OTelSpanIDToUint64 converts an OTel span ID to an uint64
+func OTelSpanIDToUint64(b [8]byte) uint64 {
+	return binary.BigEndian.Uint64(b[:])
 }
