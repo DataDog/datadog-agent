@@ -511,10 +511,6 @@ func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
 			continue
 		}
 
-		if uncompressedSBOM == nil {
-			continue
-		}
-
 		for _, sbom := range r.sboms.Values() {
 			sbom.Lock()
 			if sbom.data != nil && sbom.workloadKey == workloadKey(image.Name) {
@@ -854,7 +850,7 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 		return r.hostSBOM
 	}
 
-	sbom, _ := r.sboms.Peek(id)
+	sbom, _ := r.sboms.Get(id)
 	return sbom
 }
 
