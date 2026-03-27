@@ -57,7 +57,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
 	e2e.Run[environments.Host](t, &agentSuiteWindows{testID: testID},
 		e2e.WithProvisioner(
-			awshost.ProvisionerNoFakeIntake(
+			awshost.Provisioner(
 				awshost.WithRunOptions(
 					ec2.WithAgentOptions(
 						agentparams.WithAgentConfig(agentConfig),
@@ -218,6 +218,6 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 // this test can be quite long so run it last
 func (a *agentSuiteWindows) Test99CWSEnabled() {
 	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
-		testCwsEnabled(c, a)
+		testCwsEnabled(c, a.Env().FakeIntake.Client(), a.Hostname())
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }

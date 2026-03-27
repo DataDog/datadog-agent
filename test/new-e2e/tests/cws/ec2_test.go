@@ -33,7 +33,7 @@ func TestAgentSuiteEC2(t *testing.T) {
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithStackName("cws-agentSuite-ec2"),
 		e2e.WithProvisioner(
-			awshost.ProvisionerNoFakeIntake(
+			awshost.Provisioner(
 				awshost.WithRunOptions(
 					scenec2.WithAgentOptions(
 						agentparams.WithAgentConfig(agentConfig),

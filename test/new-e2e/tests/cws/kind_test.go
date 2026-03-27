@@ -79,7 +79,6 @@ func TestKindSuite(t *testing.T) {
 					scenkind.WithVMOptions(
 						ec2.WithOS(osDesc),
 					),
-					scenkind.WithoutFakeIntake(),
 					scenkind.WithAgentOptions(
 						kubernetesagentparams.WithHelmValues(values),
 					),
@@ -141,6 +140,6 @@ func (s *kindSuite) Test04MetricContainersRunning() {
 // this test can be quite long so run it last
 func (s *kindSuite) Test99CWSEnabled() {
 	assert.EventuallyWithTf(s.T(), func(c *assert.CollectT) {
-		testCwsEnabled(c, s)
+		testCwsEnabled(c, s.Env().FakeIntake.Client(), s.Hostname())
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", s.Hostname())
 }

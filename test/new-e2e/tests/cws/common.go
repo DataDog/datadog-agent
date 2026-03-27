@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 )
 
@@ -233,7 +234,7 @@ func (a *agentSuite) Test04SecurityAgentSIGTERM() {
 // this test can be quite long so run it last
 func (a *agentSuite) Test99CWSEnabled() {
 	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
-		testCwsEnabled(c, a)
+		testCwsEnabled(c, a.Env().FakeIntake.Client(), a.Hostname())
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }
 
@@ -275,51 +276,25 @@ func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidati
 	}
 }
 
-func testCwsEnabled(t assert.TestingT, ts testSuite) {
-	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", ts.Hostname())
-	resp, err := ts.Client().TableQuery(query)
-	if !assert.NoErrorf(t, err, "ddsql query failed") {
-		return
-	}
-	if !assert.Len(t, resp.Data, 1, "ddsql query didn't returned a single row") {
-		return
-	}
-	if !assert.Len(t, resp.Data[0].Attributes.Columns, 2, "ddsql query didn't returned two columns") {
+func testCwsEnabled(t assert.TestingT, fi *fakeintakeclient.Client, hostname string) {
+	metadata, err := fi.GetMetadata()
+	if !assert.NoError(t, err, "failed to get metadata from fakeintake") {
 		return
 	}
 
-	columnChecks := []struct {
-		name          string
-		expectedValue interface{}
-	}{
-		{
-			name:          "hostname",
-			expectedValue: ts.Hostname(),
-		},
-		{
-			name:          "feature_cws_enabled",
-			expectedValue: true,
-		},
+	for _, payload := range metadata {
+		if payload.Hostname != hostname {
+			continue
+		}
+		cwsEnabled, ok := payload.Metadata["feature_cws_enabled"]
+		if !ok {
+			continue
+		}
+		assert.Equal(t, true, cwsEnabled, "feature_cws_enabled should be true for host %s", hostname)
+		return
 	}
 
-	for _, columnCheck := range columnChecks {
-		result := false
-		for _, column := range resp.Data[0].Attributes.Columns {
-			if column.Name == columnCheck.name {
-				if !assert.Len(t, column.Values, 1, "column %s should have a single value", columnCheck.name) {
-					return
-				}
-				if !assert.Equal(t, columnCheck.expectedValue, column.Values[0], "column %s should be equal", columnCheck.name) {
-					return
-				}
-				result = true
-				break
-			}
-		}
-		if !assert.Truef(t, result, "column %s isn't present or has an unexpected value", columnCheck.name) {
-			return
-		}
-	}
+	assert.Fail(t, fmt.Sprintf("no metadata payload with feature_cws_enabled found for host %s", hostname))
 }
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {

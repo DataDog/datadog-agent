@@ -32,7 +32,7 @@ func TestAgentSuiteGCP(t *testing.T) {
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithStackName("cws-agentSuite-gcp"),
 		e2e.WithProvisioner(
-			gcphost.ProvisionerNoFakeIntake(
+			gcphost.Provisioner(
 				gcphost.WithAgentOptions(
 
 					agentparams.WithAgentConfig(agentConfig),
