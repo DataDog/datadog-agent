@@ -8,6 +8,7 @@
 package setup
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -57,10 +58,10 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 }
 
 func TestDiscoveryUseSystemProbeLite(t *testing.T) {
-	t.Run("disabled by default", func(t *testing.T) {
+	t.Run("enabled by default on linux", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		assert.False(t, cfg.GetBool("discovery.use_system_probe_lite"))
+		assert.Equal(t, runtime.GOOS == "linux", cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 
 	t.Run("enabled from env var", func(t *testing.T) {
