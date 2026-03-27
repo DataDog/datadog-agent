@@ -97,6 +97,31 @@ func TestUnwrap(t *testing.T) {
 	assert.Equal(t, inner, errors.Unwrap(wrapped))
 }
 
+func TestWithStack(t *testing.T) {
+	assert.Nil(t, WithStack(nil))
+
+	err := errors.New("plain error")
+	withStack := WithStack(err)
+	require.NotNil(t, withStack)
+	assert.Equal(t, "plain error", withStack.Error())
+
+	se, ok := withStack.(*stackError)
+	require.True(t, ok)
+	require.NotEmpty(t, se.StackTrace())
+	assert.Equal(t, err, se.Unwrap())
+
+	assert.True(t, stackContainsFunc(se.StackTrace(), "TestWithStack"),
+		"Stack trace should contain the calling test function")
+}
+
+func TestWithStackNoDoubleWrap(t *testing.T) {
+	err := errors.New("test")
+	wrapped := Wrap(ErrDownloadFailed, err)
+
+	result := WithStack(wrapped)
+	assert.Equal(t, wrapped, result, "WithStack should return the original error if it already has a stack")
+}
+
 func stackContainsFunc(pcs []uintptr, name string) bool {
 	frames := runtime.CallersFrames(pcs)
 	for {

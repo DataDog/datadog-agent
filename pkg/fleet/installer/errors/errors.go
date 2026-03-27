@@ -118,3 +118,33 @@ func FromJSON(errStr string) *InstallerError {
 		code: InstallerErrorCode(jsonError.Code),
 	}
 }
+
+// stackError wraps an error with a stack trace captured at creation time.
+type stackError struct {
+	err   error
+	stack []uintptr
+}
+
+func (e *stackError) Error() string { return e.err.Error() }
+
+func (e *stackError) Unwrap() error { return e.err }
+
+func (e *stackError) StackTrace() []uintptr { return e.stack }
+
+// WithStack wraps an error with a stack trace captured at the call site.
+// Returns nil if err is nil. Returns err unchanged if it already carries a stack trace.
+func WithStack(err error) error {
+	if err == nil {
+		return nil
+	}
+	type hasStack interface {
+		StackTrace() []uintptr
+	}
+	var st hasStack
+	if errors.As(err, &st) {
+		return err
+	}
+	var pcs [32]uintptr
+	n := runtime.Callers(2, pcs[:])
+	return &stackError{err: err, stack: pcs[:n]}
+}
