@@ -138,6 +138,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_config_setup",
     "com_github_datadog_datadog_agent_pkg_config_structure",
     "com_github_datadog_datadog_agent_pkg_config_utils",
+    "com_github_datadog_datadog_agent_pkg_discovery_tracermetadata_model",
     "com_github_datadog_datadog_agent_pkg_errors",
     "com_github_datadog_datadog_agent_pkg_fips",
     "com_github_datadog_datadog_agent_pkg_fleet_installer",
