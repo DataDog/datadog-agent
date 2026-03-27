@@ -294,7 +294,7 @@ func testCwsEnabled(t assert.TestingT, fi *fakeintakeclient.Client, hostname str
 		return
 	}
 
-	assert.Fail(t, fmt.Sprintf("no metadata payload with feature_cws_enabled found for host %s", hostname))
+	assert.Fail(t, "no metadata payload with feature_cws_enabled found for host "+hostname)
 }
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {
