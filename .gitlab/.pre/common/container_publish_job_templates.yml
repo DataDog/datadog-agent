@@ -63,3 +63,5 @@
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
     IMAGE_PROMOTION_TIMEOUT: "1800"
+    # TODO: remove once we switch to prod
+    ARTIFACT_GATEWAY_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway"

@@ -16,7 +16,7 @@ include:
   # used by .docker_publish_job_definition_via_gateway.
   # TODO: pin to a specific ref once the dd-source PR is merged.
   - project: DataDog/dd-source
-    ref: main
+    ref: ali.benabdallah/BARX-1709/image-promotion-template
     file: .gitlab/ci-templates/image-promotion.yml
   - .gitlab/deploy/conditions.yml
   - local: .gitlab/deploy/trigger_release/**.yml
