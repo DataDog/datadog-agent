@@ -68,6 +68,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Setrlimit = deepCopySetrlimitEvent(e.Setrlimit)
 	copied.Signal = deepCopySignalEvent(e.Signal)
 	copied.Signature = e.Signature
+	copied.Socket = deepCopySocketEvent(e.Socket)
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
@@ -1118,6 +1119,14 @@ func deepCopySignalEvent(fieldToCopy SignalEvent) SignalEvent {
 	copied.PID = fieldToCopy.PID
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.Target = deepCopyProcessContextPtr(fieldToCopy.Target)
+	copied.Type = fieldToCopy.Type
+	return copied
+}
+func deepCopySocketEvent(fieldToCopy SocketEvent) SocketEvent {
+	copied := SocketEvent{}
+	copied.Domain = fieldToCopy.Domain
+	copied.Protocol = fieldToCopy.Protocol
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.Type = fieldToCopy.Type
 	return copied
 }
