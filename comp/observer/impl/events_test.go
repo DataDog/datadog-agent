@@ -295,6 +295,7 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 
 func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
 	extractor := NewLogPatternExtractor()
+	extractor.MinPatternsBeforeEmit = 1
 	e := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       []observerdef.LogMetricsExtractor{extractor},

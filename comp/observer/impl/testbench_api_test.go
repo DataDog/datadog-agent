@@ -93,6 +93,9 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 	tb, err := NewTestBench(TestBenchConfig{ScenariosDir: t.TempDir()})
 	require.NoError(t, err)
 	api := NewTestBenchAPI(tb)
+	if ext := tb.getLogPatternExtractor(); ext != nil {
+		ext.MinPatternsBeforeEmit = 1
+	}
 
 	_, _ = tb.engine.IngestLog("test-source", &logObs{
 		content:     []byte("GET /users/123 returned 500"),

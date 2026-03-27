@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ import (
 
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -34,6 +36,7 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 
 func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
 
 	logA := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -65,6 +68,7 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 
 func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -94,4 +98,26 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 	})
 	require.Empty(t, out.Metrics)
 	require.Empty(t, out.Telemetry)
+}
+
+func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
+	e := NewLogPatternExtractor()
+	status := "warn"
+	tags := []string{"service:api"}
+
+	for i := range 4 {
+		out := e.ProcessLog(&mockLogView{
+			content: []byte(fmt.Sprintf("WARN distinct pattern seed %d not mergeable xyz", i)),
+			status:  status,
+			tags:    tags,
+		})
+		require.Empty(t, out.Metrics, "i=%d", i)
+	}
+
+	out := e.ProcessLog(&mockLogView{
+		content: []byte("WARN distinct pattern seed 4 not mergeable xyz"),
+		status:  status,
+		tags:    tags,
+	})
+	require.Len(t, out.Metrics, 1)
 }

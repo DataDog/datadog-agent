@@ -13,6 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
 
+// defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
+// inside a cluster (pattern) before we emit a metric.
+const defaultMinClusterSizeBeforeEmitMetrics = 5
+
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
 	ClusterID int64
@@ -36,6 +40,9 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 type LogPatternExtractor struct {
 	PatternClusterer *patterns.PatternClusterer
 	patternContext   map[string]patternMetricContext
+	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
+	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
+	MinPatternsBeforeEmit int
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -54,6 +61,7 @@ func NewLogPatternExtractor() *LogPatternExtractor {
 			Stride: 1,
 			Index:  0,
 		}),
+		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
 	}
 }
 
@@ -119,8 +127,14 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
-	if clusterResult.IsNew {
-		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+	// Not enough patterns yet, don't emit metric
+	if clusterResult.Cluster != nil {
+		// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
+		if clusterResult.Cluster.Count == e.MinPatternsBeforeEmit {
+			telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+		} else if clusterResult.Cluster.Count < e.MinPatternsBeforeEmit {
+			return observerdef.LogMetricsExtractorOutput{}
+		}
 	}
 
 	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)
