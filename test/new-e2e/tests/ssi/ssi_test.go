@@ -334,24 +334,22 @@ func (v *ssiSuite) TestWorkloadSelection() {
 	})
 }
 
-func (v *ssiSuite) TestRegistryAllowListBlocked() {
+func (v *ssiSuite) TestRegistryAllowList() {
+	registryAllowListApp := singlestep.App{
+		Name:    "registry-allow-list-app",
+		Image:   "registry.datadoghq.com/injector-dev/python",
+		Version: "16ad9d4b",
+		Port:    8080,
+	}
+
+	// Scenario 1: registry not in allow list — injection should be blocked.
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(registryAllowListBlockedHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "registry-allow-list", []singlestep.Namespace{
-				{
-					Name: "registry-allow-list",
-					Apps: []singlestep.App{
-						{
-							Name:    "registry-allow-list-app",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-						},
-					},
-				},
+				{Name: "registry-allow-list", Apps: []singlestep.App{registryAllowListApp}},
 			}, dependsOnAgent)
 		},
 	}))
@@ -370,26 +368,15 @@ func (v *ssiSuite) TestRegistryAllowListBlocked() {
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
 		require.Contains(v.T(), errAnnotation, "not in the allow list")
 	})
-}
 
-func (v *ssiSuite) TestRegistryAllowListAllowed() {
+	// Scenario 2: registry in allow list — injection should proceed.
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(registryAllowListAllowedHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "registry-allow-list", []singlestep.Namespace{
-				{
-					Name: "registry-allow-list",
-					Apps: []singlestep.App{
-						{
-							Name:    "registry-allow-list-app",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-						},
-					},
-				},
+				{Name: "registry-allow-list", Apps: []singlestep.App{registryAllowListApp}},
 			}, dependsOnAgent)
 		},
 	}))
