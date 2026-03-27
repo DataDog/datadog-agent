@@ -42,7 +42,7 @@ FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
-PER_PR_THRESHOLD = 750 * 1024
+PER_PR_THRESHOLD = 600 * 1024
 EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
 
 
