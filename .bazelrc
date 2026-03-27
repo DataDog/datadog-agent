@@ -31,13 +31,13 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=
 
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
-common:linux --remote_local_fallback_strategy=sandboxed
+# common:linux --remote_local_fallback_strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
-common:macos --remote_local_fallback_strategy=sandboxed
+# common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
@@ -63,9 +63,9 @@ common:cache --remote_timeout=60
 
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
-common:ci --config=cache
+# common:ci --config=cache
 common:ci --config=lint
-common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
+# common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/rust.bazelrc
