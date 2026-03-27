@@ -155,15 +155,11 @@ def _stripped_ebpf_impl(ctx):
     src = ctx.file.src
     out = ctx.actions.declare_file(ctx.label.name + ".o")
 
-    ctx.actions.run_shell(
+    ctx.actions.run(
         inputs = [src],
         outputs = [out],
-        tools = [tc.llvm_strip],
-        command = "cp {src} {out} && {strip} -g {out} && {strip} -w -N 'LBB*' {out}".format(
-            src = src.path,
-            out = out.path,
-            strip = tc.llvm_strip.path,
-        ),
+        executable = tc.llvm_strip,
+        arguments = ["-g", "-w", "-N", "LBB*", "-o", out.path, src.path],
         mnemonic = "EbpfStrip",
         progress_message = "Stripping eBPF %{label}",
     )
