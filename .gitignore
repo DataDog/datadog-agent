@@ -251,4 +251,4 @@ AUTO_JIRA.md
 .zed
 
 # dda inv test artifacts (test_output.json, test_output_unified.json)
-test_output*.json
+/test_output*.json
