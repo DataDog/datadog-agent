@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+// maxEncodeBatchSize caps the number of metric points encoded per FlatBuffers
+// frame. This keeps the builder under 256 KB (the pool retention limit) even
+// at 100K samples/s, so the builder is reused from the pool instead of
+// allocated fresh each flush. At high throughput, the batcher sends multiple
+// smaller frames per flush cycle instead of one large frame.
+const maxEncodeBatchSize = 2000
+
 // batcher accumulates metrics and logs in per-type ring buffers and flushes
 // them at a fixed interval via the provided Transport.
 //
@@ -261,26 +268,43 @@ func (b *batcher) flushMetrics() {
 
 	b.counters.setBatchSize("metrics", ptCount+defCount)
 
-	builder, err := EncodeSplitMetricBatch(
-		b.builderPool,
-		b.defsDrain, defTail, defCount, b.defCap,
-		b.ptsDrain, ptTail, ptCount, b.ptCap,
-	)
-	if err != nil {
-		b.counters.incMetricsDroppedTransport(uint64(ptCount + defCount))
-		returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
-		return
-	}
-	data := builder.FinishedBytes()
-	if err := b.transport.Send(data); err != nil {
-		b.counters.incMetricsDroppedTransport(uint64(ptCount + defCount))
+	// Encode in chunks to keep the FlatBuffers builder under the pool cap.
+	// Context defs are always sent first (small batch). Points are chunked.
+	sent := 0
+	for ptSent := 0; ptSent < ptCount || (ptSent == 0 && defCount > 0); {
+		// First chunk includes all defs; subsequent chunks are points-only.
+		chunkDefs := 0
+		chunkDefTail := defTail
+		if ptSent == 0 {
+			chunkDefs = defCount
+		}
+		chunkPts := ptCount - ptSent
+		if chunkPts > maxEncodeBatchSize {
+			chunkPts = maxEncodeBatchSize
+		}
+		chunkPtTail := (ptTail + ptSent) % b.ptCap
+
+		builder, err := EncodeSplitMetricBatch(
+			b.builderPool,
+			b.defsDrain, chunkDefTail, chunkDefs, b.defCap,
+			b.ptsDrain, chunkPtTail, chunkPts, b.ptCap,
+		)
+		if err != nil {
+			b.counters.incMetricsDroppedTransport(uint64(chunkDefs + chunkPts))
+			break
+		}
+		data := builder.FinishedBytes()
+		if err := b.transport.Send(data); err != nil {
+			b.counters.incMetricsDroppedTransport(uint64(chunkDefs + chunkPts))
+			b.builderPool.put(builder)
+			break
+		}
+		sent += chunkDefs + chunkPts
+		b.counters.incBytesSent(uint64(len(data)))
 		b.builderPool.put(builder)
-		returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
-		return
+		ptSent += chunkPts
 	}
-	b.counters.incMetricsSent(uint64(ptCount + defCount))
-	b.counters.incBytesSent(uint64(len(data)))
-	b.builderPool.put(builder)
+	b.counters.incMetricsSent(uint64(sent))
 	returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 }
 
