@@ -92,21 +92,21 @@ func NewSignatureClusterer(idComputeInfo IDComputeInfo) *SignatureClusterer {
 	}
 }
 
-func (sc *SignatureClusterer) Process(message string) *ClusterResult {
+func (sc *SignatureClusterer) Process(message string) (ClusterResult, bool) {
 	if sc.IgnoreEmpty && strings.TrimSpace(message) == "" {
-		return nil
+		return ClusterResult{}, false
 	}
 
 	tokens := sc.tokenizer.Tokenize(message)
 	return sc.ProcessTokens(tokens, message)
 }
 
-func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *ClusterResult {
+func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) (ClusterResult, bool) {
 	sig := TokenListSignature(tokens)
 
 	if c, ok := sc.clusters[sig]; ok {
 		c.Count++
-		return &ClusterResult{Cluster: c, IsNew: false}
+		return ClusterResult{Cluster: c, IsNew: false}, true
 	}
 
 	c := &Cluster{
@@ -119,13 +119,13 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
 
-	return &ClusterResult{Cluster: c, IsNew: true}
+	return ClusterResult{Cluster: c, IsNew: true}, true
 }
 
-func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) *ClusterResult {
+func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) (ClusterResult, bool) {
 	message := sc.TextGetter(doc)
-	result := sc.Process(message)
-	if result != nil && result.IsNew && len(sc.TagGetters) > 0 {
+	result, ok := sc.Process(message)
+	if ok && result.IsNew && len(sc.TagGetters) > 0 {
 		if result.Cluster.Tags == nil {
 			result.Cluster.Tags = make(map[string]string)
 		}
@@ -133,7 +133,7 @@ func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) *ClusterResult {
 			result.Cluster.Tags[tagName] = getter(doc)
 		}
 	}
-	return result
+	return result, ok
 }
 
 func (sc *SignatureClusterer) GetClusters() []*Cluster {
@@ -167,9 +167,9 @@ func (pc *PatternClusterer) NumClusters() int {
 	return len(pc.allClusters)
 }
 
-func (pc *PatternClusterer) Process(message string) *ClusterResult {
+func (pc *PatternClusterer) Process(message string) (ClusterResult, bool) {
 	if pc.IgnoreEmpty && strings.TrimSpace(message) == "" {
-		return nil
+		return ClusterResult{}, false
 	}
 
 	tokens := pc.tokenizer.Tokenize(message)
@@ -177,7 +177,7 @@ func (pc *PatternClusterer) Process(message string) *ClusterResult {
 	return pc.ProcessTokens(tokens, message)
 }
 
-func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *ClusterResult {
+func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (ClusterResult, bool) {
 	sig := TokenListSignature(tokens)
 
 	// Try within same signature group first
@@ -186,7 +186,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		if canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
-			return &ClusterResult{Cluster: c, IsNew: false}
+			return ClusterResult{Cluster: c, IsNew: false}, true
 		}
 	}
 
@@ -200,7 +200,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 			if canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
-				return &ClusterResult{Cluster: c, IsNew: false}
+				return ClusterResult{Cluster: c, IsNew: false}, true
 			}
 		}
 	}
@@ -215,7 +215,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
 
-	return &ClusterResult{Cluster: c, IsNew: true}
+	return ClusterResult{Cluster: c, IsNew: true}, true
 }
 
 func (pc *PatternClusterer) GetClusters() []*Cluster {
