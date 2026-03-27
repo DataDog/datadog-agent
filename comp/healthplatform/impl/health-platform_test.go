@@ -810,3 +810,33 @@ func TestNewComponentUsesDiskPersistenceOffKubernetes(t *testing.T) {
 	_, isDisk := impl.persistence.(*diskPersistence)
 	assert.True(t, isDisk, "expected diskPersistence when not running on Kubernetes")
 }
+
+// TestNewComponentUsesDiskPersistenceOnKubernetesWhenOptedIn verifies that when
+// health_platform.persist_on_kubernetes is true, diskPersistence is used even on Kubernetes.
+func TestNewComponentUsesDiskPersistenceOnKubernetesWhenOptedIn(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+	tmpDir := t.TempDir()
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("health_platform.enabled", true)
+	cfg.SetWithoutSource("health_platform.persist_on_kubernetes", true)
+	cfg.SetWithoutSource("run_path", tmpDir)
+
+	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+	reqs := Requires{
+		Lifecycle: newMockLifecycle(),
+		Config:    cfg,
+		Log:       logmock.New(t),
+		Telemetry: nooptelemetry.GetCompatComponent(),
+		Hostname:  hostnameMock,
+	}
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok)
+
+	_, isDisk := impl.persistence.(*diskPersistence)
+	assert.True(t, isDisk, "expected diskPersistence on Kubernetes when persist_on_kubernetes is true")
+}
