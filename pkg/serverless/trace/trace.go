@@ -7,7 +7,6 @@ package trace
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"os"
 	"strconv"

@@ -161,8 +161,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		traceAgent := trace.NewNoopTraceAgent()
 		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
 		metricAgent := &metrics.ServerlessMetricAgent{
-			SketchesBucketOffset: time.Second * 0,
-			Tagger:               tagger,
+			Tagger: tagger,
 		}
 		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
 	}
