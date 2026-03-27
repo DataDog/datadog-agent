@@ -96,6 +96,7 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 
 	_, _ = tb.engine.IngestLog("test-source", &logObs{
 		content:     []byte("GET /users/123 returned 500"),
+		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 2_000,
 	})

@@ -17,6 +17,7 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
+		status:  "warn",
 		tags:    []string{"service:web", "env:prod"},
 	}
 
@@ -36,10 +37,12 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 
 	logA := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
+		status:  "warn",
 		tags:    []string{"service:api"},
 	}
 	logB := &mockLogView{
 		content: []byte("GET /users/456 returned 500"),
+		status:  "warn",
 		tags:    []string{"service:worker"},
 	}
 
@@ -65,6 +68,7 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
+		status:  "warn",
 		tags:    []string{"service:web"},
 	}
 
@@ -78,4 +82,16 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 
 	_, ok = e.GetContextByKey(res.Metrics[0].ContextKey)
 	assert.False(t, ok)
+}
+
+func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
+	e := NewLogPatternExtractor()
+
+	out := e.ProcessLog(&mockLogView{
+		content: []byte("INFO: routine request completed"),
+		status:  "info",
+		tags:    []string{"service:api"},
+	})
+	require.Empty(t, out.Metrics)
+	require.Empty(t, out.Telemetry)
 }

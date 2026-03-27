@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -96,8 +97,22 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 	}, true
 }
 
+// logSeverityIsWarnPlus returns true when the log should be clustered: warning
+func logSeverityIsWarnPlus(log observerdef.LogView) bool {
+	status := strings.ToLower(strings.TrimSpace(log.GetStatus()))
+	switch status {
+	case "warn", "warning", "error", "critical", "fatal":
+		return true
+	default:
+		return false
+	}
+}
+
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	if !logSeverityIsWarnPlus(log) {
+		return observerdef.LogMetricsExtractorOutput{}
+	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
 	clusterResult, ok := e.PatternClusterer.Process(message)

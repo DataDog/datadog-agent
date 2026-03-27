@@ -303,11 +303,13 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 
 	_, _ = e.IngestLog("source-a", &logObs{
 		content:     []byte("GET /users/123 returned 500"),
+		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
 	_, _ = e.IngestLog("source-b", &logObs{
 		content:     []byte("GET /users/456 returned 500"),
+		status:      "warn",
 		tags:        []string{"service:worker"},
 		timestampMs: 2_000,
 	})
