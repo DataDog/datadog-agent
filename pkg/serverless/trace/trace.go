@@ -120,11 +120,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 
 		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
-			if errors.Is(confErr, config.ErrMissingAPIKey) {
-				log.Warnf("Trace agent config: %s", confErr)
-			} else {
-				log.Errorf("Unable to load trace agent config: %s", confErr)
-			}
+			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""

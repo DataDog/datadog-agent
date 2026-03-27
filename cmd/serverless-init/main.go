@@ -155,57 +155,49 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	// When no API key is configured, skip trace and metric agent initialization
 	// to avoid noisy error logs. The process wrapper and logs agent still function normally.
-	apiKey := strings.TrimSpace(pkgconfigsetup.Datadog().GetString("api_key"))
-	monitoringEnabled := apiKey != ""
-	if !monitoringEnabled {
+	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
+	if apiKey == "" {
 		log.Warnf("DD_API_KEY is not set; trace and metric collection are disabled. Set DD_API_KEY to enable monitoring.")
+		traceAgent := trace.NewNoopTraceAgent()
+		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
+		metricAgent := &metrics.ServerlessMetricAgent{
+			SketchesBucketOffset: time.Second * 0,
+			Tagger:               tagger,
+		}
+		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
 	}
 
-	var traceAgent trace.ServerlessTraceAgent
-	tracingCtx := &cloudservice.TracingContext{}
+	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
+	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
 
-	if monitoringEnabled {
-		traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
-		traceAgent = setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
-		tracingCtx.TraceAgent = traceAgent
-		tracingCtx.SpanTags = traceTags
-		// TODO check for errors and exit
-		_ = cloudService.Init(tracingCtx)
-	} else {
-		traceAgent = trace.NewNoopTraceAgent()
-		tracingCtx.TraceAgent = traceAgent
+	tracingCtx := &cloudservice.TracingContext{
+		TraceAgent: traceAgent,
+		SpanTags:   traceTags,
 	}
 
-	metricAgent := &metrics.ServerlessMetricAgent{
-		SketchesBucketOffset: time.Second * 0,
-		Tagger:               tagger,
+	// TODO check for errors and exit
+	_ = cloudService.Init(tracingCtx)
+
+	metricAgent := setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
+
+	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
+	if enhancedMetricsEnabled {
+		cloudService.AddStartMetric(metricAgent)
 	}
+
+	setupOtlpAgent(metricAgent, tagger)
 
 	var enhancedMetricsCollector *enhancedmetrics.Collector
-	enhancedMetricsEnabled := false
-
-	if monitoringEnabled {
-		metricAgent = setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
-
-		enhancedMetricsEnabled = pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
-		if enhancedMetricsEnabled {
-			cloudService.AddStartMetric(metricAgent)
+	if enhancedMetricsEnabled {
+		enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricSuffix(), 3*time.Second)
+		if err != nil {
+			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
+		} else {
+			go enhancedMetricsCollector.Start()
 		}
-
-		setupOtlpAgent(metricAgent, tagger)
-
-		if enhancedMetricsEnabled {
-			enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricSuffix(), 3*time.Second)
-			if err != nil {
-				log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
-			} else {
-				go enhancedMetricsCollector.Start()
-			}
-		}
-
-		go flushMetricsAgent(metricAgent)
 	}
 
+	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
 }
 

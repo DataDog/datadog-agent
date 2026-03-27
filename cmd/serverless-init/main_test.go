@@ -9,7 +9,6 @@ package main
 
 import (
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -115,7 +115,7 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// Simulate the API key check from setup()
-	apiKey := strings.TrimSpace(pkgconfigsetup.Datadog().GetString("api_key"))
+	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
 	assert.Empty(t, apiKey)
 
 	// When no API key, metric agent should not be started (Demux is nil)
