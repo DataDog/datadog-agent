@@ -69,7 +69,7 @@ type healthPlatformImpl struct {
 
 	// Persistence
 	persistedIssues map[string]*PersistedIssue // Persisted issues with status tracking
-	persistence     issuesPersistence          // Persistence backend (disk or noop)
+	persistence     issuesPersistence          // Persistence strategy (disk or noop)
 
 	// Issue module registry (combines checks + remediations)
 	issueRegistry *issuesmod.Registry
@@ -215,7 +215,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
-	// Select persistence backend: noop on Kubernetes (emptyDir makes disk persistence meaningless),
+	// Select persistence strategy: noop on Kubernetes (emptyDir makes disk persistence meaningless),
 	// disk-based elsewhere so issues survive agent restarts.
 	// Operators who mount run_path as a durable volume (hostPath, PVC) can opt in to disk
 	// persistence on Kubernetes by setting health_platform.persist_on_kubernetes: true.
@@ -605,7 +605,7 @@ func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk loads persisted issues via the persistence backend
+// loadFromDisk loads persisted issues via the persistence layer
 func (h *healthPlatformImpl) loadFromDisk() error {
 	state, err := h.persistence.load()
 	if err != nil {
@@ -641,7 +641,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	return nil
 }
 
-// saveToDisk persists the current issue state via the persistence backend
+// saveToDisk persists the current issue state via the persistence layer
 func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
 	// Make a deep copy to avoid race conditions during marshaling
