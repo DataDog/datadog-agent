@@ -28,11 +28,11 @@ func TestInjectAPMLibraries_RegistryAllowList(t *testing.T) {
 		expectErrorAnnot  bool
 	}{
 		{
-			name:             "empty allow list permits any registry",
+			name:              "empty allow list permits any registry",
 			registryAllowList: []string{},
 			injectorRegistry:  "registry.datadoghq.com",
-			expectInjected:   true,
-			expectErrorAnnot: false,
+			expectInjected:    true,
+			expectErrorAnnot:  false,
 		},
 		{
 			name:              "registry in allow list permits injection",
