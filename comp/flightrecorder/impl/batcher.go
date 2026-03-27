@@ -261,7 +261,7 @@ func (b *batcher) flushMetrics() {
 
 	b.counters.setBatchSize("metrics", ptCount+defCount)
 
-	data, err := EncodeSplitMetricBatch(
+	builder, err := EncodeSplitMetricBatch(
 		b.builderPool,
 		b.defsDrain, defTail, defCount, b.defCap,
 		b.ptsDrain, ptTail, ptCount, b.ptCap,
@@ -271,13 +271,16 @@ func (b *batcher) flushMetrics() {
 		returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 		return
 	}
+	data := builder.FinishedBytes()
 	if err := b.transport.Send(data); err != nil {
 		b.counters.incMetricsDroppedTransport(uint64(ptCount + defCount))
+		b.builderPool.put(builder)
 		returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 		return
 	}
 	b.counters.incMetricsSent(uint64(ptCount + defCount))
 	b.counters.incBytesSent(uint64(len(data)))
+	b.builderPool.put(builder)
 	returnDefSlicesRing(b.defsDrain, defTail, defCount, b.defCap)
 }
 
@@ -299,19 +302,22 @@ func (b *batcher) flushLogs() {
 
 	b.counters.setBatchSize("logs", count)
 
-	data, err := EncodeLogBatchRing(b.builderPool, drain, tail, count, b.logCap)
+	builder, err := EncodeLogBatchRing(b.builderPool, drain, tail, count, b.logCap)
 	if err != nil {
 		b.counters.incLogsDroppedTransport(uint64(count))
 		returnLogSlicesRing(drain, tail, count, b.logCap)
 		return
 	}
+	data := builder.FinishedBytes()
 	if err := b.transport.Send(data); err != nil {
 		b.counters.incLogsDroppedTransport(uint64(count))
+		b.builderPool.put(builder)
 		returnLogSlicesRing(drain, tail, count, b.logCap)
 		return
 	}
 	b.counters.incLogsSent(uint64(count))
 	b.counters.incBytesSent(uint64(len(data)))
+	b.builderPool.put(builder)
 	returnLogSlicesRing(drain, tail, count, b.logCap)
 }
 
@@ -333,17 +339,20 @@ func (b *batcher) flushTraceStats() {
 
 	b.counters.setBatchSize("trace_stats", count)
 
-	data, err := EncodeTraceStatsBatchRing(b.builderPool, drain, tail, count, b.tssCap)
+	builder, err := EncodeTraceStatsBatchRing(b.builderPool, drain, tail, count, b.tssCap)
 	if err != nil {
 		b.counters.incTraceStatsDroppedTransport(uint64(count))
 		return
 	}
+	data := builder.FinishedBytes()
 	if err := b.transport.Send(data); err != nil {
 		b.counters.incTraceStatsDroppedTransport(uint64(count))
+		b.builderPool.put(builder)
 		return
 	}
 	b.counters.incTraceStatsSent(uint64(count))
 	b.counters.incBytesSent(uint64(len(data)))
+	b.builderPool.put(builder)
 }
 
 // IsContextKnown returns true if the context key has already been sent to the
