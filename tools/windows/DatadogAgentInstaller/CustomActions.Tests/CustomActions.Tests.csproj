@@ -150,7 +150,7 @@
     </PackageReference>
     <!-- WiX 5 migration: Replaced WixSharp.bin with WixSharp_wix4 -->
     <PackageReference Include="WixSharp_wix4">
-      <Version>2.12.0</Version>
+      <Version>2.12.3</Version>
     </PackageReference>
     <PackageReference Include="xunit">
       <Version>2.4.2</Version>
