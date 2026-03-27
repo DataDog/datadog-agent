@@ -508,6 +508,7 @@ def display_pr_comment(
     metric_handler: GateMetricHandler,
     ancestor: str,
     pr,
+    exception_granted_by: str | None = None,
 ):
     """
     Display a comment on a PR with results from our static quality gates checks
@@ -516,6 +517,7 @@ def display_pr_comment(
     :param gate_states: State of each quality gate
     :param metric_handler: Precise metrics of each quality gate
     :param ancestor: Ancestor used for relative size comparaison
+    :param exception_granted_by: Login of the reviewer who granted a per-PR threshold exception, or None
     :return:
     """
     title = "Static quality checks"
@@ -595,7 +597,12 @@ def display_pr_comment(
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
 
             error_message = gate['message'].replace('\n', '<br>')
-            blocking_note = "" if is_blocking else " (non-blocking: size unchanged from ancestor)"
+            if not is_blocking and gate["error_type"] == "PerPRThresholdExceeded":
+                blocking_note = f" (non-blocking: exception granted by @{exception_granted_by})"
+            elif not is_blocking:
+                blocking_note = " (non-blocking: size unchanged from ancestor)"
+            else:
+                blocking_note = ""
             body_error_footer += f"|{gate_name}|{gate['error_type']}{blocking_note}|{error_message}|\n"
 
             if is_blocking:
@@ -611,6 +618,11 @@ def display_pr_comment(
         final_error_body = body_error + body_error_footer
     else:
         final_error_body = ""
+
+    exception_banner = ""
+    if exception_granted_by:
+        threshold_str = byte_to_string(PER_PR_THRESHOLD)
+        exception_banner = f"{WARNING_CHAR} **Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
 
     # Build successful checks section
     success_section = ""
@@ -635,7 +647,7 @@ def display_pr_comment(
     if has_na_change and job_url:
         retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{final_error_body}\n\n{success_section}\n{wire_section}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{exception_banner}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)
 
@@ -821,6 +833,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
     # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+    exception_checker = ExceptionApprovalChecker(pr)
+
     if not is_on_main_branch:
         for gate_state in gate_states:
             if gate_state["state"] is False and gate_state.get("blocking", True):
@@ -853,7 +867,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     gate_state["message"] = (
                         f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
                     )
-                    gate_state["blocking"] = True
+                    gate_state["blocking"] = exception_checker.get() is None
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
@@ -875,7 +889,9 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         # Reuse cached PR lookup from earlier
         if pr:
             # Pass True for final_state if there are no blocking failures
-            display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor, pr)
+            display_pr_comment(
+                ctx, not has_blocking_failures, gate_states, metric_handler, ancestor, pr, exception_checker.get()
+            )
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)
