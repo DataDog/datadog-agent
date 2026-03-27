@@ -209,6 +209,31 @@ func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Wa
 		allEntries = append(allEntries, entries...)
 	}
 
+	// Deduplicate: if an earlier collector (e.g. applicationsCollector) reported
+	// an entry with a PkgID, drop any later entry (e.g. from pkgReceiptsCollector)
+	// whose ProductCode matches that PkgID. This avoids duplicate entries when
+	// both collectors report the same software — the earlier collector's entry
+	// is preferred because it typically has richer metadata.
+	knownPkgIDs := make(map[string]bool)
+	for _, entry := range allEntries {
+		if entry.PkgID != "" {
+			knownPkgIDs[entry.PkgID] = true
+		}
+	}
+	if len(knownPkgIDs) > 0 {
+		deduped := make([]*Entry, 0, len(allEntries))
+		for _, entry := range allEntries {
+			// Drop PKG entries whose ProductCode was already claimed by
+			// another collector via PkgID (e.g. apps collector found the
+			// .app bundle and linked it to this package receipt).
+			if entry.Source == softwareTypePkg && knownPkgIDs[entry.ProductCode] {
+				continue
+			}
+			deduped = append(deduped, entry)
+		}
+		allEntries = deduped
+	}
+
 	return allEntries, allWarnings, allErrors
 }
 
