@@ -8,6 +8,7 @@ package flightrecorderimpl
 
 import (
 	"context"
+	"encoding/binary"
 	"net"
 	"sync"
 	"time"
@@ -123,7 +124,12 @@ func (t *unixTransport) Send(b []byte) error {
 		return errNotConnected
 	}
 
-	_, err := conn.Write(b)
+	// Write a length-prefixed frame using writev (net.Buffers) to avoid
+	// copying the payload just to prepend 4 bytes.
+	var prefix [4]byte
+	binary.LittleEndian.PutUint32(prefix[:], uint32(len(b)))
+	bufs := net.Buffers{prefix[:], b}
+	_, err := bufs.WriteTo(conn)
 	if err != nil {
 		// Mark connection as dead and signal the reconnect loop.
 		t.mu.Lock()

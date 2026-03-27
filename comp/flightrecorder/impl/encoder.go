@@ -222,7 +222,7 @@ func EncodeSplitMetricBatch(
 	signals.SignalEnvelopeAddPayload(b, batchOff)
 	envOff := signals.SignalEnvelopeEnd(b)
 
-	b.FinishSizePrefixed(envOff)
+	b.Finish(envOff)
 
 	return b, nil
 }
@@ -358,7 +358,7 @@ func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capac
 	signals.SignalEnvelopeAddPayload(b, batchOff)
 	envOff := signals.SignalEnvelopeEnd(b)
 
-	b.FinishSizePrefixed(envOff)
+	b.Finish(envOff)
 
 	return b, nil
 }
@@ -493,7 +493,7 @@ func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail,
 	signals.SignalEnvelopeAddPayload(b, batchOff)
 	envOff := signals.SignalEnvelopeEnd(b)
 
-	b.FinishSizePrefixed(envOff)
+	b.Finish(envOff)
 
 	return b, nil
 }
