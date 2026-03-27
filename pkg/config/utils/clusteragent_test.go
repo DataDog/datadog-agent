@@ -74,6 +74,18 @@ func TestGetClusterAgentEndpointFromKubernetesSvc(t *testing.T) {
 	assert.Equal(t, "https://127.0.0.1:443", endpoint)
 }
 
+func TestGetClusterAgentEndpointFromKubernetesSvcIPv6(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("cluster_agent.url", "")
+	cfg.SetWithoutSource("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	t.Setenv(clusterAgentServiceHost, "fd38:552b:2959::4f4a")
+	t.Setenv(clusterAgentServicePort, "5005")
+
+	endpoint, err := GetClusterAgentEndpoint()
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+	assert.Equal(t, "https://[fd38:552b:2959::4f4a]:5005", endpoint)
+}
+
 func TestGetClusterAgentEndpointFromKubernetesSvcEmpty(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cluster_agent.url", "")

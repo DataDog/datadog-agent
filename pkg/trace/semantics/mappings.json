@@ -143,12 +143,14 @@
     "rpc.grpc.status_code": {
       "canonical": "rpc.grpc.status_code",
       "fallbacks": [
-        {"name": "rpc.grpc.status_code", "provider": "otel", "type": "int64"},
-        {"name": "grpc.code", "provider": "datadog", "type": "int64"},
-        {"name": "rpc.grpc.status.code", "provider": "otel", "type": "int64"},
-        {"name": "grpc.status.code", "provider": "datadog", "type": "int64"},
-        {"name": "rpc.grpc.status_code", "provider": "otel", "type": "string"},
-        {"name": "grpc.code", "provider": "datadog", "type": "string"}
+        {"name": "rpc.grpc.status_code", "provider": "otel",    "type": "string"},
+        {"name": "rpc.grpc.status_code", "provider": "otel",    "type": "int64"},
+        {"name": "grpc.code",            "provider": "datadog", "type": "string"},
+        {"name": "grpc.code",            "provider": "datadog", "type": "int64"},
+        {"name": "rpc.grpc.status.code", "provider": "otel",    "type": "string"},
+        {"name": "rpc.grpc.status.code", "provider": "otel",    "type": "int64"},
+        {"name": "grpc.status.code",     "provider": "datadog", "type": "string"},
+        {"name": "grpc.status.code",     "provider": "datadog", "type": "int64"}
       ]
     },
     "span.kind": {
