@@ -45,7 +45,7 @@ generator:
           metric_names:
             - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-99}}
           tag_names:
-            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-54}}
+            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-57}}
           tag_values:
             - value{{0-9}}
 
