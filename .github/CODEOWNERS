@@ -23,13 +23,13 @@
 /.vscode/                               @DataDog/agent-devx
 
 # Bazel configuration
+/*.bazel*                               @DataDog/agent-build
 /.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
-/bazel/                                 @DataDog/agent-build
-/bazel/configs/rust.bazelrc               @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
-/MODULE.bazel*                          @DataDog/agent-build
-/deps/                                  @DataDog/agent-build
 /.buildifier.json                       @DataDog/agent-build
+/bazel/                                 @DataDog/agent-build
+/bazel/configs/rust.bazelrc             @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
+/deps/                                  @DataDog/agent-build
 
 # The owner should really be to a team that does not exist yet. It would cover supply chain in general.
 # For now, agent-build are the experts in that.
@@ -65,7 +65,8 @@
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
-/.github/dependabot.yaml                             @DataDog/agent-devx
+# Removed temporarily
+# /.github/dependabot.yaml                             @DataDog/agent-devx
 /.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security @DataDog/agent-devx
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration @DataDog/agent-devx
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes @DataDog/agent-devx
@@ -233,6 +234,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
+/cmd/agent/install_mac_os.sh            @DataDog/windows-products @DataDog/telemetry-onboarding
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
@@ -282,6 +284,7 @@
 /Dockerfiles/agent/windows/              @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent-ddot                  @DataDog/opentelemetry-agent
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
+/Dockerfiles/manifests/                  @DataDog/container-integrations
 
 /docs/                                  @DataDog/agent-devx
 /docs/dev/agent_api.md                  @DataDog/agent-runtimes
@@ -302,6 +305,7 @@
 /omnibus/                               @DataDog/agent-build
 /omnibus/package-scripts/agent-rpm/     @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/     @DataDog/agent-build @DataDog/fleet
+/omnibus/package-scripts/agent-dmg/     @DataDog/agent-build @DataDog/windows-products
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
@@ -377,6 +381,7 @@
 /comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
+/comp/dataobs/queryactions @DataDog/data-observability
 /comp/etw @DataDog/windows-products
 /comp/filterlist @DataDog/agent-metric-pipelines
 /comp/fleetstatus @DataDog/fleet
@@ -398,8 +403,7 @@
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
 
-# Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
-/comp/core/agenttelemetry               @DataDog/agent-runtimes @iglendd
+/comp/core/agenttelemetry               @DataDog/agent-health
 
 # trace-agent logging implementation should also notify agent-apm
 /comp/core/log/impl-trace @DataDog/agent-apm
@@ -772,7 +776,7 @@
 /tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build
 /tasks/installer.py                     @DataDog/fleet
-/tasks/full_host_profiler.py            @DataDog/opentelemetry-agent @DataDog/profiling-full-host
+/tasks/host_profiler.py                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -788,6 +792,7 @@
 /test/e2e-framework/components/datadog/agent/ecs.go     @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecsFargate.go @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/ecsagentparams/  @DataDog/ecs-experiences
+/test/e2e-framework/components/windows/                @DataDog/windows-products
 /test/fakeintake/                              @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/network-device-monitoring-core
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/network-device-monitoring-core

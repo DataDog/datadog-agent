@@ -3972,13 +3972,25 @@ api_key:
 #
 #   default_scan:
 
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: false
+#     # @param enabled - boolean - optional - default: true
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: true
 #     # Enable automatic scanning of discovered SNMP devices.
 #     # When enabled, devices discovered via autodiscovery or configured
 #     # directly will be scanned to collect OID data.
 #
-#     enabled: false
+#     enabled: true
+
+#     # @param excluded_ips - list of strings - optional - default: []
+#     # List of IP addresses to exclude from automatic scanning.
+#     # Devices with these IP addresses will be skipped during default scan.
+#
+#     excluded_ips: []
+
+#     # @param excluded_ips - list of strings - optional - default: []
+#     # List of IP addresses to exclude from automatic scanning.
+#     # Devices with these IP addresses will be skipped during default scan.
+#
+#     excluded_ips: []
 
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
@@ -4301,8 +4313,8 @@ api_key:
 #         #   "10.0.0.1":              # target device IP address
 #         #     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
 #         #       match_value: "eth0"  # (required) the value to match
-#         #       in_speed: 50         # (optional) inbound speed value in bytes per sec, no value or 0 means no override
-#         #       out_speed: 25        # (optional) outbound speed value in bytes per sec, no value or 0 means no override
+#         #       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
+#         #       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
 #         #       tags:                # (optional) interface level tags
 #         #         - "testTagKey:testTagValue"
 #         #         - "tagKey2:tagValue2"
