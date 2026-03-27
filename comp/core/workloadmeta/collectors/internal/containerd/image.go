@@ -152,16 +152,16 @@ func (images *knownImages) getRepoDigests(imageID string) []string {
 
 // getPreferredName will return a user-friendly image name if it exists, otherwise
 // for example the name not including the digest.
+// Priority: repo digest > repo tag > raw image ID (sha256:...)
 func (images *knownImages) getPreferredName(imageID string) string {
 	var res = ""
 	for ref := range images.namesByID[imageID] {
-		if res == "" && isAnImageID(ref) {
-			res = ref
-		} else if isARepoDigest(ref) {
-			res = ref // Prefer the repo digest
-			break
-		} else {
-			res = ref // Then repo tag
+		if isARepoDigest(ref) {
+			return ref // repo digest always wins
+		} else if !isAnImageID(ref) {
+			res = ref // repo tag preferred over raw image ID
+		} else if res == "" {
+			res = ref // raw image ID only if nothing better found yet
 		}
 	}
 	return res

@@ -47,7 +47,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     };
 
     read_dir(fd_path)?
-        .filter_map(|entry_result| entry_result.ok())
+        .map_while(|entry_result| entry_result.ok())
         .filter_map(|entry| {
             let path = entry.path();
             let link = read_link(&path).ok()?;

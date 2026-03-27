@@ -57,6 +57,7 @@ pkg_filegroup(
         ":lib_files",
     ],
     prefix = "embedded",
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(

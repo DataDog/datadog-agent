@@ -12,20 +12,10 @@ import (
 	"expvar"
 	"io"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	trapsStatus "github.com/DataDog/datadog-agent/comp/snmptraps/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	trapsStatus "github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(New),
-	)
-}
 
 var (
 	trapsExpvars                       = expvar.NewMap("snmp_traps")
@@ -38,6 +28,19 @@ var (
 func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
 	trapsExpvars.Set("PacketsUnknownCommunityString", &trapsPacketsUnknownCommunityString)
+}
+
+// Requires defines the dependencies for the status component.
+type Requires struct{}
+
+// Provides defines the output of the status component.
+type Provides struct {
+	Comp trapsStatus.Component
+}
+
+// NewComponent creates a new status manager component.
+func NewComponent(_ Requires) Provides {
+	return Provides{Comp: New()}
 }
 
 // New creates a new status manager component

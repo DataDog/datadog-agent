@@ -1,0 +1,12 @@
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key
+      dd-evp-origin: custom-origin
+      dd-evp-origin-version: custom-version
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [otlphttp]

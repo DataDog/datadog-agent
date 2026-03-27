@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "compute_tags_hash.go",
+        "concat.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/utils",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = [
+        "compute_tags_hash_test.go",
+        "concat_test.go",
+    ],
+    embed = [":utils"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

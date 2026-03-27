@@ -272,7 +272,9 @@ func (c *HTTPClient) UpdateAPIKey(apiKey string) {
 //
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
-func (c *HTTPClient) NewWebSocket(ctx context.Context, endpointPath string) (*websocket.Conn, error) {
+// Any headers in "extraHeaders" are added into the handshake request
+// after the standard auth headers
+func (c *HTTPClient) NewWebSocket(ctx context.Context, endpointPath string, extraHeaders http.Header) (*websocket.Conn, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, ok := c.client.Transport.(*http.Transport)
 	if !ok {
@@ -290,6 +292,9 @@ func (c *HTTPClient) NewWebSocket(ctx context.Context, endpointPath string) (*we
 	c.headerLock.RLock()
 	headers := maps.Clone(c.header)
 	c.headerLock.RUnlock()
+
+	// Add any per-connection headers on top of the shared auth headers
+	maps.Copy(headers, extraHeaders)
 
 	// Parse the "base URL" the client uses to connect to RC.
 	url, err := url.Parse(c.baseURL)

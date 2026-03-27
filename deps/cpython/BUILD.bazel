@@ -1,1 +1,3 @@
 """Package delimiter."""
+
+exports_files(["fix_sysconfigdata.py"])

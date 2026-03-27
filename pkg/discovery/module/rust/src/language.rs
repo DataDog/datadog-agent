@@ -274,13 +274,10 @@ impl Language {
 fn has_dotnet_dll_in_maps<R: std::io::BufRead>(maps_reader: R) -> bool {
     const DOTNET_RUNTIME_DLL: &str = "/System.Runtime.dll";
 
-    maps_reader.lines().any(|line| {
-        let Ok(line) = line else {
-            return false;
-        };
-
-        line.ends_with(DOTNET_RUNTIME_DLL)
-    })
+    maps_reader
+        .lines()
+        .map_while(Result::ok)
+        .any(|line| line.ends_with(DOTNET_RUNTIME_DLL))
 }
 
 #[derive(Eq, PartialEq, Hash)]
@@ -555,6 +552,31 @@ mod tests {
         // Test case: partial match should not detect (must end with /System.Runtime.dll)
         let maps = "7d97b4e85000-7d97b4e8e000 r--s 00000000 fc:04 1332665                    /usr/lib/dotnet/System.Runtime.dll.bak";
         let reader = Cursor::new(maps.as_bytes());
+        assert!(!has_dotnet_dll_in_maps(reader));
+    }
+
+    /// Verify that has_dotnet_dll_in_maps terminates on I/O error.
+    #[test]
+    fn test_has_dotnet_dll_in_maps_terminates_on_io_error() {
+        use std::io::BufReader;
+
+        use crate::test_utils::ErrorAfterReader;
+
+        use super::has_dotnet_dll_in_maps;
+
+        // No match before error.
+        let content =
+            b"7d97b4e57000-7d97b4e85000 r--s 00000000 fc:04 1332568 /usr/lib/System.Console.dll\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!has_dotnet_dll_in_maps(reader));
+
+        // Match before error.
+        let content = b"7d97b4e85000-7d97b4e8e000 r--s 00000000 fc:04 1332665 /usr/lib/dotnet/System.Runtime.dll\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(has_dotnet_dll_in_maps(reader));
+
+        // Empty, immediate error.
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
         assert!(!has_dotnet_dll_in_maps(reader));
     }
 

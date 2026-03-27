@@ -38,6 +38,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
+from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -148,6 +149,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    enable_bazel=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -159,11 +161,14 @@ def build(
     flavor = AgentFlavor[flavor]
 
     if not exclude_rtloader and not flavor.is_iot():
-        # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
-        # in the embedded path folder because that's what is used in get_build_flags()
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-            rtloader_install(ctx)
+            if enable_bazel:
+                bazel_embedded = rtloader_install_with_bazel(ctx)
+                embedded_path = bazel_embedded
+                python_home_3 = bazel_embedded
+            else:
+                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+                rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
