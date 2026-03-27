@@ -14,18 +14,16 @@ import (
 
 // Registry manages issue modules - providing both issue templates and built-in checks
 type Registry struct {
-	mu            sync.RWMutex
-	templates     map[string]IssueTemplate // issueID -> template
-	checks        []*BuiltInCheck          // all built-in checks
-	startupChecks []*BuiltInCheck
+	mu        sync.RWMutex
+	templates map[string]IssueTemplate // issueID -> template
+	checks    []*BuiltInCheck          // all built-in checks
 }
 
 // NewRegistry creates a new issue registry
 func NewRegistry() *Registry {
 	return &Registry{
-		templates:     make(map[string]IssueTemplate),
-		checks:        make([]*BuiltInCheck, 0),
-		startupChecks: make([]*BuiltInCheck, 0),
+		templates: make(map[string]IssueTemplate),
+		checks:    make([]*BuiltInCheck, 0),
 	}
 }
 
@@ -39,11 +37,7 @@ func (r *Registry) RegisterModule(module Module) {
 
 	// Register the built-in check if present
 	if check := module.BuiltInCheck(); check != nil {
-		if check.Once {
-			r.startupChecks = append(r.startupChecks, check)
-		} else {
-			r.checks = append(r.checks, check)
-		}
+		r.checks = append(r.checks, check)
 	}
 }
 
@@ -73,16 +67,5 @@ func (r *Registry) GetBuiltInChecks() []*BuiltInCheck {
 	// Return a copy to avoid external modifications
 	result := make([]*BuiltInCheck, len(r.checks))
 	copy(result, r.checks)
-	return result
-}
-
-// GetStartupChecks returns all startup health checks from registered modules
-func (r *Registry) GetStartupChecks() []*BuiltInCheck {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	// Return a copy to avoid external modifications
-	result := make([]*BuiltInCheck, len(r.startupChecks))
-	copy(result, r.startupChecks)
 	return result
 }

@@ -250,6 +250,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Register built-in health checks from issue modules
 	for _, check := range issueRegistry.GetBuiltInChecks() {
+		if check.Once {
+			continue
+		}
+
 		if err := comp.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
 			reqs.Log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
 		}
@@ -756,8 +760,13 @@ func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 func (h *healthPlatformImpl) startupChecks() {
-	startupChecks := h.issueRegistry.GetStartupChecks()
-	for _, check := range startupChecks {
+	checks := h.issueRegistry.GetBuiltInChecks()
+	for _, check := range checks {
+		// Only one time checks should be run at startup
+		if !check.Once {
+			continue
+		}
+
 		err := h.RunCheck(check.ID, check.Name, check.CheckFn)
 		if err != nil {
 			h.log.Warnf("Failed to run startup check %s: %v", check.Name, err)

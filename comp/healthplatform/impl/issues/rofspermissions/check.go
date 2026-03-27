@@ -15,14 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	tmpDir = "/tmp"
-)
-
 // Check if all directories agent could write to are writable by the agent.
 func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	writeDirs := []string{
-		tmpDir,
+		"/tmp",
 		cfg.GetString("run_path"),
 		cfg.GetString("logs_config.run_path"),
 	}
