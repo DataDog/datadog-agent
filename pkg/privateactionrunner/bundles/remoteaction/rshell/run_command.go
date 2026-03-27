@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -125,7 +125,7 @@ func (h *RunCommandHandler) Run(
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		hostProc := filepath.Join(containerizedPathPrefix, defaultProcPath)
+		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
 		if _, err := statFn(hostProc); err == nil {
 			return hostProc
 		}
