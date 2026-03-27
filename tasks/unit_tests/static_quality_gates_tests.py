@@ -26,6 +26,7 @@ from invoke.exceptions import Exit
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import (
     SIZE_INCREASE_THRESHOLD_BYTES,
+    ExceptionApprovalChecker,
     GateMetricsData,
     _extract_gate_name_from_scope,
     _get_latest_value_from_pointlist,
@@ -37,6 +38,7 @@ from tasks.quality_gates import (
     get_pr_author,
     get_pr_number_from_commit,
     identify_failing_gates,
+    identify_gates_exceeding_pr_threshold,
     identify_gates_with_size_increase,
     parse_and_trigger_gates,
 )
@@ -2614,6 +2616,125 @@ class TestShouldSkipSendMetrics(unittest.TestCase):
     def test_no_skip_empty_branch(self):
         """Should NOT skip metrics when branch is empty (not 'main')."""
         self.assertFalse(self.handler._should_skip_send_metrics())
+
+
+class TestIdentifyGatesExceedingPrThreshold(unittest.TestCase):
+    """Test identify_gates_exceeding_pr_threshold against PER_PR_THRESHOLD."""
+
+    def setUp(self):
+        from tasks.quality_gates import PER_PR_THRESHOLD
+
+        self.threshold = PER_PR_THRESHOLD
+        self.handler = GateMetricHandler("main", "dev")
+
+    def test_no_gates_exceeding(self):
+        """Gates with delta below the threshold are not returned."""
+        self.handler.metrics["gate_a"] = {"relative_on_disk_size": self.threshold - 1}
+        self.handler.metrics["gate_b"] = {"relative_on_disk_size": 0}
+        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
+
+    def test_gate_exactly_at_threshold_not_returned(self):
+        """A gate at exactly the threshold is not considered exceeding."""
+        self.handler.metrics["gate_a"] = {"relative_on_disk_size": self.threshold}
+        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
+
+    def test_gate_exceeding_threshold(self):
+        """A gate with delta strictly above the threshold is returned."""
+        self.handler.metrics["gate_a"] = {"relative_on_disk_size": self.threshold + 1}
+        self.assertIn("gate_a", identify_gates_exceeding_pr_threshold(self.handler))
+
+    def test_only_exceeding_gates_returned(self):
+        """Only the gates that exceed the threshold are returned."""
+        self.handler.metrics["gate_ok"] = {"relative_on_disk_size": self.threshold - 1}
+        self.handler.metrics["gate_bad"] = {"relative_on_disk_size": self.threshold + 1}
+        result = identify_gates_exceeding_pr_threshold(self.handler)
+        self.assertIn("gate_bad", result)
+        self.assertNotIn("gate_ok", result)
+
+    def test_missing_delta_ignored(self):
+        """Gates with no relative_on_disk_size are ignored."""
+        self.handler.metrics["gate_a"] = {"current_on_disk_size": 10_000_000}
+        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
+
+    def test_negative_delta_not_returned(self):
+        """Gates with a negative delta (size reduction) are not returned."""
+        self.handler.metrics["gate_a"] = {"relative_on_disk_size": -1_000_000}
+        self.assertEqual(identify_gates_exceeding_pr_threshold(self.handler), [])
+
+
+class TestExceptionApprovalChecker(unittest.TestCase):
+    """Test ExceptionApprovalChecker lazy fetch and caching behaviour."""
+
+    def test_returns_approver_login_when_authorized(self):
+        """Returns the login of the first authorized approver."""
+        mock_review = MagicMock()
+        mock_review.state = "APPROVED"
+        mock_review.user.login = "cmourot"
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.return_value = [mock_review]
+
+        self.assertEqual(ExceptionApprovalChecker(mock_pr).get(), "cmourot")
+
+    def test_returns_none_when_no_authorized_approver(self):
+        """Returns None when approvals exist but none from authorized reviewers."""
+        mock_review = MagicMock()
+        mock_review.state = "APPROVED"
+        mock_review.user.login = "someone_else"
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.return_value = [mock_review]
+
+        self.assertIsNone(ExceptionApprovalChecker(mock_pr).get())
+
+    def test_returns_none_when_authorized_reviewer_did_not_approve(self):
+        """Returns None when an authorized reviewer left a non-approval review."""
+        mock_review = MagicMock()
+        mock_review.state = "CHANGES_REQUESTED"
+        mock_review.user.login = "cmourot"
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.return_value = [mock_review]
+
+        self.assertIsNone(ExceptionApprovalChecker(mock_pr).get())
+
+    def test_returns_none_when_pr_is_none(self):
+        """Returns None when no PR object is provided."""
+        self.assertIsNone(ExceptionApprovalChecker(None).get())
+
+    def test_fetches_reviews_only_once(self):
+        """get_reviews is called exactly once regardless of how many times get() is called."""
+        mock_review = MagicMock()
+        mock_review.state = "APPROVED"
+        mock_review.user.login = "cmourot"
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.return_value = [mock_review]
+
+        checker = ExceptionApprovalChecker(mock_pr)
+        checker.get()
+        checker.get()
+        checker.get()
+
+        mock_pr.get_reviews.assert_called_once()
+
+    def test_returns_none_on_github_api_error(self):
+        """Returns None and does not raise when get_reviews() throws."""
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.side_effect = Exception("API error")
+
+        with patch('builtins.print'):
+            self.assertIsNone(ExceptionApprovalChecker(mock_pr).get())
+
+    def test_accepts_any_authorized_approver(self):
+        """Both authorized approvers (cmourot and dd-ddamien) grant an exception."""
+        from tasks.quality_gates import EXCEPTION_APPROVERS
+
+        for approver in EXCEPTION_APPROVERS:
+            with self.subTest(approver=approver):
+                mock_review = MagicMock()
+                mock_review.state = "APPROVED"
+                mock_review.user.login = approver
+                mock_pr = MagicMock()
+                mock_pr.get_reviews.return_value = [mock_review]
+
+                self.assertEqual(ExceptionApprovalChecker(mock_pr).get(), approver)
 
 
 if __name__ == '__main__':
