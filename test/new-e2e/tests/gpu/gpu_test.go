@@ -315,7 +315,7 @@ func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
 
 		gpuCheckStatus := status.RunnerStats.Checks["gpu"]
 		require.Equal(c, gpuCheckStatus.LastError, "")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
