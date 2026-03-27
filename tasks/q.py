@@ -410,6 +410,7 @@ def launch_testbench(
     headless_scenario: str = "",
     headless_output: str = "",
     profile: bool = False,
+    open_pprof: bool = False,
     verbose: bool = False,
     profile_path: str = "/tmp/observer_heap.prof",
 ):
@@ -441,8 +442,11 @@ def launch_testbench(
             f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}"
         )
         if profile:
-            print('Running pprof...')
-            ctx.run(f"go tool pprof -http=:8081 {profile_path}")
+            if open_pprof:
+                print('Running pprof...')
+                ctx.run(f"go tool pprof -http=:8081 {profile_path}")
+            else:
+                print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
     else:
         print("Launching observer-testbench backend and UI, use ^C to exit")
         print(
