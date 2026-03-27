@@ -319,6 +319,23 @@ func (s *message) init(
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
+	if header.Condition_eval_error != 0 {
+		whenDSL := probe.GetWhenDSL()
+		if whenDSL == "" {
+			whenDSL = "@when"
+		}
+		msg := "error evaluating condition"
+		if header.Condition_eval_error == 2 {
+			msg = errNilPointerEvaluating.Error()
+		}
+		s.Debugger.EvaluationErrors = append(
+			s.Debugger.EvaluationErrors,
+			evaluationError{
+				Expression: whenDSL,
+				Message:    msg,
+			},
+		)
+	}
 	switch probeEvent.event.Kind {
 	case ir.EventKindEntry:
 		s.Debugger.Snapshot.captures.Entry = &decoder.entryOrLine
@@ -342,6 +359,23 @@ func (s *message) init(
 		returnHeader, err = event.Return.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
+		}
+		if returnHeader.Condition_eval_error != 0 {
+			whenDSL := probe.GetWhenDSL()
+			if whenDSL == "" {
+				whenDSL = "@when"
+			}
+			msg := "error evaluating condition"
+			if returnHeader.Condition_eval_error == 2 {
+				msg = errNilPointerEvaluating.Error()
+			}
+			s.Debugger.EvaluationErrors = append(
+				s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: whenDSL,
+					Message:    msg,
+				},
+			)
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.captures.Return = &decoder._return

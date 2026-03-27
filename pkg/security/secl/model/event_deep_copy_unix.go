@@ -189,6 +189,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
@@ -248,7 +249,6 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
@@ -475,7 +475,6 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utilizationtracker",
+    srcs = [
+        "doc.go",
+        "utilization_tracker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/utilizationtracker",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_benbjohnson_clock//:clock"],
+)
+
+go_test(
+    name = "utilizationtracker_test",
+    srcs = ["utilization_tracker_test.go"],
+    embed = [":utilizationtracker"],
+    deps = [
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

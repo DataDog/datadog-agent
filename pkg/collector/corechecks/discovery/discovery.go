@@ -144,8 +144,8 @@ func newCheck() *Check {
 }
 
 // Configure configures the discovery check with the provided settings
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string, provider string) error {
+	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source, provider); err != nil {
 		return err
 	}
 	return nil
