@@ -19,7 +19,7 @@ import (
 )
 
 type pendingSpotPod struct {
-	owner     objectKey
+	owner     podOwner
 	name      string
 	createdAt time.Time
 }
@@ -45,28 +45,28 @@ type podInfo struct {
 type podTracker struct {
 	clock         clock.Clock
 	defaultConfig spotConfig
-	configSource  func(objectKey) (spotConfig, bool)
+	configSource  func(podOwner) (spotConfig, bool)
 
 	mu sync.RWMutex
 	// podsPerOwner groups pods and in-flight admission counts by owner.
-	podsPerOwner map[objectKey]*pods
+	podsPerOwner map[podOwner]*pods
 	// pendingSpotPods tracks spot-assigned pods that are pending scheduling, keyed by pod UID.
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock, defaultConfig spotConfig, configSource func(objectKey) (spotConfig, bool)) *podTracker {
+func newPodTracker(clk clock.Clock, defaultConfig spotConfig, configSource func(podOwner) (spotConfig, bool)) *podTracker {
 	return &podTracker{
 		clock:           clk,
 		defaultConfig:   defaultConfig,
 		configSource:    configSource,
-		podsPerOwner:    make(map[objectKey]*pods),
+		podsPerOwner:    make(map[podOwner]*pods),
 		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
 }
 
 // admitNewPod decides whether the new pod should be spot-assigned using
 // the per-owner config and returns true if the pod was assigned to spot.
-func (t *podTracker) admitNewPod(owner objectKey) bool {
+func (t *podTracker) admitNewPod(owner podOwner) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -93,7 +93,7 @@ func (t *podTracker) admitNewPod(owner objectKey) bool {
 }
 
 // admitNewOnDemandPod records an on-demand admission for owner.
-func (t *podTracker) admitNewOnDemandPod(owner objectKey) {
+func (t *podTracker) admitNewOnDemandPod(owner podOwner) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -153,7 +153,7 @@ func (t *podTracker) deleted(pod *workloadmeta.KubernetesPod) {
 }
 
 // deletePod deletes pod by owner and uid.
-func (t *podTracker) deletePod(owner objectKey, uid string) {
+func (t *podTracker) deletePod(owner podOwner, uid string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -161,7 +161,7 @@ func (t *podTracker) deletePod(owner objectKey, uid string) {
 }
 
 // deletePodLocked deletes a pod from podsPerOwner. Must be called with t.mu held.
-func (t *podTracker) deletePodLocked(owner objectKey, uid string) {
+func (t *podTracker) deletePodLocked(owner podOwner, uid string) {
 	if pods, ok := t.podsPerOwner[owner]; ok {
 		if pods.delete(uid, t.clock.Now()) {
 			delete(t.podsPerOwner, owner)
@@ -172,7 +172,7 @@ func (t *podTracker) deletePodLocked(owner objectKey, uid string) {
 
 // refreshConfigLocked refreshes the spot config for pods from the configSource.
 // Must be called with t.mu held.
-func (t *podTracker) refreshConfigLocked(owner objectKey, pods *pods) {
+func (t *podTracker) refreshConfigLocked(owner podOwner, pods *pods) {
 	if cfg, ok := t.configSource(owner); ok {
 		pods.config = cfg
 	}
@@ -180,7 +180,7 @@ func (t *podTracker) refreshConfigLocked(owner objectKey, pods *pods) {
 
 // getPodsLocked returns the pods for owner, creating it if absent.
 // Must be called with t.mu held.
-func (t *podTracker) getPodsLocked(owner objectKey) *pods {
+func (t *podTracker) getPodsLocked(owner podOwner) *pods {
 	if pods, ok := t.podsPerOwner[owner]; ok {
 		return pods
 	}

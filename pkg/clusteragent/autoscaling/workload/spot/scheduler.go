@@ -18,7 +18,6 @@ import (
 	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -209,17 +208,12 @@ func (s *Scheduler) PodDeleted(pod *corev1.Pod) {
 }
 
 // getSpotConfig returns the spot config for the given owner.
-func (s *Scheduler) getSpotConfig(owner objectKey) (spotConfig, bool) {
-	// For ReplicaSet resolve to the parent Deployment.
-	if owner.Kind == kubernetes.ReplicaSetKind {
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
-		if deploymentName == "" {
-			return spotConfig{}, false
-		}
-		owner = objectKey{Namespace: owner.Namespace, Kind: kubernetes.DeploymentKind, Name: deploymentName}
+func (s *Scheduler) getSpotConfig(owner podOwner) (spotConfig, bool) {
+	workload, ok := resolveOwnerWorkload(owner)
+	if !ok {
+		return spotConfig{}, false
 	}
-
-	return s.configStore.getConfig(owner)
+	return s.configStore.getConfig(workload)
 }
 
 func (s *Scheduler) isSpotEligible(pod *corev1.Pod) bool {

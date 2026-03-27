@@ -80,3 +80,30 @@ func TestResolveWLMPodOwner(t *testing.T) {
 		assert.Equal(t, "nginx-bcdfg", key.Name)
 	})
 }
+
+func TestResolveOwnerWorkload(t *testing.T) {
+	t.Run("replicaset resolves to parent deployment", func(t *testing.T) {
+		owner := podOwner{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "nginx-bcdfg"}
+		wl, ok := resolveOwnerWorkload(owner)
+		assert.True(t, ok)
+		assert.Equal(t, workload{Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}, wl)
+	})
+
+	t.Run("replicaset without deployment name returns false", func(t *testing.T) {
+		owner := podOwner{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "standalone"}
+		_, ok := resolveOwnerWorkload(owner)
+		assert.False(t, ok)
+	})
+
+	t.Run("statefulset maps to itself", func(t *testing.T) {
+		owner := podOwner{Kind: kubernetes.StatefulSetKind, Namespace: "default", Name: "redis"}
+		wl, ok := resolveOwnerWorkload(owner)
+		assert.True(t, ok)
+		assert.Equal(t, workload{Kind: kubernetes.StatefulSetKind, Namespace: "default", Name: "redis"}, wl)
+	})
+}
+
+func TestString(t *testing.T) {
+	assert.Equal(t, "ReplicaSet default/nginx-bcdfg", podOwner{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "nginx-bcdfg"}.String())
+	assert.Equal(t, "Deployment default/nginx", workload{Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}.String())
+}

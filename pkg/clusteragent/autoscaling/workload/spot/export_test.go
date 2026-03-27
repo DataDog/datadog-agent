@@ -33,7 +33,7 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 func (s *Scheduler) TrackedCounts(namespace, kind, name string) (total, spot int) {
 	s.tracker.mu.RLock()
 	defer s.tracker.mu.RUnlock()
-	owner := objectKey{Namespace: namespace, Kind: kind, Name: name}
+	owner := podOwner{Kind: kind, Namespace: namespace, Name: name}
 	if pods, ok := s.tracker.podsPerOwner[owner]; ok {
 		return pods.totalCount(), pods.spotCount()
 	}
@@ -79,20 +79,20 @@ type TestWorkloadConfigStore struct {
 	defaultConfig spotConfig
 
 	mu      sync.RWMutex
-	configs map[objectKey]spotConfig
+	configs map[workload]spotConfig
 }
 
 // NewTestWorkloadConfigStore creates a TestWorkloadConfigStore with defaults from cfg.
 func NewTestWorkloadConfigStore(cfg Config) *TestWorkloadConfigStore {
 	return &TestWorkloadConfigStore{
 		defaultConfig: spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas},
-		configs:       make(map[objectKey]spotConfig),
+		configs:       make(map[workload]spotConfig),
 	}
 }
 
 func (s *TestWorkloadConfigStore) run(ctx context.Context) { <-ctx.Done() }
 
-func (s *TestWorkloadConfigStore) getConfig(key objectKey) (spotConfig, bool) {
+func (s *TestWorkloadConfigStore) getConfig(key workload) (spotConfig, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cfg, ok := s.configs[key]
@@ -101,7 +101,7 @@ func (s *TestWorkloadConfigStore) getConfig(key objectKey) (spotConfig, bool) {
 
 // Update sets the spot config for the given workload from annotations.
 func (s *TestWorkloadConfigStore) Update(namespace, kind, name string, annotations map[string]string) {
-	key := objectKey{Namespace: namespace, Kind: kind, Name: name}
+	key := workload{Kind: kind, Namespace: namespace, Name: name}
 	cfg := s.defaultConfig
 	overrideFromAnnotations(&cfg, annotations)
 	s.mu.Lock()

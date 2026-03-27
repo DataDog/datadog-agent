@@ -27,7 +27,7 @@ type workloadConfigStore interface {
 	// run starts the store's background update and blocks until ctx is cancelled.
 	run(ctx context.Context)
 	// getConfig returns the spotConfig for the workload if present.
-	getConfig(workload objectKey) (spotConfig, bool)
+	getConfig(key workload) (spotConfig, bool)
 }
 
 var spotWorkloadResources = []struct {
@@ -48,13 +48,13 @@ type kubeWorkloadConfigStore struct {
 	hasSynced       []cache.InformerSynced
 
 	mu      sync.RWMutex
-	configs map[objectKey]spotConfig
+	configs map[workload]spotConfig
 }
 
 func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig Config) *kubeWorkloadConfigStore {
 	s := &kubeWorkloadConfigStore{
 		defaultConfig: spotConfig{percentage: defaultConfig.Percentage, minOnDemand: defaultConfig.MinOnDemandReplicas},
-		configs:       make(map[objectKey]spotConfig),
+		configs:       make(map[workload]spotConfig),
 	}
 
 	s.informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(
@@ -98,7 +98,7 @@ func (s *kubeWorkloadConfigStore) run(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (s *kubeWorkloadConfigStore) getConfig(key objectKey) (spotConfig, bool) {
+func (s *kubeWorkloadConfigStore) getConfig(key workload) (spotConfig, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cfg, ok := s.configs[key]
@@ -110,7 +110,7 @@ func (s *kubeWorkloadConfigStore) onUpdated(kind string, obj any) {
 	if !ok {
 		return
 	}
-	key := objectKey{Namespace: u.GetNamespace(), Kind: kind, Name: u.GetName()}
+	key := workload{Kind: kind, Namespace: u.GetNamespace(), Name: u.GetName()}
 	cfg := s.defaultConfig
 	overrideFromAnnotations(&cfg, u.GetAnnotations())
 
@@ -129,7 +129,7 @@ func (s *kubeWorkloadConfigStore) onDeleted(kind string, obj any) {
 	if !ok {
 		return
 	}
-	key := objectKey{Namespace: u.GetNamespace(), Kind: kind, Name: u.GetName()}
+	key := workload{Kind: kind, Namespace: u.GetNamespace(), Name: u.GetName()}
 
 	s.mu.Lock()
 	delete(s.configs, key)
