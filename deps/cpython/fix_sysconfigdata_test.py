@@ -9,8 +9,6 @@ import unittest
 import fix_sysconfigdata
 
 # A minimal _sysconfigdata__*.py fixture that exercises the fix-up rules:
-# CONFIG_ARGS is included to verify that the single-quote-boundary logic does
-# not corrupt embedded shell-quoted arguments.
 _FIXTURE = textwrap.dedent("""\
     build_time_vars = {
         "CC": "/execroot/_main/external/+toolchain/bin/gcc",
@@ -53,17 +51,16 @@ class TestFixSysconfigdata(unittest.TestCase):
         self.assertEqual(build_time_vars["AR"], "ar")
 
         # Compound values: tool basename kept, useful flags kept, sandbox tokens stripped.
-        # The extra spacing is due to the "gaps" where words were removed
-        self.assertEqual(build_time_vars["LDSHARED"], "gcc -shared -Wl,-z,relro  ")
-        self.assertEqual(build_time_vars["PY_CFLAGS"], " -O2")
+        self.assertEqual(build_time_vars["LDSHARED"], "gcc -shared -Wl,-z,relro")
+        self.assertEqual(build_time_vars["PY_CFLAGS"], "-O2")
 
         # --flag=/path/to/tool: the '=' boundary is respected so
         # the flag prefix is preserved and only the path portion is replaced.
         self.assertEqual(build_time_vars["CONFIGURED_CC"], "--cc=gcc -O2")
 
-        # Bazel tokens inside single-quoted shell args are stripped,
-        # but the surrounding quotes are left intact to avoid leaving unclosed shell quotes
-        self.assertEqual(build_time_vars["CONFIG_ARGS"], "  '--enable-ipv6' ''")
+        # Single-quoted shell args containing Bazel paths are dropped as whole tokens;
+        # args without Bazel paths are preserved.
+        self.assertEqual(build_time_vars["CONFIG_ARGS"], "--enable-ipv6")
 
         # Non-string values pass through unchanged
         self.assertEqual(build_time_vars["VERSION"], "3.13.0")
