@@ -29,7 +29,7 @@ type Requires struct {
 	Lc     compdef.Lifecycle
 	Config config.Component
 
-	MetricsHooks    []hook.Hook[hook.MetricView]     `group:"hook"`
+	MetricsHooks    []hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
 	LogsHooks       []hook.Hook[hook.LogView]        `group:"hook"`
 	TraceStatsHooks []hook.Hook[hook.TraceStatsView] `group:"hook"`
 }
@@ -105,46 +105,56 @@ func NewComponent(req Requires) (Provides, error) {
 
 	impl := &sinkImpl{counters: c}
 
-	// Subscribe to all metric hooks:
-	//   dogstatsd-pipeline — raw DogStatsD samples (pre-aggregation, per UDP packet)
-	//   metrics-pipeline   — post-aggregated series: DogStatsD (time-sampler),
-	//                        check metrics (check_sampler), no-agg pipeline
+	// Subscribe to all metric hooks.
+	// The hook delivers []MetricSampleSnapshot batches (value-type snapshots,
+	// safe to retain). WithRecycle uses a pool to avoid per-batch allocations.
+	metricBatchPool := sync.Pool{New: func() any {
+		return make([]hook.MetricSampleSnapshot, 0, 64)
+	}}
 	for _, mh := range req.MetricsHooks {
 		if mh == nil {
 			continue
 		}
 		source := mh.Name()
-		mh.Subscribe("flightrecorder-metrics", func(payload hook.MetricView) {
-			name := payload.GetName()
-			raw := payload.GetRawTags()
-			ckey := computeContextKey(name, raw)
-			ts := int64(payload.GetTimestamp() * float64(time.Second/time.Nanosecond))
+		mh.Subscribe("flightrecorder-metrics", func(batch []hook.MetricSampleSnapshot) {
+			for i := range batch {
+				s := &batch[i]
+				ckey := computeContextKey(s.Name, s.RawTags)
+				ts := int64(s.Timestamp * float64(time.Second/time.Nanosecond))
 
-			if bat.IsContextKnown(ckey) {
-				// Fast path: context already sent — compact point, no string copies.
-				bat.AddPoint(metricPoint{
-					ContextKey:  ckey,
-					Value:       payload.GetValue(),
-					TimestampNs: ts,
-					SampleRate:  payload.GetSampleRate(),
-					Source:      source,
-				})
-			} else {
-				// Slow path: first occurrence — copy strings for context definition.
-				sp := tagPool.Get().(*[]string)
-				tags := append((*sp)[:0], raw...)
-				bat.AddContextDef(contextDef{
-					ContextKey:   ckey,
-					Name:         name,
-					Value:        payload.GetValue(),
-					Tags:         tags,
-					TagPoolSlice: sp,
-					TimestampNs:  ts,
-					SampleRate:   payload.GetSampleRate(),
-					Source:       source,
-				})
+				if bat.IsContextKnown(ckey) {
+					bat.AddPoint(metricPoint{
+						ContextKey:  ckey,
+						Value:       s.Value,
+						TimestampNs: ts,
+						SampleRate:  s.SampleRate,
+						Source:      source,
+					})
+				} else {
+					sp := tagPool.Get().(*[]string)
+					tags := append((*sp)[:0], s.RawTags...)
+					bat.AddContextDef(contextDef{
+						ContextKey:   ckey,
+						Name:         s.Name,
+						Value:        s.Value,
+						Tags:         tags,
+						TagPoolSlice: sp,
+						TimestampNs:  ts,
+						SampleRate:   s.SampleRate,
+						Source:       source,
+					})
+				}
 			}
-		}, hook.WithBufferSize[hook.MetricView](hookBufSize))
+		},
+			hook.WithBufferSize[[]hook.MetricSampleSnapshot](hookBufSize),
+			hook.WithRecycle(
+				func(src []hook.MetricSampleSnapshot) []hook.MetricSampleSnapshot {
+					dst := metricBatchPool.Get().([]hook.MetricSampleSnapshot)
+					return append(dst[:0], src...)
+				},
+				func(b []hook.MetricSampleSnapshot) { metricBatchPool.Put(b[:0]) },
+			),
+		)
 	}
 
 	// Subscribe to all log hooks.
