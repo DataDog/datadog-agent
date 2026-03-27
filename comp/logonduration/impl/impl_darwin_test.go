@@ -19,9 +19,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -30,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -79,7 +85,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(boot, ts)
 
 		assert.InDelta(t, 10.0, milestones[0].DurationS, 0.001)
-		assert.InDelta(t, 20.0, milestones[1].DurationS, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].DurationS, 0.001)
 		assert.InDelta(t, 60.0, milestones[2].DurationS, 0.001)
 		assert.InDelta(t, 0.0, milestones[3].DurationS, 0.001)
 	})
@@ -510,6 +516,160 @@ func TestSubmitEvent_DurationsInPayload(t *testing.T) {
 	assert.Equal(t, float64(90000), durations["total_boot_duration_ms"])
 }
 
+func TestSubmitMetrics_AllPhases(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	ts := logonduration.LoginTimestamps{
+		LoginWindowTime:  boot.Add(15 * time.Second),
+		LoginTime:        boot.Add(45 * time.Second),
+		DesktopReadyTime: boot.Add(120 * time.Second),
+	}
+
+	hostname := hostnameComp.GetSafe(context.TODO())
+
+	mockSender.On("Distribution", "eudm.boot_duration", float64(90000), hostname, []string{"phase:total", "filevault:disabled"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(15000), hostname, []string{"phase:boot", "filevault:disabled"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(75000), hostname, []string{"phase:logon", "filevault:disabled"}).Return()
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(boot, ts)
+
+	mockSender.AssertExpectations(t)
+}
+
+func TestSubmitMetrics_FileVaultEnabled(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	ts := logonduration.LoginTimestamps{
+		LoginWindowTime:  boot.Add(10 * time.Second),
+		LoginTime:        boot.Add(30 * time.Second),
+		DesktopReadyTime: boot.Add(90 * time.Second),
+		FileVaultEnabled: true,
+	}
+
+	hostname := hostnameComp.GetSafe(context.TODO())
+
+	mockSender.On("Distribution", "eudm.boot_duration", float64(70000), hostname, []string{"phase:total", "filevault:enabled"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(10000), hostname, []string{"phase:boot", "filevault:enabled"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(60000), hostname, []string{"phase:logon", "filevault:enabled"}).Return()
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(boot, ts)
+
+	mockSender.AssertExpectations(t)
+}
+
+func TestSubmitMetrics_ZeroBootDuration(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	ts := logonduration.LoginTimestamps{
+		LoginTime:        boot.Add(30 * time.Second),
+		DesktopReadyTime: boot.Add(90 * time.Second),
+	}
+
+	hostname := hostnameComp.GetSafe(context.TODO())
+
+	// bootMs is 0 (no LoginWindowTime), so only logon phase is sent
+	// totalMs = 0 + 60000 = 60000
+	mockSender.On("Distribution", "eudm.boot_duration", float64(60000), hostname, []string{"phase:total", "filevault:disabled"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(60000), hostname, []string{"phase:logon", "filevault:disabled"}).Return()
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(boot, ts)
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", float64(0), hostname, []string{"phase:boot", "filevault:disabled"})
+}
+
+func TestSubmitMetrics_ZeroLogonDuration(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	ts := logonduration.LoginTimestamps{
+		LoginWindowTime: boot.Add(10 * time.Second),
+		LoginTime:       boot.Add(30 * time.Second),
+	}
+
+	hostname := hostnameComp.GetSafe(context.TODO())
+
+	// logonMs is 0 (no DesktopReadyTime), so only boot phase is sent
+	// totalMs = 10000 + 0 = 10000
+	mockSender.On("Distribution", "eudm.boot_duration", float64(10000), hostname, []string{"phase:total", "filevault:disabled"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(10000), hostname, []string{"phase:boot", "filevault:disabled"}).Return()
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(boot, ts)
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", float64(0), hostname, []string{"phase:logon", "filevault:disabled"})
+}
+
+func TestSubmitMetrics_AllZeroDurations(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	ts := logonduration.LoginTimestamps{}
+
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(boot, ts)
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNotCalled(t, "Distribution", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestSubmitMetrics_NilSender(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   nil,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	ts := logonduration.LoginTimestamps{
+		LoginWindowTime:  boot.Add(10 * time.Second),
+		LoginTime:        boot.Add(30 * time.Second),
+		DesktopReadyTime: boot.Add(90 * time.Second),
+	}
+
+	// Should not panic with nil sender
+	comp.submitMetrics(boot, ts)
+}
+
 // testFixture holds all test dependencies for component integration tests
 type testFixture struct {
 	t              *testing.T
@@ -532,6 +692,12 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostnameComp, compressionComp)
 	eventPlatformComp := option.NewPtr(forwarder)
 
+	demuxComp := fxutil.Test[demultiplexer.Component](t,
+		demultiplexerimpl.MockModule(),
+		fx.Provide(func() logcomp.Component { return logComp }),
+		hostnameimpl.MockModule(),
+	)
+
 	sp := &mockSysProbeClient{}
 
 	return &testFixture{
@@ -545,6 +711,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 			Hostname:       hostnameComp,
 			Lc:             compdef.NewTestLifecycle(t),
 			EventPlatform:  eventPlatformComp,
+			Demultiplexer:  demuxComp,
 		},
 	}
 }
