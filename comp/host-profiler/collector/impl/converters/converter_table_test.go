@@ -186,12 +186,12 @@ func TestConverterWithoutAgent(t *testing.T) {
 		{
 			name:     "renames-legacy-hostprofiler-receiver",
 			provided: "no_agent/legacy-hostprofiler/in.yaml",
-			expected: "no_agent/symbol-up-disabled/out.yaml",
+			expected: "no_agent/legacy-hostprofiler/out.yaml",
 		},
 		{
 			name:     "renames-legacy-hostprofiler-receiver-with-id",
 			provided: "no_agent/legacy-hostprofiler-id/in.yaml",
-			expected: "no_agent/multi-hostprof-recv/out.yaml",
+			expected: "no_agent/legacy-hostprofiler-id/out.yaml",
 		},
 		{
 			name:     "ensures-headers",

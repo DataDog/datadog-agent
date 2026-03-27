@@ -47,7 +47,7 @@ var resourceDetectionDefaultConfig = confMap{
 //   - At least one otlphttpexporter with dd-api-key declared & used
 //   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
-//   - Rename legacy hostprofiler receivers to profiling and warn
+//   - Rename legacy hostprofiler receivers to profiling and warn. TODO: remove when confident the rename is stable
 //   - If no profiling receiver is used & configured, add a minimal one with symbol_uploader: false
 //   - remove ddprofiling & hpflare extensions
 type converterWithoutAgent struct{}
