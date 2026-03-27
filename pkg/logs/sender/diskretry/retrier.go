@@ -310,6 +310,7 @@ func (manager *DiskRetryManager) expireTTLLocked() {
 }
 
 // reloadExistingFiles scans the storage directory for retry files from previous runs.
+// Files older than fileTTLDays are removed instead of being reloaded.
 func (manager *DiskRetryManager) reloadExistingFiles() {
 	entries, err := os.ReadDir(manager.storagePath)
 	if err != nil {
@@ -324,6 +325,12 @@ func (manager *DiskRetryManager) reloadExistingFiles() {
 	}
 	var files []fileInfo
 
+	var ttlCutoff time.Time
+	if manager.fileTTLDays > 0 {
+		ttlCutoff = time.Now().Add(-time.Duration(manager.fileTTLDays) * 24 * time.Hour)
+	}
+
+	expired := 0
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != retryFileExtension {
 			continue
@@ -332,11 +339,22 @@ func (manager *DiskRetryManager) reloadExistingFiles() {
 		if err != nil {
 			continue
 		}
+		// Apply TTL: remove files older than the configured limit
+		if !ttlCutoff.IsZero() && info.ModTime().Before(ttlCutoff) {
+			filePath := filepath.Join(manager.storagePath, entry.Name())
+			os.Remove(filePath)
+			expired++
+			continue
+		}
 		files = append(files, fileInfo{
 			path:    filepath.Join(manager.storagePath, entry.Name()),
 			modTime: info.ModTime(),
 			size:    info.Size(),
 		})
+	}
+
+	if expired > 0 {
+		log.Infof("Disk retry: removed %d expired files from %s", expired, manager.storagePath)
 	}
 
 	// Sort by modification time (oldest first = FIFO)

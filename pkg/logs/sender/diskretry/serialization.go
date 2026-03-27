@@ -27,11 +27,12 @@ import (
 //	[4 bytes] message count (uint32 LE)
 
 const (
-	fileMagic      = uint32(0x44524554) // "DRET" (Disk RETry)
-	formatVersion  = uint32(1)
-	headerSize     = 4 + 4                  // magic + version
-	minFileSize    = headerSize + 4 + 4 + 4 // + encoding len + unencoded size + encoded len + count
-	maxPayloadSize = 100 * 1024 * 1024      // 100 MB sanity limit
+	fileMagic       = uint32(0x44524554) // "DRET" (Disk RETry)
+	formatVersion   = uint32(1)
+	headerSize      = 4 + 4                  // magic + version
+	minFileSize     = headerSize + 4 + 4 + 4 // + encoding len + unencoded size + encoded len + count
+	maxPayloadSize  = 100 * 1024 * 1024      // 100 MB sanity limit
+	maxMessageCount = 100_000                // sanity limit for message metadata count
 )
 
 // SerializePayload serializes a message.Payload into the binary disk retry format.
@@ -149,6 +150,9 @@ func DeserializePayload(data []byte) (*message.Payload, error) {
 		return nil, errors.New("truncated file: missing message count")
 	}
 	messageCount := binary.LittleEndian.Uint32(data[offset:])
+	if messageCount > maxMessageCount {
+		return nil, fmt.Errorf("message count too large: %d (max %d)", messageCount, maxMessageCount)
+	}
 
 	// Build minimal MessageMetadata entries so payload.Count() returns the
 	// correct value and the auditor doesn't panic on nil Origin pointers.

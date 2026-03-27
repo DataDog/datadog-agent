@@ -121,6 +121,7 @@ func (s *worker) run() {
 			senderDoneWg := &sync.WaitGroup{}
 
 			sent := false
+			storedToDisk := false
 			for !sent {
 				for _, destSender := range reliableDestinations {
 					// Drop non-MRF payloads to MRF destinations
@@ -147,6 +148,7 @@ func (s *worker) run() {
 					// Try to save to disk instead of blocking the pipeline.
 					if err := s.retrier.Store(payload); err == nil {
 						sent = true
+						storedToDisk = true
 						break
 					}
 					// Disk write failed or disabled we throttle and keep waiting for a destination.
@@ -154,41 +156,45 @@ func (s *worker) run() {
 				}
 			}
 
-			for i, destSender := range reliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
-				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
-				// loss on intermittent failures.
-				if !destSender.lastSendSucceeded {
-					if !destSender.NonBlockingSend(payload) {
-						// Buffer is full we attempt to save to disk instead of dropping.
-						if err := s.retrier.Store(payload); err != nil {
-							// Disk write failed too; payload is truly lost
-							tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-							tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+			// Skip remaining send attempts if the payload was persisted to disk.
+			// It will be replayed later; sending it now would cause duplicates.
+			if !storedToDisk {
+				for i, destSender := range reliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+						sent = true
+						continue
+					}
+					// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+					// loss on intermittent failures.
+					if !destSender.lastSendSucceeded {
+						if !destSender.NonBlockingSend(payload) {
+							// Buffer is full we attempt to save to disk instead of dropping.
+							if err := s.retrier.Store(payload); err != nil {
+								// Disk write failed too; payload is truly lost
+								tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+								tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+							}
 						}
 					}
 				}
-			}
 
-			// Attempt to send to unreliable destinations
-			for i, destSender := range unreliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
-				if !destSender.NonBlockingSend(payload) {
-					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
-					if s.senderDoneChan != nil {
-						senderDoneWg.Add(1)
-						s.senderDoneChan <- senderDoneWg
+				// Attempt to send to unreliable destinations
+				for i, destSender := range unreliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+						sent = true
+						continue
+					}
+					if !destSender.NonBlockingSend(payload) {
+						tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
+						tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
+						if s.senderDoneChan != nil {
+							senderDoneWg.Add(1)
+							s.senderDoneChan <- senderDoneWg
+						}
 					}
 				}
 			}
