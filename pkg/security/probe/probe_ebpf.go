@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
+	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -837,18 +838,24 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		// Replay bound sockets from entry snapshot data
-		for _, s := range entry.SnapshottedBoundSockets {
-			bindEvent := p.newBindEventFromReplay(entry, s)
-			bindEvent.Source = model.EventSourceReplay
-			events = append(events, bindEvent)
-		}
+		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		if p.config.RuntimeSecurity.SBOMResolverEnabled {
+			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
+			if err != nil {
+				return
+			}
 
-		// Replay mmaped files from entry snapshot data
-		for _, f := range entry.SnapshottedMmapedFiles {
-			openEvent := p.newOpenEventFromReplay(entry, f)
-			openEvent.Source = model.EventSourceReplay
-			events = append(events, openEvent)
+			mmapedFiles, err := procfs.GetMmapedFiles(proc)
+			if err != nil {
+				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+				return
+			}
+
+			for _, f := range mmapedFiles {
+				openEvent := p.newOpenEventFromReplay(entry, f)
+				openEvent.Source = model.EventSourceReplay
+				events = append(events, openEvent)
+			}
 		}
 	}
 
@@ -3548,30 +3555,6 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-
-	return event
-}
-
-// newBindEventFromReplay returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-	event := p.getPoolEvent()
-	event.Timestamp = time.Now()
-	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
-	event.Type = uint32(model.BindEventType)
-	event.ProcessCacheEntry = entry
-	event.ProcessContext = &entry.ProcessContext
-	event.AddToFlags(model.EventFlagsFromReplay)
-
-	event.Bind.SyscallEvent.Retval = 0
-	event.Bind.AddrFamily = snapshottedBind.Family
-	event.Bind.Addr.IPNet.IP = snapshottedBind.IP
-	event.Bind.Protocol = snapshottedBind.Protocol
-	if snapshottedBind.Family == unix.AF_INET {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
-	} else {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
-	}
-	event.Bind.Addr.Port = snapshottedBind.Port
 
 	return event
 }
