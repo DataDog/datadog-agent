@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rum",
+    srcs = [
+        "constants.go",
+        "doc.go",
+        "mapping.go",
+        "rum.go",
+        "rum_logs.go",
+        "rum_traces.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//semconv/v1.5.0:v1_5_0",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+go_test(
+    name = "rum_test",
+    srcs = [
+        "rum_logs_test.go",
+        "rum_test.go",
+        "rum_traces_test.go",
+    ],
+    embed = [":rum"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//semconv/v1.5.0:v1_5_0",
+        "@org_uber_go_zap//:zap",
+    ],
+)

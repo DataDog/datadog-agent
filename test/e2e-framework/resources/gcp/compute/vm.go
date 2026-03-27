@@ -13,12 +13,21 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func NewLinuxInstance(e gcp.Environment, name string, imageName string, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
+func NewLinuxInstance(e gcp.Environment, name string, imageName string, startupScript string, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
 
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
 		return nil, err
 	}
+
+	metadata := pulumi.StringMap{
+		"enable-oslogin": pulumi.String("false"),
+		"ssh-keys":       pulumi.Sprintf("gce:%s", sshPublicKey),
+	}
+	if startupScript != "" {
+		metadata["startup-script"] = pulumi.String(startupScript)
+	}
+
 	instance, err := compute.NewInstance(e.Ctx(), e.Namer.ResourceName(name), &compute.InstanceArgs{
 		NetworkInterfaces: compute.InstanceNetworkInterfaceArray{
 			&compute.InstanceNetworkInterfaceArgs{
@@ -49,10 +58,7 @@ func NewLinuxInstance(e gcp.Environment, name string, imageName string, instance
 				Size: pulumi.Int(100),
 			},
 		},
-		Metadata: pulumi.StringMap{
-			"enable-oslogin": pulumi.String("false"),
-			"ssh-keys":       pulumi.Sprintf("gce:%s", sshPublicKey),
-		},
+		Metadata: metadata,
 		ServiceAccount: &compute.InstanceServiceAccountArgs{
 			Email: pulumi.String(e.DefaultVMServiceAccount()),
 			Scopes: pulumi.StringArray{

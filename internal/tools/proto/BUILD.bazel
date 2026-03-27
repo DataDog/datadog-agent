@@ -1,0 +1,3 @@
+# This module only pins protobuf tool dependencies via //go:build tools.
+# The tools tag pulls heavyweight external deps not in the Bazel graph.
+# gazelle:ignore

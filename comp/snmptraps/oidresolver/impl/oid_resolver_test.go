@@ -17,7 +17,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	"github.com/stretchr/testify/require"
 )
 

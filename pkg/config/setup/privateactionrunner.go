@@ -6,7 +6,7 @@
 package setup
 
 import (
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -85,7 +85,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	defaultPaths := []string{defaultLogPath}
 	if env.IsContainerized() {
 		for i, v := range defaultPaths {
-			hostPath := filepath.Join(containerizedPathPrefix, v)
+			hostPath := path.Join(containerizedPathPrefix, v)
 			defaultPaths[i] = hostPath
 		}
 	}

@@ -41,6 +41,12 @@ const (
 	provisionerBaseID = "gcp-openshiftvm"
 )
 
+var openShiftPrivilegedPSSLabels = pulumi.StringMap{
+	"pod-security.kubernetes.io/enforce": pulumi.String("privileged"),
+	"pod-security.kubernetes.io/warn":    pulumi.String("privileged"),
+	"pod-security.kubernetes.io/audit":   pulumi.String("privileged"),
+}
+
 // OpenshiftVMProvisioner creates a new provisioner for OpenShift VM on GCP
 func OpenshiftVMProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -69,7 +75,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
 		compute.WithOS(osDesc),
-		compute.WithInstancetype("n2-standard-16"),
+		compute.WithInstancetype("n2-standard-32"),
 		compute.WithNestedVirt(true),
 	)
 	if err != nil {
@@ -127,7 +133,14 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 
 	// Deploy the agent
 	var agent *agentComp.KubernetesAgent
+	var dependsOnDDAgent pulumi.ResourceOption
 	if params.agentOptions != nil {
+		for _, hook := range params.preAgentHooks {
+			if err := hook(&gcpEnv, openshiftKubeProvider); err != nil {
+				return err
+			}
+		}
+
 		params.agentOptions = append(params.agentOptions,
 			func(p *kubernetesagentparams.Params) error {
 				p.HelmValues = append(p.HelmValues, agentComp.BuildOpenShiftHelmValues().ToYAMLPulumiAssetOutput())
@@ -155,6 +168,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		if err != nil {
 			return err
 		}
+		dependsOnDDAgent = utils.PulumiDependsOn(agent)
 	} else {
 		env.Agent = nil
 	}
@@ -182,9 +196,6 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 
 		// Add the VPA CRD to the dependencies
 		dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
-
-		// Add the Agent to the dependencies
-		dependsOnDDAgent := utils.PulumiDependsOn(agent)
 
 		// Deploy the testing workloads
 		if _, err := redis.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
@@ -222,12 +233,28 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			}
 
 			// Dogstatsd clients that report to the standalone dogstatsd deployment
-			if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			if _, err := dogstatsd.K8sAppDefinitionWithOptions(
+				&gcpEnv,
+				openshiftKubeProvider,
+				"workload-dogstatsd-standalone",
+				dogstatsdstandalone.HostPort,
+				"/run/datadog/dsd.socket",
+				[]dogstatsd.K8sAppOption{dogstatsd.WithNamespaceLabels(openShiftPrivilegedPSSLabels)},
+				dependsOnDDAgent, /* for admission */
+			); err != nil {
 				return err
 			}
 
 			// Dogstatsd clients that report to the Agent
-			if _, err := dogstatsd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			if _, err := dogstatsd.K8sAppDefinitionWithOptions(
+				&gcpEnv,
+				openshiftKubeProvider,
+				"workload-dogstatsd",
+				8125,
+				"/var/run/datadog/dsd.socket",
+				[]dogstatsd.K8sAppOption{dogstatsd.WithNamespaceLabels(openShiftPrivilegedPSSLabels)},
+				dependsOnDDAgent, /* for admission */
+			); err != nil {
 				return err
 			}
 		}
@@ -236,6 +263,22 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			if _, err := nginx.K8sRolloutAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-argo-rollout-nginx", 8080, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
+		}
+	}
+
+	if dependsOnDDAgent != nil {
+		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
+			_, err := appFunc(&gcpEnv, openshiftKubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&gcpEnv, openshiftKubeProvider)
+		if err != nil {
+			return err
 		}
 	}
 

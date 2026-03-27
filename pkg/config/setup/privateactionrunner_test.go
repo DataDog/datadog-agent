@@ -7,7 +7,7 @@ package setup
 
 import (
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,6 +97,6 @@ func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testin
 	// (rshell handles missing paths at runtime; config logs a warning)
 	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
 	assert.Equal(t, []string{
-		filepath.Join(containerizedPathPrefix, defaultLogPath),
+		path.Join(containerizedPathPrefix, defaultLogPath),
 	}, paths)
 }

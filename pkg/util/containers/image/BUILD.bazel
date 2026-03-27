@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "image",
+    srcs = ["image.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/image",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "image_test",
+    srcs = ["image_test.go"],
+    embed = [":image"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

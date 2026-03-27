@@ -13,8 +13,8 @@ import (
 	"go.uber.org/fx"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
@@ -44,7 +44,7 @@ type services struct {
 func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	conf.Enabled = true
 	s := fxutil.Test[services](t,
-		configimpl.MockModule(),
+		configfx.MockModule(),
 		statusfx.MockModule(),
 		senderhelper.Opts,
 		Module(),

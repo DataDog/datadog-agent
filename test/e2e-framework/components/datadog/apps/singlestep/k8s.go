@@ -47,6 +47,10 @@ type App struct {
 	PodLabels map[string]string
 	// PodAnnotations are the Kubernetes annotations to apply to the pod spec.
 	PodAnnotations map[string]string
+	// PodSecurityContext overrides the pod security context for this app.
+	PodSecurityContext *corev1.PodSecurityContextArgs
+	// ContainerSecurityContext overrides the main container security context for this app.
+	ContainerSecurityContext *corev1.SecurityContextArgs
 }
 
 // Scenario creates a list of namespaces, each containing a list of demo applications. These are dependent on
@@ -116,10 +120,12 @@ func Scenario(e config.Env, kubeProvider *kubernetes.Provider, scenarioName stri
 							Annotations: pulumi.ToStringMap(app.PodAnnotations),
 						},
 						Spec: &corev1.PodSpecArgs{
+							SecurityContext: app.PodSecurityContext,
 							Containers: corev1.ContainerArray{
 								corev1.ContainerArgs{
-									Name:  pulumi.String(app.Name),
-									Image: pulumi.String(fmt.Sprintf("%s:%s", app.Image, app.Version)),
+									Name:            pulumi.String(app.Name),
+									Image:           pulumi.String(fmt.Sprintf("%s:%s", app.Image, app.Version)),
+									SecurityContext: app.ContainerSecurityContext,
 									Env: &corev1.EnvVarArray{
 										&corev1.EnvVarArgs{
 											Name:  pulumi.String("DD_TRACE_DEBUG"),

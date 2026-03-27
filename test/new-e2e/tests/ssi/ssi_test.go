@@ -15,6 +15,9 @@ import (
 	"time"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
 
@@ -51,28 +54,39 @@ type ssiSuite struct {
 // TestSSISuite is the single entry point: one cluster is provisioned once with the base config,
 // then UpdateEnv is called at the start of each test group.
 func TestSSISuite(t *testing.T) {
-	e2e.Run(t, &ssiSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
+	opts := ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(baseHelmValues),
 		},
-	})))
+	}
+	if isOpenShift() {
+		opts.PreAgentHook = openShiftSCC
+	}
+
+	e2e.Run(t, &ssiSuite{}, e2e.WithProvisioner(Provisioner(opts)))
 }
 
 func (v *ssiSuite) TestInjectionMode() {
-	v.UpdateEnv(Provisioner(ProvisionerOptions{
+	var namespaceLabels map[string]string
+	var csiPodSecurityContext *corev1.PodSecurityContextArgs
+	var csiContainerSecurityContext *corev1.SecurityContextArgs
+	opts := ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(injectionModeHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "injection-mode", []singlestep.Namespace{
 				{
-					Name: "injection-mode",
+					Name:   "injection-mode",
+					Labels: namespaceLabels,
 					Apps: []singlestep.App{
 						{
-							Name:    "injection-mode-app-csi",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
+							Name:                     "injection-mode-app-csi",
+							Image:                    "registry.datadoghq.com/injector-dev/python",
+							Version:                  "16ad9d4b",
+							Port:                     8080,
+							PodSecurityContext:       csiPodSecurityContext,
+							ContainerSecurityContext: csiContainerSecurityContext,
 							PodAnnotations: map[string]string{
 								"admission.datadoghq.com/apm-inject.injection-mode": "csi",
 							},
@@ -99,7 +113,14 @@ func (v *ssiSuite) TestInjectionMode() {
 				},
 			}, dependsOnAgent)
 		},
-	}))
+	}
+	if isOpenShift() {
+		opts.PreAgentHook = openShiftSCC
+		namespaceLabels = openShiftInjectionModeNamespaceLabels()
+		csiPodSecurityContext, csiContainerSecurityContext = openShiftCSIAppSecurityContexts()
+	}
+
+	v.UpdateEnv(Provisioner(opts))
 
 	testCases := []struct {
 		name string
@@ -326,4 +347,74 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireNoInjection(v.T())
 	})
+}
+
+func isOpenShift() bool {
+	switch getProvisionerType() {
+	case ProvisionerOpenShift, ProvisionerOpenShiftLocal:
+		return true
+	default:
+		return false
+	}
+}
+
+func openShiftInjectionModeNamespaceLabels() map[string]string {
+	return map[string]string{
+		"pod-security.kubernetes.io/enforce": "privileged",
+		"pod-security.kubernetes.io/warn":    "privileged",
+		"pod-security.kubernetes.io/audit":   "privileged",
+	}
+}
+
+func openShiftCSIAppSecurityContexts() (*corev1.PodSecurityContextArgs, *corev1.SecurityContextArgs) {
+	return &corev1.PodSecurityContextArgs{
+			SeLinuxOptions: &corev1.SELinuxOptionsArgs{
+				User:  pulumi.String("system_u"),
+				Role:  pulumi.String("system_r"),
+				Type:  pulumi.String("spc_t"),
+				Level: pulumi.String("s0"),
+			},
+		}, &corev1.SecurityContextArgs{
+			Privileged:               pulumi.Bool(true),
+			AllowPrivilegeEscalation: pulumi.Bool(true),
+			RunAsUser:                pulumi.Int(0),
+			RunAsNonRoot:             pulumi.Bool(false),
+		}
+}
+
+func openShiftSCC(e config.Env, kubeProvider *kubernetes.Provider) error {
+	resourceOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
+
+	for _, binding := range []struct {
+		name      string
+		roleName  string
+		namespace string
+	}{
+		{name: "datadog-csi-driver-privileged", roleName: "system:openshift:scc:privileged", namespace: "datadog"},
+		{name: "datadog-csi-driver-hostmount-anyuid", roleName: "system:openshift:scc:hostmount-anyuid", namespace: "datadog"},
+		{name: "injection-mode-privileged", roleName: "system:openshift:scc:privileged", namespace: "injection-mode"},
+		{name: "injection-mode-hostmount-anyuid", roleName: "system:openshift:scc:hostmount-anyuid", namespace: "injection-mode"},
+	} {
+		if _, err := rbacv1.NewClusterRoleBinding(e.Ctx(), e.CommonNamer().ResourceName(binding.name), &rbacv1.ClusterRoleBindingArgs{
+			Metadata: &metav1.ObjectMetaArgs{
+				Name: pulumi.String(binding.name),
+			},
+			RoleRef: &rbacv1.RoleRefArgs{
+				ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+				Kind:     pulumi.String("ClusterRole"),
+				Name:     pulumi.String(binding.roleName),
+			},
+			Subjects: rbacv1.SubjectArray{
+				&rbacv1.SubjectArgs{
+					Kind:      pulumi.String("ServiceAccount"),
+					Name:      pulumi.String("default"),
+					Namespace: pulumi.String(binding.namespace),
+				},
+			},
+		}, resourceOpts...); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
