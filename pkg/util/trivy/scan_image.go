@@ -10,7 +10,6 @@ package trivy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
@@ -38,10 +37,6 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 	cache, err := c.GetCache()
 	if err != nil {
 		return nil, err
-	}
-
-	if cache == nil {
-		return nil, errors.New("cache is not available")
 	}
 
 	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))

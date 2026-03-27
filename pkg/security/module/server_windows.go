@@ -97,5 +97,3 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 }
 
 func (a *APIServer) collectOSReleaseData() {}
-
-func (a *APIServer) collectSBOMS() {}

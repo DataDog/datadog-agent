@@ -12,7 +12,6 @@ import (
 	"go.uber.org/fx"
 
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func getCollectorOptions() []fx.Option {
@@ -24,16 +23,6 @@ func getCollectorOptions() []fx.Option {
 
 func remoteWorkloadmetaParams() fx.Option {
 	return fx.Provide(func() remoteworkloadmeta.Params {
-		filter := workloadmeta.NewFilterBuilder().
-			AddKind(workloadmeta.KindContainer).
-			AddKind(workloadmeta.KindKubernetesPod).
-			AddKind(workloadmeta.KindECSTask).
-			AddKind(workloadmeta.KindProcess).
-			AddKind(workloadmeta.KindContainerImageMetadata).
-			Build()
-
-		return remoteworkloadmeta.Params{
-			Filter: filter,
-		}
+		return remoteworkloadmeta.Params{}
 	})
 }

@@ -30,5 +30,3 @@ func (a *APIServer) collectOSReleaseData() {}
 func (a *APIServer) fillStatusPlatform(_ *api.Status) error {
 	return nil
 }
-
-func (a *APIServer) collectSBOMS() {}

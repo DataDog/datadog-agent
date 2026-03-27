@@ -39,7 +39,7 @@ type RCPolicyProvider struct {
 	sync.RWMutex
 
 	client               *client.Client
-	onNewPoliciesReadyCb func(silent bool)
+	onNewPoliciesReadyCb func()
 	lastDefaults         map[string]state.RawConfig
 	lastCustoms          map[string]state.RawConfig
 	lastRemediations     map[string]state.RawConfig
@@ -236,7 +236,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func(silent bool)) {
+func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	r.onNewPoliciesReadyCb = cb
 }
 
@@ -249,8 +249,7 @@ func (r *RCPolicyProvider) onNewPoliciesReady() {
 			r.setEnforcementCb(true)
 		}
 
-		// Remote config updates are never silent - they always trigger heartbeat events
-		r.onNewPoliciesReadyCb(false)
+		r.onNewPoliciesReadyCb()
 	}
 }
 
