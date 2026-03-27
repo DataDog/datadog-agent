@@ -456,7 +456,6 @@ exports_files(glob(
 # extra) and are accessible to go_test via embedding.
 _GAZELLE_BUILD_TAGS = [
     "bundle_installer",
-    "test",
     "cel",
     "clusterchecks",
     "consul",
@@ -495,6 +494,7 @@ _GAZELLE_BUILD_TAGS = [
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
+    "test",
     "trivy",
     "trivy_no_javadb",
     "wmi",
