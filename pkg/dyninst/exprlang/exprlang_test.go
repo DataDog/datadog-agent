@@ -135,6 +135,9 @@ var testCases = []struct {
 	{name: "literal float", input: `3.14`},
 	{name: "literal false", input: `false`},
 	{name: "literal null", input: `null`},
+	// Test len/isEmpty inside eq
+	{name: "eq with len", input: `{"eq": [{"len": {"ref": "s"}}, 5]}`},
+	{name: "eq with isEmpty", input: `{"eq": [{"isEmpty": {"ref": "s"}}, true]}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
@@ -162,6 +165,12 @@ func exprToResult(expr Expr, err error) exprResult {
 		baseJSON, _ := json.Marshal(e.Base)
 		argJSON, _ := json.Marshal([]interface{}{json.RawMessage(baseJSON), e.Member})
 		return exprResult{Type: "unsupported", Operation: "getmember", Argument: json.RawMessage(argJSON)}
+	case *LenExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "len", Left: &operand}
+	case *IsEmptyExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "isEmpty", Left: &operand}
 	case *EqExpr:
 		left := exprToResult(e.Left, nil)
 		right := exprToResult(e.Right, nil)
@@ -271,6 +280,10 @@ func TestParse(t *testing.T) {
 			switch expr.(type) {
 			case *RefExpr:
 				require.Equal(t, expectedResult.Ref, actualResult.Ref, "ref value mismatch")
+			case *LenExpr, *IsEmptyExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "len/isEmpty expression mismatch")
 			case *EqExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
