@@ -20,9 +20,9 @@ def bazel_not_found_message(color: str) -> str:
 def bazel(ctx: Context, *args: str, capture_output: bool = False, sudo: bool = False) -> None | str:
     """Execute a bazel command. Returns the captured standard output as string if capture_output=True."""
 
-    if not (resolved_bazel := shutil.which("bazel")):
+    if not (resolved_bazel := shutil.which("bazelisk")):
         raise Exit(bazel_not_found_message("red"))
-    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
+    cmd = ("sudo", resolved_bazel) if sudo else ("bazelisk",)
     kwargs = {}
     if capture_output:
         kwargs["hide"] = "out"

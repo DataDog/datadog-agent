@@ -25,6 +25,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -258,15 +259,14 @@ def build(
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
     with gitlab_section("Generate configuration files", collapsed=True):
-        render_config(
-            ctx,
-            env=env,
-            flavor=flavor,
-            skip_assets=skip_assets,
-            build_tags=build_tags,
-            development=development,
-            windows_sysprobe=windows_sysprobe,
-        )
+        if not skip_assets:
+            refresh_assets(
+                ctx,
+                build_tags=build_tags,
+                development=development,
+                flavor=flavor.name,
+                windows_sysprobe=windows_sysprobe,
+            )
 
 
 def create_launcher(ctx, agent, src, dst):
@@ -285,29 +285,8 @@ def create_launcher(ctx, agent, src, dst):
     ctx.run(cmd.format(**args))
 
 
-def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
-    # Remove cross-compiling bits to render config
-    env.update({"GOOS": "", "GOARCH": ""})
-
-    # Render the Agent configuration file template
-    build_type = "agent-py3"
-    if flavor.is_iot():
-        build_type = "iot-agent"
-
-    generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
-
-    # On Linux and MacOS, render the system-probe configuration file template
-    if sys.platform != 'win32' or windows_sysprobe:
-        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
-
-    generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
-
-    if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
-
-
 @task
-def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name, windows_sysprobe=False):
+def refresh_assets(ctx, build_tags, development=True, flavor=AgentFlavor.base.name, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -319,24 +298,25 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
+    # When called from dda this evalutes to ./bin/agent/dist.
     os.mkdir(dist_folder)
+    # The bazel targets know their relative location within the package, so we
+    # do not need to know "bin/agent/dist". We only need the root of the build tree.
+    # During the pure bazel build, we use relative locations off of {install_dir}.
+    developer_build_root = "."
 
+    cmd = ["run"]
+    if flavor and flavor.name != "base":
+        cmd.append(f"--//packages/agent:flavor={flavor.name}")
+    bazel(ctx, *cmd, "--", "//cmd/agent/dist:install", f"--destdir={developer_build_root}")
     if "python" in build_tags:
-        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
-        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
-        shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
+        bazel(ctx, *cmd, "--", "//cmd/agent/dist:python_install", f"--destdir={developer_build_root}")
+
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
-
-    # System probe not supported on windows
-    if sys.platform != 'win32' or windows_sysprobe:
-        shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
-    shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
-
-    shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")

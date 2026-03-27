@@ -63,6 +63,7 @@ build_dogstatsd-binary_arm64:
 
 # IoT Agent builds to make sure the build is not broken because of build flags
 build_iot_agent-binary_x64:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   rules:
     - !reference [.except_mergequeue]
@@ -80,6 +81,7 @@ build_iot_agent-binary_x64:
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 build_iot_agent-binary_arm64:
+  extends: .bazel:defs:cache:progressive
   rules: !reference [.on_all_builds]
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

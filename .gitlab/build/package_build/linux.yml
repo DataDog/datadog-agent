@@ -131,11 +131,15 @@ iot-agent-armhf:
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["arch:arm64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
+  before_script:
+    - dda inv -- -e install-tools
   variables:
     # On armv7, dpkg is built as a 32bits application, which means
     # we can only address 32 bits of memory, which is likely to OOM
     # if we use too many compression threads or a too agressive level
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
+    # Needed to get bazelisk to load the right bazel, regardless of what we set later within the build.
+    GOARCH: arm64
 
 # ----- Dogstatsd -----
 
