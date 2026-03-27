@@ -280,7 +280,7 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 		{
 			Name:      "Login Window Ready",
 			OffsetS:   safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			DurationS: safeDurationSeconds(ts.LoginTime, ts.LoginWindowTime),
+			DurationS: 0,
 			Timestamp: formatTS(ts.LoginWindowTime),
 		},
 		{
@@ -348,9 +348,6 @@ func (c *logonDurationComponent) submitMetrics(bootTime time.Time, ts logondurat
 	bootMs := float64(safeDurationMs(ts.LoginWindowTime, bootTime))
 	logonMs := float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime))
 	totalMs := bootMs + logonMs
-	loginWindowMs := float64(safeDurationMs(ts.LoginWindowTime, bootTime))
-	userLoginMs := float64(safeDurationMs(ts.LoginTime, ts.LoginWindowTime))
-	desktopReadyMs := float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime))
 
 	var filevaultTag string
 
@@ -368,15 +365,6 @@ func (c *logonDurationComponent) submitMetrics(bootTime time.Time, ts logondurat
 	}
 	if logonMs > 0 {
 		c.sender.Distribution("eudm.boot_duration", logonMs, hostname, []string{"phase:logon", filevaultTag})
-	}
-	if loginWindowMs > 0 {
-		c.sender.Distribution("eudm.boot_duration", loginWindowMs, hostname, []string{"phase:login_window_ready", filevaultTag})
-	}
-	if userLoginMs > 0 {
-		c.sender.Distribution("eudm.boot_duration", userLoginMs, hostname, []string{"phase:user_login", filevaultTag})
-	}
-	if desktopReadyMs > 0 {
-		c.sender.Distribution("eudm.boot_duration", desktopReadyMs, hostname, []string{"phase:desktop_ready", filevaultTag})
 	}
 
 	c.sender.Commit()
