@@ -90,6 +90,15 @@ type DatadogConfig struct {
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
 	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
+	AppKey               string                     `yaml:"app_key,omitempty"`
+	PrivateActionRunner  PrivateActionRunnerConfig  `yaml:"private_action_runner,omitempty"`
+}
+
+// PrivateActionRunnerConfig represents the configuration for the private action runner
+type PrivateActionRunnerConfig struct {
+	Enabled          *bool    `yaml:"enabled,omitempty"`
+	SelfEnroll       *bool    `yaml:"self_enroll,omitempty"`
+	ActionsAllowlist []string `yaml:"actions_allowlist,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
