@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -334,20 +335,29 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		return collected[i].Timestamp < collected[j].Timestamp
 	})
 
+	// Debug: log anomaly batch entering step-advance.
+	if len(collected) > 0 {
+		minTS, maxTS := collected[0].Timestamp, collected[len(collected)-1].Timestamp
+		fmt.Printf("[observer] step-advance: %d anomalies (ts %d..%d), upTo=%d, gap=%ds\n",
+			len(collected), minTS, maxTS, upTo, upTo-maxTS)
+	}
+
 	// Phase 3: step-advance — process anomalies in timestamp order, advancing
 	// correlators (and accumulating) between each distinct timestamp group.
-	// This ensures that when Advance(T) evicts clusters older than T-Window,
-	// the clusters formed at T are still fresh and get accumulated.
+	//
+	// Accumulate BEFORE advancing: the correlator's currentDataTime may be
+	// at a previous upTo value (much higher than the anomaly timestamps).
+	// If we advance first, eviction uses the stale high-water mark and
+	// immediately destroys clusters formed at historical timestamps.
+	// By accumulating first, we capture clusters while they're still alive.
 	var prevTS int64
 	for i := range collected {
 		ts := collected[i].Timestamp
 
 		if i > 0 && ts != prevTS {
-			// New timestamp group: advance to prevTS before processing this group.
-			// Clusters formed at prevTS survive because their timestamp == cutoff boundary.
 			for _, correlator := range correlators {
-				correlator.Advance(prevTS)
 				e.accumulateCorrelations(correlator.ActiveCorrelations())
+				correlator.Advance(prevTS)
 			}
 		}
 
@@ -364,25 +374,12 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		prevTS = ts
 	}
 
-	// Phase 3b: accumulate at the last anomaly timestamp before jumping to upTo.
-	// The step-advance loop only fires intermediate accumulates between distinct
-	// timestamp groups. When all anomalies share a single timestamp (common for
-	// scan detectors that find multiple changepoints at the same second), no
-	// intermediate accumulate ever fires. Without this, the final Advance(upTo)
-	// evicts the cluster before it can be captured — the cluster is born and dies
-	// without ever being accumulated.
-	if prevTS > 0 {
-		for _, correlator := range correlators {
-			correlator.Advance(prevTS)
-			e.accumulateCorrelations(correlator.ActiveCorrelations())
-		}
-	}
-
-	// Phase 4: final advance to upTo — evicts truly stale state and accumulates
-	// anything that formed at the last anomaly timestamp or later.
+	// Phase 4: accumulate before final advance to upTo.
+	// Same principle: capture clusters at their current state before
+	// the advance to upTo evicts historical-timestamp clusters.
 	for _, correlator := range correlators {
-		correlator.Advance(upTo)
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
+		correlator.Advance(upTo)
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -390,6 +387,20 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 				correlatorName: correlator.Name(),
 			},
 		})
+	}
+
+	// Debug: log accumulated correlation count after this advance.
+	if len(collected) > 0 {
+		acc := e.AccumulatedCorrelations()
+		nonPassthrough := 0
+		for _, ac := range acc {
+			if len(ac.Pattern) < 11 || ac.Pattern[:11] != "passthrough" {
+				nonPassthrough++
+			}
+		}
+		if nonPassthrough > 0 {
+			fmt.Printf("[observer] accumulated: %d total, %d non-passthrough\n", len(acc), nonPassthrough)
+		}
 	}
 
 	// Accumulate telemetry so StateView can expose it.
