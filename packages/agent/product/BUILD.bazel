@@ -34,6 +34,8 @@ pkg_filegroup(
         # "//packages/agent/dependencies:all_files",
         ":dirs",
         ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
         "//rtloader:all_files",
 
         # TODO: sysprobe - windows

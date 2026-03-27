@@ -9,13 +9,35 @@ package configimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 )
+
+// Requires defines the dependencies for the config component.
+type Requires struct {
+	compdef.In
+
+	Conf      config.Component
+	HNService hostname.Component
+}
+
+// Provides defines the output of the config component.
+type Provides struct {
+	compdef.Out
+
+	Comp trapsconf.Component
+}
+
+// NewComponent creates a new config component.
+func NewComponent(reqs Requires) (Provides, error) {
+	comp, err := newService(reqs.Conf, reqs.HNService)
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: comp}, nil
+}
 
 type configService struct {
 	conf *trapsconf.TrapsConfig
@@ -36,11 +58,4 @@ func newService(conf config.Component, hnService hostname.Component) (trapsconf.
 		return nil, err
 	}
 	return &configService{c}, nil
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newService),
-	)
 }

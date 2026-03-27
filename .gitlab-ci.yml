@@ -39,6 +39,9 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
+  # Global packages likely to impact windows
+  - pkg/config/**/*
+
   # cmd/
   - cmd/agent/**/*
   - cmd/process-agent/**/*
