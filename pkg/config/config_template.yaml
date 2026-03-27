@@ -4953,9 +4953,6 @@ api_key:
 #   # for the list of available actions.
 #
 #   actions_allowlist:
-{{ if eq .OS "windows" -}}
-#     - com.datadoghq.script.runPredefinedPowershellScript
-{{ else -}}
-#     - com.datadoghq.script.runPredefinedScript
-{{ end -}}
+#     - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
+#     - com.datadoghq.script.runPredefinedScript                       # on Linux and Darwin
 {{ end -}}
