@@ -42,11 +42,8 @@ var namespaceSelectionHelmValues string
 //go:embed testdata/workload_selection.yaml
 var workloadSelectionHelmValues string
 
-//go:embed testdata/registry_allow_list_blocked.yaml
-var registryAllowListBlockedHelmValues string
-
-//go:embed testdata/registry_allow_list_allowed.yaml
-var registryAllowListAllowedHelmValues string
+//go:embed testdata/registry_allow_list.yaml
+var registryAllowListHelmValues string
 
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
 // each group to update the env (workloads, helm values).
@@ -335,48 +332,37 @@ func (v *ssiSuite) TestWorkloadSelection() {
 }
 
 func (v *ssiSuite) TestRegistryAllowList() {
-	registryAllowListApp := singlestep.App{
-		Name:    "registry-allow-list-app",
-		Image:   "registry.datadoghq.com/injector-dev/python",
-		Version: "16ad9d4b",
-		Port:    8080,
-	}
-
-	// Scenario 1: registry not in allow list — injection should be blocked.
+	// Both apps run in the same cluster with allow list = registry.datadoghq.com.
+	// The "allowed" app uses the default injector (registry.datadoghq.com) — injection proceeds.
+	// The "blocked" app overrides the injector image to fake.registry.invalid via pod
+	// annotation, which is not in the allow list — injection is skipped.
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(registryAllowListBlockedHelmValues),
+			kubernetesagentparams.WithHelmValues(registryAllowListHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "registry-allow-list", []singlestep.Namespace{
-				{Name: "registry-allow-list", Apps: []singlestep.App{registryAllowListApp}},
-			}, dependsOnAgent)
-		},
-	}))
-
-	v.Run("InjectionBlockedByAllowList", func() {
-		k8s := v.Env().KubernetesCluster.Client()
-		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-app")
-
-		// The injector image comes from registry.datadoghq.com, which is not in the
-		// allow list (fake.registry.invalid). Injection should be skipped entirely.
-		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
-		podValidator.RequireNoInjection(v.T())
-
-		// The webhook sets an error annotation explaining why injection was skipped.
-		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
-		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
-		require.Contains(v.T(), errAnnotation, "not in the allow list")
-	})
-
-	// Scenario 2: registry in allow list — injection should proceed.
-	v.UpdateEnv(Provisioner(ProvisionerOptions{
-		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(registryAllowListAllowedHelmValues),
-		},
-		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-			return singlestep.Scenario(e, kubeProvider, "registry-allow-list", []singlestep.Namespace{
-				{Name: "registry-allow-list", Apps: []singlestep.App{registryAllowListApp}},
+				{
+					Name: "registry-allow-list",
+					Apps: []singlestep.App{
+						{
+							Name:    "registry-allow-list-allowed",
+							Image:   "registry.datadoghq.com/injector-dev/python",
+							Version: "16ad9d4b",
+							Port:    8080,
+						},
+						{
+							Name:    "registry-allow-list-blocked",
+							Image:   "registry.datadoghq.com/injector-dev/python",
+							Version: "16ad9d4b",
+							Port:    8080,
+							PodAnnotations: map[string]string{
+								// Override injector to a registry not in the allow list.
+								"admission.datadoghq.com/apm-inject.custom-image": "fake.registry.invalid/apm-inject:0.54.0",
+							},
+						},
+					},
+				},
 			}, dependsOnAgent)
 		},
 	}))
@@ -385,15 +371,29 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		intake := v.Env().FakeIntake.Client()
 		k8s := v.Env().KubernetesCluster.Client()
 
-		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-app")
+		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-allowed")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
-		podValidator.RequireInjection(v.T(), []string{"registry-allow-list-app"})
+		podValidator.RequireInjection(v.T(), []string{"registry-allow-list-allowed"})
 		podValidator.RequireInjectorVersion(v.T(), "0.54.0")
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
 
 		require.Eventually(v.T(), func() bool {
-			traces := FindTracesForService(v.T(), intake, "registry-allow-list-app")
+			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
 			return len(traces) != 0
-		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-app")
+		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-allowed")
+	})
+
+	v.Run("InjectionBlockedByAllowList", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-blocked")
+
+		// The injector image is overridden to fake.registry.invalid via pod annotation,
+		// which is not in the allow list. Injection should be skipped entirely.
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireNoInjection(v.T())
+
+		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
+		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
+		require.Contains(v.T(), errAnnotation, "not in the allow list")
 	})
 }
