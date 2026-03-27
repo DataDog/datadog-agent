@@ -1,18 +1,13 @@
 receivers:
-  profiling:
+  hostprofiler:
     symbol_uploader:
-      enabled: true
-      symbol_endpoints:
-      - api_key: key1
-        app_key: app1
-      - api_key: 123
-        app_key: 456
+      enabled: false
 service:
   pipelines:
     profiles:
       processors: []
       receivers:
-      - profiling
+      - hostprofiler
       exporters:
       - otlphttp
 exporters:

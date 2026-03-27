@@ -134,7 +134,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/rm-infraattr-metrics/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-when-missing",
+			name:     "adds-profiling-when-missing",
 			provided: "no_agent/add-prof-missing/in.yaml",
 			expected: "no_agent/add-prof-missing/out.yaml",
 		},
@@ -144,7 +144,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-otlp-proto/out.yaml",
 		},
 		{
-			name:     "creates-default-hostprofiler",
+			name:     "creates-default-profiling",
 			provided: "no_agent/create-default-prof/in.yaml",
 			expected: "no_agent/create-default-prof/out.yaml",
 		},
@@ -169,7 +169,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-appkey/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-to-pipeline",
+			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",
 		},
@@ -179,8 +179,18 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/multi-symbol-ep/out.yaml",
 		},
 		{
-			name:     "multiple-hostprofiler-receivers",
+			name:     "multiple-profiling-receivers",
 			provided: "no_agent/multi-hostprof-recv/in.yaml",
+			expected: "no_agent/multi-hostprof-recv/out.yaml",
+		},
+		{
+			name:     "renames-legacy-hostprofiler-receiver",
+			provided: "no_agent/legacy-hostprofiler/in.yaml",
+			expected: "no_agent/symbol-up-disabled/out.yaml",
+		},
+		{
+			name:     "renames-legacy-hostprofiler-receiver-with-id",
+			provided: "no_agent/legacy-hostprofiler-id/in.yaml",
 			expected: "no_agent/multi-hostprof-recv/out.yaml",
 		},
 		{

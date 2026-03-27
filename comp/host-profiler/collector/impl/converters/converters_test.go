@@ -340,13 +340,33 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
 }
 
+func TestConverterWithoutAgentLogsLegacyReceiverRename(t *testing.T) {
+	logger, logs := newObserverLogger(zap.WarnLevel)
+
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/legacy-hostprofiler/in.yaml"))
+
+	err := conv.Convert(context.Background(), conf)
+	require.NoError(t, err)
+
+	const expectedMsg = "Renamed legacy hostprofiler receiver to profiling"
+	found := false
+	for _, entry := range logs.All() {
+		if entry.Level == zap.WarnLevel && entry.Message == expectedMsg {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected warning about legacy hostprofiler rename, got logs: %v", logs.All())
+}
+
 func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	// Verify that ToStringMapRaw preserves ExpandedValue types in standalone mode
 	configData := confMap{
 		"service": confMap{
 			"pipelines": confMap{
 				"profiles": confMap{
-					"receivers":  []any{"hostprofiler"},
+					"receivers":  []any{"profiling"},
 					"processors": []any{},
 					"exporters":  []any{"otlphttp"},
 				},
@@ -360,7 +380,7 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 			},
 		},
 		"receivers": confMap{
-			"hostprofiler": confMap{
+			"profiling": confMap{
 				"symbol_uploader": confMap{
 					"enabled": false,
 				},
