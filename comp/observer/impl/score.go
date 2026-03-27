@@ -36,6 +36,9 @@ type ScoreResult struct {
 	NumFilteredCascading int     `json:"num_filtered_cascading"`
 	NumBaselineFPs       int     `json:"num_baseline_fps"`
 	Sigma                float64 `json:"sigma"`
+	// Alpha is the false positive rate during the baseline phase:
+	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
+	Alpha float64 `json:"alpha"`
 }
 
 // ComputeGaussianF1 scores predicted anomaly events against ground truth events
@@ -213,6 +216,7 @@ func scoreGaussianPDF(x, sigma float64) float64 {
 type scenarioMetadata struct {
 	Baseline struct {
 		Start string `json:"start"`
+		End   string `json:"end"`
 	} `json:"baseline"`
 	Disruption struct {
 		Start string `json:"start"`
@@ -223,6 +227,7 @@ type scenarioMetadata struct {
 type scoringMetadata struct {
 	groundTruthTimestamps []int64
 	baselineStart         int64 // 0 if not available
+	baselineEnd           int64 // 0 if not available
 }
 
 // loadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
@@ -259,6 +264,14 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		result.baselineStart = bt.Unix()
 	}
 
+	if meta.Baseline.End != "" {
+		et, err := time.Parse(time.RFC3339, meta.Baseline.End)
+		if err != nil {
+			return nil, fmt.Errorf("parsing baseline.end %q: %w", meta.Baseline.End, err)
+		}
+		result.baselineEnd = et.Unix()
+	}
+
 	return result, nil
 }
 
@@ -281,8 +294,8 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, fmt.Errorf("parsing output JSON: %w", err)
 	}
 
-	// Load metadata if needed (for ground truth and/or baseline start).
-	var baselineStart int64
+	// Load metadata if needed (for ground truth and/or baseline start/end).
+	var baselineStart, baselineEnd int64
 	if scenariosDir != "" && output.Metadata.Scenario != "" {
 		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
 		if err != nil {
@@ -295,6 +308,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 				groundTruthTimestamps = sm.groundTruthTimestamps
 			}
 			baselineStart = sm.baselineStart
+			baselineEnd = sm.baselineEnd
 		}
 	}
 
@@ -335,6 +349,13 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumBaselineFPs = numBaselineFPs
+
+	// Alpha: FP rate during baseline = num_baseline_fps / baseline_duration_seconds.
+	if baselineStart > 0 && baselineEnd > baselineStart {
+		result.Alpha = float64(numBaselineFPs) / float64(baselineEnd-baselineStart)
+	} else {
+		result.Alpha = -1
+	}
 
 	return &result, nil
 }
