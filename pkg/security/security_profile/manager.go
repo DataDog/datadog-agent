@@ -701,7 +701,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		imageTag  string
 	}
 
-	pids := make(map[imageTagKey][]uint32)
+	pidToImageTag := make(map[uint32]imageTagKey)
 
 	result := make(map[activity_tree.ImageProcessKey]bool)
 
@@ -731,35 +731,24 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 			imageTag = "latest"
 		}
 
-		imageTagKey := imageTagKey{
-			imageName: imageName,
-			imageTag:  imageTag,
+		k := imageTagKey{imageName: imageName, imageTag: imageTag}
+		for _, pid := range cgce.GetPIDs() {
+			pidToImageTag[pid] = k
 		}
-		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
 
 		return false
 	})
 
 	// we do the resolution of filepaths here so that we can release the cgroup resolver lock before acquiring the process resolver lock
-	for k, pids := range pids {
-
-		key := activity_tree.ImageProcessKey{
-			ImageName: k.imageName,
-			ImageTag:  k.imageTag,
-			Filepath:  "",
+	pr.Walk(func(pce *model.ProcessCacheEntry) {
+		if k, ok := pidToImageTag[pce.Pid]; ok {
+			result[activity_tree.ImageProcessKey{
+				ImageName: k.imageName,
+				ImageTag:  k.imageTag,
+				Filepath:  pce.FileEvent.PathnameStr,
+			}] = true
 		}
-
-		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
-			if pce == nil {
-				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
-				continue
-			}
-
-			key.Filepath = pce.FileEvent.PathnameStr
-			result[key] = true
-		}
-	}
+	})
 
 	return result
 }

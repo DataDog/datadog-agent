@@ -248,6 +248,11 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
 			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
 		},
+		{
+			name:     "preserve-user-evp-headers",
+			provided: "no_agent/preserve-evp-headers/in.yaml",
+			expected: "no_agent/preserve-evp-headers/out.yaml",
+		},
 	}
 
 	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
