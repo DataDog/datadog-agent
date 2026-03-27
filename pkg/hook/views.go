@@ -18,12 +18,18 @@ type MetricView interface {
 // MetricSampleSnapshot is an immutable, pool-safe snapshot of a metric sample.
 // Unlike the original MetricSample (which is pooled and recycled), a snapshot
 // holds copied values and is safe to retain across goroutine boundaries.
+//
+// ContextKey is the aggregator's context key (murmur3 hash of name+hostname+tags).
+// Subscribers can use it as a precomputed deduplication key, avoiding a redundant
+// hash computation. It is 0 for pipelines that do not run a context resolver
+// (no-aggregation, check sampler).
 type MetricSampleSnapshot struct {
 	Name       string
 	Value      float64
 	RawTags    []string
 	Timestamp  float64
 	SampleRate float64
+	ContextKey uint64
 }
 
 // NewMetricSampleSnapshot copies the observable fields from v into a new snapshot.
