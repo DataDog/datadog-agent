@@ -21,27 +21,41 @@ exec > $LOG_FILE 2>&1
 
 DDAGENT_USER="_dd-agent"
 
+harden_ddagent_user() {
+    # Enforce least-privilege properties regardless of how the account was
+    # originally created (previous install, MDM pre-provisioning, manual
+    # creation). This runs on every install/upgrade.
+    dscl . -create /Users/$DDAGENT_USER UserShell /usr/bin/false
+    dscl . -create /Users/$DDAGENT_USER NFSHomeDirectory /var/empty
+    dscl . -create /Users/$DDAGENT_USER IsHidden 1
+    dscl . -create /Users/$DDAGENT_USER PrimaryGroupID 1
+
+    local existing_uid
+    existing_uid=$(id -u "$DDAGENT_USER")
+    if [ "$existing_uid" -ge 500 ]; then
+        echo "WARNING: $DDAGENT_USER has UID $existing_uid (interactive range >=500). UID is preserved to avoid breaking file ownership, but this is non-standard for a daemon account."
+    fi
+}
+
 create_ddagent_user() {
     if id -u "$DDAGENT_USER" >/dev/null 2>&1; then
-        echo "User $DDAGENT_USER already exists, skipping creation"
+        echo "User $DDAGENT_USER already exists, enforcing security properties"
+        harden_ddagent_user
         return 0
     fi
     echo "Creating $DDAGENT_USER system user..."
-    local uid=300
+    local uid=450
     while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
         uid=$((uid + 1))
     done
     if [ "$uid" -ge 500 ]; then
-        echo "No free UID available in range 300-499 for $DDAGENT_USER"
+        echo "No free UID available in range 450-499 for $DDAGENT_USER"
         exit 1
     fi
     dscl . -create /Users/$DDAGENT_USER
-    dscl . -create /Users/$DDAGENT_USER UserShell /usr/bin/false
     dscl . -create /Users/$DDAGENT_USER RealName "Datadog Agent"
     dscl . -create /Users/$DDAGENT_USER UniqueID "$uid"
-    dscl . -create /Users/$DDAGENT_USER PrimaryGroupID 1
-    dscl . -create /Users/$DDAGENT_USER NFSHomeDirectory /var/empty
-    dscl . -create /Users/$DDAGENT_USER IsHidden 1
+    harden_ddagent_user
     echo "Created $DDAGENT_USER (UID $uid)"
 }
 
