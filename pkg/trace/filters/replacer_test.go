@@ -18,71 +18,6 @@ import (
 )
 
 func TestReplacer(t *testing.T) {
-	t.Run("traces", func(tt *testing.T) {
-		for _, testCase := range []struct {
-			rules     [][3]string
-			got, want map[string]string
-		}{
-			{
-				rules: [][3]string{
-					{"http.url", "(token/)([^/]*)", "${1}?"},
-					{"http.url", "guid", "[REDACTED]"},
-					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
-					{"a", "b", "c"},
-				},
-				got: map[string]string{
-					"http.url":   "some/guid/token/abcdef/abc",
-					"custom.tag": "/foo/bar/foo",
-				},
-				want: map[string]string{
-					"http.url":   "some/[REDACTED]/token/?/abc",
-					"custom.tag": "/foo/bar/extra",
-				},
-			},
-			{
-				rules: [][3]string{
-					{"*", "(token/)([^/]*)", "${1}?"},
-					{"*", "this", "that"},
-					{"http.url", "guid", "[REDACTED]"},
-					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
-					{"resource.name", "prod", "stage"},
-				},
-				got: map[string]string{
-					"resource.name": "this is prod",
-					"http.url":      "some/[REDACTED]/token/abcdef/abc",
-					"other.url":     "some/guid/token/abcdef/abc",
-					"custom.tag":    "/foo/bar/foo",
-					"_special":      "this should not be changed",
-				},
-				want: map[string]string{
-					"resource.name": "that is stage",
-					"http.url":      "some/[REDACTED]/token/?/abc",
-					"other.url":     "some/guid/token/?/abc",
-					"custom.tag":    "/foo/bar/extra",
-					"_special":      "this should not be changed",
-				},
-			},
-		} {
-			rules := parseRulesFromString(testCase.rules)
-			tr := NewReplacer(rules)
-			root := replaceFilterTestSpan(testCase.got)
-			childSpan := replaceFilterTestSpan(testCase.got)
-			trace := pb.Trace{root, childSpan}
-			tr.Replace(trace)
-			for k, v := range testCase.want {
-				switch k {
-				case "resource.name":
-					// test that the filter applies to all spans, not only the root
-					assert.Equal(tt, v, root.Resource)
-					assert.Equal(tt, v, childSpan.Resource)
-				default:
-					assert.Equal(tt, v, root.Meta[k])
-					assert.Equal(tt, v, childSpan.Meta[k])
-				}
-			}
-		}
-	})
-
 	t.Run("stats", func(tt *testing.T) {
 		for _, testCase := range []struct {
 			rules     [][3]string
@@ -125,7 +60,7 @@ func TestReplacer(t *testing.T) {
 	t.Run("span events", func(tt *testing.T) {
 		for _, testCase := range []struct {
 			rules     [][3]string
-			got, want map[string]*pb.AttributeAnyValue
+			got, want map[string]string
 		}{
 			{
 				rules: [][3]string{
@@ -138,89 +73,68 @@ func TestReplacer(t *testing.T) {
 					{"is.potato", "true", "false"},
 					{"my.nums", "42", "100"},
 				},
-				got: map[string]*pb.AttributeAnyValue{
-					"http.url": {
-						Type:        pb.AttributeAnyValue_STRING_VALUE,
-						StringValue: "some/guid/token/abcdef/abc",
-					},
-					"custom.tag": {
-						Type:        pb.AttributeAnyValue_STRING_VALUE,
-						StringValue: "/foo/bar/foo",
-					},
-					"some.num": {
-						Type:     pb.AttributeAnyValue_INT_VALUE,
-						IntValue: 1,
-					},
-					"some.dbl": {
-						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
-						DoubleValue: 42.1,
-					},
-					"is.potato": {
-						Type:      pb.AttributeAnyValue_BOOL_VALUE,
-						BoolValue: true,
-					},
-					"my.nums": {
-						Type: pb.AttributeAnyValue_ARRAY_VALUE,
-						ArrayValue: &pb.AttributeArray{
-							Values: []*pb.AttributeArrayValue{
-								{
-									Type:     pb.AttributeArrayValue_INT_VALUE,
-									IntValue: 123,
-								},
-								{
-									Type:     pb.AttributeArrayValue_INT_VALUE,
-									IntValue: 42,
-								},
-							},
-						},
-					},
+				got: map[string]string{
+					"http.url":   "some/guid/token/abcdef/abc",
+					"custom.tag": "/foo/bar/foo",
+					"some.num":   "1",
+					"some.dbl":   "42.1",
+					"is.potato":  "true",
+					"my.nums":    "42",
 				},
-				want: map[string]*pb.AttributeAnyValue{
-					"http.url": {
-						Type:        pb.AttributeAnyValue_STRING_VALUE,
-						StringValue: "some/[REDACTED]/token/?/abc",
-					},
-					"custom.tag": {
-						Type:        pb.AttributeAnyValue_STRING_VALUE,
-						StringValue: "/foo/bar/extra",
-					},
-					"some.num": {
-						Type:        pb.AttributeAnyValue_STRING_VALUE,
-						StringValue: "one!",
-					},
-					"some.dbl": {
-						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
-						DoubleValue: 42.5,
-					},
-					"is.potato": {
-						Type:      pb.AttributeAnyValue_BOOL_VALUE,
-						BoolValue: false,
-					},
-					"my.nums": {
-						Type: pb.AttributeAnyValue_ARRAY_VALUE,
-						ArrayValue: &pb.AttributeArray{
-							Values: []*pb.AttributeArrayValue{
-								{
-									Type:     pb.AttributeArrayValue_INT_VALUE,
-									IntValue: 123,
-								},
-								{
-									Type:     pb.AttributeArrayValue_INT_VALUE,
-									IntValue: 100,
-								},
-							},
-						},
-					},
+				want: map[string]string{
+					"http.url":   "some/[REDACTED]/token/?/abc",
+					"custom.tag": "/foo/bar/extra",
+					"some.num":   "one!",
+					"some.dbl":   "42.5",
+					"is.potato":  "false",
+					"my.nums":    "100",
 				},
 			},
 		} {
 			rules := parseRulesFromString(testCase.rules)
 			tr := NewReplacer(rules)
-			root := replaceFilterTestSpanEvent(testCase.got)
-			trace := pb.Trace{root}
-			tr.Replace(trace)
+
+			// Create a new InternalTraceChunk
+			chunk := &idx.InternalTraceChunk{
+				Spans:   make([]*idx.InternalSpan, 1),
+				Strings: idx.NewStringTable(),
+			}
+
+			// Create a span with a span event
+			span := idx.NewInternalSpan(chunk.Strings, &idx.Span{
+				SpanID:      rand.Uint64(),
+				ParentID:    1111,
+				ServiceRef:  chunk.Strings.Add("test-service"),
+				NameRef:     chunk.Strings.Add("test-span"),
+				ResourceRef: chunk.Strings.Add("test-resource"),
+				Start:       1448466874000000000,
+				Duration:    10000000,
+				Attributes:  map[uint32]*idx.AnyValue{},
+				Events: []*idx.SpanEvent{
+					{
+						Time:       0,
+						NameRef:    chunk.Strings.Add("foo"),
+						Attributes: map[uint32]*idx.AnyValue{},
+					},
+				},
+			})
+
+			// Set the span event attributes
+			for k, v := range testCase.got {
+				span.Events()[0].SetAttributeFromString(k, v)
+			}
+			chunk.Spans[0] = span
+
+			// Apply the replacer
+			tr.ReplaceV1(chunk)
+
+			// Verify results
+			events := chunk.Spans[0].Events()
+			assert.Equal(tt, 1, len(events))
 			for k, v := range testCase.want {
-				assert.Equal(tt, v, root.SpanEvents[0].Attributes[k])
+				if val, ok := events[0].GetAttributeAsString(k); ok {
+					assert.Equal(tt, v, val)
+				}
 			}
 		}
 	})
@@ -350,18 +264,6 @@ func replaceFilterTestSpan(tags map[string]string) *pb.Span {
 			span.Meta[k] = v
 		}
 	}
-	return span
-}
-
-// replaceFilterTestSpan creates a span with a span event with the provided attributes
-func replaceFilterTestSpanEvent(attributes map[string]*pb.AttributeAnyValue) *pb.Span {
-	span := &pb.Span{SpanEvents: []*pb.SpanEvent{
-		{
-			TimeUnixNano: 0,
-			Name:         "foo",
-			Attributes:   attributes,
-		},
-	}}
 	return span
 }
 

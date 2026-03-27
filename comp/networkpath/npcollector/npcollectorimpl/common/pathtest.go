@@ -23,7 +23,7 @@ type PathtestMetadata struct {
 	ReverseDNSHostname string
 }
 
-// Pathtest details of information necessary to run a traceroute (pathtrace)
+// Pathtest details of information necessary to run a traceroute
 type Pathtest struct {
 	Hostname          string
 	Port              uint16

@@ -57,12 +57,12 @@ func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, 
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
+	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc, nil),
 		events.NewCustomEvent(model.CustomEventType, evt)
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func()) {
+func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func(silent bool)) {
 }
 
 // Type return the type of this policy provider

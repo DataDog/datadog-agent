@@ -8,6 +8,48 @@
 // This package provides utilities and test suites to validate the installation, uninstallation,
 // and upgrade processes of the Datadog Agent and related components on Windows systems.
 //
+// # Quick Start with setup-env Helper
+//
+//	Configure environment variables for local testing with the setup-env helper:
+//
+// PowerShell:
+//
+//	dda inv new-e2e-tests.setup-env --build local --fmt powershell | Invoke-Expression
+//
+// Bash/WSL:
+//
+//	eval "$(dda inv new-e2e-tests.setup-env --build local)"
+//
+// This automatically detects local MSI/OCI builds in omnibus/pkg/ and sets the appropriate environment variables.
+//
+// ## Using Pipeline Artifacts
+//
+// To use artifacts from a CI pipeline (requires GITLAB_TOKEN environment variable):
+//
+// PowerShell:
+//
+//	$env:GITLAB_TOKEN="your-token"
+//	dda inv new-e2e-tests.setup-env --build pipeline --fmt powershell | Invoke-Expression
+//
+// Bash/WSL:
+//
+//	export GITLAB_TOKEN="your-token"
+//	eval "$(dda inv new-e2e-tests.setup-env --build pipeline)"
+//
+// This auto-detects the most recent successful pipeline on your current branch and sets E2E_PIPELINE_ID
+// along with the version variables.
+//
+// To use a specific pipeline:
+//
+//	dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 40537701 --fmt powershell | Invoke-Expression
+//
+// Options:
+//   - --build local: Use local builds from omnibus/pkg/
+//   - --build pipeline: Use CI pipeline artifacts (requires GITLAB_TOKEN)
+//   - --fmt bash|powershell|json: Output format (default: bash)
+//   - --pkg <name>: Specify a particular Local MSI package to use for --build local
+//   - --pipeline-id <id>: Override pipeline ID for --build pipeline
+//
 // # Running Tests with Pipeline Artifacts
 //
 // To run the tests using artifacts from a specific pipeline, set the following environment variables:
@@ -31,6 +73,63 @@
 // This assertion is currently a "contains" check, so the package version can be
 // shortened to 7.66.0-devel for convenience.
 // With local testing the _VERSION_PACKAGE variables can be omitted, though they are required in the CI.
+//
+// # Building Local Artifacts
+//
+// To build the MSI installer locally:
+//
+//	dda inv msi.build
+//
+// This creates an MSI in omnibus/pkg/ (e.g., datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-x86_64.msi).
+//
+// To build an OCI package from the MSI (required for Fleet/Remote Upgrade tests):
+//
+//	dda inv msi.package-oci
+//
+// This creates an OCI tar file in omnibus/pkg/ (e.g., datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-windows-amd64.oci.tar).
+//
+// Note: The OCI packaging requires the `datadog-package` tool. Install it with:
+//
+//	go install github.com/DataDog/datadog-package@latest
+//
+// You can also specify a specific MSI to package:
+//
+//	dda inv msi.package-oci --msi-path=omnibus/pkg/datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-x86_64.msi
+//
+// To include the DDOT extension layer in the OCI package:
+//
+//	dda inv msi.package-oci --ddot
+//
+// # Using a Local OCI Registry for Testing
+//
+// For tests that need to pull OCI packages (e.g. extension restore during
+// upgrade/experiment), you can run a local Docker registry and use an SSH
+// reverse tunnel to make it accessible from the remote test VM.
+//
+// 1. Start a local registry (HTTP, no TLS):
+//
+//	docker run -d -p 5000:5000 --name registry registry:latest
+//
+// 2. Push the OCI package to the local registry using datadog-package:
+//
+//	datadog-package push 192.168.61.1:5000/agent-package:7.77.0-devel.git.648.368d6af.pipeline.1234-1 .\omnibus\pkg\datadog-agent-7.77.0-devel.git.648.368d6af.pipeline.1234-1-windows-amd64.oci.tar
+//
+// 3. Set up a reverse SSH tunnel so the test VM can reach your local registry:
+//
+//	ssh -R 5000:localhost:5000 user@test-vm
+//
+// 4. Configure the installer to use the tunnel endpoint. For now, set the
+// registry URL override globally on the test VM:
+//
+// PowerShell:
+//
+//	[System.Environment]::SetEnvironmentVariable("DD_INSTALLER_REGISTRY_URL", "localhost:5000", [System.EnvironmentVariableTarget]::Machine)
+//
+// Or in datadog.yaml:
+//
+//	installer:
+//	  registry:
+//	    url: 'localhost:5000'
 //
 // # Running Tests with Local Artifacts
 //

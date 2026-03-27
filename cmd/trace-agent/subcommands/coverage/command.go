@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -42,6 +43,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 				logfx.Module(),
 				fx.Supply(log.ForOneShot(globalParamsGetter().LoggerName, "off", true)),
 				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				config.Module(),
 				ipcfx.ModuleReadOnly(),
 			)

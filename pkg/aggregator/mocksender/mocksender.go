@@ -68,6 +68,7 @@ func SetSender(sender *MockSender, id checkid.ID) {
 type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
+	checkTags     []string
 }
 
 // GetSenderManager returns the instance of sender.SenderManager

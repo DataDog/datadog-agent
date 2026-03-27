@@ -11,7 +11,7 @@ import (
 
 	"github.com/rickar/props"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // flattener is a type used to custom unmarshal a yaml document to a map flat keys

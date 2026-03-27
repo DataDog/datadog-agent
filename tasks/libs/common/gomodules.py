@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -11,8 +10,10 @@ from pathlib import Path
 from typing import ClassVar
 
 import yaml
+from invoke.context import Context
 
 import tasks
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.utils import agent_working_directory
 
 
@@ -230,24 +231,21 @@ class GoModule:
 
         return "v0" + agent_version[1:]
 
-    def __compute_dependencies(self):
+    def __compute_dependencies(self, ctx: Context):
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        base_path = os.getcwd()
-        mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
-
-        if not os.path.isdir(mod_parser_path):
-            raise Exception(f"Cannot find go.mod parser in {mod_parser_path}")
-
-        try:
-            output = subprocess.check_output(
-                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", AGENT_MODULE_PATH_PREFIX],
-                cwd=mod_parser_path,
-            ).decode("utf-8")
-        except subprocess.CalledProcessError as e:
-            print(f"Error while calling go.mod parser: {e.output}")
-            raise e
+        output = bazel(
+            ctx,
+            "run",
+            "//internal/tools/modparser",
+            "--",
+            "-path",
+            os.path.abspath(self.path),
+            "-prefix",
+            AGENT_MODULE_PATH_PREFIX,
+            capture_output=True,
+        )
 
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
@@ -276,10 +274,9 @@ class GoModule:
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
 
-    @property
-    def dependencies(self):
+    def dependencies(self, ctx: Context):
         if not self._dependencies:
-            self._dependencies = self.__compute_dependencies()
+            self._dependencies = self.__compute_dependencies(ctx)
         return self._dependencies
 
     @property

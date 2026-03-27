@@ -2,9 +2,7 @@ version: '3'
 name: node-ubuntu
 services:
   node:
-    build:
-      context: .
-      dockerfile: Dockerfile.libnode
+    image: registry.ddbuild.io/images/nodejs:libnode-jammy
     command: ["node", "/v/server.js"]
     ports:
       - ${PORT}:4141
@@ -13,3 +11,4 @@ services:
       - CERTS_DIR
     volumes:
       - ${TESTDIR}:/v:z
+      - ${CERTSDIR}:/certs:z

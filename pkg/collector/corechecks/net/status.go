@@ -41,9 +41,17 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 func (Provider) populateStatus(stats map[string]interface{}) {
 	ntpOffset := expvar.Get("ntpOffset")
 	if ntpOffset != nil && ntpOffset.String() != "" {
-		float, err := strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
+		float, err := strconv.ParseFloat(ntpOffset.String(), 64)
 		if err == nil {
 			stats["ntpOffset"] = float
+		}
+	}
+
+	intakeOffset := expvar.Get("corechecks_net_ntp_intake_time_offset")
+	if intakeOffset != nil && intakeOffset.String() != "" {
+		float, err := strconv.ParseFloat(intakeOffset.String(), 64)
+		if err == nil {
+			stats["intakeOffset"] = float
 		}
 	}
 }

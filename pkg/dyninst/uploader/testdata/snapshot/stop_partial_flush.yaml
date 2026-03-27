@@ -5,7 +5,7 @@ config:
 events:
   - !enqueue {value: "p"}
   - !enqueue {value: "q"}
-  - !stop {} 
+  - !stop {}
 ---
 now: 0s
 next_flush: 200ms
@@ -28,8 +28,10 @@ state:
 now: 0s
 event: !stop {}
 effects:
+  - !send-batch {id: 0, items: 2, bytes: 6}
   - !reset-timer {}
 state:
-  batch_len: 2
-  current_size: 6
+  batch_len: 0
+  current_size: 0
+  inflight: [0]
   timer_set: false

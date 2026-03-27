@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
@@ -44,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
@@ -93,7 +91,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var sbomResolver *sbom.Resolver
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, opts.WorkloadMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +106,9 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var versionResolver func(servicePath string) string
 	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
 		versionResolver = func(servicePath string) string {
-			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+			if pkg := sbomResolver.ResolvePackage(&model.ProcessContext{
+				Process: model.Process{Credentials: model.Credentials{UID: 0xffff}},
+			}, &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
 				return pkg.Version
 			}
 			return ""
@@ -145,7 +145,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 			UseProcFS:              true,
 			SnapshotUsingListMount: config.Probe.SnapshotUsingListmount,
 		}
-		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, dentryResolver, resolverOpts)
+		mountResolver, err = mount.NewResolver(statsdClient, dentryResolver, resolverOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -177,11 +177,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
-	if err != nil {
-		return nil, err
-	}
 	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
 	if err != nil {
 		return nil, err
@@ -193,6 +188,12 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	fileMetadataResolver, err := file.NewResolver(config.RuntimeSecurity, statsdClient, &file.Opt{CgroupResolver: cgroupsResolver})
+	if err != nil {
+		return nil, err
+	}
+
+	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
+		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, userSessionsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +261,6 @@ func (r *EBPFResolvers) Snapshot() error {
 	}
 
 	r.ProcessResolver.SetState(process.Snapshotted)
-	r.NamespaceResolver.SetState(process.Snapshotted)
 
 	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
@@ -311,6 +311,9 @@ func (r *EBPFResolvers) snapshot() error {
 		r.SnapshotUsingListmount = false
 	}
 
+	// Sync the namespace cache
+	r.NamespaceResolver.SyncCache()
+
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -325,30 +328,6 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
-
-		// Sync the namespace cache
-		r.NamespaceResolver.SyncCache(pid)
-	}
-
-	return nil
-}
-
-// nolint: deadcode, unused
-func (r *EBPFResolvers) snapshotBoundSockets() error {
-	processes, err := utils.GetProcesses()
-	if err != nil {
-		return err
-	}
-
-	boundSocketSnapshotter := procfs.NewBoundSocketSnapshotter()
-
-	for _, proc := range processes {
-		bs, err := boundSocketSnapshotter.GetBoundSockets(proc)
-		if err != nil {
-			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
-			continue
-		}
-		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

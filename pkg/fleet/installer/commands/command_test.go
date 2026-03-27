@@ -37,6 +37,10 @@ func TestMain(m *testing.M) {
 				ID:    "apm",
 				Title: "APM Commands",
 			},
+			&cobra.Group{
+				ID:    "extension",
+				Title: "Extensions Commands",
+			},
 		)
 		cmd.AddCommand(RootCommands()...)
 		cmd.AddCommand(UnprivilegedCommands()...)
@@ -47,6 +51,8 @@ func TestMain(m *testing.M) {
 		return
 	}
 	os.Setenv(testCmdEnv, "true")
+	cleanup := setupTestPaths()
+	defer cleanup()
 	os.Exit(m.Run())
 }
 
