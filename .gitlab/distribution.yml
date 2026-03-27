@@ -12,6 +12,12 @@ stages:
 include:
   - .gitlab/.pre/common/shared.yml
   - .gitlab/.pre/common/container_publish_job_templates.yml
+  # Image promotion template from dd-source — provides .image-promotion job definition
+  # used by .docker_publish_job_definition_via_gateway.
+  # TODO: pin to a specific ref once the dd-source PR is merged.
+  - project: DataDog/dd-source
+    ref: main
+    file: .gitlab/ci-templates/image-promotion.yml
   - .gitlab/deploy/conditions.yml
   - local: .gitlab/deploy/trigger_release/**.yml
   - local: .gitlab/distribute/**.yml

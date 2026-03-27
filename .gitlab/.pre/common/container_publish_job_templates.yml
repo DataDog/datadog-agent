@@ -7,6 +7,20 @@
   SRC_OTEL_AGENT: registry.ddbuild.io/ci/datadog-agent/otel-agent
   SRC_DDOT_EBPF: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
 
+# ECR release suffix logic shared between direct and gateway-based publish definitions.
+# Determines suffix based on nightly/release context and applies it to IMG_VARIABLES and IMG_SOURCES.
+.docker_ecr_suffix_script: &docker_ecr_suffix_script
+  - |
+    if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_OTEL_AGENT" || "$IMG_SOURCES" =~ "$SRC_DDOT_EBPF" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DDOT_EBPF" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
+      export ECR_RELEASE_SUFFIX="-nightly"
+    else
+      export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
+    fi
+  - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
+  - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
+
+# Original: triggers public-images directly via dda inv pipeline.trigger-child-pipeline.
+# Will be replaced by .docker_publish_job_definition_via_gateway after migration.
 .docker_publish_job_definition:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
@@ -15,14 +29,7 @@
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
-    - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_OTEL_AGENT" || "$IMG_SOURCES" =~ "$SRC_DDOT_EBPF" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DDOT_EBPF" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
-        export ECR_RELEASE_SUFFIX="-nightly"
-      else
-        export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
-      fi
-    - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
-    - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
+    - *docker_ecr_suffix_script
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main --timeout 1800
       --variable IMG_VARIABLES
       --variable IMG_REGISTRIES
@@ -37,3 +44,22 @@
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+
+# New: publishes images through artifact-gateway (identity check + policy + audit).
+# Extends the shared template from dd-source. Callers use this exactly like
+# .docker_publish_job_definition — same IMG_* variables, same before_script patterns.
+#
+# IMPORTANT: Callers must include ECR suffix logic in their before_script since
+# GitLab CI replaces (not merges) before_script from the parent definition.
+# Use the &docker_ecr_suffix_script anchor at the end of your before_script.
+#
+# The template's `script` section (from .image-promotion) handles:
+#   auth → JSON payload → POST to artifact-gateway → poll for completion
+.docker_publish_job_definition_via_gateway:
+  extends: .image-promotion
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    <<: *docker_variables
+    IMG_VARIABLES: ""
+    IMG_SIGNING: "false"
+    IMAGE_PROMOTION_TIMEOUT: "1800"
