@@ -29,12 +29,12 @@ type DeviceInfo struct {
 
 // PendingDevice represents a device pending deduplication
 type PendingDevice struct {
-	Config     snmp.Config
-	Info       DeviceInfo
-	AuthIndex  int
-	WriteCache bool
-	IP         string
-	Failures   int
+	Config         snmp.Config
+	Info           DeviceInfo
+	AuthIndex      int
+	AddedFromCache bool
+	IP             string
+	Failures       int
 }
 
 func (d DeviceInfo) equal(other DeviceInfo) bool {
