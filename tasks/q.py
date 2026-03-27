@@ -412,7 +412,7 @@ def launch_testbench(
     profile: bool = False,
     open_pprof: bool = False,
     verbose: bool = False,
-    profile_path: str = "/tmp/observer_heap.prof",
+    profile_path: str = "",
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -434,6 +434,8 @@ def launch_testbench(
         if not headless_output:
             headless_output = f"/tmp/observer-testbench-headless-{headless_scenario}.json"
         if profile:
+            if not profile_path:
+                profile_path = f"/tmp/observer-testbench-headless-{headless_scenario}.prof"
             flags += f" --memprofile {profile_path}"
         print(
             f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
