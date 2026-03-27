@@ -146,6 +146,14 @@ func (c *Collector) collectLoop(ctx context.Context) {
 
 // collect collects the enhanced metrics from the cgroup and sends them to the metric agent
 func (c *Collector) collect() {
+	collectionTime := time.Now()
+	timestamp := float64(collectionTime.UnixNano()) / float64(time.Second)
+
+	// Always send the usage metric, regardless of cgroup collection success.
+	if c.usageMetricSuffix != "" {
+		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricSuffix, 1, c.metricSource, timestamp)
+	}
+
 	if err := c.cgroupReader.RefreshCgroups(0); err != nil {
 		log.Warnf("Failed to refresh cgroups: %v", err)
 		return
@@ -158,7 +166,6 @@ func (c *Collector) collect() {
 	}
 
 	stats := &cgroups.Stats{}
-	collectionTime := time.Now()
 	allFailed, errs := cgroups.GetStats(cgroup, stats)
 	if allFailed {
 		log.Warnf("Failed to get cgroup stats: %v", errs)
@@ -301,10 +308,6 @@ func calculateCPUUsage(currentTotal *uint64, previousTotal *uint64, currentTime 
 
 // sendMetrics sends the enhanced metrics to the metric agent
 func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
-	if c.usageMetricSuffix != "" {
-		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricSuffix, 1, c.metricSource, enhancedMetrics.Timestamp)
-	}
-
 	// CPU usage in nanocores
 	// Skip when value is NaN since this value is used on the first collect before the rate can be computed
 	if !math.IsNaN(enhancedMetrics.CPUUsage) {
