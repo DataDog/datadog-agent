@@ -20,7 +20,6 @@ import (
 
 type pendingSpotPod struct {
 	owner     objectKey
-	namespace string
 	name      string
 	createdAt time.Time
 }
@@ -131,7 +130,7 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		// so only check the Phase and use now for createdAt.
 		if pod.Phase == string(corev1.PodPending) {
 			if _, exists := t.pendingSpotPods[pod.ID]; !exists {
-				t.pendingSpotPods[pod.ID] = pendingSpotPod{owner: owner, namespace: pod.Namespace, name: pod.Name, createdAt: t.clock.Now()}
+				t.pendingSpotPods[pod.ID] = pendingSpotPod{owner: owner, name: pod.Name, createdAt: t.clock.Now()}
 				log.Debugf("Tracking pending spot pod %s", pod.ID)
 			}
 		} else {

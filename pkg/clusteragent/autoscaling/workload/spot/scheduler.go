@@ -278,11 +278,11 @@ func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 	}
 
 	for uid, pod := range s.tracker.getPendingSpotPods() {
-		if err := s.evictor.evictPod(ctx, pod.namespace, pod.name, corev1.PodPending); err != nil {
-			log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.namespace, pod.name, err)
+		if err := s.evictor.evictPod(ctx, pod.owner.Namespace, pod.name, corev1.PodPending); err != nil {
+			log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.owner.Namespace, pod.name, err)
 			continue
 		}
-		log.Infof("Evicted timed-out pending spot pod %s/%s (owner: %s) for on-demand fallback", pod.namespace, pod.name, pod.owner)
+		log.Infof("Evicted timed-out pending spot pod %s/%s for on-demand fallback", pod.owner.Namespace, pod.name)
 		s.tracker.deletePendingSpotPod(uid)
 	}
 }
