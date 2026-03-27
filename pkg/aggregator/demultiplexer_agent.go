@@ -186,13 +186,13 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname, metricHook)
 
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
-			filterList.GetHistoFilterList(), filterList.GetTagFilterList(), metricHook)
+			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
 	}
 
 	var noAggWorker *noAggregationStreamWorker

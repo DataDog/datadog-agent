@@ -11,7 +11,6 @@ import (
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -58,8 +57,6 @@ type timeSamplerWorker struct {
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
-
-	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 type dumpTrigger struct {
@@ -70,8 +67,7 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher,
-	metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *timeSamplerWorker {
+	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -89,8 +85,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		metricFilterListChan: make(chan utilstrings.Matcher),
 		tagFilterListChan:    make(chan filterlist.TagMatcher),
 
-		tagsStore:  tagsStore,
-		metricHook: metricHook,
+		tagsStore: tagsStore,
 	}
 }
 
@@ -113,20 +108,10 @@ func (w *timeSamplerWorker) run() {
 			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
 
-			for i := 0; i < len(ms); i++ {
+			for i := range ms {
 				w.sampler.sample(&ms[i], t, w.tagFilterList)
 			}
-			// Publish a batch of snapshots before returning the slice to the pool.
-			// Snapshots are value copies, so this is safe even after PutBatch.
-			// The HasSubscribers guard avoids allocating the batch when nobody
-			// is listening, keeping the hot path allocation-free.
-			if w.metricHook.HasSubscribers() {
-				batch := make([]hook.MetricSampleSnapshot, len(ms))
-				for i := range ms {
-					batch[i] = hook.NewMetricSampleSnapshot(&ms[i])
-				}
-				w.metricHook.Publish("dogstatsd", batch)
-			}
+			w.sampler.publishHookBatch()
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher
