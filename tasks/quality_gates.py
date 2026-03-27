@@ -42,6 +42,7 @@ FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
+EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
 
 
 @dataclass
@@ -305,6 +306,34 @@ def get_pr_author(pr_number: str) -> str | None:
     except Exception as e:
         print(color_message(f"[WARN] Failed to get PR author for PR #{pr_number}: {e}", "orange"))
         return None
+
+
+class ExceptionApprovalChecker:
+    """Lazily fetches and caches per-PR threshold exception approval."""
+
+    def __init__(self, pr):
+        self._pr = pr
+        self._checked = False
+        self._result: str | None = None
+
+    def _fetch(self) -> str | None:
+        if self._pr is None:
+            return None
+        try:
+            for review in self._pr.get_reviews():
+                if review.state == "APPROVED" and review.user and review.user.login in EXCEPTION_APPROVERS:
+                    return review.user.login
+        except Exception as e:
+            print(color_message(f"[WARN] Failed to check exception approvals: {e}", "orange"))
+        return None
+
+    def get(self) -> str | None:
+        if not self._checked:
+            self._checked = True
+            self._result = self._fetch()
+            if self._result:
+                print(color_message(f"Exception granted by @{self._result}", "orange"))
+        return self._result
 
 
 # Main table pattern for on-disk metrics (primary view)
