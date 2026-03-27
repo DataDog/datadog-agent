@@ -88,6 +88,10 @@ git_override(
         "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
         # https://github.com/bazel-contrib/rules_foreign_cc/pull/1491
         "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/issues/985
+        # TODO(agent-build): Ideally we'd like to find a better way to solve this, possibly
+        # finding a general solution that could be properly upstreamed
+        "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
     ],
     remote = "https://github.com/bazel-contrib/rules_foreign_cc",
 )

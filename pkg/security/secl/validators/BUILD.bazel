@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "validators",
+    srcs = [
+        "ruleid.go",
+        "version_constraint.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/validators",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_masterminds_semver_v3//:semver"],
+)
