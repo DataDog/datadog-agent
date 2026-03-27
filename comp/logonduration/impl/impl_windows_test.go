@@ -8,11 +8,13 @@
 package logondurationimpl
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -21,8 +23,47 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+func fullBootTimeline(boot time.Time) BootTimeline {
+	return BootTimeline{
+		BootStart:                    boot,
+		SmssStart:                    boot.Add(1 * time.Second),
+		UserSmssStart:                boot.Add(5 * time.Second),
+		WinlogonStart:                boot.Add(3 * time.Second),
+		WinlogonInit:                 boot.Add(4 * time.Second),
+		WinlogonInitDone:             boot.Add(6 * time.Second),
+		LoginUIStart:                 boot.Add(8 * time.Second),
+		LoginUIDone:                  boot.Add(10 * time.Second),
+		MachineGPStart:               boot.Add(12 * time.Second),
+		MachineGPEnd:                 boot.Add(20 * time.Second),
+		UserGPStart:                  boot.Add(32 * time.Second),
+		UserGPEnd:                    boot.Add(38 * time.Second),
+		UserWinlogonStart:            boot.Add(25 * time.Second),
+		LogonStart:                   boot.Add(30 * time.Second),
+		LogonStop:                    boot.Add(35 * time.Second),
+		ProfileLoadStart:             boot.Add(31 * time.Second),
+		ProfileLoadEnd:               boot.Add(34 * time.Second),
+		ProfileCreationStart:         boot.Add(33 * time.Second),
+		ProfileCreationEnd:           boot.Add(36 * time.Second),
+		ExecuteShellCommandListStart: boot.Add(40 * time.Second),
+		ExecuteShellCommandListEnd:   boot.Add(45 * time.Second),
+		UserinitStart:                boot.Add(42 * time.Second),
+		ExplorerStart:                boot.Add(50 * time.Second),
+		ExplorerInitStart:            boot.Add(51 * time.Second),
+		ExplorerInitEnd:              boot.Add(54 * time.Second),
+		DesktopCreateStart:           boot.Add(53 * time.Second),
+		DesktopCreateEnd:             boot.Add(56 * time.Second),
+		DesktopVisibleStart:          boot.Add(55 * time.Second),
+		DesktopVisibleEnd:            boot.Add(57 * time.Second),
+		DesktopStartupAppsStart:      boot.Add(58 * time.Second),
+		DesktopStartupAppsEnd:        boot.Add(62 * time.Second),
+		DesktopReadyStart:            boot.Add(59 * time.Second),
+		DesktopReadyEnd:              boot.Add(65 * time.Second),
+	}
+}
 
 func TestBuildTimelineMilestones(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
@@ -91,31 +132,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 	})
 
 	t.Run("full timeline includes all milestones in order", func(t *testing.T) {
-		tl := BootTimeline{
-			BootStart:                    boot,
-			SmssStart:                    boot.Add(1 * time.Second),
-			UserSmssStart:                boot.Add(5 * time.Second),
-			WinlogonStart:                boot.Add(3 * time.Second),
-			WinlogonInit:                 boot.Add(4 * time.Second),
-			LoginUIStart:                 boot.Add(8 * time.Second),
-			LoginUIDone:                  boot.Add(10 * time.Second),
-			MachineGPStart:               boot.Add(12 * time.Second),
-			MachineGPEnd:                 boot.Add(20 * time.Second),
-			UserGPStart:                  boot.Add(32 * time.Second),
-			UserGPEnd:                    boot.Add(38 * time.Second),
-			UserWinlogonStart:            boot.Add(25 * time.Second),
-			LogonStart:                   boot.Add(30 * time.Second),
-			ProfileLoadStart:             boot.Add(31 * time.Second),
-			ProfileCreationStart:         boot.Add(33 * time.Second),
-			ExecuteShellCommandListStart: boot.Add(40 * time.Second),
-			UserinitStart:                boot.Add(42 * time.Second),
-			ExplorerStart:                boot.Add(50 * time.Second),
-			ExplorerInitStart:            boot.Add(51 * time.Second),
-			DesktopCreateStart:           boot.Add(53 * time.Second),
-			DesktopVisibleStart:          boot.Add(55 * time.Second),
-			DesktopStartupAppsStart:      boot.Add(58 * time.Second),
-			DesktopReadyStart:            boot.Add(59 * time.Second),
-		}
+		tl := fullBootTimeline(boot)
 
 		milestones := buildTimelineMilestones(tl)
 
@@ -372,4 +389,249 @@ func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
 	assert.Equal(t, "Windows logon duration analysis after reboot", attrs["message"])
+}
+
+func TestSubmitMetrics_AllPhases(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	result := &AnalysisResult{
+		Timeline: fullBootTimeline(boot),
+	}
+
+	hostname := hostnameComp.GetSafe(context.TODO())
+
+	// Total: boot (8000) + logon (25000) = 33000
+	mockSender.On("Distribution", "eudm.boot_duration", float64(33000), hostname, []string{"phase:total"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:winlogon_init"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:computer_group_policy"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(6000), hostname, []string{"phase:user_group_policy"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(5000), hostname, []string{"phase:user_logon"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:profile_load"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:profile_create"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(5000), hostname, []string{"phase:execute_shell_commands"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:userinit"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:explorer_initializing"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:desktop_created"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(4000), hostname, []string{"phase:desktop_startup_apps"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(6000), hostname, []string{"phase:desktop_ready"}).Return()
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(result)
+
+	mockSender.AssertExpectations(t)
+}
+
+func TestSubmitMetrics_TotalRequiresAllFourTimestamps(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	t.Run("missing LoginUIStart omits total", func(t *testing.T) {
+		mockSender := mocksender.NewMockSender("test")
+		comp := &logonDurationComponent{
+			hostname: hostnameComp,
+			sender:   mockSender,
+		}
+
+		result := &AnalysisResult{
+			Timeline: BootTimeline{
+				BootStart:           boot,
+				LogonStart:          boot.Add(30 * time.Second),
+				DesktopVisibleStart: boot.Add(55 * time.Second),
+				DesktopVisibleEnd:   boot.Add(57 * time.Second),
+			},
+		}
+
+		hostname := hostnameComp.GetSafe(context.TODO())
+
+		mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
+		mockSender.On("Commit").Return()
+
+		comp.submitMetrics(result)
+
+		mockSender.AssertExpectations(t)
+		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
+	})
+
+	t.Run("missing DesktopVisibleStart omits total", func(t *testing.T) {
+		mockSender := mocksender.NewMockSender("test")
+		comp := &logonDurationComponent{
+			hostname: hostnameComp,
+			sender:   mockSender,
+		}
+
+		result := &AnalysisResult{
+			Timeline: BootTimeline{
+				BootStart:    boot,
+				LoginUIStart: boot.Add(8 * time.Second),
+				LoginUIDone:  boot.Add(10 * time.Second),
+				LogonStart:   boot.Add(30 * time.Second),
+				LogonStop:    boot.Add(35 * time.Second),
+			},
+		}
+
+		hostname := hostnameComp.GetSafe(context.TODO())
+
+		mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(5000), hostname, []string{"phase:user_logon"}).Return()
+		mockSender.On("Commit").Return()
+
+		comp.submitMetrics(result)
+
+		mockSender.AssertExpectations(t)
+		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
+	})
+
+	t.Run("missing LogonStart omits total", func(t *testing.T) {
+		mockSender := mocksender.NewMockSender("test")
+		comp := &logonDurationComponent{
+			hostname: hostnameComp,
+			sender:   mockSender,
+		}
+
+		result := &AnalysisResult{
+			Timeline: BootTimeline{
+				BootStart:           boot,
+				LoginUIStart:        boot.Add(8 * time.Second),
+				LoginUIDone:         boot.Add(10 * time.Second),
+				DesktopVisibleStart: boot.Add(55 * time.Second),
+				DesktopVisibleEnd:   boot.Add(57 * time.Second),
+			},
+		}
+
+		hostname := hostnameComp.GetSafe(context.TODO())
+
+		mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
+		mockSender.On("Commit").Return()
+
+		comp.submitMetrics(result)
+
+		mockSender.AssertExpectations(t)
+		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
+	})
+
+	t.Run("missing BootStart omits total", func(t *testing.T) {
+		mockSender := mocksender.NewMockSender("test")
+		comp := &logonDurationComponent{
+			hostname: hostnameComp,
+			sender:   mockSender,
+		}
+
+		result := &AnalysisResult{
+			Timeline: BootTimeline{
+				LoginUIStart:        boot.Add(8 * time.Second),
+				LoginUIDone:         boot.Add(10 * time.Second),
+				LogonStart:          boot.Add(30 * time.Second),
+				DesktopVisibleStart: boot.Add(55 * time.Second),
+				DesktopVisibleEnd:   boot.Add(57 * time.Second),
+			},
+		}
+
+		hostname := hostnameComp.GetSafe(context.TODO())
+
+		mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
+		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
+		mockSender.On("Commit").Return()
+
+		comp.submitMetrics(result)
+
+		mockSender.AssertExpectations(t)
+		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
+	})
+}
+
+func TestSubmitMetrics_SkipsPhaseWithZeroStartOrEnd(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	result := &AnalysisResult{
+		Timeline: BootTimeline{
+			BootStart:    boot,
+			LoginUIStart: boot.Add(8 * time.Second),
+			WinlogonInit: boot.Add(4 * time.Second),
+			// WinlogonInitDone is zero → winlogon_init phase skipped
+			LogonStart:          boot.Add(30 * time.Second),
+			DesktopVisibleStart: boot.Add(55 * time.Second),
+			// MachineGPStart set but MachineGPEnd zero → computer_group_policy skipped
+			MachineGPStart: boot.Add(12 * time.Second),
+		},
+	}
+
+	hostname := hostnameComp.GetSafe(context.TODO())
+
+	mockSender.On("Distribution", "eudm.boot_duration", float64(33000), hostname, []string{"phase:total"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
+	mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(result)
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:winlogon_init"})
+	mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:computer_group_policy"})
+}
+
+func TestSubmitMetrics_AllZeroDurations(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	mockSender := mocksender.NewMockSender("test")
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   mockSender,
+	}
+
+	result := &AnalysisResult{
+		Timeline: BootTimeline{},
+	}
+
+	mockSender.On("Commit").Return()
+
+	comp.submitMetrics(result)
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNotCalled(t, "Distribution", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestSubmitMetrics_NilSender(t *testing.T) {
+	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+
+	comp := &logonDurationComponent{
+		hostname: hostnameComp,
+		sender:   nil,
+	}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	result := &AnalysisResult{
+		Timeline: BootTimeline{
+			BootStart:           boot,
+			LoginUIStart:        boot.Add(8 * time.Second),
+			LogonStart:          boot.Add(30 * time.Second),
+			DesktopVisibleStart: boot.Add(55 * time.Second),
+		},
+	}
+
+	// Should not panic with nil sender
+	comp.submitMetrics(result)
 }
