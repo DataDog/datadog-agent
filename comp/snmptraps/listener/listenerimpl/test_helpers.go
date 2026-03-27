@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"

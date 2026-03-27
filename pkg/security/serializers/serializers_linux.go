@@ -1057,20 +1057,10 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	sshClientIP := ctx.SSHClientIP.IP.String()
-	if sshClientIP == "<nil>" {
-		sshClientIP = ""
-	}
-
-	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
-	if sshAuthMethod == "<nil>" {
-		sshAuthMethod = ""
-	}
-
 	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
 	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
-	userSessionContextSerializer.SSHClientIP = sshClientIP
-	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+	userSessionContextSerializer.SSHClientIP = utils.GetIPStringFromIPNet(ctx.SSHClientIP)
+	userSessionContextSerializer.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
 }
 

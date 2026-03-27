@@ -442,7 +442,7 @@ func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 // nolint: deadcode, unused
 func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	return IPPortSerializer{
-		IP:   c.IPNet.IP.String(),
+		IP:   utils.GetIPStringFromIPNet(c.IPNet),
 		Port: c.Port,
 	}
 }
@@ -450,7 +450,7 @@ func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 // nolint: deadcode, unused
 func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFamilySerializer {
 	return IPPortFamilySerializer{
-		IP:     c.IPNet.IP.String(),
+		IP:     utils.GetIPStringFromIPNet(c.IPNet),
 		Port:   c.Port,
 		Family: family,
 	}

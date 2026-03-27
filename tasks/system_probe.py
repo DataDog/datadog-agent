@@ -1220,11 +1220,16 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
 
         if os.path.exists(src_o):
             dst = os.path.join(dest_dir, f"{name}.o")
+            # Destination may be read-only (e.g. 0o444 after build_cws_object_files); copy2 needs write access.
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
             shutil.copy2(src_o, dst)
             os.chmod(dst, 0o644)
             copied_files.append(dst)
         elif os.path.exists(src_bin):
             dst = os.path.join(dest_dir, name)
+            if os.path.exists(dst):
+                os.chmod(dst, 0o755)
             shutil.copy2(src_bin, dst)
             os.chmod(dst, 0o755)
             copied_files.append(dst)

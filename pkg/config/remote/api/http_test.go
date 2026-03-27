@@ -158,7 +158,7 @@ func TestNewWebSocket(t *testing.T) {
 			client, err := NewHTTPClient(auth, agentConfig, url)
 			assert.NoError(err)
 
-			conn, err := client.NewWebSocket(ctx, tt.path)
+			conn, err := client.NewWebSocket(ctx, tt.path, nil)
 			assert.NoError(err)
 			defer conn.Close()
 
