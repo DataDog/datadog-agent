@@ -42,6 +42,7 @@ FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
+PER_PR_THRESHOLD = 750 * 1024
 EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
 
 
@@ -236,6 +237,20 @@ def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) ->
             gates_to_bump[gate_name] = metrics
 
     return gates_to_bump
+
+
+def identify_gates_exceeding_pr_threshold(metric_handler: GateMetricHandler) -> list[str]:
+    """
+    Identify gates where the on-disk size increase exceeds PER_PR_THRESHOLD.
+
+    Returns gate names where relative_on_disk_size > PER_PR_THRESHOLD.
+    """
+    exceeding = []
+    for gate_name, gate_metrics in metric_handler.metrics.items():
+        delta = gate_metrics.get("relative_on_disk_size")
+        if delta is not None and delta > PER_PR_THRESHOLD:
+            exceeding.append(gate_name)
+    return exceeding
 
 
 def get_pr_for_branch(branch: str):
@@ -566,12 +581,15 @@ def display_pr_comment(
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
 
-            # This is probably way more convoluted than it should be, but the best we can do
-            # without refactoring the data structures involved
-            if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
-                body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
-            if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
-                body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
+            if gate["error_type"] == "PerPRThresholdExceeded":
+                body_error += f"|{status_char}|{gate_name} (per-PR threshold)|{change_str}|{limit_bounds}|\n"
+            else:
+                # This is probably way more convoluted than it should be, but the best we can do
+                # without refactoring the data structures involved
+                if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
+                    body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
+                if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
+                    body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
 
             # Add to wire table for errors too
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
@@ -816,6 +834,26 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                                 "orange",
                             )
                         )
+
+        # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
+        per_pr_exceeding = identify_gates_exceeding_pr_threshold(metric_handler)
+        if per_pr_exceeding:
+            threshold_str = byte_to_string(PER_PR_THRESHOLD)
+            print(
+                color_message(
+                    f"Per-PR threshold ({threshold_str}) exceeded by: {', '.join(per_pr_exceeding)}",
+                    "red",
+                )
+            )
+            for gate_state in gate_states:
+                if gate_state["name"] in per_pr_exceeding and gate_state["state"] is True:
+                    delta = metric_handler.metrics.get(gate_state["name"], {}).get("relative_on_disk_size", 0)
+                    gate_state["state"] = False
+                    gate_state["error_type"] = "PerPRThresholdExceeded"
+                    gate_state["message"] = (
+                        f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
+                    )
+                    gate_state["blocking"] = True
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
