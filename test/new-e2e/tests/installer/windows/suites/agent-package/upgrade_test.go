@@ -436,7 +436,16 @@ func (s *testAgentUpgradeSuite) TestRemoveExperimentNoTempDirError() {
 	_, err := s.Env().RemoteHost.Execute(`Rename-Item -Path 'C:\ProgramData\Datadog\Installer\packages' -NewName 'packages.bak'`)
 	s.Require().NoError(err)
 	_, removeErr := s.Installer().RemoveExperiment(consts.AgentPackage)
-	_, restoreErr := s.Env().RemoteHost.Execute(`Rename-Item -Path 'C:\ProgramData\Datadog\Installer\packages.bak' -NewName 'packages'`)
+	// RemoveExperiment may recreate the packages directory (e.g. when reinstalling the stable MSI),
+	// so remove it before renaming packages.bak back to avoid a Rename-Item conflict.
+	_, restoreErr := s.Env().RemoteHost.Execute(`
+		if (Test-Path 'C:\ProgramData\Datadog\Installer\packages') {
+			Remove-Item -Recurse -Force 'C:\ProgramData\Datadog\Installer\packages'
+		}
+		if (Test-Path 'C:\ProgramData\Datadog\Installer\packages.bak') {
+			Rename-Item -Path 'C:\ProgramData\Datadog\Installer\packages.bak' -NewName 'packages'
+		}
+	`)
 	s.Require().NoError(restoreErr)
 
 	// Assert: the call must not have failed due to missing temp dir
