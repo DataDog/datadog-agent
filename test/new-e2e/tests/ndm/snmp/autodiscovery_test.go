@@ -80,6 +80,7 @@ func (v *autoDiscoverySuite) TestAuthenticationsConfig() {
 network_devices:
   autodiscovery:
     loader: core
+    use_deduplication: true
     configs:
       - network_address: 127.0.0.0/30
         port: 1161

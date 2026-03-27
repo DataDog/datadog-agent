@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fixed an issue in SNMP autodiscovery where the IP processing counter was not
+    reset to zero immediately after an IP was fully processed. When multiple
+    authentications were configured, the counter was only decremented once per
+    authentication attempted, meaning a successful first authentication would leave
+    the counter at a non-zero value. This caused the deduplication logic to treat
+    the IP as still in-progress, potentially delaying or preventing devices from
+    being registered correctly. The counter is now cleared immediately once an IP
+    has been fully processed. This only affects users with SNMP device deduplication
+    enabled.
