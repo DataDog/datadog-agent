@@ -170,13 +170,13 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			},
 			"3",
 		},
-		// Meta on a later fallback key wins over metrics on an earlier key.
+		// Earlier key wins regardless of whether the value comes from meta or metrics.
 		{
 			&pb.Span{
 				Meta:    map[string]string{"grpc.code": "7"},
 				Metrics: map[string]float64{"rpc.grpc.status_code": 10},
 			},
-			"7",
+			"10",
 		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
@@ -235,13 +235,13 @@ func TestGetGRPCStatusCodeV1(t *testing.T) {
 			s.SetAttributeFromString("grpc.code", "7")
 			return s
 		}(), "7"},
-		// String attribute on a later fallback key wins over int attribute on an earlier key.
-		{"string on later key beats int on earlier key", func() *idx.InternalSpan {
+		// Earlier key wins regardless of attribute storage type.
+		{"earlier key beats later key regardless of type", func() *idx.InternalSpan {
 			s := newTestInternalSpanV1()
 			s.SetAttributeFromString("rpc.grpc.status_code", "10")
 			s.SetStringAttribute("grpc.code", "7")
 			return s
-		}(), "7"},
+		}(), "10"},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCodeV1(tt.in), tt.name)
 	}
