@@ -114,7 +114,7 @@ func NewComponent(req Requires) (Provides, error) {
 			continue
 		}
 		source := mh.Name()
-		mh.SubscribeWithBuffer("flightrecorder-metrics", hookBufSize, func(payload hook.MetricView) {
+		mh.Subscribe("flightrecorder-metrics", func(payload hook.MetricView) {
 			name := payload.GetName()
 			raw := payload.GetRawTags()
 			ckey := computeContextKey(name, raw)
@@ -144,7 +144,7 @@ func NewComponent(req Requires) (Provides, error) {
 					Source:       source,
 				})
 			}
-		})
+		}, hook.WithBufferSize[hook.MetricView](hookBufSize))
 	}
 
 	// Subscribe to all log hooks.
@@ -152,7 +152,7 @@ func NewComponent(req Requires) (Provides, error) {
 		if lh == nil {
 			continue
 		}
-		lh.SubscribeWithBuffer("flightrecorder-logs", hookBufSize, func(payload hook.LogView) {
+		lh.Subscribe("flightrecorder-logs", func(payload hook.LogView) {
 			raw := payload.GetContent()
 			cp := contentPool.Get().(*[]byte)
 			contentCopy := append((*cp)[:0], raw...)
@@ -169,7 +169,7 @@ func NewComponent(req Requires) (Provides, error) {
 				TimestampNs:      time.Now().UnixNano(),
 				Source:           "",
 			})
-		})
+		}, hook.WithBufferSize[hook.LogView](hookBufSize))
 	}
 
 	// Subscribe to all trace stats hooks.
@@ -177,7 +177,7 @@ func NewComponent(req Requires) (Provides, error) {
 		if sh == nil {
 			continue
 		}
-		sh.SubscribeWithBuffer("flightrecorder-trace-stats", hookBufSize, func(payload hook.TraceStatsView) {
+		sh.Subscribe("flightrecorder-trace-stats", func(payload hook.TraceStatsView) {
 			bat.AddTraceStat(capturedTraceStat{
 				Service:          payload.GetService(),
 				Name:             payload.GetName(),
@@ -198,7 +198,7 @@ func NewComponent(req Requires) (Provides, error) {
 				BucketDurationNs: int64(payload.GetBucketDurationNs()),
 				TimestampNs:      time.Now().UnixNano(),
 			})
-		})
+		}, hook.WithBufferSize[hook.TraceStatsView](hookBufSize))
 	}
 
 	req.Lc.Append(compdef.Hook{
