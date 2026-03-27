@@ -108,9 +108,6 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 
 	if c, ok := sc.clusters[sig]; ok {
 		c.Count++
-		if len(c.Samples) < 5 {
-			c.Samples = append(c.Samples, message)
-		}
 		return &ClusterResult{
 			Cluster:   c,
 			IsNew:     false,
@@ -201,9 +198,6 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		if canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
-			if len(c.Samples) < 5 {
-				c.Samples = append(c.Samples, message)
-			}
 			return &ClusterResult{
 				Cluster:   c,
 				IsNew:     false,
@@ -223,9 +217,6 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 			if canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
-				if len(c.Samples) < 5 {
-					c.Samples = append(c.Samples, message)
-				}
 				return &ClusterResult{
 					Cluster:   c,
 					IsNew:     false,
