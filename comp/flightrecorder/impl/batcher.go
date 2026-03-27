@@ -142,19 +142,12 @@ func (b *batcher) AddPoint(p metricPoint) {
 }
 
 // AddContextDef enqueues a context definition (first occurrence, with strings).
-// When the ring is full the oldest entry is evicted — its context key is
-// removed from seenContexts so the definition will be re-sent on the next
-// occurrence of that metric. This ensures all contexts eventually get their
-// definitions flushed even when the warm-up burst exceeds ring capacity.
+// When the ring is full the oldest entry is overwritten and the drop counter
+// increments. The bloom filter does not support deletion, so evicted contexts
+// are not re-sent — the sidecar handles unknown context_keys gracefully.
 func (b *batcher) AddContextDef(d contextDef) {
 	b.mu.Lock()
 	if b.defsActiveN == b.defCap {
-		// Evict the oldest entry: un-mark its context so the definition
-		// is re-sent on the next occurrence.
-		evictedKey := b.defsActive[b.defsActiveH].ContextKey
-		if evictedKey != 0 {
-			b.seenContexts.Remove(evictedKey)
-		}
 		b.counters.incMetricsDroppedOverflow(1)
 	} else {
 		b.defsActiveN++

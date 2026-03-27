@@ -6,100 +6,101 @@
 package flightrecorderimpl
 
 import (
-	"sync"
 	"sync/atomic"
 )
 
-const numShards = 64
-
-// contextSet is a sharded set of uint64 context keys that tracks which metric
-// contexts have already been sent with full name+tags definitions. It replaces
-// sync.Map to reduce per-entry memory overhead (~16 bytes vs ~120 bytes) and
-// GC pressure (flat uint64 keys vs boxed interface{} pointers).
+// contextSet tracks which metric context keys have been sent with full name+tags
+// definitions. Implemented as a lock-free bloom filter using atomic bit operations.
 //
-// 64 shards with RWMutex provide low contention at 10+ goroutines: the hot
-// path (known key) takes only a shared RLock, and the low bits of the hash key
-// distribute evenly across shards.
+// Memory: ~586 KB fixed (4.8M bits) regardless of context count — 10× less than
+// the sharded map it replaces (~8 MB at 500K contexts).
+//
+// Trade-off: bloom filters do not support deletion. Evicted context definitions
+// are not re-sent. The sidecar handles unknown context_keys gracefully.
+// Reset on reconnect clears all bits.
 type contextSet struct {
-	shards [numShards]contextShard
-	cap    int          // max total entries; 0 = unlimited
-	count  atomic.Int64 // approximate total (not exact under race, OK)
+	bits []atomic.Uint64 // bit array, each word is 64 bits
+	m    uint64          // total bits
+	k    int             // number of hash functions
 }
 
-type contextShard struct {
-	mu sync.RWMutex
-	m  map[uint64]struct{}
-}
+// Bloom filter parameters for ~500K elements at 1% FPR:
+//   m = 4_795_200 bits (74925 uint64 words = ~585 KB)
+//   k = 7 hash functions
+const (
+	bloomBits  = 4_795_200
+	bloomWords = (bloomBits + 63) / 64 // 74925
+	bloomK     = 7
+)
 
-// newContextSet creates a context set with the given capacity cap.
-// If cap <= 0, no cap is enforced.
-func newContextSet(cap int) *contextSet {
-	cs := &contextSet{cap: cap}
-	for i := range cs.shards {
-		cs.shards[i].m = make(map[uint64]struct{})
+// newContextSet creates a bloom-filter-based context set.
+// The cap parameter is accepted for API compatibility but ignored.
+func newContextSet(_ int) *contextSet {
+	return &contextSet{
+		bits: make([]atomic.Uint64, bloomWords),
+		m:    bloomBits,
+		k:    bloomK,
 	}
-	return cs
 }
 
-// IsKnown returns true if the key was already in the set. If not, it inserts
-// the key and returns false. This is the hot path called at 100K+/s.
+// IsKnown checks if the key is probably in the set. If not, it adds it and
+// returns false. Lock-free using atomic CompareAndSwap on each bit word.
+//
+// False positives are possible (~1% FPR) but false negatives are not.
 func (cs *contextSet) IsKnown(key uint64) bool {
-	s := &cs.shards[key&(numShards-1)]
+	h1 := key
+	h2 := (key >> 17) | (key << 47)
 
-	// Fast path: read lock for the common case (key already seen).
-	s.mu.RLock()
-	_, ok := s.m[key]
-	s.mu.RUnlock()
-	if ok {
+	// Phase 1: check all k positions (read-only, no atomic RMW).
+	allSet := true
+	for i := 0; i < cs.k; i++ {
+		pos := (h1 + uint64(i)*h2) % cs.m
+		word := pos / 64
+		bit := uint64(1) << (pos % 64)
+		if cs.bits[word].Load()&bit == 0 {
+			allSet = false
+			break
+		}
+	}
+	if allSet {
 		return true
 	}
 
-	// Slow path: upgrade to write lock for insertion.
-	s.mu.Lock()
-	if _, ok := s.m[key]; ok {
-		s.mu.Unlock()
-		return true // another goroutine inserted between RUnlock and Lock
+	// Phase 2: set all k bits using atomic OR (CAS loop).
+	for i := 0; i < cs.k; i++ {
+		pos := (h1 + uint64(i)*h2) % cs.m
+		word := pos / 64
+		bit := uint64(1) << (pos % 64)
+		for {
+			old := cs.bits[word].Load()
+			if old&bit != 0 {
+				break // already set
+			}
+			if cs.bits[word].CompareAndSwap(old, old|bit) {
+				break
+			}
+		}
 	}
-	s.m[key] = struct{}{}
-	s.mu.Unlock()
-	cs.count.Add(1)
 	return false
 }
 
-// Remove deletes a key from the set, making it "unknown" again. Called when
-// a context definition is evicted from the def ring before being flushed.
-func (cs *contextSet) Remove(key uint64) {
-	s := &cs.shards[key&(numShards-1)]
-	s.mu.Lock()
-	if _, ok := s.m[key]; ok {
-		delete(s.m, key)
-		cs.count.Add(-1)
-	}
-	s.mu.Unlock()
-}
+// Remove is a no-op. Bloom filters do not support deletion.
+func (cs *contextSet) Remove(_ uint64) {}
 
-// Reset clears all entries, forcing all context definitions to be re-sent.
+// Reset clears all bits, forcing all context definitions to be re-sent.
+// Not lock-free (called rarely — only on reconnect).
 func (cs *contextSet) Reset() {
-	for i := range cs.shards {
-		s := &cs.shards[i]
-		s.mu.Lock()
-		s.m = make(map[uint64]struct{})
-		s.mu.Unlock()
+	for i := range cs.bits {
+		cs.bits[i].Store(0)
 	}
-	cs.count.Store(0)
 }
 
-// CheckCap checks whether the set has exceeded its capacity. If so, it resets
-// the set and returns true. Called periodically (e.g., on flush).
+// CheckCap is a no-op — the bloom filter has fixed size.
 func (cs *contextSet) CheckCap() bool {
-	if cs.cap > 0 && cs.count.Load() > int64(cs.cap) {
-		cs.Reset()
-		return true
-	}
 	return false
 }
 
-// Len returns the approximate number of entries in the set.
+// Len returns 0. The bloom filter does not track exact count.
 func (cs *contextSet) Len() int64 {
-	return cs.count.Load()
+	return 0
 }

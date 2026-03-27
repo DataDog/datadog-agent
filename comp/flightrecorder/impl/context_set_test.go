@@ -19,33 +19,18 @@ func TestContextSet_IsKnown(t *testing.T) {
 	if !cs.IsKnown(42) {
 		t.Fatal("expected second lookup to return true")
 	}
-	if cs.Len() != 1 {
-		t.Fatalf("expected Len=1, got %d", cs.Len())
-	}
 }
 
-func TestContextSet_Remove(t *testing.T) {
+func TestContextSet_NoFalseNegatives(t *testing.T) {
 	cs := newContextSet(0)
-	cs.IsKnown(42)
-	cs.IsKnown(43)
-	if cs.Len() != 2 {
-		t.Fatalf("expected Len=2, got %d", cs.Len())
+	// Insert 10K keys, verify all are known.
+	for i := uint64(0); i < 10_000; i++ {
+		cs.IsKnown(i)
 	}
-	cs.Remove(42)
-	if cs.Len() != 1 {
-		t.Fatalf("expected Len=1 after Remove, got %d", cs.Len())
-	}
-	// Removed key should be unknown again.
-	if cs.IsKnown(42) {
-		t.Fatal("expected key 42 to be unknown after Remove")
-	}
-	if cs.Len() != 2 {
-		t.Fatalf("expected Len=2 after re-insert, got %d", cs.Len())
-	}
-	// Remove of non-existent key is a no-op.
-	cs.Remove(999)
-	if cs.Len() != 2 {
-		t.Fatalf("expected Len=2 after no-op Remove, got %d", cs.Len())
+	for i := uint64(0); i < 10_000; i++ {
+		if !cs.IsKnown(i) {
+			t.Fatalf("false negative for key %d", i)
+		}
 	}
 }
 
@@ -54,42 +39,31 @@ func TestContextSet_Reset(t *testing.T) {
 	for i := uint64(0); i < 100; i++ {
 		cs.IsKnown(i)
 	}
-	if cs.Len() != 100 {
-		t.Fatalf("expected Len=100, got %d", cs.Len())
-	}
 	cs.Reset()
-	if cs.Len() != 0 {
-		t.Fatalf("expected Len=0 after reset, got %d", cs.Len())
-	}
 	// After reset, keys should be unknown again.
 	if cs.IsKnown(42) {
 		t.Fatal("expected key to be unknown after reset")
 	}
 }
 
-func TestContextSet_CheckCap(t *testing.T) {
-	cs := newContextSet(10)
-	for i := uint64(0); i <= 10; i++ {
-		cs.IsKnown(i)
-	}
-	if cs.Len() != 11 {
-		t.Fatalf("expected Len=11, got %d", cs.Len())
-	}
-	if !cs.CheckCap() {
-		t.Fatal("expected CheckCap to return true when over cap")
-	}
-	if cs.Len() != 0 {
-		t.Fatalf("expected Len=0 after CheckCap reset, got %d", cs.Len())
+func TestContextSet_RemoveIsNoOp(t *testing.T) {
+	cs := newContextSet(0)
+	cs.IsKnown(42)
+	cs.Remove(42) // no-op for bloom filter
+	// Key should still be known (bloom filters don't support deletion).
+	if !cs.IsKnown(42) {
+		t.Fatal("expected key to still be known after Remove (bloom filter)")
 	}
 }
 
-func TestContextSet_CheckCap_NoCap(t *testing.T) {
-	cs := newContextSet(0)
-	for i := uint64(0); i < 100; i++ {
+func TestContextSet_CheckCapAlwaysFalse(t *testing.T) {
+	cs := newContextSet(10)
+	for i := uint64(0); i <= 100; i++ {
 		cs.IsKnown(i)
 	}
+	// Bloom filter has fixed size — CheckCap never triggers.
 	if cs.CheckCap() {
-		t.Fatal("expected CheckCap to return false when cap=0")
+		t.Fatal("expected CheckCap to return false for bloom filter")
 	}
 }
 
@@ -110,38 +84,39 @@ func TestContextSet_Concurrent(t *testing.T) {
 	}
 	wg.Wait()
 
-	expected := int64(goroutines * keysPerGoroutine)
-	if cs.Len() != expected {
-		t.Fatalf("expected Len=%d, got %d", expected, cs.Len())
+	// Verify all keys are known (no false negatives).
+	for g := uint64(0); g < goroutines; g++ {
+		for i := uint64(0); i < keysPerGoroutine; i++ {
+			if !cs.IsKnown(g*keysPerGoroutine + i) {
+				t.Fatalf("false negative for key %d after concurrent insert", g*keysPerGoroutine+i)
+			}
+		}
 	}
 }
 
-func TestContextSet_ConcurrentOverlapping(t *testing.T) {
+func TestContextSet_FalsePositiveRate(t *testing.T) {
 	cs := newContextSet(0)
-	const goroutines = 16
-	const keys = 1000
-
-	// All goroutines insert the same key range — each key should be counted once.
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-	for g := 0; g < goroutines; g++ {
-		go func() {
-			defer wg.Done()
-			for i := uint64(0); i < keys; i++ {
-				cs.IsKnown(i)
-			}
-		}()
+	// Insert 100K keys.
+	for i := uint64(0); i < 100_000; i++ {
+		cs.IsKnown(i)
 	}
-	wg.Wait()
-
-	if cs.Len() != keys {
-		t.Fatalf("expected Len=%d, got %d", keys, cs.Len())
+	// Test 100K keys that were NOT inserted. FPR should be ~1%.
+	fps := 0
+	for i := uint64(1_000_000); i < 1_100_000; i++ {
+		if cs.IsKnown(i) {
+			fps++
+		}
 	}
+	fpr := float64(fps) / 100_000.0
+	// Allow up to 3% (generous margin over theoretical 1%).
+	if fpr > 0.03 {
+		t.Fatalf("false positive rate too high: %.2f%% (%d/100000)", fpr*100, fps)
+	}
+	t.Logf("FPR at 100K elements: %.2f%% (%d/100000)", fpr*100, fps)
 }
 
 func BenchmarkContextSet_IsKnown_Hit(b *testing.B) {
 	cs := newContextSet(0)
-	// Pre-populate
 	for i := uint64(0); i < 200_000; i++ {
 		cs.IsKnown(i)
 	}
@@ -158,26 +133,5 @@ func BenchmarkContextSet_IsKnown_Miss(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cs.IsKnown(uint64(i))
-	}
-}
-
-func BenchmarkSyncMap_LoadOrStore_Hit(b *testing.B) {
-	var m sync.Map
-	for i := uint64(0); i < 200_000; i++ {
-		m.LoadOrStore(i, struct{}{})
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.LoadOrStore(uint64(i%200_000), struct{}{})
-	}
-}
-
-func BenchmarkSyncMap_LoadOrStore_Miss(b *testing.B) {
-	var m sync.Map
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.LoadOrStore(uint64(i), struct{}{})
 	}
 }
