@@ -56,6 +56,24 @@ func DefaultDensityConfig() DensityConfig {
 	}
 }
 
+// readDensityConfig reads Density settings from the agent config.
+func readDensityConfig(reader ConfigReader, prefix string) any {
+	cfg := DefaultDensityConfig()
+	if key := prefix + "min_unique_sources"; reader.IsKnown(key) {
+		cfg.MinUniqueSources = reader.GetInt(key)
+	}
+	if key := prefix + "min_burst"; reader.IsKnown(key) {
+		cfg.MinBurst = reader.GetInt(key)
+	}
+	if key := prefix + "short_window_sec"; reader.IsKnown(key) {
+		cfg.ShortWindowSec = int64(reader.GetInt(key))
+	}
+	if key := prefix + "long_window_sec"; reader.IsKnown(key) {
+		cfg.LongWindowSec = int64(reader.GetInt(key))
+	}
+	return cfg
+}
+
 // densityBurst is an active burst in the sliding window.
 type densityBurst struct {
 	id                  int
