@@ -123,7 +123,6 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 		Signature: sig,
 		Pattern:   tokens,
 		Count:     1,
-		Tags:      make(map[string]string),
 		Samples:   []string{message},
 		ID:        sc.IDComputeInfo.NextID(),
 	}
@@ -141,7 +140,10 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) *ClusterResult {
 	message := sc.TextGetter(doc)
 	result := sc.Process(message)
-	if result != nil && result.IsNew {
+	if result != nil && result.IsNew && len(sc.TagGetters) > 0 {
+		if result.Cluster.Tags == nil {
+			result.Cluster.Tags = make(map[string]string)
+		}
 		for tagName, getter := range sc.TagGetters {
 			result.Cluster.Tags[tagName] = getter(doc)
 		}
@@ -238,7 +240,6 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		Signature: sig,
 		Pattern:   tokens,
 		Count:     1,
-		Tags:      make(map[string]string),
 		Samples:   []string{message},
 		ID:        pc.IDComputeInfo.NextID(),
 	}
