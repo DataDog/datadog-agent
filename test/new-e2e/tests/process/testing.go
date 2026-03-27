@@ -27,6 +27,9 @@ var processCheckConfigStr string
 //go:embed config/process_discovery_check.yaml
 var processDiscoveryCheckConfigStr string
 
+//go:embed config/discovery_disabled.yaml
+var discoveryDisabledConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 

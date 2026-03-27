@@ -164,7 +164,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(discoveryDisabledConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process_discovery"}, false)
