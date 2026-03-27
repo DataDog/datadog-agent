@@ -216,8 +216,6 @@ else
   echo "=========================================="
   echo "Datadog Agent GUI"
   echo "=========================================="
-  echo "The menu bar icon is hidden by default (headless GUI for WiFi metrics)."
-  echo "When installing via install_mac_os.sh, set DD_GUI_APP_MENU_ENABLED=true to show it."
   echo ""
   echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
   echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"

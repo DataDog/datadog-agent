@@ -87,7 +87,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     - !reference [.except_mergequeue]
     - when: on_success
   extends: .windows_docker_default
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: "x64"
   script:

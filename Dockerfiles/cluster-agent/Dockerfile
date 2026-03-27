@@ -102,7 +102,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/ \
-    && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
+    # Keep the PAR config read-only, but group-readable so init-volume can copy
+    # it on OpenShift where containers run with a random UID in the root group.
+    && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so

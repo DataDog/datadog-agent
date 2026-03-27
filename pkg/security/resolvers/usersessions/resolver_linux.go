@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // UserSessionKey describes the key to a user session
@@ -76,7 +77,7 @@ type incrementalFileReader struct {
 // SSHSessionKey describes the key to a ssh session in the LRU
 type SSHSessionKey struct {
 	SSHDPid string
-	IP      string // net.IP.String()
+	IP      string // GetIpStringFromIPNet is used
 	Port    string
 }
 
@@ -335,7 +336,7 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 		}
 		key := SSHSessionKey{
 			SSHDPid: sshLogLine.SSHDPid,
-			IP:      parsedIP.String(),
+			IP:      utils.GetIPStringFromIPNet(net.IPNet{IP: parsedIP}),
 			Port:    sshParsedLine.Port,
 		}
 		value := SSHSessionValue{

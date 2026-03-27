@@ -130,6 +130,7 @@ enum SYSCALL_STATE
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
     SAMPLED,         // sampled
+    INTERNAL,        // internal event
 };
 
 enum MONITOR_KEYS

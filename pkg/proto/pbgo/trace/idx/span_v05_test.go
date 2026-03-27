@@ -231,3 +231,9 @@ func TestUnmarshalMsgDictionaryLimitsSize(t *testing.T) {
 		})
 	}
 }
+
+func TestUnmarshalMsgDictionaryRejectsInvalidStringRef(t *testing.T) {
+	var tp InternalTracerPayload
+	err := tp.UnmarshalMsgDictionary([]byte("\x91\x90\x91\x91\x9c\x0000000000\x80\x800"))
+	assert.EqualError(t, err, "dictionary index 0 out of range")
+}

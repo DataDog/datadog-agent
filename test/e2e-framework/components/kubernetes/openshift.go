@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
 
+const crcVersion = "2.58.0"
+
 func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath string, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		openShiftClusterName := env.CommonNamer().DisplayName(49)
@@ -98,7 +100,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.String("crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
+			Create: pulumi.String("crc config set disk-size 100 && crc config set cpus 12 && crc config set memory 32768 && crc setup"),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
 		if err != nil {
 			return err
@@ -209,7 +211,7 @@ func InstallOpenShiftBinary(env config.Env, vm *remote.Host, opts ...pulumi.Reso
 	return vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("crc-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(`curl -fsSL https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/2.52.0/crc-linux-%s.tar.xz | \
-	sudo tar -xJ -C /usr/local/bin --strip-components=1 crc-linux-2.52.0-%s/crc`, openShiftArch, openShiftArch),
+			Create: pulumi.Sprintf(`curl -fsSL https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/%s/crc-linux-%s.tar.xz | \
+	sudo tar -xJ -C /usr/local/bin --strip-components=1 crc-linux-%s-%s/crc`, crcVersion, openShiftArch, crcVersion, openShiftArch),
 		}, opts...)
 }

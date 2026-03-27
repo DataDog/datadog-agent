@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.7.0
+install_script_version=1.6.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -669,7 +669,7 @@ fi
 # Per-user GUI: plist has --headless by default; optionally strip it and reload launchd here
 user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
 if [ "$systemdaemon_install" = false ] && [ "$gui_app_menu_enabled" = true ] && [ -f "$user_gui_plist" ]; then
-    printf "${BLUE}\n    - Enabling menu bar GUI (DD_GUI_APP_MENU_ENABLED=true)...\n${NC}"
+    printf "${BLUE}\n    - Enabling menu bar GUI...\n${NC}"
     $sudo_cmd sed -i '' '/<string>--headless<\/string>/d' "$user_gui_plist"
     # Restart the GUI so it picks up the updated plist without --headless
     $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true

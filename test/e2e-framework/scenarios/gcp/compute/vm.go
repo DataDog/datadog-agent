@@ -29,14 +29,27 @@ func NewVM(e gcp.Environment, name string, option ...VMOption) (*remote.Host, er
 		return nil, err
 	}
 
-	imageInfo, err := resolveOS(e, params)
+	imageName, err := resolveOS(e, params)
 	if err != nil {
 		return nil, err
 	}
 
+	readyFunc := command.WaitForSuccessfulConnection
+	startupScript := ""
+	switch params.osInfo.Flavor {
+	case os.Ubuntu, os.Debian:
+		// Wait for cloud-init to finish on Debian-based images before running any
+		// package manager commands. Otherwise early apt operations can race with
+		// boot-time updates on fresh GCE VMs and fail intermittently.
+		readyFunc = command.WaitForCloudInit
+		startupScript = os.APTDisableUnattendedUpgradesScriptContent
+	case os.Suse:
+		startupScript = os.ZypperDisableUnattendedUpgradesScriptContent
+	}
+
 	return components.NewComponent(&e, name, func(h *remote.Host) error {
 		h.CloudProvider = pulumi.String(components.CloudProviderGCP).ToStringOutput()
-		vm, err := compute.NewLinuxInstance(e, e.Namer.ResourceName(name), imageInfo.name, params.instanceType, params.nestedVirt, pulumi.Parent(h))
+		vm, err := compute.NewLinuxInstance(e, e.Namer.ResourceName(name), imageName, startupScript, params.instanceType, params.nestedVirt, pulumi.Parent(h))
 		if err != nil {
 			return err
 		}
@@ -53,7 +66,7 @@ func NewVM(e gcp.Environment, name string, option ...VMOption) (*remote.Host, er
 			return err
 		}
 
-		return remote.InitHost(&e, conn.ToConnectionOutput(), *params.osInfo, "gce", pulumi.String("").ToStringOutput(), command.WaitForSuccessfulConnection, h)
+		return remote.InitHost(&e, conn.ToConnectionOutput(), *params.osInfo, "gce", pulumi.String("").ToStringOutput(), readyFunc, h)
 	})
 }
 
@@ -69,22 +82,17 @@ func defaultVMArgs(e gcp.Environment, vmArgs *vmArgs) error {
 	return nil
 }
 
-type imageInfo struct {
-	name string
-}
-
-func resolveOS(e gcp.Environment, vmArgs *vmArgs) (imageInfo, error) {
+func resolveOS(e gcp.Environment, vmArgs *vmArgs) (string, error) {
 	if vmArgs.imageName == "" {
 		resolver, ok := imageResolvers[vmArgs.osInfo.Flavor]
 		if !ok {
-			return imageInfo{}, fmt.Errorf("unsupported OS flavor %v", vmArgs.osInfo.Flavor)
+			return "", fmt.Errorf("unsupported OS flavor %v", vmArgs.osInfo.Flavor)
 		}
 		image, err := resolver(e, *vmArgs.osInfo)
 		if err != nil {
-			return imageInfo{}, err
+			return "", err
 		}
-		return imageInfo{name: image}, nil
+		return image, nil
 	}
-	return imageInfo{name: vmArgs.imageName}, nil
-
+	return vmArgs.imageName, nil
 }
