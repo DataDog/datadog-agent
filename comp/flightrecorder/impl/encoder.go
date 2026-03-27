@@ -107,7 +107,17 @@ func (p *builderPool) get() *flatbuffers.Builder {
 	return p.pool.Get().(*flatbuffers.Builder)
 }
 
+// maxRetainedBuilderBytes is the maximum builder backing-buffer size to keep
+// in the pool. Builders that grew beyond this are discarded on put, limiting
+// the peak retained memory from the pool to ~256 KB per pooled builder.
+const maxRetainedBuilderBytes = 256 * 1024
+
 func (p *builderPool) put(b *flatbuffers.Builder) {
+	// FinishedBytes length reflects the current buffer usage. If the builder
+	// grew large (from a one-off big batch), drop it instead of pooling.
+	if len(b.FinishedBytes()) > maxRetainedBuilderBytes {
+		return
+	}
 	b.Reset()
 	p.pool.Put(b)
 }
@@ -126,11 +136,14 @@ func EncodeMetricBatch(samples []capturedMetric) ([]byte, error) {
 // EncodeSplitMetricBatch encodes metrics from two ring buffers: context
 // definitions (with strings) and data points (compact, no strings).
 // Definitions are encoded first so the sidecar sees them before references.
+// EncodeSplitMetricBatch encodes metrics from two ring buffers.
+// Returns the builder with FinishSizePrefixed data. The caller must
+// send b.FinishedBytes() then call pool.put(b) to recycle the builder.
 func EncodeSplitMetricBatch(
 	pool *builderPool,
 	defs []contextDef, defTail, defCount, defCap int,
 	pts []metricPoint, ptTail, ptCount, ptCap int,
-) ([]byte, error) {
+) (*flatbuffers.Builder, error) {
 	total := defCount + ptCount
 	b := pool.get()
 
@@ -209,11 +222,9 @@ func EncodeSplitMetricBatch(
 	signals.SignalEnvelopeAddPayload(b, batchOff)
 	envOff := signals.SignalEnvelopeEnd(b)
 
-	b.Finish(envOff)
+	b.FinishSizePrefixed(envOff)
 
-	result := sizePrefixed(b.FinishedBytes())
-	pool.put(b)
-	return result, nil
+	return b, nil
 }
 
 // encodeMetricBatchWith uses the provided builder.
@@ -291,7 +302,10 @@ func EncodeLogBatch(entries []capturedLog) ([]byte, error) {
 }
 
 // EncodeLogBatchRing encodes logs directly from a ring buffer segment, using a pooled builder.
-func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capacity int) ([]byte, error) {
+// EncodeLogBatchRing encodes logs directly from a ring buffer segment.
+// Returns the builder with FinishSizePrefixed data. The caller must
+// send b.FinishedBytes() then call pool.put(b) to recycle the builder.
+func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capacity int) (*flatbuffers.Builder, error) {
 	b := pool.get()
 
 	var tagBuf []flatbuffers.UOffsetT
@@ -344,11 +358,9 @@ func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capac
 	signals.SignalEnvelopeAddPayload(b, batchOff)
 	envOff := signals.SignalEnvelopeEnd(b)
 
-	b.Finish(envOff)
+	b.FinishSizePrefixed(envOff)
 
-	result := sizePrefixed(b.FinishedBytes())
-	pool.put(b)
-	return result, nil
+	return b, nil
 }
 
 func encodeLogBatchWith(b *flatbuffers.Builder, entries []capturedLog) ([]byte, error) {
@@ -411,7 +423,10 @@ func encodeLogBatchWith(b *flatbuffers.Builder, entries []capturedLog) ([]byte, 
 // ---------------------------------------------------------------------------
 
 // EncodeTraceStatsBatchRing encodes trace stats directly from a ring buffer segment, using a pooled builder.
-func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail, count, capacity int) ([]byte, error) {
+// EncodeTraceStatsBatchRing encodes trace stats directly from a ring buffer segment.
+// Returns the builder with FinishSizePrefixed data. The caller must
+// send b.FinishedBytes() then call pool.put(b) to recycle the builder.
+func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail, count, capacity int) (*flatbuffers.Builder, error) {
 	b := pool.get()
 
 	entryOffsets := make([]flatbuffers.UOffsetT, count)
@@ -478,11 +493,9 @@ func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail,
 	signals.SignalEnvelopeAddPayload(b, batchOff)
 	envOff := signals.SignalEnvelopeEnd(b)
 
-	b.Finish(envOff)
+	b.FinishSizePrefixed(envOff)
 
-	result := sizePrefixed(b.FinishedBytes())
-	pool.put(b)
-	return result, nil
+	return b, nil
 }
 
 // ---------------------------------------------------------------------------
