@@ -100,17 +100,17 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 
 func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
-		id:               id,
-		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
-		seendByMtype:     make([]bool, metrics.NumMetricTypes),
-		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
-		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
-		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
-		tagsCache:        cache,
-		tagger:           tagger,
-		keyGenerator:     ckey.NewKeyGenerator(),
-		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
-		metricBuffer:     tagset.NewHashingTagsAccumulator(),
+		id:                id,
+		contextsByKey:     make(map[ckey.ContextKey]resolverEntry),
+		seendByMtype:      make([]bool, metrics.NumMetricTypes),
+		countsByMtype:     make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:      make([]uint64, metrics.NumMetricTypes),
+		dataBytesByMtype:  make([]uint64, metrics.NumMetricTypes),
+		tagsCache:         cache,
+		tagger:            tagger,
+		keyGenerator:      ckey.NewKeyGenerator(),
+		taggerBuffer:      tagset.NewHashingTagsAccumulator(),
+		metricBuffer:      tagset.NewHashingTagsAccumulator(),
 		stripCache:        make(map[ckey.ContextKey]stripCacheEntry),
 		stripCacheReverse: make(map[ckey.ContextKey][]ckey.ContextKey),
 	}
