@@ -19,6 +19,7 @@ import (
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
 	cmddogstatsdreplay "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay"
 	cmddogstatsdstats "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdstats"
+	cmdextractpatterns "github.com/DataDog/datadog-agent/cmd/agent/subcommands/extractpatterns"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/agent/subcommands/flare"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
@@ -60,6 +61,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdimport.Commands,
 		cmdlaunchgui.Commands,
 		cmdanalyzelogs.Commands,
+		cmdextractpatterns.Commands,
 		cmdremoteconfig.Commands,
 		cmdrun.Commands,
 		cmdsecret.Commands,
