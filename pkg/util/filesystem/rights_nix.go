@@ -25,11 +25,11 @@ func CheckRights(path string, allowGroupExec bool) error {
 	}
 
 	if allowGroupExec {
-		if stat.Mode&(syscall.S_IWGRP|syscall.S_IRWXO) != 0 {
+		if stat.Mode&(unix.S_IWGRP|unix.S_IRWXO) != 0 {
 			return fmt.Errorf("invalid executable '%s', 'others' have rights on it or 'group' has write permissions on it", path)
 		}
 	} else {
-		if stat.Mode&(syscall.S_IRWXG|syscall.S_IRWXO) != 0 {
+		if stat.Mode&(unix.S_IRWXG|unix.S_IRWXO) != 0 {
 			return fmt.Errorf("invalid executable '%s', 'group' or 'others' have rights on it", path)
 		}
 	}
