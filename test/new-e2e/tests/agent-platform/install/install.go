@@ -28,17 +28,9 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
-		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", params.PipelineID, params.MajorVersion))
-		if params.TestingKeysURL != "" {
-			testEnvVars = append(testEnvVars, "TESTING_KEYS_URL="+params.TestingKeysURL)
-		}
-		// apt testing repo
-		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%v %v"`, params.Arch, params.MajorVersion))
-		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yumtesting.datad0g.com")
-		// yum testing repo
-		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
+		testEnvVars = append(testEnvVars, "DD_REPO_URL=datad0g.com")
+		testEnvVars = append(testEnvVars, "DD_AGENT_DIST_CHANNEL=beta")
+		testEnvVars = append(testEnvVars, "DD_AGENT_MINOR_VERSION=74.0~rc.5")
 		commandLine = strings.Join(testEnvVars, " ")
 	} else {
 		commandLine = "DD_AGENT_MAJOR_VERSION=" + params.MajorVersion
