@@ -53,7 +53,9 @@ func buildExporters(conf confMap, agent configManager) []any {
 
 	createOtlpHTTPFromEndpoint := func(site, key string) confMap {
 		headers := confMap{
-			"dd-api-key": key,
+			"dd-api-key":            key,
+			"dd-evp-origin":         version.ProfilerName,
+			"dd-evp-origin-version": version.ProfilerVersion,
 		}
 		if tags := os.Getenv("DD_TAGS"); tags != "" {
 			headers["x-datadog-additional-tags"] = tags

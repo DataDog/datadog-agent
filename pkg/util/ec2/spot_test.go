@@ -102,6 +102,105 @@ func TestIsSpotInstance(t *testing.T) {
 	}
 }
 
+func TestGetRebalanceRecommendationTime(t *testing.T) {
+	ctx := context.Background()
+	configmock.New(t)
+
+	tests := []struct {
+		name               string
+		instanceLifeCycle  string
+		rebalanceCode      int
+		rebalanceBody      string
+		expectedTime       time.Time
+		expectError        bool
+		expectNotSpotError bool
+		errorContains      string
+	}{
+		{
+			name:              "valid rebalance recommendation",
+			instanceLifeCycle: "spot",
+			rebalanceCode:     http.StatusOK,
+			rebalanceBody:     `{"noticeTime": "2020-10-27T08:22:00Z"}`,
+			expectedTime:      time.Date(2020, 10, 27, 8, 22, 0, 0, time.UTC),
+			expectError:       false,
+		},
+		{
+			name:              "no rebalance recommendation (404)",
+			instanceLifeCycle: "spot",
+			rebalanceCode:     http.StatusNotFound,
+			rebalanceBody:     "",
+			expectError:       true,
+			errorContains:     "unable to retrieve rebalance recommendation",
+		},
+		{
+			name:              "invalid JSON response",
+			instanceLifeCycle: "spot",
+			rebalanceCode:     http.StatusOK,
+			rebalanceBody:     `not valid json`,
+			expectError:       true,
+			errorContains:     "unable to parse rebalance recommendation response",
+		},
+		{
+			name:              "invalid time format",
+			instanceLifeCycle: "spot",
+			rebalanceCode:     http.StatusOK,
+			rebalanceBody:     `{"noticeTime": "invalid-time"}`,
+			expectError:       true,
+			errorContains:     "unable to parse rebalance notice time",
+		},
+		{
+			name:               "not a spot instance",
+			instanceLifeCycle:  "on-demand",
+			rebalanceCode:      http.StatusOK,
+			rebalanceBody:      `{"noticeTime": "2020-10-27T08:22:00Z"}`,
+			expectError:        true,
+			expectNotSpotError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.Method {
+				case http.MethodPut:
+					io.WriteString(w, testIMDSToken)
+				case http.MethodGet:
+					if strings.HasSuffix(r.URL.Path, "/instance-life-cycle") {
+						io.WriteString(w, tt.instanceLifeCycle)
+					} else if strings.HasSuffix(r.URL.Path, "/events/recommendations/rebalance") {
+						if tt.rebalanceCode != http.StatusOK {
+							w.WriteHeader(tt.rebalanceCode)
+							return
+						}
+						io.WriteString(w, tt.rebalanceBody)
+					}
+				}
+			}))
+			defer ts.Close()
+
+			ec2internal.MetadataURL = ts.URL
+			ec2internal.TokenURL = ts.URL
+			ec2internal.Token = httputils.NewAPIToken(ec2internal.GetToken)
+			defer resetSpotTestVars()
+
+			noticeTime, err := GetRebalanceRecommendationTime(ctx)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.expectNotSpotError {
+					assert.True(t, errors.Is(err, ErrNotSpotInstance), "expected ErrNotSpotInstance, got: %v", err)
+				} else {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedTime, noticeTime)
+			}
+		})
+	}
+}
+
 func TestGetSpotTerminationTime(t *testing.T) {
 	ctx := context.Background()
 	configmock.New(t)
