@@ -3,19 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package fx provides the fx module for the formatter component.
+//go:build test
+
 package fx
 
 import (
-	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
+	"go.uber.org/fx"
+
 	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
+// MockModule provides a dummy formatter that just hashes packets for testing.
+func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(formatterimpl.NewComponent),
-		fxutil.ProvideOptional[formatter.Component](),
+		fx.Provide(formatterimpl.NewDummyFormatter),
 	)
 }
