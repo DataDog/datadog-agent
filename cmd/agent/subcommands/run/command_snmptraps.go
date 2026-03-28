@@ -11,7 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 )
 
 func getSnmptrapsOptions() fx.Option {
