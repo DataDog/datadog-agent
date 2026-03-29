@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
+	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
