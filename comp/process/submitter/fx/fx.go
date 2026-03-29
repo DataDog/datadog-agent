@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	submitterimpl "github.com/DataDog/datadog-agent/comp/process/submitter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -16,6 +14,6 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(submitterimpl.NewComponent),
+		fxutil.ProvideComponentConstructor(submitterimpl.NewComponent),
 	)
 }
