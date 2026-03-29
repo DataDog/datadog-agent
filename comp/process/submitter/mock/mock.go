@@ -7,7 +7,11 @@
 // supported Datadog intakes.
 package submitter
 
+import (
+	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
+)
+
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	submitter.Component
 }
