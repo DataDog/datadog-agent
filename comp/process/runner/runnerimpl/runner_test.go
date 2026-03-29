@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -118,8 +119,10 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		hostinfomock.MockModule(),
 
 		// Checks
-		fx.Provide(processcheckimpl.NewMock),
-		containercheckimpl.MockModule(),
+		processcheckimpl.MockModule(),
+		fx.Provide(func(t testing.TB) types.ProvidesCheck {
+			return containercheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ContainerCheck]{})
+		}),
 
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
