@@ -561,9 +561,6 @@ func batchConnections(
 			if c.IntraHost && c.Laddr.ContainerId == "" {
 				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
 					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
-					//TODO: remove this before merging!!!!!!!!!!!!!!!!!!!!!!!
-					log.Debugf("remote service tags: pid=%d -> raddr.port=%d remoteServiceTagsIdx=%d tags=%v",
-						c.Pid, c.Raddr.Port, c.RemoteServiceTagsIdx, remoteTags)
 				}
 			}
 
