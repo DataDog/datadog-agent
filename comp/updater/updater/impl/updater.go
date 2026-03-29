@@ -11,15 +11,13 @@ import (
 	"errors"
 	"fmt"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
-	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
+	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -27,16 +25,9 @@ var (
 	errRemoteConfigRequired = errors.New("remote config is required to create the updater")
 )
 
-// Module is the fx module for the updater.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newUpdaterComponent),
-	)
-}
-
-// dependencies contains the dependencies to build the updater.
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the updater component.
+type Requires struct {
+	Lifecycle compdef.Lifecycle
 
 	Hostname     hostname.Component
 	Log          log.Component
@@ -44,19 +35,25 @@ type dependencies struct {
 	RemoteConfig option.Option[rcservice.Component]
 }
 
-func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercomp.Component, error) {
-	remoteConfig, ok := dependencies.RemoteConfig.Get()
+// Provides defines the output of the updater component.
+type Provides struct {
+	Comp updatercomp.Component
+}
+
+// NewComponent creates a new updater component.
+func NewComponent(reqs Requires) (Provides, error) {
+	remoteConfig, ok := reqs.RemoteConfig.Get()
 	if !ok {
-		return nil, errRemoteConfigRequired
+		return Provides{}, errRemoteConfigRequired
 	}
-	hostname, err := dependencies.Hostname.Get(context.Background())
+	hostname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("could not get hostname: %w", err)
+		return Provides{}, fmt.Errorf("could not get hostname: %w", err)
 	}
-	daemon, err := daemon.NewDaemon(hostname, remoteConfig, dependencies.Config)
+	d, err := daemon.NewDaemon(hostname, remoteConfig, reqs.Config)
 	if err != nil {
-		return nil, fmt.Errorf("could not create updater: %w", err)
+		return Provides{}, fmt.Errorf("could not create updater: %w", err)
 	}
-	lc.Append(fx.Hook{OnStart: daemon.Start, OnStop: daemon.Stop})
-	return daemon, nil
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: d.Start, OnStop: d.Stop})
+	return Provides{Comp: d}, nil
 }
