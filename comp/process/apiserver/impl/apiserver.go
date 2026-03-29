@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package apiserver
+// Package apiserverimpl initializes the api server that powers many subcommands.
+package apiserverimpl
 
 import (
 	"context"
@@ -19,12 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-var _ Component = (*apiserver)(nil)
+var _ apiserver.Component = (*apiserverImpl)(nil)
 
-type apiserver struct {
+type apiserverImpl struct {
 	server *http.Server
 }
 
@@ -40,8 +42,10 @@ type dependencies struct {
 	APIServerDeps api.APIServerDeps
 }
 
+// NewComponent creates a new apiserver component.
+//
 //nolint:revive // TODO(PROC) Fix revive linter
-func newApiServer(deps dependencies) Component {
+func NewComponent(deps dependencies) apiserver.Component {
 	r := mux.NewRouter()
 	r.Use(deps.IPC.HTTPMiddleware)
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
@@ -53,7 +57,7 @@ func newApiServer(deps dependencies) Component {
 	deps.Log.Infof("API server listening on %s", addr)
 	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("server_timeout")) * time.Second
 
-	apiserver := &apiserver{
+	s := &apiserverImpl{
 		server: &http.Server{
 			Handler:      r,
 			Addr:         addr,
@@ -71,7 +75,7 @@ func newApiServer(deps dependencies) Component {
 			}
 			go func() {
 				tlsListener := tls.NewListener(ln, deps.IPC.GetTLSServerConfig())
-				err = apiserver.server.Serve(tlsListener)
+				err = s.server.Serve(tlsListener)
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					_ = deps.Log.Error(err)
 				}
@@ -80,7 +84,7 @@ func newApiServer(deps dependencies) Component {
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			err := apiserver.server.Shutdown(ctx)
+			err := s.server.Shutdown(ctx)
 			if err != nil {
 				_ = deps.Log.Error("Failed to properly shutdown api server:", err)
 			}
@@ -89,5 +93,5 @@ func newApiServer(deps dependencies) Component {
 		},
 	})
 
-	return apiserver
+	return s
 }

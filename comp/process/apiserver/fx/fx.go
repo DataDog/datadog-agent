@@ -3,23 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package apiserver initializes the api server that powers many subcommands.
-package apiserver
+// Package fx provides the fx module for the apiserver component.
+package fx
 
 import (
-	"go.uber.org/fx"
-
+	apiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// team: container-experiences
-
-//nolint:revive // TODO(PROC) Fix revive linter
-type Component interface {
-}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newApiServer))
+		fxutil.ProvideComponentConstructor(
+			apiserverimpl.NewComponent,
+		),
+	)
 }
