@@ -13,5 +13,7 @@ import (
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return connectionscheckimpl.Module()
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(connectionscheckimpl.NewCheck),
+	)
 }
