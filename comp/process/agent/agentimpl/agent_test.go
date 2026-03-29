@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
+runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -66,7 +66,7 @@ func TestProcessAgentComponent(t *testing.T) {
 			}()
 
 			opts := []fx.Option{
-				runnerimpl.Module(),
+				runnerfx.Module(),
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				taggerfxmock.MockModule(),

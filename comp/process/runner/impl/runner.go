@@ -17,7 +17,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -28,13 +28,7 @@ import (
 // for testing
 var agentEnabled = agent.Enabled
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRunner))
-}
-
-// runner implements the Component.
+// runnerImpl implements the Component.
 type runnerImpl struct {
 	checkRunner    *processRunner.CheckRunner
 	providedChecks []types.CheckComponent
@@ -55,7 +49,8 @@ type dependencies struct {
 	Tagger   tagger.Component
 }
 
-func newRunner(deps dependencies) (runner.Component, error) {
+// NewComponent creates a new runner component.
+func NewComponent(deps dependencies) (runner.Component, error) {
 	checks := fxutil.GetAndFilterGroup(deps.Checks)
 	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
