@@ -81,7 +81,6 @@ func (r *runnerImpl) stop(context.Context) error {
 }
 
 // filterNilChecks removes nil values from an fx group of CheckComponent.
-// This mirrors the behavior of fxutil.GetAndFilterGroup for interface slices.
 func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
 	result := make([]types.CheckComponent, 0, len(group))
 	for _, item := range group {
