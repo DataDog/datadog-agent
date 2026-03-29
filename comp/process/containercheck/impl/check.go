@@ -16,14 +16,7 @@ import (
 	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newCheck))
-}
 
 var _ types.CheckComponent = (*check)(nil)
 
@@ -47,7 +40,8 @@ type result struct {
 	Component containercheck.Component
 }
 
-func newCheck(deps dependencies) result {
+// NewCheck creates a new containercheck component.
+func NewCheck(deps dependencies) result {
 	c := &check{
 		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
 	}
