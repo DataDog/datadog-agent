@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // for testing
@@ -50,7 +49,7 @@ type dependencies struct {
 
 // NewComponent creates a new runner component.
 func NewComponent(deps dependencies) (runner.Component, error) {
-	checks := fxutil.GetAndFilterGroup(deps.Checks)
+	checks := filterNilChecks(deps.Checks)
 	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
@@ -79,6 +78,18 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
+}
+
+// filterNilChecks removes nil values from an fx group of CheckComponent.
+// This mirrors the behavior of fxutil.GetAndFilterGroup for interface slices.
+func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
+	result := make([]types.CheckComponent, 0, len(group))
+	for _, item := range group {
+		if item != nil {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
