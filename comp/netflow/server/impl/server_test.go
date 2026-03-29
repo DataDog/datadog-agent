@@ -32,7 +32,6 @@ import (
 	nfconfigmock "github.com/DataDog/datadog-agent/comp/netflow/config/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
-	serverfx "github.com/DataDog/datadog-agent/comp/netflow/server/fx"
 )
 
 type dummyFlowProcessor struct {
@@ -66,7 +65,7 @@ func replaceWithDummyFlowProcessor(srv *Server) *dummyFlowProcessor {
 
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
-	serverfx.Module(),
+	fx.Provide(NewComponent),
 	nfconfigmock.MockModule(),
 	forwarderimpl.MockModule(),
 	demultiplexerimpl.MockModule(),
