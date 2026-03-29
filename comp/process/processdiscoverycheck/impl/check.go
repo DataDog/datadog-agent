@@ -7,7 +7,7 @@
 package processdiscoverycheckimpl
 
 import (
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -20,7 +20,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newCheck))
+		fxutil.ProvideComponentConstructor(newCheck))
 }
 
 var _ types.CheckComponent = (*check)(nil)
@@ -30,14 +30,14 @@ type check struct {
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Config    config.Component
 	Sysconfig sysprobeconfig.Component
 }
 
 type result struct {
-	fx.Out
+	compdef.Out
 
 	Check     types.ProvidesCheck
 	Component processdiscoverycheck.Component
