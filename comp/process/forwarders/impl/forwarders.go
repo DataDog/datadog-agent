@@ -16,19 +16,11 @@ import (
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newForwarders),
-	)
-}
 
 type dependencies struct {
 	fx.In
@@ -46,7 +38,8 @@ type forwardersComp struct {
 	connectionsForwarder connectionsforwarder.Component
 }
 
-func newForwarders(deps dependencies) (forwarders.Component, error) {
+// NewComponent creates a new forwarders component.
+func NewComponent(deps dependencies) (forwarders.Component, error) {
 	config := deps.Config
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {

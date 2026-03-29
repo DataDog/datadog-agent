@@ -15,7 +15,7 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,5 +30,5 @@ func MockModule() fxutil.Module {
 }
 
 func newMockForwarders(deps dependencies) (forwarders.Component, error) {
-	return newForwarders(deps)
+	return NewComponent(deps)
 }
