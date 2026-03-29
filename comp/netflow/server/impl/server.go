@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -29,7 +29,7 @@ import (
 
 // Requires defines the dependencies for the server component.
 type Requires struct {
-	fx.In
+	compdef.In
 	Config        nfconfig.Component
 	Logger        log.Component
 	Demultiplexer demultiplexer.Component
@@ -40,14 +40,14 @@ type Requires struct {
 
 // Provides defines the output of the server component.
 type Provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp           server.Component
 	StatusProvider status.InformationProvider
 }
 
 // NewComponent creates a new netflow server component.
-func NewComponent(lc fx.Lifecycle, deps Requires) (Provides, error) {
+func NewComponent(lc compdef.Lifecycle, deps Requires) (Provides, error) {
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
@@ -83,7 +83,7 @@ func NewComponent(lc fx.Lifecycle, deps Requires) (Provides, error) {
 		}
 
 		// netflow is enabled, so start the server
-		lc.Append(fx.Hook{
+		lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 
 				err := srv.Start()
