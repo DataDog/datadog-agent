@@ -5,22 +5,34 @@
 
 //go:build test
 
-package config
+// Package mock provides a mock for the netflow config component.
+package mock
 
 import (
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	configimpl "github.com/DataDog/datadog-agent/comp/netflow/config/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
+type mockConfigService struct {
+	conf *config.NetflowConfig
+}
+
+func (m *mockConfigService) Get() *config.NetflowConfig {
+	return m.conf
+}
+
+func newMock(conf *config.NetflowConfig, logger log.Component) (configimpl.Provides, error) {
 	if err := conf.SetDefaults("default", logger); err != nil {
-		return nil, err
+		return configimpl.Provides{}, err
 	}
 	// TODO Currently reverse DNS enrichment is disabled by default for the agent but we want it enabled by default for tests.
 	// Move this to conf.SetDefaults() if/when we enable it by default for the agent.
 	conf.ReverseDNSEnrichmentEnabled = true
-	return &configService{conf}, nil
+	return configimpl.Provides{Comp: &mockConfigService{conf}}, nil
 }
 
 // MockModule defines the fx options for the mock component.
@@ -30,5 +42,5 @@ func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),
-		fx.Supply(&NetflowConfig{}))
+		fx.Supply(&config.NetflowConfig{}))
 }
