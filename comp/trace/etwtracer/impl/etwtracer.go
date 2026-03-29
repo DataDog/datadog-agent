@@ -25,17 +25,17 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/alecthomas/units"
-	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 )
 
 type dependencies struct {
-	fx.In
-	Lc  fx.Lifecycle
+	compdef.In
+	Lc  compdef.Lifecycle
 	Log log.Component
 	Etw etw.Component
 }
@@ -64,7 +64,7 @@ func NewComponent(deps dependencies) (etwtracer.Component, error) {
 		apmEtwTracer.magic[idx] = magicHeaderString[idx]
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: apmEtwTracer.start, OnStop: apmEtwTracer.stop})
+	deps.Lc.Append(compdef.Hook{OnStart: apmEtwTracer.start, OnStop: apmEtwTracer.stop})
 	return apmEtwTracer, nil
 }
 

@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -16,6 +14,6 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(etwtracerimpl.NewComponent),
+		fxutil.ProvideComponentConstructor(etwtracerimpl.NewComponent),
 	)
 }
