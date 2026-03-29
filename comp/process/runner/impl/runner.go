@@ -16,7 +16,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -32,10 +32,8 @@ type runnerImpl struct {
 	providedChecks []types.CheckComponent
 }
 
-// Requires defines the dependencies for the runner component.
-type Requires struct {
+type dependencies struct {
 	compdef.In
-
 	Lc  compdef.Lifecycle
 	Log log.Component
 
@@ -50,21 +48,21 @@ type Requires struct {
 }
 
 // NewComponent creates a new runner component.
-func NewComponent(reqs Requires) (runner.Component, error) {
-	filteredChecks := runner.FilterNilChecks(reqs.Checks)
-	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(filteredChecks), reqs.RTNotifier)
+func NewComponent(deps dependencies) (runner.Component, error) {
+	checks := filterNilChecks(deps.Checks)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
-	c.Submitter = reqs.Submitter
+	c.Submitter = deps.Submitter
 
 	runnerComponent := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: filteredChecks,
+		providedChecks: checks,
 	}
 
-	if agentEnabled(reqs.Config, reqs.Checks, reqs.Log) {
-		reqs.Lc.Append(compdef.Hook{
+	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
+		deps.Lc.Append(compdef.Hook{
 			OnStart: runnerComponent.Run,
 			OnStop:  runnerComponent.stop,
 		})
@@ -80,6 +78,17 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
+}
+
+// filterNilChecks removes nil values from an fx group of CheckComponent.
+func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
+	result := make([]types.CheckComponent, 0, len(group))
+	for _, item := range group {
+		if item != nil {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {

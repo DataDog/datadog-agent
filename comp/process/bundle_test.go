@@ -44,7 +44,7 @@ import (
 	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
-	statusimpl "github.com/DataDog/datadog-agent/comp/process/status/fx"
+	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
