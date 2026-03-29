@@ -15,14 +15,7 @@ import (
 	rtcontainercheck "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newCheck))
-}
 
 var _ types.CheckComponent = (*check)(nil)
 
@@ -45,7 +38,8 @@ type result struct {
 	Component rtcontainercheck.Component
 }
 
-func newCheck(deps dependencies) result {
+// NewCheck creates a new rtcontainercheck component.
+func NewCheck(deps dependencies) result {
 	c := &check{
 		rtContainerCheck: checks.NewRTContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta),
 	}
