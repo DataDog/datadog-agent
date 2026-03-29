@@ -14,12 +14,11 @@ import (
 	"net/http"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -31,9 +30,9 @@ type apiserverImpl struct {
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 
 	Config config.Component
 	Log    logComp.Component
@@ -66,7 +65,7 @@ func NewComponent(deps dependencies) apiserver.Component {
 		},
 	}
 
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ln, err := net.Listen("tcp", addr)
 			if err != nil {
