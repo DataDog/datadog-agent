@@ -20,16 +20,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
-runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
+	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -94,7 +95,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			defer func() {
 				flavor.SetFlavor(originalFlavor)
 				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
-				agent.Once = sync.Once{}
+				Once = sync.Once{}
 			}()
 
 			opts := []fx.Option{
@@ -105,7 +106,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
-				Module(),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() configComp.Component {
 					return configComp.NewMock(t)
@@ -113,7 +114,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}
 
 			if tc.checksEnabled {
-				opts = append(opts, processcheckimpl.MockModule())
+				opts = append(opts, fx.Provide(processcheckimpl.NewMock))
 				opts = append(opts, fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -148,27 +149,32 @@ func TestStatusProvider(t *testing.T) {
 		{
 			"core agent",
 			flavor.DefaultAgent,
-			&agent.StatusProvider{},
+			&StatusProvider{},
 		},
 	}
 
+	type testOut struct {
+		fx.In
+		Providers []status.Provider `group:"status"`
+	}
+
 	for _, tc := range tests {
-		t.Run(tc.name, func(*testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			originalFlavor := flavor.GetFlavor()
 			flavor.SetFlavor(tc.agentFlavor)
 			defer func() {
 				flavor.SetFlavor(originalFlavor)
 				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
-				agent.Once = sync.Once{}
+				Once = sync.Once{}
 			}()
 
-			deps := fxutil.Test[dependencies](t, fx.Options(
+			out := fxutil.Test[testOut](t, fx.Options(
+				fxutil.ProvideComponentConstructor(NewComponent),
 				runnerfx.Module(),
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				statsdimpl.MockModule(),
-				Module(),
-				processcheckimpl.MockModule(),
+				fx.Provide(processcheckimpl.NewMock),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func() configComp.Component {
@@ -190,9 +196,14 @@ func TestStatusProvider(t *testing.T) {
 				}),
 			))
 
-			provides, err := newProcessAgent(deps)
-			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
-			assert.NoError(t, err)
+			var foundProvider status.Provider
+			for _, p := range out.Providers {
+				if p != nil {
+					foundProvider = p
+					break
+				}
+			}
+			assert.IsType(t, tc.expected, foundProvider)
 		})
 	}
 }
@@ -206,16 +217,16 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	defer func() {
 		flavor.SetFlavor(originalFlavor)
 		// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
-		agent.Once = sync.Once{}
+		Once = sync.Once{}
 	}()
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
+	_ = fxutil.Test[agent.Component](t, fx.Options(
+		fxutil.ProvideComponentConstructor(NewComponent),
 		runnerfx.Module(),
 		hostinfomock.MockModule(),
 		submittermock.MockModule(),
 		statsdimpl.MockModule(),
-		Module(),
-		processcheckimpl.MockModule(),
+		fx.Provide(processcheckimpl.NewMock),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Provide(func() configComp.Component {
@@ -239,10 +250,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		}),
 	))
 
-	_, err := newProcessAgent(deps)
-	assert.NoError(t, err)
-
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Mock](t, telemetrymock.Module())
 	tel.Reset()
 	// Setup expvar server
 	telemetryHandler := tel.Handler()

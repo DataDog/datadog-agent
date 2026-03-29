@@ -5,7 +5,7 @@
 
 //go:build !linux && !aix
 
-package agent
+package agentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

@@ -23,10 +23,10 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
+	containercheckimpl "github.com/DataDog/datadog-agent/comp/process/containercheck/impl"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
-runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -118,8 +118,8 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		hostinfomock.MockModule(),
 
 		// Checks
-		processcheckimpl.MockModule(),
-		containercheckimpl.MockModule(),
+		fx.Provide(processcheckimpl.NewMock),
+		fx.Provide(containercheckimpl.NewMock),
 
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, confOverrides) }),

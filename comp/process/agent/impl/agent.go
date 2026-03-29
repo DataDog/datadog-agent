@@ -7,15 +7,14 @@
 package agentimpl
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
@@ -23,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -36,16 +34,15 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newProcessAgent))
+// NewComponent creates a new process agent component.
+func NewComponent(deps dependencies) (Provides, error) {
+	return newProcessAgent(deps)
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
-	Lc             fx.Lifecycle
+	Lc             compdef.Lifecycle
 	Log            log.Component
 	Config         config.Component
 	Checks         []types.CheckComponent `group:"check"`
@@ -60,20 +57,20 @@ type processAgent struct {
 	enabled     bool
 	Checks      []checks.Check
 	Log         log.Component
-	flarehelper *agent.FlareHelper
+	flarehelper *FlareHelper
 }
 
-type provides struct {
-	fx.Out
+type Provides struct {
+	compdef.Out
 
 	Comp           agent.Component
 	StatusProvider statusComponent.InformationProvider
 	FlareProvider  flaretypes.Provider
 }
 
-func newProcessAgent(deps dependencies) (provides, error) {
-	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
-		return provides{
+func newProcessAgent(deps dependencies) (Provides, error) {
+	if !Enabled(deps.Config, deps.Checks, deps.Log) {
+		return Provides{
 			Comp: processAgent{
 				enabled: false,
 			},
@@ -81,7 +78,10 @@ func newProcessAgent(deps dependencies) (provides, error) {
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(deps.Checks))
-	for _, c := range fxutil.GetAndFilterGroup(deps.Checks) {
+	for _, c := range deps.Checks {
+		if c == nil {
+			continue
+		}
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -91,7 +91,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
 		deps.Log.Info(agentDisabledMessage)
-		return provides{
+		return Provides{
 			Comp: processAgent{
 				enabled: false,
 			},
@@ -102,7 +102,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		enabled:     true,
 		Checks:      enabledChecks,
 		Log:         deps.Log,
-		flarehelper: agent.NewFlareHelper(enabledChecks),
+		flarehelper: NewFlareHelper(enabledChecks),
 	}
 
 	if flavor.GetFlavor() != flavor.ProcessAgent {
@@ -112,14 +112,14 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		if err != nil {
 			_ = deps.Log.Critical("Failed to initialize process status server:", err)
 		}
-		return provides{
+		return Provides{
 			Comp:           processAgentComponent,
-			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config, deps.Hostname)),
+			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider(deps.Config, deps.Hostname)),
 			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}, nil
 	}
 
-	return provides{
+	return Provides{
 		Comp: processAgentComponent,
 	}, nil
 }

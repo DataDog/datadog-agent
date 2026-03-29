@@ -77,7 +77,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
