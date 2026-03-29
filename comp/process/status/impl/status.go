@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type dependencies struct {
@@ -35,25 +34,20 @@ type provides struct {
 	StatusProvider status.InformationProvider
 }
 
-// Module defines the fx options for the status component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatus))
-}
-
-type statusProvider struct {
-	testServerURL string
-	config        config.Component
-	hostname      hostnameinterface.Component
-}
-
-func newStatus(deps dependencies) provides {
+// NewComponent creates the status component.
+func NewComponent(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			config:   deps.Config,
 			hostname: deps.Hostname,
 		}),
 	}
+}
+
+type statusProvider struct {
+	testServerURL string
+	config        config.Component
+	hostname      hostnameinterface.Component
 }
 
 //go:embed status_templates
