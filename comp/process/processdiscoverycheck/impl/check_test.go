@@ -69,7 +69,7 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
 				sysprobeconfigimpl.MockModule(),
 				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
-				Module(),
+				fx.Provide(NewCheck),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})
