@@ -12,24 +12,23 @@ import (
 	"fmt"
 	"io"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 )
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Config   config.Component
 	Hostname hostnameinterface.Component
 }
 
 type provides struct {
-	fx.Out
+	compdef.Out
 
 	StatusProvider status.InformationProvider
 }

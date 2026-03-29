@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	statusimpl "github.com/DataDog/datadog-agent/comp/process/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -16,6 +14,6 @@ import (
 // Module defines the fx options for the status component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(statusimpl.NewComponent),
+		fxutil.ProvideComponentConstructor(statusimpl.NewComponent),
 	)
 }
