@@ -15,17 +15,17 @@ import (
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	connectionscheckfx "github.com/DataDog/datadog-agent/comp/process/connectionscheck/fx"
-	containercheckfx "github.com/DataDog/datadog-agent/comp/process/containercheck/fx"
+	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
 	hostinfofx "github.com/DataDog/datadog-agent/comp/process/hostinfo/fx"
-	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
-	processdiscoverycheckfx "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/fx"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
-	rtcontainercheckfx "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/fx"
-	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
+	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,16 +38,16 @@ import (
 // See: https://uber-go.github.io/fx/modules.html#don-t-provide-what-you-don-t-own
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		runnerfx.Module(),
+		runnerimpl.Module(),
 		submitterfx.Module(),
 		profilerimpl.Module(),
 
 		// Checks
-		connectionscheckfx.Module(),
-		containercheckfx.Module(),
-		processcheckfx.Module(),
-		rtcontainercheckfx.Module(),
-		processdiscoverycheckfx.Module(),
+		connectionscheckimpl.Module(),
+		containercheckimpl.Module(),
+		processcheckimpl.Module(),
+		rtcontainercheckimpl.Module(),
+		processdiscoverycheckimpl.Module(),
 
 		agentimpl.Module(),
 

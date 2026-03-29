@@ -23,13 +23,12 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	containercheckimpl "github.com/DataDog/datadog-agent/comp/process/containercheck/impl"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
-	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
-	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -114,17 +113,13 @@ type Deps struct {
 
 func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...fx.Option) Deps {
 	return fxutil.Test[Deps](t, fx.Options(
-		fxutil.ProvideComponentConstructor(NewComponent),
+		Module(),
 		submittermock.MockModule(),
 		hostinfomock.MockModule(),
 
 		// Checks
-		fx.Provide(func(t testing.TB) types.ProvidesCheck {
-			return processcheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ProcessCheck]{})
-		}),
-		fx.Provide(func(t testing.TB) types.ProvidesCheck {
-			return containercheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ContainerCheck]{})
-		}),
+		processcheckimpl.MockModule(),
+		containercheckimpl.MockModule(),
 
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, confOverrides) }),

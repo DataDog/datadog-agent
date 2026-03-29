@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test && linux
+//go:build linux && test
 
 package agentimpl
 
@@ -23,13 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
-	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
-	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -98,7 +98,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}()
 
 			opts := []fx.Option{
-				runnerfx.Module(),
+				runnerimpl.Module(),
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				statsdimpl.MockModule(),
@@ -113,7 +113,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}
 
 			if tc.checksEnabled {
-				opts = append(opts, fx.Provide(processcheckimpl.NewMock))
+				opts = append(opts, processcheckimpl.MockModule())
 				opts = append(opts, fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -163,12 +163,12 @@ func TestStatusProvider(t *testing.T) {
 			}()
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				runnerfx.Module(),
+				runnerimpl.Module(),
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				statsdimpl.MockModule(),
 				Module(),
-				fx.Provide(processcheckimpl.NewMock),
+				processcheckimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func() configComp.Component {
@@ -210,12 +210,12 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		runnerfx.Module(),
+		runnerimpl.Module(),
 		hostinfomock.MockModule(),
 		submittermock.MockModule(),
 		statsdimpl.MockModule(),
 		Module(),
-		fx.Provide(processcheckimpl.NewMock),
+		processcheckimpl.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Provide(func() configComp.Component {
@@ -242,7 +242,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	_, err := newProcessAgent(deps)
 	assert.NoError(t, err)
 
-	tel := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
 	// Setup expvar server
 	telemetryHandler := tel.Handler()
