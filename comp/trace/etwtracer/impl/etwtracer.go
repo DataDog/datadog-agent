@@ -30,13 +30,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newEtwTracerImpl),
+	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 )
 
 type dependencies struct {
@@ -53,7 +47,8 @@ type pidContext struct {
 
 type pidMap = map[uint32]pidContext
 
-func newEtwTracerImpl(deps dependencies) (etwtracer.Component, error) {
+// NewComponent creates a new etwtracer component.
+func NewComponent(deps dependencies) (etwtracer.Component, error) {
 	// Microsoft-Windows-DotNETRuntime
 	guid, _ := windows.GUIDFromString("{E13C0D23-CCBC-4E12-931B-D9CC2EEE27E4}")
 
