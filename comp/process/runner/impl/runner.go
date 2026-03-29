@@ -24,7 +24,7 @@ import (
 )
 
 // for testing
-var agentEnabled = agent.Enabled
+var agentEnabled = agentimpl.Enabled
 
 // runnerImpl implements the Component.
 type runnerImpl struct {

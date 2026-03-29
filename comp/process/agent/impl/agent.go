@@ -15,7 +15,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
@@ -36,10 +36,9 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newProcessAgent))
+// NewComponent creates a new process agent component.
+func NewComponent(deps dependencies) (provides, error) {
+	return newProcessAgent(deps)
 }
 
 type dependencies struct {
@@ -60,7 +59,7 @@ type processAgent struct {
 	enabled     bool
 	Checks      []checks.Check
 	Log         log.Component
-	flarehelper *agent.FlareHelper
+	flarehelper *FlareHelper
 }
 
 type provides struct {
@@ -72,7 +71,7 @@ type provides struct {
 }
 
 func newProcessAgent(deps dependencies) (provides, error) {
-	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+	if !Enabled(deps.Config, deps.Checks, deps.Log) {
 		return provides{
 			Comp: processAgent{
 				enabled: false,
@@ -102,7 +101,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		enabled:     true,
 		Checks:      enabledChecks,
 		Log:         deps.Log,
-		flarehelper: agent.NewFlareHelper(enabledChecks),
+		flarehelper: NewFlareHelper(enabledChecks),
 	}
 
 	if flavor.GetFlavor() != flavor.ProcessAgent {
@@ -114,7 +113,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		}
 		return provides{
 			Comp:           processAgentComponent,
-			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config, deps.Hostname)),
+			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider(deps.Config, deps.Hostname)),
 			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}, nil
 	}

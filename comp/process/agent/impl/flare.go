@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive
-package agent
+package agentimpl
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ type FlareHelper struct {
 	Checks []checks.Check
 }
 
-// NewNewFlareHelper creates a new FlareHelper to be provided by the process agent component.
+// NewFlareHelper creates a new FlareHelper to be provided by the process agent component.
 func NewFlareHelper(checks []checks.Check) *FlareHelper {
 	return &FlareHelper{Checks: checks}
 }

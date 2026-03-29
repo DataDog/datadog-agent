@@ -26,10 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
-runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
+	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -94,7 +94,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			defer func() {
 				flavor.SetFlavor(originalFlavor)
 				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
-				agent.Once = sync.Once{}
+				Once = sync.Once{}
 			}()
 
 			opts := []fx.Option{
@@ -105,7 +105,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
-				Module(),
+				fx.Provide(NewComponent),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() configComp.Component {
 					return configComp.NewMock(t)
@@ -148,7 +148,7 @@ func TestStatusProvider(t *testing.T) {
 		{
 			"core agent",
 			flavor.DefaultAgent,
-			&agent.StatusProvider{},
+			&StatusProvider{},
 		},
 	}
 
@@ -159,7 +159,7 @@ func TestStatusProvider(t *testing.T) {
 			defer func() {
 				flavor.SetFlavor(originalFlavor)
 				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
-				agent.Once = sync.Once{}
+				Once = sync.Once{}
 			}()
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
@@ -167,7 +167,7 @@ func TestStatusProvider(t *testing.T) {
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				statsdimpl.MockModule(),
-				Module(),
+				fx.Provide(NewComponent),
 				processcheckimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
@@ -206,7 +206,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	defer func() {
 		flavor.SetFlavor(originalFlavor)
 		// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
-		agent.Once = sync.Once{}
+		Once = sync.Once{}
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
@@ -214,7 +214,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		hostinfomock.MockModule(),
 		submittermock.MockModule(),
 		statsdimpl.MockModule(),
-		Module(),
+		fx.Provide(NewComponent),
 		processcheckimpl.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
