@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	connectionscheckfx "github.com/DataDog/datadog-agent/comp/process/connectionscheck/fx"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
+	containercheckfx "github.com/DataDog/datadog-agent/comp/process/containercheck/fx"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
@@ -44,7 +44,7 @@ func Bundle() fxutil.BundleOptions {
 
 		// Checks
 		connectionscheckfx.Module(),
-		containercheckimpl.Module(),
+		containercheckfx.Module(),
 		processcheckfx.Module(),
 		rtcontainercheckfx.Module(),
 		processdiscoverycheckfx.Module(),
