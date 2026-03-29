@@ -76,7 +76,7 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				npcollectorimpl.MockModule(),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-				Module(),
+				fx.Provide(NewCheck),
 			))
 
 			flavor.SetFlavor(tc.flavor)
