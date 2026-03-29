@@ -17,7 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
+	connectionscheck "github.com/DataDog/datadog-agent/comp/process/connectionscheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
