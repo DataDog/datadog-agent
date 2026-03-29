@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/process/util/api
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.180
+	github.com/DataDog/agent-payload/v5 v5.0.185-0.20260317095148-18b2f7f31ed2
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.77.1
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.77.1
 	github.com/gogo/protobuf v1.3.2

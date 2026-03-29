@@ -5,7 +5,7 @@ go 1.25.0
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.180
+	github.com/DataDog/agent-payload/v5 v5.0.185-0.20260317095148-18b2f7f31ed2
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.77.1
 	github.com/DataDog/datadog-agent/pkg/metrics v0.77.1
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.77.1
