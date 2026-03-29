@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
@@ -31,8 +31,8 @@ type submitterImpl struct {
 }
 
 type dependencies struct {
-	fx.In
-	Lc  fx.Lifecycle
+	compdef.In
+	Lc  compdef.Lifecycle
 	Log log.Component
 
 	Config         config.Component
@@ -44,7 +44,7 @@ type dependencies struct {
 }
 
 type result struct {
-	fx.Out
+	compdef.Out
 
 	RTResponseNotifier <-chan types.RTResponse
 	Submitter          submitterComp.Component
@@ -58,7 +58,7 @@ func NewComponent(deps dependencies) (result, error) {
 	}
 
 	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
-		deps.Lc.Append(fx.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
 				return s.Start()
 			},
