@@ -7,21 +7,23 @@
 package agentimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
-	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
-	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter/def"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/comp/process/runner"
+	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -34,15 +36,16 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-// NewComponent creates a new process agent component.
-func NewComponent(deps dependencies) (provides, error) {
-	return newProcessAgent(deps)
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newProcessAgent))
 }
 
 type dependencies struct {
-	compdef.In
+	fx.In
 
-	Lc             compdef.Lifecycle
+	Lc             fx.Lifecycle
 	Log            log.Component
 	Config         config.Component
 	Checks         []types.CheckComponent `group:"check"`
@@ -57,11 +60,11 @@ type processAgent struct {
 	enabled     bool
 	Checks      []checks.Check
 	Log         log.Component
-	flarehelper *FlareHelper
+	flarehelper *agent.FlareHelper
 }
 
 type provides struct {
-	compdef.Out
+	fx.Out
 
 	Comp           agent.Component
 	StatusProvider statusComponent.InformationProvider
@@ -69,7 +72,7 @@ type provides struct {
 }
 
 func newProcessAgent(deps dependencies) (provides, error) {
-	if !Enabled(deps.Config, deps.Checks, deps.Log) {
+	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
 		return provides{
 			Comp: processAgent{
 				enabled: false,
@@ -78,10 +81,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(deps.Checks))
-	for _, c := range deps.Checks {
-		if c == nil {
-			continue
-		}
+	for _, c := range fxutil.GetAndFilterGroup(deps.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -102,7 +102,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		enabled:     true,
 		Checks:      enabledChecks,
 		Log:         deps.Log,
-		flarehelper: NewFlareHelper(enabledChecks),
+		flarehelper: agent.NewFlareHelper(enabledChecks),
 	}
 
 	if flavor.GetFlavor() != flavor.ProcessAgent {
@@ -114,7 +114,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		}
 		return provides{
 			Comp:           processAgentComponent,
-			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider(deps.Config, deps.Hostname)),
+			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config, deps.Hostname)),
 			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}, nil
 	}
