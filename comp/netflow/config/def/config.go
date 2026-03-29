@@ -3,19 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-// Package config defines the configuration options for the netflow services.
 package config
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
-
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 // NetflowConfig contains configuration for NetFlow collector.
@@ -58,7 +55,7 @@ type Mapping struct {
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig(conf config.Component, logger log.Component) (*NetflowConfig, error) {
+func ReadConfig(conf coreconfig.Component, logger log.Component) (*NetflowConfig, error) {
 	var mainConfig NetflowConfig
 
 	err := structure.UnmarshalKey(conf, "network_devices.netflow", &mainConfig)

@@ -7,7 +7,7 @@ package server
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"go.uber.org/atomic"

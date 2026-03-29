@@ -6,21 +6,9 @@
 // Package config exposes the netflow configuration as a component.
 package config
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
 // team: ndm-integrations
 
 // Component is the component type.
 type Component interface {
 	Get() *NetflowConfig
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newService))
 }
