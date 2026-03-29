@@ -7,8 +7,6 @@
 package forwardersimpl
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -23,7 +21,7 @@ import (
 )
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Config                config.Component
 	Logger                log.Component
