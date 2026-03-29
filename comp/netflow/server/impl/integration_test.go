@@ -5,7 +5,7 @@
 
 //go:build test
 
-package server
+package serverimpl
 
 import (
 	"context"
@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 )
 
@@ -52,7 +53,7 @@ func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.Netfl
 
 var flushTime, _ = time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
-var setTimeNow = fx.Invoke(func(c Component) {
+var setTimeNow = fx.Invoke(func(c server.Component) {
 	c.(*Server).FlowAgg.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
@@ -76,7 +77,7 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
-	srv := fxutil.Test[Component](t, fx.Options(
+	srv := fxutil.Test[server.Component](t, fx.Options(
 		testOptions,
 		fx.Populate(&epForwarder),
 		fx.Replace(
@@ -101,7 +102,7 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
-	srv := fxutil.Test[Component](t, fx.Options(
+	srv := fxutil.Test[server.Component](t, fx.Options(
 		testOptions,
 		fx.Populate(&epForwarder),
 		fx.Replace(
@@ -124,7 +125,7 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
-	srv := fxutil.Test[Component](t, fx.Options(
+	srv := fxutil.Test[server.Component](t, fx.Options(
 		testOptions,
 		fx.Populate(&epForwarder),
 		fx.Replace(
@@ -147,7 +148,7 @@ func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
-	srv := fxutil.Test[Component](t, fx.Options(
+	srv := fxutil.Test[server.Component](t, fx.Options(
 		testOptions,
 		fx.Populate(&epForwarder),
 		fx.Replace(

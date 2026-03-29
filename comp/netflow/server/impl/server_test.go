@@ -5,7 +5,7 @@
 
 //go:build test
 
-package server
+package serverimpl
 
 import (
 	"context"
@@ -31,6 +31,8 @@ import (
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	nfconfigmock "github.com/DataDog/datadog-agent/comp/netflow/config/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
+	serverfx "github.com/DataDog/datadog-agent/comp/netflow/server/fx"
 )
 
 type dummyFlowProcessor struct {
@@ -49,11 +51,11 @@ func (d *dummyFlowProcessor) Shutdown() {
 	d.stopped = true
 }
 
-func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
+func replaceWithDummyFlowProcessor(srv *Server) *dummyFlowProcessor {
 	// Testing using a dummyFlowProcessor since we can't test using real goflow flow processor
 	// due to this race condition https://github.com/netsampler/goflow2/issues/83
 	flowProcessor := &dummyFlowProcessor{}
-	listener := server.listeners[0]
+	listener := srv.listeners[0]
 	listener.flowState = &goflowlib.FlowStateWrapper{
 		State:    flowProcessor,
 		Hostname: "abc",
@@ -64,7 +66,7 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
-	Module(),
+	serverfx.Module(),
 	nfconfigmock.MockModule(),
 	forwarderimpl.MockModule(),
 	demultiplexerimpl.MockModule(),
@@ -72,7 +74,7 @@ var testOptions = fx.Options(
 	core.MockBundle(),
 	hostnameimpl.MockModule(),
 	rdnsquerierfxmock.MockModule(),
-	fx.Invoke(func(lc fx.Lifecycle, c Component) {
+	fx.Invoke(func(lc fx.Lifecycle, c server.Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushConfig.FlushTickFrequency = 1 * time.Second
 		lc.Append(fx.Hook{
@@ -88,7 +90,7 @@ var testOptions = fx.Options(
 func TestStartServerAndStopServer(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
-	var component Component
+	var component server.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
@@ -104,11 +106,11 @@ func TestStartServerAndStopServer(t *testing.T) {
 		),
 		fx.Populate(&component),
 	))
-	server := component.(*Server)
-	assert.NotNil(t, server)
-	assert.False(t, server.running)
+	srv := component.(*Server)
+	assert.NotNil(t, srv)
+	assert.False(t, srv.running)
 	app.RequireStart()
-	assert.True(t, server.running)
+	assert.True(t, srv.running)
 	app.RequireStop()
-	assert.False(t, server.running)
+	assert.False(t, srv.running)
 }

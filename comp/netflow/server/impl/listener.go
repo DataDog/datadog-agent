@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package server
+package serverimpl
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"go.uber.org/atomic"
@@ -17,12 +17,12 @@ import (
 // flowState can be of type *utils.StateNetFlow/StateSFlow/StateNFLegacy
 type netflowListener struct {
 	flowState *goflowlib.FlowStateWrapper
-	config    config.ListenerConfig
+	config    nfconfig.ListenerConfig
 	error     *atomic.String
 	flowCount *atomic.Int64
 }
 
-func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
+func startFlowListener(listenerConfig nfconfig.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 

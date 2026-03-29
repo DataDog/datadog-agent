@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package server
+package serverimpl
 
 import (
 	"embed"
@@ -84,7 +84,7 @@ func (p Provider) getStatus(stats map[string]interface{}) {
 		}
 	}
 
-	status := netflowServerStatus{
+	st := netflowServerStatus{
 		TotalListeners:         int(len(p.server.listeners)),
 		OpenListeners:          int(len(workingListeners)),
 		ClosedListeners:        int(len(closedListenersList)),
@@ -92,7 +92,7 @@ func (p Provider) getStatus(stats map[string]interface{}) {
 		ClosedListenerDetails:  closedListenersList,
 	}
 
-	stats["netflowStats"] = status
+	stats["netflowStats"] = st
 }
 
 func (p Provider) populateStatus() map[string]interface{} {

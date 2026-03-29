@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package server
+// Package serverimpl implements the netflow server component.
+package serverimpl
 
 import (
 	"context"
@@ -21,11 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
 
-type dependencies struct {
+// Requires defines the dependencies for the server component.
+type Requires struct {
 	fx.In
 	Config        nfconfig.Component
 	Logger        log.Component
@@ -35,19 +38,20 @@ type dependencies struct {
 	RDNSQuerier   rdnsquerier.Component
 }
 
-type provides struct {
+// Provides defines the output of the server component.
+type Provides struct {
 	fx.Out
 
-	Comp           Component
+	Comp           server.Component
 	StatusProvider status.InformationProvider
 }
 
-// newServer configures a netflow server.
-func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
+// NewComponent creates a new netflow server component.
+func NewComponent(lc fx.Lifecycle, deps Requires) (Provides, error) {
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
-		return provides{}, err
+		return Provides{}, err
 	}
 
 	// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
@@ -55,17 +59,17 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	// active instance.  However, we also need to check here whether the netflow component has
 	// reverse DNS enrichment enabled to decide whether to use the passed instance or to override
 	// it with a noop implementation.
-	rdnsQuerier := deps.RDNSQuerier
+	rdnsQuerierComp := deps.RDNSQuerier
 	if conf.ReverseDNSEnrichmentEnabled {
 		deps.Logger.Infof("Reverse DNS Enrichment is enabled for NDM NetFlow")
 	} else {
-		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
+		rdnsQuerierComp = rdnsquerierimplnone.NewNone().Comp
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerierComp)
 
-	server := &Server{
+	srv := &Server{
 		config:  conf,
 		FlowAgg: flowAgg,
 		logger:  deps.Logger,
@@ -75,24 +79,24 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 
 	if conf.Enabled {
 		statusProvider = Provider{
-			server: server,
+			server: srv,
 		}
 
 		// netflow is enabled, so start the server
 		lc.Append(fx.Hook{
 			OnStart: func(_ context.Context) error {
 
-				err := server.Start()
+				err := srv.Start()
 				return err
 			},
 			OnStop: func(context.Context) error {
-				server.Stop()
+				srv.Stop()
 				return nil
 			},
 		})
 	}
-	return provides{
-		Comp:           server,
+	return Provides{
+		Comp:           srv,
 		StatusProvider: status.NewInformationProvider(statusProvider),
 	}, nil
 }
