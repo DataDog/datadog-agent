@@ -11,20 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/fx"
 
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
-}
-
-func newMock(t testing.TB) submitterComp.Component {
+// NewMock creates a new mock submitter component for testing.
+func NewMock(t testing.TB) submitterComp.Component {
 	s := mocks.NewSubmitter(t)
 	s.On("Start").Maybe().Return(nil)
 	s.On("Stop").Maybe()
