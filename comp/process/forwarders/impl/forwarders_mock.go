@@ -9,26 +9,10 @@
 package forwardersimpl
 
 import (
-	"testing"
-
-	"go.uber.org/fx"
-
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule is the mock module for process forwarders
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockForwarders),
-		//TODO: Fix the MockForwarder to be a real mock,
-		// and remove the need of including the MockSecrets for tests that use only the Forwarder.
-		fx.Provide(func(t testing.TB) secrets.Component { return secretsmock.New(t) }),
-	)
-}
-
-func newMockForwarders(deps dependencies) (forwarders.Component, error) {
+// NewMockForwarders creates a mock forwarders component for testing by using the real implementation.
+func NewMockForwarders(deps dependencies) (forwarders.Component, error) {
 	return NewComponent(deps)
 }
