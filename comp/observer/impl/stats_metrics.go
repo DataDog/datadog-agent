@@ -72,7 +72,6 @@ func processStatsView(handle observerdef.Handle, stats observerdef.TraceStatsVie
 		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".hits", value: float64(row.GetHits()), tags: tags, timestampUnix: timestampUnix})
 		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".errors", value: float64(row.GetErrors()), tags: tags, timestampUnix: timestampUnix})
 		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".duration", value: float64(row.GetDurationNano()), tags: tags, timestampUnix: timestampUnix})
-		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestampUnix: timestampUnix})
 
 		if okSummary := row.GetOkSummary(); len(okSummary) > 0 {
 			emitPercentiles(handle, metricPrefix, okSummary, tags, timestampUnix)
