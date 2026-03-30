@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !e2eunit
+
 // This file tests the injector statistics reporting functionality through system-probe.
 package installer
 
