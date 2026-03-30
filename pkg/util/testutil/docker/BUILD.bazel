@@ -8,6 +8,7 @@ go_library(
         "run.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil/docker",
+    tags = ["test"],
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/testutil"],
 )
