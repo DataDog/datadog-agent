@@ -23,7 +23,7 @@ type PingPonger interface {
 //
 // Each transport test is independent — a failure in one does not prevent the
 // others from running.
-func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient) {
+func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
 	log.Debug("starting remote config transport echo tests")
 
 	if err := preflightCheck(ctx, httpClient); err != nil {
@@ -32,10 +32,10 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient) {
 	}
 
 	// WebSocket
-	runWebSocketTest(ctx, httpClient)
+	runWebSocketTest(ctx, httpClient, runCount)
 
 	// gRPC
-	runGrpcTest(ctx, httpClient)
+	runGrpcTest(ctx, httpClient, runCount)
 
 	// TCP
 	runTcpTest(ctx, httpClient)
@@ -78,8 +78,8 @@ func preflightCheck(ctx context.Context, httpClient *api.HTTPClient) error {
 	return nil
 }
 
-func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient) {
-	n, err := runEchoLoop(ctx, httpClient)
+func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
+	n, err := runEchoLoop(ctx, httpClient, runCount)
 	if err != nil {
 		log.Debugf("websocket echo test failed: %s (%d data frames exchanged)", err, n)
 		return
@@ -87,8 +87,8 @@ func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient) {
 	log.Debugf("websocket echo test complete (%d data frames exchanged)", n)
 }
 
-func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient) {
-	pp, err := NewGrpcPingPonger(ctx, httpClient)
+func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
+	pp, err := NewGrpcPingPonger(ctx, httpClient, runCount)
 	if err != nil {
 		log.Debugf("grpc echo test init failed: %s", err)
 		return

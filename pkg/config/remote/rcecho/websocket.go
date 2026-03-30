@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,14 +19,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // The server must transmit a PING or DATA frame at least once per
 // messageTimeout interval or the test times out.
 const messageTimeout = 5 * time.Minute
 
-func runEchoLoop(ctx context.Context, client *api.HTTPClient) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client)
+func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount)
 	if err != nil {
 		return 0, err
 	}
@@ -114,7 +116,7 @@ func gracefulAbort(conn *websocket.Conn) {
 //
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
-func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient) (*websocket.Conn, error) {
+func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64) (*websocket.Conn, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, err := httpClient.Transport()
 	if err != nil {
@@ -130,6 +132,9 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	// The WebSocket request MUST include the same auth credentials as the plain
 	// HTTP requests.
 	headers := httpClient.Headers()
+	// In addition to extra debug headers.
+	headers.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
+	headers.Set("X-Agent-UUID", uuid.GetUUID())
 
 	// Parse the "base URL" the client uses to connect to RC.
 	url, err := httpClient.BaseUrl()

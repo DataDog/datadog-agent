@@ -8,6 +8,7 @@ package rcecho
 import (
 	"context"
 	"path"
+	"strconv"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -25,13 +26,14 @@ type GrpcPingPonger struct {
 	cancel context.CancelFunc
 }
 
-func NewGrpcPingPonger(ctx context.Context, httpClient *api.HTTPClient) (*GrpcPingPonger, error) {
+func NewGrpcPingPonger(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) (*GrpcPingPonger, error) {
 	conn, meta, err := newGrpcClient(ctx, "/api/v0.2/echo-test-grpc", httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	meta.Set("DD-Agent-UUID", uuid.GetUUID())
+	meta.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
+	meta.Set("X-Agent-UUID", uuid.GetUUID())
 
 	ctx = metadata.NewOutgoingContext(ctx, meta)
 	ctx, cancel := context.WithCancel(ctx)

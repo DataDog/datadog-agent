@@ -20,7 +20,7 @@ import (
 type EchoTestActor struct {
 	client *api.HTTPClient
 	// Callback to run the test.
-	fn func(context.Context, *api.HTTPClient)
+	fn func(context.Context, *api.HTTPClient, uint64)
 
 	stopCh   chan struct{} // nil until Start() called
 	stopOnce sync.Once
@@ -78,6 +78,7 @@ func (s *EchoTestActor) run() {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
+	runCount := uint64(0)
 	for {
 		func() {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -92,7 +93,7 @@ func (s *EchoTestActor) run() {
 				}
 			}()
 
-			s.fn(ctx, s.client)
+			s.fn(ctx, s.client, runCount)
 		}()
 
 		select {
@@ -100,5 +101,7 @@ func (s *EchoTestActor) run() {
 			return
 		case <-ticker.C:
 		}
+
+		runCount++
 	}
 }
