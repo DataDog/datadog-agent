@@ -26,6 +26,8 @@ def _impl(rctx):
 
 go_sdk_overrides = repository_rule(
     implementation = _impl,
+    configure = True,
+    local = True,
     attrs = {
         "_go_sdk": attr.label(default = HOST_COMPATIBLE_SDK),
         "_gopatch": attr.label(default = "@com_github_uber_go_gopatch//:gopatch"),
