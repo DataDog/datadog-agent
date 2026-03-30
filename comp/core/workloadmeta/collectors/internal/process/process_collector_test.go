@@ -101,7 +101,7 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 			cfg.SetWithoutSource("process_config.intervals.process", 10)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
-			defer c.cleanup()
+
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -180,7 +180,7 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 			cfg.SetWithoutSource("language_detection.enabled", true)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
-			defer c.cleanup()
+
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -286,7 +286,7 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 			cfg.SetWithoutSource("process_config.intervals.process", 10)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
-			defer c.cleanup()
+
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -467,7 +467,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			cfg.SetWithoutSource("language_detection.enabled", true)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
-			defer c.cleanup()
+
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -578,7 +578,7 @@ func TestStartConfiguration(t *testing.T) {
 			}
 
 			c := setUpCollectorTest(t, cfg, tc.sysConfigOverrides, nil)
-			defer c.cleanup()
+
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -625,6 +625,7 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 			}
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
+
 			actualInterval := c.collector.processCollectionIntervalConfig()
 			assert.Equal(t, tc.expectedInterval, actualInterval)
 		})
@@ -674,7 +675,7 @@ func TestProcessDifferentCmdline(t *testing.T) {
 	cfg.SetWithoutSource("language_detection.enabled", true)
 
 	c := setUpCollectorTest(t, cfg, nil, nil)
-	defer c.cleanup()
+
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -858,7 +859,7 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	cfg.SetWithoutSource("process_config.intervals.process", 10)
 
 	c := setUpCollectorTest(t, cfg, nil, nil)
-	defer c.cleanup()
+
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -921,7 +922,9 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
 	processCollector.containerProvider = mockContainerProvider
 
-	return collectorTest{&processCollector, mockProbe, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
+	ct := collectorTest{&processCollector, mockProbe, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
+	t.Cleanup(ct.cleanup)
+	return ct
 }
 
 func createTestPythonProcess(pid int32, createTime int64) *procutil.Process {

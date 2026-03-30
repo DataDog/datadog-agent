@@ -1,11 +1,19 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
+
+_PREBUILT_HDRS = glob(["*.h"])
 
 cc_library(
     name = "prebuilt_headers",
-    hdrs = glob(["*.h"]),
+    hdrs = _PREBUILT_HDRS,
     includes = ["."],
-    visibility = ["//pkg/network/ebpf/c:__subpackages__"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prebuilt_headers_files",
+    srcs = _PREBUILT_HDRS,
+    visibility = ["//visibility:public"],
 )
 
 _COMMON_DEPS = [

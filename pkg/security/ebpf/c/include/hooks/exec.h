@@ -224,10 +224,12 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    event->pid_entry.ppid = ppid;
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
+    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
+    // the child the ppid is the parent PID.
     event->process.pid = pid;
     event->process.tid = pid;
+    event->process.ppid = ppid;
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 
@@ -792,8 +794,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             parent_inode = parent_pc->entry.executable.path_key.ino;
 
             // inherit the parent cgroup context
-            if ((fork_entry->fork_flags & (CLONE_INTO_CGROUP | CLONE_NEWCGROUP)) == 0) {
+            if ((fork_entry->fork_flags & CLONE_INTO_CGROUP) == 0) {
                 fill_cgroup_context(parent_pc, &pc.cgroup);
+            } else {
+                u64 has_current_cgroup_id_helper = 0;
+                LOAD_CONSTANT("has_current_cgroup_id_helper", has_current_cgroup_id_helper);
+                if (has_current_cgroup_id_helper) {
+                    pc.cgroup.cgroup_file.ino = bpf_get_current_cgroup_id();
+                }
             }
         }
     }

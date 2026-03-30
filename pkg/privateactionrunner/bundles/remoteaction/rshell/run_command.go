@@ -10,27 +10,39 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// allowedPaths is the hardcoded list of filesystem paths that the rshell
-// interpreter is permitted to access. Adjust this list to restrict or expand
-// the set of directories available to executed commands.
-var allowedPaths = []string{"/var/log"}
+const (
+	defaultProcPath         = "/proc"
+	containerizedPathPrefix = "/host"
+)
+
+// statFn is the function used to check path existence. It defaults to os.Stat
+// and can be overridden in tests.
+var statFn = os.Stat
 
 // RunCommandHandler implements the runCommand action.
-type RunCommandHandler struct{}
+type RunCommandHandler struct {
+	allowedPaths []string
+}
 
 // NewRunCommandHandler creates a new RunCommandHandler.
-func NewRunCommandHandler() *RunCommandHandler {
-	return &RunCommandHandler{}
+func NewRunCommandHandler(allowedPaths []string) *RunCommandHandler {
+	return &RunCommandHandler{
+		allowedPaths: allowedPaths,
+	}
 }
 
 // RunCommandInputs defines the inputs for the runCommand action.
@@ -61,20 +73,25 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
+	log.Debugf("rshell runCommand: command=%q allowedCommands=%v allowedPaths=%v",
+		inputs.Command, inputs.AllowedCommands, h.allowedPaths)
+
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmdOpt := interp.AllowAllCommands()
-	if len(inputs.AllowedCommands) > 0 {
-		cmdOpt = interp.AllowedCommands(inputs.AllowedCommands)
+	for _, p := range h.allowedPaths {
+		if _, err := statFn(p); err != nil {
+			log.Warnf("path %q not found, rshell may fail to execute commands", p)
+		}
 	}
+	var stdout, stderr bytes.Buffer
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
-		interp.AllowedPaths(allowedPaths),
-		cmdOpt,
+		interp.AllowedPaths(h.allowedPaths),
+		interp.ProcPath(resolveProcPath()),
+		interp.AllowedCommands(inputs.AllowedCommands),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
@@ -97,4 +114,17 @@ func (h *RunCommandHandler) Run(
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 	}, nil
+}
+
+// resolveProcPath returns the proc filesystem path appropriate for the current
+// environment. In containerized deployments with host mounts, it returns
+// /host/proc; otherwise it falls back to /proc.
+func resolveProcPath() string {
+	if env.IsContainerized() {
+		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
+		if _, err := statFn(hostProc); err == nil {
+			return hostProc
+		}
+	}
+	return defaultProcPath
 }

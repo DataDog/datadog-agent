@@ -1,0 +1,14 @@
+# gazelle:ignore
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "framing_linux.go",
+    "framing_linux_test.go",
+])
+
+cgo_godefs(
+    name = "framing_godefs",
+    src = "framing.go",
+    hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
+)

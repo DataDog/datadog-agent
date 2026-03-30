@@ -24,7 +24,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -54,10 +53,10 @@ func otelSpanToDDSpanMinimal(
 	rattr := otelres.Attributes()
 
 	ddspan := &pb.Span{
-		Service:  traceutilotel.GetOTelServiceWithAccessor(spanAccessor, true),
-		TraceID:  traceutilotel.OTelTraceIDToUint64(otelspan.TraceID()),
-		SpanID:   traceutilotel.OTelSpanIDToUint64(otelspan.SpanID()),
-		ParentID: traceutilotel.OTelSpanIDToUint64(otelspan.ParentSpanID()),
+		Service:  GetOTelServiceWithAccessor(spanAccessor, true),
+		TraceID:  OTelTraceIDToUint64(otelspan.TraceID()),
+		SpanID:   OTelSpanIDToUint64(otelspan.SpanID()),
+		ParentID: OTelSpanIDToUint64(otelspan.ParentSpanID()),
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
 		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
@@ -69,24 +68,24 @@ func otelSpanToDDSpanMinimal(
 	}
 
 	if OperationAndResourceNameV2Enabled(conf) {
-		ddspan.Name = traceutilotel.GetOTelOperationNameV2WithAccessor(otelspan, spanAccessor)
-		ddspan.Resource = traceutilotel.GetOTelResourceV2WithAccessor(otelspan, spanAccessor)
+		ddspan.Name = GetOTelOperationNameV2WithAccessor(otelspan, spanAccessor)
+		ddspan.Resource = GetOTelResourceV2WithAccessor(otelspan, spanAccessor)
 	} else {
-		ddspan.Name = traceutilotel.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
-		ddspan.Resource = traceutilotel.GetOTelResourceV1(otelspan, otelres)
+		ddspan.Name = GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
+		ddspan.Resource = GetOTelResourceV1(otelspan, otelres)
 	}
 
 	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 	if !conf.HasFeature("disable_receive_resource_spans_v2") {
-		ddspan.Type = traceutilotel.GetOTelSpanTypeWithAccessor(otelspan, spanAccessor)
+		ddspan.Type = GetOTelSpanTypeWithAccessor(otelspan, spanAccessor)
 	} else {
-		ddspan.Type = traceutilotel.LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptSpanType, true)
+		ddspan.Type = LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptSpanType, true)
 		if ddspan.Type == "" {
-			ddspan.Type = traceutilotel.SpanKind2Type(otelspan, otelres)
+			ddspan.Type = SpanKind2Type(otelspan, otelres)
 		}
 	}
 
-	ddspan.Meta["span.kind"] = traceutilotel.OTelSpanKindName(spanKind)
+	ddspan.Meta["span.kind"] = OTelSpanKindName(spanKind)
 
 	reg := semantics.DefaultRegistry()
 	if code, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptHTTPStatusCode); ok && code >= 0 {
@@ -104,7 +103,7 @@ func otelSpanToDDSpanMinimal(
 	// TODO(DSEM-658): migrate peer tag lookups to use the semantics library.
 	// Use direct lookup only: peerTagKeys already lists every precursor from peer_tags.ini (semantic-core).
 	for _, peerTagKey := range peerTagKeys {
-		if peerTagVal := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
+		if peerTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
@@ -175,15 +174,15 @@ func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.S
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptDeploymentEnv, true)
+	return LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptDeploymentEnv, true)
 }
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
 func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string) string {
 	ctx := context.Background()
-	src, srcok := tr.ResourceToSource(ctx, res, traceutilotel.SignalTypeSet, nil)
+	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet, nil)
 	if !srcok {
-		if v := traceutilotel.GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
+		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
 			src = source.Source{Kind: source.HostnameKind, Identifier: v}
 			srcok = true
 		}
@@ -203,12 +202,12 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 
 // GetOTelVersion returns the version based on OTel span and resource attributes, with span taking precedence.
 func GetOTelVersion(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptServiceVersion, true)
+	return LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptServiceVersion, true)
 }
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptContainerID, true)
+	return LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptContainerID, true)
 }
 
 // GetOTelContainerOrPodID returns the container ID based on OTel span and resource attributes, with span taking precedence.
@@ -217,15 +216,15 @@ func GetOTelContainerID(span ptrace.Span, res pcommon.Resource) string {
 // This is only done for backward compatibility; consider using GetOTelContainerID instead.
 func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource) string {
 	accessor := semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes())
-	if id := traceutilotel.LookupSemanticStringWithAccessor(accessor, semantics.ConceptContainerID, true); id != "" {
+	if id := LookupSemanticStringWithAccessor(accessor, semantics.ConceptContainerID, true); id != "" {
 		return id
 	}
-	return traceutilotel.LookupSemanticStringWithAccessor(accessor, semantics.ConceptK8sPodUID, true)
+	return LookupSemanticStringWithAccessor(accessor, semantics.ConceptK8sPodUID, true)
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
-	code, ok := traceutilotel.LookupSemanticInt64(span.Attributes(), res.Attributes(), semantics.ConceptHTTPStatusCode)
+	code, ok := LookupSemanticInt64(span.Attributes(), res.Attributes(), semantics.ConceptHTTPStatusCode)
 	if !ok || code < 0 {
 		return 0
 	}
@@ -246,7 +245,7 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 			}
 		} else {
 			// Otherwise populate as additional container tags
-			if val := traceutilotel.GetOTelAttrVal(rattrs, false, key); val != "" {
+			if val := GetOTelAttrVal(rattrs, false, key); val != "" {
 				t := normalizeutil.NormalizeTag(key + ":" + val)
 				containerTags = append(containerTags, t)
 			}
@@ -290,7 +289,7 @@ func OtelSpanToDDSpan(
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if !spanMetaHasKey(ddspan, "version") {
-		if version := traceutilotel.LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptServiceVersion, true); version != "" {
+		if version := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptServiceVersion, true); version != "" {
 			ddspan.Meta["version"] = version
 		}
 	}
@@ -322,7 +321,7 @@ func OtelSpanToDDSpan(
 	}
 
 	if !spanMetaHasKey(ddspan, "env") {
-		if env := traceutilotel.LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDeploymentEnv, true); env != "" {
+		if env := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDeploymentEnv, true); env != "" {
 			ddspan.Meta["env"] = env
 		}
 	}
@@ -340,7 +339,7 @@ func OtelSpanToDDSpan(
 	// Check for db.namespace and conditionally set db.name.
 	// db.namespace is a resource-level attribute; check resource attrs first, then span attrs.
 	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := traceutilotel.LookupSemanticStringWithAccessor(
+		if dbNamespace := LookupSemanticStringWithAccessor(
 			semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes()),
 			semantics.ConceptDBNamespace, false,
 		); dbNamespace != "" {

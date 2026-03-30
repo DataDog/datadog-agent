@@ -1,4 +1,6 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+
+exports_files(["probe.c"])
 
 _COMMON_DEPS = [
     "//pkg/ebpf/c:ebpf_c_headers",

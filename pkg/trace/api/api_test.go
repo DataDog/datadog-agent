@@ -805,6 +805,30 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.Contains(respBody, "too few bytes left to read")
 }
 
+func TestHandleTracesV05RejectsInvalidDictionaryIndex(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v05, r.handleTraces))
+	defer server.Close()
+
+	data := []byte("\x91\x90\x91\x91\x9c\x0000000000\x80\x800")
+	var decoded pb.Traces
+	decodeErr := decoded.UnmarshalMsgDictionary(data)
+	assert.ErrorContains(decodeErr, "dictionary index 0 out of range")
+
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(header.TraceCount, "1")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestTraceCount(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.NoError(t, err)

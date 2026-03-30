@@ -9,6 +9,7 @@
 package model
 
 import (
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
@@ -189,6 +190,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
@@ -248,14 +250,13 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
 	return copied
 }
@@ -400,6 +401,21 @@ func deepCopyTraceID(fieldToCopy utils.TraceID) utils.TraceID {
 	copied.Lo = fieldToCopy.Lo
 	return copied
 }
+func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
+	copied := tracermetadata.TracerMetadata{}
+	copied.ContainerID = fieldToCopy.ContainerID
+	copied.Hostname = fieldToCopy.Hostname
+	copied.LogsCollected = fieldToCopy.LogsCollected
+	copied.ProcessTags = fieldToCopy.ProcessTags
+	copied.RuntimeID = fieldToCopy.RuntimeID
+	copied.SchemaVersion = fieldToCopy.SchemaVersion
+	copied.ServiceEnv = fieldToCopy.ServiceEnv
+	copied.ServiceName = fieldToCopy.ServiceName
+	copied.ServiceVersion = fieldToCopy.ServiceVersion
+	copied.TracerLanguage = fieldToCopy.TracerLanguage
+	copied.TracerVersion = fieldToCopy.TracerVersion
+	return copied
+}
 func deepCopyUserSessionContext(fieldToCopy UserSessionContext) UserSessionContext {
 	copied := UserSessionContext{}
 	copied.ID = fieldToCopy.ID
@@ -475,14 +491,13 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
 	return copied
 }

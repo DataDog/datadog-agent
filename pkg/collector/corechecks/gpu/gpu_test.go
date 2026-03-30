@@ -60,7 +60,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	// enable GPU check in configuration right before Configure
 	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	// we need to cancel the check to make sure all resources and async workers are released
 	// before deinitializing the mock library at test cleanup
 	t.Cleanup(func() { checkGeneric.Cancel() })
@@ -222,7 +222,7 @@ func TestRunDoesNotError(t *testing.T) {
 	WithGPUConfigEnabled(t)
 
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
 	require.NoError(t, err)
 	// we need to cancel the check to make sure all resources and async workers are released
 	// before deinitializing the mock library at test cleanup
@@ -277,7 +277,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 	// configure check
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	require.Empty(t, check.collectors)
 	t.Cleanup(func() { check.Cancel() })
 
@@ -393,7 +393,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// Expect GetPidToCid to be called and return an empty map (no processes)
 	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(map[int]string{}).AnyTimes()
 	check.containerProvider = mockContainerProvider
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	require.Empty(t, check.collectors)
 	t.Cleanup(func() { check.Cancel() })
 
@@ -453,6 +453,43 @@ func mockMatchesTags(expectedTags []string) interface{} {
 	})
 }
 
+func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	check := &Check{}
+	deviceTags := make([]string, 1, 4)
+	deviceTags[0] = "gpu_uuid:gpu-1"
+
+	firstMetric := &nvidia.Metric{
+		Name:  "utilization",
+		Value: 1,
+		Type:  ddmetrics.GaugeType,
+		Tags:  []string{"source:first"},
+	}
+	secondMetric := &nvidia.Metric{
+		Name:  "utilization",
+		Value: 2,
+		Type:  ddmetrics.GaugeType,
+		Tags:  []string{"source:second"},
+	}
+
+	now := time.Now()
+	require.NoError(t, check.emitSingleMetric(firstMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSingleMetric(secondMetric, mockSender, now, nil, deviceTags))
+
+	require.Len(t, mockSender.Mock.Calls, 2)
+
+	firstTags, ok := mockSender.Mock.Calls[0].Arguments.Get(3).([]string)
+	require.True(t, ok)
+	secondTags, ok := mockSender.Mock.Calls[1].Arguments.Get(3).([]string)
+	require.True(t, ok)
+
+	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:first"}, firstTags)
+	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:second"}, secondTags)
+	require.Equal(t, []string{"gpu_uuid:gpu-1"}, deviceTags)
+}
+
 func TestTagsChangeBetweenRuns(t *testing.T) {
 	// Create a mock sender
 	mockSender := mocksender.NewMockSender("gpu")
@@ -472,7 +509,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	// enable GPU check in configuration right before Configure
 	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	// we need to cancel the check to make sure all resources and async workers are released
 	// before deinitializing the mock library at test cleanup
 	t.Cleanup(func() { checkGeneric.Cancel() })
@@ -546,7 +583,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	WithGPUConfigEnabled(t)
 
-	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 
 	// Reset the collectors, use the mock ones only
@@ -835,6 +872,7 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 				[]byte{},
 				[]byte{},
 				"test",
+				"",
 			)
 			require.NoError(t, err)
 
@@ -998,7 +1036,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
 	check.containerProvider = mockContainerProvider
-	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { checkGeneric.Cancel() })
 
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic

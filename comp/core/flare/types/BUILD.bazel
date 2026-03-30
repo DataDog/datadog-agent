@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["types.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/flare/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/builder",
+        "@org_uber_go_fx//:fx",
+    ],
+)

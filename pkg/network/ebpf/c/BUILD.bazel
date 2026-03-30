@@ -1,19 +1,27 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
 exports_files(["tracer.c"])
 
+_NETWORK_HDRS = glob(
+    ["**/*.h"],
+    exclude = [
+        "prebuilt/**",
+        "co-re/**",
+        "runtime/**",
+    ],
+)
+
 cc_library(
     name = "ebpf_c_network",
-    hdrs = glob(
-        ["**/*.h"],
-        exclude = [
-            "prebuilt/**",
-            "co-re/**",
-            "runtime/**",
-        ],
-    ),
+    hdrs = _NETWORK_HDRS,
     includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ebpf_c_network_files",
+    srcs = _NETWORK_HDRS,
     visibility = ["//visibility:public"],
 )
 
