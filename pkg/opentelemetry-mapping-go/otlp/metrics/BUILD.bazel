@@ -57,7 +57,10 @@ go_test(
         "histograms_test.go",
         "testhelper_test.go",
     ],
-    data = glob(["test/otlp/hist/**"]) + glob(["test/datadog/hist/**"]),
+    data = glob([
+        "test/otlp/hist/**",
+        "test/datadog/hist/**",
+    ]),
     embed = [":metrics"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
@@ -80,7 +83,10 @@ go_test(
         "consume_host_test.go",
         "testhelper_test.go",
     ],
-    data = glob(["test/otlp/hosts/**"]) + glob(["test/datadog/hosts/**"]) + TESTHELPER_DATA,
+    data = glob([
+        "test/otlp/hosts/**",
+        "test/datadog/hosts/**",
+    ]) + TESTHELPER_DATA,
     embed = [":metrics"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
@@ -103,7 +109,7 @@ go_test(
         "statspayload_test.go",
         "testhelper_test.go",
     ],
-    data = glob(["test/otlp/mixed/**"]) + glob(["test/datadog/mixed/**"]) + TESTHELPER_DATA,
+    data = TESTHELPER_DATA,
     embed = [":metrics"],
     gotags = ["test"],
     deps = [
@@ -129,7 +135,10 @@ go_test(
         "mixed_metrics_test.go",
         "testhelper_test.go",
     ],
-    data = glob(["test/otlp/mixed/**"]) + glob(["test/datadog/mixed/**"]) + TESTHELPER_DATA,
+    data = glob([
+        "test/otlp/mixed/**",
+        "test/datadog/mixed/**",
+    ]) + TESTHELPER_DATA,
     embed = [":metrics"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
@@ -151,7 +160,10 @@ go_test(
         "origin_test.go",
         "testhelper_test.go",
     ],
-    data = glob(["test/otlp/origin/**"]) + glob(["test/datadog/origin/**"]) + TESTHELPER_DATA,
+    data = glob([
+        "test/otlp/origin/**",
+        "test/datadog/origin/**",
+    ]) + TESTHELPER_DATA,
     embed = [":metrics"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
@@ -173,7 +185,10 @@ go_test(
         "summary_test.go",
         "testhelper_test.go",
     ],
-    data = glob(["test/otlp/mixed/**"]) + glob(["test/datadog/mixed/**"]) + glob(["test/otlp/summary/**"]) + glob(["test/datadog/summary/**"]) + TESTHELPER_DATA,
+    data = glob([
+        "test/otlp/summary/**",
+        "test/datadog/summary/**",
+    ]) + TESTHELPER_DATA,
     embed = [":metrics"],
     gotags = ["test"],
     deps = [
@@ -229,7 +244,7 @@ go_test(
         "testhelper_test.go",
         "ttlcache_test.go",
     ],
-    data = glob(["test/otlp/mixed/**"]) + glob(["test/datadog/mixed/**"]) + TESTHELPER_DATA,
+    data = TESTHELPER_DATA,
     embed = [":metrics"],
     gotags = ["test"],
     deps = [
