@@ -103,7 +103,7 @@ func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name strin
 	v.UpdateEnv(v.newProvisionerWithAgentOptions(agentOptions...))
 }
 
-// testCheckExampleExecutionAndMetrics tests the shared library code and checks it returns the right metrics
+// Test the shared library code and check it returns the right metrics
 func (v *sharedLibrarySuite) testCheckExampleExecutionAndMetrics() {
 	// execute the check and retrieve the metrics
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))
@@ -136,7 +136,7 @@ func (v *sharedLibrarySuite) testCheckExampleExecutionAndMetrics() {
 	assert.Equal(v.T(), "info", event.AlertType)
 }
 
-// testCheckWithoutRunSymbolExecutionError tests the shared library code and checks it returns the right metrics
+// Test the shared library code and check it returns the right metrics
 func (v *sharedLibrarySuite) testCheckWithoutRunSymbolExecutionError() {
 	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"no-run-symbol", "--json"}))
 

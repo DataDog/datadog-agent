@@ -31,7 +31,6 @@ const (
 	guiAPIEndpoint = "/agent/gui/intent"
 )
 
-// getGUIIntentToken fetches the GUI intent token from the agent API.
 func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) string {
 	hostHTTPClient := host.NewHTTPClient()
 
@@ -58,7 +57,6 @@ func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoke
 	return string(url)
 }
 
-// getGUIClient authenticates with the GUI server and returns an authenticated HTTP client.
 func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string) *http.Client {
 	intentToken := getGUIIntentToken(t, host, authtoken)
 
@@ -93,7 +91,6 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 	return guiClient
 }
 
-// checkStaticFiles validates all static assets served by the GUI match the files on disk.
 func checkStaticFiles(t *testing.T, client *http.Client, host *components.RemoteHost, installPath string) {
 
 	var links []string
@@ -160,7 +157,6 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 	}
 }
 
-// checkPingEndpoint tests the GUI ping endpoint.
 func checkPingEndpoint(t *testing.T, client *http.Client) {
 	guiURL := url.URL{
 		Scheme: "http",

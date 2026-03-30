@@ -51,7 +51,7 @@ func TestAuthArtifactIPCSecurityWindowsSuite(t *testing.T) {
 	)
 }
 
-// winPathJoin is an implementation of [path.Join] for Windows.
+// Implementation of [path.Join] for Windows.
 // It was copied from the Go source code.
 //
 // [path.Join]: https://cs.opensource.google/go/go/+/refs/tags/go1.23.6:src/path/filepath/path_windows.go;l=65-110

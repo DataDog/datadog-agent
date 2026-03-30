@@ -12,7 +12,6 @@ import (
 	"strconv"
 )
 
-// agentConfigEndpointInfo holds connection details for an agent's config HTTP endpoint.
 type agentConfigEndpointInfo struct {
 	name     string
 	scheme   string
@@ -20,22 +19,18 @@ type agentConfigEndpointInfo struct {
 	endpoint string
 }
 
-// traceConfigEndpoint returns the endpoint info for the trace-agent config endpoint.
 func traceConfigEndpoint(port int) agentConfigEndpointInfo {
 	return agentConfigEndpointInfo{"trace-agent", "https", port, "/config"}
 }
 
-// processConfigEndpoint returns the endpoint info for the process-agent config endpoint.
 func processConfigEndpoint(port int) agentConfigEndpointInfo {
 	return agentConfigEndpointInfo{"process-agent", "https", port, "/config/all"}
 }
 
-// securityConfigEndpoint returns the endpoint info for the security-agent config endpoint.
 func securityConfigEndpoint(port int) agentConfigEndpointInfo {
 	return agentConfigEndpointInfo{"security-agent", "https", port, "/agent/config"}
 }
 
-// url builds the full URL for this endpoint.
 func (endpointInfo *agentConfigEndpointInfo) url() *url.URL {
 	return &url.URL{
 		Scheme: endpointInfo.scheme,
@@ -44,7 +39,6 @@ func (endpointInfo *agentConfigEndpointInfo) url() *url.URL {
 	}
 }
 
-// httpRequest creates an authenticated GET request for this endpoint.
 func (endpointInfo *agentConfigEndpointInfo) httpRequest(authtoken string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, endpointInfo.url().String(), nil)
 	if err != nil {
