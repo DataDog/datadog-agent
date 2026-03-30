@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"time"
 
+	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -116,6 +118,13 @@ func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, client
 		if err != nil {
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
+
+		// Try to parse structured error response
+		var errResp traceroutelib.ErrorResponse
+		if json.Unmarshal(body, &errResp) == nil && errResp.Code != "" {
+			return nil, fmt.Errorf("traceroute failed (%s): %s", errResp.Code, errResp.Message)
+		}
+
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
 	}
 

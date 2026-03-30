@@ -18,6 +18,8 @@ import (
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
+	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
+
 	traceroutecomp "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -69,7 +71,12 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		// Run traceroute
 		path, err := t.runner.Run(context.Background(), cfg)
 		if err != nil {
-			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error()))
+			classified := traceroutelib.ClassifyError(err)
+			errResp := traceroutelib.ErrorResponse{
+				Code:    classified.Code,
+				Message: classified.Message,
+			}
+			handleTracerouteStructuredError(w, http.StatusInternalServerError, errResp, cfg.DestHostname)
 			return
 		}
 
@@ -107,6 +114,15 @@ func handleTracerouteReqError(w http.ResponseWriter, statusCode int, errString s
 	log.Error(errString)
 	_, err := w.Write([]byte(errString))
 	if err != nil {
+		log.Errorf("unable to write traceroute error response: %s", err)
+	}
+}
+
+func handleTracerouteStructuredError(w http.ResponseWriter, statusCode int, errResp traceroutelib.ErrorResponse, host string) {
+	log.Errorf("traceroute error for host %s: [%s] %s", host, errResp.Code, errResp.Message)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(errResp); err != nil {
 		log.Errorf("unable to write traceroute error response: %s", err)
 	}
 }
