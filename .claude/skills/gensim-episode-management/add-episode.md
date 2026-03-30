@@ -112,7 +112,7 @@ KUBECONFIG=<kubeconfig> kubectl --context aws \
 | +2-4 min | episode-running: warmup (2 min) |
 | +4-6 min | baseline (10 min) |
 | +14-16 min | disruption (10 min) |
-| +16-18 min | first observer events (BOCPD on virtual log metrics) |
+| +16-18 min | first observer anomaly events |
 | +24-26 min | cooldown (10 min) |
 | +34-36 min | episode done, parquet collection |
 

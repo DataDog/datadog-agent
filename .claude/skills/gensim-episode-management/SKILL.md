@@ -56,42 +56,28 @@ episode-name/
 
 ### Observer Config (agent-values.yaml.tmpl)
 
-The observer's detector/correlator config for live runs:
+The observer's detector/correlator config lives in `agent-values.yaml.tmpl`. Each
+detector and correlator can be toggled via:
 
-```yaml
-observer:
-  analysis:
-    enabled: true
-  event_reporter:
-    sending_enabled: true
-  components:
-    bocpd:
-      enabled: true        # streaming detector, works in live mode
-    scanwelch:
-      enabled: true        # batch detector, known eviction bug in live mode
-    rrcf:
-      enabled: false
-    time_cluster:
-      min_cluster_size: 1   # use 1 for eval (most clusters are size 1-2)
 ```
+observer.components.<name>.enabled: true/false
+```
+
+Check the template for current detector names and defaults. For eval runs, ensure
+`time_cluster.min_cluster_size` is low enough (1-2) -- higher values filter out
+small anomaly clusters that are common in single-disruption scenarios.
 
 ### Known Issues (affect all episodes)
 
-**Trace metric naming mismatch**: The observer stores `trace.hits{operation:redis.command}`
-while Datadog's backend shows `trace.redis.command.hits`. Same data, different naming.
-When validating TP/FP against scenario.yaml, translate: `trace.{operation}.{suffix}` in
-the backend maps to `trace.{suffix}{operation:{operation}}` in the observer.
+**Trace metric naming mismatch** (structural, unlikely to change): The observer's
+`processStatsView` stores `trace.hits{operation:redis.command}` while Datadog's
+backend shows `trace.redis.command.hits`. Same data, different naming convention.
+When validating TP/FP against scenario.yaml, translate: `trace.{operation}.{suffix}`
+in the backend maps to `trace.{suffix}{operation:{operation}}` in the observer.
 
-**BOCPD warmup**: Needs 120 data points. Virtual log metrics (~1s interval) warm up in
-2 min. Check/trace metrics (~10-15s interval) need 20-30 min -- longer than most baselines.
-Expect BOCPD to primarily detect on log-derived metrics for slow-interval scenarios.
-
-**ScanWelch eviction**: Batch detectors timestamp anomalies at the historical changepoint.
-TimeCluster's 120s window evicts them before EventReporter fires. Works in testbench,
-not in live mode. Known bug, pending fix.
-
-**Silent channel drops**: The observer's 1000-item observation channel drops data under
-load (non-blocking send). Affects live mode only; testbench bypasses the channel.
+**Detector-specific issues**: See `references/current-detector-issues.md` for
+current detector warmup requirements, correlator eviction behavior, and known
+live-vs-testbench divergences. These change as the observer algorithms evolve.
 
 ### Useful pup Commands
 

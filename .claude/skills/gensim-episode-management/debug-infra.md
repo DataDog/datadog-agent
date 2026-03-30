@@ -190,20 +190,27 @@ Checklist:
 3. **Is event_reporter.sending_enabled true?** Same configmap check.
 4. **Is min_cluster_size too high?** Most scenarios produce clusters of size 1-2.
    If set to 3+, all events get filtered.
-5. **Is it just BOCPD warmup?** Virtual log metrics fire in ~2 min. Check/trace
-   metrics need 20-30 min of warmup. Be patient or check for log-based events.
+5. **Have detectors completed warmup?** Detectors need a minimum number of data
+   points before they start detecting. High-frequency metrics (e.g. virtual logs
+   at ~1s) warm up fast; low-frequency metrics (e.g. check metrics at ~15s) may
+   need longer than the baseline phase. See `references/current-detector-issues.md`.
 6. **Check pup auth** -- maybe events are firing but your query is failing silently.
 
 ### Events fire but only on infrastructure metrics
 
-This is expected behavior. The observer detects on ALL metrics flowing through it,
-including container, coredns, and system metrics. The scenario-specific metrics
-(redis, trace, kafka) may not fire due to BOCPD warmup (see SKILL.md known issues).
+The observer detects on ALL metrics flowing through it, including container,
+coredns, and system metrics. Scenario-specific metrics (redis, trace, kafka) may
+not fire if the detector hasn't completed warmup for those slower-interval metrics.
+See `references/current-detector-issues.md` for current warmup requirements.
 
-### ScanWelch fires in testbench but not live
+### Detector works in testbench but not live
 
-Known eviction bug. See SKILL.md "ScanWelch Eviction Bug" section. Use BOCPD for
-live evaluation. ScanWelch works for testbench/offline evaluation only.
+Some detectors (e.g. batch/retrospective detectors like ScanWelch) may produce
+anomalies in testbench replay but not emit Datadog events in live mode. This can
+happen when the correlator's eviction window is shorter than the detector's
+detection delay. See `references/current-detector-issues.md` for details and
+check `engine.go` `runDetectorsAndCorrelatorsSnapshot()` for the current
+execution sequence.
 
 ## Quick Recovery Playbook
 
