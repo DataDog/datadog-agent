@@ -320,4 +320,51 @@ bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char* data) {
     return *entry == get_discarders_revision();
 }
 
+void __attribute__((always_inline)) discard_auid(u32 auid, u64 event_type) {
+    if (event_type < EVENT_FIRST_DISCARDER || event_type > EVENT_LAST_DISCARDER) {
+        return;
+    }
+
+    u32 revision = get_discarders_revision();
+    struct auid_discarder_params_t *params = bpf_map_lookup_elem(&auid_discarders, &auid);
+    if (params) {
+        if (params->revision != revision) {
+            params->revision = revision;
+            params->event_mask = 0;
+        }
+        add_event_to_mask(&params->event_mask, event_type);
+    } else {
+        struct auid_discarder_params_t new_params = {};
+        new_params.revision = revision;
+        add_event_to_mask(&new_params.event_mask, event_type);
+        bpf_map_update_elem(&auid_discarders, &auid, &new_params, BPF_ANY);
+    }
+
+    monitor_discarder_added(event_type);
+}
+
+bool __attribute__((always_inline)) is_auid_discarder(u64 event_type) {
+    if (event_type < EVENT_FIRST_DISCARDER || event_type > EVENT_LAST_DISCARDER) {
+        return false;
+    }
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+    if (!pid_entry || !pid_entry->credentials.is_auid_set) {
+        return false;
+    }
+
+    u32 auid = pid_entry->credentials.auid;
+
+    struct auid_discarder_params_t *params = bpf_map_lookup_elem(&auid_discarders, &auid);
+    if (params == NULL) {
+        return false;
+    }
+
+    if (params->revision != get_discarders_revision()) {
+        return false;
+    }
+
+    return mask_has_event(params->event_mask, event_type);
+}
 #endif
