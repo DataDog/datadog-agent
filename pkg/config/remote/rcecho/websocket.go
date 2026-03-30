@@ -3,20 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rcwebsocket implements WebSocket connectivity to the RC backend.
-package rcwebsocket
+// package rcecho implements WebSocket connectivity to the RC backend.
+package rcecho
 
 import (
 	"bytes"
 	"context"
-	"net/http"
-	"strconv"
+	"fmt"
+	"path"
+	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"github.com/gorilla/websocket"
 )
 
 // The server must transmit a PING or DATA frame at least once per
@@ -74,12 +75,8 @@ func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
 	}
 }
 
-func runEchoLoop(ctx context.Context, client *api.HTTPClient, reconnections uint) (uint, error) {
-	extraHeaders := http.Header{
-		"X-Echo-Reconnections": []string{strconv.FormatUint(uint64(reconnections), 10)},
-		"X-Agent-UUID":         []string{uuid.GetUUID()},
-	}
-	conn, err := client.NewWebSocket(ctx, "/api/v0.2/echo-test", extraHeaders)
+func runEchoLoop(ctx context.Context, client *api.HTTPClient) (uint, error) {
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client)
 	if err != nil {
 		return 0, err
 	}
@@ -161,4 +158,56 @@ func gracefulAbort(conn *websocket.Conn) {
 		websocket.FormatCloseMessage(websocket.CloseGoingAway, "test cancel"),
 		time.Now().Add(time.Second),
 	)
+}
+
+// newWebSocketClient connects to the RC WebSocket backend and returns a new WebSocket
+// connection or a connection / handshake error.
+//
+// The "endpointPath" specifies the resource path to connect to, which is
+// appended to the client baseURL.
+func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient) (*websocket.Conn, error) {
+	// Extract the TLS & Proxy configuration from the HTTP client.
+	transport, err := httpClient.Transport()
+	if err != nil {
+		return nil, err
+	}
+
+	dialer := &websocket.Dialer{
+		HandshakeTimeout: 30 * time.Second,
+		TLSClientConfig:  transport.TLSClientConfig,
+		Proxy:            transport.Proxy,
+	}
+
+	// The WebSocket request MUST include the same auth credentials as the plain
+	// HTTP requests.
+	headers := httpClient.Headers()
+
+	// Parse the "base URL" the client uses to connect to RC.
+	url, err := httpClient.BaseUrl()
+	if err != nil {
+		return nil, err
+	}
+	// Append the specific path to the WebSocket resource.
+	url.Path = path.Join(url.Path, endpointPath)
+	// Change the protocol to use websockets.
+	switch strings.ToLower(url.Scheme) {
+	case "http":
+		url.Scheme = "ws"
+	case "https":
+		url.Scheme = "wss"
+	}
+
+	log.Debugf("connecting to websocket endpoint %s", url.String())
+
+	// Send the HTTP request, wait for the upgrade response and then perform the
+	// WebSocket handshake.
+	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
+	}
+	_ = resp.Body.Close()
+
+	log.Debug("websocket connected")
+
+	return conn, nil
 }

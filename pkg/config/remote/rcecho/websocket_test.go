@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package rcwebsocket
+package rcecho
 
 import (
 	"context"
@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 )
 
 // Simulate a test run with a mixture of frame types sent by the server.
@@ -223,7 +224,7 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 	client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 	assert.NoError(err)
 
-	conn, err := client.NewWebSocket(ctx, "/bananas", nil)
+	conn, err := newWebSocketClient(ctx, "/bananas", client)
 	assert.NoError(err)
 	defer conn.Close()
 

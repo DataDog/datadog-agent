@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/rcwebsocket"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/rcecho"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WebSocketTestActor periodically calls rcwebsocket.RunWebSocketTest() in a
+// WebSocketTestActor periodically calls rcecho.RunWebSocketTest() in a
 // background task.
 type WebSocketTestActor struct {
 	client *api.HTTPClient
@@ -29,7 +29,7 @@ type WebSocketTestActor struct {
 func NewWebSocketTestActor(client *api.HTTPClient) *WebSocketTestActor {
 	return &WebSocketTestActor{
 		client: client,
-		fn:     rcwebsocket.RunEchoTest,
+		fn:     rcecho.RunEchoTest,
 	}
 }
 
