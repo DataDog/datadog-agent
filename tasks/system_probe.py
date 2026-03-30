@@ -924,6 +924,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/c:lock_contention",
     "//pkg/ebpf/c:ksyms_iter",
     "//pkg/network/ebpf/c:tracer",
+    "//pkg/network/ebpf/c/sk:sk_tracer",
+    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
     "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
     "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",

@@ -9,6 +9,7 @@ _NETWORK_HDRS = glob(
         "prebuilt/**",
         "co-re/**",
         "runtime/**",
+		"sk/**",
     ],
 )
 

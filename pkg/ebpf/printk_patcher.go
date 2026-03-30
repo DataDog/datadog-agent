@@ -178,7 +178,7 @@ func (p *printkPatcher) patch() (int, error) {
 
 		}
 	}
-	log.Debugf("Patched %d instructions for %s, errors: %v", numPatches, p.program.Name, errs)
+	log.Tracef("Patched %d instructions for %s, errors: %v", numPatches, p.program.Name, errs)
 
 	return numPatches, errors.Join(errs...)
 }

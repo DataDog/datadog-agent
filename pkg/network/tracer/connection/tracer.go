@@ -30,6 +30,8 @@ const (
 	TracerTypeEbpfless
 	// TracerTypeDarwin is the TracerType for the Darwin tracer (uses ebpfless implementation)
 	TracerTypeDarwin
+	// TracerTypeSK is the TracerType for the SK-based tracer
+	TracerTypeSK
 )
 
 // Tracer is the common interface implemented by all connection tracers.

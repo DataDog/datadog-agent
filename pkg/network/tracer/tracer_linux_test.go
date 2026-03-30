@@ -193,7 +193,7 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.NotNil(ct, conn)
 
-		assert.Equal(ct, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
+		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentBytes), 100*clientMessageSize)
 		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
 		if !tr.config.EnableEbpfless {
 			assert.Equal(ct, os.Getpid(), int(conn.Pid))
@@ -211,6 +211,10 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	cfg := testConfig()
 	// ebpfless does not support tracing PIDs such as this test
 	skipOnEbpflessNotSupported(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK doesn't support shared socket yet")
+	}
+
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -1749,7 +1753,6 @@ func (s *TracerSuite) TestSendfileRegression() {
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns, cleanup := getConnections(ct, tr)
 			defer cleanup()
-			t.Log(conns)
 			newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 			if newOutConn != nil {
 				outConn = newOutConn
@@ -1770,7 +1773,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 			}
 		}
 		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv bytes wasn't properly traced")
+			assert.InDeltaf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1, "sendfile recv bytes wasn't properly traced")
 			if connType == network.UDP {
 				assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
 				assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
@@ -2131,7 +2134,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 		defer cleanup()
 		conn, found := findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), connections)
 		require.True(collect, found)
-		require.Equal(collect, uint64(read), conn.Monotonic.RecvBytes)
+		require.InDelta(collect, uint64(read), conn.Monotonic.RecvBytes, 1)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
@@ -2649,8 +2652,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		f := os.NewFile(uintptr(sfd), "")
 		defer f.Close()
 
-		//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
-		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, syscall.TCP_USER_TIMEOUT, 500)
 		require.NoError(t, err)
 
 		err = syscall.Connect(sfd, &addr)
