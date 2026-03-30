@@ -43,7 +43,7 @@ generator:
             set: 0
             histogram: 0
           metric_names:
-            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-499}}
+            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-14999}}
           tag_names:
             - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-57}}
           tag_values:
