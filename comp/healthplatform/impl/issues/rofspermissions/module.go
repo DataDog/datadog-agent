@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build docker
+
 // Package rofspermissions provides a complete module for handling Read-Only Filesystem permission issues specifically
 // checking if the Agent has write permissions to all the expected directories.
 package rofspermissions
