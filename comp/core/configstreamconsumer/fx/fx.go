@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,14 +17,5 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(configstreamconsumerimpl.NewComponent),
 		fxutil.ProvideOptional[configstreamconsumer.Component](),
-	)
-}
-
-// MockModule defines the fx options for the mock component
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(func() configstreamconsumer.Component {
-			return nil
-		}),
 	)
 }

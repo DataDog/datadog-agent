@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +24,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -105,6 +105,7 @@ func createTestConsumer(t *testing.T, serverAddr string, ipcComp *ipcmock.IPCMoc
 		},
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
+		subscribers:     make(map[int]chan configstreamconsumer.ChangeEvent),
 	}
 
 	c.reader = &configReader{consumer: c}
@@ -515,8 +516,9 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 	})
 }
 
-// TestUsagePatternBlocking tests blocking until the config ready
-func TestUsagePatternBlocking(t *testing.T) {
+// TestStartBlocksUntilSnapshot verifies that Start blocks until the first snapshot is received,
+// so the binary's run function sees a fully-populated config without calling WaitReady.
+func TestStartBlocksUntilSnapshot(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
 	defer cleanup()
@@ -524,20 +526,9 @@ func TestUsagePatternBlocking(t *testing.T) {
 	consumer, cleanupConsumer := createTestConsumer(t, serverAddr, ipcComp)
 	defer cleanupConsumer()
 
-	// Simulate: agent needs config values before it can start
-	var agentStarted bool
-	var configuredPort int
-
-	// Start the config stream (non-blocking - runs in background)
-	err := consumer.Start(context.Background())
-	require.NoError(t, err)
-
-	// Agent is NOT started yet - we need config first
-	assert.False(t, agentStarted, "agent should not start before config ready")
-
-	// Send snapshot asynchronously (simulates server response)
+	// Send snapshot after a short delay to verify Start blocks.
 	go func() {
-		time.Sleep(100 * time.Millisecond) // Simulate network delay
+		time.Sleep(50 * time.Millisecond)
 		events <- &pb.ConfigEvent{
 			Event: &pb.ConfigEvent_Snapshot{
 				Snapshot: &pb.ConfigSnapshot{
@@ -551,117 +542,24 @@ func TestUsagePatternBlocking(t *testing.T) {
 		}
 	}()
 
-	// Block until config is ready
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
 	startTime := time.Now()
-	err = consumer.WaitReady(ctx)
-	waitDuration := time.Since(startTime)
-
-	require.NoError(t, err, "config should be ready within timeout")
-	assert.GreaterOrEqual(t, waitDuration, 100*time.Millisecond, "should have waited for snapshot")
-	assert.Less(t, waitDuration, 1*time.Second, "should not timeout")
-
-	// Config is GUARANTEED to be fully populated here
-	cfg := consumer.Reader()
-	configuredPort = cfg.GetInt("server.port")
-	featureEnabled := cfg.GetBool("feature.enabled")
-
-	assert.Equal(t, 8080, configuredPort, "config should be populated")
-	assert.True(t, featureEnabled, "config should be populated")
-
-	// Now it's safe to start the agent with config
-	agentStarted = true
-	assert.True(t, agentStarted, "agent can now start with complete config")
-
-	consumer.stop()
-}
-
-// TestUsagePatternNonBlocking tests whether the consumer can start immediately with eventual consistency
-func TestUsagePatternNonBlocking(t *testing.T) {
-	ipcComp := ipcmock.New(t)
-	_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
-	defer cleanup()
-
-	consumer, cleanupConsumer := createTestConsumer(t, serverAddr, ipcComp)
-	defer cleanupConsumer()
-
-	// Start the config stream (non-blocking - runs in background)
 	err := consumer.Start(context.Background())
-	require.NoError(t, err)
+	startDuration := time.Since(startTime)
 
-	// DON'T call WaitReady() - proceed immediately
+	require.NoError(t, err, "Start should succeed once snapshot is received")
+	assert.GreaterOrEqual(t, startDuration, 50*time.Millisecond, "Start should have blocked until snapshot arrived")
 
-	// Agent starts IMMEDIATELY without waiting
+	// Config is guaranteed to be fully populated when Start returns.
 	cfg := consumer.Reader()
-	agentStarted := true
-	assert.True(t, agentStarted, "agent starts immediately")
+	assert.Equal(t, 8080, cfg.GetInt("server.port"))
+	assert.True(t, cfg.GetBool("feature.enabled"))
 
-	// Config may be empty initially (returns zero values)
-	initialPort := cfg.GetInt("server.port")
-	assert.Equal(t, 0, initialPort, "config not yet populated - zero value returned")
-
-	// Subscribe to config changes to react when config arrives
-	changes, unsubscribe := consumer.Subscribe()
-	defer unsubscribe()
-
-	// Track when config updates arrive (mutex protects map from concurrent read/write)
-	var configUpdatesMu sync.Mutex
-	configUpdates := make(map[string]interface{})
-	changeReceived := make(chan bool, 1)
-
-	go func() {
-		for change := range changes {
-			configUpdatesMu.Lock()
-			configUpdates[change.Key] = change.NewValue
-			configUpdatesMu.Unlock()
-			if change.Key == "server.port" {
-				changeReceived <- true
-			}
-		}
-	}()
-
-	// Now send snapshot (simulates server sending config)
-	events <- &pb.ConfigEvent{
-		Event: &pb.ConfigEvent_Snapshot{
-			Snapshot: &pb.ConfigSnapshot{
-				SequenceId: 1,
-				Settings: []*pb.ConfigSetting{
-					{Key: "server.port", Value: mustNewValue(t, int64(9090))},
-					{Key: "feature.experimental", Value: mustNewValue(t, true)},
-				},
-			},
-		},
-	}
-
-	// Wait for change notification
-	select {
-	case <-changeReceived:
-		// Config has arrived
-	case <-time.After(2 * time.Second):
-		t.Fatal("config snapshot not received")
-	}
-
-	// Config is now eventually consistent
-	updatedPort := cfg.GetInt("server.port")
-	assert.Equal(t, 9090, updatedPort, "config should be updated")
-
-	// Verify change events were received (lock to avoid race with subscriber goroutine)
-	configUpdatesMu.Lock()
-	portVal, hasPort := configUpdates["server.port"]
-	configUpdatesMu.Unlock()
-	assert.True(t, hasPort, "configUpdates should contain server.port")
-	assert.Equal(t, int64(9090), portVal)
-
-	// Agent can dynamically reconfigure based on updates
-	t.Logf("Agent dynamically reconfigured: port changed from %d to %d", initialPort, updatedPort)
-
-	consumer.stop()
+	consumer.stop(context.Background())
 }
 
-// TestUsagePatternBlockingTimeout tests that blocking pattern fails fast if server unavailable
-func TestUsagePatternBlockingTimeout(t *testing.T) {
+// TestStartTimeoutFailsStartup verifies that Start returns an error when the first snapshot
+// is not received within ReadyTimeout, aborting FX startup.
+func TestStartTimeoutFailsStartup(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	_, serverAddr, _, cleanup := setupTestServer(t, ipcComp)
 	defer cleanup()
@@ -669,88 +567,15 @@ func TestUsagePatternBlockingTimeout(t *testing.T) {
 	consumer, cleanupConsumer := createTestConsumer(t, serverAddr, ipcComp)
 	defer cleanupConsumer()
 
-	// Start the config stream
-	err := consumer.Start(context.Background())
-	require.NoError(t, err)
-
-	// DON'T send snapshot - simulate server not responding
-
-	// Try to wait with a short timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+	// Short timeout so the test doesn't take 60s.
+	consumer.params.ReadyTimeout = 200 * time.Millisecond
 
 	startTime := time.Now()
-	err = consumer.WaitReady(ctx)
-	waitDuration := time.Since(startTime)
-
-	// Should fail with timeout error
-	require.Error(t, err, "should timeout when no snapshot received")
-	assert.Contains(t, err.Error(), "timed out waiting for config snapshot")
-	assert.GreaterOrEqual(t, waitDuration, 200*time.Millisecond, "should respect timeout")
-	assert.Less(t, waitDuration, 500*time.Millisecond, "should not wait too long")
-
-	// Agent can decide how to handle: retry, use defaults, or fail
-	t.Log("Agent can handle timeout gracefully: retry, use defaults, or exit")
-
-	consumer.stop()
-}
-
-// TestUsagePatternMultipleWaiters tests that multiple goroutines can wait on the same readiness
-func TestUsagePatternMultipleWaiters(t *testing.T) {
-	ipcComp := ipcmock.New(t)
-	_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
-	defer cleanup()
-
-	consumer, cleanupConsumer := createTestConsumer(t, serverAddr, ipcComp)
-	defer cleanupConsumer()
-
-	// Start the config stream
 	err := consumer.Start(context.Background())
-	require.NoError(t, err)
+	startDuration := time.Since(startTime)
 
-	// Simulate multiple components waiting for config
-	const numWaiters = 5
-	waitersReady := make(chan int, numWaiters)
-
-	for i := 0; i < numWaiters; i++ {
-		go func(id int) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-
-			if err := consumer.WaitReady(ctx); err == nil {
-				waitersReady <- id
-			}
-		}(i)
-	}
-
-	// Give waiters time to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Send snapshot - should unblock ALL waiters simultaneously
-	events <- &pb.ConfigEvent{
-		Event: &pb.ConfigEvent_Snapshot{
-			Snapshot: &pb.ConfigSnapshot{
-				SequenceId: 1,
-				Settings: []*pb.ConfigSetting{
-					{Key: "shared.config", Value: mustNewValue(t, "available")},
-				},
-			},
-		},
-	}
-
-	// All waiters should unblock
-	for i := 0; i < numWaiters; i++ {
-		select {
-		case waiterID := <-waitersReady:
-			t.Logf("Waiter %d unblocked", waiterID)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("Waiter %d did not unblock", i)
-		}
-	}
-
-	// All can read config
-	cfg := consumer.Reader()
-	assert.Equal(t, "available", cfg.GetString("shared.config"))
-
-	consumer.stop()
+	require.Error(t, err, "Start should fail when no snapshot received within timeout")
+	assert.Contains(t, err.Error(), "waiting for initial config snapshot")
+	assert.GreaterOrEqual(t, startDuration, 200*time.Millisecond, "should respect ReadyTimeout")
+	assert.Less(t, startDuration, 500*time.Millisecond, "should not wait longer than needed")
 }

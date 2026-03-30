@@ -5,7 +5,7 @@
 
 // Package configstreamconsumer implements a component that consumes config streams from the core agent.
 //
-// team: agent-metric-pipelines agent-configuration
+// team: agent-configuration
 package configstreamconsumer
 
 import (
@@ -16,10 +16,6 @@ import (
 
 // Component is the config stream consumer component interface.
 type Component interface {
-	// Start initiates the config stream connection and processing loop.
-	// It should be called during the OnStart lifecycle hook.
-	Start(ctx context.Context) error
-
 	// WaitReady blocks until the first config snapshot has been received and applied.
 	// This ensures the consumer has a consistent config view before proceeding.
 	WaitReady(ctx context.Context) error
@@ -30,6 +26,8 @@ type Component interface {
 
 	// Subscribe returns a channel that receives config change events.
 	// The returned unsubscribe function should be called to clean up.
+	// Callers that set ConfigWriter can rely on the config.Component's own
+	// notification system instead of subscribing here.
 	Subscribe() (<-chan ChangeEvent, func())
 }
 

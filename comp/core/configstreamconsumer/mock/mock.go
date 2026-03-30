@@ -40,15 +40,11 @@ func NewWithReader(t *testing.T, reader model.Reader) configstreamconsumer.Compo
 	}
 }
 
-// Start implements configstreamconsumer.Component
-func (m *Mock) Start(_ context.Context) error {
-	return nil
-}
-
 // WaitReady implements configstreamconsumer.Component
-func (m *Mock) WaitReady(_ context.Context) error {
+func (m *Mock) WaitReady(ctx context.Context) error {
 	if !m.ready {
-		return context.DeadlineExceeded
+		<-ctx.Done()
+		return ctx.Err()
 	}
 	return nil
 }
