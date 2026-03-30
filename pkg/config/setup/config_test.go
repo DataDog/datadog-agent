@@ -38,7 +38,7 @@ func TestDefaults(t *testing.T) {
 
 	// Testing viper's handling of defaults
 	assert.False(t, config.IsSet("site"))
-	assert.False(t, config.IsSet("dd_url"))
+	assert.False(t, config.IsConfigured("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))

@@ -23,9 +23,10 @@ import (
 // It returns an integer representing the count and an error if the retrieval fails.
 func GetContextSwitches() (ctxSwitches int64, err error) {
 	log.Debug("collecting ctx switches")
-	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+
+	procfsPath := pkgconfigsetup.Datadog().GetString("procfs_path")
+	if procfsPath == "" {
+		procfsPath = "/proc"
 	}
 	filePath := procfsPath + "/stat"
 	file, err := os.Open(filePath)

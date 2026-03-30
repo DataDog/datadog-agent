@@ -25,13 +25,11 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 	}
 
 	// by default, we don't enable telemetry for every checks stats
-	if cfg.IsSet("telemetry.checks") {
-		for _, check := range cfg.GetStringSlice("telemetry.checks") {
-			if check == "*" {
-				return true
-			} else if check == checkName {
-				return true
-			}
+	for _, check := range cfg.GetStringSlice("telemetry.checks") {
+		if check == "*" {
+			return true
+		} else if check == checkName {
+			return true
 		}
 	}
 	return false

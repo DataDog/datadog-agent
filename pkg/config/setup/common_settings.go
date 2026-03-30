@@ -512,7 +512,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
-	config.BindEnv("internal_profiling.profile_dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("internal_profiling.profile_dd_url", "")
 	config.BindEnvAndSetDefault("internal_profiling.unix_socket", "") // file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
@@ -710,7 +710,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.SetDefault("config_providers", []map[string]interface{}{})
 	config.SetDefault("listeners", []map[string]interface{}{})
 
-	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("provider_kind", "")
 
 	// Orchestrator Explorer DCA and core agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
@@ -802,7 +802,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
-	config.BindEnv("network.id") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network.id", "")
 
 	// OTel Collector
 	config.BindEnvAndSetDefault("otelcollector.enabled", false)
@@ -1057,7 +1057,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
-	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
 	config.SetDefault("proxy.http", "")
@@ -1067,8 +1067,8 @@ func agent(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
-	config.BindEnv("tls_handshake_timeout")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("http_dial_fallback_delay") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("tls_handshake_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("http_dial_fallback_delay", -1*time.Nanosecond)
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -1096,7 +1096,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
-	config.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated: use `cmd_host` instead
+	config.BindEnvAndSetDefault("ipc_address", "")
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultRunPath, "agent_ipc.socket"))
@@ -1128,7 +1128,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
-	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("bind_host", "")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0)
@@ -1241,8 +1241,7 @@ func agent(config pkgconfigmodel.Setup) {
 }
 
 func fleet(config pkgconfigmodel.Setup) {
-	// Directory to store fleet policies
-	config.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("fleet_policies_dir", "")
 	config.SetDefault("fleet_layers", []string{})
 	config.BindEnvAndSetDefault("config_id", "")
 }
@@ -1333,43 +1332,45 @@ func autoconfig(config pkgconfigmodel.Setup) {
 }
 
 func containerSyspath(config pkgconfigmodel.Setup) {
+	procfsDefault := ""
+	containerProcRootDefault := "/proc"
+	containerCgroupRootDefault := ""
+
 	if pkgconfigenv.IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
 		// it's impossible to mount host volumes.
 		// Make sure the host paths exist before setting-up the default values.
 		// Fallback to the container paths if host paths aren't mounted.
 		if pathExists("/host/proc") {
-			config.SetDefault("procfs_path", "/host/proc")
-			config.SetDefault("container_proc_root", "/host/proc")
+			procfsDefault = "/host/proc"
+			containerProcRootDefault = "/host/proc"
 
 			// Used by some librairies (like gopsutil)
 			if v := os.Getenv("HOST_PROC"); v == "" {
 				os.Setenv("HOST_PROC", "/host/proc")
 			}
 		} else {
-			config.SetDefault("procfs_path", "/proc")
-			config.SetDefault("container_proc_root", "/proc")
+			procfsDefault = "/proc"
 		}
 		if pathExists("/host/sys/fs/cgroup/") {
-			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+			containerCgroupRootDefault = "/host/sys/fs/cgroup/"
 		} else {
-			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+			containerCgroupRootDefault = "/sys/fs/cgroup/"
 		}
 	} else {
-		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
 		// we pick memory.stat to make sure it exists and not empty
 		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
-			config.SetDefault("container_cgroup_root", "/cgroup/")
+			containerCgroupRootDefault = "/cgroup/"
 		} else {
-			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+			containerCgroupRootDefault = "/sys/fs/cgroup/"
 		}
 	}
 
-	config.BindEnv("procfs_path")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("container_proc_root")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("container_cgroup_root") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("container_pid_mapper")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("procfs_path", procfsDefault)
+	config.BindEnvAndSetDefault("container_proc_root", containerProcRootDefault)
+	config.BindEnvAndSetDefault("container_cgroup_root", containerCgroupRootDefault)
+	config.BindEnvAndSetDefault("container_pid_mapper", "")
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
 	config.BindEnvAndSetDefault("use_improved_cgroup_parser", false)
 	config.BindEnvAndSetDefault("proc_root", "/proc")
@@ -1397,7 +1398,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
 	config.BindEnvAndSetDefault("telemetry.python_memory", true)
-	config.BindEnv("telemetry.checks") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("telemetry.checks", []string{})
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
 	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
@@ -1610,7 +1611,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
-	config.BindEnv("dogstatsd_mapper_profiles") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("dogstatsd_mapper_profiles", []interface{}{})
 	config.ParseEnvAsSlice("dogstatsd_mapper_profiles", func(in string) []interface{} {
 		var mappings []interface{}
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
