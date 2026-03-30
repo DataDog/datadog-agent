@@ -40,7 +40,7 @@ exporters:
     headers:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
-      x-datadog-additional-tags: ${env:DD_TAGS}
+      x-datadog-additional-headers: ${env:DD_HOST_PROFILER_ADDITIONAL_HEADERS}
 service:
   extensions: [hpflare/default]
   pipelines:
