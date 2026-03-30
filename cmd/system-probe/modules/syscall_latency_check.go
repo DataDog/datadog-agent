@@ -26,8 +26,7 @@ func init() { registerModule(SyscallLatencyCheck) }
 
 // SyscallLatencyCheck factory
 var SyscallLatencyCheck = &module.Factory{
-	Name:             config.SyscallLatencyCheckModule,
-	ConfigNamespaces: []string{"syscall_latency_check"},
+	Name: config.SyscallLatencyCheckModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the syscall latency check module")
 		p, err := syscalllatency.NewProbe(ebpf.NewConfig())
@@ -63,7 +62,7 @@ func (m *syscallLatencyModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		m.lastCheck.Store(time.Now().Unix())
 		stats := m.Probe.GetAndFlush()
-		utils.WriteAsJSON(w, stats, utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(req, w, stats, utils.GetPrettyPrintFromQueryParams(req))
 	}))
 	return nil
 }
