@@ -278,7 +278,9 @@ dev_deploy-host-profiler-devtest:
 deploy_host_profiler_to_reliability_env_nightly:
   extends: .trigger_relenv_base
   rules:
-    - !reference [.on_deploy_nightly_repo_branch]
+    # Only trigger if the pipeline was triggered by conductor on main in a nightly bucket branch
+    - if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main" && ($BUCKET_BRANCH == "nightly" || $BUCKET_BRANCH == "oldnightly")
+      when: always
   needs:
     - dev_nightly-host-profiler-standalone
 
