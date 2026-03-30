@@ -14,6 +14,7 @@ var bpfMapNames = []string{
 	"activity_dump_r",
 	"activity_dumps_",
 	"auid_approvers",
+	"auid_discarders",
 	"auid_range_appr",
 	"basename_approv",
 	"bb_approver_sta",

@@ -49,6 +49,8 @@ const (
 	UserSessionContextOp
 	// DiscardPrctlOp is used to discard prctl PR_SET_NAME
 	DiscardPrctlOp
+	// DiscardAuidOp is used to discard AUID
+	DiscardAuidOp
 	// NopEventOp is used to nop an event
 	NopEventOp
 )

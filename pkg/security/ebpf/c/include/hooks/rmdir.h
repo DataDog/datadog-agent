@@ -6,6 +6,7 @@
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
     struct syscall_cache_t syscall = {
@@ -71,6 +72,10 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
 
         if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
+            return 0;
+        }
+        if (is_auid_discarder(EVENT_RMDIR)) {
+            syscall->state = DISCARDED;
             return 0;
         }
 
