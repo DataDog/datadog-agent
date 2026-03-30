@@ -527,5 +527,4 @@ mod tests {
             "Nonexistent file should remain nonexistent"
         );
     }
-
 }
