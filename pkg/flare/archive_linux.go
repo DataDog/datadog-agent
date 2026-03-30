@@ -8,7 +8,11 @@
 package flare
 
 import (
+	"bufio"
+	"bytes"
+	"os"
 	"path/filepath"
+	"strings"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -16,6 +20,17 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
+
+// DatadogBinaries is the list of Datadog agent binary names used to filter
+// system logs (e.g. SELinux audit entries) for diagnostics.
+var DatadogBinaries = []string{
+	"datadog-agent",
+	"system-probe",
+	"sysprobe",
+	"security-agent",
+	"process-agent",
+	"trace-agent",
+}
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
@@ -28,6 +43,8 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
 	}
 
+	_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_audit.log"), getLinuxAuditLogs)
+
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)
@@ -39,6 +56,12 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		if pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
 			_ = fb.AddFileFromFunc(filepath.Join("system-probe", "discovery.log"), getSystemProbeDiscoveryState)
 		}
+
+		// Copy the dynamic instrumentation tombstone file if it exists.
+		// This file persists probe definitions across restarts and is
+		// valuable for debugging even when system-probe is not running.
+		dyninstTombstonePath := filepath.Join(os.TempDir(), "datadog-agent", "system-probe", "dynamic-instrumentation", "debugger-probes-tombstone.json")
+		fb.CopyFileTo(dyninstTombstonePath, filepath.Join("system-probe", "dyninst_tombstone.json")) //nolint:errcheck
 	}
 }
 
@@ -76,4 +99,34 @@ func getSystemProbeDiscoveryState() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/state")
 	return priviledged.GetHTTPData(sysProbeClient, url)
+}
+
+// getLinuxAuditLogs reads /var/log/audit/audit.log and returns lines mentioning
+// Datadog agent binaries. This is useful for diagnosing SELinux AVC denials.
+func getLinuxAuditLogs() ([]byte, error) {
+	const auditLogPath = "/var/log/audit/audit.log"
+
+	f, err := os.Open(auditLogPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var result bytes.Buffer
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		for _, binary := range DatadogBinaries {
+			if strings.Contains(line, binary) {
+				result.WriteString(line)
+				result.WriteByte('\n')
+				break
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return result.Bytes(), err
+	}
+	return result.Bytes(), nil
 }

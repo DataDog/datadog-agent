@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added a new, optional configuration setting for journald logs: ``default_application_name``.
+    If set to a non-empty string, the value will replace "docker" as the default application
+    name for contained based journald logs.
+    If set to an empty string, the application name will be determined by the systemd journal fields,
+    like all non-container based journald logs.

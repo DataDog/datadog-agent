@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -172,16 +171,16 @@ func GetModuleFromProgID(id uint32) (string, error) {
 }
 
 // GetPerfEventFDByProbeID returns the fd mapped for a probe or an error if no mappings exists
-func GetPerfEventFDByProbeID(probeID ebpf.ProgramID) (uint32, error) {
+func GetPerfEventFDByProbeID(probeID ebpf.ProgramID) (uint32, bool) {
 	mappingLock.RLock()
 	defer mappingLock.RUnlock()
 
 	fd, ok := probeIDToFDMappings[probeID]
 	if ok {
-		return fd, nil
+		return fd, true
 	}
 
-	return 0, fmt.Errorf("no fd exists for probe with id %d", probeID)
+	return 0, false
 }
 
 // RemoveNameMappings removes the full name mappings for ebpf maps in the manager

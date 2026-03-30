@@ -87,7 +87,9 @@ func TestNewDefaultForwarderWithAutoscaling(t *testing.T) {
 
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
+	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.Secrets = secretsmock.New(t)
+	forwarder := NewDefaultForwarder(mockConfig, log, options)
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
 	require.Len(t, forwarder.domainForwarders, 2) // 1 remote domain, 1 dca domain

@@ -43,13 +43,14 @@ type HashActionReport struct {
 	Trigger string `json:"trigger"`
 
 	// internal
-	resolved  bool
-	rule      *rules.Rule
-	pid       uint32
-	seenAt    time.Time
-	fileEvent model.FileEvent
-	crtID     containerutils.ContainerID
-	eventType model.EventType
+	resolved    bool
+	rule        *rules.Rule
+	pid         uint32
+	seenAt      time.Time
+	fileEvent   model.FileEvent
+	cgroupID    containerutils.CGroupID
+	eventType   model.EventType
+	maxFileSize int64
 }
 
 // IsResolved return if the action is resolved

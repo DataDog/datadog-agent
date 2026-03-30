@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -28,6 +29,7 @@ import (
 type runtimeImpl struct {
 	store                    *processStore
 	diagnostics              *diagnosticsManager
+	actuator                 Actuator
 	decoderFactory           DecoderFactory
 	irGenerator              IRGenerator
 	programCompiler          ProgramCompiler
@@ -49,6 +51,7 @@ type runtimeStats struct {
 	eventPairingBufferFull        atomic.Uint64
 	eventPairingCallMapFull       atomic.Uint64
 	eventPairingCallCountExceeded atomic.Uint64
+	eventPairingConditionFailed   atomic.Uint64
 }
 
 func (s *runtimeStats) asStats() map[string]any {
@@ -56,6 +59,7 @@ func (s *runtimeStats) asStats() map[string]any {
 		"event_pairing_buffer_full":         s.eventPairingBufferFull.Load(),
 		"event_pairing_call_map_full":       s.eventPairingCallMapFull.Load(),
 		"event_pairing_call_count_exceeded": s.eventPairingCallCountExceeded.Load(),
+		"event_pairing_condition_failed":    s.eventPairingConditionFailed.Load(),
 	}
 }
 
@@ -76,6 +80,7 @@ func (rt *runtimeImpl) Load(
 	executable actuator.Executable,
 	processID actuator.ProcessID,
 	probes []ir.ProbeDefinition,
+	opts actuator.LoadOptions,
 ) (_ actuator.LoadedProgram, retErr error) {
 	if rt.tombstoneFilePath != "" {
 		// Write a tombstone file so that, if we crash in the middle of loading a
@@ -138,7 +143,11 @@ func (rt *runtimeImpl) Load(
 		}
 	}()
 
-	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes)
+	var irgenOpts []irgen.Option
+	if len(opts.AdditionalTypes) > 0 {
+		irgenOpts = append(irgenOpts, irgen.WithAdditionalTypes(opts.AdditionalTypes))
+	}
+	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
 	}
@@ -193,6 +202,7 @@ func (rt *runtimeImpl) Load(
 		decoder:      decoder,
 		symbolicator: rt.store.getSymbolicator(programID),
 		programID:    programID,
+		processID:    processID,
 		service:      runtimeID.service,
 		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
 			Tags:        tags,

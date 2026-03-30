@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The disk check now falls back to ``lsblk`` when ``blkid`` fails or
+    returns no labels for disk label tagging. This ensures ``label`` and
+    ``device_label`` tags are present on disk metrics even when the agent
+    runs as a non-root user, since ``lsblk`` reads from sysfs and does
+    not require elevated privileges.

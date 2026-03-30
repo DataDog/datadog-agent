@@ -24,13 +24,9 @@ func TestCounterInitializer(t *testing.T) {
 	counter.InitializeToZero("mycheck", "mystate")
 
 	startMetrics, err := telemetry.GetRegistry().Gather()
-	if !assert.NoError(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
-	if !assert.Equal(t, len(startMetrics), 1) {
-		return
-	}
+	require.Equal(t, len(startMetrics), 1)
 
 	metrics, err := telemetry.GetCountMetric("subsystem", "test")
 	assert.NoError(t, err)

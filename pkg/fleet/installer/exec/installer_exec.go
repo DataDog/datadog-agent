@@ -251,6 +251,36 @@ func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method stri
 	return cmd.Run()
 }
 
+// InstallExtensions installs multiple extensions.
+func (i *InstallerExec) InstallExtensions(ctx context.Context, url string, extensions []string) (err error) {
+	cmdLineArgs := append([]string{url}, extensions...)
+	cmd := i.newInstallerCmd(ctx, "extension install", cmdLineArgs...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RemoveExtensions removes multiple extensions.
+func (i *InstallerExec) RemoveExtensions(ctx context.Context, pkg string, extensions []string) (err error) {
+	cmdLineArgs := append([]string{pkg}, extensions...)
+	cmd := i.newInstallerCmd(ctx, "extension remove", cmdLineArgs...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// SaveExtensions saves the extensions to a specific location on disk.
+func (i *InstallerExec) SaveExtensions(ctx context.Context, pkg string, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "extension save", pkg, path)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RestoreExtensions restores the extensions from a specific location on disk.
+func (i *InstallerExec) RestoreExtensions(ctx context.Context, url string, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "extension restore", url, path)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
@@ -304,27 +334,6 @@ func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
 	repositories := repository.NewRepositories(paths.PackagesPath, nil)
 	return repositories.AvailableDiskSpace()
-}
-
-// getStates retrieves the state of all packages & their configuration from disk.
-func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
-	cmd := i.newInstallerCmd(ctx, "get-states")
-	defer func() { cmd.span.Finish(err) }()
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
-	}
-	var pkgStates *repository.PackageStates
-	err = json.Unmarshal(stdout.Bytes(), &pkgStates)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling state from disk: %w\n`%s`", err, stdout.String())
-	}
-
-	return pkgStates, nil
 }
 
 // State returns the state of a package.

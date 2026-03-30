@@ -14,16 +14,18 @@ func _() {
 	_ = x[IssueKindMalformedExecutable-4]
 	_ = x[IssueKindInvalidDWARF-5]
 	_ = x[IssueKindDisassemblyFailed-6]
+	_ = x[IssueKindConditionVariableUnavailable-7]
+	_ = x[IssueKindConditionExpressionUnresolvable-8]
 }
 
-const _IssueKind_name = "InvalidProbeDefinitionTargetNotFoundInBinaryUnsupportedFeatureMalformedExecutableInvalidDWARFDisassemblyFailed"
+const _IssueKind_name = "InvalidProbeDefinitionTargetNotFoundInBinaryUnsupportedFeatureMalformedExecutableInvalidDWARFDisassemblyFailedConditionVariableUnavailableConditionExpressionUnresolvable"
 
-var _IssueKind_index = [...]uint8{0, 22, 44, 62, 81, 93, 110}
+var _IssueKind_index = [...]uint8{0, 22, 44, 62, 81, 93, 110, 138, 169}
 
 func (i IssueKind) String() string {
-	i -= 1
-	if i < 0 || i >= IssueKind(len(_IssueKind_index)-1) {
-		return "IssueKind(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_IssueKind_index)-1 {
+		return "IssueKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _IssueKind_name[_IssueKind_index[i]:_IssueKind_index[i+1]]
+	return _IssueKind_name[_IssueKind_index[idx]:_IssueKind_index[idx+1]]
 }

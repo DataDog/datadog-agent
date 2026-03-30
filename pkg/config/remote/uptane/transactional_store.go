@@ -7,11 +7,12 @@ package uptane
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dbBucket contains the data of the bucket
@@ -287,12 +288,13 @@ func (t *transaction) get(bucketName string, path string) ([]byte, error) {
 		if bucket == nil {
 			return nil
 		}
-		data = bucket.Get([]byte(path))
+		data = slices.Clone(bucket.Get([]byte(path)))
 		return nil
 	})
 
-	if len(data) == 0 {
-		err = errors.Wrapf(err, "File empty or not found: %s in bucket %s", path, bucketName)
+	// check if err is not nil to avoid wrapping nil errors
+	if len(data) == 0 && err != nil {
+		err = fmt.Errorf("File empty or not found: %s in bucket %s: %w", path, bucketName, err)
 	}
 
 	return data, err

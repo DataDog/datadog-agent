@@ -70,10 +70,7 @@ func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 		return hostName, nil
 	}
 
-	var hostName string
-	if config.IsSet("hostname") {
-		hostName = config.GetString("hostname")
-	}
+	hostName := config.GetString("hostname")
 
 	if err := validate.ValidHostname(hostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid

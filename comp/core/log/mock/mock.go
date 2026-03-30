@@ -39,12 +39,12 @@ func New(t testing.TB) log.Component {
 
 	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
-		pkglog.ChangeLogLevel(pkglog.Default(), pkglog.DebugLvl)
-		iface.Flush()
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		iface.Close()
 	})
 
 	// install the logger into pkg/util/log
-	pkglog.ChangeLogLevel(iface, pkglog.DebugLvl)
+	pkglog.SetupLogger(iface, pkglog.DebugStr)
 
 	return pkglog.NewWrapper(2)
 }

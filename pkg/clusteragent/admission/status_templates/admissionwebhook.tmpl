@@ -49,5 +49,29 @@
     CA bundle digest: {{ .admissionWebhook.Secret.CABundleDigest }}
     Duration before certificate expiration: {{ .admissionWebhook.Secret.CertValidDuration }}
   {{- end }}
+  {{ if .admissionWebhook.Probe }}
+
+    Connectivity Probe
+    ------------------
+    Enabled: {{ if .admissionWebhook.Probe.Enabled }}true{{ else }}false{{ end }}
+    {{- if .admissionWebhook.Probe.Error }}
+    Error: {{ .admissionWebhook.Probe.Error }}
+    {{- else if .admissionWebhook.Probe.Detail }}
+    {{ .admissionWebhook.Probe.Detail }}
+    {{- else if .admissionWebhook.Probe.HasStats }}
+    Total Executions: {{ .admissionWebhook.Probe.TotalExecutions }}
+    Success Rate: {{ .admissionWebhook.Probe.SuccessRate }}
+    {{- if gt .admissionWebhook.Probe.TotalExecutions 0 }}
+    Last Execution: {{ .admissionWebhook.Probe.LastExecutionTime }} ({{ if .admissionWebhook.Probe.LastExecutionSuccess }}success{{ else }}failure{{ end }})
+    {{- if .admissionWebhook.Probe.LastExecutionError }}
+    Last Error: {{ .admissionWebhook.Probe.LastExecutionError }}
+    {{- end }}
+    Last Successful Probe: {{ .admissionWebhook.Probe.LastSuccessTime }}
+    {{- end }}
+    {{- if and .admissionWebhook.Probe.DiagnosticHint (gt .admissionWebhook.Probe.TotalExecutions 0) (not .admissionWebhook.Probe.LastExecutionSuccess) }}
+    Hint: {{ .admissionWebhook.Probe.DiagnosticHint }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
   {{- end }}
   {{- end }}

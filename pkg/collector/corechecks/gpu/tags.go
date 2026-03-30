@@ -204,36 +204,44 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 		if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
 			containerID = process.Owner.ID
 		}
-	} else if agenterrors.IsNotFound(err) {
-		// If workloadmeta does not have the process data, we fall back to
-		// retrieving the data directly.
-		var contErr, nspidErr error
+	}
+
+	// Fallbacks in case workloadmeta does not have the data we need
+	var contErr, nspidErr error
+	usedFallbacks := false
+	if containerID == "" {
+		usedFallbacks = true
+
 		containerID, contErr = c.getContainerID(pid)
 		if contErr != nil && !agenterrors.IsNotFound(contErr) {
 			multiErr = errors.Join(multiErr, fmt.Errorf("error getting container ID for process %d: %w", pid, contErr))
 		}
+	}
+
+	if nspid == 0 {
+		usedFallbacks = true
 
 		nspid, nspidErr = getNsPID(pid)
 		if nspidErr != nil && !errors.Is(nspidErr, secutils.ErrNoNSPid) {
 			multiErr = errors.Join(multiErr, fmt.Errorf("error getting nspid for process %d: %w", pid, nspidErr))
 		}
 
-		if contErr != nil && nspidErr != nil && !kernel.ProcessExists(int(pid)) {
-			// The process does not exist anymore, so return a "NotFound" error so that we can return stale data.
-			// Add the nspid tag too, in case we have no stale data and we have to return some default process tags
-			tags = append(tags, fmt.Sprintf("nspid:%d", pid))
-			return tags, agenterrors.NewNotFound(pid)
-		}
-
-		// Mark here and not before, to avoid incrementing the counter if the process does not exist anymore.
-		c.telemetry.processFallbacks.Inc()
-	}
-
-	if nspid == 0 {
 		// default value for tags is nspid=pid if the process is not running in a container
-		nspid = pid
+		if nspid == 0 {
+			nspid = pid
+		}
 	}
 	tags = append(tags, fmt.Sprintf("nspid:%d", nspid))
+
+	if contErr != nil && nspidErr != nil && !kernel.ProcessExists(int(pid)) {
+		// The process does not exist anymore, so return a "NotFound" error so that we can return stale data.
+		return tags, agenterrors.NewNotFound(pid)
+	}
+
+	// Mark here and not before, to avoid incrementing the counter if the process does not exist anymore.
+	if usedFallbacks {
+		c.telemetry.processFallbacks.Inc()
+	}
 
 	if containerID != "" {
 		entityID := workloadmeta.EntityID{

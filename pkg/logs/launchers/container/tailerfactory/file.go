@@ -16,13 +16,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
-
-	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -37,10 +33,9 @@ import (
 )
 
 var (
-	podLogsBasePath            = "/var/log/pods"
-	dockerLogsBasePathNix      = "/var/lib/docker"
-	dockerLogsBasePathWin      = "c:\\programdata\\docker"
-	podmanRootfullLogsBasePath = "/var/lib/containers"
+	podLogsBasePath       = "/var/log/pods"
+	dockerLogsBasePathNix = "/var/lib/docker"
+	dockerLogsBasePathWin = "c:\\programdata\\docker"
 )
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
@@ -121,25 +116,15 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
-	path := tf.findDockerLogPath(containerID)
+	path, err := tf.findDockerLogPath(containerID)
+	if err != nil {
+		return nil, err
+	}
 
 	// check access to the file; if it is not readable, then returning an error will
 	// try to fall back to reading from a socket.
 	f, err := opener.OpenLogFile(path)
 	if err != nil {
-		// Check if this is a permission error and report to health platform
-		if isPermissionError(err) {
-			// Extract the base docker directory from the path
-			dockerDir := dockerLogsBasePathNix
-			if overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override"); len(overridePath) > 0 {
-				dockerDir = overridePath
-			} else if runtime.GOOS == "windows" {
-				dockerDir = dockerLogsBasePathWin
-			}
-
-			// Report the issue to health platform
-			tf.reportDockerPermissionIssue(dockerDir)
-		}
 		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
 		return nil, err
 	}
@@ -173,37 +158,42 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 }
 
 // findDockerLogPath returns a path for the given container.
-func (tf *factory) findDockerLogPath(containerID string) string {
+func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 	// if the user has set a custom docker data root, this will pick it up
 	// and set it in place of the usual docker base path
 	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
-		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log")
+		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log"), nil
 	}
 
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(
 			dockerLogsBasePathWin, "containers", containerID,
-			containerID+"-json.log")
+			containerID+"-json.log"), nil
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
 		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
-			// Default path for podman rootfull containers
-			podmanLogsBasePath := podmanRootfullLogsBasePath
-			podmanDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
-			// User provided a custom podman DB path, they are running rootless containers or modified the root directory.
-			if len(podmanDBPath) > 0 {
-				podmanLogsBasePath = log.ExtractPodmanRootDirFromDBPath(podmanDBPath)
+			// The podman collector adds annotation to containers it pulls with their storage location
+			// This is used to construct the log location (podman k8s-file driver)
+			wmeta, ok := tf.workloadmetaStore.Get()
+			if !ok {
+				return "", fmt.Errorf("cannot determine Podman log root for container %q: workloadmeta store is not initialized", containerID)
 			}
-			return filepath.Join(
-				podmanLogsBasePath, "storage/overlay-containers", containerID,
-				"userdata/ctr.log")
+			ctr, err := wmeta.GetContainer(containerID)
+			if err != nil {
+				return "", fmt.Errorf("cannot determine Podman log root for container %q: cannot find container in workloadmeta: %w", containerID, err)
+			}
+			rootDir := ctr.Annotations[log.ContainerRootDirAnnotationKey]
+			if rootDir == "" {
+				return "", fmt.Errorf("cannot determine Podman log root for container %q: missing annotation %q", containerID, log.ContainerRootDirAnnotationKey)
+			}
+			return filepath.Join(rootDir, "storage/overlay-containers", containerID, "userdata/ctr.log"), nil
 		}
 		return filepath.Join(
 			dockerLogsBasePathNix, "containers", containerID,
-			containerID+"-json.log")
+			containerID+"-json.log"), nil
 	}
 }
 
@@ -338,38 +328,4 @@ func findK8sLogPath(pod *workloadmeta.KubernetesPod, containerName string) strin
 
 	log.Debugf("Using the latest kubernetes logs path for container %s", containerName)
 	return filepath.Join(podLogsBasePath, getPodDirectorySince1_14(pod), containerName, anyLogFile)
-}
-
-// isPermissionError checks if an error is permission-related using proper error type checking
-func isPermissionError(err error) bool {
-	return errors.Is(err, fs.ErrPermission) ||
-		errors.Is(err, syscall.EACCES) ||
-		errors.Is(err, syscall.EPERM)
-}
-
-// reportDockerPermissionIssue reports a Docker file tailing permission issue to the health platform
-func (tf *factory) reportDockerPermissionIssue(dockerDir string) {
-	hp, exists := tf.healthPlatform.Get()
-	if !exists {
-		return
-	}
-
-	// Report the issue with minimal context - health platform registry provides all metadata and remediation
-	err := hp.ReportIssue(
-		"logs-docker-file-permissions",
-		"Docker File Tailing Permissions",
-		&healthplatform.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": dockerDir,
-				"os":        runtime.GOOS,
-			},
-		},
-	)
-
-	if err != nil {
-		log.Warnf("Failed to report Docker permission issue to health platform: %v", err)
-	} else {
-		log.Infof("Reported Docker file tailing permission issue to health platform")
-	}
 }

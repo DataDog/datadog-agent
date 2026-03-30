@@ -196,25 +196,25 @@ func TestTrimMultiLine(t *testing.T) {
 	var output *message.Message
 
 	// All leading and trailing whitespace characters should be trimmed
-	h.process(getDummyMessageWithLF(whitespace + "foo" + whitespace + "bar" + whitespace))
+	h.process(getDummyMessageWithLF(whitespace + "1." + whitespace + "foo" + whitespace + "bar" + whitespace))
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "foo"+whitespace+"bar", string(output.GetContent()))
-	assert.Equal(t, len(whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
+	assert.Equal(t, "1."+whitespace+"foo"+whitespace+"bar", string(output.GetContent()))
+	assert.Equal(t, len(whitespace+"1."+whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
 
 	// With line break
-	h.process(getDummyMessageWithLF(whitespace + "foo" + whitespace))
+	h.process(getDummyMessageWithLF(whitespace + "2." + whitespace + "foo" + whitespace))
 	h.process(getDummyMessageWithLF("bar" + whitespace))
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.GetContent()))
-	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
+	assert.Equal(t, "2."+whitespace+"foo"+whitespace+"\\n"+"bar", string(output.GetContent()))
+	assert.Equal(t, len(whitespace+"2."+whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
 }
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
@@ -261,6 +261,89 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.GetContent()))
+}
+
+func TestMultiLineHandlerNoMatchSendsLinesIndividually(t *testing.T) {
+	// When the pattern never matches, lines should be sent individually
+	// rather than being joined into one massive message.
+	re := regexp.MustCompile(`^NEVER_MATCHES_ANYTHING$`)
+	outputFn, outputChan := lineHandlerChans()
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
+
+	h.process(getDummyMessageWithLF("first line"))
+	h.process(getDummyMessageWithLF("second line"))
+	h.process(getDummyMessageWithLF("third line"))
+
+	// The first line is flushed when the second arrives, the second when the third arrives.
+	output := <-outputChan
+	assert.Equal(t, "first line", string(output.GetContent()))
+	output = <-outputChan
+	assert.Equal(t, "second line", string(output.GetContent()))
+
+	// Third line is still buffered, flush it.
+	h.flush()
+	output = <-outputChan
+	assert.Equal(t, "third line", string(output.GetContent()))
+
+	assertNothingInChannel(t, outputChan)
+}
+
+func TestMultiLineHandlerNoMatchThenMatchSwitchesToMultiLine(t *testing.T) {
+	// Lines before the first pattern match are sent individually.
+	// Once the pattern matches, normal multiline aggregation begins.
+	re := regexp.MustCompile(`^START`)
+	outputFn, outputChan := lineHandlerChans()
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
+
+	// These lines don't match the pattern - sent individually
+	h.process(getDummyMessageWithLF("no match line 1"))
+	h.process(getDummyMessageWithLF("no match line 2"))
+
+	output := <-outputChan
+	assert.Equal(t, "no match line 1", string(output.GetContent()))
+
+	// Now the pattern matches - previous buffered line is flushed, multiline begins
+	h.process(getDummyMessageWithLF("START of multiline"))
+
+	output = <-outputChan
+	assert.Equal(t, "no match line 2", string(output.GetContent()))
+
+	// This line doesn't match but should now aggregate (pattern has matched before)
+	h.process(getDummyMessageWithLF("continuation line"))
+	assertNothingInChannel(t, outputChan)
+
+	// Next match flushes the aggregated group
+	h.process(getDummyMessageWithLF("START of second group"))
+
+	output = <-outputChan
+	assert.Equal(t, "START of multiline\\ncontinuation line", string(output.GetContent()))
+
+	h.flush()
+	output = <-outputChan
+	assert.Equal(t, "START of second group", string(output.GetContent()))
+
+	assertNothingInChannel(t, outputChan)
+}
+
+func TestMultiLineHandlerFirstLineMatchesWorksNormally(t *testing.T) {
+	// When the very first line matches the pattern, behavior should be
+	// identical to the original - no regression.
+	re := regexp.MustCompile(`^START`)
+	outputFn, outputChan := lineHandlerChans()
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
+
+	h.process(getDummyMessageWithLF("START first group"))
+	h.process(getDummyMessageWithLF("continuation"))
+	h.process(getDummyMessageWithLF("START second group"))
+
+	output := <-outputChan
+	assert.Equal(t, "START first group\\ncontinuation", string(output.GetContent()))
+
+	h.flush()
+	output = <-outputChan
+	assert.Equal(t, "START second group", string(output.GetContent()))
+
+	assertNothingInChannel(t, outputChan)
 }
 
 func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {

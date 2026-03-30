@@ -18,9 +18,9 @@ const _EventKind_name = "EntryReturnLine"
 var _EventKind_index = [...]uint8{0, 5, 11, 15}
 
 func (i EventKind) String() string {
-	i -= 1
-	if i >= EventKind(len(_EventKind_index)-1) {
-		return "EventKind(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_EventKind_index)-1 {
+		return "EventKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _EventKind_name[_EventKind_index[i]:_EventKind_index[i+1]]
+	return _EventKind_name[_EventKind_index[idx]:_EventKind_index[idx+1]]
 }

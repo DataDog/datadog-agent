@@ -26,7 +26,6 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -87,7 +86,6 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
-	HealthPlatform     option.Option[healthplatform.Component]
 	Observer           option.Option[observer.Component]
 }
 
@@ -126,7 +124,6 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
-	healthPlatform            option.Option[healthplatform.Component]
 	observerHandle            observer.Handle
 
 	// make sure this is done only once, when we're ready
@@ -174,7 +171,6 @@ func newLogsAgent(deps dependencies) provides {
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
-			healthPlatform:     deps.HealthPlatform,
 			observerHandle:     observerHandle,
 		}
 		deps.Lc.Append(fx.Hook{

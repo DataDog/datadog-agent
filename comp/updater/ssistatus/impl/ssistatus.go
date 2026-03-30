@@ -131,6 +131,8 @@ func (c *ssiStatusComponent) populateStatus(stats map[string]interface{}) {
 	modes := make(map[string]bool)
 	switch os := runtime.GOOS; os {
 	case "windows":
+		modes["iis"] = slices.Contains(instrumentationModes, "iis")
+		modes["host"] = slices.Contains(instrumentationModes, "host")
 	case "linux":
 		modes["host"] = slices.Contains(instrumentationModes, "host")
 		modes["docker"] = slices.Contains(instrumentationModes, "docker")

@@ -11,7 +11,7 @@ const MAX_PORTS_NUMBER: usize = 50;
 
 pub fn get(
     context: &mut ParsingContext,
-    pid: u32,
+    pid: i32,
     sockets: &[u64],
 ) -> (Option<Vec<Port>>, Option<Vec<Port>>) {
     if sockets.is_empty() {

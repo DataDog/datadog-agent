@@ -1,0 +1,20 @@
+load("//rtloader/test:defs.bzl", "rtloader_go_test", "rtloader_test_go_library")
+
+rtloader_test_go_library(
+    name = "kubeutil",
+    srcs = ["kubeutil.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/kubeutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rtloader/test/common",
+        "//rtloader/test/helpers",
+    ],
+)
+
+rtloader_go_test(
+    name = "kubeutil_test",
+    srcs = ["kubeutil_test.go"],
+    embed = [":kubeutil"],
+    deps = ["//rtloader/test/helpers"],
+)

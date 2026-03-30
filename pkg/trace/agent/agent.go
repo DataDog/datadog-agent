@@ -294,6 +294,10 @@ func (a *Agent) FlushSync() {
 		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
+	if err := a.TraceWriterV1.FlushSync(); err != nil {
+		log.Errorf("Error flushing traces v1: %s", err.Error())
+		return
+	}
 }
 
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal
@@ -305,6 +309,7 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 	log.Infof("API Key changed. Updating trace-agent config...")
 	a.Receiver.UpdateAPIKey()
 	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
+	a.TraceWriterV1.UpdateAPIKey(oldKey, newKey)
 	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
 }
 
@@ -353,6 +358,7 @@ func (a *Agent) loop() {
 		a.Concentrator,
 		a.ClientStatsAggregator,
 		a.TraceWriter,
+		a.TraceWriterV1,
 		a.StatsWriter,
 		a.SamplerMetrics,
 		a.EventProcessor,
@@ -694,6 +700,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		a.Replacer.ReplaceV1(chunk)
 
 		a.setRootSpanTagsV1(root)
+		if !p.ClientComputedTopLevel {
+			traceutil.ComputeTopLevelV1(chunk)
+		}
 
 		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
@@ -829,12 +838,11 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
-		GitCommitSha:           version.GetGitCommitShaFromTraceV1(chunk),
+		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
-	// Only override the GitCommitSha if it was not set in the trace.
-	if pt.GitCommitSha == "" {
-		pt.GitCommitSha = gitCommitSha
+	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
+		pt.GitCommitSha = payloadGitCommitSha
 	}
 	return pt
 }
@@ -911,6 +919,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if shouldObfuscate {
 				a.obfuscateStatsGroup(b)
 			}
+			b.Resource, _ = a.TruncateResource(b.Resource)
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
@@ -1190,19 +1199,25 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
+		probKeep := false
 		if rare {
 			samplerName = sampler.NameRare
-			return true, true
+			probKeep = true
 		}
 		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
 			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
-			return true, true
+			probKeep = true
 		}
 		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
-			return a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv), true
+			probKeep = a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 		}
-		return false, true
+		if probKeep {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoKeep)
+		} else {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoDrop)
+		}
+		return probKeep, true
 	}
 
 	priority, hasPriority := sampler.GetSamplingPriorityV1(pt.TraceChunk)

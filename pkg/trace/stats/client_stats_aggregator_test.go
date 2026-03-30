@@ -85,6 +85,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						GRPCStatusCode: k.GRPCStatusCode,
 						HTTPMethod:     k.HTTPMethod,
 						HTTPEndpoint:   k.HTTPEndpoint,
+						ServiceSource:  k.ServiceSource,
 					},
 				},
 			},
@@ -828,6 +829,74 @@ func TestLangAggregation(t *testing.T) {
 	})
 }
 
+func TestBaseServiceAggregation(t *testing.T) {
+	t.Run("service_preserved_through_aggregation", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "", "test-version", "", "", "", 11, 7, 100)
+		c1.Service = "my-base-service"
+		c2 := payloadWithCounts(testTime, bak, "", "test-version", "", "", "", 27, 2, 300)
+		c2.Service = "my-base-service"
+
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+
+		require.Len(t, msw.payloads, 1)
+		require.Len(t, msw.payloads[0].Stats, 1)
+		assert.Equal(t, "my-base-service", msw.payloads[0].Stats[0].Service)
+	})
+
+	t.Run("different_service_separate_payloads", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "", "test-version", "", "", "", 11, 7, 100)
+		c1.Service = "service-a"
+		c2 := payloadWithCounts(testTime, bak, "", "test-version", "", "", "", 27, 2, 300)
+		c2.Service = "service-b"
+
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+
+		require.Len(t, msw.payloads, 1)
+		require.Len(t, msw.payloads[0].Stats, 2)
+
+		services := make(map[string]bool)
+		for _, stat := range msw.payloads[0].Stats {
+			services[stat.Service] = true
+		}
+		assert.True(t, services["service-a"])
+		assert.True(t, services["service-b"])
+	})
+
+	t.Run("empty_service_preserved", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "", "test-version", "", "", "", 11, 7, 100)
+		c1.Service = ""
+
+		a.add(testTime, deepCopy(c1))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+
+		require.Len(t, msw.payloads, 1)
+		require.Len(t, msw.payloads[0].Stats, 1)
+		assert.Equal(t, "", msw.payloads[0].Stats[0].Service)
+	})
+}
+
 func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	// The hash of "peer.service:remote-service".
 	peerTagsHash := uint64(3430395298086625290)
@@ -913,23 +982,25 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 		}
 
 		stats[i] = &pb.ClientGroupedStats{
-			Service:        b.GetService(),
-			Name:           b.GetName(),
-			Resource:       b.GetResource(),
-			HTTPStatusCode: b.GetHTTPStatusCode(),
-			Type:           b.GetType(),
-			DBType:         b.GetDBType(),
-			Hits:           b.GetHits(),
-			Errors:         b.GetErrors(),
-			Duration:       b.GetDuration(),
-			Synthetics:     b.GetSynthetics(),
-			TopLevelHits:   b.GetTopLevelHits(),
-			SpanKind:       b.GetSpanKind(),
-			PeerTags:       b.GetPeerTags(),
-			IsTraceRoot:    b.GetIsTraceRoot(),
-			GRPCStatusCode: b.GetGRPCStatusCode(),
-			HTTPMethod:     b.GetHTTPMethod(),
-			HTTPEndpoint:   b.GetHTTPEndpoint(),
+			Service:                b.GetService(),
+			Name:                   b.GetName(),
+			Resource:               b.GetResource(),
+			HTTPStatusCode:         b.GetHTTPStatusCode(),
+			Type:                   b.GetType(),
+			DBType:                 b.GetDBType(),
+			Hits:                   b.GetHits(),
+			Errors:                 b.GetErrors(),
+			Duration:               b.GetDuration(),
+			Synthetics:             b.GetSynthetics(),
+			TopLevelHits:           b.GetTopLevelHits(),
+			SpanKind:               b.GetSpanKind(),
+			PeerTags:               b.GetPeerTags(),
+			ServiceSource:          b.GetServiceSource(),
+			IsTraceRoot:            b.GetIsTraceRoot(),
+			GRPCStatusCode:         b.GetGRPCStatusCode(),
+			HTTPMethod:             b.GetHTTPMethod(),
+			HTTPEndpoint:           b.GetHTTPEndpoint(),
+			SpanDerivedPrimaryTags: b.GetSpanDerivedPrimaryTags(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

@@ -455,11 +455,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchTraceAgentMetadata()
 
-	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
-		assert.False(t, ia.data["feature_apm_enabled"].(bool))
-	} else {
-		assert.True(t, ia.data["feature_apm_enabled"].(bool))
-	}
+	assert.True(t, ia.data["feature_apm_enabled"].(bool))
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
 	fetchTraceConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {

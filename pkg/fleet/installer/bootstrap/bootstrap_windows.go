@@ -27,6 +27,8 @@ import (
 
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
@@ -72,7 +74,12 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return getLocalInstaller(env)
 	}
 
-	// Download just datadog-installer.exe from its own layer
+	// Testing override: if InstallerBootstrapMode registry key is set, use test-specific flow
+	if mode := getInstallerBootstrapMode(); mode != "" {
+		return downloadInstallerTestMode(ctx, env, downloadedPackage, url, tmpDir, mode)
+	}
+
+	// Production flow: try OCI layer, fallback to MSI extraction for older packages
 	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
 	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
 	if err != nil {
@@ -84,6 +91,49 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return downloadInstallerOld(ctx, env, url, tmpDir)
 	}
 	return iexec.NewInstallerExec(env, installerBinPath), nil
+}
+
+// downloadInstallerTestMode handles bootstrap when InstallerBootstrapMode is set.
+// This is ONLY used for testing to force a specific bootstrap path.
+func downloadInstallerTestMode(ctx context.Context, env *env.Env, pkg *oci.DownloadedPackage, url string, tmpDir string, mode string) (*iexec.InstallerExec, error) {
+	switch mode {
+	case "OCI":
+		// Force OCI path - fail if installer layer is missing
+		installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
+		err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract installer layer: %w", err)
+		}
+		if _, err := os.Stat(installerBinPath); err != nil {
+			return nil, fmt.Errorf("installer layer not found in OCI package (InstallerBootstrapMode=OCI): %w", err)
+		}
+		return iexec.NewInstallerExec(env, installerBinPath), nil
+	case "MSI":
+		// Force MSI fallback path
+		return downloadInstallerOld(ctx, env, url, tmpDir)
+	default:
+		return nil, fmt.Errorf("unknown InstallerBootstrapMode: %s (expected OCI or MSI)", mode)
+	}
+}
+
+// getInstallerBootstrapMode returns the bootstrap mode from registry.
+// This is ONLY used for testing to force a specific bootstrap path.
+// Set HKLM\SOFTWARE\Datadog\Datadog Agent\InstallerBootstrapMode to "OCI" or "MSI".
+// Returns empty string if not set, which means use the default production flow.
+func getInstallerBootstrapMode() string {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SOFTWARE\Datadog\Datadog Agent`,
+		registry.QUERY_VALUE)
+	if err != nil {
+		return ""
+	}
+	defer k.Close()
+
+	val, _, err := k.GetStringValue("InstallerBootstrapMode")
+	if err != nil {
+		return ""
+	}
+	return val
 }
 
 // downloadInstallerOld downloads the installer package from the registry and returns the path to the executable.

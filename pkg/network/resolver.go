@@ -59,7 +59,11 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 
 	ctrsByConn := make(map[connKey]*intern.Value, conns.Len()/2)
 	conns.Iterate(func(_ int, conn *ConnectionStats) {
-		if conn.ContainerID.Source == nil || len(conn.ContainerID.Source.Get().(string)) == 0 {
+		if conn.ContainerID.Source == nil {
+			return
+		}
+		srcCID, _ := conn.ContainerID.Source.Get().(string)
+		if len(srcCID) == 0 {
 			return
 		}
 
