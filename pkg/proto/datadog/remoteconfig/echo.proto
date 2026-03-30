@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package datadog.config;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+// RcEcho provides an endpoint that can provide a bidirectional byte stream for
+// connectivity testing purposes.
+service RcEcho {
+  rpc RunEchoTest(stream RunEchoTestRequest) returns (stream RunEchoTestResponse);
+}
+
+message RunEchoTestRequest {
+  bytes data = 1;
+}
+message RunEchoTestResponse {
+  bytes data = 1;
+}
