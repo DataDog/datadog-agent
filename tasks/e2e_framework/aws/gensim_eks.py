@@ -43,6 +43,7 @@ _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
     help={
         "image": "Full agent Docker image path (e.g. docker.io/datadog/agent-dev:my-tag)",
         "episodes": "Comma-separated episode:scenario pairs (e.g. authcore-pgbouncer:pool-saturation,ep2:scen-a)",
+        "episode_manifest": "Path to a JSON manifest listing episode/scenario pairs (e.g. ./gensim-eval-scenarios.json)",
         "s3_bucket": "S3 bucket for parquet results upload",
         "namespace": "Kubernetes namespace for the episode workloads (default: default)",
         "stack_name": doc.stack_name,
@@ -57,6 +58,7 @@ def submit_gensim_eks(
     ctx: Context,
     image: str = "",
     episodes: str = "",
+    episode_manifest: str = "",
     s3_bucket: str | None = None,
     namespace: str = "default",
     stack_name: str = _DEFAULT_STACK_NAME,
@@ -69,9 +71,9 @@ def submit_gensim_eks(
     """
     Submit a gensim evaluation run to an EKS cluster.
 
-    Parses the --episodes flag, validates episode directories, ensures the cluster
-    is not busy, then deploys via Pulumi. The orchestrator Job on the cluster handles
-    agent installation and episode sequencing.
+    Parses the --episodes flag (or --episode-manifest), validates episode directories,
+    ensures the cluster is not busy, then deploys via Pulumi. The orchestrator Job on
+    the cluster handles agent installation and episode sequencing.
 
     Modes:
         record-parquet          - Collect observer data to parquet files for offline analysis
@@ -79,6 +81,7 @@ def submit_gensim_eks(
 
     Examples:
         inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=authcore-pgbouncer:pool-saturation
+        inv aws.eks.gensim.submit --image=... --episode-manifest=./gensim-eval-scenarios.json
         inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
     """
     from pydantic_core._pydantic_core import ValidationError
@@ -87,24 +90,43 @@ def submit_gensim_eks(
 
     if not image:
         raise Exit("--image is required (e.g. docker.io/datadog/agent-dev:my-tag)")
-    if not episodes:
-        raise Exit("--episodes is required (e.g. authcore-pgbouncer:pool-saturation,ep2:scen-a)")
+    if episodes and episode_manifest:
+        raise Exit("--episodes and --episode-manifest are mutually exclusive.")
+    if not episodes and not episode_manifest:
+        raise Exit("One of --episodes or --episode-manifest is required.")
     if mode not in _VALID_MODES:
         raise Exit(f"--mode must be one of {_VALID_MODES}, got '{mode}'")
 
     # ── 1. Parse and validate episode:scenario pairs ──────────────────────
     episode_pairs = []
-    for pair in episodes.split(","):
-        pair = pair.strip()
-        if not pair:
-            continue
-        parts = pair.split(":")
-        if len(parts) != 2 or not parts[0] or not parts[1]:
-            raise Exit(f"Invalid episode:scenario format: '{pair}'. Expected 'episode:scenario'.")
-        episode_pairs.append((parts[0], parts[1]))
+    if episode_manifest:
+        manifest_path = Path(episode_manifest)
+        if not manifest_path.exists():
+            raise Exit(f"Episode manifest not found: {episode_manifest}")
+        try:
+            entries = json.loads(manifest_path.read_text())
+        except json.JSONDecodeError as e:
+            raise Exit(f"Failed to parse episode manifest: {e}") from e
+        for entry in entries:
+            ep_name = entry.get("episode", "").strip()
+            scen_name = entry.get("scenario", "").strip()
+            if not ep_name or not scen_name:
+                raise Exit(f"Invalid manifest entry (missing episode or scenario): {entry}")
+            episode_pairs.append((ep_name, scen_name))
+        # Reconstruct the episodes string for downstream use (Pulumi config, logging)
+        episodes = ",".join(f"{ep}:{sc}" for ep, sc in episode_pairs)
+    else:
+        for pair in episodes.split(","):
+            pair = pair.strip()
+            if not pair:
+                continue
+            parts = pair.split(":")
+            if len(parts) != 2 or not parts[0] or not parts[1]:
+                raise Exit(f"Invalid episode:scenario format: '{pair}'. Expected 'episode:scenario'.")
+            episode_pairs.append((parts[0], parts[1]))
 
     if not episode_pairs:
-        raise Exit("No valid episode:scenario pairs found in --episodes.")
+        raise Exit("No valid episode:scenario pairs found.")
 
     # ── 2. Validate episode directories ───────────────────────────────────
     gensim_repo_path = _get_gensim_repo_path()
