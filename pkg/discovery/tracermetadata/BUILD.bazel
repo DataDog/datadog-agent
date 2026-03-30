@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tracermetadata",
+    srcs = ["tracer_memfd.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata/model",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata/model",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "tracermetadata_test",
+    srcs = [
+        "tracer_java_test.go",
+        "tracer_memfd_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":tracermetadata"],
+    deps = [
+        "//pkg/discovery/tracermetadata/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
