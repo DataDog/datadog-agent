@@ -21,6 +21,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ExtraConfFilePaths: globalParams.ExtraConfFilePath,
 			ConfigName:         command.ConfigName,
 			LoggerName:         command.LoggerName,
+			AgentMode:          globalParams.AgentMode,
 		}
 	})
 

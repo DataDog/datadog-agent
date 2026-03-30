@@ -116,6 +116,9 @@ func redactError(unscrubbedError error) error {
 }
 
 func statusCmd(_ log.Component, _ config.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.jsonStatus = true
+	}
 	_, heuristicLabel := heuristic.BuildScore("agent status", os.Args[1:], time.Now().UTC())
 
 	if cliParams.list {

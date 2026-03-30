@@ -95,6 +95,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.json = true
+	}
 
 	cr, err := getConfigCheckResponse(client)
 	if err != nil {

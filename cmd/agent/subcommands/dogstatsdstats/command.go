@@ -72,6 +72,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.jsonStatus = true
+	}
 	_, heuristicLabel := heuristic.BuildScore("agent dogstatsd-stats", os.Args[1:], time.Now().UTC())
 
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")

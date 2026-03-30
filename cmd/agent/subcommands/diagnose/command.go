@@ -398,6 +398,9 @@ func cmdDiagnose(cliParams *cliParams,
 	config config.Component,
 	client ipc.HTTPClient,
 ) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.JSONOutput = true
+	}
 
 	diagCfg := diagnose.Config{
 		Verbose: cliParams.verbose,

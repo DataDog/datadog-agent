@@ -54,6 +54,11 @@ type GlobalParams struct {
 
 	// NoColor is a flag to disable color output
 	NoColor bool
+
+	// AgentMode signals that this invocation is driven by an LLM agent.
+	// Sets heuristic_label="self_reported" in telemetry and defaults JSON output
+	// on commands that support --json.
+	AgentMode bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -106,6 +111,7 @@ monitoring and performance data.`,
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
 	agentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentFlags().BoolVar(&globalParams.AgentMode, "agent", false, "agent mode: self-signal as LLM-driven invocation; defaults output to JSON on commands that support it")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
 		if globalParams.NoColor {
 			color.NoColor = true

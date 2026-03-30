@@ -50,6 +50,7 @@ type GlobalParams struct {
 	ConfigName           string
 	LoggerName           string
 	FleetPoliciesDirPath string
+	AgentMode            bool
 }
 
 // MakeCommand returns a `health` command to be used by agent binaries.
@@ -62,6 +63,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
+			if globalParams.AgentMode {
+				cliParams.JSON = true
+			}
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
