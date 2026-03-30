@@ -566,9 +566,17 @@ func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
 // capSysPtrace is the bitmask for CAP_SYS_PTRACE (capability 19).
 const capSysPtrace uint64 = 1 << 19
 
+// capDacReadSearch is the bitmask for CAP_DAC_READ_SEARCH (capability 2).
+const capDacReadSearch uint64 = 1 << 2
+
+// capRequired is the expected capability bitmask for system-probe-lite:
+// CAP_SYS_PTRACE (open /proc/<pid>/root and /proc/<pid>/ files) and
+// CAP_DAC_READ_SEARCH (traverse restricted directories in process root filesystems).
+const capRequired = capSysPtrace | capDacReadSearch
+
 // validateCapabilities asserts that system-probe-lite has been restricted to
-// CAP_SYS_PTRACE only in its effective and permitted sets, and that the
-// inheritable and ambient sets are empty.
+// {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} in its effective and permitted sets,
+// and that the inheritable and ambient sets are empty.
 func (s *linuxTestSuite) validateCapabilities() {
 	t := s.T()
 	t.Helper()
@@ -592,13 +600,13 @@ func (s *linuxTestSuite) validateCapabilities() {
 		field string
 		want  uint64
 	}{
-		{"CapEff", capSysPtrace},
-		{"CapPrm", capSysPtrace},
+		{"CapEff", capRequired},
+		{"CapPrm", capRequired},
 		{"CapInh", 0},
 		{"CapAmb", 0},
 	} {
 		got := parseCapField(t, status, tc.field)
-		assert.Equalf(t, tc.want, got, "%s: expected 0x%016x (CAP_SYS_PTRACE only), got 0x%016x", tc.field, tc.want, got)
+		assert.Equalf(t, tc.want, got, "%s: expected 0x%016x (CAP_SYS_PTRACE|CAP_DAC_READ_SEARCH), got 0x%016x", tc.field, tc.want, got)
 	}
 }
 
