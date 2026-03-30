@@ -102,9 +102,7 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 
 new_git_repository(
     name = "dd_source_image_promotion",
-    remote = "https://github.com/DataDog/dd-source.git",
     branch = "ali.benabdallah/BARX-1709/image-promotion-template",
-    strip_prefix = "domains/agent_delivery/apps/cli/image-promotion",
     build_file_content = """
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
@@ -120,6 +118,8 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 """,
+    remote = "https://github.com/DataDog/dd-source.git",
+    strip_prefix = "domains/agent_delivery/apps/cli/image-promotion",
 )
 
 #########################
