@@ -598,10 +598,11 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Converts a Datadog metric name to a Prometheus metric name for quicker matching.
-	// The lookup site (transformMetricFamily) normalizes "__" to "_" so that metrics
-	// declared with or without Options.NoDoubleUnderscoreSep are both matched.
-	promName := fmt.Sprintf("%s__%s", names[0], names[1])
+	// Converts a Datadog metric name to a Prometheus-style name for quicker matching.
+	// We store with a single "_" separator so the lookup site (transformMetricFamily)
+	// can normalize "__" to "_" and match metrics declared with or without
+	// Options.NoDoubleUnderscoreSep.
+	promName := fmt.Sprintf("%s_%s", names[0], names[1])
 	p.metricsMap[promName] = m
 
 	// Compile aggregate tags (optional)
