@@ -718,7 +718,9 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 			if evtType >= 0 && evtType < len(e.noMatchCounters) {
 				e.noMatchCounters[evtType].Inc()
 			}
-			ruleSet.EvaluateDiscarders(event)
+			if e.probe.ShouldEvaluateDiscarders(event) {
+				ruleSet.EvaluateDiscarders(event)
+			}
 		}
 	}
 }

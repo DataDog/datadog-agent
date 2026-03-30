@@ -1503,6 +1503,11 @@ func (p *WindowsProbe) FlushDiscarders() error {
 	return nil
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *WindowsProbe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return p.config.Probe.EnableDiscarders
+}
+
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
 	if !p.config.Probe.EnableDiscarders {

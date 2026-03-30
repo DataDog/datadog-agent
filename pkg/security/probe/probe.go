@@ -50,6 +50,7 @@ type PlatformProbe interface {
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
+	ShouldEvaluateDiscarders(_ *model.Event) bool
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
@@ -244,6 +245,14 @@ func (p *Probe) Snapshot() error {
 // Walk iterates through the entire tree and call the provided callback on each entry
 func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
 	p.PlatformProbe.Walk(cb)
+}
+
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *Probe) ShouldEvaluateDiscarders(ev *model.Event) bool {
+	if p.PlatformProbe == nil {
+		return true
+	}
+	return p.PlatformProbe.ShouldEvaluateDiscarders(ev)
 }
 
 // OnNewDiscarder is called when a new discarder is found

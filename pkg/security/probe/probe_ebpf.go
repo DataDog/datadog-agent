@@ -1898,20 +1898,23 @@ func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []strin
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
-// OnNewDiscarder handles new discarders
-func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
-	// discarders disabled
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event.
+// It also handles rate limiter token consumption so that OnNewDiscarder does not need to re-check.
+func (p *EBPFProbe) ShouldEvaluateDiscarders(ev *model.Event) bool {
 	if !p.config.Probe.EnableDiscarders {
-		return
+		return false
 	}
-
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
-			return
+			return false
 		}
 	}
+	return true
+}
 
+// OnNewDiscarder handles new discarders
+func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
 	if handler, ok := allDiscarderHandlers[field]; ok {
