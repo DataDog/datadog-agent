@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 
-	"go.temporal.io/sdk/client"
-
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -54,22 +52,21 @@ func (h *RunWorkflowHandler) Run(
 	}
 	defer temporalClient.Close()
 
-	options := client.StartWorkflowOptions{
+	options := startWorkflowOptions{
 		ID:        inputs.WorkflowId,
 		TaskQueue: inputs.TaskQueue,
 	}
 
-	workflowExecution, err := temporalClient.ExecuteWorkflow(ctx, options, inputs.WorkFlowType, inputs.WorkflowArgs...)
+	runID, err := temporalClient.StartWorkflow(ctx, options, inputs.WorkFlowType, inputs.WorkflowArgs...)
 	if err != nil {
 		log.FromContext(ctx).Warn("Unable to run workflow.")
 		return nil, err
 	}
-	if workflowExecution == nil {
+	if runID == "" {
 		return nil, errors.New("workflow execution not found")
 	}
 
-	runId := workflowExecution.GetRunID()
 	return &RunWorkflowOutputs{
-		RunId: runId,
+		RunId: runID,
 	}, nil
 }

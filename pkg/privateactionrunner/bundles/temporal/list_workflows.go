@@ -9,7 +9,6 @@ import (
 	"context"
 
 	v112 "go.temporal.io/api/workflow/v1"
-	workflowService "go.temporal.io/api/workflowservice/v1"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -51,21 +50,15 @@ func (h *ListWorkflowsHandler) Run(
 	}
 	defer temporalClient.Close()
 
-	request := &workflowService.ListWorkflowExecutionsRequest{
-		Namespace: namespace,
-		Query:     inputs.Query,
-	}
-
-	workflows, err := temporalClient.ListWorkflow(ctx, request)
+	workflows, err := temporalClient.ListWorkflowExecutions(ctx, inputs.Query)
 	if err != nil {
 		log.FromContext(ctx).Warn("Unable to list workflows.")
 		return nil, err
 	}
 
 	workflowsExecutions := []*v112.WorkflowExecutionInfo{}
-
 	if workflows != nil {
-		workflowsExecutions = workflows.Executions
+		workflowsExecutions = workflows
 	}
 
 	return &ListWorkflowsOutputs{
