@@ -201,6 +201,7 @@ func TestMultilineParserTruncatesReassembledKubernetesPartialLine(t *testing.T) 
 	firstChunk := strings.Repeat("a", 15)
 	secondChunk := strings.Repeat("b", 10)
 	combinedContent := firstChunk + secondChunk
+	t.Logf("combined message length: %d", len(combinedContent))
 
 	firstLine := []byte("2019-06-06T16:35:55.930852911Z stderr P " + firstChunk)
 	lineParser.process(message.NewMessage(firstLine, nil, "", 0), len(firstLine))
@@ -210,6 +211,7 @@ func TestMultilineParserTruncatesReassembledKubernetesPartialLine(t *testing.T) 
 	lineParser.process(message.NewMessage(secondLine, nil, "", 0), len(secondLine))
 
 	assert.NotNil(t, output)
+	t.Logf("emitted message length: %d", len(output.GetContent()))
 	assert.Equal(t, []byte(combinedContent+string(message.TruncatedFlag)), output.GetContent())
 	assert.Equal(t, len(firstLine)+len(secondLine), output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
