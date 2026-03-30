@@ -110,11 +110,12 @@ def submit_gensim_eks(
         for entry in entries:
             ep_name = entry.get("episode", "").strip()
             scen_name = entry.get("scenario", "").strip()
+            pinned_sha = entry.get("sha", "").strip()
             if not ep_name or not scen_name:
                 raise Exit(f"Invalid manifest entry (missing episode or scenario): {entry}")
-            episode_pairs.append((ep_name, scen_name))
+            episode_pairs.append((ep_name, scen_name, pinned_sha))
         # Reconstruct the episodes string for downstream use (Pulumi config, logging)
-        episodes = ",".join(f"{ep}:{sc}" for ep, sc in episode_pairs)
+        episodes = ",".join(f"{ep}:{sc}" for ep, sc, _ in episode_pairs)
     else:
         for pair in episodes.split(","):
             pair = pair.strip()
@@ -123,14 +124,14 @@ def submit_gensim_eks(
             parts = pair.split(":")
             if len(parts) != 2 or not parts[0] or not parts[1]:
                 raise Exit(f"Invalid episode:scenario format: '{pair}'. Expected 'episode:scenario'.")
-            episode_pairs.append((parts[0], parts[1]))
+            episode_pairs.append((parts[0], parts[1], ""))
 
     if not episode_pairs:
         raise Exit("No valid episode:scenario pairs found.")
 
-    # ── 2. Validate episode directories ───────────────────────────────────
+    # ── 2. Validate episode directories and pinned SHAs ───────────────────
     gensim_repo_path = _get_gensim_repo_path()
-    for ep_name, scen_name in episode_pairs:
+    for ep_name, scen_name, pinned_sha in episode_pairs:
         ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
         chart_dir = ep_dir / "chart"
         scenario_file = ep_dir / "episodes" / f"{scen_name}.yaml"
@@ -139,6 +140,22 @@ def submit_gensim_eks(
             raise Exit(f"Chart directory not found: {chart_dir}")
         if not scenario_file.exists():
             raise Exit(f"Scenario file not found: {scenario_file}")
+
+        if pinned_sha:
+            rel_path = ep_dir.relative_to(gensim_repo_path)
+            sha_buf = StringIO()
+            ctx.run(
+                f"git -C {gensim_repo_path} rev-parse HEAD:{rel_path}",
+                out_stream=sha_buf,
+                hide="out",
+            )
+            actual_sha = sha_buf.getvalue().strip()
+            if actual_sha != pinned_sha:
+                tool.warn(
+                    f"Episode '{ep_name}' has changed since the manifest was pinned "
+                    f"(expected {pinned_sha[:12]}, got {actual_sha[:12]}). "
+                    f"Results may not be comparable to previous runs."
+                )
 
     # ── 3. Capture gensim-episodes git SHA ────────────────────────────────
     sha_buf = StringIO()
@@ -216,7 +233,7 @@ def submit_gensim_eks(
     if skip_build:
         tool.info("Skipping episode image build (--skip-build). Using cached ECR images.")
     else:
-        for ep_name, _ in episode_pairs:
+        for ep_name, _, _sha in episode_pairs:
             ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
             if (ep_dir / "docker-compose.yaml").exists():
                 ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
