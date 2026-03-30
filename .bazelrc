@@ -38,6 +38,9 @@ common:macos --features=-macos_default_link_flags # https://github.com/bazelbuil
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 common:macos --remote_local_fallback_strategy=sandboxed
+# We don't have a toolchain set up for macos, in the meantime, we set cflags via config instead
+# TODO(alopezz): remove once we do have a toolchain and we set the flag there
+common:macos --copt=-O2
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
