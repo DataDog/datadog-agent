@@ -55,7 +55,7 @@ def _get_profiler_agent_version(ctx):
         return f"{version}-nightly_git.{commits}.{git_sha}"
 
     branch = os.environ.get("CI_COMMIT_REF_SLUG") or get_current_branch(ctx)
-    pre_label = pre if pre else "devel"
+    pre_label = f"{pre}_devtest" if pre else "devtest"
     return f"{version}-{pre_label}_git.{commits}.{git_sha}.{branch}"
 
 
