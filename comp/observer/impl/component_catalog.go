@@ -191,15 +191,6 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:           "density",
-				displayName:    "Density",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultDensityConfig(),
-				factory:        func(cfg any) any { return NewDensityCorrelator(cfg.(DensityConfig)) },
-				defaultEnabled: false,
-				readConfig:     readDensityConfig,
-			},
-			{
 				name:           "passthrough",
 				displayName:    "Passthrough",
 				kind:           componentCorrelator,
