@@ -46,8 +46,9 @@
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
 
 # New: publishes images through artifact-gateway (identity check + policy + audit).
-# Uses the image-promotion CLI imported from dd-source via Bazel.
-# Callers use this exactly like .docker_publish_job_definition — same IMG_* variables,
+# Uses the image-promotion CLI from dd-source via Bazel (imported in MODULE.bazel
+# as @dd_source_image_promotion). The CLI reads IMG_* env vars set by before_script.
+# Callers use this exactly like .docker_publish_job_definition — same variables,
 # same before_script patterns.
 .docker_publish_job_definition_via_gateway:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
@@ -58,7 +59,7 @@
     IMG_SIGNING: "false"
     IMAGE_PROMOTION_TIMEOUT: "1800"
     IMAGE_PROMOTION_POLL_INTERVAL: "30"
-    # TODO: remove once we switch to prod
+    # TODO: switch to prod URL once migration is complete
     ARTIFACT_GATEWAY_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway"
   script:
     - *docker_ecr_suffix_script
