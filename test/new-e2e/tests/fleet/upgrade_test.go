@@ -31,7 +31,11 @@ func newUpgradeSuite() e2e.Suite[environments.Host] {
 }
 
 func TestFleetUpgrade(t *testing.T) {
-	suite.Run(t, newUpgradeSuite, suite.Platforms())
+	suite.Run(t, newUpgradeSuite, suite.LinuxPlatforms)
+}
+
+func TestFleetUpgradeWindows(t *testing.T) {
+	suite.Run(t, newUpgradeSuite, suite.WindowsPlatforms)
 }
 
 func (s *upgradeSuite) TestUpgrade() {
