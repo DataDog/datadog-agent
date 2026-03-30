@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -242,10 +243,47 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			}
 			// MetadataInterval configures the host metadata provider collection interval.
 			// The host provider reads this from the "metadata_providers" list entry named "host".
+			// Merge into the existing list rather than replacing it wholesale, so that
+			// other providers configured in datadog.yaml (e.g. "resources") are preserved.
 			if extcfg.MetadataInterval > 0 {
-				pkgconfig.Set("metadata_providers", []map[string]interface{}{
-					{"name": "host", "interval": extcfg.MetadataInterval},
-				}, pkgconfigmodel.SourceFile)
+				existing := pkgconfig.Get("metadata_providers")
+				var providers []map[string]interface{}
+				switch ev := existing.(type) {
+				case []map[string]interface{}:
+					providers = ev
+				case []interface{}:
+					// YAML v2 stores maps within sequences as map[interface{}]interface{};
+					// convert each entry to map[string]interface{} before modifying.
+					for _, item := range ev {
+						switch m := item.(type) {
+						case map[string]interface{}:
+							providers = append(providers, m)
+						default:
+							if rv := reflect.ValueOf(item); rv.Kind() == reflect.Map {
+								converted := make(map[string]interface{}, rv.Len())
+								for _, k := range rv.MapKeys() {
+									converted[fmt.Sprintf("%v", k.Interface())] = rv.MapIndex(k).Interface()
+								}
+								providers = append(providers, converted)
+							}
+						}
+					}
+				}
+				found := false
+				for _, p := range providers {
+					if p["name"] == "host" {
+						p["interval"] = extcfg.MetadataInterval
+						found = true
+						break
+					}
+				}
+				if !found {
+					providers = append(providers, map[string]interface{}{
+						"name":     "host",
+						"interval": extcfg.MetadataInterval,
+					})
+				}
+				pkgconfig.Set("metadata_providers", providers, pkgconfigmodel.SourceFile)
 			}
 			if extcfg.Hostname != "" {
 				pkgconfig.Set("hostname", extcfg.Hostname, pkgconfigmodel.SourceFile)

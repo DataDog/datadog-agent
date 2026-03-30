@@ -568,6 +568,40 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataInterval() {
 	assert.Equal(t, 600, providerList[0]["interval"])
 }
 
+// TestDogtelExtensionConfig_MetadataIntervalMerge verifies that setting
+// metadata_interval in the dogtel extension merges into the existing
+// metadata_providers list rather than replacing it wholesale. Providers other
+// than "host" must be preserved, and an existing "host" entry must have its
+// interval updated in place.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataIntervalMerge() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	// datadog_with_metadata_providers.yaml pre-seeds two providers:
+	//   {name: resources, interval: 300} and {name: host, interval: 60}
+	// The dogtel extension in config_standalone.yaml sets metadata_interval: 600.
+	// The host entry's interval must be updated to 600; the resources entry must survive.
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_with_metadata_providers.yaml", []string{"testdata/config_standalone.yaml"})
+	require.NoError(t, err)
+
+	providers := c.Get("metadata_providers")
+	require.NotNil(t, providers)
+	providerList, ok := providers.([]map[string]interface{})
+	require.True(t, ok, "metadata_providers should be []map[string]interface{}")
+
+	byName := map[string]map[string]interface{}{}
+	for _, p := range providerList {
+		if name, ok := p["name"].(string); ok {
+			byName[name] = p
+		}
+	}
+
+	require.Contains(t, byName, "host", "host provider must be present")
+	assert.Equal(t, 600, byName["host"]["interval"], "host interval must be updated to metadata_interval value")
+
+	require.Contains(t, byName, "resources", "resources provider must be preserved")
+	assert.Equal(t, 300, byName["resources"]["interval"], "resources interval must remain unchanged")
+}
+
 // TestDogtelExtensionConfig_NoDogtelExtension verifies that a config without
 // the dogtelextension section is still processed correctly (no error, no overrides).
 // This test does NOT set DD_OTEL_STANDALONE, verifying that the block is skipped
