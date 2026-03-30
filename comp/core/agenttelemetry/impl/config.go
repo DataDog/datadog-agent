@@ -496,10 +496,6 @@ var defaultProfiles = `
         - name: cluster_checks.unscheduled_check
           aggregate_tags:
             - config_source
-        - name: external_metrics.datadog_metrics
-          aggregate_tags:
-            - valid
-            - active
         - name: language_detection_patcher.patches
           aggregate_tags:
             - owner_kind
