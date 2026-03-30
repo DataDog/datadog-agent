@@ -16,8 +16,7 @@ type RshellBundle struct {
 func NewRshellBundle(allowedPaths []string) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand":     NewRunCommandHandler(allowedPaths),
-			"testConnection": NewTestConnectionHandler(),
+			"runCommand": NewRunCommandHandler(allowedPaths),
 		},
 	}
 }

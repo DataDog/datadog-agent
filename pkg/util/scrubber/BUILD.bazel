@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scrubber",
+    srcs = [
+        "default.go",
+        "json_scrubber.go",
+        "scrubber.go",
+        "yaml_scrubber.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/scrubber",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/version",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+go_test(
+    name = "scrubber_test",
+    srcs = [
+        "default_test.go",
+        "json_scrubber_test.go",
+        "scrubber_test.go",
+        "yaml_scrubber_test.go",
+    ],
+    data = glob(["test/**"]),
+    embed = [":scrubber"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
