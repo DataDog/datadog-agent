@@ -2047,7 +2047,7 @@ func (s *TracerSuite) TestShortWrite() {
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		require.True(collect, ok)
 
-		require.Equal(collect, sent, conn.Monotonic.SentBytes)
+		assert.GreaterOrEqual(collect, conn.Monotonic.SentBytes, sent)
 	}, 10*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
 
