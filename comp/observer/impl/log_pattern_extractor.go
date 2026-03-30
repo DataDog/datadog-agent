@@ -129,6 +129,7 @@ func (e *LogPatternExtractor) Reset() {
 		Index:  0,
 	})
 	e.ctx = logPatternExtractorContext{}
+	e.NextGarbageCollectionTime = 0
 }
 
 // GetContextByKey implements observerdef.ContextProvider for pattern metrics
