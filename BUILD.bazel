@@ -509,7 +509,7 @@ gazelle_binary(
 # bazel run //:go -- ...
 alias(
     name = "go",
-    actual = "@rules_go//go",
+    actual = "@go_fast",  #TODO(agent-build): move back to "@rules_go//go" when golang/go#77889 is addressed
 )
 
 # bazel run //:go_mod_tidy_all -- -x
