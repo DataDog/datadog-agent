@@ -602,17 +602,12 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Store metrics under a normalized single-underscore key so that Prometheus names
-	// using either "__" (default) or "_" (NoDoubleUnderscoreSep) are matched with a
-	// single map lookup after normalizing the incoming name at query time.
+	// Store under a normalized single-underscore key so that Prometheus names using
+	// either "__" (default) or "_" (NoDoubleUnderscoreSep) are matched via a single
+	// lookup after normalizing the incoming name at query time (see transformMetricFamily).
+	// NOTE: avoid config entries whose group/metric names collapse to the same key
+	// (e.g. "foo_bar.baz" and "foo.bar_baz" both become "foo_bar_baz").
 	promKey := fmt.Sprintf("%s_%s", names[0], names[1])
-
-	// Detect collisions: two different config entries (e.g. "foo_bar.baz" and "foo.bar_baz")
-	// can collapse to the same normalized key "foo_bar_baz".
-	if existing, ok := p.metricsMap[promKey]; ok && existing.Name != m.Name {
-		return fmt.Errorf("profile '%s': metric '%s' collides with '%s' (both resolve to normalized Prometheus name '%s')", p.Name, m.Name, existing.Name, promKey)
-	}
-
 	p.metricsMap[promKey] = m
 
 	// Compile aggregate tags (optional)
