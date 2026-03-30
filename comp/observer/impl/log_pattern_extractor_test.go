@@ -121,3 +121,55 @@ func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
 	})
 	require.Len(t, out.Metrics, 1)
 }
+
+func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
+	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
+	e.ClusterTimeToLiveSec = 10
+	// GC scheduling uses wall-clock seconds; 0 means the next ProcessLog can run
+	// maybeGarbageCollect without waiting an extra second (tests run in one Unix second).
+	e.GarbageCollectionIntervalSec = 0
+
+	tags := []string{"service:api"}
+	// Distinct messages so the second log does not refresh the first cluster's LastSeenUnix.
+	msg1 := []byte("WARN distinct pattern seed 700 not mergeable xyz")
+	msg2 := []byte("WARN distinct pattern seed 701 not mergeable xyz")
+
+	// t=1000: create cluster A, emit metric and pattern context.
+	const tsMs1 = 1_000_000 // unix sec = 1000
+	res1 := e.ProcessLog(&mockLogView{
+		content:     msg1,
+		status:      "warn",
+		tags:        tags,
+		timestampMs: tsMs1,
+	})
+	require.Len(t, res1.Metrics, 1)
+	ctxKey1 := res1.Metrics[0].ContextKey
+	_, ok := e.GetContextByKey(ctxKey1)
+	require.True(t, ok, "pattern context should exist before GC")
+
+	// t=1015: GC runs first (cutoff 1015-10=1005); cluster A last seen 1000 is stale.
+	// Then a new log creates cluster B.
+	const tsMs2 = 1_015_000 // unix sec = 1015
+	res2 := e.ProcessLog(&mockLogView{
+		content:     msg2,
+		status:      "warn",
+		tags:        tags,
+		timestampMs: tsMs2,
+	})
+	require.Len(t, res2.Metrics, 1)
+	ctxKey2 := res2.Metrics[0].ContextKey
+
+	_, ok = e.GetContextByKey(ctxKey1)
+	assert.False(t, ok, "stale cluster pattern context should be removed by GC")
+	_, ok = e.GetContextByKey(ctxKey2)
+	require.True(t, ok, "active cluster pattern context should remain")
+
+	require.NotEqual(t, ctxKey1, ctxKey2)
+
+	// PatternClusterer uses IDs 0, 1, … for the first and second clusters respectively.
+	_, err := e.PatternClusterer.GetCluster(0)
+	require.Error(t, err, "stale cluster should be removed from clusterer")
+	_, err = e.PatternClusterer.GetCluster(1)
+	require.NoError(t, err, "cluster from the second log should still exist")
+}

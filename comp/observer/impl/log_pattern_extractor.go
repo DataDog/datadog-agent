@@ -46,7 +46,7 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
 	PatternClusterer          *patterns.PatternClusterer
-	patternContext            map[string]patternMetricContext
+	ctx                       logPatternExtractorContext
 	NextGarbageCollectionTime int64
 	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
 	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
@@ -61,6 +61,44 @@ var _ observerdef.ContextProvider = (*LogPatternExtractor)(nil)
 type patternMetricContext struct {
 	keyInfo PatternKeyInfo
 	example string
+}
+
+// logPatternExtractorContext holds per-metric context for GetContextByKey and
+// indexes keys by cluster ID for O(cluster) deletion on GC.
+type logPatternExtractorContext struct {
+	byKey         map[string]patternMetricContext
+	keysByCluster map[int64][]string
+}
+
+func (c *logPatternExtractorContext) get(key string) (patternMetricContext, bool) {
+	if c.byKey == nil {
+		return patternMetricContext{}, false
+	}
+	v, ok := c.byKey[key]
+	return v, ok
+}
+
+func (c *logPatternExtractorContext) put(clusterID int64, contextKey string, entry patternMetricContext) {
+	if c.byKey == nil {
+		c.byKey = make(map[string]patternMetricContext)
+	}
+	if _, exists := c.byKey[contextKey]; !exists {
+		if c.keysByCluster == nil {
+			c.keysByCluster = make(map[int64][]string)
+		}
+		c.keysByCluster[clusterID] = append(c.keysByCluster[clusterID], contextKey)
+	}
+	c.byKey[contextKey] = entry
+}
+
+func (c *logPatternExtractorContext) removeCluster(clusterID int64) {
+	if c.byKey == nil {
+		return
+	}
+	for _, k := range c.keysByCluster[clusterID] {
+		delete(c.byKey, k)
+	}
+	delete(c.keysByCluster, clusterID)
 }
 
 // NewLogPatternExtractor creates a new LogPatternExtractor.
@@ -90,16 +128,13 @@ func (e *LogPatternExtractor) Reset() {
 		Stride: 1,
 		Index:  0,
 	})
-	e.patternContext = nil
+	e.ctx = logPatternExtractorContext{}
 }
 
 // GetContextByKey implements observerdef.ContextProvider for pattern metrics
 // emitted by this extractor.
 func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricContext, bool) {
-	if e.patternContext == nil {
-		return observerdef.MetricContext{}, false
-	}
-	entry, ok := e.patternContext[key]
+	entry, ok := e.ctx.get(key)
 	if !ok {
 		return observerdef.MetricContext{}, false
 	}
@@ -156,13 +191,10 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), cluster.ID+1)
 	contextKey := metricContextKey(metricName, log.GetTags())
 
-	if e.patternContext == nil {
-		e.patternContext = make(map[string]patternMetricContext)
-	}
-	e.patternContext[contextKey] = patternMetricContext{
+	e.ctx.put(cluster.ID, contextKey, patternMetricContext{
 		keyInfo: patternKey,
 		example: message,
-	}
+	})
 
 	return observerdef.LogMetricsExtractorOutput{
 		Metrics: []observerdef.MetricOutput{{
@@ -187,20 +219,11 @@ func (e *LogPatternExtractor) maybeGarbageCollect() {
 	if len(toDelete) == 0 {
 		return
 	}
-	remove := make(map[int64]struct{}, len(toDelete))
-	for _, id := range toDelete {
-		remove[id] = struct{}{}
-	}
-	if e.patternContext != nil {
-		for k, v := range e.patternContext {
-			if _, ok := remove[v.keyInfo.ClusterID]; ok {
-				delete(e.patternContext, k)
-			}
-		}
-	}
 	for _, clusterID := range toDelete {
 		// Metric storage
 		// Pattern context
+		e.ctx.removeCluster(clusterID)
+
 		// Cluster from pattern clusterer
 		_ = e.PatternClusterer.RemoveCluster(clusterID)
 	}
