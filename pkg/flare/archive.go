@@ -106,7 +106,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 }
 
 func provideEndpointDNSResolution(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("connectivity/endpoint_dns.txt", getEndpointDNS) //nolint:errcheck
+	fb.AddFileFromFunc("connectivity/resolved_endpoints.txt", getEndpointDNS) //nolint:errcheck
 	return nil
 }
 
@@ -120,12 +120,18 @@ func getEndpointDNS() ([]byte, error) {
 		return nil, fmt.Errorf("could not get endpoints: %w", err)
 	}
 
+	var buf bytes.Buffer
+
 	// Collect unique hostnames from all configured endpoint URLs.
 	seen := make(map[string]bool)
 	var hostnames []string
 	for domain := range endpointDescriptors {
 		u, parseErr := url.Parse(domain)
-		if parseErr != nil || u.Hostname() == "" {
+		if parseErr != nil {
+			fmt.Fprintf(&buf, "%s: error parsing URL: %s\n", domain, parseErr)
+			continue
+		}
+		if u.Hostname() == "" {
 			continue
 		}
 		h := u.Hostname()
@@ -138,18 +144,32 @@ func getEndpointDNS() ([]byte, error) {
 
 	// Use a single context with a fixed budget shared across all lookups so the
 	// aggregate runtime is bounded regardless of how many endpoints are configured.
+	// TODO: expose as a configurable timeout if needed in the future.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	resolver := &net.Resolver{}
-	var buf bytes.Buffer
 	for _, h := range hostnames {
-		addrs, lookupErr := resolver.LookupHost(ctx, h)
+		// LookupIPAddr returns both IPv4 and IPv6 addresses; separate them for clarity.
+		addrs, lookupErr := resolver.LookupIPAddr(ctx, h)
 		if lookupErr != nil {
 			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
 			continue
 		}
-		fmt.Fprintf(&buf, "%s: %s\n", h, strings.Join(addrs, ", "))
+		var ipv4s, ipv6s []string
+		for _, addr := range addrs {
+			if addr.IP.To4() != nil {
+				ipv4s = append(ipv4s, addr.IP.String())
+			} else {
+				ipv6s = append(ipv6s, addr.IP.String())
+			}
+		}
+		if len(ipv4s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv4: %s\n", h, strings.Join(ipv4s, ", "))
+		}
+		if len(ipv6s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv6: %s\n", h, strings.Join(ipv6s, ", "))
+		}
 	}
 	return buf.Bytes(), nil
 }
