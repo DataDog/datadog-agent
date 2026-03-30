@@ -21,11 +21,11 @@ static __always_inline void update_stats_tuple4(struct bpf_sock *ctx) {
     sk_stats->tup.metadata |= CONN_V4;
     if (ctx->src_ip4) {
         sk_stats->tup.saddr_h = 0;
-        sk_stats->tup.saddr_l = bpf_ntohl(ctx->src_ip4);
+        sk_stats->tup.saddr_l = ctx->src_ip4;
     }
     if (ctx->dst_ip4) {
         sk_stats->tup.daddr_h = 0;
-        sk_stats->tup.daddr_l = bpf_ntohl(ctx->dst_ip4);
+        sk_stats->tup.daddr_l = ctx->dst_ip4;
     }
 }
 
@@ -39,10 +39,20 @@ static __always_inline void update_stats_tuple6(struct bpf_sock *ctx) {
     if (ctx->src_port) sk_stats->tup.sport = ctx->src_port;
     if (ctx->dst_port) sk_stats->tup.dport = bpf_ntohl(ctx->dst_port);
     sk_stats->tup.metadata |= CONN_V6;
-    BPF_CORE_READ_INTO(&sk_stats->tup.saddr_h, ctx, src_ip6[0]);
-    BPF_CORE_READ_INTO(&sk_stats->tup.saddr_l, ctx, src_ip6[2]);
-    BPF_CORE_READ_INTO(&sk_stats->tup.daddr_h, ctx, dst_ip6[0]);
-    BPF_CORE_READ_INTO(&sk_stats->tup.daddr_l, ctx, dst_ip6[2]);
+
+    struct in6_addr saddr;
+    saddr.in6_u.u6_addr32[0] = ctx->src_ip6[0];
+    saddr.in6_u.u6_addr32[1] = ctx->src_ip6[1];
+    saddr.in6_u.u6_addr32[2] = ctx->src_ip6[2];
+    saddr.in6_u.u6_addr32[3] = ctx->src_ip6[3];
+    read_in6_addr(&sk_stats->tup.saddr_h, &sk_stats->tup.saddr_l, &saddr);
+
+    struct in6_addr daddr;
+    daddr.in6_u.u6_addr32[0] = ctx->dst_ip6[0];
+    daddr.in6_u.u6_addr32[1] = ctx->dst_ip6[1];
+    daddr.in6_u.u6_addr32[2] = ctx->dst_ip6[2];
+    daddr.in6_u.u6_addr32[3] = ctx->dst_ip6[3];
+    read_in6_addr(&sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l, &daddr);
 }
 
 
