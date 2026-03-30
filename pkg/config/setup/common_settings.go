@@ -1053,7 +1053,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Individual debug options don't need to be registered here - the section is
 	// passed as-is to the OTel debug exporter which handles its own validation.
-	config.BindEnvAndSetDefault("host_profiler.debug", map[string]any{})
+	config.BindEnvAndSetDefault("hostprofiler.debug", map[string]any{})
 }
 
 func agent(config pkgconfigmodel.Setup) {

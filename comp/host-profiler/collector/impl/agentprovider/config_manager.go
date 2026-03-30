@@ -85,7 +85,7 @@ func newConfigManager(config config.Component) configManager {
 	}
 
 	var hostProfilerConfig hostProfilerConfig
-	if raw := config.GetStringMap("host_profiler"); len(raw) > 0 {
+	if raw := config.GetStringMap("hostprofiler"); len(raw) > 0 {
 		if err := mapstructure.Decode(raw, &hostProfilerConfig); err != nil {
 			log.Warnf("Failed to decode host_profiler config: %v", err)
 		}
