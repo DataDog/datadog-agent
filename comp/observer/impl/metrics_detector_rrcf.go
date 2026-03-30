@@ -113,7 +113,7 @@ type RRCFDetector struct {
 
 	// resolvedKeys caches the numeric series ID for each metric.
 	// Populated lazily on first Detect call via ListSeries discovery.
-	resolvedKeys map[string]observer.SeriesHandle
+	resolvedKeys map[string]observer.SeriesRef
 
 	// cursors tracks read position per metric for incremental reads.
 	cursors map[string]int64
@@ -153,7 +153,7 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 	return &RRCFDetector{
 		config:       config,
 		metrics:      metrics,
-		resolvedKeys: make(map[string]observer.SeriesHandle),
+		resolvedKeys: make(map[string]observer.SeriesRef),
 		cursors:      make(map[string]int64),
 		forest:       forest,
 		recentScores: make([]float64, 0, 100),
@@ -202,7 +202,7 @@ func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 
 // resolveKey returns the cached numeric series ID for a metric definition.
 // Keys are populated by resolveAllKeys on the first Detect call.
-func (r *RRCFDetector) resolveKey(m RRCFMetricDef) (observer.SeriesHandle, bool) {
+func (r *RRCFDetector) resolveKey(m RRCFMetricDef) (observer.SeriesRef, bool) {
 	cursorKey := m.Namespace + "|" + m.Name
 	id, ok := r.resolvedKeys[cursorKey]
 	return id, ok
@@ -265,7 +265,7 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 		// Count total points across all metrics for this tag set
 		pc := 0
 		for _, meta := range metricsMap {
-			pc += storage.PointCount(meta.Handle)
+			pc += storage.PointCount(meta.Ref)
 		}
 		if mc > bestMetricCount || (mc == bestMetricCount && pc > bestPointCount) {
 			bestMetricCount = mc
@@ -285,7 +285,7 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 
 	// Resolve all metrics to this tag set
 	for cursorKey, meta := range tagSetMetrics[bestSig] {
-		r.resolvedKeys[cursorKey] = meta.Handle
+		r.resolvedKeys[cursorKey] = meta.Ref
 	}
 
 	return true
@@ -436,7 +436,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 		})
 
 		// Emit telemetry for the CoDisp score at every scored shingle
-		telemetry = append(telemetry, newTelemetryGauge(r.Name(), telemetryRRCFScore, score, s.endTimestamp))
+		telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFScore, score, s.endTimestamp))
 
 		// Skip warmup phase — scores are artificial during forest filling
 		if r.totalScored <= warmup {
@@ -448,7 +448,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Emit telemetry for the dynamic threshold (only after warmup when threshold is meaningful)
 		if threshold > 0 {
-			telemetry = append(telemetry, newTelemetryGauge(r.Name(), telemetryRRCFThreshold, threshold, s.endTimestamp))
+			telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFThreshold, threshold, s.endTimestamp))
 		}
 
 		// Update rolling window (after computing threshold, so current score
@@ -460,7 +460,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		if r.config.ThresholdSigma > 0 && threshold > 0 && score > threshold {
 			anomaly := observer.Anomaly{
-				Source:       observer.AnomalySource{Namespace: "rrcf", Name: "score"},
+				Source:       observer.SeriesDescriptor{Namespace: "rrcf", Name: "score"},
 				DetectorName: r.Name(),
 				Title:        "RRCF multivariate anomaly",
 				Description:  fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),
@@ -524,7 +524,7 @@ func (r *RRCFDetector) scoreShingle(s shingle) float64 {
 
 // Reset clears all state, useful for testing or after major regime changes.
 func (r *RRCFDetector) Reset() {
-	r.resolvedKeys = make(map[string]observer.SeriesHandle)
+	r.resolvedKeys = make(map[string]observer.SeriesRef)
 	r.cursors = make(map[string]int64)
 	r.recentScores = r.recentScores[:0]
 	r.allScores = r.allScores[:0]

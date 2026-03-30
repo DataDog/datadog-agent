@@ -282,11 +282,20 @@ export interface ScoreResponse {
 
 export interface DetectorProcessingStats {
   name: string;
+  kind: 'detector' | 'correlator' | 'extractor' | '';
   count: number;
   avg_ns: number;
   median_ns: number;
   p99_ns: number;
   total_ns: number;
+}
+
+export interface ReplayStats {
+  detector_stats: Record<string, DetectorProcessingStats>;
+  input_metrics_count: number;
+  input_metrics_cardinality: number;
+  input_logs_count: number;
+  input_anomalies_count: number;
 }
 
 class ApiClient {
@@ -413,7 +422,7 @@ class ApiClient {
     return this.fetch('/score');
   }
 
-  async getBenchmarkStats(): Promise<Record<string, DetectorProcessingStats>> {
+  async getBenchmarkStats(): Promise<ReplayStats> {
     return this.fetch('/benchmark');
   }
 

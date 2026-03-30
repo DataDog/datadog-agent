@@ -127,10 +127,10 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
-	// Not enough patterns yet, don't emit metric
-	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
+	// Not enough patterns yet, don't emit metric.
+	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric.
 	if cluster.Count == e.MinPatternsBeforeEmit {
-		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
 	} else if cluster.Count < e.MinPatternsBeforeEmit {
 		return observerdef.LogMetricsExtractorOutput{}
 	}

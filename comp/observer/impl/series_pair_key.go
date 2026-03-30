@@ -5,17 +5,15 @@
 
 package observerimpl
 
-import "strconv"
-import observer "github.com/DataDog/datadog-agent/comp/observer/def"
-
-// seriesPairKey identifies an unordered relationship between two series IDs.
+// seriesPairKey identifies an unordered relationship between two series.
+// A and B are descriptor key strings (from SeriesDescriptor.Key()).
 // It is canonicalized so (A,B) and (B,A) map to the same key.
 type seriesPairKey struct {
-	A observer.SeriesID
-	B observer.SeriesID
+	A string
+	B string
 }
 
-func newSeriesPairKey(a, b observer.SeriesID) seriesPairKey {
+func newSeriesPairKey(a, b string) seriesPairKey {
 	if a <= b {
 		return seriesPairKey{A: a, B: b}
 	}
@@ -23,9 +21,6 @@ func newSeriesPairKey(a, b observer.SeriesID) seriesPairKey {
 }
 
 // hashKey returns a deterministic encoding used only for hashing/sketch updates.
-// Length-prefixing avoids delimiter ambiguity without requiring parse/split logic.
 func (k seriesPairKey) hashKey() string {
-	a := string(k.A)
-	b := string(k.B)
-	return strconv.Itoa(len(a)) + ":" + a + strconv.Itoa(len(b)) + ":" + b
+	return k.A + "|" + k.B
 }

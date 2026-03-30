@@ -492,7 +492,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	for _, meta := range allSeries {
 		keyStr := seriesKey(meta.Namespace, meta.Name, meta.Tags)
-		visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
+		visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
 		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
 			continue
 		}
@@ -503,7 +503,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
 			}
-			series := storage.GetSeriesRange(meta.Handle, start, dataTime, agg)
+			series := storage.GetSeriesRange(meta.Ref, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
@@ -515,12 +515,16 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			for j := range result.Anomalies {
 				result.Anomalies[j].Type = observerdef.AnomalyTypeMetric
 				result.Anomalies[j].DetectorName = a.detector.Name()
-				result.Anomalies[j].Source = observerdef.AnomalySource{
+				result.Anomalies[j].Source = observerdef.SeriesDescriptor{
 					Namespace: series.Namespace,
 					Name:      series.Name,
+					Tags:      series.Tags,
 					Aggregate: agg,
 				}
-				result.Anomalies[j].SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
+				result.Anomalies[j].SourceRef = &observerdef.QueryHandle{
+					Ref:       meta.Ref,
+					Aggregate: agg,
+				}
 			}
 			allAnomalies = append(allAnomalies, result.Anomalies...)
 			allTelemetry = append(allTelemetry, result.Telemetry...)
