@@ -6,8 +6,8 @@
 //go:generate go run github.com/tinylib/msgp
 //msgp:tag json
 
-// Package tracermetadata parses the tracer-generated metadata
-package tracermetadata
+// Package model parses the tracer-generated metadata
+package model
 
 import (
 	"iter"
