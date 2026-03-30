@@ -2494,12 +2494,10 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "symlink_true_exec",
-			Expression: `exec.file.name == "true"`,
+			Expression: `exec.file.name == "echo"`,
 		},
 	}
 
@@ -2511,7 +2509,7 @@ func TestSymLinkResolution(t *testing.T) {
 
 	t.Run("exec true via symlink", func(t *testing.T) {
 		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
-		err := os.Symlink("/bin/true", tmpLink)
+		err := os.Symlink("/bin/echo", tmpLink)
 		require.NoError(t, err)
 
 		test.WaitSignalFromRule(t, func() error {

@@ -68,8 +68,10 @@ func TestRequestScan(t *testing.T) {
 		expectedDeviceScans     deviceScansByIP
 	}{
 		{
-			name:          "default scan is disabled by default",
-			configContent: map[string]interface{}{},
+			name: "default scan can be disabled via config",
+			configContent: map[string]interface{}{
+				"network_devices.default_scan.enabled": false,
+			},
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
 				return mockConfigProvider
@@ -202,6 +204,61 @@ func TestRequestScan(t *testing.T) {
 					DeviceIP:   "10.0.0.2",
 					ScanStatus: failedScan,
 					Failures:   1,
+				},
+			},
+		},
+		{
+			name: "excluded IPs are not scanned",
+			configContent: map[string]interface{}{
+				"network_devices.default_scan.enabled":      true,
+				"network_devices.default_scan.excluded_ips": []string{"192.168.0.1", "10.0.0.1"},
+			},
+			buildMockConfigProvider: func() *snmpConfigProviderMock {
+				mockConfigProvider := newSnmpConfigProviderMock()
+
+				// Only 192.168.0.2 should be scanned since 192.168.0.1 and 10.0.0.1 are excluded
+				mockConfigProvider.On("GetDeviceConfig",
+					"192.168.0.2", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "192.168.0.2",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
+				return mockConfigProvider
+			},
+			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
+				scanner := snmpscanmock.Mock(t)
+				mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
+				assert.True(t, ok)
+
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, &snmpparse.SNMPConfig{
+						IPAddress:       "192.168.0.2",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", mock.Anything, mock.Anything).
+					Return(nil).
+					Once()
+
+				return mockScanner
+			},
+			scanReqs: []snmpscanmanager.ScanRequest{
+				{
+					DeviceIP: "192.168.0.1", // Excluded
+				},
+				{
+					DeviceIP: "192.168.0.2", // Not excluded
+				},
+				{
+					DeviceIP: "10.0.0.1", // Excluded
+				},
+			},
+			expectedDeviceScans: deviceScansByIP{
+				"192.168.0.2": {
+					DeviceIP:   "192.168.0.2",
+					ScanStatus: successScan,
 				},
 			},
 		},

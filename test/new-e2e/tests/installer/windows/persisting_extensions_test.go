@@ -47,10 +47,8 @@ func TestExtensionPersistence(t *testing.T) {
 		msi, err := windowsagent.NewPackage(
 			windowsagent.WithProduct("datadog-agent"),
 			windowsagent.WithArch("x86_64"),
-			windowsagent.WithURLFromInstallersJSON(
-				"https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json",
-				stableExtensionsVersion,
-			),
+			windowsagent.WithChannel("beta"),
+			windowsagent.WithVersion(stableExtensionsVersion),
 		)
 		if err != nil {
 			return nil, err
