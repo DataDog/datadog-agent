@@ -22,25 +22,10 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
         return 0;
     }
 
-//    if (sk_stats) {
-//        if (sk_stats->tup.saddr_l || sk_stats->tup.saddr_h) {
-//            conn->tup.saddr_h = sk_stats->tup.saddr_h;
-//            conn->tup.saddr_l = sk_stats->tup.saddr_l;
-//        }
-//        if (sk_stats->tup.daddr_l || sk_stats->tup.daddr_h) {
-//            conn->tup.daddr_h = sk_stats->tup.daddr_h;
-//            conn->tup.daddr_l = sk_stats->tup.daddr_l;
-//        }
-//        if (sk_stats->tup.sport) conn->tup.sport = sk_stats->tup.sport;
-//        if (sk_stats->tup.dport) conn->tup.dport = sk_stats->tup.dport;
-//        if (sk_stats->tup.metadata) conn->tup.metadata |= sk_stats->tup.metadata;
-//    }
-
-    conn_tuple_t *stats_tup = NULL;
     if (sk_stats) {
-        stats_tup = &sk_stats->tup;
+        copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk, stats_tup)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
     }
     conn->tup.metadata |= CONN_TYPE_TCP;
@@ -82,29 +67,10 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
 }
 
 static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp_stats_t *sk_stats) {
-//    if (sk_stats) {
-//        if (sk_stats->tup.saddr_l || sk_stats->tup.saddr_h) {
-//            conn->tup.saddr_h = sk_stats->tup.saddr_h;
-//            conn->tup.saddr_l = sk_stats->tup.saddr_l;
-//        }
-//        if (sk_stats->tup.daddr_l || sk_stats->tup.daddr_h) {
-//            conn->tup.daddr_h = sk_stats->tup.daddr_h;
-//            conn->tup.daddr_l = sk_stats->tup.daddr_l;
-//        }
-//        if (sk_stats->tup.sport) conn->tup.sport = sk_stats->tup.sport;
-//        if (sk_stats->tup.dport) conn->tup.dport = sk_stats->tup.dport;
-//        if (sk_stats->tup.metadata) conn->tup.metadata |= sk_stats->tup.metadata;
-//    }
-//    print_sk_ip(conn->tup.saddr_h, conn->tup.saddr_l, conn->tup.sport, conn->tup.metadata);
-//    print_sk_ip(conn->tup.daddr_h, conn->tup.daddr_l, conn->tup.dport, conn->tup.metadata);
-//    if (!read_conn_tuple(&(conn->tup), sk, 0, CONN_TYPE_UDP)) {
-//        return 0;
-//    }
-    conn_tuple_t *stats_tup = NULL;
     if (sk_stats) {
-        stats_tup = &sk_stats->tup;
+        copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk, stats_tup)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
     }
     conn->tup.metadata |= CONN_TYPE_UDP;
@@ -282,18 +248,27 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
             sk_stats->tup.metadata |= CONN_V4;
             if (ctx->local_ip4) {
                 sk_stats->tup.saddr_h = 0;
-                sk_stats->tup.saddr_l = bpf_ntohl(ctx->local_ip4);
+                sk_stats->tup.saddr_l = ctx->local_ip4;
             }
             if (ctx->remote_ip4) {
                 sk_stats->tup.daddr_h = 0;
-                sk_stats->tup.daddr_l = bpf_ntohl(ctx->remote_ip4);
+                sk_stats->tup.daddr_l = ctx->remote_ip4;
             }
         } else if (ctx->family == AF_INET6) {
             sk_stats->tup.metadata |= CONN_V6;
-            BPF_CORE_READ_INTO(&sk_stats->tup.saddr_h, ctx, local_ip6[0]);
-            BPF_CORE_READ_INTO(&sk_stats->tup.saddr_l, ctx, local_ip6[2]);
-            BPF_CORE_READ_INTO(&sk_stats->tup.daddr_h, ctx, remote_ip6[0]);
-            BPF_CORE_READ_INTO(&sk_stats->tup.daddr_l, ctx, remote_ip6[2]);
+            struct in6_addr saddr;
+            saddr.in6_u.u6_addr32[0] = ctx->local_ip6[0];
+            saddr.in6_u.u6_addr32[1] = ctx->local_ip6[1];
+            saddr.in6_u.u6_addr32[2] = ctx->local_ip6[2];
+            saddr.in6_u.u6_addr32[3] = ctx->local_ip6[3];
+            read_in6_addr(&sk_stats->tup.saddr_h, &sk_stats->tup.saddr_l, &saddr);
+
+            struct in6_addr daddr;
+            daddr.in6_u.u6_addr32[0] = ctx->remote_ip6[0];
+            daddr.in6_u.u6_addr32[1] = ctx->remote_ip6[1];
+            daddr.in6_u.u6_addr32[2] = ctx->remote_ip6[2];
+            daddr.in6_u.u6_addr32[3] = ctx->remote_ip6[3];
+            read_in6_addr(&sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l, &daddr);
         }
     }
     // TODO netns

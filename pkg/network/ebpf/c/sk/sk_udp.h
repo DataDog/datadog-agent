@@ -151,7 +151,6 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
             return 0;
         }
         sk_stats->tup.metadata |= CONN_V4;
-        log_debug("%pI4 %pI4", &iph.saddr, &iph.daddr);
         bpf_probe_read_kernel(&sk_stats->tup.saddr_l, sizeof(__be32), &iph.saddr);
         bpf_probe_read_kernel(&sk_stats->tup.daddr_l, sizeof(__be32), &iph.daddr);
         if (sk_stats->tup.saddr_l == 0 || sk_stats->tup.daddr_l == 0) {
@@ -169,7 +168,6 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
             log_debug("ERR reading ipv6 hdr");
             return 0;
         }
-        log_debug("%pI6 %pI6", &ip6h.saddr, &ip6h.daddr);
         read_in6_addr(&sk_stats->tup.saddr_h, &sk_stats->tup.saddr_l, &ip6h.saddr);
         read_in6_addr(&sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l, &ip6h.daddr);
         if (!(sk_stats->tup.saddr_h || sk_stats->tup.saddr_l)) {
@@ -198,11 +196,8 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
 
     sk_stats->tup.sport = bpf_ntohs(udph.source);
     sk_stats->tup.dport = bpf_ntohs(udph.dest);
-    log_debug("%d %d", bpf_ntohs(udph.source), bpf_ntohs(udph.dest));
     flip_tuple(&sk_stats->tup);
 
-    print_sk_ip(sk_stats->tup.saddr_h, sk_stats->tup.saddr_l, sk_stats->tup.sport, sk_stats->tup.metadata);
-    print_sk_ip(sk_stats->tup.daddr_h, sk_stats->tup.daddr_l, sk_stats->tup.dport, sk_stats->tup.metadata);
     if (sk_stats->tup.sport == 0 || sk_stats->tup.dport == 0) {
         log_debug("ERR(skb_consume_udp.v4): src/dst port not set: src:%d, dst:%d", sk_stats->tup.sport, sk_stats->tup.dport);
     }
