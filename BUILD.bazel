@@ -379,7 +379,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/status/systemprobe
 # gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe
-# gazelle:exclude pkg/tagset
 # gazelle:exclude pkg/telemetry
 # gazelle:exclude pkg/trace/agent
 # gazelle:exclude pkg/trace/api
