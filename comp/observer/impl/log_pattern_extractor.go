@@ -165,7 +165,11 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	gc := e.maybeGarbageCollect()
+	logUnixSec := log.GetTimestampUnixMilli() / 1000
+	if logUnixSec == 0 {
+		logUnixSec = time.Now().Unix()
+	}
+	gc := e.maybeGarbageCollect(logUnixSec)
 	result := observerdef.LogMetricsExtractorOutput{
 		EvictedContextKeys: gc.contextKeys,
 		EvictedMetricNames: gc.metricNames,
@@ -175,10 +179,6 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	logUnixSec := log.GetTimestampUnixMilli() / 1000
-	if logUnixSec == 0 {
-		logUnixSec = time.Now().Unix()
-	}
 	cluster, ok := e.PatternClusterer.Process(message, logUnixSec)
 	if !ok {
 		return result
@@ -224,13 +224,13 @@ type gcResult struct {
 
 // maybeGarbageCollect removes stale clusters and returns the context keys and
 // metric names evicted so the engine can drop contextRefs and storage series.
-func (e *LogPatternExtractor) maybeGarbageCollect() gcResult {
-	if time.Now().Unix() < e.NextGarbageCollectionTime {
+func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
+	if currentTime < e.NextGarbageCollectionTime {
 		return gcResult{}
 	}
-	e.NextGarbageCollectionTime = time.Now().Unix() + int64(e.GarbageCollectionIntervalSec)
+	e.NextGarbageCollectionTime = currentTime + int64(e.GarbageCollectionIntervalSec)
 
-	toDelete := e.PatternClusterer.ClusterIDsBeforeUnix(time.Now().Unix() - int64(e.ClusterTimeToLiveSec))
+	toDelete := e.PatternClusterer.ClusterIDsBeforeUnix(currentTime - int64(e.ClusterTimeToLiveSec))
 	if len(toDelete) == 0 {
 		return gcResult{}
 	}
