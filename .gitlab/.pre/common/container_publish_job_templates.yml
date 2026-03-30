@@ -46,11 +46,10 @@
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
 
 # New: publishes images through artifact-gateway (identity check + policy + audit).
-# Extends the shared CI template from dd-source. Callers use this exactly like
-# .docker_publish_job_definition — same IMG_* variables, same before_script patterns.
-# The ECR suffix logic is in the script section (before the template's logic).
+# Uses the image-promotion CLI imported from dd-source via Bazel.
+# Callers use this exactly like .docker_publish_job_definition — same IMG_* variables,
+# same before_script patterns.
 .docker_publish_job_definition_via_gateway:
-  extends: .image-promotion
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   variables:
@@ -58,5 +57,12 @@
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
     IMAGE_PROMOTION_TIMEOUT: "1800"
+    IMAGE_PROMOTION_POLL_INTERVAL: "30"
     # TODO: remove once we switch to prod
     ARTIFACT_GATEWAY_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway"
+  script:
+    - *docker_ecr_suffix_script
+    - bzl run @dd_source_image_promotion//:image-promotion --
+        --gateway-url "${ARTIFACT_GATEWAY_URL}"
+        --timeout "${IMAGE_PROMOTION_TIMEOUT}"
+        --poll-interval "${IMAGE_PROMOTION_POLL_INTERVAL}"

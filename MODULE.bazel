@@ -92,6 +92,36 @@ git_override(
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
+####################################
+## dd-source image-promotion CLI  ##
+####################################
+# Imports the image-promotion CLI from dd-source. Pure stdlib Go binary
+# that calls artifact-gateway to publish container images.
+# TODO: pin to a commit on main once merged.
+new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+
+new_git_repository(
+    name = "dd_source_image_promotion",
+    remote = "https://github.com/DataDog/dd-source.git",
+    branch = "ali.benabdallah/BARX-1709/image-promotion-template",
+    strip_prefix = "domains/agent_delivery/apps/cli/image-promotion",
+    build_file_content = """
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/dd-source/domains/agent_delivery/apps/cli/image-promotion",
+)
+
+go_binary(
+    name = "image-promotion",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+""",
+)
+
 #########################
 ## Prebuilt binaries   ##
 #########################
