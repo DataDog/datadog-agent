@@ -4,9 +4,28 @@
 package socketcontention
 
 type ebpfSocketContentionStats struct {
-	Total_time_ns uint64
-	Min_time_ns   uint64
-	Max_time_ns   uint64
-	Count         uint32
-	Flags         uint32
+	Total_time_ns	uint64
+	Min_time_ns	uint64
+	Max_time_ns	uint64
+	Count		uint64
+}
+type ebpfSocketContentionKey struct {
+	Cgroup_id	uint64
+	Flags		uint32
+	Family		uint16
+	Protocol	uint16
+	Socket_type	uint16
+	Object_kind	uint8
+	Lock_subtype	uint8
+	Pad_cgo_0	[4]byte
+}
+type ebpfSocketLockIdentity struct {
+	Sock_ptr	uint64
+	Socket_cookie	uint64
+	Cgroup_id	uint64
+	Family		uint16
+	Protocol	uint16
+	Socket_type	uint16
+	Lock_subtype	uint8
+	Reserved	uint8
 }

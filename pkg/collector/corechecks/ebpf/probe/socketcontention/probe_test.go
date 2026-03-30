@@ -10,6 +10,8 @@ package socketcontention
 import (
 	"io"
 	"net"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -31,26 +33,101 @@ func TestSocketContentionProbe(t *testing.T) {
 			t.Skip("lock contention tracepoints are not available on this kernel")
 		}
 
-		probe, err := NewProbe(testConfig())
+		probe, err := NewProbe(testConfig(t))
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
+
+		baselineIdentities, err := probe.DebugListLockIdentities()
+		require.NoError(t, err)
+		baselineLockAddrs := make(map[uint64]struct{}, len(baselineIdentities))
+		for _, entry := range baselineIdentities {
+			baselineLockAddrs[entry.LockAddr] = struct{}{}
+		}
+
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer ln.Close()
+
+		accepted := make(chan net.Conn, 1)
+		go func() {
+			conn, acceptErr := ln.Accept()
+			if acceptErr == nil {
+				accepted <- conn
+			}
+		}()
+
+		clientConn, err := net.Dial("tcp", ln.Addr().String())
+		require.NoError(t, err)
+		serverConn := <-accepted
+
+		var registeredLockAddrs map[uint64]struct{}
+		require.Eventually(t, func() bool {
+			identities, lookupErr := probe.DebugListLockIdentities()
+			require.NoError(t, lookupErr)
+			candidates := make(map[uint64]struct{})
+			for _, entry := range identities {
+				if _, ok := baselineLockAddrs[entry.LockAddr]; ok {
+					continue
+				}
+				if entry.SocketType != "stream" || entry.Protocol != "tcp" {
+					continue
+				}
+				candidates[entry.LockAddr] = struct{}{}
+			}
+			if len(candidates) > 0 {
+				registeredLockAddrs = candidates
+				return true
+			}
+			return false
+		}, 5*time.Second, 100*time.Millisecond, "failed to observe socket registration")
+		require.NotEmpty(t, registeredLockAddrs)
+
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+		_ = ln.Close()
+
+		require.Eventually(t, func() bool {
+			identities, lookupErr := probe.DebugListLockIdentities()
+			require.NoError(t, lookupErr)
+			current := make(map[uint64]struct{}, len(identities))
+			for _, entry := range identities {
+				current[entry.LockAddr] = struct{}{}
+			}
+			for lockAddr := range registeredLockAddrs {
+				if _, ok := current[lockAddr]; ok {
+					return false
+				}
+			}
+			return true
+		}, 5*time.Second, 100*time.Millisecond, "failed to observe socket cleanup")
 
 		require.Eventually(t, func() bool {
 			runSocketWorkload(t)
 
 			stats := probe.GetAndFlush()
-			if stats.Count == 0 || stats.TotalTimeNS == 0 || stats.MaxTimeNS == 0 || stats.MinTimeNS == 0 {
-				return false
+			for _, stat := range stats {
+				if stat.Count > 0 && stat.TotalTimeNS > 0 && stat.MaxTimeNS > 0 && stat.MinTimeNS > 0 {
+					return true
+				}
 			}
-
-			flushed := probe.GetAndFlush()
-			return flushed.Count == 0 && flushed.TotalTimeNS == 0
+			return false
 		}, 10*time.Second, 250*time.Millisecond, "failed to observe contention stats")
+
+		flushed := probe.GetAndFlush()
+		require.Len(t, flushed, 0)
 	})
 }
 
-func testConfig() *ebpf.Config {
-	return ebpf.NewConfig()
+func testConfig(t *testing.T) *ebpf.Config {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok, "failed to determine test file path")
+
+	cfg := ebpf.NewConfig()
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "../../../../../.."))
+	cfg.BPFDir = filepath.Join(repoRoot, "pkg/ebpf/bytecode/build", "arm64")
+	return cfg
 }
 
 func runSocketWorkload(t *testing.T) {

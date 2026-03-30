@@ -11,3 +11,11 @@ import (
 func TestCgoAlignment_ebpfSocketContentionStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[ebpfSocketContentionStats](t)
 }
+
+func TestCgoAlignment_ebpfSocketContentionKey(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfSocketContentionKey](t)
+}
+
+func TestCgoAlignment_ebpfSocketLockIdentity(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfSocketLockIdentity](t)
+}

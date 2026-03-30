@@ -13,3 +13,5 @@ package socketcontention
 import "C"
 
 type ebpfSocketContentionStats C.struct_socket_contention_stats
+type ebpfSocketContentionKey C.struct_socket_contention_key
+type ebpfSocketLockIdentity C.struct_socket_lock_identity
