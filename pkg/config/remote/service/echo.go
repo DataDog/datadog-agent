@@ -58,7 +58,9 @@ func (s *EchoTestActor) Start() {
 // been called. It is safe to call Stop() repeatedly.
 func (s *EchoTestActor) Stop() {
 	s.stopOnce.Do(func() {
-		close(s.stopCh)
+		if s.stopCh != nil {
+			close(s.stopCh)
+		}
 	})
 }
 
