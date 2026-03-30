@@ -6,7 +6,9 @@
 package httpclient
 
 import (
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,11 +65,14 @@ func TestURLAllowlistClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{Allowlist: tt.allowlist}
-			inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200}}
+			inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}}
 			client := &urlAllowlistClient{inner: inner, config: cfg}
 
 			req, _ := http.NewRequest("GET", tt.requestURL, nil)
 			resp, err := client.Do(req)
+			if resp != nil && resp.Body != nil {
+				defer resp.Body.Close()
+			}
 
 			if tt.expectAllowed {
 				require.NoError(t, err)
