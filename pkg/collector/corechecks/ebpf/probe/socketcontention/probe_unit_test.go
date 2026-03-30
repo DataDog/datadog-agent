@@ -107,6 +107,18 @@ func TestGetAndFlushAggregatesPerCPUStats(t *testing.T) {
 	zeroCountValues := make([]ebpfSocketContentionStats, nbCPU)
 	require.NoError(t, statsMap.Put(&zeroCountKey, &zeroCountValues))
 
+	unknownKey := ebpfSocketContentionKey{
+		Flags: 11,
+	}
+	unknownValues := make([]ebpfSocketContentionStats, nbCPU)
+	unknownValues[0] = ebpfSocketContentionStats{
+		Total_time_ns: 9,
+		Min_time_ns:   9,
+		Max_time_ns:   9,
+		Count:         1,
+	}
+	require.NoError(t, statsMap.Put(&unknownKey, &unknownValues))
+
 	probe := &Probe{statsMap: statsMap}
 	stats := probe.GetAndFlush()
 	require.Len(t, stats, 1)

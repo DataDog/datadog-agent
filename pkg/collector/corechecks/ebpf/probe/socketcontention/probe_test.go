@@ -101,20 +101,11 @@ func TestSocketContentionProbe(t *testing.T) {
 			return true
 		}, 5*time.Second, 100*time.Millisecond, "failed to observe socket cleanup")
 
-		require.Eventually(t, func() bool {
-			runSocketWorkload(t)
-
-			stats := probe.GetAndFlush()
-			for _, stat := range stats {
-				if stat.Count > 0 && stat.TotalTimeNS > 0 && stat.MaxTimeNS > 0 && stat.MinTimeNS > 0 {
-					return true
-				}
-			}
-			return false
-		}, 10*time.Second, 250*time.Millisecond, "failed to observe contention stats")
-
-		flushed := probe.GetAndFlush()
-		require.Len(t, flushed, 0)
+		// Unknown buckets are filtered out now, so this integration test focuses on
+		// verifying lifecycle registration and cleanup. Aggregation/formatting is
+		// covered by the probe unit tests.
+		runSocketWorkload(t)
+		require.Empty(t, probe.GetAndFlush())
 	})
 }
 

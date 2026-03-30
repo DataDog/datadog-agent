@@ -24,6 +24,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,7 +73,7 @@ func contentionTracepointsSupported() bool {
 
 // Probe is the eBPF side of the socket contention check.
 type Probe struct {
-	mgr               *manager.Manager
+	mgr               *ddebpf.Manager
 	statsMap          *ebpfmaps.GenericMap[ebpfSocketContentionKey, []ebpfSocketContentionStats]
 	lockIdentitiesMap *ebpfmaps.GenericMap[uint64, ebpfSocketLockIdentity]
 }
@@ -106,7 +107,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 }
 
 func startProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Probe, error) {
-	m := &manager.Manager{
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: kprobeSockInitDataName, UID: socketContentionUID}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: kprobeTCPConnectName, UID: socketContentionUID}},
@@ -123,7 +124,7 @@ func startProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Prob
 			{Name: lockIdentitiesMapName},
 			{Name: statsMapName},
 		},
-	}
+	}, socketContentionGroup, &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	managerOptions.RemoveRlimit = true
 	if managerOptions.MapSpecEditors == nil {
@@ -142,26 +143,26 @@ func startProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Prob
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	if err := m.InitWithOptions(buf, managerOptions); err != nil {
+	if err := m.InitWithOptions(buf, &managerOptions); err != nil {
 		return nil, fmt.Errorf("init socket contention manager: %w", err)
 	}
 	if err := m.Start(); err != nil {
 		return nil, fmt.Errorf("start socket contention manager: %w", err)
 	}
 
-	statsMap, err := ebpfmaps.GetMap[ebpfSocketContentionKey, []ebpfSocketContentionStats](m, statsMapName)
+	statsMap, err := ebpfmaps.GetMap[ebpfSocketContentionKey, []ebpfSocketContentionStats](m.Manager, statsMapName)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("get stats map %q: %w", statsMapName, err)
 	}
-	lockIdentitiesMap, err := ebpfmaps.GetMap[uint64, ebpfSocketLockIdentity](m, lockIdentitiesMapName)
+	lockIdentitiesMap, err := ebpfmaps.GetMap[uint64, ebpfSocketLockIdentity](m.Manager, lockIdentitiesMapName)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("get lock identities map %q: %w", lockIdentitiesMapName, err)
 	}
 
-	ddebpf.AddNameMappings(m, socketContentionGroup)
-	ddebpf.AddProbeFDMappings(m)
+	ddebpf.AddNameMappings(m.Manager, socketContentionGroup)
+	ddebpf.AddProbeFDMappings(m.Manager)
 
 	return &Probe{
 		mgr:               m,
@@ -176,7 +177,7 @@ func (p *Probe) Close() {
 		return
 	}
 
-	ddebpf.RemoveNameMappings(p.mgr)
+	ddebpf.RemoveNameMappings(p.mgr.Manager)
 	if err := p.mgr.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping socket contention manager: %s", err)
 	}
@@ -262,6 +263,11 @@ func (p *Probe) GetAndFlush() model.SocketContentionStats {
 	var keysToDelete []ebpfSocketContentionKey
 
 	for iter.Next(&rawKey, &rawStats) {
+		if rawKey.Object_kind != 1 {
+			keysToDelete = append(keysToDelete, rawKey)
+			continue
+		}
+
 		entry := model.SocketContentionEntry{
 			ObjectKind: toObjectKind(rawKey.Object_kind),
 			SocketType: toSocketType(rawKey.Socket_type),

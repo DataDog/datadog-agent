@@ -8,6 +8,7 @@
 #include "cgroup.h"
 #include "socket-contention-kern-user.h"
 #include "bpf_metadata.h"
+#include "bpf_telemetry.h"
 
 #define SOCKET_CONTENTION_MAX_INFLIGHT     1024
 #define SOCKET_CONTENTION_MAX_LOCKS        32768
@@ -58,7 +59,7 @@ static __always_inline struct tstamp_data *get_tstamp_elem(__u32 flags)
     if (!pelem) {
         struct tstamp_data zero = {};
 
-        if (bpf_map_update_elem(&tstamp, &pid, &zero, BPF_NOEXIST) < 0)
+        if (bpf_map_update_with_telemetry(tstamp, &pid, &zero, BPF_NOEXIST, -EEXIST) < 0)
             return NULL;
 
         pelem = bpf_map_lookup_elem(&tstamp, &pid);
@@ -75,7 +76,7 @@ static __always_inline void register_lock_identity(__u64 lock_addr, struct socke
         return;
     }
 
-    bpf_map_update_elem(&socket_lock_identities, &lock_addr, identity, BPF_ANY);
+    bpf_map_update_with_telemetry(socket_lock_identities, &lock_addr, identity, BPF_ANY);
 }
 
 static __always_inline void unregister_lock_identity(__u64 lock_addr)
@@ -145,7 +146,7 @@ static __always_inline struct socket_contention_stats *get_or_create_stats(struc
     if (!stats) {
         struct socket_contention_stats zero = {};
 
-        bpf_map_update_elem(&socket_contention_stats, key, &zero, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(socket_contention_stats, key, &zero, BPF_NOEXIST, -EEXIST);
         stats = bpf_map_lookup_elem(&socket_contention_stats, key);
     }
 
@@ -257,18 +258,18 @@ int tp_contention_end(__u64 *ctx)
         goto cleanup;
     }
 
-    key.flags = pelem->flags;
     identity = bpf_map_lookup_elem(&socket_lock_identities, &pelem->lock);
-    if (identity) {
-        key.object_kind = SOCKET_CONTENTION_OBJECT_KIND_SOCKET;
-        key.socket_type = identity->socket_type;
-        key.family = identity->family;
-        key.protocol = identity->protocol;
-        key.lock_subtype = identity->lock_subtype;
-        key.cgroup_id = identity->cgroup_id;
-    } else {
-        key.object_kind = SOCKET_CONTENTION_OBJECT_KIND_UNKNOWN;
+    if (!identity) {
+        goto cleanup;
     }
+
+    key.flags = pelem->flags;
+    key.object_kind = SOCKET_CONTENTION_OBJECT_KIND_SOCKET;
+    key.socket_type = identity->socket_type;
+    key.family = identity->family;
+    key.protocol = identity->protocol;
+    key.lock_subtype = identity->lock_subtype;
+    key.cgroup_id = identity->cgroup_id;
 
     update_stats(&key, duration);
 
