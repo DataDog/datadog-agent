@@ -3,4 +3,4 @@
 
 package runtime
 
-var SocketContention = newAsset("socket-contention.c", "e791202c0669a3cac9e2b0a3b159d14632c1ebf1a9b67eecdd517445b7312bb8")
+var SocketContention = newAsset("socket-contention.c", "b6c3154631dc0feed7fb6bf84efa7a301766bd58c229367c6d4e5926fad6569f")

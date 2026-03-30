@@ -4,5 +4,9 @@
 package socketcontention
 
 type ebpfSocketContentionStats struct {
-	Inits uint64
+	Total_time_ns uint64
+	Min_time_ns   uint64
+	Max_time_ns   uint64
+	Count         uint32
+	Flags         uint32
 }

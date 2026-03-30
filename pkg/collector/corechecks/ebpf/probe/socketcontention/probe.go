@@ -11,14 +11,19 @@
 package socketcontention
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/socketcontention/model"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,14 +35,31 @@ const (
 
 var minimumKernelVersion = kernel.VersionCode(5, 5, 0)
 
+func contentionTracepointsSupported() bool {
+	traceFSRoot, err := tracefs.Root()
+	if err != nil {
+		return false
+	}
+
+	if _, err := os.Stat(filepath.Join(traceFSRoot, "events/lock/contention_begin/id")); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	if _, err := os.Stat(filepath.Join(traceFSRoot, "events/lock/contention_end/id")); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	return true
+}
+
 // Probe is the eBPF side of the socket contention check.
 type Probe struct {
-	m        *manager.Manager
-	statsMap *maps.GenericMap[uint32, ebpfSocketContentionStats]
+	objects *bpfObjects
+	links   []link.Link
 }
 
 // NewProbe creates a [Probe].
-func NewProbe(cfg *ebpf.Config) (*Probe, error) {
+func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("detect kernel version: %w", err)
@@ -45,9 +67,12 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	if kv < minimumKernelVersion {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
 	}
+	if !contentionTracepointsSupported() {
+		return nil, fmt.Errorf("lock contention tracepoints are not available on this kernel")
+	}
 
 	var probe *Probe
-	err = ebpf.LoadCOREAsset("socket-contention.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset("socket-contention.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startProbe(buf, opts)
 		return err
 	})
@@ -58,48 +83,102 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return probe, nil
 }
 
+type bpfPrograms struct {
+	TpContentionBegin *ebpf.Program `ebpf:"tp_contention_begin"`
+	TpContentionEnd   *ebpf.Program `ebpf:"tp_contention_end"`
+}
+
+type bpfMaps struct {
+	Stats *ebpf.Map `ebpf:"socket_contention_stats"`
+}
+
+type bpfObjects struct {
+	bpfPrograms
+	bpfMaps
+}
+
 func startProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Probe, error) {
-	m := &manager.Manager{
-		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__sock_init_data", UID: socketContentionGroup}},
-		},
-		Maps: []*manager.Map{
-			{Name: statsMapName},
-		},
+	p := &Probe{
+		objects: new(bpfObjects),
 	}
 
-	managerOptions.RemoveRlimit = true
-	if err := m.InitWithOptions(buf, managerOptions); err != nil {
-		return nil, fmt.Errorf("init ebpf manager: %w", err)
-	}
-
-	if err := m.Start(); err != nil {
-		return nil, fmt.Errorf("start ebpf manager: %w", err)
-	}
-
-	statsMap, err := maps.GetMap[uint32, ebpfSocketContentionStats](m, statsMapName)
+	collectionSpec, err := ebpf.LoadCollectionSpecFromReader(buf)
 	if err != nil {
-		return nil, fmt.Errorf("get map %q: %w", statsMapName, err)
+		return nil, fmt.Errorf("load collection spec: %w", err)
 	}
 
-	ebpf.AddNameMappings(m, socketContentionGroup)
-	ebpf.AddProbeFDMappings(m)
+	if spec, ok := collectionSpec.Maps["tstamp"]; ok {
+		spec.MaxEntries = 1024
+	}
 
-	return &Probe{
-		m:        m,
-		statsMap: statsMap,
-	}, nil
+	opts := ebpf.CollectionOptions{
+		Programs: ebpf.ProgramOptions{
+			KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
+		},
+	}
+
+	if err := collectionSpec.LoadAndAssign(p.objects, &opts); err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			return nil, fmt.Errorf("verifier error loading socket contention collection: %s\n%+v", err, ve)
+		}
+		return nil, fmt.Errorf("load socket contention objects: %w", err)
+	}
+
+	tpContentionBegin, err := link.AttachTracing(link.TracingOptions{
+		Program: p.objects.TpContentionBegin,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("attach contention begin tracepoint: %w", err)
+	}
+	p.links = append(p.links, tpContentionBegin)
+
+	tpContentionEnd, err := link.AttachTracing(link.TracingOptions{
+		Program: p.objects.TpContentionEnd,
+	})
+	if err != nil {
+		tpContentionBegin.Close()
+		return nil, fmt.Errorf("attach contention end tracepoint: %w", err)
+	}
+	p.links = append(p.links, tpContentionEnd)
+
+	ddebpf.AddNameMappingsForMap(p.objects.Stats, statsMapName, socketContentionGroup)
+	ddebpf.AddNameMappingsForProgram(p.objects.TpContentionBegin, "tracepoint__contention_begin", socketContentionGroup)
+	ddebpf.AddNameMappingsForProgram(p.objects.TpContentionEnd, "tracepoint__contention_end", socketContentionGroup)
+
+	return p, nil
 }
 
 // Close releases all associated resources.
 func (p *Probe) Close() {
-	if p == nil || p.m == nil {
+	if p == nil || p.objects == nil {
 		return
 	}
 
-	ebpf.RemoveNameMappings(p.m)
-	if err := p.m.Stop(manager.CleanAll); err != nil {
-		log.Warnf("error stopping socket contention probe: %s", err)
+	for _, ebpfLink := range p.links {
+		if err := ebpfLink.Close(); err != nil {
+			log.Warnf("error closing socket contention link: %s", err)
+		}
+	}
+
+	ddebpf.RemoveNameMappingsCollection(&ebpf.Collection{
+		Maps: map[string]*ebpf.Map{
+			statsMapName: p.objects.Stats,
+		},
+		Programs: map[string]*ebpf.Program{
+			"tracepoint__contention_begin": p.objects.TpContentionBegin,
+			"tracepoint__contention_end":   p.objects.TpContentionEnd,
+		},
+	})
+
+	if p.objects.Stats != nil {
+		p.objects.Stats.Close()
+	}
+	if p.objects.TpContentionBegin != nil {
+		p.objects.TpContentionBegin.Close()
+	}
+	if p.objects.TpContentionEnd != nil {
+		p.objects.TpContentionEnd.Close()
 	}
 }
 
@@ -107,15 +186,19 @@ func (p *Probe) Close() {
 func (p *Probe) GetAndFlush() model.SocketContentionStats {
 	key := uint32(0)
 	var raw ebpfSocketContentionStats
-	if err := p.statsMap.Lookup(&key, &raw); err != nil {
+	if err := p.objects.Stats.Lookup(&key, &raw); err != nil {
 		return model.SocketContentionStats{}
 	}
 
-	if err := p.statsMap.Delete(&key); err != nil {
+	if err := p.objects.Stats.Delete(&key); err != nil {
 		log.Warnf("failed to delete socket contention stat: %s", err)
 	}
 
 	return model.SocketContentionStats{
-		SocketInits: raw.Inits,
+		TotalTimeNS: raw.Total_time_ns,
+		MinTimeNS:   raw.Min_time_ns,
+		MaxTimeNS:   raw.Max_time_ns,
+		Count:       raw.Count,
+		Flags:       raw.Flags,
 	}
 }

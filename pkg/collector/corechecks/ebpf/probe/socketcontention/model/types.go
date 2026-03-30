@@ -5,7 +5,11 @@
 
 package model
 
-// SocketContentionStats contains stage-1 skeleton stats for the socket contention probe.
+// SocketContentionStats contains aggregate lock-contention timings for stage 2.
 type SocketContentionStats struct {
-	SocketInits uint64 `json:"socket_inits"`
+	TotalTimeNS uint64 `json:"total_time_ns"`
+	MinTimeNS   uint64 `json:"min_time_ns"`
+	MaxTimeNS   uint64 `json:"max_time_ns"`
+	Count       uint32 `json:"count"`
+	Flags       uint32 `json:"flags"`
 }

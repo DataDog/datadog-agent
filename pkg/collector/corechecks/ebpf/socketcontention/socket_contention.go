@@ -79,7 +79,12 @@ func (c *Check) Run() error {
 		return fmt.Errorf("get metric sender: %w", err)
 	}
 
-	s.Gauge("socket_contention.sockets_initialized", float64(stats.SocketInits), "", nil)
+	if stats.Count > 0 {
+		s.Gauge("socket_contention.contention_count", float64(stats.Count), "", nil)
+		s.Gauge("socket_contention.contention_total_ns", float64(stats.TotalTimeNS), "", nil)
+		s.Gauge("socket_contention.contention_max_ns", float64(stats.MaxTimeNS), "", nil)
+		s.Gauge("socket_contention.contention_min_ns", float64(stats.MinTimeNS), "", nil)
+	}
 	s.Commit()
 	return nil
 }
