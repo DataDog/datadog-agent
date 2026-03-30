@@ -185,9 +185,9 @@ func TestBuildCustomPayload(t *testing.T) {
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
-		assert.Equal(t, int64(10000), durations["Boot Duration (ms)"])
-		assert.Equal(t, int64(60000), durations["Logon Duration (ms)"])
-		assert.Equal(t, int64(70000), durations["Total Boot Duration (ms)"])
+		assert.Equal(t, int64(10000), durations["boot_duration_ms"])
+		assert.Equal(t, int64(60000), durations["logon_duration_ms"])
+		assert.Equal(t, int64(70000), durations["total_boot_duration_ms"])
 	})
 
 	t.Run("omits total boot duration when only boot duration available", func(t *testing.T) {
@@ -200,8 +200,8 @@ func TestBuildCustomPayload(t *testing.T) {
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
-		assert.Equal(t, int64(10000), durations["Boot Duration (ms)"])
-		_, hasTotal := durations["Total Boot Duration (ms)"]
+		assert.Equal(t, int64(10000), durations["boot_duration_ms"])
+		_, hasTotal := durations["total_boot_duration_ms"]
 		assert.False(t, hasTotal)
 	})
 
@@ -215,7 +215,7 @@ func TestBuildCustomPayload(t *testing.T) {
 		custom := buildCustomPayload(tl)
 
 		durations := custom["durations"].(map[string]interface{})
-		assert.Equal(t, int64(60000), durations["Logon Duration (ms)"])
+		assert.Equal(t, int64(60000), durations["logon_duration_ms"])
 	})
 
 	t.Run("includes boot duration", func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestBuildCustomPayload(t *testing.T) {
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
-		assert.Equal(t, int64(8000), durations["Boot Duration (ms)"])
+		assert.Equal(t, int64(8000), durations["boot_duration_ms"])
 	})
 
 	t.Run("omits durations when end timestamp is zero", func(t *testing.T) {
@@ -240,7 +240,7 @@ func TestBuildCustomPayload(t *testing.T) {
 		custom := buildCustomPayload(tl)
 
 		if durations, ok := custom["durations"].(map[string]interface{}); ok {
-			_, hasLogon := durations["Logon Duration (ms)"]
+			_, hasLogon := durations["logon_duration_ms"]
 			assert.False(t, hasLogon)
 		}
 	})

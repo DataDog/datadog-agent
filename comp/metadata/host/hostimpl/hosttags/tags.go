@@ -17,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
@@ -35,6 +37,9 @@ var (
 	getProvidersDefinitionsFunc = getProvidersDefinitions
 
 	tagsCacheKey = cache.BuildAgentKey("host", "utils", "hostTags")
+
+	getOSVersionFunc    = getOSVersion
+	collectSystemInfoFn = systeminfo.Collect
 )
 
 // Tags contains the detected host tags
@@ -151,6 +156,10 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{tags.KubeDistribution + ":" + kubeDistro})
 	}
 
+	if conf.GetString("infrastructure_mode") == "end_user_device" {
+		hostTags = appendToHostTags(hostTags, getEUDMHostTags())
+	}
+
 	gceTags := []string{}
 	providers := getProvidersDefinitionsFunc(conf)
 	for {
@@ -203,4 +212,34 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 
 	cache.Cache.Set(tagsCacheKey, t, cache.NoExpiration)
 	return t
+}
+
+// getEUDMHostTags collects host tags specific to end-user device monitoring:
+// OS name, OS version, and device model.
+func getEUDMHostTags() []string {
+	var eudmTags []string
+
+	if osVersion := getOSVersionFunc(); osVersion != "" {
+		parts := strings.SplitN(osVersion, " ", 2)
+		if len(parts) == 2 {
+			eudmTags = append(eudmTags, tags.HostOS+":"+parts[0])
+			eudmTags = append(eudmTags, tags.HostOSVersion+":"+parts[1])
+		} else {
+			eudmTags = append(eudmTags, tags.HostOS+":"+osVersion)
+		}
+	}
+
+	sysInfo, err := collectSystemInfoFn()
+	if err != nil {
+		log.Debugf("EUDM: failed to collect system info for host tags: %v", err)
+	} else if sysInfo != nil && sysInfo.ModelName != "" {
+		eudmTags = append(eudmTags, tags.DeviceModel+":"+sysInfo.ModelName)
+	}
+
+	return eudmTags
+}
+
+func getOSVersion() string {
+	hostInfo := hostinfoutils.GetInformation()
+	return strings.Trim(hostInfo.Platform+" "+hostInfo.PlatformVersion, " ")
 }

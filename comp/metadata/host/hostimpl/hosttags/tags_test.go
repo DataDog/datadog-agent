@@ -17,13 +17,18 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
 	retrySleepTime = 0
+	origGetOSVersion := getOSVersionFunc
+	origCollectSystemInfo := collectSystemInfoFn
 	t.Cleanup(func() {
 		retrySleepTime = 1 * time.Second
 		getProvidersDefinitionsFunc = getProvidersDefinitions
+		getOSVersionFunc = origGetOSVersion
+		collectSystemInfoFn = origCollectSystemInfo
 	})
 
 	mockConfig := configmock.New(t)
@@ -136,4 +141,100 @@ func TestHostTagsCache(t *testing.T) {
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 2, nbCall)
+}
+
+func TestGetEUDMHostTags(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+
+	getOSVersionFunc = func() string { return "Windows 10.0.19045" }
+	collectSystemInfoFn = func() (*systeminfo.SystemInfo, error) {
+		return &systeminfo.SystemInfo{ModelName: "ThinkPad X1 Carbon"}, nil
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Contains(t, hostTags.System, "os:Windows")
+	assert.Contains(t, hostTags.System, "os_version:10.0.19045")
+	assert.Contains(t, hostTags.System, "device_model:ThinkPad X1 Carbon")
+}
+
+func TestGetEUDMHostTagsMacOS(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+
+	getOSVersionFunc = func() string { return "macOS 14.5" }
+	collectSystemInfoFn = func() (*systeminfo.SystemInfo, error) {
+		return &systeminfo.SystemInfo{ModelName: "MacBook Pro"}, nil
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Contains(t, hostTags.System, "os:macOS")
+	assert.Contains(t, hostTags.System, "os_version:14.5")
+	assert.Contains(t, hostTags.System, "device_model:MacBook Pro")
+}
+
+func TestGetEUDMHostTagsNotEnabled(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "full")
+
+	getOSVersionFunc = func() string { return "Windows 10.0.19045" }
+	collectSystemInfoFn = func() (*systeminfo.SystemInfo, error) {
+		return &systeminfo.SystemInfo{ModelName: "ThinkPad X1 Carbon"}, nil
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.NotContains(t, hostTags.System, "os:Windows")
+	assert.NotContains(t, hostTags.System, "os_version:10.0.19045")
+	assert.NotContains(t, hostTags.System, "device_model:ThinkPad X1 Carbon")
+}
+
+func TestGetEUDMHostTagsSystemInfoError(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+
+	getOSVersionFunc = func() string { return "Windows 10.0.19045" }
+	collectSystemInfoFn = func() (*systeminfo.SystemInfo, error) {
+		return nil, errors.New("WMI unavailable")
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Contains(t, hostTags.System, "os:Windows")
+	assert.Contains(t, hostTags.System, "os_version:10.0.19045")
+	assert.NotContains(t, hostTags.System, "device_model:")
+}
+
+func TestGetEUDMHostTagsOSOnlyNoVersion(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+
+	getOSVersionFunc = func() string { return "Linux" }
+	collectSystemInfoFn = func() (*systeminfo.SystemInfo, error) {
+		return nil, nil
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Contains(t, hostTags.System, "os:Linux")
+}
+
+func TestGetEUDMHostTagsEmptyModelName(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+
+	getOSVersionFunc = func() string { return "Windows 10.0.19045" }
+	collectSystemInfoFn = func() (*systeminfo.SystemInfo, error) {
+		return &systeminfo.SystemInfo{ModelName: ""}, nil
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Contains(t, hostTags.System, "os:Windows")
+	assert.Contains(t, hostTags.System, "os_version:10.0.19045")
+	for _, tag := range hostTags.System {
+		assert.NotContains(t, tag, "device_model:")
+	}
 }

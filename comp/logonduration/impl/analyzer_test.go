@@ -602,7 +602,7 @@ func TestCollector_FullBootSequence(t *testing.T) {
 
 	custom := buildCustomPayload(tl)
 	durations := custom["durations"].(map[string]interface{})
-	assert.Equal(t, int64(33000), durations["Total Boot Duration (ms)"])
-	assert.Equal(t, int64(8000), durations["Boot Duration (ms)"])
-	assert.Equal(t, int64(25000), durations["Logon Duration (ms)"])
+	assert.Equal(t, int64(33000), durations["total_boot_duration_ms"])
+	assert.Equal(t, int64(8000), durations["boot_duration_ms"])
+	assert.Equal(t, int64(25000), durations["logon_duration_ms"])
 }
