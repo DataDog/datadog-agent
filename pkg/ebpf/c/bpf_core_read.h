@@ -262,6 +262,17 @@ enum bpf_enum_value_kind {
 #define bpf_core_read_user_str(dst, sz, src)				    \
 	bpf_probe_read_user_str(dst, sz, (const void *)__builtin_preserve_access_index(src))
 
+extern void *bpf_rdonly_cast(const void *obj, __u32 btf_id) __ksym __weak;
+
+/*
+ * Cast provided pointer *ptr* into a pointer to a specified *type* in such
+ * a way that BPF verifier will become aware of associated kernel-side BTF
+ * type. This allows to access members of kernel types directly without the
+ * need to use BPF_CORE_READ() macros.
+ */
+#define bpf_core_cast(ptr, type)					    \
+	((typeof(type) *)bpf_rdonly_cast((ptr), bpf_core_type_id_kernel(type)))
+
 #define ___concat(a, b) a ## b
 #define ___apply(fn, n) ___concat(fn, n)
 #define ___nth(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, __11, N, ...) N
