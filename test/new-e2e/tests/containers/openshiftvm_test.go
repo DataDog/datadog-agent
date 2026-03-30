@@ -38,6 +38,8 @@ func (suite *openShiftVMSuite) SetupSuite() {
 	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.runtime = "cri-o"
+	// to trigger ci tests due to changes
+	suite.runtime = "cri-o"
 }
 
 func (suite *openShiftVMSuite) TearDownSuite() {
