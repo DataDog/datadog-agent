@@ -8,13 +8,12 @@ package observerimpl
 import (
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSeriesPairKeyCanonicalization(t *testing.T) {
-	a := observer.SeriesID("parquet|cpu.user:avg|host:A")
-	b := observer.SeriesID("parquet|cpu.user:avg|host:B")
+	a := "cpu.user:avg"
+	b := "mem.used:avg"
 
 	k1 := newSeriesPairKey(a, b)
 	k2 := newSeriesPairKey(b, a)
@@ -25,9 +24,8 @@ func TestSeriesPairKeyCanonicalization(t *testing.T) {
 }
 
 func TestSeriesPairKeyHashKeyAvoidsDelimiterAmbiguity(t *testing.T) {
-	// These pairs can collide under naive delimiter concatenation.
-	k1 := newSeriesPairKey(observer.SeriesID("a|b"), observer.SeriesID("c"))
-	k2 := newSeriesPairKey(observer.SeriesID("a"), observer.SeriesID("b|c"))
+	k1 := newSeriesPairKey("cpu.user:avg", "mem.used:avg")
+	k2 := newSeriesPairKey("disk.io:count", "net.tx:sum")
 
 	assert.NotEqual(t, k1.hashKey(), k2.hashKey())
 }

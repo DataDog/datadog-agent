@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -93,9 +94,13 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 	tb, err := NewTestBench(TestBenchConfig{ScenariosDir: t.TempDir()})
 	require.NoError(t, err)
 	api := NewTestBenchAPI(tb)
+	if ext := tb.getLogPatternExtractor(); ext != nil {
+		ext.MinPatternsBeforeEmit = 1
+	}
 
 	_, _ = tb.engine.IngestLog("test-source", &logObs{
 		content:     []byte("GET /users/123 returned 500"),
+		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 2_000,
 	})
@@ -129,6 +134,44 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 		}
 	}
 	require.True(t, logPatternSeen, "expected at least one log_pattern_extractor series in /api/series")
+}
+
+// Telemetry counters used to be listed as avg+count+sum with identical tags, which produced three
+// duplicate "untagged" lines in the metrics UI for metrics like observer.input_logs.count.
+func TestHandleSeriesListTelemetryCountersSingleAggregate(t *testing.T) {
+	tb, err := NewTestBench(TestBenchConfig{ScenariosDir: t.TempDir()})
+	require.NoError(t, err)
+	api := NewTestBenchAPI(tb)
+
+	tb.engine.Storage().Add(observerdef.TelemetryNamespace, telemetryTbInputLogsCount, 1, 100, nil)
+	tb.engine.Storage().Add(observerdef.TelemetryNamespace, telemetryDetectorProcessingTimeNs, 1e6, 100, []string{"detector:rrcf"})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/series", nil)
+	api.handleSeriesList(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body []struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	var counterSuffixes []string
+	var gaugeTelemetryNames []string
+	for _, s := range body {
+		if s.Namespace != observerdef.TelemetryNamespace {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(s.Name, telemetryTbInputLogsCount+":"):
+			counterSuffixes = append(counterSuffixes, strings.TrimPrefix(s.Name, telemetryTbInputLogsCount+":"))
+		case strings.HasPrefix(s.Name, telemetryDetectorProcessingTimeNs+":"):
+			gaugeTelemetryNames = append(gaugeTelemetryNames, s.Name)
+		}
+	}
+	require.ElementsMatch(t, []string{"sum"}, counterSuffixes)
+	require.Len(t, gaugeTelemetryNames, 2)
 }
 
 func TestHandleNumericSeriesDataRejectsUnknownAggregation(t *testing.T) {

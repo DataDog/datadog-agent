@@ -58,7 +58,10 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, pid int, regs syscall.PtraceReg
 	case ExecveNr:
 		// Top level pids, add ctx.opts.Creds. For the other PIDs the creds will be propagated at the probe side
 		for _, pid := range ctx.PIDs {
-			if process.Pid == pid {
+			if process.Pid == pid && !slices.Contains(ctx.traceesReported, pid) {
+				// report the creds for the first time
+				ctx.traceesReported = append(ctx.traceesReported, pid)
+
 				var uid, gid uint32
 
 				if ctx.opts.Creds.UID != nil {

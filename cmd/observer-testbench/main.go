@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,9 +34,10 @@ type CLIParams struct {
 	Enabled      map[string]bool
 
 	// Headless mode: run a scenario and exit (no HTTP server)
-	Headless string // scenario name to run (empty = interactive mode)
-	Output   string // path for observer JSON output
-	Verbose  bool   // include full detail in JSON output (headless mode only)
+	Headless   string // scenario name to run (empty = interactive mode)
+	Output     string // path for observer JSON output
+	Verbose    bool   // include full detail in JSON output (headless mode only)
+	MemProfile string // path to write heap profile after headless run (empty = disabled)
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
@@ -51,6 +52,7 @@ func main() {
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
+	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	flag.Parse()
 
@@ -99,7 +101,6 @@ func main() {
 	err := fxutil.OneShot(run,
 		recorderfx.Module(),
 		core.Bundle(),
-		secretsnoopfx.Module(),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(""),
 			LogParams:    log.ForOneShot("", "off", true),
@@ -111,6 +112,7 @@ func main() {
 			Headless:         *headless,
 			Output:           *output,
 			Verbose:          *verbose,
+			MemProfile:       *memProfile,
 			SendAnomalyEvent: *sendAnomalyEvent,
 		}),
 	)
@@ -146,6 +148,17 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 	if params.Headless != "" {
 		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
 			return err
+		}
+		if params.MemProfile != "" {
+			f, err := os.Create(params.MemProfile)
+			if err != nil {
+				return fmt.Errorf("could not create mem profile: %w", err)
+			}
+			defer f.Close()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				return fmt.Errorf("could not write mem profile: %w", err)
+			}
+			fmt.Printf("Heap profile written to %s\n", params.MemProfile)
 		}
 		return nil
 	}

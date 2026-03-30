@@ -151,7 +151,7 @@ func getInstallMethod(conf model.Reader) *InstallMethod {
 func getProxyMeta(conf model.Reader) *ProxyMeta {
 	NoProxyNonexactMatchExplicitlySetState := false
 	NoProxyNonexactMatch := false
-	if conf.IsSet("no_proxy_nonexact_match") {
+	if conf.IsConfigured("no_proxy_nonexact_match") {
 		NoProxyNonexactMatchExplicitlySetState = true
 		NoProxyNonexactMatch = conf.GetBool("no_proxy_nonexact_match")
 	}

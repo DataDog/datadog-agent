@@ -962,8 +962,8 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 // it currently contains an integer and a string to cover most common use cases
 // the goal of this is to prevent the need to allocate a string for each `Hash()` call
 type ScopeHashKey struct {
-	Integer uint32
 	String  string
+	Uintptr uintptr
 }
 
 // VariableScope is the interface to be implemented by scoped variable in order to be released
@@ -996,24 +996,24 @@ func NewVariables() *Variables {
 	return &Variables{}
 }
 
-func getVariableType(value interface{}) string {
+func getVariableType(value interface{}) (string, error) {
 	switch value.(type) {
 	case bool:
-		return "bool"
+		return "bool", nil
 	case int:
-		return "integer"
+		return "integer", nil
 	case string:
-		return "string"
+		return "string", nil
 	case net.IPNet:
-		return "ip"
+		return "ip", nil
 	case []string:
-		return "strings"
+		return "strings", nil
 	case []int:
-		return "integers"
+		return "integers", nil
 	case []net.IPNet:
-		return "ips"
+		return "ips", nil
 	default:
-		panic("unsupported variable type")
+		return "", fmt.Errorf("unsupported variable type: %v", reflect.TypeOf(value))
 	}
 }
 
@@ -1040,7 +1040,10 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *Variables) NewSECLVariable(_ string, value interface{}, _ string, opts VariableOpts) (SECLVariable, error) {
-	varType := getVariableType(value)
+	varType, err := getVariableType(value)
+	if err != nil {
+		return nil, err
+	}
 	if opts.Telemetry != nil {
 		opts.Telemetry.TotalVariables.Inc(varType, "global")
 	}
@@ -1100,37 +1103,53 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context, noFollowInheritance bool) MutableSECLVariable {
-		v.varsLock.RLock()
-		defer v.varsLock.RUnlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return nil
 		}
 		key := scope.Hash()
+
+		v.varsLock.RLock()
+		defer v.varsLock.RUnlock()
 		vars := v.vars[key]
-		if (vars == nil || vars[name] == nil) && opts.Inherited && !noFollowInheritance {
+		if vars != nil && vars[name] != nil {
+			return vars[name]
+		}
+
+		if opts.Inherited && !noFollowInheritance {
 			var ok bool
-			scope, ok = scope.ParentScope()
-			for vars == nil && ok {
-				key := scope.Hash()
-				vars = v.vars[key]
+
+			for {
 				scope, ok = scope.ParentScope()
+				if !ok {
+					break
+				}
+
+				key = scope.Hash()
+				vars = v.vars[key]
+				if vars != nil && vars[name] != nil {
+					return vars[name]
+				}
 			}
 		}
-		return vars[name]
+
+		return nil
 	}
 
 	setVariable := func(ctx *Context, value any) error {
-		v.varsLock.Lock()
-		defer v.varsLock.Unlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
 		}
-
 		key := scope.Hash()
+
+		v.varsLock.Lock()
+		defer v.varsLock.Unlock()
 		vars := v.vars[key]
-		varType := getVariableType(value)
+		varType, err := getVariableType(value)
+		if err != nil {
+			return err
+		}
 
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {

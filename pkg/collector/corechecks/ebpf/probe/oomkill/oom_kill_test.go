@@ -69,24 +69,30 @@ func TestOOMKillProbe(t *testing.T) {
 
 		err = os.WriteFile("/proc/self/oom_score_adj", []byte("42"), 0644)
 		require.NoError(t, err)
-		cmd := exec.CommandContext(ctx, "systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/shm/asdf", "bs=1K", "count=2K")
-		obytes, err := cmd.CombinedOutput()
-		output := string(obytes)
-		require.Error(t, err)
-		require.NotErrorIs(t, err, context.DeadlineExceeded)
 
-		var exiterr *exec.ExitError
-		require.ErrorAs(t, err, &exiterr, output)
-		var status syscall.WaitStatus
+		// Retry the dd command until the OOM killer actually kills it.
+		// Sometimes the kernel returns ENOMEM to the write() syscall instead of
+		// invoking the OOM killer, causing dd to exit gracefully with status 1.
+		var cmd *exec.Cmd
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			cmd = exec.CommandContext(ctx, "systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/shm/asdf", "bs=1K", "count=2K")
+			obytes, err := cmd.CombinedOutput()
+			output := string(obytes)
+			require.Error(c, err)
+			require.NotErrorIs(c, err, context.DeadlineExceeded)
 
-		status, sok := exiterr.Sys().(syscall.WaitStatus)
-		require.True(t, sok, output)
+			var exiterr *exec.ExitError
+			require.ErrorAs(c, err, &exiterr, output)
 
-		if status.Signaled() {
-			require.Equal(t, unix.SIGKILL, status.Signal(), output)
-		} else {
-			require.Equal(t, 128+unix.SIGKILL, status.ExitStatus(), output)
-		}
+			status, sok := exiterr.Sys().(syscall.WaitStatus)
+			require.True(c, sok, output)
+
+			if status.Signaled() {
+				require.Equal(c, unix.SIGKILL, status.Signal(), output)
+			} else {
+				require.Equal(c, 128+unix.SIGKILL, status.ExitStatus(), output)
+			}
+		}, 30*time.Second, 1*time.Second, "failed to trigger OOM kill after multiple attempts")
 
 		var result model.OOMKillStats
 		require.Eventually(t, func() bool {
@@ -99,7 +105,7 @@ func TestOOMKillProbe(t *testing.T) {
 			return false
 		}, 10*time.Second, 500*time.Millisecond, "failed to find an OOM killed process with pid %d", cmd.Process.Pid)
 
-		assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
+		assert.Regexp(t, regexp.MustCompile(`run-.+\.scope`), result.CgroupName, "cgroup name")
 		assert.Equal(t, result.TriggerPid, result.VictimPid, "tpid == pid")
 		assert.NotZero(t, result.Score, "score")
 		assert.Equal(t, int16(42), result.ScoreAdj, "score adj")

@@ -9,7 +9,7 @@ package generic
 import (
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -62,8 +62,8 @@ func Factory(wmeta workloadmeta.Component, filterStore workloadfilter.Component,
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, initConfig, config, source)
+func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	err := c.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

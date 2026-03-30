@@ -12,7 +12,7 @@ use dd_discovery::{Params, get_services};
 struct Args {
     /// Process ID to analyze
     #[arg(short, long)]
-    pid: u32,
+    pid: i32,
 }
 
 #[allow(clippy::print_stdout, clippy::print_stderr)]

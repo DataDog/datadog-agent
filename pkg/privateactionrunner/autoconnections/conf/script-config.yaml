@@ -1,0 +1,10 @@
+schemaId: script-credentials-v1
+runPredefinedScript:
+  echo:
+    command:
+      - echo
+      - "Hello World!"
+  echo-parametrized:
+    command:
+      - echo
+      - "{{ parameters.echoValue }}"

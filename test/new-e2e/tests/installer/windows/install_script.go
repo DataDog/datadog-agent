@@ -258,9 +258,22 @@ func (d *DatadogInstallExe) Run(opts ...Option) (string, error) {
 	if strings.HasPrefix(params.installerURL, "file://") {
 		cmd = fmt.Sprintf(`& "%s"`, installerPath)
 	} else {
+		// Enable TLS 1.2 for older Windows (e.g. Server 2016). Use explicit proxy from env when set
+		// (e.g. TestInstallAgentPackageWithProxy) so WebClient uses the proxy even if system proxy
+		// is not applied in the execution context.
 		cmd = fmt.Sprintf(`[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
 			$tempFile = [System.IO.Path]::GetTempFileName() + ".exe";
-			(New-Object System.Net.WebClient).DownloadFile("%s", $tempFile);
+			$wc = New-Object System.Net.WebClient;
+			if ($env:DD_PROXY_HTTPS) { $wc.Proxy = [System.Net.WebProxy]::new($env:DD_PROXY_HTTPS) }
+			elseif ($env:DD_PROXY_HTTP) { $wc.Proxy = [System.Net.WebProxy]::new($env:DD_PROXY_HTTP) };
+			for ($i=0; $i -lt 3; $i++) {
+				try {
+					$wc.DownloadFile("%s", $tempFile);
+					break
+				} catch {
+					if ($i -eq 2) { throw }
+				}
+			};
 			& $tempFile`, installerPath)
 	}
 

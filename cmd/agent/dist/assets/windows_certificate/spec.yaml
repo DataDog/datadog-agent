@@ -1,4 +1,5 @@
 name: windows_certificate
+fleet_configurable: true
 version: 1.0.0
 files:
 - name: windows_certificate.yaml
@@ -6,6 +7,7 @@ files:
   - template: init_config
     options:
     - name: service
+      fleet_configurable: true
       value:
         type: string
         example: "<SERVICE>"
@@ -17,6 +19,7 @@ files:
   - template: instances
     options:
     - name: certificate_store
+      fleet_configurable: true
       value:
         type: string
         example: "MY"
@@ -26,6 +29,7 @@ files:
         Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
       required: true
     - name: certificate_subjects
+      fleet_configurable: true
       value:
         type: array
         items:
@@ -40,6 +44,7 @@ files:
         If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
       required: false
     - name: server
+      fleet_configurable: true
       value:
         type: string
         example: "<SERVER>"
@@ -47,6 +52,7 @@ files:
         The server with which to connect, defaulting to the local machine.
       required: false
     - name: username
+      fleet_configurable: true
       value:
         type: string
         example: "<USERNAME>"
@@ -54,6 +60,8 @@ files:
         The username used to connect to the `server`.
       required: false
     - name: password
+      fleet_configurable: true
+      secret: true
       value:
         type: string
         example: "<PASSWORD>"
@@ -61,6 +69,7 @@ files:
         The password of `username`.
       required: false
     - name: days_warning
+      fleet_configurable: true
       value:
         type: integer
         example: 14
@@ -70,6 +79,7 @@ files:
         `windows_certificate.cert_expiration` begins emitting WARNING.
       required: false
     - name: days_critical
+      fleet_configurable: true
       value:
         type: integer
         example: 7
@@ -79,6 +89,7 @@ files:
         `windows_certificate.cert_expiration` begins emitting CRITICAL.
       required: false
     - name: enable_crl_monitoring
+      fleet_configurable: true
       value:
         type: boolean
         example: false
@@ -87,6 +98,7 @@ files:
         Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
       required: false
     - name: crl_days_warning
+      fleet_configurable: true
       value:
         type: integer
         example: 0
@@ -98,6 +110,7 @@ files:
         If the CRLs are updated manually, set to the number days beforehand that you would like to receive a WARNING.
       required: false
     - name: cert_chain_validation
+      fleet_configurable: true
       value:
         type: object
         properties:
@@ -159,6 +172,7 @@ files:
         Configure Certificate Chain and Certificate Chain Policy validation
       required: false
     - name: tags
+      fleet_configurable: true
       value:
         type: array
         items:
@@ -170,6 +184,7 @@ files:
         Learn more about tagging at https://docs.datadoghq.com/tagging
       required: false
     - name: service
+      fleet_configurable: true
       value:
         type: string
         example: "<SERVICE>"
@@ -179,6 +194,7 @@ files:
         Overrides any `service` defined in the `init_config` section.
       required: false
     - name: min_collection_interval
+      fleet_configurable: true
       value:
         type: number
         example: 300
@@ -188,6 +204,7 @@ files:
         https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
       required: false
     - name: empty_default_hostname
+      fleet_configurable: true
       value:
         type: boolean
         example: false
@@ -198,6 +215,7 @@ files:
         This is useful for cluster-level checks.
       required: false
     - name: metric_patterns
+      fleet_configurable: true
       value:
         type: object
         properties:

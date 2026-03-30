@@ -68,30 +68,29 @@ def extract_deb_package(ctx, package_path, extract_dir):
 
 
 def extract_rpm_package(ctx, package_path, extract_dir):
-    log_dir = os.environ.get("CI_PROJECT_DIR", None)
-    if log_dir is None:
-        log_dir = "/tmp"
-    with ctx.cd(extract_dir):
-        out = ctx.run(f'rpm2archive - < "{package_path}" | tar -xvz > {log_dir}/extract_rpm_package_report', warn=True)
-        if out.exited != 0:
-            raise InfraError(f"RPM archive extraction failed with error code {out.exited}. Retrying...")
+    log_dir = os.environ.get("CI_PROJECT_DIR", "/tmp")
+    out = ctx.run(
+        f'rpm2archive - < "{package_path}" | tar -xvz -C {extract_dir} > {log_dir}/extract_rpm_package_report',
+        warn=True,
+    )
+    if out.exited != 0:
+        raise InfraError(f"RPM archive extraction failed with error code {out.exited}. Retrying...")
 
 
 def extract_zip_archive(ctx, package_path, extract_dir):
-    with ctx.cd(extract_dir):
-        ctx.run(f"unzip {package_path}", hide=True)
+    ctx.run(f"unzip {package_path} -d {extract_dir}", hide=True)
 
 
 def extract_dmg_archive(ctx, package_path, extract_dir):
-    with ctx.cd(extract_dir):
-        ctx.run(f"dmg2img {package_path} -o dmg_image.img")
-        ctx.run("7z x dmg_image.img")
-        ctx.run("mkdir ./extracted_pkg")
-        package_path_pkg_format = os.path.basename(package_path).replace("dmg", "pkg")
-        ctx.run(f"xar -xf ./Agent/{package_path_pkg_format} -C ./extracted_pkg")
-        ctx.run("mkdir image_content")
-        with ctx.cd("image_content"):
-            ctx.run("cat ../extracted_pkg/datadog-agent-core.pkg/Payload | gunzip -d | cpio -i")
+    ctx.run(f"dmg2img {package_path} -o {extract_dir}/dmg_image.img")
+    ctx.run(f"7z x {extract_dir}/dmg_image.img -o{extract_dir}")
+    ctx.run(f"mkdir {extract_dir}/extracted_pkg")
+    package_path_pkg_format = os.path.basename(package_path).replace("dmg", "pkg")
+    ctx.run(f"xar -xf {extract_dir}/Agent/{package_path_pkg_format} -C {extract_dir}/extracted_pkg")
+    ctx.run(f"mkdir {extract_dir}/image_content")
+    ctx.run(
+        f"cat {extract_dir}/extracted_pkg/datadog-agent-core.pkg/Payload | gunzip -d | cpio -i -D {extract_dir}/image_content"
+    )
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):

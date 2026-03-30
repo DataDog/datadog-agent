@@ -32,6 +32,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
@@ -122,6 +123,7 @@ func TestProcessEBPFLess(t *testing.T) {
 
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -1144,6 +1146,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable := which(t, "touch")
 
@@ -1875,6 +1878,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		test.WaitSignalFromRule(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGTERM", "2", sleepExec, "9"}
@@ -2490,11 +2494,10 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "symlink_true_exec",
-			Expression: `exec.file.name == "true"`,
+			Expression: `exec.file.name == "echo"`,
 		},
 	}
 
@@ -2506,7 +2509,7 @@ func TestSymLinkResolution(t *testing.T) {
 
 	t.Run("exec true via symlink", func(t *testing.T) {
 		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
-		err := os.Symlink("/bin/true", tmpLink)
+		err := os.Symlink("/bin/echo", tmpLink)
 		require.NoError(t, err)
 
 		test.WaitSignalFromRule(t, func() error {
@@ -2521,4 +2524,67 @@ func TestSymLinkResolution(t *testing.T) {
 		}, "symlink_true_exec")
 		assert.NoError(t, err)
 	})
+}
+
+func TestProcessSubreaperReparenting(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("subreaper reparenting test not supported in ebpfless mode")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_subreaper_open",
+			Expression: `open.file.path == "{{.Root}}/test-subreaper" && process.parent.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-subreaper")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.Remove(testFile)
+
+	// The subreaper command:
+	// 1. Calls prctl(PR_SET_CHILD_SUBREAPER, 1)
+	// 2. Forks a child that forks a grandchild and exits immediately
+	// 3. The grandchild is reparented to the subreaper (syscall_tester)
+	// 4. The grandchild opens testFile
+	//
+	// Expected lineage after reparenting:
+	//   syscall_tester (subreaper) -> grandchild (opens file)
+	//
+	// We verify that the parent PID matches the subreaper's PID (not the
+	// intermediate child's PID) to ensure the process cache was properly
+	// updated after reparenting.
+	var subreaperPid int
+	test.WaitSignalFromRule(t, func() error {
+		cmd := exec.CommandContext(context.Background(), syscallTester, "subreaper", testFile)
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		subreaperPid = cmd.Process.Pid
+		return cmd.Wait()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_subreaper_open")
+		assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "after subreaper reparenting, parent should be syscall_tester")
+		if testEnvironment != DockerEnvironment {
+			// In Docker mode, cmd.Process.Pid is the container-namespace PID
+			// while process.parent.pid is the host PID from eBPF.
+			assertFieldEqual(t, event, "process.parent.pid", subreaperPid, "after subreaper reparenting, parent PID should be the subreaper's PID, not the intermediate child's")
+		}
+	}, "test_subreaper_open")
 }

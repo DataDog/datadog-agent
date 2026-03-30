@@ -12,10 +12,10 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// scanwelchStateKey identifies per-series state by handle and aggregation.
+// scanwelchStateKey identifies per-series state by ref and aggregation.
 type scanwelchStateKey struct {
-	handle observer.SeriesHandle
-	agg    observer.Aggregate
+	ref observer.SeriesRef
+	agg observer.Aggregate
 }
 
 // scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
@@ -63,7 +63,7 @@ type ScanWelchDetector struct {
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
-	// per-series state keyed by handle+agg
+	// per-series state keyed by ref+agg
 	series map[scanwelchStateKey]*scanwelchSeriesState
 
 	// Cache the discovered series list across Detect calls.
@@ -113,11 +113,11 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 	// Bulk-fetch point counts and write generations in a single lock acquisition.
 	// This avoids 2×len(series) individual RLock/RUnlock calls per Detect() call.
-	handles := make([]observer.SeriesHandle, len(d.cachedSeries))
+	refs := make([]observer.SeriesRef, len(d.cachedSeries))
 	for i, meta := range d.cachedSeries {
-		handles[i] = meta.Handle
+		refs[i] = meta.Ref
 	}
-	bulkStatus := bulkSeriesStatus(storage, handles, dataTime)
+	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
@@ -125,7 +125,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			sk := scanwelchStateKey{handle: meta.Handle, agg: agg}
+			sk := scanwelchStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := d.series[sk]
 			if !exists {
@@ -148,7 +148,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			// state.buf which grows once and is reused across scans.
 			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(meta.Handle, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+			storage.ForEachPoint(meta.Ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 				if seriesMeta == nil {
 					// Capture series metadata on first point (valid during callback).
 					sCopy := *s
@@ -165,6 +165,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
 			if found {
+				anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
@@ -301,11 +302,10 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
-		Type:           observer.AnomalyTypeMetric,
-		Source:         observer.AnomalySource{Namespace: series.Namespace, Name: series.Name, Aggregate: agg},
-		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
-		DetectorName:   d.Name(),
-		Title:          "ScanWelch changepoint: " + seriesName,
+		Type:         observer.AnomalyTypeMetric,
+		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
+		DetectorName: d.Name(),
+		Title:        "ScanWelch changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
 			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
 		Tags:                series.Tags,

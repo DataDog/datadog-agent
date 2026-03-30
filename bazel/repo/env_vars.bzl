@@ -34,10 +34,10 @@ BUILD_FILE_CONTENT = """
 exports_files(
     ["env_vars.bzl"],
     # We may expand this in the future, but let's limit inventiveness for now.
-    visibility([
-        "@agent//bazel/rules/...",
-        "@agent//packages/...",
-    ]),
+    visibility = [
+        "@agent//bazel/rules:__subpackages__",
+        "@agent//packages:__subpackages__",
+    ],
 )
 """
 

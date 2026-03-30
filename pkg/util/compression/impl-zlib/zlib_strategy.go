@@ -53,12 +53,36 @@ func (s *ZlibStrategy) Decompress(src []byte) ([]byte, error) {
 	return dst, nil
 }
 
-// CompressBound returns the worst case size needed for a destination buffer
-// This is allowed to return a value _larger_ than 'sourceLen'.
-// Ref: https://refspecs.linuxbase.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/zlib-compressbound-1.html
+// CompressBound returns the worst case size needed for a destination buffer.
+// Return value will be > `sourceLen`.
 func (s *ZlibStrategy) CompressBound(sourceLen int) int {
-	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
-	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
+	// The formula is: sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 18
+	//
+	// Bit shifts (approximate stored block overhead for incompressible
+	// data):
+	//
+	//   - sourceLen >> 12: divides by 4096, ~0.024% overhead
+	//   - sourceLen >> 14: divides by 16384, ~0.006% overhead
+	//   - sourceLen >> 25: divides by 33554432, negligible but covers edge cases
+	//
+	// These approximate the 5-byte-per-block overhead when deflate falls
+	// back to stored (uncompressed) blocks. Each stored block holds up to
+	// 65535 bytes and has a 5-byte header (3 bits type + 5 bits padding +
+	// 16 bits LEN + 16 bits NLEN).
+	//
+	// Constant 18 breakdown:
+	//
+	//   - 2 bytes: zlib header (CMF + FLG)
+	//   - 4 bytes: Adler-32 checksum trailer
+	//   - 7 bytes: deflate framing overhead
+	//   - 5 bytes: Go's compress/flate empty final block on Close()
+	//
+	// Go's compress/flate writes an empty stored block (01 00 00 ff ff)
+	// when Close() is called, adding 5 bytes that C zlib does not.
+	//
+	// REF github.com/madler/zlib/blob/75133f8599b7b4509db50e673c66a42c1da1be03/compress.c#L87
+	// REF compress/flate/deflate.go compressor.close() -> writeStoredHeader(0, true)
+	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 18
 }
 
 // ContentEncoding returns the content encoding value for zlib

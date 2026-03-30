@@ -168,7 +168,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList)
 
 	// statsd samplers
 	// ---------------
@@ -190,7 +190,7 @@ func initAgentDemultiplexer(log log.Component,
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
-			filterList.GetMetricFilterList(), filterList.GetTagFilterList())
+			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -331,9 +331,8 @@ func (d *AgentDemultiplexer) run() {
 		go d.noAggStreamWorker.run()
 	}
 
-	// It is important to set this up after the statsd workers have been started
-	// to make sure they are running to receive the initial filter list and any
-	// updates
+	// It is important to register callbacks after the statsd workers have been started
+	// to make sure they are running to receive any filter list updates
 	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
 	d.filterList.OnUpdateTagFilterList(d.SetAggregatorTagFilterList)
 
@@ -549,7 +548,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.TagMatcher) {
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.TagMatcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -559,10 +558,10 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.Ta
 		return
 	}
 
-	d.aggregator.tagfilterListChan <- tagmatcher
+	d.aggregator.tagFilterListChan <- tagMatcher
 
 	for _, worker := range d.statsd.workers {
-		worker.tagFilterListChan <- tagmatcher
+		worker.tagFilterListChan <- tagMatcher
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
@@ -93,10 +94,7 @@ func verifyCheckRuns(t *testing.T, env *environments.Host, checkName string) boo
 // by querying the agent status API. This is a helper function meant to be called within EventuallyWithT.
 func verifyCheckSchedulingViaStatusAPI(t *testing.T, c *assert.CollectT, env *environments.Host, checks []string, shouldBeScheduled bool) {
 	scheduledChecks, err := getScheduledChecks(env)
-	if !assert.NoError(c, err, "Failed to get scheduled checks") {
-		t.Logf("Failed to retrieve scheduled checks, will retry...")
-		return
-	}
+	require.NoError(c, err, "Failed to get scheduled checks")
 
 	t.Logf("Found %d check types in agent status", len(scheduledChecks))
 

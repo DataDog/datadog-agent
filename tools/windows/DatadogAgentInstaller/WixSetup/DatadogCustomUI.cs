@@ -33,7 +33,8 @@ namespace WixSetup
 
         protected void OnWixSourceGenerated(XDocument document)
         {
-            var ui = document.Root.Select("Product/UI");
+            // WiX 5 migration: Product was renamed to Package in WiX 4/5
+            var ui = document.Root.Select("Package/UI");
             // Need to customize here since color is not supported with standard methods
             ui.AddTextStyle("WixUI_Font_Normal_White", new Font("Tahoma", 8), Color.White);
             ui.AddTextStyle("WixUI_Font_Bigger_White", new Font("Tahoma", 12), Color.White);

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

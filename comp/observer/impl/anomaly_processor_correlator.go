@@ -6,8 +6,6 @@
 package observerimpl
 
 import (
-	"sort"
-
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -35,7 +33,7 @@ type timestampedAnomaly struct {
 // correlationPattern defines a known pattern of correlated signals.
 type correlationPattern struct {
 	name            string
-	requiredSources []observer.MetricName
+	requiredSources []string
 	reportTitle     string
 }
 
@@ -46,19 +44,19 @@ var knownPatterns = []correlationPattern{
 	{
 		// Most specific: all 3 signals indicate kernel-level issue
 		name:            "kernel_bottleneck",
-		requiredSources: []observer.MetricName{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		requiredSources: []string{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Kernel network bottleneck",
 	},
 	{
 		// Less specific: network issues without clear kernel involvement
 		name:            "network_degradation",
-		requiredSources: []observer.MetricName{"network.retransmits:avg", "connection.errors:count"},
+		requiredSources: []string{"network.retransmits:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Network degradation",
 	},
 	{
 		// Lock contention causing downstream failures
 		name:            "lock_contention_cascade",
-		requiredSources: []observer.MetricName{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		requiredSources: []string{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Lock contention cascade",
 	},
 }
@@ -140,9 +138,9 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 	c.evictOldEntries()
 
 	// Extract unique signal sources from anomalies (display names for pattern matching)
-	sourceSet := make(map[observer.MetricName]struct{})
+	sourceSet := make(map[string]struct{})
 	for _, entry := range c.buffer {
-		sourceSet[observer.MetricName(entry.anomaly.Source.String())] = struct{}{}
+		sourceSet[entry.anomaly.Source.String()] = struct{}{}
 	}
 
 	// Track which patterns are currently active
@@ -160,18 +158,16 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = c.currentDataTime
 				existing.Anomalies = matchingAnomalies
-				existing.MemberSeriesIDs = sortedUniqueSeriesIDs(matchingAnomalies)
-				existing.MetricNames = c.getSortedMetricNames(sourceSet)
+				existing.Members = sortedUniqueMembers(matchingAnomalies)
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
-					Pattern:         pattern.name,
-					Title:           pattern.reportTitle,
-					MemberSeriesIDs: sortedUniqueSeriesIDs(matchingAnomalies),
-					MetricNames:     c.getSortedMetricNames(sourceSet),
-					Anomalies:       matchingAnomalies,
-					FirstSeen:       c.currentDataTime,
-					LastUpdated:     c.currentDataTime,
+					Pattern:     pattern.name,
+					Title:       pattern.reportTitle,
+					Members:     sortedUniqueMembers(matchingAnomalies),
+					Anomalies:   matchingAnomalies,
+					FirstSeen:   c.currentDataTime,
+					LastUpdated: c.currentDataTime,
 				}
 			}
 		}
@@ -193,7 +189,7 @@ func (c *CrossSignalCorrelator) Reset() {
 }
 
 // patternMatches checks if all required sources for a pattern are present.
-func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sources map[observer.MetricName]struct{}) bool {
+func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sources map[string]struct{}) bool {
 	for _, required := range pattern.requiredSources {
 		if _, ok := sources[required]; !ok {
 			return false
@@ -206,10 +202,10 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 // deduped by source - keeping only the most recent anomaly per source.
 func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPattern) []observer.Anomaly {
 	// Map from source to most recent anomaly for that source
-	bySource := make(map[observer.MetricName]observer.Anomaly)
+	bySource := make(map[string]observer.Anomaly)
 
 	for _, entry := range c.buffer {
-		display := observer.MetricName(entry.anomaly.Source.String())
+		display := entry.anomaly.Source.String()
 		for _, src := range pattern.requiredSources {
 			if display == src {
 				existing, exists := bySource[src]
@@ -235,29 +231,18 @@ func (c *CrossSignalCorrelator) getBuffer() []timestampedAnomaly {
 	return c.buffer
 }
 
-// getSortedMetricNames returns a sorted slice of metric names from a source set.
-func (c *CrossSignalCorrelator) getSortedMetricNames(sources map[observer.MetricName]struct{}) []observer.MetricName {
-	sourceList := make([]observer.MetricName, 0, len(sources))
-	for source := range sources {
-		sourceList = append(sourceList, source)
-	}
-	sort.Slice(sourceList, func(i, j int) bool { return sourceList[i] < sourceList[j] })
-	return sourceList
-}
-
 // ActiveCorrelations returns a copy of the currently active correlation patterns.
 func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	result := make([]observer.ActiveCorrelation, 0, len(c.activeCorrelations))
 	for _, ac := range c.activeCorrelations {
 		// Return a copy to prevent external modification
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:         ac.Pattern,
-			Title:           ac.Title,
-			MemberSeriesIDs: append([]observer.SeriesID(nil), ac.MemberSeriesIDs...),
-			MetricNames:     append([]observer.MetricName(nil), ac.MetricNames...),
-			Anomalies:       ac.Anomalies,
-			FirstSeen:       ac.FirstSeen,
-			LastUpdated:     ac.LastUpdated,
+			Pattern:     ac.Pattern,
+			Title:       ac.Title,
+			Members:     append([]observer.SeriesDescriptor(nil), ac.Members...),
+			Anomalies:   ac.Anomalies,
+			FirstSeen:   ac.FirstSeen,
+			LastUpdated: ac.LastUpdated,
 		})
 	}
 	return result

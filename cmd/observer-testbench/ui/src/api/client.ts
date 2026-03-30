@@ -72,6 +72,8 @@ export interface SeriesInfo {
   pointCount: number;
   /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
+  /** Telemetry metrics: counter deltas use :sum and cumulative display; gauges use the selected aggregation. */
+  metricKind?: 'gauge' | 'counter';
 }
 
 export interface Point {
@@ -196,25 +198,7 @@ export interface ReportEvent {
   formattedTime: string;
 }
 
-// Lead-Lag edge represents temporal causality between sources
-export interface LeadLagEdge {
-  leader: SeriesID;
-  follower: SeriesID;
-  typical_lag: number;  // Seconds
-  confidence: number;   // 0-1
-  observations: number;
-}
 
-// Surprise edge represents unexpected co-occurrence (high lift)
-export interface SurpriseEdge {
-  source1: SeriesID;
-  source2: SeriesID;
-  lift: number;
-  support: number;         // Number of co-occurrences
-  source1_count: number;   // Total anomalies from source1
-  source2_count: number;   // Total anomalies from source2
-  is_surprising: boolean;  // true if lift > MinLift
-}
 
 // Compressed group description from trie-based metric compression
 export interface MetricPattern {
@@ -276,6 +260,24 @@ export interface ScoreResponse {
   available: boolean;
   reason?: string;
   score?: ScoreResult;
+}
+
+export interface DetectorProcessingStats {
+  name: string;
+  kind: 'detector' | 'correlator' | 'extractor' | '';
+  count: number;
+  avg_ns: number;
+  median_ns: number;
+  p99_ns: number;
+  total_ns: number;
+}
+
+export interface ReplayStats {
+  detector_stats: Record<string, DetectorProcessingStats>;
+  input_metrics_count: number;
+  input_metrics_cardinality: number;
+  input_logs_count: number;
+  input_anomalies_count: number;
 }
 
 class ApiClient {
@@ -380,15 +382,6 @@ class ApiClient {
     return this.fetch(`/components/${encodeURIComponent(name)}/data`);
   }
 
-  // Legacy endpoints (thin wrappers for backward compat)
-  async getLeadLag(): Promise<{ enabled: boolean; edges: LeadLagEdge[] }> {
-    return this.fetch('/leadlag');
-  }
-
-  async getSurprise(): Promise<{ enabled: boolean; edges: SurpriseEdge[] }> {
-    return this.fetch('/surprise');
-  }
-
   async getCompressedCorrelations(threshold?: number): Promise<CompressedGroup[]> {
     const params = threshold !== undefined ? `?threshold=${threshold}` : '';
     return this.fetch(`/correlations/compressed${params}`);
@@ -400,6 +393,10 @@ class ApiClient {
 
   async getScore(): Promise<ScoreResponse> {
     return this.fetch('/score');
+  }
+
+  async getBenchmarkStats(): Promise<ReplayStats> {
+    return this.fetch('/benchmark');
   }
 
 }

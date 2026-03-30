@@ -24,18 +24,22 @@ type ScoreInput struct {
 
 // ScoreResult contains the Gaussian F1 scoring output.
 type ScoreResult struct {
-	F1                   float64 `json:"f1"`
-	Precision            float64 `json:"precision"`
-	Recall               float64 `json:"recall"`
-	TP                   float64 `json:"tp"`
-	FP                   float64 `json:"fp"`
-	FN                   float64 `json:"fn"`
-	NumPredictions       int     `json:"num_predictions"`
-	NumGroundTruths      int     `json:"num_ground_truths"`
-	NumFilteredWarmup    int     `json:"num_filtered_warmup"`
-	NumFilteredCascading int     `json:"num_filtered_cascading"`
-	NumBaselineFPs       int     `json:"num_baseline_fps"`
-	Sigma                float64 `json:"sigma"`
+	F1                      float64 `json:"f1"`
+	Precision               float64 `json:"precision"`
+	Recall                  float64 `json:"recall"`
+	TP                      float64 `json:"tp"`
+	FP                      float64 `json:"fp"`
+	FN                      float64 `json:"fn"`
+	NumPredictions          int     `json:"num_predictions"`
+	NumGroundTruths         int     `json:"num_ground_truths"`
+	NumFilteredWarmup       int     `json:"num_filtered_warmup"`
+	NumFilteredCascading    int     `json:"num_filtered_cascading"`
+	NumBaselineFPs          int     `json:"num_baseline_fps"`
+	Sigma                   float64 `json:"sigma"`
+	BaselineDurationSeconds int64   `json:"baseline_duration_seconds"`
+	// Alpha is the false positive rate during the baseline phase:
+	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
+	Alpha float64 `json:"alpha"`
 }
 
 // ComputeGaussianF1 scores predicted anomaly events against ground truth events
@@ -50,6 +54,7 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		NumPredictions:  len(input.PredictionTimestamps),
 		NumGroundTruths: len(input.GroundTruthTimestamps),
 		Sigma:           input.Sigma,
+		Alpha:           -1, // not computable without baseline duration; set by ScoreOutputFile
 	}
 
 	if len(input.PredictionTimestamps) == 0 && len(input.GroundTruthTimestamps) == 0 {
@@ -209,37 +214,39 @@ func scoreGaussianPDF(x, sigma float64) float64 {
 	return math.Exp(-x*x/(2*sigma*sigma)) / (sigma * math.Sqrt(2*math.Pi))
 }
 
-// scenarioMetadata is the subset of metadata.json fields the scorer needs.
+// scenarioMetadata is the subset of episode.json fields the scorer needs.
 type scenarioMetadata struct {
 	Baseline struct {
 		Start string `json:"start"`
+		End   string `json:"end"`
 	} `json:"baseline"`
 	Disruption struct {
 		Start string `json:"start"`
 	} `json:"disruption"`
 }
 
-// scoringMetadata holds timestamps extracted from a scenario's metadata.json.
+// scoringMetadata holds timestamps extracted from a scenario's episode.json.
 type scoringMetadata struct {
 	groundTruthTimestamps []int64
 	baselineStart         int64 // 0 if not available
+	baselineEnd           int64 // 0 if not available
 }
 
-// loadScoringMetadata reads disruption.start and baseline.start from a scenario's metadata.json.
+// loadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
 func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, error) {
-	path := filepath.Join(scenariosDir, scenarioName, "metadata.json")
+	path := filepath.Join(scenariosDir, scenarioName, "episode.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading metadata %s: %w", path, err)
+		return nil, fmt.Errorf("reading episode %s: %w", path, err)
 	}
 
 	var meta scenarioMetadata
 	if err := json.Unmarshal(data, &meta); err != nil {
-		return nil, fmt.Errorf("parsing metadata JSON: %w", err)
+		return nil, fmt.Errorf("parsing episode JSON: %w", err)
 	}
 
 	if meta.Disruption.Start == "" {
-		return nil, errors.New("metadata.json missing disruption.start")
+		return nil, errors.New("episode.json missing disruption.start")
 	}
 
 	dt, err := time.Parse(time.RFC3339, meta.Disruption.Start)
@@ -259,14 +266,22 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		result.baselineStart = bt.Unix()
 	}
 
+	if meta.Baseline.End != "" {
+		et, err := time.Parse(time.RFC3339, meta.Baseline.End)
+		if err != nil {
+			return nil, fmt.Errorf("parsing baseline.end %q: %w", meta.Baseline.End, err)
+		}
+		result.baselineEnd = et.Unix()
+	}
+
 	return result, nil
 }
 
 // ScoreOutputFile loads a headless output JSON file, extracts prediction timestamps,
 // and scores them against the given ground truth.
 // If groundTruthTimestamps is nil and scenariosDir is non-empty, ground truth is
-// inferred from the scenario's metadata.json (using the scenario name from the output).
-// Explicit groundTruthTimestamps override metadata inference.
+// inferred from the scenario's episode.json (using the scenario name from the output).
+// Explicit groundTruthTimestamps override episode.json inference.
 func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
 	if sigma <= 0 {
 		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
@@ -281,8 +296,8 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, fmt.Errorf("parsing output JSON: %w", err)
 	}
 
-	// Load metadata if needed (for ground truth and/or baseline start).
-	var baselineStart int64
+	// Load metadata if needed (for ground truth and/or baseline start/end).
+	var baselineStart, baselineEnd int64
 	if scenariosDir != "" && output.Metadata.Scenario != "" {
 		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
 		if err != nil {
@@ -295,11 +310,12 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 				groundTruthTimestamps = sm.groundTruthTimestamps
 			}
 			baselineStart = sm.baselineStart
+			baselineEnd = sm.baselineEnd
 		}
 	}
 
 	if len(groundTruthTimestamps) == 0 {
-		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with metadata.json")
+		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with episode.json")
 	}
 
 	// Filter warmup predictions (before baseline.start).
@@ -335,6 +351,14 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumBaselineFPs = numBaselineFPs
+
+	// Alpha: FP rate during baseline = num_baseline_fps / baseline_duration_seconds.
+	if baselineStart > 0 && baselineEnd > baselineStart {
+		result.BaselineDurationSeconds = baselineEnd - baselineStart
+		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)
+	} else {
+		result.Alpha = -1
+	}
 
 	return &result, nil
 }

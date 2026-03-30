@@ -45,7 +45,7 @@ func TestGet(t *testing.T) {
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 
-	// test implicit conversion
+	// set converts to default type at insert
 	cfg.Set("a", "1111", model.SourceAgentRuntime)
 	assert.Equal(t, 1111, cfg.Get("a"))
 }
@@ -77,9 +77,9 @@ b:
 	}
 	assert.Equal(t, expected, cfg.Get("a"))
 
-	expected2 := map[interface{}]interface{}{
-		1: []interface{}{"a", "b"},
-		2: []interface{}{"c"},
+	expected2 := map[string]interface{}{
+		"1": []interface{}{"a", "b"},
+		"2": []interface{}{"c"},
 	}
 	assert.Equal(t, expected2, cfg.Get("b"))
 }
@@ -107,9 +107,7 @@ func TestGetCastToDefault(t *testing.T) {
 	cfg.SetDefault("a", []string{})
 	cfg.BuildSchema()
 
-	// This test that we mimic viper's behavior on Get where we convert the value from the config to the same type
-	// from the default.
-
+	// set converts to default type at insert
 	cfg.Set("a", 9876, model.SourceAgentRuntime)
 	assert.Equal(t, []string{"9876"}, cfg.Get("a"))
 
@@ -317,9 +315,10 @@ func TestGetAllSources(t *testing.T) {
 	cfg.Set("a", 3, model.SourceFile)
 	cfg.Set("a", 5, model.SourceFleetPolicies)
 	cfg.Set("a", 6, model.SourceAgentRuntime)
-	cfg.Set("a", 7, model.SourceLocalConfigProcess)
-	cfg.Set("a", 8, model.SourceRC)
-	cfg.Set("a", 9, model.SourceCLI)
+	cfg.Set("a", 7, model.SourceSecretBackend)
+	cfg.Set("a", 8, model.SourceLocalConfigProcess)
+	cfg.Set("a", 9, model.SourceRC)
+	cfg.Set("a", 10, model.SourceCLI)
 
 	res := cfg.GetAllSources("a")
 	assert.Equal(t,
@@ -328,12 +327,13 @@ func TestGetAllSources(t *testing.T) {
 			{Source: model.SourceUnknown, Value: 1},
 			{Source: model.SourceInfraMode, Value: 2},
 			{Source: model.SourceFile, Value: 3},
-			{Source: model.SourceEnvVar, Value: "4"},
+			{Source: model.SourceEnvVar, Value: 4},
 			{Source: model.SourceFleetPolicies, Value: 5},
 			{Source: model.SourceAgentRuntime, Value: 6},
-			{Source: model.SourceLocalConfigProcess, Value: 7},
-			{Source: model.SourceRC, Value: 8},
-			{Source: model.SourceCLI, Value: 9},
+			{Source: model.SourceSecretBackend, Value: 7},
+			{Source: model.SourceLocalConfigProcess, Value: 8},
+			{Source: model.SourceRC, Value: 9},
+			{Source: model.SourceCLI, Value: 10},
 		},
 		res,
 	)

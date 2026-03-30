@@ -24,7 +24,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -40,9 +39,8 @@ import (
 )
 
 const (
-	defaultTimeout                 = 10 // Timeout better suited to walking
-	defaultRetries                 = 3
-	defaultUseUnconnectedUDPSocket = false
+	defaultTimeout = 10 // Timeout better suited to walking
+	defaultRetries = 3
 )
 
 // argsType is an alias so we can inject the args via fx.
@@ -73,7 +71,10 @@ func confErrf(msg string, args ...any) configErr {
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	connParams := &snmpparse.SNMPConfig{}
+	connParams := &snmpparse.SNMPConfig{
+		// Similar to the snmpwalk command, we accept responses from a different IP address
+		UseUnconnectedUDPSocket: true,
+	}
 	snmpCmd := &cobra.Command{
 		Use:   "snmp",
 		Short: "Snmp tools",
@@ -93,11 +94,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				secretsfx.Module(),
 				snmpscanfx.Module(),
-				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
+				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
@@ -137,7 +137,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpWalkCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpWalkCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
-	snmpWalkCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
@@ -158,10 +157,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				secretsfx.Module(),
-				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
+				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
@@ -205,7 +203,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpScanCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpScanCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
-	snmpScanCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
 	snmpCmd.AddCommand(snmpScanCmd)

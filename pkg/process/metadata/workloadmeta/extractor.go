@@ -9,7 +9,6 @@ package workloadmeta
 import (
 	"maps"
 	"runtime"
-	"strconv"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -42,8 +41,8 @@ type ProcessEntity struct {
 //   - Detecting the language of new processes and sending them to WorkloadMeta
 //   - Detecting the processes that terminate and sending their PID to WorkloadMeta
 type WorkloadMetaExtractor struct {
-	// Cache is a map from process hash to the workloadmeta entity
-	// The cache key takes the form of `pid:<pid>|createTime:<createTime>`. See hashProcess
+	// Cache is a map from process identity to the workloadmeta entity
+	// The cache key takes the form of `pid:<pid>|createTime:<createTime>|cmdHash:<hash>`. See procutil.ProcessIdentity
 	cache        map[string]*ProcessEntity
 	cacheVersion int32
 	cacheMutex   sync.RWMutex
@@ -109,7 +108,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
-		hash := hashProcess(pid, proc.Stats.CreateTime)
+		hash := procutil.ProcessIdentity(pid, proc.Stats.CreateTime, proc.Cmdline)
 		if entity, ok := w.cache[hash]; ok {
 			newCache[hash] = entity
 
@@ -150,7 +149,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 			ContainerId:  w.pidToCid[int(pid)],
 		}
 		newEntities = append(newEntities, entity)
-		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
+		newCache[procutil.ProcessIdentity(pid, proc.Stats.CreateTime, proc.Cmdline)] = entity
 
 		log.Trace("detected language", lang.Name, "for pid", pid)
 	}
@@ -205,10 +204,6 @@ func Enabled(ddconfig pkgconfigmodel.Reader) bool {
 		return false
 	}
 	return enabled
-}
-
-func hashProcess(pid int32, createTime int64) string {
-	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.Itoa(int(createTime))
 }
 
 // GetAllProcessEntities returns all processes Entities stored in the WorkloadMetaExtractor cache and the version

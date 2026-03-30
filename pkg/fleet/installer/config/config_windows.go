@@ -178,6 +178,6 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 
 // setFileOwnershipAndPermissions is a no-op on Windows as file ownership and permissions
 // are handled differently through ACLs, not POSIX ownership and modes.
-func setFileOwnershipAndPermissions(_ context.Context, _ string, _ *configFileSpec) error {
+func setFileOwnershipAndPermissions(_ context.Context, _ *os.Root, _ string, _ *configFileSpec) error {
 	return nil
 }

@@ -22,20 +22,20 @@ type seriesStatus struct {
 // bulkStatusReader is an optional optimization interface for StorageReader
 // implementations that support batch status queries in a single lock acquisition.
 type bulkStatusReader interface {
-	BulkSeriesStatus(handles []observer.SeriesHandle, endTime int64) []seriesStatus
+	BulkSeriesStatus(refs []observer.SeriesRef, endTime int64) []seriesStatus
 }
 
-// bulkSeriesStatus returns the point count and write generation for each handle.
+// bulkSeriesStatus returns the point count and write generation for each ref.
 // If storage implements bulkStatusReader (e.g. timeSeriesStorage), it uses a
 // single lock acquisition. Otherwise falls back to individual PointCountUpTo +
-// WriteGeneration calls per handle.
-func bulkSeriesStatus(storage observer.StorageReader, handles []observer.SeriesHandle, endTime int64) []seriesStatus {
+// WriteGeneration calls per ref.
+func bulkSeriesStatus(storage observer.StorageReader, refs []observer.SeriesRef, endTime int64) []seriesStatus {
 	if br, ok := storage.(bulkStatusReader); ok {
-		return br.BulkSeriesStatus(handles, endTime)
+		return br.BulkSeriesStatus(refs, endTime)
 	}
-	// Fallback: individual calls (2 lock acquisitions per handle).
-	result := make([]seriesStatus, len(handles))
-	for i, h := range handles {
+	// Fallback: individual calls (2 lock acquisitions per ref).
+	result := make([]seriesStatus, len(refs))
+	for i, h := range refs {
 		result[i] = seriesStatus{
 			pointCount:      storage.PointCountUpTo(h, endTime),
 			writeGeneration: storage.WriteGeneration(h),

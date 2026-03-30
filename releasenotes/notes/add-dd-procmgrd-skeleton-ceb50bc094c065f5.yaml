@@ -1,0 +1,3 @@
+features:
+  - |
+    Add ``dd-procmgrd``, a minimal Rust daemon for the Datadog process manager. The daemon starts, logs, and waits for a shutdown signal. It does not provide user-facing functionality.

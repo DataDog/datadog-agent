@@ -72,7 +72,7 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 
 	validatePath := func(c *assert.CollectT, np *aggregator.Netpath) {
 		assert.Equal(c, payload.PathOrigin("network_path_integration"), np.Origin)
-		assert.NotEmpty(c, np.PathtraceID)
+		assert.NotEmpty(c, np.TestRunID)
 		assert.Equal(c, "default", np.Namespace)
 
 		// check that the timestamp is reasonably close to the current time
@@ -116,9 +116,7 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		nps, err := s.Env().FakeIntake.Client().GetLatestNetpathEvents()
 		assert.NoError(c, err, "GetLatestNetpathEvents() errors")
-		if !assert.NotNil(c, nps, "GetLatestNetpathEvents() returned nil netpaths") {
-			return
-		}
+		require.NotNil(c, nps, "GetLatestNetpathEvents() returned nil netpaths")
 
 		udpPath := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 			return np.Destination.Hostname == targetIP.String() && np.Protocol == "UDP"

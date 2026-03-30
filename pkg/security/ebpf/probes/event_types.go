@@ -265,9 +265,11 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "move_mount", hasFentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", hasFentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "pivot_root", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_attach_mnt"),
 				hookFunc("hook___attach_mnt"),
+				hookFunc("hook_make_visible"),
 				hookFunc("hook_mnt_set_mountpoint"),
 			}},
 

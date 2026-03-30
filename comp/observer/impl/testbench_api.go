@@ -12,6 +12,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/http/pprof"
 	"net/url"
 	"sort"
 	"strconv"
@@ -60,12 +61,18 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
-	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
-	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/score", api.cors(api.handleScore))
+	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+
+	// pprof endpoints for live profiling (e.g. heap after loading a scenario)
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	api.server = &http.Server{
 		Addr:    addr,
@@ -445,20 +452,39 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
+		// MetricKind is "counter" or "gauge" for telemetry namespace; omitted otherwise.
+		MetricKind string `json:"metricKind,omitempty"`
 	}
 
 	var allSeries []seriesInfo
 
 	extractorNs := api.tb.extractorNamespaces()
+	telHandler := api.tb.telemetryHandler
 
 	// Get series metadata from all namespaces — no point data materialized.
 	// Use compact numeric IDs: "{numericID}:{aggSuffix}" (e.g. "42:avg").
 	for _, ns := range storage.Namespaces() {
 		metas := storage.ListSeriesMetadata(ns)
 		for _, m := range metas {
-			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
+			var aggs []Aggregate
+			if m.Namespace == "telemetry" && telHandler != nil && telHandler.isCounterMetric(m.Name) {
+				// Counters are per-bucket deltas; exposing avg/count/sum as three API series
+				// with the same tags produced three indistinguishable "untagged" lines in the UI.
+				aggs = []Aggregate{AggregateSum}
+			} else {
+				aggs = []Aggregate{AggregateAverage, AggregateCount}
+			}
+			var metricKind string
+			if m.Namespace == "telemetry" {
+				if telHandler != nil && telHandler.isCounterMetric(m.Name) {
+					metricKind = "counter"
+				} else {
+					metricKind = "gauge"
+				}
+			}
+			for _, agg := range aggs {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
-				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
+				compactID := strconv.Itoa(int(m.Ref)) + ":" + aggSuffix(agg)
 				_, virtual := extractorNs[m.Namespace]
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
@@ -467,6 +493,7 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 					Tags:       m.Tags,
 					PointCount: m.PointCount,
 					Virtual:    virtual,
+					MetricKind: metricKind,
 				})
 			}
 		}
@@ -494,7 +521,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		prefix := seriesID[:colonIdx]
 		if numericID, parseErr := strconv.Atoi(prefix); parseErr == nil {
 			aggStr := seriesID[colonIdx+1:]
-			api.handleNumericSeriesData(w, observerdef.SeriesHandle(numericID), aggStr, seriesID)
+			api.handleNumericSeriesData(w, observerdef.SeriesRef(numericID), aggStr, seriesID)
 			return
 		}
 	}
@@ -505,11 +532,11 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, observerdef.SeriesID(seriesID))
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
-func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesHandle, aggStr string, originalID string) {
+func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesRef, aggStr string, originalID string) {
 	var agg Aggregate
 	switch aggStr {
 	case "avg":
@@ -540,20 +567,15 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 	}
 
 	nameWithAgg := series.Name + ":" + aggStr
-	seriesID := observerdef.SeriesID(originalID)
 
-	// Look up anomalies using the full key format that detectors produce
-	// (e.g. "parquet|metric:avg|tags"), not the compact numeric ID.
-	fullKey, _ := storage.FullKeyForNumericID(numericID)
-	var fullKeyWithAgg string
-	if ns, name, tags, ok := parseSeriesKey(fullKey); ok {
-		fullKeyWithAgg = seriesKey(ns, name+":"+aggStr, tags)
+	// Build a SeriesDescriptor for anomaly lookup
+	sd := observerdef.SeriesDescriptor{
+		Namespace: series.Namespace,
+		Name:      series.Name,
+		Tags:      series.Tags,
+		Aggregate: observerdef.Aggregate(agg),
 	}
-	anomalyLookupID := seriesID
-	if fullKeyWithAgg != "" {
-		anomalyLookupID = observerdef.SeriesID(fullKeyWithAgg)
-	}
-	anomalies := api.tb.GetMetricsAnomaliesForSeries(anomalyLookupID)
+	anomalies := api.tb.GetMetricsAnomaliesForSource(sd)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -573,7 +595,7 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
-			SourceSeriesID:    string(seriesID),
+			SourceSeriesID:    originalID,
 			Title:             a.Title,
 		})
 	}
@@ -593,7 +615,7 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 	}
 
 	resp := seriesResponse{
-		ID:        string(seriesID),
+		ID:        originalID,
 		Namespace: series.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
@@ -631,7 +653,7 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
 }
 
-func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID observerdef.SeriesID) {
+func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
 	seriesID := requestedID
 
 	// Parse aggregation suffix (e.g., "metric:avg" or "metric:count")
@@ -666,11 +688,8 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		return
 	}
 	if seriesID == "" {
-		seriesID = observerdef.SeriesID(seriesKey(series.Namespace, nameWithAgg, series.Tags))
+		seriesID = seriesKey(series.Namespace, nameWithAgg, series.Tags)
 	}
-
-	// Get anomalies for this series to include in response
-	anomalies := api.tb.GetMetricsAnomaliesForSeries(seriesID)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -680,19 +699,29 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		Title             string `json:"title"`
 	}
 
+	// Build a SeriesDescriptor for anomaly lookup.
+	// Use the returned series identity (not the request params) so that
+	// nil-tag requests that match a tagged series still find the ref.
 	var markers []anomalyMarker
+	sd := observerdef.SeriesDescriptor{
+		Namespace: series.Namespace,
+		Name:      name,
+		Tags:      series.Tags,
+		Aggregate: observerdef.Aggregate(agg),
+	}
+	anomalies := api.tb.GetMetricsAnomaliesForSource(sd)
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
 	for _, a := range anomalies {
 		if a.DetectorName == "" || a.Timestamp == 0 {
 			log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
-				string(seriesID), a.DetectorName, a.Timestamp)
+				seriesID, a.DetectorName, a.Timestamp)
 			continue
 		}
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
-			SourceSeriesID:    string(seriesID),
+			SourceSeriesID:    seriesID,
 			Title:             a.Title,
 		})
 	}
@@ -712,7 +741,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	resp := seriesResponse{
-		ID:        string(seriesID),
+		ID:        seriesID,
 		Namespace: series.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
@@ -768,19 +797,34 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
 	storage := api.tb.getStorage()
 
-	toResponse := func(a observerdef.Anomaly) anomalyResponse {
-		sourceSeriesID := string(a.SourceSeriesID)
-		if storage != nil {
-			sourceSeriesID = storage.CompactSeriesID(sourceSeriesID)
+	// resolveCompactID maps an anomaly to the compact numeric ID format
+	// ("42:avg") used by /api/series. Uses SourceRef when available (per-series
+	// detectors), falls back to telemetry remapping for cross-namespace
+	// detectors (e.g. RRCF), then Key() as a stable fallback.
+	resolveCompactID := func(a observerdef.Anomaly) string {
+		if a.SourceRef != nil {
+			return a.SourceRef.CompactID()
 		}
+		// Fallback for cross-namespace detectors (e.g. RRCF)
+		if storage != nil && a.DetectorName != "" && a.Source.Name != "" {
+			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+			telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+			if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
+				return compactID
+			}
+		}
+		return a.Source.Key()
+	}
+
+	toResponse := func(a observerdef.Anomaly) anomalyResponse {
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    sourceSeriesID,
+			SourceSeriesID:    resolveCompactID(a),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
 			Description:       a.Description,
-			Tags:              a.Tags,
+			Tags:              a.Source.Tags,
 			Timestamp:         a.Timestamp,
 		}
 		if a.DebugInfo != nil {
@@ -861,7 +905,7 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
-			Tags:         a.Tags,
+			Tags:         a.Source.Tags,
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
 		})
@@ -1020,7 +1064,6 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 // handleCorrelations returns detected correlations.
 func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) {
 	correlations := api.tb.GetCorrelations()
-	storage := api.tb.getStorage()
 
 	type anomalyOutput struct {
 		Source      string   `json:"source"`
@@ -1041,11 +1084,13 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 		LastUpdated     int64           `json:"lastUpdated"`
 	}
 
+	storage := api.tb.getStorage()
+
 	response := make([]correlationResponse, len(correlations))
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
-			tags := a.Tags
+			tags := a.Source.Tags
 			if tags == nil {
 				tags = []string{}
 			}
@@ -1058,17 +1103,51 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				Tags:        tags,
 			}
 		}
-		memberIDs := seriesIDsToStrings(c.MemberSeriesIDs)
-		if storage != nil {
-			for k, id := range memberIDs {
-				memberIDs[k] = storage.CompactSeriesID(id)
+
+		// Build ref lookup from anomalies on this correlation.
+		refByKey := make(map[string]*observerdef.QueryHandle)
+		for _, a := range c.Anomalies {
+			if a.SourceRef != nil {
+				refByKey[a.Source.Key()] = a.SourceRef
 			}
+		}
+
+		// Build member series IDs as compact numeric IDs ("42:avg") matching /api/series format.
+		memberIDs := make([]string, len(c.Members))
+		for k, m := range c.Members {
+			if ref, ok := refByKey[m.Key()]; ok {
+				memberIDs[k] = ref.CompactID()
+			} else {
+				// Fallback for cross-namespace detectors (e.g. RRCF)
+				resolved := false
+				if storage != nil {
+					for _, a := range c.Anomalies {
+						if a.Source.Key() == m.Key() && a.DetectorName != "" {
+							telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
+							telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+							if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
+								memberIDs[k] = compactID
+								resolved = true
+							}
+							break
+						}
+					}
+				}
+				if !resolved {
+					memberIDs[k] = m.Key()
+				}
+			}
+		}
+		// Build metric names (name:agg only, no tags) for display.
+		metricNames := make([]string, len(c.Members))
+		for k, m := range c.Members {
+			metricNames[k] = m.String()
 		}
 		response[i] = correlationResponse{
 			Pattern:         c.Pattern,
 			Title:           c.Title,
 			MemberSeriesIDs: memberIDs,
-			MetricNames:     metricNamesToStrings(c.MetricNames),
+			MetricNames:     metricNames,
 			Anomalies:       anomalies,
 			FirstSeen:       c.FirstSeen,
 			LastUpdated:     c.LastUpdated,
@@ -1076,46 +1155,6 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 	}
 
 	api.writeJSON(w, response)
-}
-
-func metricNamesToStrings(names []observerdef.MetricName) []string {
-	out := make([]string, len(names))
-	for i, n := range names {
-		out[i] = string(n)
-	}
-	return out
-}
-
-func seriesIDsToStrings(ids []observerdef.SeriesID) []string {
-	out := make([]string, len(ids))
-	for i, id := range ids {
-		out[i] = string(id)
-	}
-	return out
-}
-
-// handleLeadLag returns lead-lag edges.
-func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, _ *http.Request) {
-	edges, enabled := api.tb.GetLeadLagEdges()
-	if edges == nil {
-		edges = []LeadLagEdge{}
-	}
-	api.writeJSON(w, map[string]interface{}{
-		"enabled": enabled,
-		"edges":   edges,
-	})
-}
-
-// handleSurprise returns surprise edges.
-func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, _ *http.Request) {
-	edges, enabled := api.tb.GetSurpriseEdges()
-	if edges == nil {
-		edges = []SurpriseEdge{}
-	}
-	api.writeJSON(w, map[string]interface{}{
-		"enabled": enabled,
-		"edges":   edges,
-	})
 }
 
 // handleStats returns correlator statistics.
@@ -1208,6 +1247,17 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 		log.Printf("Failed to encode JSON: %v", err)
 		http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
 	}
+}
+
+// handleBenchmark returns replay statistics (per-detector processing times and
+// input volume counts) computed from the last replay run.
+func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
+	stats := api.tb.GetReplayStats()
+	if stats == nil {
+		api.writeJSON(w, &ReplayStats{DetectorStats: map[string]DetectorProcessingStats{}})
+		return
+	}
+	api.writeJSON(w, stats)
 }
 
 // writeError writes an error response.
