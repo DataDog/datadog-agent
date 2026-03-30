@@ -281,6 +281,45 @@ func (pc *PatternClusterer) GetCluster(id int64) (*Cluster, error) {
 	return nil, fmt.Errorf("cluster %d not found", id)
 }
 
+// RemoveCluster removes the cluster with the given id from the clusterer.
+// It updates both the flat list and the per-signature index. Returns an error
+// if no cluster with that id exists.
+func (pc *PatternClusterer) RemoveCluster(id int64) error {
+	idx := -1
+	for i, c := range pc.allClusters {
+		if c.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return fmt.Errorf("cluster %d not found", id)
+	}
+	c := pc.allClusters[idx]
+	sig := c.Signature
+
+	last := len(pc.allClusters) - 1
+	pc.allClusters[idx] = pc.allClusters[last]
+	pc.allClusters[last] = nil
+	pc.allClusters = pc.allClusters[:last]
+
+	slice := pc.clustersBySignature[sig]
+	for j, cl := range slice {
+		if cl.ID == id {
+			slice[j] = slice[len(slice)-1]
+			slice[len(slice)-1] = nil
+			slice = slice[:len(slice)-1]
+			if len(slice) == 0 {
+				delete(pc.clustersBySignature, sig)
+			} else {
+				pc.clustersBySignature[sig] = slice
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("cluster %d: internal index inconsistency for signature %q", id, sig)
+}
+
 // canMergeTokenLists checks if two token lists can be merged.
 // It requires that all token pairs be type-compatible AND that at least
 // half of the tokens match by value (Drain-style similarity threshold).

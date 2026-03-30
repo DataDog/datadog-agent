@@ -518,6 +518,43 @@ func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
 	}
 }
 
+func TestPatternClustererRemoveCluster(t *testing.T) {
+	pc := NewPatternClusterer(IDComputeInfo{Offset: 10, Stride: 1, Index: 0})
+	a, _ := pc.ProcessAt("[stats] total:889 rps:14.82", 100)
+	b, _ := pc.ProcessAt("new connection: 234", 200)
+	if pc.NumClusters() != 2 {
+		t.Fatalf("expected 2 clusters, got %d", pc.NumClusters())
+	}
+
+	if err := pc.RemoveCluster(99999); err == nil {
+		t.Fatal("expected error removing missing cluster id")
+	}
+
+	if err := pc.RemoveCluster(a.ID); err != nil {
+		t.Fatalf("RemoveCluster: %v", err)
+	}
+	if pc.NumClusters() != 1 {
+		t.Fatalf("expected 1 cluster after removal, got %d", pc.NumClusters())
+	}
+	if _, err := pc.GetCluster(a.ID); err == nil {
+		t.Fatal("expected GetCluster to fail for removed id")
+	}
+	if c, err := pc.GetCluster(b.ID); err != nil || c != b {
+		t.Fatalf("remaining cluster: err=%v c=%v b=%v", err, c, b)
+	}
+	clusters := pc.GetClusters()
+	if len(clusters) != 1 || clusters[0].ID != b.ID {
+		t.Fatalf("GetClusters: %v", clusters)
+	}
+
+	if err := pc.RemoveCluster(b.ID); err != nil {
+		t.Fatalf("second RemoveCluster: %v", err)
+	}
+	if pc.NumClusters() != 0 {
+		t.Fatalf("expected 0 clusters, got %d", pc.NumClusters())
+	}
+}
+
 func TestIDComputeInfo(t *testing.T) {
 	idComputeInfo := IDComputeInfo{Offset: 1, Stride: 2, Index: 0}
 	if idComputeInfo.NextID() != 1 {
