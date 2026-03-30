@@ -109,7 +109,7 @@ func TestWebSocketTest(t *testing.T) {
 			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Verify the reconnection counter header is present and zero on
 				// the first (and only) connection in these tests.
-				assert.Equal("0", r.Header.Get("X-Echo-Reconnections"))
+				assert.Equal("1", r.Header.Get("X-Echo-Run-Count"))
 
 				// Attempt to upgrade the HTTP connection into a WebSocket
 				// connection.
