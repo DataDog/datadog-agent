@@ -729,14 +729,10 @@ new-e2e-apm:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - job: deploy_windows_testing-a7
-      optional: true
     - deploy_installer_oci
     - deploy_agent_oci
     - deploy_ddot_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TEAM: fleet
     E2E_USE_AWS_PROFILE: "false"
@@ -746,7 +742,7 @@ new-e2e-apm:
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
   variables:
-    EXTRA_PARAMS: --run TestFleetConfig
+    EXTRA_PARAMS: --run "^TestFleetConfig$"
 
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
@@ -756,7 +752,7 @@ new-e2e-fleet-upgrade:
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
   variables:
-    EXTRA_PARAMS: --run TestFleetExtensions
+    EXTRA_PARAMS: --run "^TestFleetExtensions$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
@@ -794,13 +790,9 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - job: deploy_windows_testing-a7
-      optional: true
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
     - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
@@ -823,12 +815,8 @@ new-e2e-installer-ansible:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - job: deploy_windows_testing-a7
-      optional: true
     - deploy_installer_oci
     - deploy_agent_oci
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet

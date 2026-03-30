@@ -41,7 +41,11 @@ func newExtensionsSuite() e2e.Suite[environments.Host] {
 }
 
 func TestFleetExtensions(t *testing.T) {
-	suite.Run(t, newExtensionsSuite, suite.Platforms())
+	suite.Run(t, newExtensionsSuite, suite.LinuxPlatforms)
+}
+
+func TestFleetExtensionsWindows(t *testing.T) {
+	suite.Run(t, newExtensionsSuite, suite.WindowsPlatforms)
 }
 
 func (s *extensionsSuite) SetupSuite() {
