@@ -46,7 +46,7 @@ type RunOption = func(*RunParams) error
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
 		Name:                defaultKindName,
-		vmOptions:           []ec2.VMOption{},
+		vmOptions:           []ec2.VMOption{ec2.WithOS(os.Ubuntu2204K8s)},
 		agentOptions:        nil, // nil by default - Agent is only deployed when options are explicitly provided
 		fakeintakeOptions:   []fakeintake.Option{},
 		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
