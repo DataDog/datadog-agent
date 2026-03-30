@@ -72,12 +72,17 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 					example = a.Context.Example
 				}
 				// TODO(celian): When this will be split by tags, add tags to the description. Then be sure that we don't have twice (pattern, tags) tuples
-				// TODO(celian): Add more context like rate before / rate after...
-				logDescription := fmt.Sprintf("Log pattern change rate detected: %s\t(log example: %s)", pattern, example)
+				var ratePart string
+				if a.DebugInfo != nil {
+					ratePart = fmt.Sprintf("\tcurrent rate: %.1flog/s", a.DebugInfo.CurrentValue)
+				} else {
+					ratePart = "\tcurrent rate: unknown"
+				}
+				logDescription := fmt.Sprintf("Log pattern change rate detected: %s\tlog example: %s%s", pattern, example, ratePart)
 				logLines = append(logLines, "- "+logDescription)
+			} else {
+				metricLines = append(metricLines, "- "+a.Description)
 			}
-
-			metricLines = append(metricLines, "- "+a.Description)
 		}
 	}
 	var sections []string
