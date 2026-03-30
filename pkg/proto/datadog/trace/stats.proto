@@ -103,4 +103,9 @@ message ClientGroupedStats {
 	string GRPC_status_code = 18;
 	string HTTP_method = 19; // HTTP method of the request
 	string HTTP_endpoint = 20; // Http route or quantized/simplified URL path
+	string service_source = 21; // @inject_tag: msg:"srv_src"
+	// used to identify service override origin
+	// span_derived_primary_tags are user-configured tags that are extracted from spans and used for stats aggregation
+	// E.g., `aws.s3.bucket`, `http.url`, or any custom tag
+	repeated string span_derived_primary_tags = 22;
 }

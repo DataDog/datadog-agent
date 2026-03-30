@@ -18,8 +18,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -48,7 +49,7 @@ func main() {
 
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
-	err = pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, nil)
+	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil)
 	if err != nil {
 		log.Warnf("Failed to load the configuration: %v", err)
 		execOrExit(os.Environ(), fullPath)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPromCounterInitializer(t *testing.T) {
@@ -41,18 +42,12 @@ func TestPromCounterInitializer(t *testing.T) {
 	counter.InitializeToZero("mycheck", "mystate")
 
 	endMetrics, err := promTelemetry.Gather()
-	if !assert.NoError(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
-	if !assert.Equal(t, len(endMetrics), 1) {
-		return
-	}
+	require.Len(t, endMetrics, 1)
 
 	metricFamily := endMetrics[0]
-	if !assert.Equal(t, len(metricFamily.GetMetric()), 1) {
-		return
-	}
+	require.Len(t, metricFamily.GetMetric(), 1)
 
 	assert.Equal(t, metricFamily.GetName(), "subsystem_test")
 

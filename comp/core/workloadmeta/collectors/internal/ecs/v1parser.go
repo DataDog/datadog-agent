@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
@@ -57,7 +58,7 @@ func (c *collector) parseTasksFromV1Endpoint(ctx context.Context) ([]workloadmet
 			Version:              task.Version,
 			Region:               taskRegion,
 			AWSAccountID:         taskAccountID,
-			LaunchType:           workloadmeta.ECSLaunchTypeEC2,
+			LaunchType:           ecsLaunchTypeFromEnv(),
 			Containers:           taskContainers,
 		}
 
@@ -145,6 +146,16 @@ func (c *collector) parseTaskContainers(
 	}
 
 	return taskContainers, events
+}
+
+// ecsLaunchTypeFromEnv infers the ECS launch type from the environment. The v1
+// introspection endpoint does not include a LaunchType field, so we probe the
+// detected features instead of hardcoding EC2.
+func ecsLaunchTypeFromEnv() workloadmeta.ECSLaunchType {
+	if env.IsFeaturePresent(env.ECSManagedInstances) {
+		return workloadmeta.ECSLaunchTypeManagedInstances
+	}
+	return workloadmeta.ECSLaunchTypeEC2
 }
 
 // getResourceTags fetches task and container instance tags from the ECS API,

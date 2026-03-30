@@ -9,7 +9,6 @@ package uploader
 
 import (
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -19,14 +18,16 @@ const (
 	defaultMaxBatchItems     = 1024
 	defaultMaxBatchSizeBytes = 1 * 1024 * 1024 // 1MB
 	defaultMaxBufferDuration = 100 * time.Millisecond
+	defaultSendTimeout       = 60 * time.Second
 )
 
 type config struct {
 	batcherConfig
 	client *http.Client
-	url    *url.URL
 	// Key-value pairs to be added to all upload HTTP requests as headers.
 	headers [][2]string
+	// The timeout for sending a batch of messages.
+	sendTimeout time.Duration
 }
 
 type batcherConfig struct {
@@ -40,8 +41,8 @@ type batcherConfig struct {
 
 func defaultConfig() config {
 	return config{
-		client: http.DefaultClient,
-		url:    nil,
+		client:      http.DefaultClient,
+		sendTimeout: defaultSendTimeout,
 
 		batcherConfig: batcherConfig{
 			maxBatchItems:     defaultMaxBatchItems,
@@ -58,13 +59,6 @@ type Option func(*config)
 func WithClient(client *http.Client) Option {
 	return func(c *config) {
 		c.client = client
-	}
-}
-
-// WithURL sets the URL for the uploader.
-func WithURL(u *url.URL) Option {
-	return func(c *config) {
-		c.url = u
 	}
 }
 
@@ -86,5 +80,11 @@ func WithMaxBatchSizeBytes(maxSizeBytes int) Option {
 func WithMaxBufferDuration(d time.Duration) Option {
 	return func(c *config) {
 		c.batcherConfig.maxBufferDuration = d
+	}
+}
+
+func WithSendTimeout(d time.Duration) Option {
+	return func(c *config) {
+		c.sendTimeout = d
 	}
 }

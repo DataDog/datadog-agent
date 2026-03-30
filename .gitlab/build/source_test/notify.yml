@@ -13,7 +13,8 @@ unit_tests_notify:
   needs:
     - tests_linux-x64-py3
     - tests_linux-arm64-py3
-    - tests_windows-x64
+    - job: tests_windows-x64
+      optional: true
     - tests_flavor_iot_linux-x64
     - tests_flavor_dogstatsd_linux-x64
     - tests_flavor_heroku_linux-x64

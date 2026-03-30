@@ -99,7 +99,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
     }
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
-    set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
+    set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     if (retval && !syscall->mkdir.file.path_key.ino) {
         syscall->mkdir.file.path_key.mount_id = 0; // do not try resolving the path

@@ -58,7 +58,7 @@ api_key: ENC[api_key]
 
 	// Status command shows that original API Key is in use
 	status := v.Env().Agent.Client.Status()
-	assert.Contains(v.T(), status.Content, "API key ending with 23456")
+	assert.Contains(v.T(), status.Content, "API key ending with 3456")
 
 	// Change the api key in the secret backend, and refresh it in the Agent
 	secretClient.SetSecret("api_key", secondAPIKey)
@@ -66,15 +66,17 @@ api_key: ENC[api_key]
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// Assert that the status command shows the new API Key
-	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assert.Contains(t, status.Content, "API key ending with vwxyz")
+		status = v.Env().Agent.Client.Status()
+		assert.Contains(t, status.Content, "API key ending with wxyz")
 	}, 1*time.Minute, 10*time.Second)
 
-	// Assert that the fakeIntake has received the API Key
-	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
-	assert.NoError(v.T(), err)
-	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
+	// Assert that the fakeIntake has received the new API Key
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
+		assert.NoError(t, err)
+		assert.Equal(t, secondAPIKey, lastAPIKey)
+	}, 1*time.Minute, 10*time.Second)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
@@ -131,11 +133,11 @@ additional_endpoints:
 	status := v.Env().Agent.Client.Status()
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assert.Contains(t, status.Content, "API key ending with 12345")
+		assert.Contains(t, status.Content, "API key ending with 2345")
 		assert.Contains(t, status.Content, `intake - API Keys ending with:
-      - 12345`)
+      - 2345`)
 		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
-      - 12345`)
+      - 2345`)
 	}, 1*time.Minute, 10*time.Second)
 
 	// Update secrets in the backend
@@ -158,11 +160,11 @@ additional_endpoints:
 	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		// Check main API key
-		assert.Contains(t, status.Content, "API key ending with 54321")
+		assert.Contains(t, status.Content, "API key ending with 4321")
 
 		assert.Contains(t, status.Content, `intake - API Keys ending with:
-      - 54321`)
+      - 4321`)
 		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
-      - 54321`)
+      - 4321`)
 	}, 1*time.Minute, 10*time.Second)
 }

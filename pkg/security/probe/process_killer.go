@@ -241,6 +241,12 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 		defer report.Unlock()
 
 		if report.Pid == event.ProcessContext.Pid {
+			if report.Scope == "process" {
+				if report.Status == KillActionStatusQueued {
+					// The process exited before the kill was performed
+					report.Status = KillActionStatusKillAborted
+				}
+			}
 			report.ExitedAt = event.ProcessContext.ExitTime
 			report.resolved = true
 			return true
@@ -275,32 +281,32 @@ func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
 	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
 }
 
-// KillAndReport kill and report, returns true if we did try to kill
-func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Rule, ev *model.Event) bool {
+// KillAndReport kill and report, returns true if we did try to kill and the report
+func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Rule, ev *model.Event) (bool, *KillActionReport) {
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
-		return false
+		return false, nil
 	}
 
 	if !p.isRuleAllowed(rule) {
 		log.Warnf("unable to kill, the source is not allowed: %v", rule)
-		return false
+		return false, nil
 	}
 
 	entry, exists := ev.ResolveProcessCacheEntry(nil)
 	if !exists {
-		return false
+		return false, nil
 	}
 
 	scope := "process"
 	switch kill.Scope {
-	case "container", "process":
+	case "container", "process", "cgroup":
 		scope = kill.Scope
 	}
 
 	// if a rule with a kill container scope is triggered outside a container,
 	// don't kill anything
 	if ev.ProcessContext.Process.ContainerContext.IsNull() && scope == "container" {
-		return false
+		return false, nil
 	}
 	containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
 
@@ -314,7 +320,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		}
 		p.ruleDisarmersLock.Unlock()
 
-		onActionBlockedByDisarmer := func(dt disarmerType, dismantled bool) {
+		onActionBlockedByDisarmer := func(dt disarmerType, dismantled bool) *KillActionReport {
 			report := &KillActionReport{
 				Scope:        scope,
 				Signal:       kill.Signal,
@@ -324,6 +330,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				Pid:          ev.ProcessContext.Pid,
 				rule:         rule,
 			}
+			if !ev.ProcessContext.Process.ContainerContext.IsNull() {
+				report.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+				report.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+			}
 			if dismantled {
 				report.Status = KillActionStatusRuleDismantled
 				seclog.Warnf("skipping kill action of rule `%s` because it has been dismantled", rule.ID)
@@ -332,6 +342,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
 			}
 			ev.ActionReports = append(ev.ActionReports, report)
+			return report
 		}
 
 		if disarmer.container.enabled {
@@ -361,8 +372,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 					p.KillQueuedPidsAndSetNextAlarm()
 				}
 				if !allow {
-					onActionBlockedByDisarmer(containerDisarmerType, disarmer.dismantled)
-					return false
+					report := onActionBlockedByDisarmer(containerDisarmerType, disarmer.dismantled)
+					return false, report
 				}
 			}
 		}
@@ -394,8 +405,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				p.KillQueuedPidsAndSetNextAlarm()
 			}
 			if !allow {
-				onActionBlockedByDisarmer(executableDisarmerType, disarmer.dismantled)
-				return false
+				report := onActionBlockedByDisarmer(containerDisarmerType, disarmer.dismantled)
+				return false, report
 			}
 		}
 	}
@@ -403,13 +414,13 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	pcs, err := p.os.getProcesses(scope, ev, entry)
 	if err != nil {
 		log.Errorf("unable to kill: %s", err)
-		return false
+		return false, nil
 	}
 
 	// if one pids is not allowed don't kill anything
 	if killAllowed, err := p.isKillAllowed(pcs); !killAllowed {
 		log.Warnf("unable to kill: %v", err)
-		return false
+		return false, nil
 	}
 
 	sig := model.SignalConstants[kill.Signal]
@@ -421,6 +432,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		DetectedAt: ev.ResolveEventTime(),
 		Pid:        ev.ProcessContext.Pid,
 		rule:       rule,
+	}
+	if !ev.ProcessContext.Process.ContainerContext.IsNull() {
+		report.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+		report.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 	}
 
 	if disarmer != nil && p.warmupEnqueued(disarmer, sig, pcs) {
@@ -434,7 +449,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		stats := p.getRuleStats(rule.ID)
 		stats.killQueued++
 		p.perRuleStatsLock.Unlock()
-		return false
+		return false, report
 	}
 
 	now := time.Now() // get the current time now to make sure it precedes the any process exit time
@@ -456,7 +471,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	p.Lock()
 	p.pendingReports = append(p.pendingReports, report)
 	p.Unlock()
-	return true
+	return true, report
 }
 
 // KillProcesses kills the given list of processes, returns the list of pids that failed to be killed (nil if everything went well)
@@ -620,6 +635,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 		killQueue := time.NewTicker(killQueueTicker)
 
 		defer ticker.Stop()
+		defer killQueue.Stop()
 		state := stopped
 		for {
 			switch state {

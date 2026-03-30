@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -289,8 +290,8 @@ func (s *testRepairSuite) TestRepair() {
 	// initialize test helper
 	t := s.newTester(vm)
 
-	// install the agent
-	_ = s.installAgentPackage(vm, s.AgentPackage)
+	// install the agent - skip procdump since this test deletes agent files
+	_ = s.installAgentPackageWithOptions(vm, s.AgentPackage, []PackageInstallOption{WithSkipProcdump()})
 	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
@@ -423,16 +424,10 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	var boundPort boundport.BoundPort
 	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
 		pid, err := windowsCommon.GetServicePID(vm, "DatadogAgent")
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
 		boundPort, err = common.GetBoundPort(vm, "tcp", cmdPort)
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.NotNil(c, boundPort, "port tcp/%d should be bound", cmdPort) {
-			return
-		}
+		require.NoError(c, err)
+		require.NotNil(c, boundPort, "port tcp/%d should be bound", cmdPort)
 		assert.Equalf(c, pid, boundPort.PID(), "port tcp/%d should be bound by the agent", cmdPort)
 	}, 1*time.Minute, 500*time.Millisecond, "port tcp/%d should be bound by the agent", cmdPort)
 	s.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")

@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -91,10 +92,11 @@ func (c *Check) Configure(
 	data integration.Data,
 	initConfig integration.Data,
 	source string,
+	provider string,
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
@@ -153,6 +155,11 @@ func (c *Check) Run() error {
 	if c.clusterID == "" {
 		clusterID, err := clustername.GetClusterID()
 		if err != nil {
+			// Check if this is a temporary retry error from cluster agent client
+			if retry.IsErrWillRetry(err) {
+				log.Warnf("Cluster Agent not ready yet, skipping orchestrator_pod check run: %s", err)
+				return nil
+			}
 			return err
 		}
 		c.clusterID = clusterID

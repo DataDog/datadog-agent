@@ -8,7 +8,8 @@
 package collectors
 
 import (
-	"github.com/pkg/errors"
+	"errors"
+	"fmt"
 )
 
 var (
@@ -19,11 +20,11 @@ var (
 
 // NewListingError creates an error that wraps the cause of a listing failure.
 func NewListingError(cause error) error {
-	return errors.WithMessage(cause, "unable to list resources")
+	return fmt.Errorf("unable to list resources: %w", cause)
 }
 
 // NewProcessingError creates an error that wraps the cause of a processing
 // failure.
 func NewProcessingError(cause error) error {
-	return errors.WithMessage(cause, "unable to process resources")
+	return fmt.Errorf("unable to process resources: %w", cause)
 }

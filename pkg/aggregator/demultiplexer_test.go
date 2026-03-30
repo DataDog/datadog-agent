@@ -64,6 +64,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment
+	// we need to unset the KUBERNETES_SERVICE_PORT env var to simulate a non-k8s environment
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
 
 	opts := demuxTestOptions()
 
@@ -74,7 +76,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found := deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -87,7 +89,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -100,7 +102,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -108,8 +110,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
-	cfg.SetWithoutSource("clc_runner_enabled", true)
-	cfg.SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
@@ -120,6 +121,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(demux)
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 

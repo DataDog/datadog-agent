@@ -15,9 +15,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
+
+func TestECSLaunchTypeFromEnvEC2(t *testing.T) {
+	launchType := ecsLaunchTypeFromEnv()
+	assert.Equal(t, workloadmeta.ECSLaunchTypeEC2, launchType)
+}
+
+func TestECSLaunchTypeFromEnvManagedInstances(t *testing.T) {
+	env.SetFeatures(t, env.ECSManagedInstances)
+	launchType := ecsLaunchTypeFromEnv()
+	assert.Equal(t, workloadmeta.ECSLaunchTypeManagedInstances, launchType)
+}
 
 // TestPullWithV1Parser tests the collector's Pull method by setting the taskCollectionParser to parseTasksFromV1Endpoint
 // which is the default parser when other metadata endpoints are not available.
