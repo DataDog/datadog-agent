@@ -40,6 +40,18 @@ var percentileQuantiles = []struct {
 }
 
 // processStatsView processes a TraceStatsView and emits derived metrics via ObserveMetric.
+//
+// Metric names follow the Datadog backend convention where the span operation
+// name is embedded in the metric name:
+//
+//	trace.{operation}.hits
+//	trace.{operation}.errors
+//	trace.{operation}.duration
+//	trace.{operation}.p50 … .p99       (ok latency percentiles)
+//	trace.{operation}.error.p50 … .p99 (error latency percentiles)
+//
+// The operation tag is intentionally omitted from the tag set because the
+// operation is already encoded in the metric name.
 func processStatsView(handle observerdef.Handle, stats observerdef.TraceStatsView) {
 	agentHostname := stats.GetAgentHostname()
 	agentEnv := stats.GetAgentEnv()
@@ -51,16 +63,22 @@ func processStatsView(handle observerdef.Handle, stats observerdef.TraceStatsVie
 		timestampUnix := int64(row.GetBucketStartUnixNano() / 1e9)
 		tags := buildStatsTagsFromRow(agentHostname, agentEnv, row)
 
-		handle.ObserveMetric(&statsMetricView{name: "trace.hits", value: float64(row.GetHits()), tags: tags, timestampUnix: timestampUnix})
-		handle.ObserveMetric(&statsMetricView{name: "trace.errors", value: float64(row.GetErrors()), tags: tags, timestampUnix: timestampUnix})
-		handle.ObserveMetric(&statsMetricView{name: "trace.duration", value: float64(row.GetDurationNano()), tags: tags, timestampUnix: timestampUnix})
-		handle.ObserveMetric(&statsMetricView{name: "trace.top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestampUnix: timestampUnix})
+		opName := row.GetName()
+		if opName == "" {
+			opName = "unknown"
+		}
+		metricPrefix := "trace." + opName
+
+		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".hits", value: float64(row.GetHits()), tags: tags, timestampUnix: timestampUnix})
+		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".errors", value: float64(row.GetErrors()), tags: tags, timestampUnix: timestampUnix})
+		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".duration", value: float64(row.GetDurationNano()), tags: tags, timestampUnix: timestampUnix})
+		handle.ObserveMetric(&statsMetricView{name: metricPrefix + ".top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestampUnix: timestampUnix})
 
 		if okSummary := row.GetOkSummary(); len(okSummary) > 0 {
-			emitPercentiles(handle, "trace.latency.ok", okSummary, tags, timestampUnix)
+			emitPercentiles(handle, metricPrefix, okSummary, tags, timestampUnix)
 		}
 		if errSummary := row.GetErrorSummary(); len(errSummary) > 0 {
-			emitPercentiles(handle, "trace.latency.error", errSummary, tags, timestampUnix)
+			emitPercentiles(handle, metricPrefix+".error", errSummary, tags, timestampUnix)
 		}
 	}
 }
@@ -114,9 +132,9 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 	if row.GetService() != "" {
 		tags = append(tags, "service:"+row.GetService())
 	}
-	if row.GetName() != "" {
-		tags = append(tags, "operation:"+row.GetName())
-	}
+	// operation tag intentionally omitted: the operation name is embedded in
+	// the metric name (trace.{operation}.hits, etc.) matching the Datadog
+	// backend convention.
 	if row.GetResource() != "" {
 		tags = append(tags, "resource:"+quantizeResource(row.GetResource()))
 	}
