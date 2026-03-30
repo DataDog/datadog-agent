@@ -107,6 +107,8 @@ def submit_gensim_eks(
             entries = json.loads(manifest_path.read_text())
         except json.JSONDecodeError as e:
             raise Exit(f"Failed to parse episode manifest: {e}") from e
+        if not isinstance(entries, list):
+            raise Exit(f"Episode manifest must be a JSON array, got {type(entries).__name__}.")
         for entry in entries:
             ep_name = entry.get("episode", "").strip()
             scen_name = entry.get("scenario", "").strip()
@@ -144,18 +146,22 @@ def submit_gensim_eks(
         if pinned_sha:
             rel_path = ep_dir.relative_to(gensim_repo_path)
             sha_buf = StringIO()
-            ctx.run(
+            result = ctx.run(
                 f"git -C {gensim_repo_path} rev-parse HEAD:{rel_path}",
                 out_stream=sha_buf,
                 hide="out",
+                warn=True,
             )
-            actual_sha = sha_buf.getvalue().strip()
-            if actual_sha != pinned_sha:
-                tool.warn(
-                    f"Episode '{ep_name}' has changed since the manifest was pinned "
-                    f"(expected {pinned_sha[:12]}, got {actual_sha[:12]}). "
-                    f"Results may not be comparable to previous runs."
-                )
+            if not result or not result.ok:
+                tool.warn(f"Could not resolve SHA for '{ep_name}' (directory may have moved). Skipping SHA check.")
+            else:
+                actual_sha = sha_buf.getvalue().strip()
+                if actual_sha != pinned_sha:
+                    tool.warn(
+                        f"Episode '{ep_name}' has changed since the manifest was pinned "
+                        f"(expected {pinned_sha[:12]}, got {actual_sha[:12]}). "
+                        f"Results may not be comparable to previous runs."
+                    )
 
     # ── 3. Capture gensim-episodes git SHA ────────────────────────────────
     sha_buf = StringIO()
