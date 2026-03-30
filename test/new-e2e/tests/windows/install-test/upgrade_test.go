@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// TestUpgrade tests upgrading the agent from LAST_STABLE_VERSION to WINDOWS_AGENT_VERSION
+// TestUpgrade tests upgrading the agent from the stable version to the current version
 func TestUpgrade(t *testing.T) {
 	s := &testUpgradeSuite{}
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
@@ -73,7 +73,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	s.uninstallAgentAndRunUninstallTests(t)
 }
 
-// TestUpgrade tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestUpgradeFromLatest tests upgrading the agent from the current version to the upgrade-test version
 func TestUpgradeFromLatest(t *testing.T) {
 	s := &testUpgradeFromLatestSuite{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -182,7 +182,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	s.uninstallAgent()
 }
 
-// TestUpgradeRollbackWithoutCWS tests that when upgrading the agent from X.51 to WINDOWS_AGENT_VERSION
+// TestUpgradeRollbackWithoutCWS tests that when upgrading the agent from X.51 to CURRENT_AGENT_VERSION
 // rolls back, that the ddprocmon service is not installed.
 func TestUpgradeRollbackWithoutCWS(t *testing.T) {
 	s := &testUpgradeRollbackWithoutCWSSuite{}
@@ -200,7 +200,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) SetupSuite() {
 	}
 
 	// CWS was GA in X.52, so start by installing X.51
-	// match X to the major version from WINDOWS_AGENT_VERSION
+	// match X to the major version from CURRENT_AGENT_VERSION
 	var err error
 	majorVersion := strings.Split(s.AgentPackage.Version, ".")[0]
 	s.previousAgentPackage = &windowsAgent.Package{
@@ -339,7 +339,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	s.uninstallAgentAndRunUninstallTests(t)
 }
 
-// TestUpgradeFromV5 tests upgrading from Agent 5 to WINDOWS_AGENT_VERSION
+// TestUpgradeFromV5 tests upgrading from Agent 5 to CURRENT_AGENT_VERSION
 func TestUpgradeFromV5(t *testing.T) {
 	var err error
 	s := &testUpgradeFromV5Suite{}
@@ -430,7 +430,7 @@ func (s *testUpgradeFromV5Suite) migrateAgent5Config() {
 	s.Require().Contains(out, "Success: imported the contents of", "migrate agent 5 config should succeed")
 }
 
-// TestUpgradeFromV6 tests upgrading from Agent 6 to WINDOWS_AGENT_VERSION
+// TestUpgradeFromV6 tests upgrading from Agent 6 to CURRENT_AGENT_VERSION
 func TestUpgradeFromV6(t *testing.T) {
 	var err error
 	s := &testUpgradeSuite{}

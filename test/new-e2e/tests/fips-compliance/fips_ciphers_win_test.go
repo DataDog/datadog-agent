@@ -9,7 +9,6 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -81,10 +80,7 @@ func (s *fipsServerWinSuite) SetupSuite() {
 	// NOTE: Installing the Agent manually instead of using the Agent component
 	// to make devloops easier, as the Agent component does not support
 	// installing locally built packages.
-	if _, set := windowsAgent.LookupFlavorFromEnv(); !set {
-		os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
-	}
-	agentPackage, err := windowsAgent.GetPackageFromEnv()
+	agentPackage, err := windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))
 	require.NoError(s.T(), err)
 	s.T().Logf("Using Agent: %#v", agentPackage)
 	logFile := filepath.Join(s.SessionOutputDir(), "install.log")
