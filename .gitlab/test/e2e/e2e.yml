@@ -639,7 +639,7 @@ new-e2e-usm:
   variables:
     TARGETS: ./tests/usm
     EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
-    TEAM: cloud-network-monitoring
+    TEAM: universal-service-monitoring
 
 new-e2e-discovery:
   extends: .new_e2e_template

@@ -7,7 +7,6 @@ package usm
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -25,7 +24,6 @@ type pythonRemoteTagsLinuxSuite struct {
 
 func TestPythonRemoteTagsLinuxSuite(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skip until lower connection capture rate on Linux is resolved")
 
 	e2eParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
@@ -57,12 +55,8 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 	host.MustExecute("nohup python3 /tmp/httpserver.py 8081 > /tmp/http8081.log 2>&1 </dev/null &")
 	host.MustExecute("nohup python3 /tmp/httpserver.py 8082 > /tmp/http8082.log 2>&1 </dev/null &")
 
-	time.Sleep(2 * time.Second)
-
-	_, err = host.Execute(`python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/')"`)
-	require.NoError(s.T(), err, "HTTP server on port 8081 not responding")
-	_, err = host.Execute(`python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8082/')"`)
-	require.NoError(s.T(), err, "HTTP server on port 8082 not responding")
+	waitForHTTPServer(s.T(), host, `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:%d/')"`, 8081)
+	waitForHTTPServer(s.T(), host, `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:%d/')"`, 8082)
 }
 
 func (s *pythonRemoteTagsLinuxSuite) BeforeTest(suiteName, testName string) {
@@ -91,7 +85,6 @@ type pythonRemoteTagsDirectLinuxSuite struct {
 
 func TestPythonRemoteTagsDirectLinuxSuite(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skip until lower connection capture rate on Linux is resolved")
 
 	e2eParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(

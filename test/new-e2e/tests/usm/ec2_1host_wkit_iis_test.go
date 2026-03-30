@@ -6,6 +6,7 @@
 package usm
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -89,10 +90,26 @@ func (s *iisRemoteTagsSuite) SetupSuite() {
 
 	// Restart the agent so system-probe's IIS ETW provider initializes
 	// now that IIS is installed. In CI the agent was started before IIS.
-	host.MustExecute("Stop-Service datadogagent -Force")
-	time.Sleep(5 * time.Second)
-	host.MustExecute("Start-Service datadogagent")
-	time.Sleep(15 * time.Second)
+	host.MustExecute("Restart-Service datadogagent -Force")
+	require.Eventually(s.T(), func() bool {
+		out, err := host.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" "status"`)
+		return err == nil && out != ""
+	}, 60*time.Second, 5*time.Second, "agent did not become ready after restart")
+
+	// Wait for system-probe's ETW provider to initialize by sending a probe
+	// request to IIS and polling the IIS tags cache until it's populated.
+	// Without this, traffic sent before ETW is ready won't get IIS tags.
+	require.Eventually(s.T(), func() bool {
+		// Send a single request to IIS to trigger ETW capture.
+		host.Execute(`Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:8081/" -ErrorAction SilentlyContinue`)
+		// Check if the IIS tags cache has entries.
+		out, err := host.Execute(`Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:3333/network_tracer/iis_tags" | Select-Object -ExpandProperty Content`)
+		if err != nil || out == "" {
+			return false
+		}
+		trimmed := strings.TrimSpace(out)
+		return trimmed != "" && trimmed != "{}" && trimmed != "null"
+	}, 90*time.Second, 5*time.Second, "IIS tags cache not populated — ETW provider may not have initialized")
 
 	// In CI, the provisioner installs the agent built from the current branch.
 	// For local dev, uncomment to deploy locally-built binaries:
@@ -122,15 +139,19 @@ func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 
 	// Step 1: send 1000 connections to site A (port 8081), hold 20s, then verify.
 	sendWindowsKeepAliveRequestsToPort(host, 8081, count, 20)
-	time.Sleep(30 * time.Second)
 
-	cnx, err := s.Env().FakeIntake.Client().GetConnections()
-	require.NoError(t, err, "GetConnections() error")
-	require.NotNil(t, cnx, "GetConnections() returned nil")
+	var statsA connectionStats
+	require.Eventually(t, func() bool {
+		cnx, err := s.Env().FakeIntake.Client().GetConnections()
+		if err != nil || cnx == nil {
+			return false
+		}
+		statsA = getConnectionStats(t, cnx, "http.iis.sitename:")
+		return statsA.connsByPort[8081] >= count
+	}, 90*time.Second, 5*time.Second, "timed out waiting for siteA connections on port 8081")
 
-	stats := getConnectionStats(t, cnx, "http.iis.sitename:")
-	assertTaggedConnectionsOnPort(t, stats, "siteA", 8081, count)
-	assert.True(t, stats.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
+	assertTaggedConnectionsOnPort(t, statsA, "siteA", 8081, count)
+	assert.True(t, statsA.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
 		"siteA: port 8081 should be tagged with DatadogTestSiteA")
 
 	// Step 2: quickly send 1000 connections to site B (port 8082).
@@ -138,14 +159,18 @@ func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 	// cache key replacement (entries have a 2-minute TTL).
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	sendWindowsKeepAliveRequestsToPort(host, 8082, count, 20)
-	time.Sleep(30 * time.Second)
 
-	cnx, err = s.Env().FakeIntake.Client().GetConnections()
-	require.NoError(t, err, "GetConnections() error")
-	require.NotNil(t, cnx, "GetConnections() returned nil")
+	var statsB connectionStats
+	require.Eventually(t, func() bool {
+		cnx, err := s.Env().FakeIntake.Client().GetConnections()
+		if err != nil || cnx == nil {
+			return false
+		}
+		statsB = getConnectionStats(t, cnx, "http.iis.sitename:")
+		return statsB.connsByPort[8082] >= count
+	}, 90*time.Second, 5*time.Second, "timed out waiting for siteB connections on port 8082")
 
-	stats = getConnectionStats(t, cnx, "http.iis.sitename:")
-	assertTaggedConnectionsOnPort(t, stats, "siteB", 8082, count)
-	assert.True(t, stats.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
+	assertTaggedConnectionsOnPort(t, statsB, "siteB", 8082, count)
+	assert.True(t, statsB.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
 		"siteB: port 8082 should be tagged with DatadogTestSiteB")
 }

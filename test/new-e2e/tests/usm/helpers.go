@@ -21,6 +21,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// waitForHTTPServer polls until the HTTP server on the given port responds.
+// checkCmd is the platform-specific command to probe the server (e.g. curl or Invoke-WebRequest).
+func waitForHTTPServer(t *testing.T, host *components.RemoteHost, checkCmd string, port int) {
+	t.Helper()
+	cmd := fmt.Sprintf(checkCmd, port)
+	require.Eventually(t, func() bool {
+		_, err := host.Execute(cmd)
+		return err == nil
+	}, 30*time.Second, 2*time.Second, "HTTP server on port %d not responding", port)
+}
+
 // httpServerScript is a minimal HTTP server using only the socket module.
 // It supports keep-alive connections and is used on both Linux and Windows.
 const httpServerScript = `import socket, sys
@@ -73,18 +84,24 @@ func sendWindowsKeepAliveRequestsToPort(host *components.RemoteHost, port, count
 		connLimit, count, port, holdSeconds))
 }
 
-// fetchAndAssertTaggedConnections waits for the agent to forward connections to
-// fakeintake, then asserts that connections on ports 8081/8082 have the expected tags.
+// fetchAndAssertTaggedConnections polls fakeintake until connections with the
+// expected tags appear on ports 8081/8082, then asserts the results.
 func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, minPerPort int) {
 	t.Helper()
 
-	time.Sleep(60 * time.Second)
+	var stats connectionStats
+	require.Eventually(t, func() bool {
+		cnx, err := fi.GetConnections()
+		if err != nil || cnx == nil {
+			return false
+		}
+		stats = getConnectionStats(t, cnx, "process_context:")
+		// Wait until both ports have enough connections AND they are tagged.
+		return stats.connsByPort[8081] >= minPerPort && stats.connsByPort[8082] >= minPerPort &&
+			stats.untaggedByPort[8081] == 0 && stats.untaggedByPort[8082] == 0
+	}, 120*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (8081: %d/%d untagged, 8082: %d/%d untagged)",
+		label, stats.untaggedByPort[8081], stats.connsByPort[8081], stats.untaggedByPort[8082], stats.connsByPort[8082])
 
-	cnx, err := fi.GetConnections()
-	require.NoError(t, err, "GetConnections() error")
-	require.NotNil(t, cnx, "GetConnections() returned nil")
-
-	stats := getConnectionStats(t, cnx, "process_context:")
 	assertTaggedConnectionsOnPort(t, stats, label, 8081, minPerPort)
 	assertTaggedConnectionsOnPort(t, stats, label, 8082, minPerPort)
 }

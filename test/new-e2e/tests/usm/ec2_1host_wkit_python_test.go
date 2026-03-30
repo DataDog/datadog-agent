@@ -6,6 +6,7 @@
 package usm
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -48,7 +49,10 @@ func (s *httpRemoteTagsWindowsSuite) SetupSuite() {
 
 	// Kill anything listening on test ports from previous runs on a reused stack.
 	host.Execute(`(Get-NetTCPConnection -LocalPort 8081,8082 -State Listen -ErrorAction SilentlyContinue).OwningProcess | Sort-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }`)
-	time.Sleep(2 * time.Second)
+	require.Eventually(s.T(), func() bool {
+		out, _ := host.Execute(`(Get-NetTCPConnection -LocalPort 8081,8082 -State Listen -ErrorAction SilentlyContinue).Count`)
+		return strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "0"
+	}, 30*time.Second, 2*time.Second, "old processes on ports 8081/8082 did not stop")
 
 	// Find the embedded Python executable.
 	pythonExe := `C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe`
@@ -71,12 +75,8 @@ func (s *httpRemoteTagsWindowsSuite) SetupSuite() {
 		require.Contains(s.T(), out, "rc=0", "WMI process creation returned non-zero for port %s", port)
 	}
 
-	time.Sleep(5 * time.Second)
-
-	_, err = host.Execute("Invoke-WebRequest -UseBasicParsing http://localhost:8081/")
-	require.NoError(s.T(), err, "Python HTTP server on port 8081 not responding")
-	_, err = host.Execute("Invoke-WebRequest -UseBasicParsing http://localhost:8082/")
-	require.NoError(s.T(), err, "Python HTTP server on port 8082 not responding")
+	waitForHTTPServer(s.T(), host, "Invoke-WebRequest -UseBasicParsing http://localhost:%d/", 8081)
+	waitForHTTPServer(s.T(), host, "Invoke-WebRequest -UseBasicParsing http://localhost:%d/", 8082)
 }
 
 func (s *httpRemoteTagsWindowsSuite) BeforeTest(suiteName, testName string) {
