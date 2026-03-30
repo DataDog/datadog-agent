@@ -6,13 +6,68 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
+	"context"
 	"errors"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
+
+func makeTask(command string, allowedCommands []string) *types.Task {
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"command":         command,
+			"allowedCommands": allowedCommands,
+		},
+	}
+	return task
+}
+
+func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
+	handler := NewRunCommandHandler(nil)
+
+	_, err := handler.Run(context.Background(), makeTask("", nil), nil)
+
+	assert.ErrorContains(t, err, "command is required")
+}
+
+func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
+	handler := NewRunCommandHandler(nil)
+
+	out, err := handler.Run(context.Background(), makeTask("echo hello", nil), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "command not allowed")
+}
+
+func TestRunCommandWithAllowedCommandSucceeds(t *testing.T) {
+	handler := NewRunCommandHandler(nil)
+
+	out, err := handler.Run(context.Background(), makeTask("echo hello", []string{"rshell:echo"}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
+	handler := NewRunCommandHandler(nil)
+
+	out, err := handler.Run(context.Background(), makeTask("grep foo", []string{"rshell:echo"}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "command not allowed")
+}
 
 func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 	paths := []string{"/var/log", "/tmp"}

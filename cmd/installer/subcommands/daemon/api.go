@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
-	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
+	localapiclient "github.com/DataDog/datadog-agent/comp/updater/localapiclient/def"
+	localapiclientfx "github.com/DataDog/datadog-agent/comp/updater/localapiclient/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -200,7 +200,7 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
 		fx.Supply(params),
-		localapiclientimpl.Module(),
+		localapiclientfx.Module(),
 	)
 }
 

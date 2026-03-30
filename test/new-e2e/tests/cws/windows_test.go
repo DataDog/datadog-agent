@@ -82,6 +82,10 @@ func (a *agentSuiteWindows) Hostname() string {
 	return a.Env().Agent.Client.Hostname()
 }
 
+func (a *agentSuiteWindows) InstanceID() string {
+	return ""
+}
+
 func (a *agentSuiteWindows) Client() *api.Client {
 	return a.apiClient
 }

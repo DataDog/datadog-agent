@@ -1,10 +1,18 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
+_RUNTIME_HDRS = glob(["*.h"])
+
 cc_library(
     name = "runtime_headers",
-    hdrs = glob(["*.h"]),
+    hdrs = _RUNTIME_HDRS,
     includes = ["."],
+)
+
+filegroup(
+    name = "runtime_headers_files",
+    srcs = _RUNTIME_HDRS,
+    visibility = ["//visibility:public"],
 )
 
 ebpf_program_suite(
@@ -43,4 +51,8 @@ ebpf_program_suite(
 exports_files([
     "conntrack-types.h",
     "conntrack.h",
+    "conntrack.c",
+    "offsetguess-test.c",
+    "shared-libraries.c",
+    "usm.c",
 ])

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "types",
+    srcs = [
+        "entity_id.go",
+        "filter_builder.go",
+        "filters.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/utils",
+    ],
+)
+
+go_test(
+    name = "types_test",
+    srcs = [
+        "entity_id_test.go",
+        "filter_builder_test.go",
+        "filters_test.go",
+    ],
+    embed = [":types"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

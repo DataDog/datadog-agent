@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-gzip",
+    srcs = ["gzip.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/trace/compression/def"],
+)
