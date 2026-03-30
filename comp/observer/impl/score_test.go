@@ -260,7 +260,7 @@ func TestScoreOutputFile_MetadataInference(t *testing.T) {
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
-	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
+	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z", "end": "2026-03-03T12:49:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
 	// Output JSON references "test_scenario"
@@ -292,7 +292,7 @@ func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
-	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
+	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z", "end": "2026-03-03T12:49:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
 	// Prediction matches our explicit GT (12:45:00 = 1772541900), not episode.json's disruption.start
@@ -322,7 +322,7 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
-	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z"}, "disruption": {"start": "1970-01-01T00:03:20Z"}}`
+	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z", "end": "1970-01-01T00:03:20Z"}, "disruption": {"start": "1970-01-01T00:03:20Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
 	output := ObserverOutput{
@@ -347,4 +347,56 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	assert.Equal(t, 2, result.NumFilteredWarmup, "predictions before baseline.start should be filtered")
 	assert.Equal(t, 1, result.NumFilteredCascading, "prediction at 250 is beyond GT+2σ")
 	assert.Equal(t, 3, result.NumPredictions, "baseline FP, good detect, and post-onset should all be scored")
+}
+
+func TestScoreOutputFile_Alpha(t *testing.T) {
+	// baseline: T=100 to T=700 (600s), disruption.start: T=700
+	// 3 FPs during baseline → alpha = 3/600 = 0.005
+	scenariosDir := t.TempDir()
+	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
+	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
+
+	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z", "end": "1970-01-01T00:11:40Z"}, "disruption": {"start": "1970-01-01T00:11:40Z"}}`
+	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
+
+	output := ObserverOutput{
+		Metadata: ObserverMetadata{Scenario: "test_scenario"},
+		AnomalyPeriods: []ObserverCorrelation{
+			{Pattern: "baseline_fp_1", PeriodStart: 200},
+			{Pattern: "baseline_fp_2", PeriodStart: 400},
+			{Pattern: "baseline_fp_3", PeriodStart: 600},
+			{Pattern: "good_detect", PeriodStart: 702},
+		},
+	}
+	data, err := json.MarshalIndent(output, "", "  ")
+	require.NoError(t, err)
+
+	outputPath := filepath.Join(t.TempDir(), "output.json")
+	require.NoError(t, os.WriteFile(outputPath, data, 0644))
+
+	result, err := ScoreOutputFile(outputPath, nil, scenariosDir, testSigma)
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, result.NumBaselineFPs)
+	assert.InDelta(t, 3.0/600.0, result.Alpha, 1e-9, "alpha = 3 FPs / 600s baseline")
+}
+
+func TestScoreOutputFile_AlphaUnavailable(t *testing.T) {
+	// No scenariosDir → baseline duration unknown → alpha = -1
+	output := ObserverOutput{
+		Metadata: ObserverMetadata{Scenario: "test_scenario"},
+		AnomalyPeriods: []ObserverCorrelation{
+			{Pattern: "fp", PeriodStart: 50},
+		},
+	}
+	data, err := json.MarshalIndent(output, "", "  ")
+	require.NoError(t, err)
+
+	path := filepath.Join(t.TempDir(), "output.json")
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	result, err := ScoreOutputFile(path, []int64{100}, "", testSigma)
+	require.NoError(t, err)
+
+	assert.Equal(t, -1.0, result.Alpha, "alpha should be -1 when baseline duration is unavailable")
 }

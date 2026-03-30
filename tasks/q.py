@@ -140,14 +140,28 @@ def eval_scenarios(
         print(color_message(f"{'='*60}\n", Color.GREEN))
 
         # Header
-        header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Scored':>6}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Cascading (excl)':>16}"
+        header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Scored':>6}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Cascading (excl)':>16}"
         print(header)
         print("-" * len(header))
 
+        total_baseline_fps = 0
+        total_baseline_duration = 0
         for r in results:
+            alpha = r.get("alpha", -1)
+            alpha_str = f"{alpha:.4f}" if alpha >= 0 else "  n/a"
             print(
                 f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
-                f"  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+                f"  {alpha_str:>7}  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+            )
+            duration = r.get("baseline_duration_seconds", 0)
+            if duration > 0:
+                total_baseline_fps += r["num_baseline_fps"]
+                total_baseline_duration += duration
+
+        if total_baseline_duration > 0:
+            pooled_alpha = total_baseline_fps / total_baseline_duration
+            print(
+                f"\n  Pooled α: {pooled_alpha:.4f}  ({total_baseline_fps} FPs over {total_baseline_duration}s baseline)"
             )
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
