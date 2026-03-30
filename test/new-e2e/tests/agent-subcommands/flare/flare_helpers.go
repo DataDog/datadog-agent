@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
 // AssertFilesExist verifies that all files in filenames exist in the flare archive
@@ -53,7 +54,7 @@ func AssertLogsFolderOnlyContainsLogFile(t *testing.T, flare flare.Flare) {
 
 	// Get all files in "logs/" folder
 	logFiles := filterFilenameByPrefix(flare.GetFilenames(), "logs/")
-	verifyAssertionsOnFilesList(t, f, logFiles, assertIsLogFileOrFolder)
+	verifyAssertionsOnFilesList(t, flare, logFiles, assertIsLogFileOrFolder)
 }
 
 // assertIsLogFileOrFolder verifies if a file is a log file (contains ".log" in its name) or if it's a folder
@@ -70,7 +71,7 @@ func AssertEtcFolderOnlyContainsConfigFile(t *testing.T, flare flare.Flare) {
 
 	// Get all files in "etc/" folder
 	configFiles := filterFilenameByPrefix(flare.GetFilenames(), "etc/")
-	verifyAssertionsOnFilesList(t, f, configFiles, assertIsConfigFileOrFolder)
+	verifyAssertionsOnFilesList(t, flare, configFiles, assertIsConfigFileOrFolder)
 }
 
 // assertIsConfigFileOrFolder verifies if a file is a configuration file (contains ".yaml"/".yml" in its name) or if it's a folder
@@ -89,7 +90,7 @@ func AssertEventlogFolderOnlyContainsWindowsEventLog(t *testing.T, flare flare.F
 
 	// Get all files in "eventlog/" folder
 	configFiles := filterFilenameByPrefix(flare.GetFilenames(), "eventlog/")
-	verifyAssertionsOnFilesList(t, f, configFiles, assertIsWindowsEventLogOrFolder)
+	verifyAssertionsOnFilesList(t, flare, configFiles, assertIsWindowsEventLogOrFolder)
 }
 
 // assertIsWindowsEventLogOrFolder verifies if a file is a Windows Event log file (name ends with .evtx) or if it's a folder
