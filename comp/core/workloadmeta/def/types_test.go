@@ -224,7 +224,6 @@ Gids: [1002 1003]
 					TCPPorts:                 []uint16{8080, 8081},
 					UDPPorts:                 []uint16{8082, 8083},
 					APMInstrumentation:       true,
-					Type:                     "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -282,7 +281,6 @@ Service Generated Name: java-app
 					TCPPorts:           []uint16{8080, 8081},
 					UDPPorts:           []uint16{8082, 8083},
 					APMInstrumentation: true,
-					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -312,7 +310,6 @@ Service Tracer Metadata: []
 Service TCP Ports: [8080 8081]
 Service UDP Ports: [8082 8083]
 Service APM Instrumentation: true
-Service Type: web_service
 ---- Unified Service Tagging ----
 Service: java-app
 Env: production

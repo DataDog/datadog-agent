@@ -165,6 +165,7 @@ var (
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
 	tlmDogstatsdFilteredMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
 	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
+	tlmFilteredTags             = telemetry.NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
 	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
@@ -282,7 +283,7 @@ type BufferedAggregator struct {
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
 
-	tagfilterListChan chan filterlist.TagMatcher
+	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
 }
 
@@ -301,16 +302,10 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if agentName == flavor.IotAgent && !pkgconfigsetup.Datadog().GetBool("iot_host") {
-		agentName = flavor.DefaultAgent
-	} else if pkgconfigsetup.Datadog().GetBool("iot_host") {
-		// Override the agentName if this Agent is configured to report as IotAgent
-		agentName = flavor.IotAgent
-	}
 	if pkgconfigsetup.Datadog().GetBool("heroku_dyno") {
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
@@ -363,7 +358,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
 		filterListChan:    make(chan utilstrings.Matcher),
-		tagfilterListChan: make(chan filterlist.TagMatcher),
+		flushFilterList:   filterList.GetMetricFilterList(),
+		tagFilterListChan: make(chan filterlist.TagMatcher),
+		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
 	return aggregator
@@ -813,7 +810,7 @@ func (agg *BufferedAggregator) run() {
 
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
-		case matcher := <-agg.tagfilterListChan:
+		case matcher := <-agg.tagFilterListChan:
 			agg.tagFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:

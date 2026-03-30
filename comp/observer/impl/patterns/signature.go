@@ -10,57 +10,49 @@ import "strings"
 // TokenListSignature computes the signature of a list of tokens.
 // Sequences of word-like tokens separated by single '.' or ':' are collapsed into "specialWord".
 func TokenListSignature(tokens []Token) string {
-	if len(tokens) == 0 {
+	n := len(tokens)
+	if n == 0 {
 		return ""
 	}
 
-	sigs := make([]string, len(tokens))
+	sigs := make([]string, n)
 	for i, t := range tokens {
 		sigs[i] = t.Signature()
 	}
 
-	return concatSignatures(tokens, sigs)
-}
-
-// concatSignatures concatenates token signatures, collapsing chains of word-like
-// tokens separated by '.' or ':' into a single "specialWord" signature.
-func concatSignatures(tokens []Token, sigs []string) string {
-	n := len(tokens)
-	resultSigs := make([]string, n)
-	copy(resultSigs, sigs)
-
+	// In-place collapse: chains of word-like tokens separated by '.' or ':' become "specialWord".
+	// Reading always moves forward (lookahead at j+1 is never behind any write position),
+	// so mutating sigs in place is safe.
 	i := 0
 	for i < n {
 		if !isWordLikeForConcat(sigs[i]) {
 			i++
 			continue
 		}
-
 		chainStart := i
 		j := i + 1
 		for j+1 < n {
 			if tokens[j].Type == TypeSpecialCharacter &&
 				(tokens[j].Value == "." || tokens[j].Value == ":") &&
-				j+1 < n && isWordLikeForConcat(sigs[j+1]) {
+				isWordLikeForConcat(sigs[j+1]) {
 				j += 2
 			} else {
 				break
 			}
 		}
-
 		if j > chainStart+1 {
-			resultSigs[chainStart] = "specialWord"
+			sigs[chainStart] = "specialWord"
 			for k := chainStart + 1; k < j; k++ {
-				resultSigs[k] = ""
+				sigs[k] = ""
 			}
 		}
 		i = j
 	}
 
 	var b strings.Builder
-	for i := 0; i < n; i++ {
-		if resultSigs[i] != "" {
-			b.WriteString(resultSigs[i])
+	for _, s := range sigs {
+		if s != "" {
+			b.WriteString(s)
 		}
 	}
 	return b.String()

@@ -1,6 +1,14 @@
-bazel:mod-deps:
-  extends: .bazel:runner:linux-amd64
+.bazel:lint:
   stage: lint
+  after_script:
+    - |-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 To fix the above problem, please consider running the following command:"
+        echo >&2 "$FIX_COMMAND"
+      fi
+
+bazel:mod-deps:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     # Why not `bazel mod deps --lockfile_mode=error`:
     # 1. `bazel` servers on persistent runners cache non-local repository rules, causing stale checks (#incident-46079),
@@ -14,31 +22,34 @@ bazel:mod-deps:
     # 3. use `git diff --exit-code` to still fail on any discrepancies while printing them exhaustively.
     - bazel mod deps --lockfile_mode=refresh --repo_env=REPIN=1
     - git diff --exit-code
-  after_script:
-    - |-
-      if [ $CI_JOB_STATUS = failed ]; then
-        echo >&2 "💡 bazel mod deps --repo_env=REPIN=1"
-      fi
+  variables:
+    FIX_COMMAND: "bazel mod deps --repo_env=REPIN=1"
 
 bazel:mod-tidy:
-  extends: .bazel:runner:linux-amd64
-  stage: lint
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel mod tidy --lockfile_mode=off
     - git diff --exit-code
-  after_script:
-    - |-
-      if [ $CI_JOB_STATUS = failed ]; then
-        echo >&2 "💡 bazel mod tidy"
-      fi
+  variables:
+    FIX_COMMAND: "bazel mod tidy"
 
 bazel:run-buildifier-test:
-  extends: .bazel:runner:linux-amd64
-  stage: lint
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel run //bazel/buildifier:test
-  after_script:
-    - |-
-      if [ $CI_JOB_STATUS = failed ]; then
-        echo >&2 "💡 bazel run //bazel/buildifier"
-      fi
+  variables:
+    FIX_COMMAND: "bazel run //bazel/buildifier"
+
+bazel:run-gazelle:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
+  script:
+    - bazel run //:gazelle -- -mode=diff -strict
+  variables:
+    FIX_COMMAND: "bazel run //:gazelle"
+
+bazel:run-go-mod-tidy:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
+  script:
+    - bazel run //:go_mod_tidy_all -- -diff
+  variables:
+    FIX_COMMAND: "bazel run //:go_mod_tidy_all"

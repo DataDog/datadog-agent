@@ -7,10 +7,15 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
+
+// defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
+// inside a cluster (pattern) before we emit a metric.
+const defaultMinClusterSizeBeforeEmitMetrics = 5
 
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
@@ -35,6 +40,9 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 type LogPatternExtractor struct {
 	PatternClusterer *patterns.PatternClusterer
 	patternContext   map[string]patternMetricContext
+	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
+	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
+	MinPatternsBeforeEmit int
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -53,6 +61,7 @@ func NewLogPatternExtractor() *LogPatternExtractor {
 			Stride: 1,
 			Index:  0,
 		}),
+		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
 	}
 }
 
@@ -96,20 +105,38 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 	}, true
 }
 
+// logSeverityIsWarnPlus returns true when the log should be clustered: warning
+func logSeverityIsWarnPlus(log observerdef.LogView) bool {
+	status := strings.ToLower(strings.TrimSpace(log.GetStatus()))
+	switch status {
+	case "warn", "warning", "error", "critical", "fatal", "alert", "emergency":
+		return true
+	default:
+		return false
+	}
+}
+
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	telemetry := []observerdef.ObserverTelemetry{}
-	message := string(log.GetContent())
-	clusterResult := e.PatternClusterer.Process(message)
-	if clusterResult == nil {
+	if !logSeverityIsWarnPlus(log) {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
-	if clusterResult.IsNew {
+	telemetry := []observerdef.ObserverTelemetry{}
+	message := string(log.GetContent())
+	cluster, ok := e.PatternClusterer.Process(message)
+	if !ok {
+		return observerdef.LogMetricsExtractorOutput{}
+	}
+	// Not enough patterns yet, don't emit metric.
+	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric.
+	if cluster.Count == e.MinPatternsBeforeEmit {
 		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+	} else if cluster.Count < e.MinPatternsBeforeEmit {
+		return observerdef.LogMetricsExtractorOutput{}
 	}
 
-	patternKey := NewPatternKeyInfo(clusterResult.Cluster.ID)
-	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), clusterResult.Cluster.ID+1)
+	patternKey := NewPatternKeyInfo(cluster.ID)
+	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), cluster.ID+1)
 	contextKey := metricContextKey(metricName, log.GetTags())
 
 	if e.patternContext == nil {

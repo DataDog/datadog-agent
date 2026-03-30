@@ -160,6 +160,14 @@
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
     OVERRIDE_GIT_STRATEGY: "clone"
+    # Avoid using ~/.aws/credentials to avoid conflicts with other CI jobs
+    # this env var is understood by both ci-identities-gitlab-job-client.exe and aws.exe
+    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}
+  before_script:
+    - C:\ci-identities-gitlab-job-client.exe assume-role
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_v2_2022:
@@ -171,6 +179,14 @@
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
     OVERRIDE_GIT_STRATEGY: "clone"
+    # Avoid using ~/.aws/credentials to avoid conflicts with other CI jobs
+    # this env var is understood by both ci-identities-gitlab-job-client.exe and aws.exe
+    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}
+  before_script:
+    - C:\ci-identities-gitlab-job-client.exe assume-role
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_2025:
@@ -185,6 +201,14 @@
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
     OVERRIDE_GIT_STRATEGY: "clone"
+    # Avoid using ~/.aws/credentials to avoid conflicts with other CI jobs
+    # this env var is understood by both ci-identities-gitlab-job-client.exe and aws.exe
+    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}
+  before_script:
+    - C:\ci-identities-gitlab-job-client.exe assume-role
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 # windows_docker_default configures the job to use the default Windows Server runners
 # Use in jobs that may need to have their version updated in the future.

@@ -20,16 +20,16 @@ func TestSignatureClustererSameMessage(t *testing.T) {
 	sc := NewSignatureClusterer(IDComputeInfo{})
 
 	msg := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
-	r1 := sc.Process(msg)
-	if !r1.IsNew {
+	r1, _ := sc.Process(msg)
+	if r1.Count != 1 {
 		t.Error("first message should create a new cluster")
 	}
 	if len(sc.GetClusters()) != 1 {
 		t.Errorf("expected 1 cluster, got %d", len(sc.GetClusters()))
 	}
 
-	r2 := sc.Process(msg)
-	if r2.IsNew {
+	r2, _ := sc.Process(msg)
+	if r2.Count == 1 {
 		t.Error("same message should not create a new cluster")
 	}
 	if len(sc.GetClusters()) != 1 {
@@ -53,9 +53,9 @@ func TestSignatureClustererDifferentMessages(t *testing.T) {
 
 func TestSignatureClustererIgnoresEmpty(t *testing.T) {
 	sc := NewSignatureClusterer(IDComputeInfo{})
-	result := sc.Process("")
-	if result != nil {
-		t.Error("empty message should return nil")
+	_, ok := sc.Process("")
+	if ok {
+		t.Error("empty message should return no result")
 	}
 	if len(sc.GetClusters()) != 0 {
 		t.Error("empty message should not create a cluster")
@@ -464,18 +464,18 @@ func TestMergeTokensWildcarding(t *testing.T) {
 func TestEndToEndClustering(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{})
 
-	r1 := pc.Process("user login from 192.168.1.1")
-	if !r1.IsNew {
+	r1, _ := pc.Process("user login from 192.168.1.1")
+	if r1.Count != 1 {
 		t.Error("first message should be new")
 	}
 
-	r2 := pc.Process("user login from 10.0.0.1")
-	if r2.IsNew {
+	r2, _ := pc.Process("user login from 10.0.0.1")
+	if r2.Count == 1 {
 		t.Error("similar message should match existing cluster")
 	}
 
-	r3 := pc.Process("server started on port 8080")
-	if !r3.IsNew {
+	r3, _ := pc.Process("server started on port 8080")
+	if r3.Count != 1 {
 		t.Error("different message should create new cluster")
 	}
 

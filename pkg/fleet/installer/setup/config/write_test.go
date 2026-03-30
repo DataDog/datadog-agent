@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 )
@@ -43,7 +44,7 @@ func runWriteConfigTestCase(t *testing.T, tc writeConfigTestCase) {
 	// Call writeConfig twice to ensure that the content does not change on re-run
 	// e.g. disclaimer added once or not at all
 	for i := 0; i < 2; i++ {
-		err := writeConfig(configPath, tc.config, 0644, tc.merge)
+		err := WriteConfig(configPath, tc.config, 0644, tc.merge)
 		if err != nil {
 			t.Fatalf("writeConfig failed: %v", err)
 		}
@@ -362,9 +363,7 @@ api_key: newkey
 		// The config file may be UTF-16 on Windows
 		t.Run(tc.name+" (UTF-16)", func(t *testing.T) {
 			encoded, err := unicode.UTF16(unicode.LittleEndian, unicode.ExpectBOM).NewEncoder().String(tc.initialYAML)
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 			tc.initialYAML = encoded
 			runWriteConfigTestCase(t, tc)
 		})
@@ -425,14 +424,10 @@ func TestEnsureUTF8(t *testing.T) {
 	for _, e := range encodings {
 		// encode input to new encoding
 		encoded, err := e.NewEncoder().Bytes(input)
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		// convert it back to UTF-8
 		output, err := ensureUTF8(encoded)
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		assert.Equal(t, input, output)
 		// assert output does not contain BOM
 		assert.False(t, bytes.HasPrefix(output, []byte{0xFF, 0xFE}), "output should not have UTF-16LE BOM")

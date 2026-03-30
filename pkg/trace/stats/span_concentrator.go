@@ -14,6 +14,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -38,11 +39,13 @@ type StatSpan struct {
 
 	//Fields below this are derived on creation
 
-	spanKind         string
-	statusCode       uint32
-	isTopLevel       bool
-	matchingPeerTags []string
-	grpcStatusCode   string
+	spanKind                       string
+	serviceSource                  string
+	statusCode                     uint32
+	isTopLevel                     bool
+	matchingPeerTags               []string
+	matchingSpanDerivedPrimaryTags []string
+	grpcStatusCode                 string
 
 	httpMethod   string
 	httpEndpoint string
@@ -52,8 +55,11 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
+	a := semantics.NewStringMapAccessor(meta)
+	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
+	baseService := semantics.LookupString(ddRegistry, a, semantics.ConceptDDBaseService)
 	var pt []string
-	for _, t := range peerTagKeysToAggregateForSpan(meta[tagSpanKind], meta[tagBaseService], peerTagKeys) {
+	for _, t := range peerTagKeysToAggregateForSpan(spanKind, baseService, peerTagKeys) {
 		if v, ok := meta[t]; ok && v != "" {
 			v = obfuscate.QuantizePeerIPAddresses(v)
 			pt = append(pt, t+":"+v)
@@ -66,8 +72,9 @@ func matchingPeerTagsV1(s *idx.InternalSpan, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
+	a := semantics.NewDDSpanAccessorV1(s)
+	baseService := semantics.LookupString(ddRegistry, a, semantics.ConceptDDBaseService)
 	var pt []string
-	baseService, _ := s.GetAttributeAsString(tagBaseService)
 	for _, t := range peerTagKeysToAggregateForSpan(s.SpanKind(), baseService, peerTagKeys) {
 		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
 			v = obfuscate.QuantizePeerIPAddresses(v)
@@ -88,12 +95,38 @@ func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagK
 		// it's a service override on an internal span so it comes from custom instrumentation and does not represent
 		// a client|producer|consumer span which is talking to a peer entity
 		// in this case only the base service tag is relevant for stats aggregation
-		return []string{tagBaseService}
+		return []string{string(semantics.ConceptDDBaseService)}
 	}
 	if spanKind == "client" || spanKind == "producer" || spanKind == "consumer" {
 		return peerTagKeys
 	}
 	return nil
+}
+
+func matchingSpanDerivedPrimaryTags(meta map[string]string, spanDerivedPrimaryTagKeys []string) []string {
+	if len(spanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	var tags []string
+	for _, t := range spanDerivedPrimaryTagKeys {
+		if v, ok := meta[t]; ok && v != "" {
+			tags = append(tags, t+":"+v)
+		}
+	}
+	return tags
+}
+
+func matchingSpanDerivedPrimaryTagsV1(s *idx.InternalSpan, spanDerivedPrimaryTagKeys []string) []string {
+	if len(spanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	var tags []string
+	for _, t := range spanDerivedPrimaryTagKeys {
+		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
+			tags = append(tags, t+":"+v)
+		}
+	}
+	return tags
 }
 
 // SpanConcentrator produces time bucketed statistics from a stream of raw spans.
@@ -129,41 +162,43 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 }
 
 // NewStatSpanFromPB is a helper version of NewStatSpanWithConfig that builds a StatSpan from a pb.Span.
-func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (statSpan *StatSpan, ok bool) {
+func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string, spanDerivedPrimaryTagKeys []string) (statSpan *StatSpan, ok bool) {
 	return sc.NewStatSpanWithConfig(
 		StatSpanConfig{
-			s.Service,
-			s.Resource,
-			s.Name,
-			s.Type,
-			s.ParentID,
-			s.Start,
-			s.Duration,
-			s.Error,
-			s.Meta,
-			s.Metrics,
-			peerTags,
-			"",
-			"",
+			Service:                   s.Service,
+			Resource:                  s.Resource,
+			Name:                      s.Name,
+			Type:                      s.Type,
+			ParentID:                  s.ParentID,
+			Start:                     s.Start,
+			Duration:                  s.Duration,
+			Error:                     s.Error,
+			Meta:                      s.Meta,
+			Metrics:                   s.Metrics,
+			PeerTags:                  peerTags,
+			SpanDerivedPrimaryTagKeys: spanDerivedPrimaryTagKeys,
+			HTTPMethod:                "",
+			HTTPEndpoint:              "",
 		},
 	)
 }
 
 // StatSpanConfig holds the configuration options for creating a StatSpan using NewStatSpanWithConfig
 type StatSpanConfig struct {
-	Service      string
-	Resource     string
-	Name         string
-	Type         string
-	ParentID     uint64
-	Start        int64
-	Duration     int64
-	Error        int32
-	Meta         map[string]string
-	Metrics      map[string]float64
-	PeerTags     []string
-	HTTPMethod   string
-	HTTPEndpoint string
+	Service                   string
+	Resource                  string
+	Name                      string
+	Type                      string
+	ParentID                  uint64
+	Start                     int64
+	Duration                  int64
+	Error                     int32
+	Meta                      map[string]string
+	Metrics                   map[string]float64
+	PeerTags                  []string
+	SpanDerivedPrimaryTagKeys []string
+	HTTPMethod                string
+	HTTPEndpoint              string
 }
 
 // NewStatSpanWithConfig builds a StatSpan from the required fields for stats calculation
@@ -176,7 +211,9 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	if config.Metrics == nil {
 		config.Metrics = make(map[string]float64)
 	}
-	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(config.Meta["span.kind"])
+	a := semantics.NewDDSpanAccessor(config.Meta, config.Metrics)
+	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
+	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
 	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
 	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
 		return nil, false
@@ -185,18 +222,20 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		return nil, false
 	}
 	return &StatSpan{
-		service:          config.Service,
-		resource:         config.Resource,
-		name:             config.Name,
-		typ:              config.Type,
-		error:            config.Error,
-		parentID:         config.ParentID,
-		start:            config.Start,
-		duration:         config.Duration,
-		spanKind:         config.Meta[tagSpanKind],
-		statusCode:       getStatusCode(config.Meta, config.Metrics),
-		isTopLevel:       isTopLevel,
-		matchingPeerTags: matchingPeerTags(config.Meta, config.PeerTags),
+		service:                        config.Service,
+		resource:                       config.Resource,
+		name:                           config.Name,
+		typ:                            config.Type,
+		error:                          config.Error,
+		parentID:                       config.ParentID,
+		start:                          config.Start,
+		duration:                       config.Duration,
+		spanKind:                       spanKind,
+		serviceSource:                  config.Meta[tagServiceSource],
+		statusCode:                     getStatusCode(config.Meta, config.Metrics),
+		isTopLevel:                     isTopLevel,
+		matchingPeerTags:               matchingPeerTags(config.Meta, config.PeerTags),
+		matchingSpanDerivedPrimaryTags: matchingSpanDerivedPrimaryTags(config.Meta, config.SpanDerivedPrimaryTagKeys),
 
 		grpcStatusCode: getGRPCStatusCode(config.Meta, config.Metrics),
 
@@ -206,7 +245,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 }
 
 // NewStatSpanFromV1 is a helper version of NewStatSpan that builds a StatSpan from an idx.InternalSpan.
-func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string) (statSpan *StatSpan, ok bool) {
+func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string, spanDerivedPrimaryTagKeys []string) (statSpan *StatSpan, ok bool) {
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
 	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
 	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
@@ -219,20 +258,23 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 	if s.Error() {
 		spanError = 1
 	}
+	serviceSource, _ := s.GetAttributeAsString(tagServiceSource)
 	return &StatSpan{
-		service:          s.Service(),
-		resource:         s.Resource(),
-		name:             s.Name(),
-		typ:              s.Type(),
-		error:            int32(spanError),
-		parentID:         s.ParentID(),
-		start:            int64(s.Start()),
-		duration:         int64(s.Duration()),
-		spanKind:         s.SpanKind(),
-		statusCode:       getStatusCodeV1(s),
-		isTopLevel:       isTopLevel,
-		matchingPeerTags: matchingPeerTagsV1(s, peerTags),
-		grpcStatusCode:   getGRPCStatusCodeV1(s),
+		service:                        s.Service(),
+		resource:                       s.Resource(),
+		name:                           s.Name(),
+		typ:                            s.Type(),
+		error:                          int32(spanError),
+		parentID:                       s.ParentID(),
+		start:                          int64(s.Start()),
+		duration:                       int64(s.Duration()),
+		spanKind:                       s.SpanKind(),
+		serviceSource:                  serviceSource,
+		statusCode:                     getStatusCodeV1(s),
+		isTopLevel:                     isTopLevel,
+		matchingPeerTags:               matchingPeerTagsV1(s, peerTags),
+		matchingSpanDerivedPrimaryTags: matchingSpanDerivedPrimaryTagsV1(s, spanDerivedPrimaryTagKeys),
+		grpcStatusCode:                 getGRPCStatusCodeV1(s),
 	}, true
 }
 
@@ -252,19 +294,20 @@ func (sc *SpanConcentrator) NewStatSpan(
 ) (statSpan *StatSpan, ok bool) {
 	return sc.NewStatSpanWithConfig(
 		StatSpanConfig{
-			service,
-			resource,
-			name,
-			typ,
-			parentID,
-			start,
-			duration,
-			error,
-			meta,
-			metrics,
-			peerTags,
-			"",
-			"",
+			Service:                   service,
+			Resource:                  resource,
+			Name:                      name,
+			Type:                      typ,
+			ParentID:                  parentID,
+			Start:                     start,
+			Duration:                  duration,
+			Error:                     error,
+			Meta:                      meta,
+			Metrics:                   metrics,
+			PeerTags:                  peerTags,
+			SpanDerivedPrimaryTagKeys: nil,
+			HTTPMethod:                "",
+			HTTPEndpoint:              "",
 		},
 	)
 }
@@ -370,6 +413,7 @@ func (sc *SpanConcentrator) Flush(now int64, force bool) []*pb.ClientStatsPayloa
 			GitCommitSha:    k.GitCommitSha,
 			ImageTag:        k.ImageTag,
 			Lang:            k.Lang,
+			Service:         k.BaseService,
 			Stats:           s,
 			Tags:            containerTagsByID[k.ContainerID],
 			ProcessTags:     processTagsByHash[k.ProcessTagsHash],

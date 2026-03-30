@@ -96,10 +96,10 @@ func (l *KubeletListener) createPodService(
 	pod *workloadmeta.KubernetesPod,
 	containers []*workloadmeta.Container,
 ) {
-	var ports []ContainerPort
+	var ports []workloadmeta.ContainerPort
 	for _, container := range containers {
 		for _, port := range container.Ports {
-			ports = append(ports, ContainerPort{
+			ports = append(ports, workloadmeta.ContainerPort{
 				Port: port.Port,
 				Name: port.Name,
 			})
@@ -159,9 +159,9 @@ func (l *KubeletListener) createContainerService(
 		}
 	}
 
-	ports := make([]ContainerPort, 0, len(container.Ports))
+	ports := make([]workloadmeta.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})

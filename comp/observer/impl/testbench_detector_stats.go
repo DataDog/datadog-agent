@@ -73,7 +73,7 @@ func sumStoredTelemetryCounter(storage *timeSeriesStorage, name string) int {
 		if m.Name != name {
 			continue
 		}
-		s := storage.GetSeriesByNumericID(m.Handle, AggregateSum)
+		s := storage.GetSeriesByNumericID(m.Ref, AggregateSum)
 		if s == nil {
 			continue
 		}
@@ -95,8 +95,8 @@ func computeDetectorProcessingStatsFromStorage(storage *timeSeriesStorage) map[s
 			continue
 		}
 
-		avgSeries := storage.GetSeriesByNumericID(m.Handle, AggregateAverage)
-		countSeries := storage.GetSeriesByNumericID(m.Handle, AggregateCount)
+		avgSeries := storage.GetSeriesByNumericID(m.Ref, AggregateAverage)
+		countSeries := storage.GetSeriesByNumericID(m.Ref, AggregateCount)
 		if avgSeries == nil || countSeries == nil {
 			continue
 		}

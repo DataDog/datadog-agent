@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,7 +42,7 @@ type CloudFoundryService struct {
 	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier
 	containerIPs   map[string]string
-	containerPorts []ContainerPort
+	containerPorts []workloadmeta.ContainerPort
 }
 
 // Make sure CloudFoundryService implements the Service interface
@@ -130,7 +131,7 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier) *Cl
 		svc = &CloudFoundryService{
 			adIdentifier:   adID,
 			containerIPs:   map[string]string{},
-			containerPorts: []ContainerPort{},
+			containerPorts: []workloadmeta.ContainerPort{},
 			tags:           dLRP.GetTagsFromDLRP(),
 		}
 	} else {
@@ -139,9 +140,9 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier) *Cl
 		}
 		// container service => we need one service per container instance
 		ips := map[string]string{CfServiceContainerIP: aLRP.ContainerIP}
-		ports := []ContainerPort{}
+		ports := []workloadmeta.ContainerPort{}
 		for _, p := range aLRP.Ports {
-			ports = append(ports, ContainerPort{
+			ports = append(ports, workloadmeta.ContainerPort{
 				// NOTE: because of how configresolver.getPort works, we can't use e.g. port_8080, so we use port_p8080
 				Name: fmt.Sprintf("p%d", p),
 				Port: int(p),
@@ -222,7 +223,7 @@ func (s *CloudFoundryService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
+func (s *CloudFoundryService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.containerPorts, nil
 }
 

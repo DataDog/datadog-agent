@@ -43,9 +43,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var testHostName = "test-host"
-var testNodeName = "node"
-var staticRawKubeletConfig = []byte(`{"sample-key":"sample-value"}`)
+var (
+	testHostName           = "test-host"
+	testNodeName           = "node"
+	staticRawKubeletConfig = []byte(`{"sample-key":"sample-value"}`)
+)
 
 type fakeSender struct {
 	mocksender.MockSender
@@ -60,30 +62,43 @@ func (f *fakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) { pan
 func (f *fakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) GetNodeUID(_ string) (string, error) {
 	return "uid-test-123", nil
 }
+
 func (f *fakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
 	panic("not used")
 }
+
+func (f *fakeDCAClient) GetNodeInfo(_ string, _ ...string) (*clusteragent.NodeSystemInfo, error) {
+	panic("implement me")
+}
+
 func (f *fakeDCAClient) GetNamespaceMetadata(_ string) (*clusteragent.Metadata, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) GetKubernetesMetadataNames(_, _, _ string) ([]string, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) PostClusterCheckStatus(_ context.Context, _ string, _ types.NodeStatus) (types.StatusResponse, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) GetClusterCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("not used")
 }
+
 func (f *fakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("not used")
 }
@@ -149,7 +164,6 @@ func (suite *KubeletConfigTestSuite) SetupSuite() {
 	getClusterAgentClient = func() (clusteragent.DCAClientInterface, error) {
 		return &fakeDCAClient{}, nil
 	}
-
 }
 
 func (suite *KubeletConfigTestSuite) TearDownSuite() {

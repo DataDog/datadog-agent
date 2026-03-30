@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/beevik/ntp"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -163,7 +163,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig, getLocalDefinedNTPServersFunc)
 	if err != nil {
@@ -174,7 +174,7 @@ func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConf
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(senderManager, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
@@ -213,6 +213,24 @@ func (c *NTPCheck) Run() error {
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
+	// Submit intake offset first (captured from forwarder responses)
+	// This is independent of NTP check success
+	if intakeOffsetVar := expvar.Get("corechecks_net_ntp_intake_time_offset"); intakeOffsetVar != nil {
+		if floatVar, ok := intakeOffsetVar.(*expvar.Float); ok {
+			intakeOffset := floatVar.Value()
+			if !math.IsNaN(intakeOffset) {
+				// Calculate what the intake server's time would be by applying the offset to current time
+				// Using intake server's time as the metric timestamp ensures it appears correctly
+				// in Datadog even when the agent's clock is drifted
+				// (positive offset = agent behind, negative = agent ahead)
+				currentTime := time.Now()
+				intakeServerTime := currentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
+				intakeTS := float64(intakeServerTime.UnixNano()) / 1e9
+				_ = sender.GaugeWithTimestamp("ntp.offset", intakeOffset, "", []string{"source:intake"}, intakeTS)
+			}
+		}
+	}
+
 	clockOffset, ts, err := c.queryOffset()
 	if err != nil {
 		log.Error(err)
@@ -230,9 +248,10 @@ func (c *NTPCheck) Run() error {
 		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
-	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", nil, ts)
+	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", []string{"source:ntp"}, ts)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
+
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
 	c.lastCollection = time.Now()
