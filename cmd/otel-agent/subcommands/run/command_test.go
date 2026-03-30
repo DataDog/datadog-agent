@@ -57,6 +57,20 @@ func TestFxRun_Standalone(t *testing.T) {
 	})
 }
 
+func TestFxRun_NoDatadogExporter_Standalone(t *testing.T) {
+	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	fxutil.TestRun(t, func() error {
+		ctx := context.Background()
+		params := &cliParams{
+			GlobalParams: &subcommands.GlobalParams{
+				ConfPaths: []string{"test_config_no_dd_standalone.yaml"},
+			},
+		}
+		return runOTelAgentCommand(ctx, params)
+	})
+}
+
 func TestFxRun_Disabled(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
 	ctx := context.Background()
