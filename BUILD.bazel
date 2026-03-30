@@ -489,11 +489,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
 # gazelle:exclude pkg/windowsdriver
-# TODO(agent-build): This exclusion is ready for removal, blocked by issues caused by the interaction of
-# Bazel with directories named `build` created by the CMake builds. We can remove this once we remove CMake
-# support or we upgrade to a Bazel version containing a fix: https://github.com/bazelbuild/bazel/pull/26842
-# In the meantime, temporarily remove this exclusion locally if regeneration of BUILD files is required
-# gazelle:exclude rtloader
 # gazelle:exclude tasks
 # gazelle:exclude test
 # gazelle:exclude tools/NamedPipeCmd
@@ -505,16 +500,16 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
-# gazelle:exclude .gitlab
-# gazelle:prefix github.com/DataDog/datadog-agent
 gazelle(
     name = "gazelle",
-    args = [
-        "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
-        "-external=static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
-    ],
     build_tags = ALL_BUILD_TAGS,
+    external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    extra_args = [
+        "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+        "-strict",  # don't swallow syntax errors or unknown directives
+    ],
     gazelle = ":gazelle_binary",
+    prefix = "github.com/DataDog/datadog-agent",
 )
 
 gazelle_binary(
