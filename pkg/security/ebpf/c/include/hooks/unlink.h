@@ -81,7 +81,10 @@ int hook_vfs_unlink(ctx_t *ctx) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         return 0;
     }
-
+    if (is_auid_discarder(EVENT_UNLINK)) {
+        syscall->state = DISCARDED;
+        return 0;
+    }
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
