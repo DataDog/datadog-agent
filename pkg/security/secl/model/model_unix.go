@@ -14,6 +14,7 @@ package model
 import (
 	"net/netip"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -481,6 +482,11 @@ type FileFields struct {
 
 	NLink uint32 `field:"-"`
 	Flags int32  `field:"-"`
+}
+
+// IsDir reports whether the file mode represents a directory.
+func (f *FileFields) IsDir() bool {
+	return f.Mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 // FileEvent is the common file event type

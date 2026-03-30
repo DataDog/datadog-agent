@@ -1306,6 +1306,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Open, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// handle cgroup v2 creation
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Open.File)
+
+		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
+			cgroupContext := model.CGroupContext{
+				CGroupPathKey: event.Open.File.PathKey,
+			}
+			p.Resolvers.CGroupResolver.Add(cgroupContext, time.Now())
+		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
@@ -1314,9 +1324,21 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Rmdir, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// handle cgroup v2 deletion
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Rmdir.File)
+		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
+			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
+		}
 	case model.FileUnlinkEventType:
 		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
 			return false
+		}
+
+		// handle cgroup v2 deletion
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Unlink.File)
+		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() {
+			p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
 		}
 	case model.FileRenameEventType:
 		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {
@@ -2700,6 +2722,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
+		},
+		manager.ConstantEditor{
+			Name:  "has_current_cgroup_id_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupID()),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
