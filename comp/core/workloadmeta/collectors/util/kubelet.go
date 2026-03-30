@@ -393,6 +393,7 @@ func extractReadinessProbe(spec *kubelet.ContainerSpec) *workloadmeta.ContainerP
 
 	return &workloadmeta.ContainerProbe{
 		InitialDelaySeconds: int32(spec.ReadinessProbe.InitialDelaySeconds),
+		FailureThreshold:    int32(spec.ReadinessProbe.FailureThreshold),
 	}
 }
 
