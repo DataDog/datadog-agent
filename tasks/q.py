@@ -346,10 +346,9 @@ def _baseline_duration(scenario_name, scenarios_dir):
             episode = json.load(f)
         start = episode["baseline"]["start"]
         end = episode["baseline"]["end"]
-        # Use fromisoformat to handle any valid RFC3339 variant (offsets, fractional seconds).
-        # Python 3.6 doesn't support fromisoformat with offsets, so normalize trailing Z first.
-        t_start = datetime.fromisoformat(start.replace("Z", "+00:00"))
-        t_end = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        fmt = "%Y-%m-%dT%H:%M:%SZ"
+        t_start = datetime.strptime(start, fmt)
+        t_end = datetime.strptime(end, fmt)
         return max(0, int((t_end - t_start).total_seconds()))
     except (OSError, KeyError, ValueError):
         return 0
