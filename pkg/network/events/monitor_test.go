@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go4.org/intern"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -259,15 +260,11 @@ func TestEventHandleTracerTags(t *testing.T) {
 							"DD_ENV=env-from-envp",
 							"DD_VERSION=version-from-envp",
 						},
-						TracerTags: []string{
-							"tracer_service_name:my-service",
-							"tracer_service_env:my-env",
-							"tracer_service_version:my-version",
-							"entrypoint.name:my-entrypoint",
-							// Should be skipped because it matches the UST tags
-							"tracer_service_name:service-from-envp",
-							"tracer_service_env:env-from-envp",
-							"tracer_service_version:version-from-envp",
+						TracerMetadata: tracermetadata.TracerMetadata{
+							ServiceName:    "my-service",
+							ServiceEnv:     "my-env",
+							ServiceVersion: "my-version",
+							ProcessTags:    "entrypoint.name:my-entrypoint",
 						},
 					},
 				},
@@ -286,9 +283,49 @@ func TestEventHandleTracerTags(t *testing.T) {
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:my-service"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:my-env"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:my-version"))
-		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:service-from-envp"))
-		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:env-from-envp"))
-		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:version-from-envp"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
+	})
+
+	t.Run("process event with tracer tags matching UST env vars", func(t *testing.T) {
+		handler.events = nil // reset
+
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 1234,
+						},
+						ExecTime: now,
+						Envp: []string{
+							"DD_SERVICE=my-service",
+							"DD_ENV=my-env",
+							"DD_VERSION=my-version",
+						},
+						TracerMetadata: tracermetadata.TracerMetadata{
+							ServiceName:    "my-service",
+							ServiceEnv:     "my-env",
+							ServiceVersion: "my-version",
+							ProcessTags:    "entrypoint.name:my-entrypoint",
+						},
+					},
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+		}
+
+		p := evHandler.Copy(ev).(*Process)
+		evHandler.HandleEvent(p)
+
+		require.Len(t, handler.events, 1, "should have received 1 process event")
+		receivedProc := handler.events[0]
+		// tracer_service_* tags should be skipped because they match DD_* env vars
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:my-service"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:my-env"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:my-version"))
+		// non-service tags should still be present
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
 	})
 
