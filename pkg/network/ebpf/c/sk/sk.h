@@ -11,9 +11,9 @@ static __always_inline void print_sk_ip(u64 ip_h, u64 ip_l, u16 port, u32 metada
         addr.in6_u.u6_addr32[2] = ip_l & 0xFFFFFFFF;
         addr.in6_u.u6_addr32[3] = (ip_l >> 32) & 0xFFFFFFFF;
         if (metadata & CONN_TYPE_TCP) {
-            log_debug("TCPv6 %pI6:%u", &addr, port);
+            log_debug("TCPv6 %pI6c:%u", &addr, port);
         } else {
-            log_debug("UDPv6 %pI6:%u", &addr, port);
+            log_debug("UDPv6 %pI6c:%u", &addr, port);
         }
     } else {
         if (metadata & CONN_TYPE_TCP) {
@@ -24,18 +24,23 @@ static __always_inline void print_sk_ip(u64 ip_h, u64 ip_l, u16 port, u32 metada
     }
 }
 
-static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, conn_tuple_t *stats_tup) {
-//    if (stats_tup) {
-//        log_debug("stats saddr sk=%p", sk);
-//        print_sk_ip(stats_tup->saddr_h, stats_tup->saddr_l, stats_tup->sport, stats_tup->metadata);
-//        log_debug("stats daddr sk=%p", sk);
-//        print_sk_ip(stats_tup->daddr_h, stats_tup->daddr_l, stats_tup->dport, stats_tup->metadata);
-//    }
+static __always_inline void copy_conn_tuple(conn_tuple_t *t, conn_tuple_t *stats_tup) {
+    if (stats_tup->saddr_l || stats_tup->saddr_h) {
+        t->saddr_h = stats_tup->saddr_h;
+        t->saddr_l = stats_tup->saddr_l;
+    }
+    if (stats_tup->daddr_l || stats_tup->daddr_h) {
+        t->daddr_h = stats_tup->daddr_h;
+        t->daddr_l = stats_tup->daddr_l;
+    }
+    if (stats_tup->sport) t->sport = stats_tup->sport;
+    if (stats_tup->dport) t->dport = stats_tup->dport;
+    if (stats_tup->metadata) t->metadata |= stats_tup->metadata;
+}
+
+static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk) {
     int err = 0;
     u16 family = sk->sk_family;
-    if (stats_tup && stats_tup->metadata) {
-        t->metadata |= stats_tup->metadata;
-    }
     if (family == AF_INET) {
         if (!is_tcpv4_enabled() && !is_udpv4_enabled()) {
             return 0;
@@ -43,18 +48,10 @@ static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, 
         t->metadata |= CONN_V4;
 
         if (t->saddr_l == 0) {
-            if (stats_tup && stats_tup->saddr_l) {
-                t->saddr_l = stats_tup->saddr_l;
-            } else {
-                t->saddr_l = read_saddr_v4(sk);
-            }
+            t->saddr_l = read_saddr_v4(sk);
         }
         if (t->daddr_l == 0) {
-            if (stats_tup && stats_tup->daddr_l) {
-                t->daddr_l = stats_tup->daddr_l;
-            } else {
-                t->daddr_l = read_daddr_v4(sk);
-            }
+            t->daddr_l = read_daddr_v4(sk);
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
@@ -67,20 +64,10 @@ static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, 
         }
 
         if (!(t->saddr_h || t->saddr_l)) {
-            if (stats_tup && (stats_tup->saddr_l || stats_tup->saddr_h)) {
-                t->saddr_h = stats_tup->saddr_h;
-                t->saddr_l = stats_tup->saddr_l;
-            } else {
-                read_saddr_v6(sk, &t->saddr_h, &t->saddr_l);
-            }
+            read_saddr_v6(sk, &t->saddr_h, &t->saddr_l);
         }
         if (!(t->daddr_h || t->daddr_l)) {
-            if (stats_tup && (stats_tup->daddr_l || stats_tup->daddr_h)) {
-                t->daddr_h = stats_tup->daddr_h;
-                t->daddr_l = stats_tup->daddr_l;
-            } else {
-                read_daddr_v6(sk, &t->daddr_h, &t->daddr_l);
-            }
+            read_daddr_v6(sk, &t->daddr_h, &t->daddr_l);
         }
 
         /* We can only pass 4 args to bpf_trace_printk */
@@ -113,29 +100,16 @@ static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, 
     }
 
     if (t->sport == 0) {
-        if (stats_tup && stats_tup->sport) {
-            t->sport = stats_tup->sport;
-        } else {
-            t->sport = read_sport(sk);
-        }
+        t->sport = read_sport(sk);
     }
     if (t->dport == 0) {
-        if (stats_tup && stats_tup->dport) {
-            t->dport = stats_tup->dport;
-        } else {
-            t->dport = read_dport(sk);
-        }
+        t->dport = read_dport(sk);
     }
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);
         err = 1;
     }
-
-//    log_debug("conn saddr sk=%p", sk);
-//    print_sk_ip(t->saddr_h, t->saddr_l, t->sport, t->metadata);
-//    log_debug("conn daddr sk=%p", sk);
-//    print_sk_ip(t->daddr_h, t->daddr_l, t->dport, t->metadata);
 
     return err ? 0 : 1;
 }
