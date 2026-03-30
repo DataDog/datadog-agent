@@ -3,6 +3,10 @@
 
 #include "tracer/tracer.h"
 
+#ifndef NSEC_PER_USEC
+#define NSEC_PER_USEC	1000L
+#endif
+
 #ifndef TCP_ECN_OK
 #define TCP_ECN_OK	1
 #endif
