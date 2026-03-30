@@ -6,7 +6,6 @@
 package setup
 
 import (
-
 	"path"
 	"runtime"
 	"strings"
