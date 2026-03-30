@@ -174,12 +174,14 @@ deploy_containers-a7-fips_internal:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_SOURCES="${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64"
-    - export IMG_DESTINATIONS="ddot-ebpf:${VERSION}-${CI_COMMIT_SHORT_SHA}-preview"
+    - export IMG_DESTINATIONS="ddot-ebpf:${VERSION}-preview-host-profiler-${PREVIEW_NUMBER}"
 
-deploy_containers-host-profiler-commit-preview:
+deploy_containers-host-profiler-preview:
   extends: .deploy_containers-host-profiler-base
   rules:
     - when: manual
       allow_failure: true
+  variables:
+    VERSION: ""
+    PREVIEW_NUMBER: ""
