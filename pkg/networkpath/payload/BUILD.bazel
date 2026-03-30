@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "payload",
+    srcs = [
+        "pathevent.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/payload",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/network/payload"],
+)
+
+go_test(
+    name = "payload_test",
+    srcs = ["payload_test.go"],
+    embed = [":payload"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
