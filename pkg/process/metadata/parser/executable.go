@@ -30,7 +30,7 @@ func NewExecutableExtractor() *ExecutableExtractor {
 func (e *ExecutableExtractor) Extract(processes map[int32]*procutil.Process) {
 	names := make(map[int32]string, len(processes))
 	for pid, p := range processes {
-		names[pid] = p.Name
+		names[pid] = p.Comm
 	}
 	e.mu.Lock()
 	e.names = names

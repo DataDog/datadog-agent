@@ -17,9 +17,9 @@ func TestExecutableExtractorExtract(t *testing.T) {
 	e := NewExecutableExtractor()
 
 	procs := map[int32]*procutil.Process{
-		1: {Pid: 1, Name: "nginx"},
-		2: {Pid: 2, Name: "python3"},
-		3: {Pid: 3, Name: ""},
+		1: {Pid: 1, Comm: "nginx"},
+		2: {Pid: 2, Comm: "python3"},
+		3: {Pid: 3, Comm: ""},
 	}
 	e.Extract(procs)
 
@@ -38,13 +38,13 @@ func TestExecutableExtractorExtractReplacesStaleData(t *testing.T) {
 	e := NewExecutableExtractor()
 
 	e.Extract(map[int32]*procutil.Process{
-		1: {Pid: 1, Name: "oldname"},
+		1: {Pid: 1, Comm: "oldname"},
 	})
 	assert.Equal(t, "oldname", e.GetExecutableName(1))
 
 	// Second Extract with a new process list — pid 1 is gone, pid 2 is new
 	e.Extract(map[int32]*procutil.Process{
-		2: {Pid: 2, Name: "newname"},
+		2: {Pid: 2, Comm: "newname"},
 	})
 	assert.Equal(t, "", e.GetExecutableName(1), "stale pid should be gone after re-extract")
 	assert.Equal(t, "newname", e.GetExecutableName(2))
