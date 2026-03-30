@@ -283,8 +283,8 @@ func (c *HTTPClient) Headers() http.Header {
 	return headers
 }
 
-// BaseUrl returns the HTTP endpoint address to the RC backend.
-func (c *HTTPClient) BaseUrl() (*url.URL, error) {
+// BaseURL returns the HTTP endpoint address to the RC backend.
+func (c *HTTPClient) BaseURL() (*url.URL, error) {
 	return url.Parse(c.baseURL)
 }
 

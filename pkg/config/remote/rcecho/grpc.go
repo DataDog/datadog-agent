@@ -58,7 +58,7 @@ func NewGrpcPingPonger(ctx context.Context, httpClient *api.HTTPClient, runCount
 	}, nil
 }
 
-func (g *GrpcPingPonger) Recv(ctx context.Context) ([]byte, error) {
+func (g *GrpcPingPonger) Recv(_ context.Context) ([]byte, error) {
 	msg, err := g.stream.Recv()
 	if err != nil {
 		return nil, err
@@ -67,14 +67,14 @@ func (g *GrpcPingPonger) Recv(ctx context.Context) ([]byte, error) {
 	return msg.Data, nil
 }
 
-func (g *GrpcPingPonger) Send(ctx context.Context, data []byte) error {
+func (g *GrpcPingPonger) Send(_ context.Context, data []byte) error {
 	return g.stream.Send(&pbgo.RunEchoTestRequest{Data: data})
 }
 
 // GracefulClose cancels any in-flight RPCs and closes the underlying gRPC
 // connection.
 func (g *GrpcPingPonger) GracefulClose() {
-	g.stream.CloseSend()
+	_ = g.stream.CloseSend()
 	g.cancel()
 	g.conn.Close()
 }
@@ -84,7 +84,7 @@ func (g *GrpcPingPonger) GracefulClose() {
 //
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
-func newGrpcClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient) (*grpc.ClientConn, metadata.MD, error) {
+func newGrpcClient(_ context.Context, endpointPath string, httpClient *api.HTTPClient) (*grpc.ClientConn, metadata.MD, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, err := httpClient.Transport()
 	if err != nil {
@@ -92,7 +92,7 @@ func newGrpcClient(ctx context.Context, endpointPath string, httpClient *api.HTT
 	}
 
 	// Parse the "base URL" the client uses to connect to RC.
-	url, err := httpClient.BaseUrl()
+	url, err := httpClient.BaseURL()
 	if err != nil {
 		return nil, nil, err
 	}

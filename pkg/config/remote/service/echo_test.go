@@ -112,7 +112,7 @@ func TestPanicHandler(t *testing.T) {
 
 	// Wrap the callback to assert it is invoked.
 	calledCh := make(chan struct{}, 1)
-	actor.fn = func(_ctx context.Context, _client *api.HTTPClient, runCount uint64) {
+	actor.fn = func(_ctx context.Context, _client *api.HTTPClient, _runCount uint64) {
 		calledCh <- struct{}{}
 		panic("bananas!")
 	}

@@ -655,7 +655,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		directorRoot:          directorRoot,
 		backoffPolicy:         backoffPolicy,
 		telemetryReporter:     telemetryReporter,
-		echoTest:         echoTest,
+		echoTest:              echoTest,
 		clients:               newClients(clock, options.clientTTL),
 		refreshBypassLimiter: rateLimiter{
 			clock: clock,

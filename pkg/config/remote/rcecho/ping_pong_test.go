@@ -77,7 +77,7 @@ type protocol struct {
 	setup func(t *testing.T) (PingPonger, *testPeer)
 }
 
-func setupTcpPair(t *testing.T) (PingPonger, *testPeer) {
+func setupTCPPair(t *testing.T) (PingPonger, *testPeer) {
 	// Use a real TCP listener so kernel buffers allow non-blocking writes
 	// (net.Pipe is fully synchronous and deadlocks the test).
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -100,7 +100,7 @@ func setupTcpPair(t *testing.T) (PingPonger, *testPeer) {
 	serverConn := <-serverCh
 	t.Cleanup(func() { serverConn.Close() })
 
-	pp := &TcpPingPonger{
+	pp := &TCPPingPonger{
 		conn: clientConn,
 		buf:  make([]byte, 0, maxMsgSize),
 	}
@@ -174,7 +174,7 @@ func setupGrpcPair(t *testing.T) (PingPonger, *testPeer) {
 
 func TestPingPonger(t *testing.T) {
 	protocols := []protocol{
-		{"tcp", setupTcpPair},
+		{"tcp", setupTCPPair},
 		{"grpc", setupGrpcPair},
 	}
 
@@ -373,9 +373,9 @@ func TestPingPonger(t *testing.T) {
 	}
 }
 
-// TestTcpPingPonger_OversizedFrame verifies that the TCP framing rejects
+// TestTCPPingPonger_OversizedFrame verifies that the TCP framing rejects
 // frames whose length prefix exceeds maxMsgSize.
-func TestTcpPingPonger_OversizedFrame(t *testing.T) {
+func TestTCPPingPonger_OversizedFrame(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { ln.Close() })
@@ -393,7 +393,7 @@ func TestTcpPingPonger_OversizedFrame(t *testing.T) {
 	serverConn := <-serverCh
 	t.Cleanup(func() { serverConn.Close() })
 
-	pp := &TcpPingPonger{
+	pp := &TCPPingPonger{
 		conn: clientConn,
 		buf:  make([]byte, 0, maxMsgSize),
 	}

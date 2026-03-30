@@ -45,7 +45,7 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount
 	runGrpcTest(ctx, httpClient, runCount)
 
 	// TCP
-	runTcpTest(ctx, httpClient)
+	runTCPTest(ctx, httpClient)
 
 	log.Debug("remote config transport echo tests complete")
 }
@@ -53,7 +53,7 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount
 // preflightCheck performs an HTTP GET to the echo-test endpoint. If the
 // backend does not return 200 OK, the echo tests should not proceed.
 func preflightCheck(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) error {
-	baseURL, err := httpClient.BaseUrl()
+	baseURL, err := httpClient.BaseURL()
 	if err != nil {
 		return err
 	}
@@ -112,8 +112,8 @@ func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint6
 	log.Debugf("grpc echo test complete (%d frames exchanged)", n)
 }
 
-func runTcpTest(ctx context.Context, httpClient *api.HTTPClient) {
-	pp, err := NewTcpPingPonger(ctx, httpClient)
+func runTCPTest(ctx context.Context, httpClient *api.HTTPClient) {
+	pp, err := NewTCPPingPonger(ctx, httpClient)
 	if err != nil {
 		log.Debugf("tcp echo test init failed: %s", err)
 		return

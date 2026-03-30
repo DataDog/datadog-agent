@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package rcecho implements WebSocket connectivity to the RC backend.
+// Package rcecho implements connectivity testing to the RC backend.
 package rcecho
 
 import (
@@ -137,7 +137,7 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	headers.Set("X-Agent-UUID", uuid.GetUUID())
 
 	// Parse the "base URL" the client uses to connect to RC.
-	url, err := httpClient.BaseUrl()
+	url, err := httpClient.BaseURL()
 	if err != nil {
 		return nil, err
 	}

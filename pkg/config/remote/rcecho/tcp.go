@@ -28,7 +28,7 @@ const tcpPort = 8042
 // payload.
 const maxMsgSize = uint16(8 * 1024)
 
-// TcpPingPonger performs a ping/pong test by satisfying the PingPonger
+// TCPPingPonger performs a ping/pong test by satisfying the PingPonger
 // interface using a raw TCP connection and length-prefixed framing.
 //
 // Frame structure:
@@ -37,24 +37,24 @@ const maxMsgSize = uint16(8 * 1024)
 //
 // Where `length prefix` is a u16 (2 byte, unsigned) which specifies the length
 // of payload in bytes. Lengths values are little endian.
-type TcpPingPonger struct {
+type TCPPingPonger struct {
 	conn net.Conn
 	buf  []byte
 }
 
-func NewTcpPingPonger(ctx context.Context, httpClient *api.HTTPClient) (*TcpPingPonger, error) {
-	conn, err := newTcpClient(ctx, httpClient)
+func NewTCPPingPonger(ctx context.Context, httpClient *api.HTTPClient) (*TCPPingPonger, error) {
+	conn, err := newTCPClient(ctx, httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	return &TcpPingPonger{
+	return &TCPPingPonger{
 		conn: conn,
 		buf:  make([]byte, 0, maxMsgSize),
 	}, nil
 }
 
-func (g *TcpPingPonger) Recv(ctx context.Context) ([]byte, error) {
+func (g *TCPPingPonger) Recv(_ context.Context) ([]byte, error) {
 	g.bumpTimeout() // timeout for entire payload read.
 
 	// Read the length prefix into an ad-hoc buffer so the main buffer is
@@ -83,7 +83,7 @@ func (g *TcpPingPonger) Recv(ctx context.Context) ([]byte, error) {
 	return g.buf[:wantLen], nil
 }
 
-func (g *TcpPingPonger) Send(ctx context.Context, data []byte) error {
+func (g *TCPPingPonger) Send(_ context.Context, data []byte) error {
 	g.bumpTimeout()
 
 	if len(data) > math.MaxUint16 {
@@ -106,26 +106,26 @@ func (g *TcpPingPonger) Send(ctx context.Context, data []byte) error {
 	return err
 }
 
-func (g *TcpPingPonger) GracefulClose() {
+func (g *TCPPingPonger) GracefulClose() {
 	g.conn.Close()
 }
 
-func (g *TcpPingPonger) bumpTimeout() {
-	g.conn.SetDeadline(time.Now().Add(5 * time.Minute))
+func (g *TCPPingPonger) bumpTimeout() {
+	_ = g.conn.SetDeadline(time.Now().Add(5 * time.Minute))
 }
 
-func (g *TcpPingPonger) resetBuffer() {
+func (g *TCPPingPonger) resetBuffer() {
 	g.buf = g.buf[:0]
 }
 
-// newTcpClient connects to the RC TCP backend and returns a new connection or a
+// newTCPClient connects to the RC TCP backend and returns a new connection or a
 // connection / handshake error.
 //
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
-func newTcpClient(ctx context.Context, httpClient *api.HTTPClient) (net.Conn, error) {
+func newTCPClient(ctx context.Context, httpClient *api.HTTPClient) (net.Conn, error) {
 	// Parse the "base URL" the client uses to connect to RC.
-	url, err := httpClient.BaseUrl()
+	url, err := httpClient.BaseURL()
 	if err != nil {
 		return nil, err
 	}
