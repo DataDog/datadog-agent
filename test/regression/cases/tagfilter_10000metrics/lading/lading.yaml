@@ -1,0 +1,50 @@
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+generator:
+  # DogStatsD metrics via Unix socket
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      path: "/tmp/dsd.socket"
+      # `bytes_per_second` is understood to be a high-end use case,
+      # however Agent's internal telemetry differs from lading's units: UDS
+      # packets per second versus bytes per second.
+      bytes_per_second: "250 MiB"
+      maximum_prebuild_cache_size_bytes: "500 MiB"
+      variant:
+        # NOTE the `dogstatsd` data are historically sourced and lack a
+        # recent-term backing data set as of 2025/July.
+        dogstatsd:
+          contexts:
+            inclusive:
+              min: 78000
+              max: 78000
+          tags_per_msg:
+            inclusive:
+              min: 54
+              max: 54
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 90
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 0
+            gauge: 0
+            timer: 0
+            distribution: 5
+            set: 0
+            histogram: 0
+          metric_names:
+            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-9999}}
+          tag_names:
+            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-57}}
+          tag_values:
+            - value{{0-9}}
