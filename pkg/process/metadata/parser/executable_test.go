@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func TestExecutableExtractorExtract(t *testing.T) {
-	e := NewExecutableExtractor()
+func TestProcessNameExtractorExtract(t *testing.T) {
+	e := NewProcessNameExtractor()
 
 	procs := map[int32]*procutil.Process{
 		1: {Pid: 1, Comm: "nginx"},
@@ -23,29 +23,29 @@ func TestExecutableExtractorExtract(t *testing.T) {
 	}
 	e.Extract(procs)
 
-	assert.Equal(t, "nginx", e.GetExecutableName(1))
-	assert.Equal(t, "python3", e.GetExecutableName(2))
-	assert.Equal(t, "", e.GetExecutableName(3))
-	assert.Equal(t, "", e.GetExecutableName(99), "unknown pid returns empty string")
+	assert.Equal(t, "nginx", e.GetProcessName(1))
+	assert.Equal(t, "python3", e.GetProcessName(2))
+	assert.Equal(t, "", e.GetProcessName(3))
+	assert.Equal(t, "", e.GetProcessName(99), "unknown pid returns empty string")
 }
 
-func TestExecutableExtractorBeforeExtract(t *testing.T) {
-	e := NewExecutableExtractor()
-	assert.Equal(t, "", e.GetExecutableName(1), "returns empty string before any Extract call")
+func TestProcessNameExtractorBeforeExtract(t *testing.T) {
+	e := NewProcessNameExtractor()
+	assert.Equal(t, "", e.GetProcessName(1), "returns empty string before any Extract call")
 }
 
-func TestExecutableExtractorExtractReplacesStaleData(t *testing.T) {
-	e := NewExecutableExtractor()
+func TestProcessNameExtractorExtractReplacesStaleData(t *testing.T) {
+	e := NewProcessNameExtractor()
 
 	e.Extract(map[int32]*procutil.Process{
 		1: {Pid: 1, Comm: "oldname"},
 	})
-	assert.Equal(t, "oldname", e.GetExecutableName(1))
+	assert.Equal(t, "oldname", e.GetProcessName(1))
 
 	// Second Extract with a new process list — pid 1 is gone, pid 2 is new
 	e.Extract(map[int32]*procutil.Process{
 		2: {Pid: 2, Comm: "newname"},
 	})
-	assert.Equal(t, "", e.GetExecutableName(1), "stale pid should be gone after re-extract")
-	assert.Equal(t, "newname", e.GetExecutableName(2))
+	assert.Equal(t, "", e.GetProcessName(1), "stale pid should be gone after re-extract")
+	assert.Equal(t, "newname", e.GetProcessName(2))
 }

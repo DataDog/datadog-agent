@@ -12,22 +12,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-var _ metadata.Extractor = &ExecutableExtractor{}
+var _ metadata.Extractor = &ProcessNameExtractor{}
 
-// ExecutableExtractor extracts executable names from processes for use in
+// ProcessNameExtractor extracts process names from processes for use in
 // network connection enrichment.
-type ExecutableExtractor struct {
+type ProcessNameExtractor struct {
 	mu    sync.RWMutex
 	names map[int32]string
 }
 
-// NewExecutableExtractor creates a new ExecutableExtractor.
-func NewExecutableExtractor() *ExecutableExtractor {
-	return &ExecutableExtractor{}
+// NewProcessNameExtractor creates a new ProcessNameExtractor.
+func NewProcessNameExtractor() *ProcessNameExtractor {
+	return &ProcessNameExtractor{}
 }
 
 // Extract populates the internal map with the executable name for each process.
-func (e *ExecutableExtractor) Extract(processes map[int32]*procutil.Process) {
+func (e *ProcessNameExtractor) Extract(processes map[int32]*procutil.Process) {
 	names := make(map[int32]string, len(processes))
 	for pid, p := range processes {
 		names[pid] = p.Comm
@@ -37,9 +37,9 @@ func (e *ExecutableExtractor) Extract(processes map[int32]*procutil.Process) {
 	e.mu.Unlock()
 }
 
-// GetExecutableName returns the executable name for the given pid, or an empty
+// GetProcessName returns the process name for the given pid, or an empty
 // string if the process is not known.
-func (e *ExecutableExtractor) GetExecutableName(pid int32) string {
+func (e *ProcessNameExtractor) GetProcessName(pid int32) string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.names[pid]
