@@ -262,6 +262,9 @@ type MetricOutput struct {
 type LogMetricsExtractorOutput struct {
 	Metrics   []MetricOutput
 	Telemetry []ObserverTelemetry
+	// EvictedContextKeys lists context keys that are no longer valid (e.g. after
+	// extractor garbage collection). The engine removes matching contextRefs entries.
+	EvictedContextKeys []string
 }
 
 // MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").

@@ -339,6 +339,50 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	assert.NotContains(t, anomaly.Context.Example, "456")
 }
 
+func TestIngestLogEvictsEngineContextRefsOnLogPatternExtractorGC(t *testing.T) {
+	extractor := NewLogPatternExtractor()
+	extractor.MinPatternsBeforeEmit = 1
+	extractor.ClusterTimeToLiveSec = 10
+	extractor.GarbageCollectionIntervalSec = 0
+
+	e := newEngine(engineConfig{
+		storage:          newTimeSeriesStorage(),
+		extractors:       []observerdef.LogMetricsExtractor{extractor},
+		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
+	})
+
+	_, _ = e.IngestLog("source-a", &logObs{
+		content:     []byte("WARN distinct pattern seed 900 not mergeable xyz"),
+		status:      "warn",
+		tags:        []string{"service:api"},
+		timestampMs: 1_000_000,
+	})
+
+	var firstSeriesID observerdef.SeriesID
+	for _, meta := range e.storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
+		if len(meta.Tags) == 2 && containsTag(meta.Tags, "observer_source:source-a") && containsTag(meta.Tags, "service:api") {
+			firstSeriesID = observerdef.SeriesID(seriesKey(meta.Namespace, meta.Name, meta.Tags))
+			break
+		}
+	}
+	require.NotEmpty(t, firstSeriesID)
+
+	anomaly := observerdef.Anomaly{SourceSeriesID: firstSeriesID}
+	e.enrichAnomaly(&anomaly)
+	require.NotNil(t, anomaly.Context, "context ref should exist before GC")
+
+	_, _ = e.IngestLog("source-b", &logObs{
+		content:     []byte("WARN distinct pattern seed 901 not mergeable xyz"),
+		status:      "warn",
+		tags:        []string{"service:api"},
+		timestampMs: 1_015_000,
+	})
+
+	anomaly.Context = nil
+	e.enrichAnomaly(&anomaly)
+	assert.Nil(t, anomaly.Context, "engine should drop context ref for evicted cluster series")
+}
+
 func containsTag(tags []string, want string) bool {
 	for _, tag := range tags {
 		if tag == want {

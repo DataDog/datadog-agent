@@ -144,6 +144,7 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 		timestampMs: tsMs1,
 	})
 	require.Len(t, res1.Metrics, 1)
+	require.Empty(t, res1.EvictedContextKeys, "no GC on first log")
 	ctxKey1 := res1.Metrics[0].ContextKey
 	_, ok := e.GetContextByKey(ctxKey1)
 	require.True(t, ok, "pattern context should exist before GC")
@@ -158,6 +159,7 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 		timestampMs: tsMs2,
 	})
 	require.Len(t, res2.Metrics, 1)
+	require.Equal(t, []string{ctxKey1}, res2.EvictedContextKeys, "GC should report evicted context keys for the engine")
 	ctxKey2 := res2.Metrics[0].ContextKey
 
 	_, ok = e.GetContextByKey(ctxKey1)

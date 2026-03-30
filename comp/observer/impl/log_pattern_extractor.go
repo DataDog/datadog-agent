@@ -165,9 +165,10 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	e.maybeGarbageCollect()
+	evicted := e.maybeGarbageCollect()
+	result := observerdef.LogMetricsExtractorOutput{EvictedContextKeys: evicted}
 	if !logSeverityIsWarnPlus(log) {
-		return observerdef.LogMetricsExtractorOutput{}
+		return result
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
@@ -177,14 +178,14 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	cluster, ok := e.PatternClusterer.ProcessAt(message, logUnixSec)
 	if !ok {
-		return observerdef.LogMetricsExtractorOutput{}
+		return result
 	}
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
 	if cluster.Count == e.MinPatternsBeforeEmit {
 		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
 	} else if cluster.Count < e.MinPatternsBeforeEmit {
-		return observerdef.LogMetricsExtractorOutput{}
+		return result
 	}
 
 	patternKey := NewPatternKeyInfo(cluster.ID)
@@ -196,35 +197,35 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		example: message,
 	})
 
-	return observerdef.LogMetricsExtractorOutput{
-		Metrics: []observerdef.MetricOutput{{
-			Name:       metricName,
-			Value:      1,
-			Tags:       log.GetTags(),
-			ContextKey: contextKey,
-		}},
-		Telemetry: telemetry,
-	}
+	result.Metrics = []observerdef.MetricOutput{{
+		Name:       metricName,
+		Value:      1,
+		Tags:       log.GetTags(),
+		ContextKey: contextKey,
+	}}
+	result.Telemetry = telemetry
+	return result
 }
 
-// garbageCollect removes clusters that haven't been seen since a long time.
-func (e *LogPatternExtractor) maybeGarbageCollect() {
+// maybeGarbageCollect removes stale clusters and returns context keys evicted from
+// the extractor so the engine can drop matching contextRefs.
+func (e *LogPatternExtractor) maybeGarbageCollect() []string {
 	if time.Now().Unix() < e.NextGarbageCollectionTime {
-		return
+		return nil
 	}
 	e.NextGarbageCollectionTime = time.Now().Unix() + int64(e.GarbageCollectionIntervalSec)
 
-	// Retrieve the list of clusters to delete such that we remove each dependent data from them
 	toDelete := e.PatternClusterer.ClusterIDsBeforeUnix(time.Now().Unix() - int64(e.ClusterTimeToLiveSec))
 	if len(toDelete) == 0 {
-		return
+		return nil
 	}
+	var evicted []string
 	for _, clusterID := range toDelete {
-		// Metric storage
-		// Pattern context
+		if e.ctx.keysByCluster != nil {
+			evicted = append(evicted, e.ctx.keysByCluster[clusterID]...)
+		}
 		e.ctx.removeCluster(clusterID)
-
-		// Cluster from pattern clusterer
 		_ = e.PatternClusterer.RemoveCluster(clusterID)
 	}
+	return evicted
 }
