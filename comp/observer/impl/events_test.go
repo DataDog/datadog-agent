@@ -317,6 +317,7 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 
 func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
 	extractor := NewLogPatternExtractor()
+	extractor.MinPatternsBeforeEmit = 1
 	e := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       []observerdef.LogMetricsExtractor{extractor},
@@ -325,11 +326,13 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 
 	_, _ = e.IngestLog("source-a", &logObs{
 		content:     []byte("GET /users/123 returned 500"),
+		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
 	_, _ = e.IngestLog("source-b", &logObs{
 		content:     []byte("GET /users/456 returned 500"),
+		status:      "warn",
 		tags:        []string{"service:worker"},
 		timestampMs: 2_000,
 	})
