@@ -224,7 +224,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
-	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", true)
+	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -975,6 +976,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
+	// Data Observability
+	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+
 	// Reverse DNS Enrichment
 	config.SetKnown("reverse_dns_enrichment.workers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("reverse_dns_enrichment.chan_size") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1028,6 +1033,21 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+
+	// Integration security
+
+	// When enabled, integrations will ignore configuration parameters that refer to file paths
+	// Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
+	config.BindEnvAndSetDefault("integration_ignore_untrusted_file_params", false)
+
+	// Allowlisted file paths for untrusted providers (empty = allow all).
+	config.BindEnvAndSetDefault("integration_file_paths_allowlist", []string{})
+
+	// Trusted config providers (others are untrusted). Defaults: file, remote-config.
+	config.BindEnvAndSetDefault("integration_trusted_providers", []string{"file", "remote-config"})
+
+	// Integrations excluded from these restrictions.
+	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1232,9 +1252,11 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.workload.num_workers", 2)
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
 	// Cluster autoscaling product
@@ -1435,7 +1457,7 @@ func serverless(config pkgconfigmodel.Setup) {
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
-	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("enhanced_metrics", true, "DD_ENHANCED_METRICS_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")

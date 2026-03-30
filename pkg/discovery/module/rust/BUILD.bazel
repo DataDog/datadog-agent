@@ -37,16 +37,12 @@ rust_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:walkdir",
-        "@crates//:yaml-rust2",
-        "@crates//:zip",
     ],
 )
 
@@ -82,16 +78,12 @@ rust_static_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:walkdir",
-        "@crates//:yaml-rust2",
-        "@crates//:zip",
     ],
 )
 
@@ -139,6 +131,7 @@ pkg_files(
         mode = "0755",
     ),
     prefix = "embedded/bin",
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
@@ -173,6 +166,11 @@ filegroup(
 rust_test(
     name = "dd_discovery_test",
     crate = ":dd_discovery",
+    crate_features = [
+        "java-archives",
+        "spring",
+        "jee",
+    ],
     # Make test data available to tests
     data = [":testdata"],
     edition = "2024",
@@ -183,6 +181,29 @@ rust_test(
         "@crates//:scopeguard",
         "@crates//:tempfile",
         "@crates//:temp-env",
+        # Optional deps needed when spring/jee features are enabled
+        "@crates//:quick-xml",
+        "@crates//:walkdir",
+        "@crates//:yaml-rust2",
+        "@crates//:zip",
+    ],
+)
+
+# Unit tests without optional features (tests the production code path)
+rust_test(
+    name = "dd_discovery_nofeatures_test",
+    crate = ":dd_discovery",
+    # No crate_features — matches production build
+    data = [":testdata"],
+    edition = "2024",
+    deps = [
+        "@crates//:dircpy",
+        "@crates//:memmap2",
+        "@crates//:scopeguard",
+        "@crates//:tempfile",
+        "@crates//:temp-env",
+        # walkdir is needed by test_utils (dev-dependency)
+        "@crates//:walkdir",
     ],
 )
 

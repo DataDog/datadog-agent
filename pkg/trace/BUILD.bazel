@@ -1,0 +1,2 @@
+# gazelle:ignore
+# Not yet migrated to Bazel. Only pkg/trace/log is migrated.
