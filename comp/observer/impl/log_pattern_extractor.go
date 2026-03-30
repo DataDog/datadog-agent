@@ -20,7 +20,7 @@ const defaultMinClusterSizeBeforeEmitMetrics = 5
 
 // defaultClusterTimeToLive is the time to live for a cluster.
 // If a cluster hasn't been seen since this time, it will be removed.
-const defaultClusterTimeToLive = 6 * time.Hour
+const defaultClusterTimeToLive = 4 * time.Hour
 
 const defaultGarbageCollectionInterval = 1 * time.Hour
 
