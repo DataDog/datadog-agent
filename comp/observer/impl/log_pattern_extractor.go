@@ -18,6 +18,12 @@ import (
 // inside a cluster (pattern) before we emit a metric.
 const defaultMinClusterSizeBeforeEmitMetrics = 5
 
+// defaultClusterTimeToLive is the time to live for a cluster.
+// If a cluster hasn't been seen since this time, it will be removed.
+const defaultClusterTimeToLive = 6 * time.Hour
+
+const defaultGarbageCollectionInterval = 1 * time.Hour
+
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
 	ClusterID int64
@@ -39,11 +45,14 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
-	PatternClusterer *patterns.PatternClusterer
-	patternContext   map[string]patternMetricContext
+	PatternClusterer          *patterns.PatternClusterer
+	patternContext            map[string]patternMetricContext
+	NextGarbageCollectionTime int64
 	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
 	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
-	MinPatternsBeforeEmit int
+	MinPatternsBeforeEmit        int
+	ClusterTimeToLiveSec         int
+	GarbageCollectionIntervalSec int
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -62,7 +71,9 @@ func NewLogPatternExtractor() *LogPatternExtractor {
 			Stride: 1,
 			Index:  0,
 		}),
-		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
+		MinPatternsBeforeEmit:        defaultMinClusterSizeBeforeEmitMetrics,
+		ClusterTimeToLiveSec:         int(defaultClusterTimeToLive.Seconds()),
+		GarbageCollectionIntervalSec: int(defaultGarbageCollectionInterval.Seconds()),
 	}
 }
 
@@ -119,6 +130,7 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	e.maybeGarbageCollect()
 	if !logSeverityIsWarnPlus(log) {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
@@ -160,5 +172,36 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			ContextKey: contextKey,
 		}},
 		Telemetry: telemetry,
+	}
+}
+
+// garbageCollect removes clusters that haven't been seen since a long time.
+func (e *LogPatternExtractor) maybeGarbageCollect() {
+	if time.Now().Unix() < e.NextGarbageCollectionTime {
+		return
+	}
+	e.NextGarbageCollectionTime = time.Now().Unix() + int64(e.GarbageCollectionIntervalSec)
+
+	// Retrieve the list of clusters to delete such that we remove each dependent data from them
+	toDelete := e.PatternClusterer.ClusterIDsBeforeUnix(time.Now().Unix() - int64(e.ClusterTimeToLiveSec))
+	if len(toDelete) == 0 {
+		return
+	}
+	remove := make(map[int64]struct{}, len(toDelete))
+	for _, id := range toDelete {
+		remove[id] = struct{}{}
+	}
+	if e.patternContext != nil {
+		for k, v := range e.patternContext {
+			if _, ok := remove[v.keyInfo.ClusterID]; ok {
+				delete(e.patternContext, k)
+			}
+		}
+	}
+	for _, clusterID := range toDelete {
+		// Metric storage
+		// Pattern context
+		// Cluster from pattern clusterer
+		_ = e.PatternClusterer.RemoveCluster(clusterID)
 	}
 }
