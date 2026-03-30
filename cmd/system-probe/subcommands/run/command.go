@@ -218,6 +218,8 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		configstreamconsumerfx.Module(),
+		// Trigger instantiation; OnStart handles the blocking wait internally.
+		fx.Invoke(func(_ configstreamconsumer.Component) {}),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
@@ -228,16 +230,9 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
-// configStreamReadyTimeout is how long to wait for the initial config snapshot before failing startup.
-const configStreamReadyTimeout = 60 * time.Second
-
-// configStreamReadyTimeoutForTest overrides the timeout when set (e.g. by integration tests).
-// It is only set from test code to keep tests fast.
-var configStreamReadyTimeoutForTest time.Duration
-
 // run starts the main loop.
 func run(
-	agentConfig config.Component,
+	_ config.Component,
 	rcclient rcclient.Component,
 	_ pid.Component,
 	_ healthprobe.Component,
@@ -245,7 +240,6 @@ func run(
 	settings settings.Component,
 	_ ipc.Component,
 	pidParams pidimpl.Params,
-	cfgStream configstreamconsumer.Component,
 	deps module.FactoryDependencies,
 ) error {
 	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
@@ -257,24 +251,6 @@ func run(
 	}
 
 	defer stopSystemProbe()
-
-	// When config streaming is in use (RAR enabled), block until the initial snapshot is received.
-	if cfgStream != nil {
-		timeout := configStreamReadyTimeout
-		if configStreamReadyTimeoutForTest != 0 {
-			timeout = configStreamReadyTimeoutForTest
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		deps.Log.Info("Waiting for initial configuration from core agent...")
-		if err := cfgStream.WaitReady(ctx); err != nil {
-			return fmt.Errorf("waiting for initial config snapshot: %w", err)
-		}
-		deps.Log.Info("Initial configuration received from core agent. Starting system-probe.")
-	} else {
-		rarEnabled := agentConfig.GetBool("remote_agent.registry.enabled")
-		deps.Log.Infof("Config streaming not in use; proceeding without waiting for initial configuration (remote_agent.registry.enabled=%v).", rarEnabled)
-	}
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
 		if err := ddruntime.DisableTransparentHugePages(); err != nil {

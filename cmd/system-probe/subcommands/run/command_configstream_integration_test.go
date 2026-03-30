@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
@@ -98,9 +99,6 @@ func setupMockConfigStreamServer(t *testing.T, ipcComp *ipcmock.IPCMock) (addr s
 // TestRunBlocksUntilConfigStreamSnapshot verifies that system-probe startup does not complete
 // until the config stream sends a snapshot, by running the real FX graph with a mock config stream server.
 func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
-	configStreamReadyTimeoutForTest = 2 * time.Second
-	defer func() { configStreamReadyTimeoutForTest = 0 }()
-
 	ipcComp := ipcmock.New(t)
 	serverAddr, events, cleanup := setupMockConfigStreamServer(t, ipcComp)
 	defer cleanup()
@@ -141,6 +139,13 @@ system_probe_config:
 	overrides := fx.Options(
 		fx.Replace(ipcComp),
 		fx.Replace(remoteagent.Component(&mockRAR{})),
+		fx.Decorate(func(p *configstreamconsumerimpl.Params) *configstreamconsumerimpl.Params {
+			if p == nil {
+				return nil
+			}
+			p.ReadyTimeout = 2 * time.Second
+			return p
+		}),
 	)
 	opts := fx.Options(baseOpts, overrides)
 
