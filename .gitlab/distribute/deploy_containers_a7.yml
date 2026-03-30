@@ -128,7 +128,11 @@ deploy_containers-dogstatsd:
 
 # ---------- PoC: gateway-based variants (targeting staging artifact-gateway) ----------
 # These mirror the existing jobs but route through artifact-gateway instead of
-# triggering public-images directly. Manual-only for safe testing.
+# triggering public-images directly. Uses bzl run image-promotion CLI from dd-source.
+# Manual-only for safe testing.
+#
+# The ECR suffix logic is in .docker_publish_job_definition_via_gateway's script,
+# so callers only need to set IMG_SOURCES/IMG_DESTINATIONS in before_script.
 
 .deploy_containers-a7-base-via-gateway:
   extends: .docker_publish_job_definition_via_gateway
@@ -141,15 +145,6 @@ deploy_containers-dogstatsd:
     - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2025${FLAVOR}-amd64"
     - if [[ "$FLAVOR" == "-linux" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES}"; elif [[ "$FLAVOR" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}${JMX}"
-    # ECR suffix logic (previously in .docker_publish_job_definition script)
-    - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_AGENT" ) ]]; then
-        export ECR_RELEASE_SUFFIX="-nightly"
-      else
-        export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
-      fi
-    - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
-    - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
 
 deploy_containers-a7-via-gateway:
   extends: .deploy_containers-a7-base-via-gateway
@@ -176,14 +171,6 @@ deploy_containers-dogstatsd-via-gateway:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_SOURCES="${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
-    # ECR suffix logic
-    - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_DSD" ) ]]; then
-        export ECR_RELEASE_SUFFIX="-nightly"
-      else
-        export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
-      fi
-    - IMG_SOURCES="$(sed -E "s#(${SRC_DSD})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
 
 # Jobs [.on_deploy_internal_rc]
 

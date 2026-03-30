@@ -46,15 +46,9 @@
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
 
 # New: publishes images through artifact-gateway (identity check + policy + audit).
-# Extends the shared template from dd-source. Callers use this exactly like
+# Extends the shared CI template from dd-source. Callers use this exactly like
 # .docker_publish_job_definition — same IMG_* variables, same before_script patterns.
-#
-# IMPORTANT: Callers must include ECR suffix logic in their before_script since
-# GitLab CI replaces (not merges) before_script from the parent definition.
-# Use the &docker_ecr_suffix_script anchor at the end of your before_script.
-#
-# The template's `script` section (from .image-promotion) handles:
-#   auth → JSON payload → POST to artifact-gateway → poll for completion
+# The ECR suffix logic is in the script section (before the template's logic).
 .docker_publish_job_definition_via_gateway:
   extends: .image-promotion
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
