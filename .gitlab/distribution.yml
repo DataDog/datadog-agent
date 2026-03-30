@@ -16,7 +16,7 @@ include:
   # TODO: pin to a commit on main once merged.
   - project: DataDog/dd-source
     ref: ali.benabdallah/BARX-1709/image-promotion-template
-    file: domains/agent_delivery/etc/ci-templates/image-promotion.yml
+    file: domains/agent_delivery/gitlab-templates/image-promotion.yml
   - .gitlab/deploy/conditions.yml
   - local: .gitlab/deploy/trigger_release/**.yml
   - local: .gitlab/distribute/**.yml
