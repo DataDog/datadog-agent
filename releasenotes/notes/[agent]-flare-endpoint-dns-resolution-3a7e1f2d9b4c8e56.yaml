@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Flares now include a ``connectivity/endpoint_dns.txt`` file that lists
+    Flares now include a ``connectivity/resolved_endpoints.txt`` file that lists
     the IP addresses each configured Datadog intake endpoint hostname resolves
     to at flare-generation time. This makes it straightforward to determine
     whether the Agent is using PrivateLink (private IPs) or the public Datadog
