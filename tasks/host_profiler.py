@@ -13,6 +13,7 @@ from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.releasing.json import get_current_milestone
 from tasks.libs.releasing.version import query_version
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
@@ -47,7 +48,8 @@ def _get_profiler_agent_version(ctx):
     if not is_nightly and not is_dev:
         return None
 
-    version, pre, commits, git_sha, _ = query_version(ctx, major_version='7')
+    major_version = get_current_milestone().split('.')[0]
+    version, pre, commits, git_sha, _ = query_version(ctx, major_version=major_version)
 
     if is_nightly:
         return f"{version}-nightly_git.{commits}.{git_sha}"
