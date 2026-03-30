@@ -368,8 +368,4 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
-
-	if p.ExecutableName != "" {
-		c.Tags = append(c.Tags, intern.GetByString("executable_name:"+p.ExecutableName))
-	}
 }

@@ -11,7 +11,6 @@
 package events
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -47,12 +46,11 @@ var (
 
 // Process is a process
 type Process struct {
-	Pid            uint32
-	ExecutableName string
-	Tags           []*intern.Value
-	ContainerID    *intern.Value
-	StartTime      int64
-	Expiry         int64
+	Pid         uint32
+	Tags        []*intern.Value
+	ContainerID *intern.Value
+	StartTime   int64
+	Expiry      int64
 }
 
 // Init initializes the events package
@@ -122,10 +120,6 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	p := &Process{
 		Pid:       ev.GetProcessPid(),
 		StartTime: processStartTime.UnixNano(),
-	}
-
-	if execPath := ev.GetExecFilePath(); execPath != "" {
-		p.ExecutableName = filepath.Base(execPath)
 	}
 
 	// we need to keep looking for settings until all of the desired

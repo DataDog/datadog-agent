@@ -1,0 +1,46 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package parser
+
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+)
+
+var _ metadata.Extractor = &ExecutableExtractor{}
+
+// ExecutableExtractor extracts executable names from processes for use in
+// network connection enrichment.
+type ExecutableExtractor struct {
+	mu    sync.RWMutex
+	names map[int32]string
+}
+
+// NewExecutableExtractor creates a new ExecutableExtractor.
+func NewExecutableExtractor() *ExecutableExtractor {
+	return &ExecutableExtractor{}
+}
+
+// Extract populates the internal map with the executable name for each process.
+func (e *ExecutableExtractor) Extract(processes map[int32]*procutil.Process) {
+	names := make(map[int32]string, len(processes))
+	for pid, p := range processes {
+		names[pid] = p.Name
+	}
+	e.mu.Lock()
+	e.names = names
+	e.mu.Unlock()
+}
+
+// GetExecutableName returns the executable name for the given pid, or an empty
+// string if the process is not known.
+func (e *ExecutableExtractor) GetExecutableName(pid int32) string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.names[pid]
+}
