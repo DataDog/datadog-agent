@@ -338,7 +338,7 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
 
 def _baseline_duration(scenario_name, scenarios_dir):
     """Returns baseline duration in seconds from episode.json, or 0 if unavailable."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     episode_path = os.path.join(scenarios_dir, scenario_name, "episode.json")
     try:
@@ -346,9 +346,10 @@ def _baseline_duration(scenario_name, scenarios_dir):
             episode = json.load(f)
         start = episode["baseline"]["start"]
         end = episode["baseline"]["end"]
-        fmt = "%Y-%m-%dT%H:%M:%SZ"
-        t_start = datetime.strptime(start, fmt).replace(tzinfo=timezone.utc)
-        t_end = datetime.strptime(end, fmt).replace(tzinfo=timezone.utc)
+        # Use fromisoformat to handle any valid RFC3339 variant (offsets, fractional seconds).
+        # Python 3.6 doesn't support fromisoformat with offsets, so normalize trailing Z first.
+        t_start = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        t_end = datetime.fromisoformat(end.replace("Z", "+00:00"))
         return max(0, int((t_end - t_start).total_seconds()))
     except (OSError, KeyError, ValueError):
         return 0

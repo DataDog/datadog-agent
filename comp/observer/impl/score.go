@@ -53,6 +53,7 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		NumPredictions:  len(input.PredictionTimestamps),
 		NumGroundTruths: len(input.GroundTruthTimestamps),
 		Sigma:           input.Sigma,
+		Alpha:           -1, // not computable without baseline duration; set by ScoreOutputFile
 	}
 
 	if len(input.PredictionTimestamps) == 0 && len(input.GroundTruthTimestamps) == 0 {
