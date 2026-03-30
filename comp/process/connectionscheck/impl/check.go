@@ -35,7 +35,8 @@ type dependencies struct {
 	Tagger      tagger.Component
 }
 
-type result struct {
+// Provides defines the output of the connectionscheck component.
+type Provides struct {
 	compdef.Out
 
 	Check     types.ProvidesCheck
@@ -43,11 +44,11 @@ type result struct {
 }
 
 // NewCheck creates a new connectionscheck component.
-func NewCheck(deps dependencies) result {
+func NewCheck(deps dependencies) Provides {
 	c := &check{
 		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Tagger),
 	}
-	return result{
+	return Provides{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
