@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -21,7 +22,7 @@ import (
 )
 
 type secretLinuxRuntimeSuite struct {
-	secretBaseRuntimeSuite
+	baseRuntimeSecretSuite
 }
 
 func TestSecretLinuxRuntimeSuite(t *testing.T) {

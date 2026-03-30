@@ -11,6 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
-type secretBaseRuntimeSuite struct {
+type baseRuntimeSecretSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
