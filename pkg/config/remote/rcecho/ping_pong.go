@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,14 +39,12 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount
 		return
 	}
 
-	// WebSocket
-	runWebSocketTest(ctx, httpClient, runCount)
-
-	// gRPC
-	runGrpcTest(ctx, httpClient, runCount)
-
-	// TCP
-	runTCPTest(ctx, httpClient)
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); runWebSocketTest(ctx, httpClient, runCount) }()
+	go func() { defer wg.Done(); runGrpcTest(ctx, httpClient, runCount) }()
+	go func() { defer wg.Done(); runTCPTest(ctx, httpClient) }()
+	wg.Wait()
 
 	log.Debug("remote config transport echo tests complete")
 }
@@ -88,6 +87,12 @@ func preflightCheck(ctx context.Context, httpClient *api.HTTPClient, runCount ui
 }
 
 func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("unexpected websocket echo connectivity test failure: %s", err)
+		}
+	}()
+
 	n, err := runEchoLoop(ctx, httpClient, runCount)
 	if err != nil {
 		log.Debugf("websocket echo test failed: %s (%d data frames exchanged)", err, n)
@@ -97,6 +102,12 @@ func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient, runCount 
 }
 
 func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("unexpected websocket grpc connectivity test failure: %s", err)
+		}
+	}()
+
 	pp, err := NewGrpcPingPonger(ctx, httpClient, runCount)
 	if err != nil {
 		log.Debugf("grpc echo test init failed: %s", err)
@@ -113,6 +124,12 @@ func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint6
 }
 
 func runTCPTest(ctx context.Context, httpClient *api.HTTPClient) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("unexpected tcp echo connectivity test failure: %s", err)
+		}
+	}()
+
 	pp, err := NewTCPPingPonger(ctx, httpClient)
 	if err != nil {
 		log.Debugf("tcp echo test init failed: %s", err)
