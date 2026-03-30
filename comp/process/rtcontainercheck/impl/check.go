@@ -31,7 +31,7 @@ type dependencies struct {
 	WMmeta    workloadmeta.Component
 }
 
-type result struct {
+type Provides struct {
 	compdef.Out
 
 	Check     types.ProvidesCheck
@@ -39,11 +39,11 @@ type result struct {
 }
 
 // NewCheck creates a new rtcontainercheck component.
-func NewCheck(deps dependencies) result {
+func NewCheck(deps dependencies) Provides {
 	c := &check{
 		rtContainerCheck: checks.NewRTContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta),
 	}
-	return result{
+	return Provides{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
