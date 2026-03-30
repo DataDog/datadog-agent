@@ -45,9 +45,11 @@ func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 	defer b.CleanupOnSetupFailure()
 
 	var err error
-	b.AgentPackage, err = windowsAgent.GetPackageFromEnv()
-	if err != nil {
-		b.T().Fatalf("failed to get MSI URL from env: %v", err)
+	if b.AgentPackage == nil {
+		b.AgentPackage, err = windowsAgent.GetPackageFromEnv()
+		if err != nil {
+			b.T().Fatalf("failed to get MSI URL from env: %v", err)
+		}
 	}
 	b.T().Logf("Using Agent: %#v", b.AgentPackage)
 }
