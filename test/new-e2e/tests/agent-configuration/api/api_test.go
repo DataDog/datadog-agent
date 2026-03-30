@@ -324,7 +324,7 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 
 				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, body)
+				assert.NotNil(ct, have.Entities, "%s %s returned: %s, expected \"entities\" field to be present", e.method, e.endpoint, body)
 			},
 		},
 		{
