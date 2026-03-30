@@ -126,40 +126,9 @@ deploy_containers-dogstatsd:
     - export IMG_SOURCES="${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
 
-# ---------- PoC: gateway-based variants (targeting staging artifact-gateway) ----------
-# These mirror the existing jobs but route through artifact-gateway instead of
-# triggering public-images directly. Uses bzl run image-promotion CLI from dd-source.
-# Manual-only for safe testing.
-#
-# The ECR suffix logic is in .docker_publish_job_definition_via_gateway's script,
-# so callers only need to set IMG_SOURCES/IMG_DESTINATIONS in before_script.
-
-.deploy_containers-a7-base-via-gateway:
-  extends: .docker_publish_job_definition_via_gateway
-  stage: deploy_containers
-  dependencies: []
-  before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
-    - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
-    - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7${JMX}-amd64,${IMG_BASE_SRC}-7${JMX}-arm64"
-    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2025${FLAVOR}-amd64"
-    - if [[ "$FLAVOR" == "-linux" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES}"; elif [[ "$FLAVOR" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
-    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}${JMX}"
-
-deploy_containers-a7-via-gateway:
-  extends: .deploy_containers-a7-base-via-gateway
-  rules:
-    - when: manual
-      allow_failure: true
-  parallel:
-    matrix:
-      - JMX:
-          - ""
-          - "-jmx"
-        FLAVOR:
-          - ""
-          - "-linux"
-
+# Validation: single gateway job to test the image-promotion path via artifact-gateway.
+# Uses bzl run @dd_source_image_promotion (imported in MODULE.bazel).
+# Targets dev registries only (DSD_REPOSITORY is set to dogstatsd-dev by conditions.yml).
 deploy_containers-dogstatsd-via-gateway:
   extends: .docker_publish_job_definition_via_gateway
   stage: deploy_containers
