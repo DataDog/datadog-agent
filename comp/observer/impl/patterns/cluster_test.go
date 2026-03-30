@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// Fixed event time for SignatureClusterer tests (Unix seconds, non-zero).
+const testUnixSec = int64(1704067200)
+
 func TestSignatureClustererEmpty(t *testing.T) {
 	sc := NewSignatureClusterer(IDComputeInfo{})
 	if len(sc.GetClusters()) != 0 {
@@ -20,7 +23,7 @@ func TestSignatureClustererSameMessage(t *testing.T) {
 	sc := NewSignatureClusterer(IDComputeInfo{})
 
 	msg := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
-	r1, _ := sc.Process(msg)
+	r1, _ := sc.Process(msg, testUnixSec)
 	if r1.Count != 1 {
 		t.Error("first message should create a new cluster")
 	}
@@ -28,7 +31,7 @@ func TestSignatureClustererSameMessage(t *testing.T) {
 		t.Errorf("expected 1 cluster, got %d", len(sc.GetClusters()))
 	}
 
-	r2, _ := sc.Process(msg)
+	r2, _ := sc.Process(msg, testUnixSec)
 	if r2.Count == 1 {
 		t.Error("same message should not create a new cluster")
 	}
@@ -43,8 +46,8 @@ func TestSignatureClustererDifferentMessages(t *testing.T) {
 	msg1 := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
 	msg2 := `2020-08-27 02:32:42 ERROR (connector.go:34) - Failed to connected to redis`
 
-	sc.Process(msg1)
-	sc.Process(msg2)
+	sc.Process(msg1, testUnixSec)
+	sc.Process(msg2, testUnixSec+1)
 
 	if len(sc.GetClusters()) != 2 {
 		t.Errorf("expected 2 clusters, got %d", len(sc.GetClusters()))
@@ -53,7 +56,7 @@ func TestSignatureClustererDifferentMessages(t *testing.T) {
 
 func TestSignatureClustererIgnoresEmpty(t *testing.T) {
 	sc := NewSignatureClusterer(IDComputeInfo{})
-	_, ok := sc.Process("")
+	_, ok := sc.Process("", testUnixSec)
 	if ok {
 		t.Error("empty message should return no result")
 	}
@@ -65,9 +68,9 @@ func TestSignatureClustererIgnoresEmpty(t *testing.T) {
 func TestSignatureClustererCount(t *testing.T) {
 	sc := NewSignatureClusterer(IDComputeInfo{})
 	msg := "hello world"
-	sc.Process(msg)
-	sc.Process(msg)
-	sc.Process(msg)
+	sc.Process(msg, testUnixSec)
+	sc.Process(msg, testUnixSec)
+	sc.Process(msg, testUnixSec)
 
 	clusters := sc.GetClusters()
 	if len(clusters) != 1 {
@@ -481,6 +484,37 @@ func TestEndToEndClustering(t *testing.T) {
 
 	if len(pc.GetClusters()) != 2 {
 		t.Errorf("expected 2 clusters, got %d", len(pc.GetClusters()))
+	}
+}
+
+func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
+	pc := NewPatternClusterer(IDComputeInfo{Offset: 0, Stride: 1, Index: 0})
+
+	a, _ := pc.ProcessAt("unique alpha message one", 1000)
+	b, _ := pc.ProcessAt("totally different beta two", 5000)
+	if a.LastSeenUnix != 1000 || b.LastSeenUnix != 5000 {
+		t.Fatalf("LastSeenUnix: a=%d b=%d", a.LastSeenUnix, b.LastSeenUnix)
+	}
+
+	ids := pc.ClusterIDsBeforeUnix(5000)
+	if len(ids) != 1 || ids[0] != a.ID {
+		t.Fatalf("expected single id %d before 5000, got %v", a.ID, ids)
+	}
+	ids = pc.ClusterIDsBeforeUnix(5001)
+	if len(ids) != 2 {
+		t.Fatalf("expected both cluster ids before 5001, got %v", ids)
+	}
+
+	// Merge path: log at t=9000 joins cluster a; last seen on a updates to 9000.
+	_, _ = pc.ProcessAt("unique alpha message nine", 9000)
+	if a.LastSeenUnix != 9000 {
+		t.Fatalf("merge should update last seen: got %d", a.LastSeenUnix)
+	}
+	if got := pc.ClusterIDsBeforeUnix(5000); len(got) != 0 {
+		t.Fatalf("expected no cluster ids with lastSeen < 5000 after merge, got %v", got)
+	}
+	if got := pc.ClusterIDsBeforeUnix(9001); len(got) != 2 {
+		t.Fatalf("expected both cluster ids before 9001, got %v", got)
 	}
 }
 

@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -123,14 +124,18 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	cluster, ok := e.PatternClusterer.Process(message)
+	logUnixSec := log.GetTimestampUnixMilli() / 1000
+	if logUnixSec == 0 {
+		logUnixSec = time.Now().Unix()
+	}
+	cluster, ok := e.PatternClusterer.ProcessAt(message, logUnixSec)
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
 	if cluster.Count == e.MinPatternsBeforeEmit {
-		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
+		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
 	} else if cluster.Count < e.MinPatternsBeforeEmit {
 		return observerdef.LogMetricsExtractorOutput{}
 	}

@@ -8,7 +8,9 @@ package patterns
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Used to compute cluster IDs on multiple threads without locking
@@ -34,6 +36,9 @@ type Cluster struct {
 	Count     int
 	Tags      map[string]string
 	Samples   []string
+	// LastSeenUnix is wall-clock time (Unix seconds) of the most recent log
+	// assigned to this cluster (including merges into an existing pattern).
+	LastSeenUnix int64
 }
 
 // "Shallow" copy of the cluster
@@ -52,6 +57,21 @@ func (c *Cluster) PatternString() string {
 		b.WriteString(t.PatternString())
 	}
 	return b.String()
+}
+
+// unixSecFromDoc reads Unix seconds from doc["timestamp_unix"] or doc["timestamp"]
+// (decimal string). If missing or invalid, returns time.Now().Unix().
+func unixSecFromDoc(doc map[string]string) int64 {
+	if doc != nil {
+		for _, key := range []string{"timestamp_unix", "timestamp"} {
+			if s, ok := doc[key]; ok {
+				if v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64); err == nil && v > 0 {
+					return v
+				}
+			}
+		}
+	}
+	return time.Now().Unix()
 }
 
 func (c *Cluster) ToClusterInfo() ClusterInfo {
@@ -86,29 +106,35 @@ func NewSignatureClusterer(idComputeInfo IDComputeInfo) *SignatureClusterer {
 	}
 }
 
-func (sc *SignatureClusterer) Process(message string) (*Cluster, bool) {
+// Process clusters the message; unixSec is Unix seconds for new clusters (non-zero;
+// use time.Now().Unix() when the event has no timestamp).
+func (sc *SignatureClusterer) Process(message string, unixSec int64) (*Cluster, bool) {
 	if sc.IgnoreEmpty && strings.TrimSpace(message) == "" {
 		return nil, false
 	}
 
 	tokens := sc.tokenizer.Tokenize(message)
-	return sc.ProcessTokens(tokens, message)
+	return sc.ProcessTokens(tokens, message, unixSec)
 }
 
-func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) (*Cluster, bool) {
+// ProcessTokens clusters by exact token-list signature. unixSec is Unix
+// seconds recorded on new clusters (must be non-zero; use time.Now().Unix() when unknown).
+func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
 	sig := TokenListSignature(tokens)
 
 	if c, ok := sc.clusters[sig]; ok {
 		c.Count++
+		c.LastSeenUnix = unixSec
 		return c, true
 	}
 
 	c := &Cluster{
-		Signature: sig,
-		Pattern:   tokens,
-		Count:     1,
-		Samples:   []string{message},
-		ID:        sc.IDComputeInfo.NextID(),
+		Signature:    sig,
+		Pattern:      tokens,
+		Count:        1,
+		Samples:      []string{message},
+		ID:           sc.IDComputeInfo.NextID(),
+		LastSeenUnix: unixSec,
 	}
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
@@ -118,7 +144,7 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) (*Cl
 
 func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) (*Cluster, bool) {
 	message := sc.TextGetter(doc)
-	result, ok := sc.Process(message)
+	result, ok := sc.Process(message, unixSecFromDoc(doc))
 	if ok && result.Count == 1 && len(sc.TagGetters) > 0 {
 		if result.Tags == nil {
 			result.Tags = make(map[string]string)
@@ -162,16 +188,27 @@ func (pc *PatternClusterer) NumClusters() int {
 }
 
 func (pc *PatternClusterer) Process(message string) (*Cluster, bool) {
+	return pc.ProcessAt(message, time.Now().Unix())
+}
+
+// ProcessAt records unixSec (Unix seconds, non-zero; use time.Now().Unix() when
+// the event has no timestamp) as LastSeenUnix on new and merged clusters.
+func (pc *PatternClusterer) ProcessAt(message string, unixSec int64) (*Cluster, bool) {
 	if pc.IgnoreEmpty && strings.TrimSpace(message) == "" {
 		return nil, false
 	}
 
 	tokens := pc.tokenizer.Tokenize(message)
 
-	return pc.ProcessTokens(tokens, message)
+	return pc.ProcessTokensAt(tokens, message, unixSec)
 }
 
 func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Cluster, bool) {
+	return pc.ProcessTokensAt(tokens, message, time.Now().Unix())
+}
+
+// ProcessTokensAt records unixSec on new clusters; see ProcessAt.
+func (pc *PatternClusterer) ProcessTokensAt(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
 	sig := TokenListSignature(tokens)
 
 	// Try within same signature group first
@@ -180,6 +217,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Clus
 		if canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
+			c.LastSeenUnix = unixSec
 			return c, true
 		}
 	}
@@ -194,22 +232,39 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Clus
 			if canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
+				c.LastSeenUnix = unixSec
 				return c, true
 			}
 		}
 	}
 
 	c := &Cluster{
-		Signature: sig,
-		Pattern:   tokens,
-		Count:     1,
-		Samples:   []string{message},
-		ID:        pc.IDComputeInfo.NextID(),
+		Signature:    sig,
+		Pattern:      tokens,
+		Count:        1,
+		Samples:      []string{message},
+		ID:           pc.IDComputeInfo.NextID(),
+		LastSeenUnix: unixSec,
 	}
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
 
 	return c, true
+}
+
+// ClusterIDsBeforeUnix returns IDs of clusters whose LastSeenUnix is strictly
+// less than cutoff (both in Unix seconds).
+func (pc *PatternClusterer) ClusterIDsBeforeUnix(cutoff int64) []int64 {
+	if len(pc.allClusters) == 0 {
+		return nil
+	}
+	out := make([]int64, 0)
+	for _, c := range pc.allClusters {
+		if c.LastSeenUnix < cutoff {
+			out = append(out, c.ID)
+		}
+	}
+	return out
 }
 
 func (pc *PatternClusterer) GetClusters() []*Cluster {
