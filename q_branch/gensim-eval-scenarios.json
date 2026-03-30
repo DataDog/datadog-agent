@@ -1,0 +1,14 @@
+[
+  {"episode": "059_Fortnite_34M_CCU_Service_Outage", "scenario": "memcached-saturation"},
+  {"episode": "063_Twilio_Redis_Billing",             "scenario": "redis-cascade-billing"},
+  {"episode": "093_cloudflare_byzantine_failure",     "scenario": "byzantine-fault"},
+  {"episode": "093_cloudflare_byzantine_failure",     "scenario": "byzantine-fault-cascade"},
+  {"episode": "127_Heroku_Task_Workers",              "scenario": "heroku-timing-lock"},
+  {"episode": "211_DoorDash_June_2021_Outage",        "scenario": "cascading-payment-failure"},
+  {"episode": "213_PagerDuty_June_2014_Outage",       "scenario": "cassandra-repair-degradation"},
+  {"episode": "221_Base_September_2024_Outage",       "scenario": "block-building-outage"},
+  {"episode": "353_postmark_upstream_cloud_provider_outage", "scenario": "dns-upstream-outage"},
+  {"episode": "546_cloudflare_october_2022_tiered_cache_outage", "scenario": "tiered-cache-header-corruption"},
+  {"episode": "703_shopify_bfcm_incident",            "scenario": "kafka-partition-saturation"},
+  {"episode": "food-delivery-redis-cpu-saturation",   "scenario": "redis-cpu-saturation"}
+]
