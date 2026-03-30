@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.uber.org/zap/exp/zapslog"
@@ -120,6 +122,16 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	// infraattributes processor can also be used in metrics pipeline
 	if err := c.ensureMetricsPipeline(confStringMap); err != nil {
 		return err
+	}
+
+	// Add internal health metrics pipeline
+	// Get updated exporter list from profiles pipeline (may have been modified by ensureOtlpHTTPExporterConfig)
+	updatedExporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
+	if err != nil {
+		return err
+	}
+	if err := c.addInternalHealthMetricsPipeline(confStringMap, updatedExporterNames, newProcessorNames); err != nil {
+		slog.Warn("failed to configure internal health metric pipeline, skipping", slog.Any("error", err))
 	}
 
 	*conf = *confmap.NewFromStringMap(confStringMap)
@@ -339,6 +351,12 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
 				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
 			}
+			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.ProfilerName); err != nil {
+				return err
+			}
+			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -387,6 +405,126 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 			}
 		}
 	}
+
+	return nil
+}
+
+// addInternalHealthMetricsPipeline scrapes OTel collector internal telemetry and exports it
+// to the same orgs as profiles. Separate from ensureMetricsPipeline which handles user-defined pipelines.
+func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any, profilesProcessors []any) error {
+	if existing, ok := Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
+		slog.Warn("metrics/profiler-internal-health pipeline already configured, skipping auto-configuration",
+			slog.Any("existing_config", existing))
+		return nil
+	}
+
+	if level, ok := Get[string](conf, "service::telemetry::metrics::level"); ok {
+		if strings.ToLower(level) == "none" {
+			slog.Info("metrics telemetry disabled (level=none), skipping metrics pipeline")
+			return nil
+		}
+	}
+
+	if receivers, ok := Get[confMap](conf, "receivers"); ok {
+		if _, exists := receivers[reservedPrometheusReceiver]; exists {
+			slog.Warn("receiver name conflicts with reserved name, skipping pipeline",
+				slog.String("receiver", reservedPrometheusReceiver))
+			return nil
+		}
+	}
+	if processors, ok := Get[confMap](conf, "processors"); ok {
+		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor} {
+			if _, exists := processors[reserved]; exists {
+				slog.Warn("processor name conflicts with reserved name, skipping pipeline",
+					slog.String("processor", reserved))
+				return nil
+			}
+		}
+	}
+
+	metricsExporterNames := []any{}
+	for _, exporterNameAny := range profilesExporterNames {
+		exporterName, ok := exporterNameAny.(string)
+		if !ok {
+			continue
+		}
+
+		if !isComponentType(exporterName, componentTypeOtlpHTTP) {
+			continue
+		}
+
+		exporterConf, ok := Get[confMap](conf, pathPrefixExporters+exporterName)
+		if !ok {
+			slog.Warn("exporter not found in config", slog.String("exporter", exporterName))
+			continue
+		}
+
+		if _, hasMetrics := Get[string](exporterConf, "metrics_endpoint"); hasMetrics {
+			slog.Debug("metrics_endpoint already set, preserving user config", slog.String("exporter", exporterName))
+			metricsExporterNames = append(metricsExporterNames, exporterName)
+			continue
+		}
+
+		profilesEndpoint, ok := Get[string](exporterConf, "profiles_endpoint")
+		if !ok {
+			slog.Warn("otlphttp exporter missing profiles_endpoint, cannot infer metrics endpoint",
+				slog.String("exporter", exporterName))
+			continue
+		}
+
+		metricsEndpoint, err := inferMetricsEndpoint(profilesEndpoint)
+		if err != nil {
+			slog.Warn("cannot infer metrics endpoint from profiles endpoint",
+				slog.String("exporter", exporterName),
+				slog.String("profiles_endpoint", profilesEndpoint),
+				slog.Any("error", err))
+			continue
+		}
+
+		if err := Set(exporterConf, "metrics_endpoint", metricsEndpoint); err != nil {
+			return fmt.Errorf("failed to set metrics_endpoint for %s: %w", exporterName, err)
+		}
+
+		slog.Info("inferred metrics endpoint for exporter",
+			slog.String("exporter", exporterName),
+			slog.String("profiles_endpoint", profilesEndpoint),
+			slog.String("metrics_endpoint", metricsEndpoint))
+
+		metricsExporterNames = append(metricsExporterNames, exporterName)
+	}
+
+	if len(metricsExporterNames) == 0 {
+		slog.Info("no exporters configured, skipping metrics pipeline")
+		return nil
+	}
+
+	if err := Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, PrometheusReceiverConfig()); err != nil {
+		return fmt.Errorf("failed to add prometheus receiver: %w", err)
+	}
+
+	if err := Set(conf, pathPrefixProcessors+reservedFilterProcessor, FilterProcessorConfig()); err != nil {
+		return fmt.Errorf("failed to add filter processor: %w", err)
+	}
+	if err := Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
+		return fmt.Errorf("failed to add cumulativetodelta processor: %w", err)
+	}
+
+	metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
+	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+
+	metricsPipeline := confMap{
+		"receivers":  []any{reservedPrometheusReceiver},
+		"processors": metricsProcessors,
+		"exporters":  metricsExporterNames,
+	}
+
+	if err := Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
+		return fmt.Errorf("failed to create pipeline: %w", err)
+	}
+
+	slog.Info("created internal health metrics pipeline",
+		slog.Int("exporters", len(metricsExporterNames)),
+		slog.String("pipeline", internalHealthMetricsPipelineName))
 
 	return nil
 }

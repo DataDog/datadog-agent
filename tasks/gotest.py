@@ -690,8 +690,9 @@ def get_impacted_packages(ctx, build_tags=None):
     if build_tags is None:
         build_tags = []
     dependencies = create_dependencies(ctx, build_tags)
-    files = get_go_modified_files(ctx)
-
+    base_branch = _get_release_json_value("base_branch")
+    files = get_modified_files(ctx, base_branch=base_branch)
+    print(f"Detected the following modified files: {files}")
     modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
 
     # Modification to go.mod and go.sum should force the tests of the whole module to run

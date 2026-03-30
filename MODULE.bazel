@@ -46,7 +46,7 @@ archive_override(
 
 bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "gazelle", version = "0.47.0")
+bazel_dep(name = "gazelle", version = "0.48.0")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "34.1")
@@ -69,19 +69,10 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
-# Temporary until gazelle > 0.47.0 with Go 1.24+ fixes is in BCR
-# and until a release includes bazel-contrib/bazel-gazelle#2284
-# (switch from deprecated rules_proto to protobuf module)
-git_override(
-    module_name = "gazelle",
-    commit = "4a7caee10fbd2da9bb059f3ce7c2cac8d0050e53",  # master as of Feb 26, 2026
-    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
-)
-
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "e7fb6ab0b4380ba16607152b0bef3e09ff66d8ab",  # main as of Feb 11, 2026
+    commit = "2ce3598fc987420d180649847f3bf1cc044494e6",  # main as of Feb 11, 2026
     remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 
