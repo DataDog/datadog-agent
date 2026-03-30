@@ -61,6 +61,22 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 		if a.Type == observerdef.AnomalyTypeLog {
 			logLines = append(logLines, "- "+a.Description)
 		} else {
+			// If this metric is a log related one, find its pattern and create a custom message
+			if a.Source.Namespace == "log_pattern_extractor" {
+				var pattern string
+				if a.Context != nil {
+					pattern = a.Context.Pattern
+				}
+				var example string
+				if a.Context != nil {
+					example = a.Context.Example
+				}
+				// TODO(celian): When this will be split by tags, add tags to the description. Then be sure that we don't have twice (pattern, tags) tuples
+				// TODO(celian): Add more context like rate before / rate after...
+				logDescription := fmt.Sprintf("Log pattern change rate detected: %s\t(log example: %s)", pattern, example)
+				logLines = append(logLines, "- "+logDescription)
+			}
+
 			metricLines = append(metricLines, "- "+a.Description)
 		}
 	}
