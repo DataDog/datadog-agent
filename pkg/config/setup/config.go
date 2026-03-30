@@ -380,8 +380,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.components.cross_signal.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("observer.components.time_cluster.min_cluster_size", 0)
-	config.BindEnvAndSetDefault("observer.components.lead_lag.enabled", false)
-	config.BindEnvAndSetDefault("observer.components.surprise.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.passthrough.enabled", false)
 
 	// -------------------------------------------------------------
