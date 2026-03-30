@@ -123,7 +123,7 @@
       <Version>2.2.1</Version>
     </PackageReference>
     <PackageReference Include="FluentAssertions">
-      <Version>6.10.0</Version>
+      <Version>6.12.2</Version>
     </PackageReference>
     <PackageReference Include="Moq">
       <Version>4.18.4</Version>
