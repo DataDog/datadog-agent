@@ -23,6 +23,7 @@ import (
 
 // GrpcPingPonger implements PingPonger using the RcEcho gRPC service.
 type GrpcPingPonger struct {
+	conn   *grpc.ClientConn
 	stream grpc.BidiStreamingClient[pbgo.RunEchoTestRequest, pbgo.RunEchoTestResponse]
 	cancel context.CancelFunc
 }
@@ -46,10 +47,12 @@ func NewGrpcPingPonger(ctx context.Context, httpClient *api.HTTPClient, runCount
 	stream, err := client.RunEchoTest(ctx)
 	if err != nil {
 		cancel()
+		conn.Close()
 		return nil, err
 	}
 
 	return &GrpcPingPonger{
+		conn:   conn,
 		stream: stream,
 		cancel: cancel,
 	}, nil
@@ -73,6 +76,7 @@ func (g *GrpcPingPonger) Send(ctx context.Context, data []byte) error {
 func (g *GrpcPingPonger) GracefulClose() {
 	g.stream.CloseSend()
 	g.cancel()
+	g.conn.Close()
 }
 
 // newGrpcClient connects to the RC gRPC backend and returns a new connection or
