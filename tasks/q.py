@@ -153,7 +153,7 @@ def eval_scenarios(
                 f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
                 f"  {alpha_str:>7}  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
             )
-            duration = _baseline_duration(r["name"], scenarios_dir)
+            duration = r.get("baseline_duration_seconds", 0)
             if duration > 0:
                 total_baseline_fps += r["num_baseline_fps"]
                 total_baseline_duration += duration
@@ -334,24 +334,6 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
         return None
     finally:
         os.unlink(tmp_path)
-
-
-def _baseline_duration(scenario_name, scenarios_dir):
-    """Returns baseline duration in seconds from episode.json, or 0 if unavailable."""
-    from datetime import datetime
-
-    episode_path = os.path.join(scenarios_dir, scenario_name, "episode.json")
-    try:
-        with open(episode_path) as f:
-            episode = json.load(f)
-        start = episode["baseline"]["start"]
-        end = episode["baseline"]["end"]
-        fmt = "%Y-%m-%dT%H:%M:%SZ"
-        t_start = datetime.strptime(start, fmt)
-        t_end = datetime.strptime(end, fmt)
-        return max(0, int((t_end - t_start).total_seconds()))
-    except (OSError, KeyError, ValueError):
-        return 0
 
 
 def _ensure_parquets(ctx, name, parquet_dir):

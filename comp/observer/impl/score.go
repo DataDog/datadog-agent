@@ -24,18 +24,19 @@ type ScoreInput struct {
 
 // ScoreResult contains the Gaussian F1 scoring output.
 type ScoreResult struct {
-	F1                   float64 `json:"f1"`
-	Precision            float64 `json:"precision"`
-	Recall               float64 `json:"recall"`
-	TP                   float64 `json:"tp"`
-	FP                   float64 `json:"fp"`
-	FN                   float64 `json:"fn"`
-	NumPredictions       int     `json:"num_predictions"`
-	NumGroundTruths      int     `json:"num_ground_truths"`
-	NumFilteredWarmup    int     `json:"num_filtered_warmup"`
-	NumFilteredCascading int     `json:"num_filtered_cascading"`
-	NumBaselineFPs       int     `json:"num_baseline_fps"`
-	Sigma                float64 `json:"sigma"`
+	F1                      float64 `json:"f1"`
+	Precision               float64 `json:"precision"`
+	Recall                  float64 `json:"recall"`
+	TP                      float64 `json:"tp"`
+	FP                      float64 `json:"fp"`
+	FN                      float64 `json:"fn"`
+	NumPredictions          int     `json:"num_predictions"`
+	NumGroundTruths         int     `json:"num_ground_truths"`
+	NumFilteredWarmup       int     `json:"num_filtered_warmup"`
+	NumFilteredCascading    int     `json:"num_filtered_cascading"`
+	NumBaselineFPs          int     `json:"num_baseline_fps"`
+	Sigma                   float64 `json:"sigma"`
+	BaselineDurationSeconds int64   `json:"baseline_duration_seconds"`
 	// Alpha is the false positive rate during the baseline phase:
 	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
 	Alpha float64 `json:"alpha"`
@@ -353,7 +354,8 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 
 	// Alpha: FP rate during baseline = num_baseline_fps / baseline_duration_seconds.
 	if baselineStart > 0 && baselineEnd > baselineStart {
-		result.Alpha = float64(numBaselineFPs) / float64(baselineEnd-baselineStart)
+		result.BaselineDurationSeconds = baselineEnd - baselineStart
+		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)
 	} else {
 		result.Alpha = -1
 	}
