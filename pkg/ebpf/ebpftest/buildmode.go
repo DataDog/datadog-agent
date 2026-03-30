@@ -17,6 +17,7 @@ var (
 	CORE            BuildMode
 	Fentry          BuildMode
 	Ebpfless        BuildMode
+	SK              BuildMode
 )
 
 func init() {
@@ -25,6 +26,7 @@ func init() {
 	CORE = core{}
 	Fentry = fentry{}
 	Ebpfless = ebpfless{}
+	SK = sk{}
 }
 
 // BuildMode is an eBPF build mode
@@ -41,6 +43,7 @@ func (p prebuiltMode) String() string {
 
 func (p prebuiltMode) Env() map[string]string {
 	return map[string]string{
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "false",
 		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "false",
@@ -59,6 +62,7 @@ func (r runtimeCompiled) String() string {
 
 func (r runtimeCompiled) Env() map[string]string {
 	return map[string]string{
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "false",
 		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "true",
 		"DD_ENABLE_CO_RE":                    "false",
@@ -77,6 +81,7 @@ func (c core) String() string {
 
 func (c core) Env() map[string]string {
 	return map[string]string{
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "false",
 		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
@@ -95,6 +100,7 @@ func (f fentry) String() string {
 
 func (f fentry) Env() map[string]string {
 	return map[string]string{
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "false",
 		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "true",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
@@ -113,6 +119,7 @@ func (e ebpfless) String() string {
 
 func (e ebpfless) Env() map[string]string {
 	return map[string]string{
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "false",
 		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "false",
@@ -123,9 +130,28 @@ func (e ebpfless) Env() map[string]string {
 	}
 }
 
+type sk struct{}
+
+func (p sk) String() string {
+	return "SK"
+}
+
+func (p sk) Env() map[string]string {
+	return map[string]string{
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "true",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
+		"DD_ENABLE_RUNTIME_COMPILER":         "false",
+		"DD_ENABLE_CO_RE":                    "true",
+		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
+		"DD_ENABLE_EBPFLESS":                 "false",
+		"DD_ENABLE_PROTOCOL_CLASSIFICATION":  "false",
+	}
+}
+
 // GetBuildMode returns which build mode the current environment matches, if any
 func GetBuildMode() BuildMode {
-	for _, mode := range []BuildMode{Prebuilt, RuntimeCompiled, CORE, Fentry, Ebpfless} {
+	for _, mode := range []BuildMode{Prebuilt, RuntimeCompiled, CORE, Fentry, Ebpfless, SK} {
 		if hasBuildModeEnv(mode) {
 			return mode
 		}

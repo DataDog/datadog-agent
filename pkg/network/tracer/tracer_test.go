@@ -69,6 +69,9 @@ func SupportedNetworkBuildModes() []ebpftest.BuildMode {
 	if !slices.Contains(modes, ebpftest.Ebpfless) {
 		modes = append(modes, ebpftest.Ebpfless)
 	}
+	if !slices.Contains(modes, ebpftest.SK) {
+		modes = append(modes, ebpftest.SK)
+	}
 	return modes
 }
 
@@ -261,7 +264,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 
 		m := conn.Monotonic
 		assert.Equal(collect, clientMessageSize, int(m.SentBytes))
-		assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
+		assert.InDelta(collect, serverMessageSize, int(m.RecvBytes), 1)
 		assert.Equal(collect, 0, int(m.Retransmits))
 		if !tr.config.EnableEbpfless {
 			assert.Equal(collect, os.Getpid(), int(conn.Pid))

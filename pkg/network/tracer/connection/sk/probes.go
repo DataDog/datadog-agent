@@ -1,0 +1,93 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+
+package sk
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+)
+
+var programs = map[string]struct{}{
+	"bpf_iter__task_file_socket": {},
+
+	//"bpf_iter__dump_tcp":       {},
+	"tcp_connect_entry":        {},
+	"inet_csk_accept_exit":     {},
+	"tcp_finish_connect_entry": {},
+	"tcp_done_entry":           {},
+	"tcp_close_entry":          {},
+	"tcp_enter_loss_entry":     {},
+	"tcp_enter_recovery_entry": {},
+	"tcp_send_probe0_entry":    {},
+	"tcp_sockops":              {},
+
+	//"bpf_iter__dump_udp":      {},
+	"udp_sendpage_exit":       {},
+	"udpv6_sendmsg_exit":      {},
+	"udp_sendmsg_exit":        {},
+	"skb_consume_udp":         {},
+	"udp_destroy_sock_exit":   {},
+	"udpv6_destroy_sock_exit": {},
+	//"inet_bind_exit":          {},
+	//"inet6_bind_exit":         {},
+	"udp_post_bind4_cgroup": {},
+	"udp_post_bind6_cgroup": {},
+}
+
+func enableProgram(enabled map[string]struct{}, name string) {
+	if _, ok := programs[name]; ok {
+		enabled[name] = struct{}{}
+	}
+}
+
+// enabledPrograms returns a map of probes that are enabled per config settings.
+func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
+	enabled := make(map[string]struct{})
+	hasSendPage := util.HasTCPSendPage(kv)
+
+	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
+		enableProgram(enabled, "bpf_iter__task_file_socket")
+		enableProgram(enabled, "tcp_connect_entry")
+		enableProgram(enabled, "inet_csk_accept_exit")
+		enableProgram(enabled, "tcp_finish_connect_entry")
+		enableProgram(enabled, "tcp_done_entry")
+		enableProgram(enabled, "tcp_close_entry")
+		enableProgram(enabled, "tcp_enter_loss_entry")
+		enableProgram(enabled, "tcp_enter_recovery_entry")
+		enableProgram(enabled, "tcp_send_probe0_entry")
+		enableProgram(enabled, "tcp_sockops")
+	}
+
+	if c.CollectUDPv4Conns {
+		enableProgram(enabled, "bpf_iter__task_file_socket")
+		enableProgram(enabled, "udp_sendmsg_exit")
+		enableProgram(enabled, "skb_consume_udp")
+		enableProgram(enabled, "udp_destroy_sock_exit")
+		//enableProgram(enabled, "inet_bind_exit")
+		enableProgram(enabled, "udp_post_bind4_cgroup")
+	}
+
+	if c.CollectUDPv6Conns {
+		enableProgram(enabled, "bpf_iter__task_file_socket")
+		enableProgram(enabled, "udpv6_sendmsg_exit")
+		enableProgram(enabled, "skb_consume_udp")
+		enableProgram(enabled, "udpv6_destroy_sock_exit")
+		//enableProgram(enabled, "inet6_bind_exit")
+		enableProgram(enabled, "udp_post_bind6_cgroup")
+	}
+
+	if hasSendPage && (c.CollectUDPv4Conns || c.CollectUDPv6Conns) {
+		enableProgram(enabled, "udp_sendpage_exit")
+	}
+	return enabled, nil
+}
