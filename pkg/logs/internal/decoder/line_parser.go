@@ -69,9 +69,10 @@ type MultiLineParser struct {
 
 	// used to reconstruct the message
 
-	bufferedMsg *message.Message
-	buffer      *bytes.Buffer
-	rawDataLen  int
+	bufferedMsg       *message.Message
+	buffer            *bytes.Buffer
+	rawDataLen        int
+	bufferIsTruncated bool
 
 	// configuration attributes
 
@@ -125,6 +126,7 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += rawDataLen
+	p.bufferIsTruncated = p.bufferIsTruncated || msg.ParsingExtra.IsTruncated
 	p.buffer.Write(msg.GetContent())
 	p.bufferedMsg = msg
 
@@ -148,16 +150,27 @@ func (p *MultiLineParser) sendLine() {
 		p.buffer.Reset()
 		p.bufferedMsg = nil
 		p.rawDataLen = 0
+		p.bufferIsTruncated = false
 	}()
 
 	if p.bufferedMsg == nil || p.buffer.Len() == 0 {
 		return
 	}
 
-	content := make([]byte, p.buffer.Len())
-	copy(content, p.buffer.Bytes())
+	bufferLen := p.buffer.Len()
+	contentLen := bufferLen
+	if contentLen > p.lineLimit {
+		contentLen = p.lineLimit
+	}
+
+	content := make([]byte, contentLen)
+	copy(content, p.buffer.Bytes()[:contentLen])
 	if len(content) > 0 || p.rawDataLen > 0 {
 		p.bufferedMsg.RawDataLen = p.rawDataLen
+		p.bufferedMsg.ParsingExtra.IsTruncated = p.bufferedMsg.ParsingExtra.IsTruncated ||
+			p.bufferIsTruncated ||
+			bufferLen > p.lineLimit ||
+			(p.bufferedMsg.ParsingExtra.IsPartial && bufferLen >= p.lineLimit)
 		p.bufferedMsg.SetContent(content)
 		p.lineHandler.process(p.bufferedMsg)
 	}
