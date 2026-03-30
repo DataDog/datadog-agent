@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -102,7 +101,6 @@ func main() {
 	err := fxutil.OneShot(run,
 		recorderfx.Module(),
 		core.Bundle(),
-		secretsnoopfx.Module(),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(""),
 			LogParams:    log.ForOneShot("", "off", true),
