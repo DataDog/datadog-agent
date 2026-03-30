@@ -241,7 +241,7 @@ func (e *LogPatternExtractor) maybeGarbageCollect() gcResult {
 		}
 		result.metricNames = append(result.metricNames, e.clusterMetricName(clusterID))
 		e.ctx.removeCluster(clusterID)
-		_ = e.PatternClusterer.RemoveCluster(clusterID)
 	}
+	_ = e.PatternClusterer.RemoveClusters(toDelete)
 	return result
 }

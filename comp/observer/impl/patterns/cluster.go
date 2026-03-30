@@ -274,42 +274,43 @@ func (pc *PatternClusterer) GetCluster(id int64) (*Cluster, error) {
 }
 
 // RemoveCluster removes the cluster with the given id from the clusterer.
-// It updates both the flat list and the per-signature index. Returns an error
-// if no cluster with that id exists.
+// It is equivalent to RemoveClusters([]int64{id}).
 func (pc *PatternClusterer) RemoveCluster(id int64) error {
-	idx := -1
-	for i, c := range pc.allClusters {
-		if c.ID == id {
-			idx = i
-			break
+	return pc.RemoveClusters([]int64{id})
+}
+
+// RemoveClusters removes every cluster whose id appears in ids (duplicates are
+// ignored). It updates both the flat list and the per-signature index in one
+// pass. Returns an error if any distinct id is not present in the clusterer.
+func (pc *PatternClusterer) RemoveClusters(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	removeSet := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		removeSet[id] = struct{}{}
+	}
+	var matched int
+	for _, c := range pc.allClusters {
+		if _, ok := removeSet[c.ID]; ok {
+			matched++
 		}
 	}
-	if idx == -1 {
-		return fmt.Errorf("cluster %d not found", id)
+	if matched != len(removeSet) {
+		return fmt.Errorf("batch remove: %d of %d cluster ids not found", len(removeSet)-matched, len(removeSet))
 	}
-	c := pc.allClusters[idx]
-	sig := c.Signature
-
-	last := len(pc.allClusters) - 1
-	pc.allClusters[idx] = pc.allClusters[last]
-	pc.allClusters[last] = nil
-	pc.allClusters = pc.allClusters[:last]
-
-	slice := pc.clustersBySignature[sig]
-	for j, cl := range slice {
-		if cl.ID == id {
-			slice[j] = slice[len(slice)-1]
-			slice[len(slice)-1] = nil
-			slice = slice[:len(slice)-1]
-			if len(slice) == 0 {
-				delete(pc.clustersBySignature, sig)
-			} else {
-				pc.clustersBySignature[sig] = slice
-			}
-			return nil
+	newAll := make([]*Cluster, 0, len(pc.allClusters)-matched)
+	for _, c := range pc.allClusters {
+		if _, ok := removeSet[c.ID]; !ok {
+			newAll = append(newAll, c)
 		}
 	}
-	return fmt.Errorf("cluster %d: internal index inconsistency for signature %q", id, sig)
+	pc.allClusters = newAll
+	pc.clustersBySignature = make(map[string][]*Cluster)
+	for _, c := range pc.allClusters {
+		pc.clustersBySignature[c.Signature] = append(pc.clustersBySignature[c.Signature], c)
+	}
+	return nil
 }
 
 // canMergeTokenLists checks if two token lists can be merged.
