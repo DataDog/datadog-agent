@@ -9,8 +9,11 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.releasing.version import query_version
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
@@ -18,6 +21,40 @@ CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("host-profiler"))
+
+
+def _get_profiler_agent_version(ctx):
+    """Return a profiler-specific AgentVersion string, or None to use the default.
+
+    Two deployment contexts are handled:
+      - Nightly (same condition as nightly relenv trigger):
+          DDR_WORKFLOW_ID set + CI_COMMIT_BRANCH == "main" + BUCKET_BRANCH in nightly set
+          → "7.79.0-nightly_git.101.89faa04"
+      - Dev branch (BUCKET_BRANCH == "dev", covers both branch standalone and devtest):
+          → "7.79.0-devel_git.101.89faa04.<branch_slug>"
+
+    Returns None for stable/beta/release builds and local builds.
+    """
+    bucket_branch = os.environ.get("BUCKET_BRANCH", "")
+
+    is_nightly = (
+        bool(os.environ.get("DDR_WORKFLOW_ID"))
+        and os.environ.get("CI_COMMIT_BRANCH") == "main"
+        and bucket_branch in ALLOWED_REPO_NIGHTLY_BRANCHES
+    )
+    is_dev = bucket_branch == "dev"
+
+    if not is_nightly and not is_dev:
+        return None
+
+    version, pre, commits, git_sha, _ = query_version(ctx, major_version='7')
+
+    if is_nightly:
+        return f"{version}-nightly_git.{commits}.{git_sha}"
+
+    branch = os.environ.get("CI_COMMIT_REF_SLUG") or get_current_branch(ctx)
+    pre_label = pre if pre else "devel"
+    return f"{version}-{pre_label}_git.{commits}.{git_sha}.{branch}"
 
 
 @task
@@ -32,6 +69,8 @@ def build(ctx):
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="host-profiler")
     ldflags = get_version_ldflags(ctx)
+    if profiler_version := _get_profiler_agent_version(ctx):
+        ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
     else:
