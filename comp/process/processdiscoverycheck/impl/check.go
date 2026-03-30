@@ -29,7 +29,7 @@ type dependencies struct {
 	Sysconfig sysprobeconfig.Component
 }
 
-type result struct {
+type Provides struct {
 	compdef.Out
 
 	Check     types.ProvidesCheck
@@ -37,11 +37,11 @@ type result struct {
 }
 
 // NewCheck creates a new processdiscoverycheck component.
-func NewCheck(deps dependencies) result {
+func NewCheck(deps dependencies) Provides {
 	c := &check{
 		processDiscoveryCheck: checks.NewProcessDiscoveryCheck(deps.Config, deps.Sysconfig),
 	}
-	return result{
+	return Provides{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
