@@ -189,7 +189,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
-	child.TracerTags = pc.TracerTags
+	child.TracerMetadata = pc.TracerMetadata
 
 	child.SetForkParent(pc)
 }
