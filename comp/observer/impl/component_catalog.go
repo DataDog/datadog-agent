@@ -175,22 +175,6 @@ func defaultCatalog() *componentCatalog {
 				readConfig:     readTimeClusterConfig,
 			},
 			{
-				name:           "lead_lag",
-				displayName:    "Lead-Lag",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultLeadLagConfig(),
-				factory:        func(cfg any) any { return NewLeadLagCorrelator(cfg.(LeadLagConfig)) },
-				defaultEnabled: false,
-			},
-			{
-				name:           "surprise",
-				displayName:    "Surprise",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultSurpriseConfig(),
-				factory:        func(cfg any) any { return NewSurpriseCorrelator(cfg.(SurpriseConfig)) },
-				defaultEnabled: false,
-			},
-			{
 				name:           "passthrough",
 				displayName:    "Passthrough",
 				kind:           componentCorrelator,

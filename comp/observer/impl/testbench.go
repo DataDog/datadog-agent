@@ -1108,24 +1108,6 @@ func (tb *TestBench) seriesCount() int {
 	return len(storage.series)
 }
 
-// GetLeadLagEdges returns lead-lag edges if the correlator is enabled.
-func (tb *TestBench) GetLeadLagEdges() ([]LeadLagEdge, bool) {
-	data, enabled := tb.GetComponentData("lead_lag")
-	if edges, ok := data.([]LeadLagEdge); ok {
-		return edges, enabled
-	}
-	return nil, enabled
-}
-
-// GetSurpriseEdges returns surprise edges if the correlator is enabled.
-func (tb *TestBench) GetSurpriseEdges() ([]SurpriseEdge, bool) {
-	data, enabled := tb.GetComponentData("surprise")
-	if edges, ok := data.([]SurpriseEdge); ok {
-		return edges, enabled
-	}
-	return nil, enabled
-}
-
 // GetCorrelatorStats returns stats from all correlators (enabled or not).
 func (tb *TestBench) GetCorrelatorStats() map[string]interface{} {
 	tb.mu.RLock()
