@@ -29,9 +29,9 @@ type timeSeriesStorage struct {
 	observationTimestamps map[int64]struct{}
 
 	// Compact numeric IDs for O(1) lookups and API responses.
-	seriesIDs     map[string]observer.SeriesHandle // internal key → numeric handle
-	seriesIDKeys  []string                         // numeric ID → internal key (index = ID)
-	seriesIDStats []*seriesStats                   // numeric ID → *seriesStats (index = ID)
+	seriesIDs     map[string]observer.SeriesRef // internal key → numeric ref
+	seriesIDKeys  []string                      // numeric ID → internal key (index = ID)
+	seriesIDStats []*seriesStats                // numeric ID → *seriesStats (index = ID)
 
 	// Global generation for the series catalog; increments only when a new
 	// series key is created, not on every write to an existing series.
@@ -68,6 +68,16 @@ type seriesStats struct {
 // pointCount returns the number of stored points.
 func (s *seriesStats) pointCount() int {
 	return len(s.timestamps)
+}
+
+// sampleCount returns the total number of samples for a series.
+// A point can contain multiple samples if it is aggregated.
+func (s *seriesStats) sampleCount() int64 {
+	count := int64(0)
+	for _, c := range s.counts {
+		count += c
+	}
+	return count
 }
 
 // Aggregate is an alias to the definition in the observer component for internal use.
@@ -165,7 +175,7 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
 		series:                make(map[string]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
-		seriesIDs:             make(map[string]observer.SeriesHandle),
+		seriesIDs:             make(map[string]observer.SeriesRef),
 		droppedByMetric:       make(map[string]int64),
 		sampledDrops:          make(map[string]int),
 	}
@@ -175,19 +185,20 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 // Invalid values are dropped at ingest with accounting and sampled logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
-func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
+// Returns true if this point created a new series (cardinality +1), false otherwise.
+func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
-		return
+		return false
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
-		return
+		return false
 	}
 	key := seriesKey(namespace, name, tags)
 
@@ -201,12 +212,13 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		}
 		s.series[key] = stats
 		// Assign a compact numeric ID.
-		id := observer.SeriesHandle(len(s.seriesIDKeys))
+		id := observer.SeriesRef(len(s.seriesIDKeys))
 		s.seriesIDs[key] = id
 		s.seriesIDKeys = append(s.seriesIDKeys, key)
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
 	}
+	isNew := !exists
 	stats.writeGeneration++
 
 	// Bucket by second.
@@ -227,7 +239,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		if value > stats.maxes[idx] {
 			stats.maxes[idx] = value
 		}
-		return
+		return isNew
 	}
 
 	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
@@ -235,6 +247,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
+	return isNew
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.
@@ -498,17 +511,34 @@ func joinTags(tags []string) string {
 
 // resolveByID returns the seriesStats for a numeric series ID.
 // Returns nil for out-of-range IDs. Caller must hold s.mu (read or write).
-func (s *timeSeriesStorage) resolveByID(handle observer.SeriesHandle) *seriesStats {
-	if handle < 0 || int(handle) >= len(s.seriesIDStats) {
+func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
+	if ref < 0 || int(ref) >= len(s.seriesIDStats) {
 		return nil
 	}
-	return s.seriesIDStats[handle]
+	return s.seriesIDStats[ref]
+}
+
+// GetSeriesMeta returns the metadata for a series by its numeric ref.
+// Returns nil if the ref is out of range.
+func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.SeriesMeta {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ss := s.resolveByID(ref)
+	if ss == nil {
+		return nil
+	}
+	return &observer.SeriesMeta{
+		Ref:       ref,
+		Namespace: ss.Namespace,
+		Name:      ss.Name,
+		Tags:      ss.Tags,
+	}
 }
 
 // seriesMeta is lightweight series metadata including point count,
 // used for API listing without materializing point data.
 type seriesMeta struct {
-	Handle     observer.SeriesHandle // compact numeric handle
+	Ref        observer.SeriesRef // compact numeric ref
 	Namespace  string
 	Name       string
 	Tags       []string
@@ -525,7 +555,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 	for key, stats := range s.series {
 		if stats.Namespace == namespace {
 			result = append(result, seriesMeta{
-				Handle:     s.seriesIDs[key],
+				Ref:        s.seriesIDs[key],
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
 				Tags:       copyTags(stats.Tags),
@@ -534,8 +564,8 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 		}
 	}
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].Handle != result[j].Handle {
-			return result[i].Handle < result[j].Handle
+		if result[i].Ref != result[j].Ref {
+			return result[i].Ref < result[j].Ref
 		}
 		if result[i].Name != result[j].Name {
 			return result[i].Name < result[j].Name
@@ -547,14 +577,14 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 
 // GetSeriesByNumericID looks up a series by its compact numeric ID and returns
 // the data using the specified aggregation.
-func (s *timeSeriesStorage) GetSeriesByNumericID(handle observer.SeriesHandle, agg Aggregate) *observer.Series {
+func (s *timeSeriesStorage) GetSeriesByNumericID(ref observer.SeriesRef, agg Aggregate) *observer.Series {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if handle < 0 || int(handle) >= len(s.seriesIDKeys) {
+	if ref < 0 || int(ref) >= len(s.seriesIDKeys) {
 		return nil
 	}
-	key := s.seriesIDKeys[handle]
+	key := s.seriesIDKeys[ref]
 	stats := s.series[key]
 	if stats == nil {
 		return nil
@@ -657,10 +687,10 @@ func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	return s.seriesGen
 }
 
-// CompactSeriesID translates a full series key (as used in SourceSeriesID) to its
-// compact numeric ID string. The full key format is "namespace|name:agg|tags" where
-// the storage key is "namespace|name|tags" (without the agg suffix). This method
-// strips the agg suffix, looks up the numeric ID, and returns "numericID:agg".
+// CompactSeriesID translates a full series key to its compact numeric ID string.
+// The full key format is "namespace|name:agg|tags" where the storage key is
+// "namespace|name|tags" (without the agg suffix). This method strips the agg
+// suffix, looks up the numeric ID, and returns "numericID:agg".
 // Returns the original key unchanged if no mapping exists.
 func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	s.mu.RLock()
@@ -692,17 +722,6 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	return strconv.Itoa(int(numID))
 }
 
-// FullKeyForNumericID returns the internal storage key for a compact numeric ID.
-func (s *timeSeriesStorage) FullKeyForNumericID(handle observer.SeriesHandle) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if handle < 0 || int(handle) >= len(s.seriesIDKeys) {
-		return "", false
-	}
-	return s.seriesIDKeys[handle], true
-}
-
 // StorageReader interface implementation
 
 // ListSeries returns metadata for all series matching the filter.
@@ -731,7 +750,7 @@ listSeriesLoop:
 			continue
 		}
 		result = append(result, observer.SeriesMeta{
-			Handle:    s.seriesIDs[key],
+			Ref:       s.seriesIDs[key],
 			Namespace: stats.Namespace,
 			Name:      stats.Name,
 			Tags:      stats.Tags,
@@ -741,23 +760,54 @@ listSeriesLoop:
 }
 
 // PointCount returns the number of raw data points for a series.
-func (s *timeSeriesStorage) PointCount(handle observer.SeriesHandle) int {
+func (s *timeSeriesStorage) PointCount(ref observer.SeriesRef) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if stats := s.resolveByID(handle); stats != nil {
+	if stats := s.resolveByID(ref); stats != nil {
 		return stats.pointCount()
 	}
 	return 0
 }
 
+// TotalSampleCount returns the total number of stored samples across all series,
+// excluding series in excludeNamespace (pass "" to include all namespaces).
+// A point can contain multiple samples if it is aggregated.
+func (s *timeSeriesStorage) TotalSampleCount(excludeNamespace string) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	total := int64(0)
+	for _, stats := range s.series {
+		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
+			continue
+		}
+		total += stats.sampleCount()
+	}
+	return total
+}
+
+// TotalSeriesCount returns the number of unique series (name + tag combinations),
+// excluding series in excludeNamespace (pass "" to include all namespaces).
+func (s *timeSeriesStorage) TotalSeriesCount(excludeNamespace string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	total := 0
+	for _, stats := range s.series {
+		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
+			continue
+		}
+		total++
+	}
+	return total
+}
+
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 // Uses binary search since timestamps are sorted.
-func (s *timeSeriesStorage) PointCountUpTo(handle observer.SeriesHandle, endTime int64) int {
+func (s *timeSeriesStorage) PointCountUpTo(ref observer.SeriesRef, endTime int64) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	stats := s.resolveByID(handle)
+	stats := s.resolveByID(ref)
 	if stats == nil || stats.pointCount() == 0 {
 		return 0
 	}
@@ -776,28 +826,28 @@ func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
 // WriteGeneration returns a counter that increments on every Add call
 // (including same-bucket merges). Detectors use this to detect value
 // changes that don't create new buckets.
-func (s *timeSeriesStorage) WriteGeneration(handle observer.SeriesHandle) int64 {
+func (s *timeSeriesStorage) WriteGeneration(ref observer.SeriesRef) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if stats := s.resolveByID(handle); stats != nil {
+	if stats := s.resolveByID(ref); stats != nil {
 		return stats.writeGeneration
 	}
 	return 0
 }
 
 // BulkSeriesStatus returns the point count (up to endTime) and write generation
-// for each handle in a single lock acquisition. This avoids the overhead of
-// 2×len(handles) individual RLock/RUnlock calls in hot detector loops.
+// for each ref in a single lock acquisition. This avoids the overhead of
+// 2×len(refs) individual RLock/RUnlock calls in hot detector loops.
 // Implements bulkStatusReader (metrics_detector_util.go).
-func (s *timeSeriesStorage) BulkSeriesStatus(handles []observer.SeriesHandle, endTime int64) []seriesStatus {
-	result := make([]seriesStatus, len(handles))
+func (s *timeSeriesStorage) BulkSeriesStatus(refs []observer.SeriesRef, endTime int64) []seriesStatus {
+	result := make([]seriesStatus, len(refs))
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for i, handle := range handles {
-		stats := s.resolveByID(handle)
+	for i, ref := range refs {
+		stats := s.resolveByID(ref)
 		if stats == nil || stats.pointCount() == 0 {
 			continue
 		}
@@ -831,11 +881,11 @@ func matchTags(tags []string, matchers map[string]string) bool {
 // GetSeriesRange returns points within a time range (start, end].
 // Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 // Uses binary search on the timestamps column for O(log N) range lookup.
-func (s *timeSeriesStorage) GetSeriesRange(handle observer.SeriesHandle, start, end int64, agg Aggregate) *observer.Series {
+func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end int64, agg Aggregate) *observer.Series {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	stats := s.resolveByID(handle)
+	stats := s.resolveByID(ref)
 	if stats == nil {
 		return nil
 	}
@@ -945,13 +995,13 @@ var pointBufPool = sync.Pool{
 // Points are copied under the read lock into a pooled buffer; the callback
 // runs outside the lock so callers cannot block writers.
 func (s *timeSeriesStorage) ForEachPoint(
-	handle observer.SeriesHandle, start, end int64, agg Aggregate,
+	ref observer.SeriesRef, start, end int64, agg Aggregate,
 	fn func(*observer.Series, observer.Point),
 ) bool {
 	bufp := pointBufPool.Get().(*[]observer.Point)
 	buf := *bufp
 
-	series, buf, ok := s.snapshotRange(handle, start, end, agg, buf)
+	series, buf, ok := s.snapshotRange(ref, start, end, agg, buf)
 	if !ok {
 		*bufp = buf
 		pointBufPool.Put(bufp)
@@ -971,13 +1021,13 @@ func (s *timeSeriesStorage) ForEachPoint(
 // Returns the series metadata, the (potentially grown) buffer, and whether the
 // series was found.
 func (s *timeSeriesStorage) snapshotRange(
-	handle observer.SeriesHandle, start, end int64, agg Aggregate,
+	ref observer.SeriesRef, start, end int64, agg Aggregate,
 	buf []observer.Point,
 ) (observer.Series, []observer.Point, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	stats := s.resolveByID(handle)
+	stats := s.resolveByID(ref)
 	if stats == nil {
 		return observer.Series{}, buf, false
 	}

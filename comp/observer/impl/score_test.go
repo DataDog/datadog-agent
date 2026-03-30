@@ -255,13 +255,13 @@ func TestScoreOutputFile_PostOnsetIgnored(t *testing.T) {
 }
 
 func TestScoreOutputFile_MetadataInference(t *testing.T) {
-	// Set up a fake scenario dir with metadata.json
+	// Set up a fake scenario dir with episode.json
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
 	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
-	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "metadata.json"), []byte(metadata), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
 	// Output JSON references "test_scenario"
 	output := ObserverOutput{
@@ -287,15 +287,15 @@ func TestScoreOutputFile_MetadataInference(t *testing.T) {
 }
 
 func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
-	// Set up metadata — disruption.start is at 12:49:35, but we override GT to 12:45:00
+	// Set up episode.json — disruption.start is at 12:49:35, but we override GT to 12:45:00
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
 	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
-	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "metadata.json"), []byte(metadata), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
-	// Prediction matches our explicit GT (12:45:00 = 1772541900), not metadata's disruption.start
+	// Prediction matches our explicit GT (12:45:00 = 1772541900), not episode.json's disruption.start
 	explicitGT := int64(1772541900)
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{Scenario: "test_scenario"},
@@ -309,11 +309,11 @@ func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "output.json")
 	require.NoError(t, os.WriteFile(outputPath, data, 0644))
 
-	// Explicit ground truth should override metadata's disruption.start
+	// Explicit ground truth should override episode.json's disruption.start
 	result, err := ScoreOutputFile(outputPath, []int64{explicitGT}, scenariosDir, 30.0)
 	require.NoError(t, err)
 
-	assert.InDelta(t, 1.0, result.F1, 0.05, "explicit GT should be used, not metadata")
+	assert.InDelta(t, 1.0, result.F1, 0.05, "explicit GT should be used, not episode.json")
 }
 
 func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
@@ -323,7 +323,7 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
 	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z"}, "disruption": {"start": "1970-01-01T00:03:20Z"}}`
-	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "metadata.json"), []byte(metadata), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{Scenario: "test_scenario"},

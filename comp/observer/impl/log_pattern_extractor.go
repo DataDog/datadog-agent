@@ -156,7 +156,7 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 	status := strings.ToLower(strings.TrimSpace(log.GetStatus()))
 	switch status {
-	case "warn", "warning", "error", "critical", "fatal":
+	case "warn", "warning", "error", "critical", "fatal", "alert", "emergency":
 		return true
 	default:
 		return false
@@ -186,7 +186,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
 	if cluster.Count == e.MinPatternsBeforeEmit {
-		telemetry = append(telemetry, newTelemetryCounter(e.Name(), telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
 	} else if cluster.Count < e.MinPatternsBeforeEmit {
 		return result
 	}

@@ -231,13 +231,13 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		seen := make(map[observer.SeriesID]bool)
+		seen := make(map[string]bool)
 		for _, a := range cluster.anomalies {
-			seen[a.SourceSeriesID] = true
+			seen[a.Source.Key()] = true
 		}
 		sources := make([]string, 0, len(seen))
-		for sid := range seen {
-			sources = append(sources, string(sid))
+		for key := range seen {
+			sources = append(sources, key)
 		}
 		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
@@ -298,26 +298,13 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		// Collect unique series IDs
-		seen := make(map[observer.SeriesID]bool)
-		for _, a := range cluster.anomalies {
-			seen[a.SourceSeriesID] = true
-		}
-		memberSeriesIDs := make([]observer.SeriesID, 0, len(seen))
-		for sid := range seen {
-			memberSeriesIDs = append(memberSeriesIDs, sid)
-		}
-		sort.Slice(memberSeriesIDs, func(i, j int) bool { return memberSeriesIDs[i] < memberSeriesIDs[j] })
-		metricNames := sortedUniqueMetricNames(cluster.anomalies)
-
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:         fmt.Sprintf("time_cluster_%d", cluster.id),
-			Title:           fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
-			MemberSeriesIDs: memberSeriesIDs,
-			MetricNames:     metricNames,
-			Anomalies:       cluster.anomalies,
-			FirstSeen:       cluster.minTimestamp,
-			LastUpdated:     cluster.maxTimestamp,
+			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
+			Title:       fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
+			Members:     sortedUniqueMembers(cluster.anomalies),
+			Anomalies:   cluster.anomalies,
+			FirstSeen:   cluster.minTimestamp,
+			LastUpdated: cluster.maxTimestamp,
 		})
 	}
 

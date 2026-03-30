@@ -170,6 +170,25 @@ func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelat
 }
 func (c *resettableCorrelator) Reset() { c.resetCount++ }
 
+type emitOnSeriesDetector struct {
+	name string
+}
+
+func (d *emitOnSeriesDetector) Name() string { return d.name }
+
+func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.DetectionResult {
+	if len(series.Points) == 0 {
+		return observerdef.DetectionResult{}
+	}
+	return observerdef.DetectionResult{
+		Anomalies: []observerdef.Anomaly{{
+			Title:       "detected",
+			Description: "detected from series",
+			Timestamp:   series.Points[len(series.Points)-1].Timestamp,
+		}},
+	}
+}
+
 func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 	e := newEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
@@ -191,8 +210,8 @@ func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 
 func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
-		{Source: observerdef.AnomalySource{Name: "cpu"}, DetectorName: "test", Timestamp: 99, SourceSeriesID: "ns|cpu|"},
-		{Source: observerdef.AnomalySource{Name: "mem"}, DetectorName: "test", Timestamp: 99, SourceSeriesID: "ns|mem|"},
+		{Source: observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
+		{Source: observerdef.SeriesDescriptor{Name: "mem", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
 	}
 
 	e := newEngine(engineConfig{
@@ -209,8 +228,8 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 
 	anomalyEvents := sink.eventsOfKind(eventAnomalyCreated)
 	assert.Len(t, anomalyEvents, 2)
-	assert.Equal(t, "cpu", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
-	assert.Equal(t, "mem", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "cpu:avg", anomalyEvents[0].anomalyCreated.anomaly.Source.String())
+	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
 func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {
@@ -223,20 +242,22 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 		ok: true,
 	}
 	anomalies := []observerdef.Anomaly{{
-		Source: observerdef.AnomalySource{
+		Source: observerdef.SeriesDescriptor{
 			Namespace: "log_metrics_extractor",
 			Name:      "log.pattern.abc.count",
+			Tags:      []string{"observer_source:source-a", "service:api"},
 			Aggregate: observerdef.AggregateCount,
 		},
-		DetectorName:   "test",
-		Description:    "detector-authored description",
-		Tags:           []string{"observer_source:source-a", "service:api"},
-		Timestamp:      99,
-		SourceSeriesID: "ns|log.pattern.abc.count|",
+		DetectorName: "test",
+		Description:  "detector-authored description",
+		Timestamp:    99,
 	}}
 
+	storage := newTimeSeriesStorage()
+	// Add a series so that the storage key matches Source fields.
+	storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage: storage,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test", anomalies: anomalies},
 		},
@@ -244,7 +265,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 			"log_metrics_extractor": provider,
 		},
 	})
-	e.contextRefs[observerdef.SeriesID("ns|log.pattern.abc.count|")] = seriesContextRef{
+	e.contextRefs["log_metrics_extractor|log.pattern.abc.count|observer_source:source-a,service:api"] = seriesContextRef{
 		namespace:  "log_metrics_extractor",
 		contextKey: "ctx-1",
 	}
@@ -270,20 +291,21 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 	second := &stubExtractor{name: "second", contextByKey: map[string]observerdef.MetricContext{
 		"ctx-2": {Pattern: "p2", Example: "e2", Source: "second"},
 	}}
+	storage := newTimeSeriesStorage()
+	// Add a series so that the storage key matches Source fields.
+	storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
 	e := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
+		storage:          storage,
 		extractors:       []observerdef.LogMetricsExtractor{first},
 		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{first}),
 		detectors: []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{{
-			Source:         observerdef.AnomalySource{Namespace: "second", Name: "metric"},
-			Tags:           []string{"service:api"},
-			Timestamp:      1,
-			SourceSeriesID: "ns|metric|service:api",
+			Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
+			Timestamp: 1,
 		}}}},
 	})
 
 	e.SetExtractors([]observerdef.LogMetricsExtractor{second})
-	e.contextRefs[observerdef.SeriesID("ns|metric|service:api")] = seriesContextRef{
+	e.contextRefs["second|metric|service:api"] = seriesContextRef{
 		namespace:  "second",
 		contextKey: "ctx-2",
 	}
@@ -319,12 +341,11 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	for _, meta := range e.storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
 		if len(meta.Tags) == 2 && containsTag(meta.Tags, "observer_source:source-a") && containsTag(meta.Tags, "service:api") {
 			anomaly = observerdef.Anomaly{
-				Source: observerdef.AnomalySource{
+				Source: observerdef.SeriesDescriptor{
 					Namespace: extractor.Name(),
 					Name:      meta.Name,
+					Tags:      meta.Tags,
 				},
-				Tags:           meta.Tags,
-				SourceSeriesID: observerdef.SeriesID(seriesKey(meta.Namespace, meta.Name, meta.Tags)),
 			}
 			break
 		}
@@ -339,48 +360,38 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	assert.NotContains(t, anomaly.Context.Example, "456")
 }
 
-func TestIngestLogEvictsEngineContextRefsOnLogPatternExtractorGC(t *testing.T) {
-	extractor := NewLogPatternExtractor()
-	extractor.MinPatternsBeforeEmit = 1
-	extractor.ClusterTimeToLiveSec = 10
-	extractor.GarbageCollectionIntervalSec = 0
-
+func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.T) {
+	extractor := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+	detector := newSeriesDetectorAdapter(&emitOnSeriesDetector{name: "test_series_detector"}, []observerdef.Aggregate{observerdef.AggregateCount})
 	e := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       []observerdef.LogMetricsExtractor{extractor},
 		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
+		detectors:        []observerdef.Detector{detector},
 	})
 
-	_, _ = e.IngestLog("source-a", &logObs{
-		content:     []byte("WARN distinct pattern seed 900 not mergeable xyz"),
-		status:      "warn",
+	e.IngestLog("source-a", &logObs{
+		content:     []byte("GET /users/123 returned 500"),
 		tags:        []string{"service:api"},
-		timestampMs: 1_000_000,
+		timestampMs: 1_000,
 	})
 
-	var firstSeriesID observerdef.SeriesID
-	for _, meta := range e.storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
-		if len(meta.Tags) == 2 && containsTag(meta.Tags, "observer_source:source-a") && containsTag(meta.Tags, "service:api") {
-			firstSeriesID = observerdef.SeriesID(seriesKey(meta.Namespace, meta.Name, meta.Tags))
-			break
-		}
-	}
-	require.NotEmpty(t, firstSeriesID)
+	result := e.Advance(1)
+	require.Len(t, result.anomalies, 1)
 
-	anomaly := observerdef.Anomaly{SourceSeriesID: firstSeriesID}
-	e.enrichAnomaly(&anomaly)
-	require.NotNil(t, anomaly.Context, "context ref should exist before GC")
+	anomaly := result.anomalies[0]
+	assert.Equal(t, "log_metrics_extractor", anomaly.Source.Namespace)
+	assert.Equal(t, observerdef.AggregateCount, anomaly.Source.Aggregate)
+	assert.Contains(t, anomaly.Source.Name, "log.pattern.")
+	assert.Contains(t, anomaly.Source.Tags, "observer_source:source-a")
+	assert.Contains(t, anomaly.Source.Tags, "service:api")
+	require.NotNil(t, anomaly.SourceRef)
+	assert.Equal(t, observerdef.AggregateCount, anomaly.SourceRef.Aggregate)
 
-	_, _ = e.IngestLog("source-b", &logObs{
-		content:     []byte("WARN distinct pattern seed 901 not mergeable xyz"),
-		status:      "warn",
-		tags:        []string{"service:api"},
-		timestampMs: 1_015_000,
-	})
-
-	anomaly.Context = nil
-	e.enrichAnomaly(&anomaly)
-	assert.Nil(t, anomaly.Context, "engine should drop context ref for evicted cluster series")
+	require.NotNil(t, anomaly.Context)
+	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
+	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
+	assert.Equal(t, logSignature([]byte("GET /users/123 returned 500"), extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
 }
 
 func containsTag(tags []string, want string) bool {
@@ -530,7 +541,7 @@ func TestReporterEventSink(t *testing.T) {
 		kind:      eventAnomalyCreated,
 		timestamp: 100,
 		anomalyCreated: &anomalyCreatedEvent{
-			anomaly: observerdef.Anomaly{Source: observerdef.AnomalySource{Name: "cpu"}},
+			anomaly: observerdef.Anomaly{Source: observerdef.SeriesDescriptor{Name: "cpu"}},
 		},
 	})
 	assert.Equal(t, 1, reported, "anomaly events should not trigger reporter")
@@ -547,20 +558,18 @@ func (r *countingReporter) Report(_ observerdef.ReportOutput) { *r.count++ }
 func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
-			Source:         observerdef.AnomalySource{Name: "cpu"},
-			SourceSeriesID: "ns|cpu:avg|",
-			DetectorName:   "test_detector",
-			Title:          "Spike detected",
-			Description:    "CPU spike",
-			Timestamp:      100,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			DetectorName: "test_detector",
+			Title:        "Spike detected",
+			Description:  "CPU spike",
+			Timestamp:    100,
 		},
 		{
-			Source:         observerdef.AnomalySource{Name: "cpu"},
-			SourceSeriesID: "ns|cpu:avg|",
-			DetectorName:   "test_detector",
-			Title:          "Trend change detected",
-			Description:    "CPU trend shift",
-			Timestamp:      100,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			DetectorName: "test_detector",
+			Title:        "Trend change detected",
+			Description:  "CPU trend shift",
+			Timestamp:    100,
 		},
 	}
 
@@ -576,28 +585,26 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	sv := e.StateView()
 	raw := sv.Anomalies()
 	assert.Len(t, raw, 2,
-		"two anomalies with same seriesID+detector+timestamp but different titles should both survive dedup")
+		"two anomalies with same Source+detector+timestamp but different titles should both survive dedup")
 }
 
-func TestFindingM2_EmptySourceSeriesIDCollision(t *testing.T) {
+func TestFindingM2_EmptySourceCollision(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
-			Type:           observerdef.AnomalyTypeLog,
-			Source:         observerdef.AnomalySource{Name: "logs"},
-			SourceSeriesID: "", // empty for log anomalies
-			DetectorName:   "log_detector",
-			Title:          "Error pattern A detected",
-			Description:    "Pattern A",
-			Timestamp:      100,
+			Type:         observerdef.AnomalyTypeLog,
+			Source:       observerdef.SeriesDescriptor{Name: "logs"},
+			DetectorName: "log_detector",
+			Title:        "Error pattern A detected",
+			Description:  "Pattern A",
+			Timestamp:    100,
 		},
 		{
-			Type:           observerdef.AnomalyTypeLog,
-			Source:         observerdef.AnomalySource{Name: "logs"},
-			SourceSeriesID: "", // empty for log anomalies
-			DetectorName:   "log_detector",
-			Title:          "Error pattern B detected",
-			Description:    "Pattern B",
-			Timestamp:      100,
+			Type:         observerdef.AnomalyTypeLog,
+			Source:       observerdef.SeriesDescriptor{Name: "logs"},
+			DetectorName: "log_detector",
+			Title:        "Error pattern B detected",
+			Description:  "Pattern B",
+			Timestamp:    100,
 		},
 	}
 
@@ -613,25 +620,23 @@ func TestFindingM2_EmptySourceSeriesIDCollision(t *testing.T) {
 	sv := e.StateView()
 	raw := sv.Anomalies()
 	assert.Len(t, raw, 2,
-		"two log anomalies with empty SourceSeriesID but different content should both survive dedup")
+		"two log anomalies with same Source but different titles should both survive dedup")
 }
 
 func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	// Two identical anomalies (same dedup key) -- one will be deduped from rawAnomalies.
 	anomalies := []observerdef.Anomaly{
 		{
-			Source:         observerdef.AnomalySource{Name: "cpu"},
-			SourceSeriesID: "ns|cpu:avg|",
-			DetectorName:   "test_detector",
-			Title:          "Spike",
-			Timestamp:      100,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			DetectorName: "test_detector",
+			Title:        "Spike",
+			Timestamp:    100,
 		},
 		{
-			Source:         observerdef.AnomalySource{Name: "cpu"},
-			SourceSeriesID: "ns|cpu:avg|",
-			DetectorName:   "test_detector",
-			Title:          "Spike",
-			Timestamp:      100,
+			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			DetectorName: "test_detector",
+			Title:        "Spike",
+			Timestamp:    100,
 		},
 	}
 

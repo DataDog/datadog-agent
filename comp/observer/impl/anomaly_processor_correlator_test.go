@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func avgSource(name string) observer.AnomalySource {
-	return observer.AnomalySource{Name: name, Aggregate: observer.AggregateAverage}
+func avgSource(name string) observer.SeriesDescriptor {
+	return observer.SeriesDescriptor{Name: name, Aggregate: observer.AggregateAverage}
 }
 
-func countSource(name string) observer.AnomalySource {
-	return observer.AnomalySource{Name: name, Aggregate: observer.AggregateCount}
+func countSource(name string) observer.SeriesDescriptor {
+	return observer.SeriesDescriptor{Name: name, Aggregate: observer.AggregateCount}
 }
 
 func TestCorrelator_SingleAnomalyNoReport(t *testing.T) {
@@ -150,12 +150,15 @@ func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 	found := findCorrelation(activeCorrs, "kernel_bottleneck")
 	require.NotNil(t, found)
 
-	// Sources should contain all three sources (sorted alphabetically)
-	sources := found.MetricNames
-	require.Len(t, sources, 3)
-	assert.Contains(t, sources, observer.MetricName("network.retransmits:avg"))
-	assert.Contains(t, sources, observer.MetricName("ebpf.lock_contention_ns:avg"))
-	assert.Contains(t, sources, observer.MetricName("connection.errors:count"))
+	// Members should contain all three sources
+	require.Len(t, found.Members, 3)
+	memberNames := make([]string, len(found.Members))
+	for i, m := range found.Members {
+		memberNames[i] = m.String()
+	}
+	assert.Contains(t, memberNames, "network.retransmits:avg")
+	assert.Contains(t, memberNames, "ebpf.lock_contention_ns:avg")
+	assert.Contains(t, memberNames, "connection.errors:count")
 }
 
 func TestCorrelator_ActiveCorrelationContainsPatternName(t *testing.T) {
@@ -225,7 +228,7 @@ func TestCorrelator_ExtraSignalsStillMatch(t *testing.T) {
 	correlator.ProcessAnomaly(observer.Anomaly{Source: avgSource("network.retransmits")})
 	correlator.ProcessAnomaly(observer.Anomaly{Source: avgSource("ebpf.lock_contention_ns")})
 	correlator.ProcessAnomaly(observer.Anomaly{Source: countSource("connection.errors")})
-	correlator.ProcessAnomaly(observer.Anomaly{Source: observer.AnomalySource{Name: "extra.signal"}})
+	correlator.ProcessAnomaly(observer.Anomaly{Source: observer.SeriesDescriptor{Name: "extra.signal"}})
 
 	correlator.Advance(0)
 	activeCorrs := correlator.ActiveCorrelations()
@@ -318,7 +321,7 @@ func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
 	// Add an anomaly at data time 1035 (35 seconds later), which advances currentDataTime
 	// and causes all previous signals to expire (1000 < 1035 - 30 = 1005)
 	correlator.ProcessAnomaly(observer.Anomaly{
-		Source:    observer.AnomalySource{Name: "some.other.signal"},
+		Source:    observer.SeriesDescriptor{Name: "some.other.signal"},
 		Timestamp: 1035,
 	})
 	correlator.Advance(0)
@@ -429,7 +432,7 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 		Timestamp:   1025,                 // latest timestamp
 	})
 	correlator.ProcessAnomaly(observer.Anomaly{
-		Source:      observer.AnomalySource{Name: "network.retransmits"},
+		Source:      observer.SeriesDescriptor{Name: "network.retransmits"},
 		Description: "middle retransmits",
 		Timestamp:   1015,
 	})
@@ -483,7 +486,7 @@ func TestCorrelator_AnomaliesOnlyIncludesMatchingSignals(t *testing.T) {
 		Description: "connection errors anomaly",
 	})
 	correlator.ProcessAnomaly(observer.Anomaly{
-		Source:      observer.AnomalySource{Name: "extra.signal"},
+		Source:      observer.SeriesDescriptor{Name: "extra.signal"},
 		Description: "extra signal anomaly",
 	})
 

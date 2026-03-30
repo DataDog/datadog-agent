@@ -23,13 +23,13 @@ type ObserverOutput struct {
 
 // ObserverMetadata describes the scenario and pipeline configuration.
 type ObserverMetadata struct {
-	Scenario            string                             `json:"scenario"`
-	TimelineStart       int64                              `json:"timeline_start"`
-	TimelineEnd         int64                              `json:"timeline_end"`
-	DetectorsEnabled    []string                           `json:"detectors_enabled"`
-	CorrelatorsEnabled  []string                           `json:"correlators_enabled"`
-	TotalAnomalyPeriods int                                `json:"total_anomaly_periods"`
-	DetectorStats       map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
+	Scenario            string       `json:"scenario"`
+	TimelineStart       int64        `json:"timeline_start"`
+	TimelineEnd         int64        `json:"timeline_end"`
+	DetectorsEnabled    []string     `json:"detectors_enabled"`
+	CorrelatorsEnabled  []string     `json:"correlators_enabled"`
+	TotalAnomalyPeriods int          `json:"total_anomaly_periods"`
+	Stats               *ReplayStats `json:"stats,omitempty"`
 }
 
 // ObserverCorrelation is one correlation cluster.
@@ -79,7 +79,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			correlatorNames = append(correlatorNames, name)
 		}
 	}
-	detectorStats := tb.detectorProcessingStats
+	replayStats := tb.replayStats
 	tb.mu.RUnlock()
 
 	sort.Strings(detectorNames)
@@ -103,16 +103,20 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			oc.Title = corr.Title
 			oc.Message = correlationMessage(corr)
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
-			oc.MemberSeries = make([]string, len(corr.MemberSeriesIDs))
-			for j, sid := range corr.MemberSeriesIDs {
-				oc.MemberSeries[j] = string(sid)
+			oc.MemberSeries = make([]string, len(corr.Members))
+			for j, m := range corr.Members {
+				oc.MemberSeries[j] = m.DisplayName()
 			}
 			oc.Anomalies = make([]ObserverAnomaly, len(corr.Anomalies))
 			for j, a := range corr.Anomalies {
+				sourceID := a.Source.Key()
+				if a.SourceRef != nil {
+					sourceID = a.SourceRef.CompactID()
+				}
 				oc.Anomalies[j] = ObserverAnomaly{
 					Timestamp:      a.Timestamp,
 					Source:         a.Source.String(),
-					SourceSeriesID: string(a.SourceSeriesID),
+					SourceSeriesID: sourceID,
 					Detector:       a.DetectorName,
 				}
 			}
@@ -129,7 +133,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			DetectorsEnabled:    detectorNames,
 			CorrelatorsEnabled:  correlatorNames,
 			TotalAnomalyPeriods: len(outCorrelations),
-			DetectorStats:       detectorStats,
+			Stats:               replayStats,
 		},
 		AnomalyPeriods: outCorrelations,
 	}

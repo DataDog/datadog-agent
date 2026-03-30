@@ -260,11 +260,11 @@ func makeRangeStorage() *timeSeriesStorage {
 }
 
 // rangeID is the numeric ID for the first (and only) series added by makeRangeStorage.
-const rangeID = observer.SeriesHandle(0)
+const rangeID = observer.SeriesRef(0)
 
 func TestGetSeriesRange_EmptySeries(t *testing.T) {
 	s := newTimeSeriesStorage()
-	result := s.GetSeriesRange(observer.SeriesHandle(-1), 0, 100, AggregateSum)
+	result := s.GetSeriesRange(observer.SeriesRef(-1), 0, 100, AggregateSum)
 	assert.Nil(t, result)
 }
 
@@ -273,7 +273,7 @@ func TestGetSeriesRange_SinglePoint(t *testing.T) {
 	s.Add("ns", "m", 42.0, 100, nil)
 
 	// First series added gets ID 0
-	id := observer.SeriesHandle(0)
+	id := observer.SeriesRef(0)
 
 	// Range that includes the point: (0, 100]
 	result := s.GetSeriesRange(id, 0, 100, AggregateSum)
@@ -350,7 +350,7 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
 
-	id := observer.SeriesHandle(0)
+	id := observer.SeriesRef(0)
 
 	for _, tc := range []struct {
 		agg      Aggregate
@@ -383,13 +383,13 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	// Points <= 10: just one
 	assert.Equal(t, 1, s.PointCountUpTo(rangeID, 10))
 	// Non-existent series
-	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesHandle(999), 100)) // non-existent ID
+	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesRef(999), 100)) // non-existent ID
 }
 
 func TestPointCount_ColumnarLayout(t *testing.T) {
 	s := makeRangeStorage()
 	assert.Equal(t, 5, s.PointCount(rangeID))
-	assert.Equal(t, 0, s.PointCount(observer.SeriesHandle(999))) // non-existent ID
+	assert.Equal(t, 0, s.PointCount(observer.SeriesRef(999))) // non-existent ID
 }
 
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
@@ -399,7 +399,7 @@ func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	s.Add("ns", "m", 10.0, 10, nil)
 	s.Add("ns", "m", 20.0, 20, nil)
 
-	result := s.GetSeriesRange(observer.SeriesHandle(0), 0, 100, AggregateSum)
+	result := s.GetSeriesRange(observer.SeriesRef(0), 0, 100, AggregateSum)
 	require.NotNil(t, result)
 	require.Len(t, result.Points, 3)
 	assert.Equal(t, int64(10), result.Points[0].Timestamp)
