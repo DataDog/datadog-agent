@@ -33,8 +33,8 @@ type defaultHTTPClientProvider struct {
 // ProviderOption configures optional behavior on the default HTTP client provider.
 type ProviderOption func(*defaultHTTPClientProvider)
 
-// WithoutURLAllowlist disables URL allowlist enforcement on all clients created by this provider.
-func WithoutURLAllowlist() ProviderOption {
+// WithURLAllowlistDisabled disables URL allowlist enforcement on all clients created by this provider.
+func WithURLAllowlistDisabled() ProviderOption {
 	return func(p *defaultHTTPClientProvider) {
 		p.enforceURLAllowlist = false
 	}

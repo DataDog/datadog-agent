@@ -28,7 +28,7 @@ func (h *DeleteJobHandler) WithHttpClientProvider(httpClientProvider httpclient.
 
 func NewDeleteJobHandler(runnerConfig *config.Config) *DeleteJobHandler {
 	return &DeleteJobHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithoutURLAllowlist()),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithURLAllowlistDisabled()),
 	}
 }
 

@@ -15,44 +15,72 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
-func TestURLAllowlistClient_BlocksDisallowedURL(t *testing.T) {
-	cfg := &config.Config{Allowlist: []string{"allowed.example.com"}}
-	inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200}}
-	client := &urlAllowlistClient{inner: inner, config: cfg}
+func TestURLAllowlistClient(t *testing.T) {
+	tests := []struct {
+		name          string
+		allowlist     []string
+		requestURL    string
+		expectAllowed bool
+	}{
+		{
+			name:          "blocks disallowed URL",
+			allowlist:     []string{"allowed.example.com"},
+			requestURL:    "http://blocked.example.com/test",
+			expectAllowed: false,
+		},
+		{
+			name:          "allows matching URL",
+			allowlist:     []string{"allowed.example.com"},
+			requestURL:    "http://allowed.example.com/test",
+			expectAllowed: true,
+		},
+		{
+			name:          "allows all when no allowlist configured",
+			allowlist:     nil,
+			requestURL:    "http://any-url.example.com/test",
+			expectAllowed: true,
+		},
+		{
+			name:          "allows all when allowlist is empty",
+			allowlist:     []string{},
+			requestURL:    "http://any-url.example.com/test",
+			expectAllowed: true,
+		},
+		{
+			name:          "allows URL matching one of multiple allowlist entries",
+			allowlist:     []string{"first.example.com", "second.example.com"},
+			requestURL:    "http://second.example.com/path",
+			expectAllowed: true,
+		},
+		{
+			name:          "blocks URL not in multi-entry allowlist",
+			allowlist:     []string{"first.example.com", "second.example.com"},
+			requestURL:    "http://third.example.com/path",
+			expectAllowed: false,
+		},
+	}
 
-	req, _ := http.NewRequest("GET", "http://blocked.example.com/test", nil)
-	resp, err := client.Do(req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{Allowlist: tt.allowlist}
+			inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200}}
+			client := &urlAllowlistClient{inner: inner, config: cfg}
 
-	assert.Nil(t, resp)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "request url is not allowed by runner policy")
-	assert.False(t, inner.called, "inner client should not be called for blocked URLs")
-}
+			req, _ := http.NewRequest("GET", tt.requestURL, nil)
+			resp, err := client.Do(req)
 
-func TestURLAllowlistClient_AllowsAllowedURL(t *testing.T) {
-	cfg := &config.Config{Allowlist: []string{"allowed.example.com"}}
-	inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200}}
-	client := &urlAllowlistClient{inner: inner, config: cfg}
-
-	req, _ := http.NewRequest("GET", "http://allowed.example.com/test", nil)
-	resp, err := client.Do(req)
-
-	require.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode)
-	assert.True(t, inner.called, "inner client should be called for allowed URLs")
-}
-
-func TestURLAllowlistClient_AllowsAllWhenNoAllowlist(t *testing.T) {
-	cfg := &config.Config{} // nil Allowlist = allow all
-	inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200}}
-	client := &urlAllowlistClient{inner: inner, config: cfg}
-
-	req, _ := http.NewRequest("GET", "http://any-url.example.com/test", nil)
-	resp, err := client.Do(req)
-
-	require.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode)
-	assert.True(t, inner.called)
+			if tt.expectAllowed {
+				require.NoError(t, err)
+				assert.Equal(t, 200, resp.StatusCode)
+				assert.True(t, inner.called, "inner client should be called for allowed URLs")
+			} else {
+				assert.Nil(t, resp)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "request url is not allowed by runner policy")
+				assert.False(t, inner.called, "inner client should not be called for blocked URLs")
+			}
+		})
+	}
 }
 
 func TestNewDefaultProvider_EnforcesAllowlistByDefault(t *testing.T) {
@@ -66,15 +94,15 @@ func TestNewDefaultProvider_EnforcesAllowlistByDefault(t *testing.T) {
 	assert.True(t, isWrapped, "client should be wrapped with urlAllowlistClient by default")
 }
 
-func TestNewDefaultProvider_WithoutURLAllowlist(t *testing.T) {
+func TestNewDefaultProvider_WithURLAllowlistDisabled(t *testing.T) {
 	cfg := &config.Config{Allowlist: []string{"allowed.example.com"}}
-	provider := NewDefaultProvider(cfg, WithoutURLAllowlist())
+	provider := NewDefaultProvider(cfg, WithURLAllowlistDisabled())
 
 	client, err := provider.NewDefaultClient()
 	require.NoError(t, err)
 
 	_, isWrapped := client.(*urlAllowlistClient)
-	assert.False(t, isWrapped, "client should not be wrapped when WithoutURLAllowlist is used")
+	assert.False(t, isWrapped, "client should not be wrapped when WithURLAllowlistDisabled is used")
 }
 
 type fakeHTTPClient struct {
