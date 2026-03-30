@@ -109,7 +109,7 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 	status := strings.ToLower(strings.TrimSpace(log.GetStatus()))
 	switch status {
-	case "warn", "warning", "error", "critical", "fatal":
+	case "warn", "warning", "error", "critical", "fatal", "alert", "emergency":
 		return true
 	default:
 		return false
