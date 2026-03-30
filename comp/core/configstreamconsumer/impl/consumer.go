@@ -61,6 +61,9 @@ type Params struct {
 	// ConfigWriter if set receives streamed config updates (same source as configsync: SourceLocalConfigProcess).
 	// Used by remote agents to mirror core agent config into the local config.Component.
 	ConfigWriter model.Writer
+	// ReadyTimeout is how long OnStart blocks waiting for the first config snapshot before
+	// returning an error and aborting startup. Defaults to 60s when zero.
+	ReadyTimeout time.Duration
 }
 
 // Provides defines the output of the configstreamconsumer component
@@ -72,10 +75,11 @@ type Provides struct {
 
 // consumer implements the configstreamconsumer.Component interface
 type consumer struct {
-	log       log.Component
-	ipc       ipc.Component
-	telemetry telemetry.Component
-	params    Params
+	log          log.Component
+	ipc          ipc.Component
+	telemetry    telemetry.Component
+	params       Params
+	configWriter model.Writer // optional: mirrors streamed config into the local config.Component
 
 	conn       *grpc.ClientConn
 	client     pb.AgentSecureClient
@@ -91,7 +95,8 @@ type consumer struct {
 	readyCh   chan struct{}
 	readyOnce sync.Once
 
-	subscribers   []chan configstreamconsumer.ChangeEvent
+	subscribers   map[int]chan configstreamconsumer.ChangeEvent
+	nextSubID     int
 	subscribersMu sync.RWMutex
 
 	ctx    context.Context
@@ -109,6 +114,7 @@ type consumer struct {
 // NewComponent creates a new configstreamconsumer component
 func NewComponent(reqs Requires) (Provides, error) {
 	if reqs.Params == nil {
+		reqs.Log.Warnf("configstreamconsumer: no Params provided, component disabled")
 		return Provides{}, nil
 	}
 	p := *reqs.Params
@@ -133,27 +139,27 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ipc:             reqs.IPC,
 		telemetry:       reqs.Telemetry,
 		params:          p,
+		configWriter:    p.ConfigWriter,
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
+		subscribers:     make(map[int]chan configstreamconsumer.ChangeEvent),
 	}
 
 	c.reader = &configReader{consumer: c}
 
 	// Register lifecycle hooks
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
-			return c.Start(ctx)
-		},
-		OnStop: func(_ context.Context) error {
-			c.stop()
-			return nil
-		},
+		OnStart: c.Start,
+		OnStop:  c.stop,
 	})
 
 	return Provides{Comp: c}, nil
 }
 
-// Start initiates the config stream connection and processing loop
+// Start initiates the config stream connection and blocks until the first config snapshot is
+// received. Blocking here ensures all components initialized after this one (and the binary's
+// run function) see a fully-populated config. Returns an error if the snapshot is not received
+// within ReadyTimeout (default 60s), which aborts FX startup.
 func (c *consumer) Start(_ context.Context) error {
 	// Use context.Background() so the stream lifetime is not bounded by the
 	// Fx startup context, which expires after app.StartTimeout (~5 minutes).
@@ -161,15 +167,27 @@ func (c *consumer) Start(_ context.Context) error {
 
 	c.initMetrics()
 
-	// Start the stream loop in a goroutine
 	c.wg.Add(1)
 	go c.streamLoop()
 
+	timeout := c.params.ReadyTimeout
+	if timeout == 0 {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	c.log.Infof("Waiting for initial configuration from core agent (timeout: %v)...", timeout)
+	if err := c.WaitReady(ctx); err != nil {
+		c.cancel()
+		c.wg.Wait()
+		return fmt.Errorf("waiting for initial config snapshot: %w", err)
+	}
+	c.log.Infof("Initial configuration received from core agent.")
 	return nil
 }
 
 // stop gracefully shuts down the consumer
-func (c *consumer) stop() {
+func (c *consumer) stop(_ context.Context) error {
 	c.cancel()
 	c.streamLock.Lock()
 	if c.stream != nil {
@@ -180,6 +198,7 @@ func (c *consumer) stop() {
 	}
 	c.streamLock.Unlock()
 	c.wg.Wait()
+	return nil
 }
 
 // WaitReady blocks until the first config snapshot has been received and applied
@@ -202,20 +221,19 @@ func (c *consumer) Subscribe() (<-chan configstreamconsumer.ChangeEvent, func())
 	ch := make(chan configstreamconsumer.ChangeEvent, 100)
 
 	c.subscribersMu.Lock()
-	c.subscribers = append(c.subscribers, ch)
-	idx := len(c.subscribers) - 1
+	id := c.nextSubID
+	c.nextSubID++
+	c.subscribers[id] = ch
 	c.subscribersMu.Unlock()
 
-	unsubscribe := func() {
+	return ch, func() {
 		c.subscribersMu.Lock()
 		defer c.subscribersMu.Unlock()
-		if idx < len(c.subscribers) {
-			close(c.subscribers[idx])
-			c.subscribers[idx] = nil
+		if _, ok := c.subscribers[id]; ok {
+			close(c.subscribers[id])
+			delete(c.subscribers, id)
 		}
 	}
-
-	return ch, unsubscribe
 }
 
 // streamLoop manages the lifecycle of the config stream connection
@@ -240,7 +258,7 @@ func (c *consumer) streamLoop() {
 			c.log.Warnf("Config stream error: %v, reconnecting...", err)
 			c.streamReconnectCount.Inc()
 
-			// Exponential backoff for reconnection
+			// Fixed delay before reconnection attempt
 			select {
 			case <-c.ctx.Done():
 				return
@@ -253,6 +271,12 @@ func (c *consumer) streamLoop() {
 
 // connectAndStream establishes a gRPC connection and processes the config stream
 func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) error {
+	// Reset sequence tracking for this connection. The server always sends a full
+	// snapshot first on a new stream, so starting from 0 is correct.
+	c.configLock.Lock()
+	c.lastSeqID = 0
+	c.configLock.Unlock()
+
 	conn, err := grpc.NewClient(c.params.CoreAgentAddress,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.ipc.GetTLSClientConfig())),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(c.ipc.GetAuthToken())),
@@ -325,9 +349,9 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent, startTime time.Time,
 
 // applySnapshot applies a complete config snapshot
 func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Time, firstSnapshot *bool) error {
-	// Check for stale snapshot
+	// An out-of-order snapshot should never happen (seqIDs are reset per connection in connectAndStream).
 	if snapshot.SequenceId <= c.lastSeqID {
-		c.log.Debugf("Ignoring stale snapshot (seq_id: %d <= %d)", snapshot.SequenceId, c.lastSeqID)
+		c.log.Errorf("Received out-of-order snapshot (seq_id: %d <= current %d); ignoring", snapshot.SequenceId, c.lastSeqID)
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
@@ -349,7 +373,15 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
-	// Mark as ready if this is the first snapshot
+	c.emitChangeEvents(oldConfig, newConfig)
+
+	if c.configWriter != nil {
+		for key, val := range newConfig {
+			c.configWriter.Set(key, val, model.SourceLocalConfigProcess)
+		}
+	}
+
+	// Signal readiness only after the snapshot is fully applied, events emitted, and config mirrored.
 	if *firstSnapshot {
 		*firstSnapshot = false
 		c.readyOnce.Do(func() {
@@ -361,14 +393,6 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 		})
 	}
 
-	c.emitChangeEvents(oldConfig, newConfig)
-
-	if c.params.ConfigWriter != nil {
-		for key, val := range newConfig {
-			c.params.ConfigWriter.Set(key, val, model.SourceLocalConfigProcess)
-		}
-	}
-
 	return nil
 }
 
@@ -376,7 +400,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 	// Check for stale update
 	if update.SequenceId <= c.lastSeqID {
-		c.log.Debugf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID)
+		c.log.Warnf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID)
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
@@ -405,8 +429,8 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 		NewValue: newValue,
 	})
 
-	if c.params.ConfigWriter != nil {
-		c.params.ConfigWriter.Set(update.Setting.Key, newValue, model.SourceLocalConfigProcess)
+	if c.configWriter != nil {
+		c.configWriter.Set(update.Setting.Key, newValue, model.SourceLocalConfigProcess)
 	}
 
 	return nil
@@ -444,13 +468,11 @@ func (c *consumer) emitChangeEvent(event configstreamconsumer.ChangeEvent) {
 	defer c.subscribersMu.RUnlock()
 
 	for _, ch := range c.subscribers {
-		if ch == nil {
-			continue
-		}
 		select {
 		case ch <- event:
 		default:
 			c.log.Warnf("Subscriber buffer full, dropping event for key: %s", event.Key)
+			c.bufferOverflowDiscounts.Inc()
 		}
 	}
 }

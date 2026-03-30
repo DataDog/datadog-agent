@@ -124,7 +124,7 @@ Package configstream implements a component to handle streaming configuration ev
 
 ### [comp/core/configstreamconsumer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstreamconsumer)
 
-*Datadog Team*: agent-metric-pipelines agent-configuration
+*Datadog Team*: agent-configuration
 
 Package configstreamconsumer implements a component that consumes config streams from the core agent.
 

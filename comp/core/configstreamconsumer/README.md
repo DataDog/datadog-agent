@@ -40,25 +40,15 @@ See `../configstream/README.md` for the producer side and the gRPC/protobuf cont
 
 Supply **either** a fixed `SessionID` **or** a `SessionIDProvider` (e.g. from the remote agent component). The consumer uses the provider at connect time so RAR can register first. 
 
-**Blocking vs non-blocking startup** is determined in your run function: call `WaitReady(ctx)` to block until the first snapshot (**pattern 1, strongly encouraged**), or omit it to start immediately (**pattern 2, very dangerous**—see [Usage patterns](#usage-patterns)).
+**Blocking startup**: `OnStart` blocks until the first config snapshot is received, so all other components and the binary's `run` function see a fully-populated config without any extra synchronization. Set `Params.ReadyTimeout` to control how long to wait (default: 60s); exceeding it aborts FX startup.
 
 **Params must be provided as `*Params`** so FX injects into the consumer's optional `*Params` field. When `Params` is nil or both `SessionID` and `SessionIDProvider` are empty, the component is not created (e.g. when RAR is disabled).
 
 ```go
-// 1. Add to FX dependencies
+// 1. Add configstreamconsumerfx.Module() to the binary's FX options.
 configstreamconsumerfx.Module()
 
-// 2a. Fixed SessionID (when you already have it, e.g. from an earlier RAR registration)
-fx.Provide(func(c config.Component) *configstreamconsumerimpl.Params {
-    return &configstreamconsumerimpl.Params{
-        ClientName:       "my-agent",
-        CoreAgentAddress: net.JoinHostPort(c.GetString("cmd_host"), strconv.Itoa(c.GetInt("cmd_port"))),
-        SessionID:        rarSessionID,
-        ConfigWriter:     c, // optional: mirror streamed config into main config
-    }
-})
-
-// 2b. SessionIDProvider (recommended when using RAR: consumer waits for registration at connect time)
+// 2. Provide the SessionIDProvider from the remote agent component (it will block until RAR registration completes).
 fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
     if ra == nil {
         return nil
@@ -68,10 +58,15 @@ fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProv
     }
     return nil
 })
+
+// 3. Provide *Params (return nil to disable when configstream is not enabled).
 fx.Provide(func(c config.Component, deps struct {
     fx.In
     SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
 }) *configstreamconsumerimpl.Params {
+    if !c.GetBool("remote_agent.configstream.enabled") {
+        return nil
+    }
     host := c.GetString("cmd_host")
     port := c.GetInt("cmd_port")
     if port <= 0 {
@@ -81,61 +76,11 @@ fx.Provide(func(c config.Component, deps struct {
         ClientName:        "my-agent",
         CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
         SessionIDProvider: deps.SessionProvider,
-        ConfigWriter:      c, // optional: mirror streamed config into main config
+        ConfigWriter:      c,
     }
 })
 ```
 
-Use **2a** when you already have a session ID; use **2b** when the remote agent component implements `WaitSessionID(ctx) (string, error)` and you want the consumer to obtain the session ID at connect time (after RAR has registered). In your run function, inject the consumer and call `WaitReady(ctx)` for blocking startup, or start without it for non-blocking (eventually consistent) startup.
-
-## Usage Patterns
-
-**Pattern 1 (block until config ready) is strongly encouraged.** Pattern 2 (start immediately) is very dangerous due to potential inconsistencies and should be used only when necessary.
-
-### Pattern 1: Block until config ready (strongly encouraged)
-
-Use when the agent needs the config to be fully populated before starting. This is the recommended and safe approach.
-
-```go
-func run(consumer configstreamconsumer.Component) error {
-    if err := consumer.Start(context.Background()); err != nil {
-        return fmt.Errorf("failed to start config stream: %w", err)
-    }
-    // Block until first config snapshot is received
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-    defer cancel()
-    if err := consumer.WaitReady(ctx); err != nil {
-        return fmt.Errorf("config not ready: %w", err)
-    }
-    // Config is guaranteed to be fully populated here
-    cfg := consumer.Reader()
-    // Start agent with complete config
-    return startAgent(cfg.GetInt("my_port"), cfg.GetBool("my_feature.enabled"))
-}
-```
-
-### Pattern 2: Start immediately (eventually consistent) — use with caution
-
-**Pattern 2 is very dangerous** due to potential inconsistencies: the agent may start with no config or stale config, and behavior can be hard to reason about. **Pattern 1 (block until config ready) is strongly encouraged.** Use pattern 2 only when you have a clear need to start without waiting and can tolerate empty or eventually consistent config.
-
-```go
-func run(consumer configstreamconsumer.Component) error {
-    if err := consumer.Start(context.Background()); err != nil {
-        return fmt.Errorf("failed to start config stream: %w", err)
-    }
-    // Do not call WaitReady(); config may be empty initially.
-    changes, unsubscribe := consumer.Subscribe()
-    defer unsubscribe()
-    go func() {
-        for change := range changes {
-            log.Infof("Config changed: %s = %v", change.Key, change.NewValue)
-            // Handle config updates dynamically
-        }
-    }()
-    // Start your agent immediately (may use default values initially)
-    return startAgent(consumer.Reader())
-}
-```
 
 ## Requirements
 
@@ -155,14 +100,6 @@ func run(consumer configstreamconsumer.Component) error {
 | `configstream_consumer.buffer_overflow_disconnects` | Counter | Disconnects due to subscriber buffer overflow |
 
 ## Testing
-
-### Unit tests
-
-```bash
-cd comp/core/configstreamconsumer/impl
-go test -tags test -v
-```
-Covers: snapshot and ordered updates, stale/dropped updates, `WaitReady` blocking, change subscription, reader API, discontinuity handling.
 
 ### Manual testing with system-probe
 
@@ -189,4 +126,4 @@ Covers: snapshot and ordered updates, stale/dropped updates, `WaitReady` blockin
 - **Producer**: `../configstream/README.md` — core agent config streaming service and gRPC contract.
 - **Test client**: `cmd/config-stream-client/README.md` — standalone client for end-to-end testing.
 
-**Team**: agent-metric-pipelines agent-configuration
+**Team**: agent-configuration
