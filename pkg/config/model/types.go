@@ -171,6 +171,9 @@ type Reader interface {
 	// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend
 	// layer as well.
 	AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
+	// GetSecretSettingPaths returns the flattened key path that exist in the secrets layer.
+	// This allows the scrubber to know exactly which settings contain secrets
+	GetSecretSettingPaths() []string
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string

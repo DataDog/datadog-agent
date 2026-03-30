@@ -486,8 +486,7 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	log.Warnf("config key %v is unknown", key)
 }
 
-// mergeLayers merges all config layers in priority order. Layers passed as exclude are skipped.
-func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
+func (c *ntmConfig) mergeAllLayers() error {
 	treeList := []*nodeImpl{
 		c.defaults,
 		c.unknown,
@@ -503,23 +502,13 @@ func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
 
 	merged := newInnerNode(nil)
 	for _, tree := range treeList {
-		if slices.Contains(exclude, tree) {
-			continue
-		}
 		next, err := merged.Merge(tree)
 		if err != nil {
-			return merged, err
+			return err
 		}
 		merged = next
 	}
-	return merged, nil
-}
 
-func (c *ntmConfig) mergeAllLayers() error {
-	merged, err := c.mergeLayers()
-	if err != nil {
-		return err
-	}
 	c.root = merged
 	return nil
 }
@@ -960,11 +949,57 @@ func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} 
 
 // mergeWithoutSecrets returns a merged tree of all layers except the secrets layer.
 func (c *ntmConfig) mergeWithoutSecrets() *nodeImpl {
-	merged, err := c.mergeLayers(c.secrets)
-	if err != nil {
-		log.Errorf("error merging config layers without secrets: %s", err)
+	treeList := []*nodeImpl{
+		c.defaults,
+		c.unknown,
+		c.file,
+		c.envs,
+		c.fleetPolicies,
+		// secrets layer excluded
+		c.runtime,
+		c.localConfigProcess,
+		c.remoteConfig,
+		c.cli,
 	}
+
+	merged := newInnerNode(nil)
+	for _, tree := range treeList {
+		next, err := merged.Merge(tree)
+		if err != nil {
+			log.Errorf("error merging config layers without secrets: %s", err)
+			return merged
+		}
+		merged = next
+	}
+
 	return merged
+}
+
+// GetSecretSettingPaths returns the flattened key paths that exist in the secrets layer.
+func (c *ntmConfig) GetSecretSettingPaths() []string {
+	c.RLock()
+	defer c.RUnlock()
+
+	var keys []string
+	collectFlattenedKeysFromNode(c.secrets, "", &keys)
+	return keys
+}
+
+// collectFlattenedKeysFromNode recursively walks a node tree and collects flattened dotted key paths
+// for all leaf nodes.
+func collectFlattenedKeysFromNode(node *nodeImpl, prefix string, keys *[]string) {
+	for _, name := range node.ChildrenKeys() {
+		child, err := node.GetChild(name)
+		if err != nil {
+			continue
+		}
+		fullKey := joinKey(prefix, name)
+		if child.IsLeafNode() {
+			*keys = append(*keys, fullKey)
+		} else if child.IsInnerNode() {
+			collectFlattenedKeysFromNode(child, fullKey, keys)
+		}
+	}
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
