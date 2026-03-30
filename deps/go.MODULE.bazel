@@ -9,6 +9,12 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/DataDog/sketches-go",
+)
 use_repo(
     go_deps,
     "cc_mvdan_sh_v3",

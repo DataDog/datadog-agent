@@ -429,7 +429,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/filesystem
 # gazelle:exclude pkg/util/flavor
 # gazelle:exclude pkg/util/funcs
-# gazelle:exclude pkg/util/fxutil
 # gazelle:exclude pkg/util/goroutinesdump
 # gazelle:exclude pkg/util/gpu
 # gazelle:exclude pkg/util/grpc
@@ -458,10 +457,8 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/quantile/summary
 # gazelle:exclude pkg/util/retry
 # gazelle:exclude pkg/util/safeelf
-# gazelle:exclude pkg/util/scrubber
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/slices
 # gazelle:exclude pkg/util/stat
