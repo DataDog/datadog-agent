@@ -66,10 +66,8 @@ func (c *Cluster) ToClusterInfo() ClusterInfo {
 
 // ClusterResult is returned when processing a new log message.
 type ClusterResult struct {
-	Cluster   *Cluster
-	IsNew     bool
-	Signature string
-	Pattern   string
+	Cluster *Cluster
+	IsNew   bool
 }
 
 // SignatureClusterer groups logs by exact signature match.
@@ -94,59 +92,48 @@ func NewSignatureClusterer(idComputeInfo IDComputeInfo) *SignatureClusterer {
 	}
 }
 
-func (sc *SignatureClusterer) Process(message string) *ClusterResult {
+func (sc *SignatureClusterer) Process(message string) (ClusterResult, bool) {
 	if sc.IgnoreEmpty && strings.TrimSpace(message) == "" {
-		return nil
+		return ClusterResult{}, false
 	}
 
 	tokens := sc.tokenizer.Tokenize(message)
 	return sc.ProcessTokens(tokens, message)
 }
 
-func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *ClusterResult {
+func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) (ClusterResult, bool) {
 	sig := TokenListSignature(tokens)
 
 	if c, ok := sc.clusters[sig]; ok {
 		c.Count++
-		if len(c.Samples) < 5 {
-			c.Samples = append(c.Samples, message)
-		}
-		return &ClusterResult{
-			Cluster:   c,
-			IsNew:     false,
-			Signature: sig,
-			Pattern:   c.PatternString(),
-		}
+		return ClusterResult{Cluster: c, IsNew: false}, true
 	}
 
 	c := &Cluster{
 		Signature: sig,
 		Pattern:   tokens,
 		Count:     1,
-		Tags:      make(map[string]string),
 		Samples:   []string{message},
 		ID:        sc.IDComputeInfo.NextID(),
 	}
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
 
-	return &ClusterResult{
-		Cluster:   c,
-		IsNew:     true,
-		Signature: sig,
-		Pattern:   c.PatternString(),
-	}
+	return ClusterResult{Cluster: c, IsNew: true}, true
 }
 
-func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) *ClusterResult {
+func (sc *SignatureClusterer) ProcessDoc(doc map[string]string) (ClusterResult, bool) {
 	message := sc.TextGetter(doc)
-	result := sc.Process(message)
-	if result != nil && result.IsNew {
+	result, ok := sc.Process(message)
+	if ok && result.IsNew && len(sc.TagGetters) > 0 {
+		if result.Cluster.Tags == nil {
+			result.Cluster.Tags = make(map[string]string)
+		}
 		for tagName, getter := range sc.TagGetters {
 			result.Cluster.Tags[tagName] = getter(doc)
 		}
 	}
-	return result
+	return result, ok
 }
 
 func (sc *SignatureClusterer) GetClusters() []*Cluster {
@@ -180,9 +167,9 @@ func (pc *PatternClusterer) NumClusters() int {
 	return len(pc.allClusters)
 }
 
-func (pc *PatternClusterer) Process(message string) *ClusterResult {
+func (pc *PatternClusterer) Process(message string) (ClusterResult, bool) {
 	if pc.IgnoreEmpty && strings.TrimSpace(message) == "" {
-		return nil
+		return ClusterResult{}, false
 	}
 
 	tokens := pc.tokenizer.Tokenize(message)
@@ -190,7 +177,7 @@ func (pc *PatternClusterer) Process(message string) *ClusterResult {
 	return pc.ProcessTokens(tokens, message)
 }
 
-func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *ClusterResult {
+func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (ClusterResult, bool) {
 	sig := TokenListSignature(tokens)
 
 	// Try within same signature group first
@@ -199,15 +186,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		if canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
-			if len(c.Samples) < 5 {
-				c.Samples = append(c.Samples, message)
-			}
-			return &ClusterResult{
-				Cluster:   c,
-				IsNew:     false,
-				Signature: sig,
-				Pattern:   c.PatternString(),
-			}
+			return ClusterResult{Cluster: c, IsNew: false}, true
 		}
 	}
 
@@ -221,15 +200,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 			if canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
-				if len(c.Samples) < 5 {
-					c.Samples = append(c.Samples, message)
-				}
-				return &ClusterResult{
-					Cluster:   c,
-					IsNew:     false,
-					Signature: c.Signature,
-					Pattern:   c.PatternString(),
-				}
+				return ClusterResult{Cluster: c, IsNew: false}, true
 			}
 		}
 	}
@@ -238,19 +209,13 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		Signature: sig,
 		Pattern:   tokens,
 		Count:     1,
-		Tags:      make(map[string]string),
 		Samples:   []string{message},
 		ID:        pc.IDComputeInfo.NextID(),
 	}
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
 
-	return &ClusterResult{
-		Cluster:   c,
-		IsNew:     true,
-		Signature: sig,
-		Pattern:   c.PatternString(),
-	}
+	return ClusterResult{Cluster: c, IsNew: true}, true
 }
 
 func (pc *PatternClusterer) GetClusters() []*Cluster {
@@ -310,13 +275,13 @@ func canMergeTokens(a, b Token) bool {
 	case TypeNumericValue:
 		return true
 	case TypeDate, TypeLocalTime:
-		return a.DateFormat == b.DateFormat
+		return a.extra.DateFormat == b.extra.DateFormat
 	case TypeIPv4Address:
 		return true
 	case TypeAbsolutePath, TypePathQueryFragment:
-		return sameSegmentCount(a.Segments, b.Segments)
+		return sameSegmentCount(a.extra.Segments, b.extra.Segments)
 	case TypeURI:
-		if a.Scheme != b.Scheme {
+		if a.extra.Scheme != b.extra.Scheme {
 			return false
 		}
 		return true
@@ -331,10 +296,10 @@ func canMergeTokens(a, b Token) bool {
 	case TypeSeverity:
 		return true
 	case TypeHexDump:
-		return a.DispLen == b.DispLen
+		return a.extra.DispLen == b.extra.DispLen
 	case TypeKVSequence:
-		return a.KVSep == b.KVSep && a.KVPairSep == b.KVPairSep &&
-			a.KVQuote == b.KVQuote && sameKeys(a.KVKeys, b.KVKeys)
+		return a.extra.KVSep == b.extra.KVSep && a.extra.KVPairSep == b.extra.KVPairSep &&
+			a.extra.KVQuote == b.extra.KVQuote && sameKeys(a.extra.KVKeys, b.extra.KVKeys)
 	default:
 		return a.Value == b.Value
 	}
@@ -361,18 +326,8 @@ func mergeTokenLists(pattern, incoming []Token) {
 	for i := range pattern {
 		if pattern[i].Value != incoming[i].Value {
 			pattern[i].IsWild = true
-			pattern[i].Values = appendUnique(pattern[i].Values, incoming[i].Value)
 		}
 	}
-}
-
-func appendUnique(slice []string, s string) []string {
-	for _, v := range slice {
-		if v == s {
-			return slice
-		}
-	}
-	return append(slice, s)
 }
 
 // Classify returns the cluster matching the given message without modifying any state.

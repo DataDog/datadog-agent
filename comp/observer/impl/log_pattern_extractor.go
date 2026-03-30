@@ -100,8 +100,8 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	clusterResult := e.PatternClusterer.Process(message)
-	if clusterResult == nil {
+	clusterResult, ok := e.PatternClusterer.Process(message)
+	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 	if clusterResult.IsNew {

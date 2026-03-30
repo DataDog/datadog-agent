@@ -409,7 +409,10 @@ def launch_testbench(
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",
+    profile: bool = False,
+    open_pprof: bool = False,
     verbose: bool = False,
+    profile_path: str = "",
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -417,26 +420,42 @@ def launch_testbench(
     Args:
         scenarios_dir: The directory containing the scenarios to load.
         build: Whether to build the observer-testbench binary.
+        profile: Whether to profile the observer-testbench binary (only in testbench headless mode).
     """
     if build:
         print("Building observer-testbench...")
         build_testbench(ctx)
 
-    verbose_flag = "--verbose" if verbose else ""
+    flags = ""
+    if verbose:
+        flags += " --verbose"
 
     if headless_scenario:
         if not headless_output:
             headless_output = f"/tmp/observer-testbench-headless-{headless_scenario}.json"
+        if profile:
+            if not profile_path:
+                profile_path = f"/tmp/observer-testbench-headless-{headless_scenario}.prof"
+            flags += f" --memprofile {profile_path}"
         print(
             f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
         ctx.run(
-            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {verbose_flag}"
+            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}"
         )
+        if profile:
+            if open_pprof:
+                print('Running pprof...')
+                ctx.run(f"go tool pprof -http=:8081 {profile_path}")
+            else:
+                print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
     else:
         print("Launching observer-testbench backend and UI, use ^C to exit")
+        print(
+            "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
+        )
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd {verbose_flag} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd {flags} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
         )
 
 
