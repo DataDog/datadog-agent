@@ -155,8 +155,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	// When no API key is configured, skip trace and metric agent initialization
 	// to avoid noisy error logs. The process wrapper and logs agent still function normally.
+	// Also check the deprecated apm_config.api_key, which the trace agent still honors.
 	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
-	if apiKey == "" {
+	apmAPIKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("apm_config.api_key"))
+	if apiKey == "" && apmAPIKey == "" {
 		log.Warnf("DD_API_KEY is not set; trace and metric collection are disabled. Set DD_API_KEY to enable monitoring.")
 		traceAgent := trace.NewNoopTraceAgent()
 		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
