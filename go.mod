@@ -974,7 +974,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.78.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.78.0-rc.4
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
-	github.com/DataDog/rshell v0.0.8
+	github.com/DataDog/rshell v0.0.9
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
 	github.com/aymerick/raymond v2.0.2+incompatible
