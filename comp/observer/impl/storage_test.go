@@ -568,24 +568,25 @@ func TestRemoveMetric_BasicRemoval(t *testing.T) {
 	s.Add("ns", "target", 1.0, 1000, nil)
 	s.Add("ns", "other", 2.0, 1000, nil)
 
-	n := s.RemoveMetric("target")
+	n := s.RemoveMetric("ns", "target")
 	assert.Equal(t, 1, n)
 
 	assert.Nil(t, s.GetSeries("ns", "target", nil, AggregateSum))
 	assert.NotNil(t, s.GetSeries("ns", "other", nil, AggregateSum))
 }
 
-func TestRemoveMetric_RemovesAcrossNamespaces(t *testing.T) {
+func TestRemoveMetric_ScopedToNamespace(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns1", "target", 1.0, 1000, nil)
 	s.Add("ns2", "target", 2.0, 1000, nil)
 	s.Add("ns1", "other", 3.0, 1000, nil)
 
-	n := s.RemoveMetric("target")
-	assert.Equal(t, 2, n)
+	// Only remove from ns1 — ns2 must be unaffected.
+	n := s.RemoveMetric("ns1", "target")
+	assert.Equal(t, 1, n)
 
 	assert.Nil(t, s.GetSeries("ns1", "target", nil, AggregateSum))
-	assert.Nil(t, s.GetSeries("ns2", "target", nil, AggregateSum))
+	assert.NotNil(t, s.GetSeries("ns2", "target", nil, AggregateSum))
 	assert.NotNil(t, s.GetSeries("ns1", "other", nil, AggregateSum))
 }
 
@@ -595,7 +596,7 @@ func TestRemoveMetric_RemovesAcrossTagVariants(t *testing.T) {
 	s.Add("ns", "target", 2.0, 1000, []string{"env:staging"})
 	s.Add("ns", "target", 3.0, 1000, nil)
 
-	n := s.RemoveMetric("target")
+	n := s.RemoveMetric("ns", "target")
 	assert.Equal(t, 3, n)
 
 	assert.Nil(t, s.GetSeries("ns", "target", []string{"env:prod"}, AggregateSum))
@@ -607,10 +608,20 @@ func TestRemoveMetric_NoMatch(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns", "other", 1.0, 1000, nil)
 
-	n := s.RemoveMetric("nonexistent")
+	n := s.RemoveMetric("ns", "nonexistent")
 	assert.Equal(t, 0, n)
 
 	assert.NotNil(t, s.GetSeries("ns", "other", nil, AggregateSum))
+}
+
+func TestRemoveMetric_WrongNamespaceNoMatch(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns1", "target", 1.0, 1000, nil)
+
+	n := s.RemoveMetric("ns2", "target")
+	assert.Equal(t, 0, n)
+
+	assert.NotNil(t, s.GetSeries("ns1", "target", nil, AggregateSum))
 }
 
 func TestRemoveMetric_TombstonesNumericID(t *testing.T) {
@@ -621,7 +632,7 @@ func TestRemoveMetric_TombstonesNumericID(t *testing.T) {
 	targetHandle := s.seriesIDs[seriesKey("ns", "target", nil)]
 	keeperHandle := s.seriesIDs[seriesKey("ns", "keeper", nil)]
 
-	s.RemoveMetric("target")
+	s.RemoveMetric("ns", "target")
 
 	// Tombstoned handle returns nil from all ID-based lookups.
 	assert.Nil(t, s.GetSeriesByNumericID(targetHandle, AggregateSum))
@@ -637,7 +648,7 @@ func TestRemoveMetric_BumpsSeriesGeneration(t *testing.T) {
 	s.Add("ns", "target", 1.0, 1000, nil)
 	genBefore := s.SeriesGeneration()
 
-	s.RemoveMetric("target")
+	s.RemoveMetric("ns", "target")
 	assert.Greater(t, s.SeriesGeneration(), genBefore)
 }
 
@@ -646,13 +657,12 @@ func TestRemoveMetric_NoGenBumpOnNoMatch(t *testing.T) {
 	s.Add("ns", "other", 1.0, 1000, nil)
 	genBefore := s.SeriesGeneration()
 
-	s.RemoveMetric("nonexistent")
+	s.RemoveMetric("ns", "nonexistent")
 	assert.Equal(t, genBefore, s.SeriesGeneration())
 }
 
 func TestRemoveMetric_ClearsDropAccounting(t *testing.T) {
 	s := newTimeSeriesStorage()
-	// Trigger drop accounting for "target" in two namespaces.
 	s.Add("ns1", "target", math.NaN(), 1000, nil)
 	s.Add("ns2", "target", math.NaN(), 1000, nil)
 	s.Add("ns1", "other", math.NaN(), 1000, nil)
@@ -662,11 +672,12 @@ func TestRemoveMetric_ClearsDropAccounting(t *testing.T) {
 	require.Contains(t, byMetric, "ns2|target")
 	require.Contains(t, byMetric, "ns1|other")
 
-	s.RemoveMetric("target")
+	// Only clear ns1's accounting — ns2 must be unaffected.
+	s.RemoveMetric("ns1", "target")
 
 	_, _, byMetric = s.DroppedValueStats()
 	assert.NotContains(t, byMetric, "ns1|target")
-	assert.NotContains(t, byMetric, "ns2|target")
+	assert.Contains(t, byMetric, "ns2|target")
 	assert.Contains(t, byMetric, "ns1|other")
 }
 
@@ -675,7 +686,7 @@ func TestRemoveMetric_RemoveThenRe_Add(t *testing.T) {
 	s.Add("ns", "target", 1.0, 1000, nil)
 	oldHandle := s.seriesIDs[seriesKey("ns", "target", nil)]
 
-	s.RemoveMetric("target")
+	s.RemoveMetric("ns", "target")
 	assert.Nil(t, s.GetSeries("ns", "target", nil, AggregateSum))
 
 	// Re-adding the same metric must create a new series.
@@ -713,7 +724,7 @@ func TestFindingH1_RemoveMetricRace(_ *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 30; i++ {
-			s.RemoveMetric("target")
+			s.RemoveMetric("ns", "target")
 		}
 	}()
 

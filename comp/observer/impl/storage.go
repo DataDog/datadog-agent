@@ -896,19 +896,19 @@ func (s *timeSeriesStorage) GetSeriesRange(handle observer.SeriesHandle, start, 
 	}
 }
 
-// RemoveMetric removes all series whose Name matches the given metric name across
-// all namespaces. Numeric ID slots are tombstoned (set to nil) rather than
+// RemoveMetric removes all series in the given namespace whose Name matches the
+// given metric name. Numeric ID slots are tombstoned (set to nil) rather than
 // compacted, so previously issued SeriesHandles for other metrics remain valid.
 // Drop-accounting entries for the metric are also cleared.
 // Returns the number of series removed. Intended for garbage collection when a
 // target metric is no longer observed.
-func (s *timeSeriesStorage) RemoveMetric(name string) int {
+func (s *timeSeriesStorage) RemoveMetric(namespace, name string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	removed := 0
 	for key, stats := range s.series {
-		if stats.Name != name {
+		if stats.Name != name || stats.Namespace != namespace {
 			continue
 		}
 		delete(s.series, key)
@@ -921,13 +921,10 @@ func (s *timeSeriesStorage) RemoveMetric(name string) int {
 		removed++
 	}
 
-	// Clear drop-accounting entries for this metric name (format: "namespace|name").
-	for metricKey := range s.droppedByMetric {
-		if idx := strings.LastIndex(metricKey, "|"); idx >= 0 && metricKey[idx+1:] == name {
-			delete(s.droppedByMetric, metricKey)
-			delete(s.sampledDrops, metricKey)
-		}
-	}
+	// Clear the exact drop-accounting entry for this namespace+name pair.
+	metricKey := namespace + "|" + name
+	delete(s.droppedByMetric, metricKey)
+	delete(s.sampledDrops, metricKey)
 
 	if removed > 0 {
 		s.seriesGen++

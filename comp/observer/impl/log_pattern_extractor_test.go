@@ -160,6 +160,9 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	})
 	require.Len(t, res2.Metrics, 1)
 	require.Equal(t, []string{ctxKey1}, res2.EvictedContextKeys, "GC should report evicted context keys for the engine")
+	require.Len(t, res2.EvictedMetricNames, 1, "GC should report one evicted metric name for the stale cluster")
+	// Cluster 0 maps to metric name "log.log_pattern_extractor.1.count" (ID+1 in hex).
+	assert.Equal(t, "log.log_pattern_extractor.1.count", res2.EvictedMetricNames[0])
 	ctxKey2 := res2.Metrics[0].ContextKey
 
 	_, ok = e.GetContextByKey(ctxKey1)
@@ -174,4 +177,58 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	require.Error(t, err, "stale cluster should be removed from clusterer")
 	_, err = e.PatternClusterer.GetCluster(1)
 	require.NoError(t, err, "cluster from the second log should still exist")
+}
+
+func TestLogPatternExtractor_GCEvictedMetricNamesOnePerCluster(t *testing.T) {
+	// Two different tag-sets produce two context keys for the same cluster, but
+	// GC should still return exactly one EvictedMetricName (one per cluster, not per key).
+	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
+	e.ClusterTimeToLiveSec = 10
+	e.GarbageCollectionIntervalSec = 0
+	// Pin NextGarbageCollectionTime far in the future so GC does not fire during
+	// the setup phase. GarbageCollectionIntervalSec=0 would otherwise trigger GC
+	// on every ProcessLog call, evicting the cluster before both tags are ingested.
+	e.NextGarbageCollectionTime = 1 << 62
+
+	msg := []byte("WARN disk usage above threshold on host *")
+	const tsMs = int64(1_000_000) // unix sec = 1000
+
+	// Same pattern, two different tag-sets → two context keys, one cluster.
+	resA := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: []string{"host:a"}, timestampMs: tsMs})
+	require.Len(t, resA.Metrics, 1, "host:a must emit a metric")
+	resB := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: []string{"host:b"}, timestampMs: tsMs})
+	require.Len(t, resB.Metrics, 1, "host:b must emit a metric")
+	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name,
+		"identical messages must be assigned to the same cluster")
+
+	// Allow GC to run on the next call.
+	e.NextGarbageCollectionTime = 0
+
+	// Trigger GC: real time >> 1000+10, so the cluster is stale.
+	res := e.ProcessLog(&mockLogView{
+		content:     []byte("WARN distinct pattern seed 999 not mergeable xyz"),
+		status:      "warn",
+		tags:        []string{"host:a"},
+		timestampMs: 1_015_000,
+	})
+
+	assert.Len(t, res.EvictedContextKeys, 2, "two tag variants → two context keys evicted")
+	assert.Len(t, res.EvictedMetricNames, 1, "but only one metric name evicted per cluster")
+}
+
+func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
+	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
+	e.ClusterTimeToLiveSec = 10
+	e.GarbageCollectionIntervalSec = 3600 // far in the future
+
+	msg := []byte("WARN connection refused to db host *")
+	res1 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 1_000_000})
+	require.Len(t, res1.Metrics, 1)
+
+	// GC interval not elapsed: no evictions even though cluster would be stale.
+	res2 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 2_000_000})
+	assert.Empty(t, res2.EvictedContextKeys)
+	assert.Empty(t, res2.EvictedMetricNames)
 }

@@ -165,8 +165,11 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	evicted := e.maybeGarbageCollect()
-	result := observerdef.LogMetricsExtractorOutput{EvictedContextKeys: evicted}
+	gc := e.maybeGarbageCollect()
+	result := observerdef.LogMetricsExtractorOutput{
+		EvictedContextKeys: gc.contextKeys,
+		EvictedMetricNames: gc.metricNames,
+	}
 	if !logSeverityIsWarnPlus(log) {
 		return result
 	}
@@ -207,25 +210,38 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	return result
 }
 
-// maybeGarbageCollect removes stale clusters and returns context keys evicted from
-// the extractor so the engine can drop matching contextRefs.
-func (e *LogPatternExtractor) maybeGarbageCollect() []string {
+// clusterMetricName returns the metric name for a given cluster ID.
+// Must stay in sync with the name emitted in ProcessLog.
+func (e *LogPatternExtractor) clusterMetricName(clusterID int64) string {
+	return fmt.Sprintf("log.%s.%x.count", e.Name(), clusterID+1)
+}
+
+// gcResult holds what was evicted during a garbage-collection pass.
+type gcResult struct {
+	contextKeys []string
+	metricNames []string
+}
+
+// maybeGarbageCollect removes stale clusters and returns the context keys and
+// metric names evicted so the engine can drop contextRefs and storage series.
+func (e *LogPatternExtractor) maybeGarbageCollect() gcResult {
 	if time.Now().Unix() < e.NextGarbageCollectionTime {
-		return nil
+		return gcResult{}
 	}
 	e.NextGarbageCollectionTime = time.Now().Unix() + int64(e.GarbageCollectionIntervalSec)
 
 	toDelete := e.PatternClusterer.ClusterIDsBeforeUnix(time.Now().Unix() - int64(e.ClusterTimeToLiveSec))
 	if len(toDelete) == 0 {
-		return nil
+		return gcResult{}
 	}
-	var evicted []string
+	var result gcResult
 	for _, clusterID := range toDelete {
 		if e.ctx.keysByCluster != nil {
-			evicted = append(evicted, e.ctx.keysByCluster[clusterID]...)
+			result.contextKeys = append(result.contextKeys, e.ctx.keysByCluster[clusterID]...)
 		}
+		result.metricNames = append(result.metricNames, e.clusterMetricName(clusterID))
 		e.ctx.removeCluster(clusterID)
 		_ = e.PatternClusterer.RemoveCluster(clusterID)
 	}
-	return evicted
+	return result
 }
