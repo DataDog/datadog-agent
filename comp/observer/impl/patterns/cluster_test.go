@@ -92,7 +92,7 @@ func TestPatternClustererSimpleOneCluster(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	clusters := pc.GetClusters()
@@ -120,7 +120,7 @@ func TestPatternClustererSimpleMultipleClusters(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	clusters := pc.GetClusters()
@@ -140,7 +140,7 @@ func TestPatternClustererTrailingWhitespace(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	if len(pc.GetClusters()) != 1 {
@@ -163,7 +163,7 @@ func TestPatternClustererSameNumberOfTokens(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	clusters := pc.GetClusters()
@@ -192,7 +192,7 @@ func TestPatternClustererSameNumberOfTokens2(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	clusters := pc.GetClusters()
@@ -206,16 +206,16 @@ func TestPatternClustererSameNumberOfTokens2(t *testing.T) {
 
 func TestPatternClustererIgnoresEmpty(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{})
-	pc.Process("")
-	pc.Process("")
-	pc.Process("")
-	pc.Process("")
+	pc.Process("", 0)
+	pc.Process("", 0)
+	pc.Process("", 0)
+	pc.Process("", 0)
 
 	if len(pc.GetClusters()) != 0 {
 		t.Errorf("expected 0 clusters for empty messages, got %d", len(pc.GetClusters()))
 	}
 
-	pc.Process("text")
+	pc.Process("text", 0)
 	if len(pc.GetClusters()) != 1 {
 		t.Errorf("expected 1 cluster after adding text, got %d", len(pc.GetClusters()))
 	}
@@ -235,7 +235,7 @@ func TestPatternClustererShouldReturnCorrectClusters(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	clusters := pc.GetClusters()
@@ -268,7 +268,7 @@ func TestPatternClustererSimilarMessages(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	if len(pc.GetClusters()) != 1 {
@@ -285,7 +285,7 @@ func TestPatternClustererSimilarGCStats(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	if len(pc.GetClusters()) != 1 {
@@ -305,7 +305,7 @@ func TestPatternClustererIdsAsFirstWord(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	if len(pc.GetClusters()) != 1 {
@@ -318,8 +318,8 @@ func TestPatternClustererIdsAsFirstWord(t *testing.T) {
 
 func TestPatternClustererTrailingInterrogationMark(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{})
-	pc.Process("GET /api/v2/query?")
-	pc.Process("GET /api/v2/query")
+	pc.Process("GET /api/v2/query?", 0)
+	pc.Process("GET /api/v2/query", 0)
 
 	if len(pc.GetClusters()) != 1 {
 		t.Errorf("expected 1 cluster for query/no-query, got %d", len(pc.GetClusters()))
@@ -339,7 +339,7 @@ func TestPatternClustererFailureMessages(t *testing.T) {
 
 	pc := NewPatternClusterer(IDComputeInfo{})
 	for _, msg := range messages {
-		pc.Process(msg)
+		pc.Process(msg, 0)
 	}
 
 	clusters := pc.GetClusters()
@@ -467,17 +467,17 @@ func TestMergeTokensWildcarding(t *testing.T) {
 func TestEndToEndClustering(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{})
 
-	r1, _ := pc.Process("user login from 192.168.1.1")
+	r1, _ := pc.Process("user login from 192.168.1.1", 0)
 	if r1.Count != 1 {
 		t.Error("first message should be new")
 	}
 
-	r2, _ := pc.Process("user login from 10.0.0.1")
+	r2, _ := pc.Process("user login from 10.0.0.1", 0)
 	if r2.Count == 1 {
 		t.Error("similar message should match existing cluster")
 	}
 
-	r3, _ := pc.Process("server started on port 8080")
+	r3, _ := pc.Process("server started on port 8080", 0)
 	if r3.Count != 1 {
 		t.Error("different message should create new cluster")
 	}
@@ -490,8 +490,8 @@ func TestEndToEndClustering(t *testing.T) {
 func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{Offset: 0, Stride: 1, Index: 0})
 
-	a, _ := pc.ProcessAt("unique alpha message one", 1000)
-	b, _ := pc.ProcessAt("totally different beta two", 5000)
+	a, _ := pc.Process("unique alpha message one", 1000)
+	b, _ := pc.Process("totally different beta two", 5000)
 	if a.LastSeenUnix != 1000 || b.LastSeenUnix != 5000 {
 		t.Fatalf("LastSeenUnix: a=%d b=%d", a.LastSeenUnix, b.LastSeenUnix)
 	}
@@ -506,7 +506,7 @@ func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
 	}
 
 	// Merge path: log at t=9000 joins cluster a; last seen on a updates to 9000.
-	_, _ = pc.ProcessAt("unique alpha message nine", 9000)
+	_, _ = pc.Process("unique alpha message nine", 9000)
 	if a.LastSeenUnix != 9000 {
 		t.Fatalf("merge should update last seen: got %d", a.LastSeenUnix)
 	}
@@ -520,8 +520,8 @@ func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
 
 func TestPatternClustererRemoveCluster(t *testing.T) {
 	pc := NewPatternClusterer(IDComputeInfo{Offset: 10, Stride: 1, Index: 0})
-	a, _ := pc.ProcessAt("[stats] total:889 rps:14.82", 100)
-	b, _ := pc.ProcessAt("new connection: 234", 200)
+	a, _ := pc.Process("[stats] total:889 rps:14.82", 100)
+	b, _ := pc.Process("new connection: 234", 200)
 	if pc.NumClusters() != 2 {
 		t.Fatalf("expected 2 clusters, got %d", pc.NumClusters())
 	}

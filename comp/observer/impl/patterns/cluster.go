@@ -187,28 +187,20 @@ func (pc *PatternClusterer) NumClusters() int {
 	return len(pc.allClusters)
 }
 
-func (pc *PatternClusterer) Process(message string) (*Cluster, bool) {
-	return pc.ProcessAt(message, time.Now().Unix())
-}
-
-// ProcessAt records unixSec (Unix seconds, non-zero; use time.Now().Unix() when
+// Process records unixSec (Unix seconds, non-zero; use time.Now().Unix() when
 // the event has no timestamp) as LastSeenUnix on new and merged clusters.
-func (pc *PatternClusterer) ProcessAt(message string, unixSec int64) (*Cluster, bool) {
+func (pc *PatternClusterer) Process(message string, unixSec int64) (*Cluster, bool) {
 	if pc.IgnoreEmpty && strings.TrimSpace(message) == "" {
 		return nil, false
 	}
 
 	tokens := pc.tokenizer.Tokenize(message)
 
-	return pc.ProcessTokensAt(tokens, message, unixSec)
+	return pc.ProcessTokens(tokens, message, unixSec)
 }
 
-func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Cluster, bool) {
-	return pc.ProcessTokensAt(tokens, message, time.Now().Unix())
-}
-
-// ProcessTokensAt records unixSec on new clusters; see ProcessAt.
-func (pc *PatternClusterer) ProcessTokensAt(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
+// ProcessTokens records unixSec on new clusters; see ProcessAt.
+func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
 	sig := TokenListSignature(tokens)
 
 	// Try within same signature group first

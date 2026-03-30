@@ -179,7 +179,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if logUnixSec == 0 {
 		logUnixSec = time.Now().Unix()
 	}
-	cluster, ok := e.PatternClusterer.ProcessAt(message, logUnixSec)
+	cluster, ok := e.PatternClusterer.Process(message, logUnixSec)
 	if !ok {
 		return result
 	}
