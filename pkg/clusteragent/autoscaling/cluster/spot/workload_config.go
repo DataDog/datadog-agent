@@ -125,7 +125,10 @@ func (s *kubeWorkloadConfigStore) getConfig(key workload) (spotConfig, bool) {
 func (s *kubeWorkloadConfigStore) disable(key workload, now time.Time, until time.Time) (time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cfg := s.configs[key]
+	cfg, ok := s.configs[key]
+	if !ok {
+		return time.Time{}, false
+	}
 	if now.Before(cfg.disabledUntil) {
 		return cfg.disabledUntil, false
 	}

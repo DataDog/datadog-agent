@@ -1262,6 +1262,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		getV1Cfg(f.t),
 		wmeta,
 		nil,
+		nil,
 		datadogConfig,
 		nil,
 	), factory

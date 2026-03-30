@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +46,7 @@ func StartWorkloadAutoscaling(
 	wlm workloadmeta.Component,
 	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
-) (*workload.PodHandler, error) {
+) (workload.PodPatcher, error) {
 	if apiCl == nil {
 		return nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
 	}
@@ -59,20 +58,10 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
-	clock := clock.RealClock{}
-
 	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
-	var spotScheduler *spot.Scheduler
-	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.spot.enabled") {
-		spotScheduler = spot.NewScheduler(
-			spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm,
-			apiCl.Cl,
-			apiCl.DynamicInformerCl,
-			isLeaderFunc)
-	}
-	podHandler := workload.NewPodHandler(podPatcher, spotScheduler)
 
+	clock := clock.RealClock{}
 	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
@@ -140,10 +129,6 @@ func StartWorkloadAutoscaling(
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx, dpaNumWorkers)
 
-	if spotScheduler != nil {
-		spotScheduler.Start(ctx)
-	}
-
 	// Only start the local recommender if failover metrics collection is enabled
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
 		localRecommender := local.NewRecommender(clock, podWatcher, store)
@@ -157,7 +142,7 @@ func StartWorkloadAutoscaling(
 	}
 	go externalRecommender.Run(ctx)
 
-	return podHandler, nil
+	return podPatcher, nil
 }
 
 func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {

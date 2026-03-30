@@ -51,31 +51,31 @@ func (c Config) String() string {
 // ReadConfig reads spot scheduler configuration from cfg, falling back to defaults for out-of-range values.
 func ReadConfig(cfg pkgconfigmodel.Reader) Config {
 	c := Config{
-		Percentage:                   cfg.GetInt("autoscaling.workload.spot.percentage"),
-		MinOnDemandReplicas:          cfg.GetInt("autoscaling.workload.spot.min_on_demand_replicas"),
-		ScheduleTimeout:              cfg.GetDuration("autoscaling.workload.spot.schedule_timeout"),
-		FallbackDuration:             cfg.GetDuration("autoscaling.workload.spot.fallback_duration"),
-		RebalanceStabilizationPeriod: cfg.GetDuration("autoscaling.workload.spot.rebalance_stabilization_period"),
+		Percentage:                   cfg.GetInt("autoscaling.cluster.spot.percentage"),
+		MinOnDemandReplicas:          cfg.GetInt("autoscaling.cluster.spot.min_on_demand_replicas"),
+		ScheduleTimeout:              cfg.GetDuration("autoscaling.cluster.spot.schedule_timeout"),
+		FallbackDuration:             cfg.GetDuration("autoscaling.cluster.spot.fallback_duration"),
+		RebalanceStabilizationPeriod: cfg.GetDuration("autoscaling.cluster.spot.rebalance_stabilization_period"),
 	}
 
 	if c.Percentage < 0 || c.Percentage > 100 {
-		log.Warnf("autoscaling.workload.spot.percentage=%d is out of range [0, 100], using default %d", c.Percentage, defaultSpotPercentage)
+		log.Warnf("autoscaling.cluster.spot.percentage=%d is out of range [0, 100], using default %d", c.Percentage, defaultSpotPercentage)
 		c.Percentage = defaultSpotPercentage
 	}
 	if c.MinOnDemandReplicas < 0 {
-		log.Warnf("autoscaling.workload.spot.min_on_demand_replicas=%d is negative, using default %d", c.MinOnDemandReplicas, defaultMinOnDemandReplicas)
+		log.Warnf("autoscaling.cluster.spot.min_on_demand_replicas=%d is negative, using default %d", c.MinOnDemandReplicas, defaultMinOnDemandReplicas)
 		c.MinOnDemandReplicas = defaultMinOnDemandReplicas
 	}
 	if c.ScheduleTimeout <= 0 {
-		log.Warnf("autoscaling.workload.spot.schedule_timeout=%v is not positive, using default %v", c.ScheduleTimeout, defaultScheduleTimeout)
+		log.Warnf("autoscaling.cluster.spot.schedule_timeout=%v is not positive, using default %v", c.ScheduleTimeout, defaultScheduleTimeout)
 		c.ScheduleTimeout = defaultScheduleTimeout
 	}
 	if c.FallbackDuration <= 0 {
-		log.Warnf("autoscaling.workload.spot.fallback_duration=%v is not positive, using default %v", c.FallbackDuration, defaultFallbackDuration)
+		log.Warnf("autoscaling.cluster.spot.fallback_duration=%v is not positive, using default %v", c.FallbackDuration, defaultFallbackDuration)
 		c.FallbackDuration = defaultFallbackDuration
 	}
 	if c.RebalanceStabilizationPeriod <= 0 {
-		log.Warnf("autoscaling.workload.spot.rebalance_stabilization_period=%v is not positive, using default %v", c.RebalanceStabilizationPeriod, defaultRebalanceStabilizationPeriod)
+		log.Warnf("autoscaling.cluster.spot.rebalance_stabilization_period=%v is not positive, using default %v", c.RebalanceStabilizationPeriod, defaultRebalanceStabilizationPeriod)
 		c.RebalanceStabilizationPeriod = defaultRebalanceStabilizationPeriod
 	}
 	return c

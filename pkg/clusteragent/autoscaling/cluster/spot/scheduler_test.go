@@ -20,7 +20,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	spot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
+	spot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 

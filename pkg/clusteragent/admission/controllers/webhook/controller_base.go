@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
+	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -58,14 +59,15 @@ func NewController(
 	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	ph *workload.PodHandler,
+	pp workload.PodPatcher,
+	sh admspot.Handler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, ph, datadogConfig, demultiplexer)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, ph, datadogConfig, demultiplexer)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer)
 }
 
 // Webhook represents an admission webhook
@@ -103,7 +105,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, ph *workload.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pp workload.PodPatcher, sh admspot.Handler, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -142,8 +144,12 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, ph *work
 	webhooks = append(webhooks, agentsWebhook)
 
 	// Setup autoscaling webhook.
-	autoscalingWebhook := autoscaling.NewWebhook(ph, datadogConfig)
+	autoscalingWebhook := autoscaling.NewWebhook(pp, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
+
+	// Setup spot scheduling webhook.
+	spotWebhook := admspot.NewWebhook(sh, datadogConfig)
+	webhooks = append(webhooks, spotWebhook)
 
 	// Setup appsec proxy webhook.
 	appsecWebhook := appsec.NewWebhook(datadogConfig)

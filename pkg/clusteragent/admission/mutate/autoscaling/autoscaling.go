@@ -9,9 +9,6 @@
 package autoscaling
 
 import (
-	"encoding/json"
-	"fmt"
-
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,23 +35,19 @@ type Webhook struct {
 	resources       map[string][]string
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	handler         *workload.PodHandler
+	patcher         workload.PodPatcher
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(handler *workload.PodHandler, datadogConfig config.Component) *Webhook {
-	operations := []admissionregistrationv1.OperationType{admissionregistrationv1.Create}
-	if datadogConfig.GetBool("autoscaling.workload.spot.enabled") {
-		operations = append(operations, admissionregistrationv1.Delete)
-	}
+func NewWebhook(patcher workload.PodPatcher, datadogConfig config.Component) *Webhook {
 	return &Webhook{
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("autoscaling.workload.enabled"),
 		endpoint:        webhookEndpoint,
 		resources:       map[string][]string{"": {"pods"}},
-		operations:      operations,
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
-		handler:         handler,
+		patcher:         patcher,
 	}
 }
 
@@ -112,25 +105,11 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		switch request.Operation {
-		case admissionregistrationv1.Create:
-			return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(),
-				func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-					return w.handler.PodCreated(pod)
-				}, request.DynamicClient))
-		case admissionregistrationv1.Delete:
-			var pod corev1.Pod
-			if err := json.Unmarshal(request.OldObject, &pod); err != nil {
-				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
-			}
-			w.handler.PodDeleted(&pod)
-			return &admiv1.AdmissionResponse{
-				Allowed: true,
-			}
-		default:
-			return &admiv1.AdmissionResponse{
-				Allowed: true,
-			}
-		}
+		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
 	}
+}
+
+// updateResources finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory requests
+func (w *Webhook) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+	return w.patcher.ApplyRecommendations(pod)
 }

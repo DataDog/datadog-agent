@@ -84,17 +84,17 @@ spec:
     clusterAgent:
       env:
         # Spot scheduling config. Use environment variables until config added to CRD.
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_ENABLED
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_ENABLED
           value: "true" # enable spot scheduling feature
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_PERCENTAGE
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_PERCENTAGE
           value: "70" # split pods 70/30% between spot and on-demand nodes
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_MIN_ON_DEMAND_REPLICAS
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_MIN_ON_DEMAND_REPLICAS
           value: "2" # schedule at least two pods onto on-demand node
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_SCHEDULE_TIMEOUT
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_SCHEDULE_TIMEOUT
           value: "1m" # disable spot scheduling after assigned pods are pending for longer than timeout
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_FALLBACK_DURATION
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_FALLBACK_DURATION
           value: "2m" # re-enable spot scheduling after this duration elapses
-        - name: DD_AUTOSCALING_WORKLOAD_SPOT_REBALANCE_STABILIZATION_PERIOD
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_REBALANCE_STABILIZATION_PERIOD
           value: "1m" # minimum time between rebalancing decisions
 # ...
 ```

@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -57,7 +58,8 @@ func NewControllerV1beta1(
 	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	ph *workload.PodHandler,
+	pp workload.PodPatcher,
+	sh admspot.Handler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
 ) *ControllerV1beta1 {
@@ -77,7 +79,7 @@ func NewControllerV1beta1(
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(wmeta, ph, datadogConfig, demultiplexer)
+	controller.webhooks = controller.generateWebhooks(wmeta, pp, sh, datadogConfig, demultiplexer)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
