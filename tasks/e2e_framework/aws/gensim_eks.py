@@ -152,7 +152,7 @@ def submit_gensim_eks(
                 hide="out",
                 warn=True,
             )
-            if not result or not result.ok:
+            if not result.ok:
                 tool.warn(f"Could not resolve SHA for '{ep_name}' (directory may have moved). Skipping SHA check.")
             else:
                 actual_sha = sha_buf.getvalue().strip()
