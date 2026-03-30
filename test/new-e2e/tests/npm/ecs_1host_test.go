@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
@@ -46,7 +47,7 @@ func ecsHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		vmName := "httpbinvm"
-		nginxHost, err := ec2.NewVM(awsEnv, vmName)
+		nginxHost, err := ec2.NewVM(awsEnv, vmName, ec2.WithOS(os.Ubuntu2204Docker))
 		if err != nil {
 			return err
 		}

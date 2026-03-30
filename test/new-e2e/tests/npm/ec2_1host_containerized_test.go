@@ -49,7 +49,7 @@ func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostN
 
 		vmName := "httpbinvm"
 
-		nginxHost, err := ec2.NewVM(awsEnv, vmName)
+		nginxHost, err := ec2.NewVM(awsEnv, vmName, ec2.WithOS(os.Ubuntu2204Docker))
 		if err != nil {
 			return err
 		}
