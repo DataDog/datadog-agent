@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = ["chunking.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/util",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "util_test",
+    srcs = ["chunking_test.go"],
+    embed = [":util"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
