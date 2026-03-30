@@ -24,7 +24,7 @@ CONF_DIR_PREFIX_SELECT = {
 # This list is probably too long because it includes transitive deps of some
 # of the components. It serves as a checklist of what we need to account for.
 pkg_filegroup(
-    name = "all_install_dir_files",
+    name = "all_files",
     srcs = [
         # TODO: dependency "python3"
         # TODO: dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target?
@@ -34,15 +34,16 @@ pkg_filegroup(
         # "//packages/agent/dependencies:all_files",
         ":dirs",
         ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
+        "//rtloader:all_files",
 
-        # TODO: rtloader
         # TODO: sysprobe - windows
         # TODO: systray - windows
         # TODO: agent main binary
         # TODO: trace-loader
         # TODO: trace-agent
         # TODO: installer
-        # TODO: process-agent
         # TODO: private-action-runner
         # TODO: system-probe
         # TODO: system-probe - selinux policy
@@ -55,6 +56,40 @@ pkg_filegroup(
         # TODO: secret-generic-connector
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
+    ] + select({
+        "//packages/agent:linux_default": [
+            "//deps/secret_connector:all_files",
+            "//pkg/discovery/module/rust:all_files",
+        ],
+        "//packages/agent:linux_fips": [
+            "//deps/secret_connector:all_files",
+            "//pkg/discovery/module/rust:all_files",
+        ],
+        "//packages/agent:linux_heroku": [],
+        "//conditions:default": [
+            "//deps/secret_connector:all_files",
+        ],
+    }) + select({
+        "@platforms//os:macos": [
+            "//packages/macos/app:all_files",
+            # TODO: systray
+        ],
+        "@platforms//os:windows": [
+            "//packages/windows:all_files",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# All the components to be installed in {install_dir} during the build during the migration.
+# This is the subset of :all_files that we need to place in install_dir so the omnibus
+# pacakging can pick them up. When we can build the packages with bazel rules, this goes
+# away.
+pkg_filegroup(
+    name = "all_install_dir_files",
+    srcs = [
+        ":dirs",
+        ":example_config",
     ],
 )
 

@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
@@ -25,9 +27,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
+	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 )
 
 // Test fixtures and mocks
@@ -229,7 +233,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Twice()
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
@@ -238,10 +242,11 @@ func TestCheck_Run_Success(t *testing.T) {
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
-	// mock the time
+	// Mock the time and recreate sender with mock clock (Configure creates sender with real clock)
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
+	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock)
 
 	// Set up mock remote client
 	mockClient := newMockRemoteClient()
@@ -285,8 +290,26 @@ func TestCheck_Run_Success(t *testing.T) {
 	}
 	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
-	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
-	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
+
+	// Build expected device metadata payload
+	expectedDeviceMetadataPayload := devicemetadata.NetworkDevicesMetadata{
+		Namespace:   "default",
+		Integration: integrations.NetworkConfigManagement,
+		Devices: []devicemetadata.DeviceMetadata{
+			{
+				ID:        "default:10.0.0.1",
+				IPAddress: "10.0.0.1",
+				Status:    devicemetadata.DeviceStatusReachable,
+			},
+		},
+		CollectTimestamp: 1754043600,
+	}
+	expectedDeviceMetadata, err := json.Marshal(expectedDeviceMetadataPayload)
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }

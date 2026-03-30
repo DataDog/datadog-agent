@@ -93,6 +93,25 @@ func testCircularType(x circularReferenceType) {}
 //go:noinline
 func testInterfaceAndInt(a int, b error, c uint) {}
 
+// testErrorAtLine tests line probes with error interface variables in scope.
+// The error variable is created at the start and should be available at the
+// line probe location (the fmt.Println call).
+//
+//go:noinline
+func testErrorAtLine(shouldErr bool) int {
+	var err error
+	if shouldErr {
+		err = errors.New("test error")
+	}
+	x := 42
+	// Line probe should be placed here - error variable is in scope
+	fmt.Println("testErrorAtLine", x, err)
+	if err != nil {
+		return -1
+	}
+	return x
+}
+
 //nolint:all
 type (
 	deepPtr1 struct{ a *deepPtr2 }
@@ -273,6 +292,8 @@ func executeComplexFuncs() {
 	})
 
 	testInterfaceAndInt(1, errors.New("two"), 3)
+
+	testErrorAtLine(true)
 
 	testDeepPtr1(aDeepPtr1)
 	testDeepPtr7(aDeepPtr1.a.a.a.a.a.a)

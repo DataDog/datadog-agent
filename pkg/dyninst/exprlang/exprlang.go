@@ -53,6 +53,20 @@ type LiteralExpr struct {
 
 func (le *LiteralExpr) expr() {}
 
+// LenExpr represents a len() call on a collection (string, slice, map).
+type LenExpr struct {
+	Operand Expr
+}
+
+func (le *LenExpr) expr() {}
+
+// IsEmptyExpr represents an isEmpty() call on a collection (string, slice, map).
+type IsEmptyExpr struct {
+	Operand Expr
+}
+
+func (ie *IsEmptyExpr) expr() {}
+
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
 	Operation string
@@ -275,6 +289,24 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &GetMemberExpr{Base: baseExpr, Member: memberName}, nil
+	case "len", "isEmpty":
+		// Read the argument value and parse it recursively.
+		argJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s argument: %w", operation, err)
+		}
+		arg, err := Parse(argJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse %s argument: %w", operation, err)
+		}
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+		if operation == "len" {
+			return &LenExpr{Operand: arg}, nil
+		}
+		return &IsEmptyExpr{Operand: arg}, nil
+
 	default:
 		// Read the argument for unsupported operations.
 		// We track the offset before and after reading the argument value
