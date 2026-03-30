@@ -171,7 +171,7 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 		}))
 
 	applied, err := pa.patcher.Apply(ctx, intent, workloadpatcher.PatchOptions{
-		Caller: "pod_patcher",
+		Caller: "autoscaling_pod_patcher",
 	})
 	if err != nil {
 		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
