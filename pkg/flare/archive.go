@@ -136,12 +136,15 @@ func getEndpointDNS() ([]byte, error) {
 	}
 	sort.Strings(hostnames)
 
+	// Use a single context with a fixed budget shared across all lookups so the
+	// aggregate runtime is bounded regardless of how many endpoints are configured.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	resolver := &net.Resolver{}
 	var buf bytes.Buffer
 	for _, h := range hostnames {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		addrs, lookupErr := resolver.LookupHost(ctx, h)
-		cancel()
 		if lookupErr != nil {
 			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
 			continue
