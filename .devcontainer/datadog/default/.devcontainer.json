@@ -1,0 +1,5 @@
+// This devcontainer directs workspaces to use a pre-built image.  To make
+// configuration changes, edit prebuild-devcontainer.json in this folder instead
+{
+    "image": "placeholder"
+}

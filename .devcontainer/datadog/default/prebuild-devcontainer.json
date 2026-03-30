@@ -1,6 +1,6 @@
 {
     "name": "Datadog Agent Development Container",
-    "image": "datadog/agent-dev-env-linux",
+    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-linux_test_only:v105285331-600323d9",
     "runArgs": [
         "--cap-add=SYS_PTRACE",
         "--security-opt",
@@ -11,8 +11,12 @@
         "datadog-agent-devcontainer"
     ],
     "features": {
-        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {}
+        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {},
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "dockerDashComposeVersion": "2.35.1"
+        }
     },
+    "forwardPorts": [22],
     "remoteUser": "datadog",
     "mounts": [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
@@ -50,5 +54,6 @@
     "onCreateCommand": "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps",
     "containerEnv": {
         "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"
-    }
+    },
+    "containerUser": "root"
 }
