@@ -60,7 +60,13 @@ func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
 	cfg := newTestConf(t)
 
-	assert.Empty(t, cfg.GetStringSlice(PARActionsAllowlist))
+	// actions_allowlist defaults to an OS-appropriate script action, not empty.
+	allowlist := cfg.GetStringSlice(PARActionsAllowlist)
+	assert.Len(t, allowlist, 1)
+	assert.Contains(t, []string{
+		"com.datadoghq.script.runPredefinedScript",
+		"com.datadoghq.script.runPredefinedPowershellScript",
+	}, allowlist[0])
 	assert.Empty(t, cfg.GetStringSlice(PARHttpAllowlist))
 	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
