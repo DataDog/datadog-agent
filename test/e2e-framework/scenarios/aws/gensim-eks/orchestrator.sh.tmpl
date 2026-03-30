@@ -139,7 +139,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       CHART_DIR="/workspace/chart-$EPISODE"
     fi
 
-    EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+    EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]' | cut -c1-46)"
 
     helm install "$EP_RELEASE" "$CHART_DIR" \
       --set agent.enabled=false \
