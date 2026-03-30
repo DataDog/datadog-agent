@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !goexperiment.boringcrypto
+//go:build goexperiment.systemcrypto && !goexperiment.boringcrypto
 
 package fips
 
@@ -28,7 +28,7 @@ func TestStatus(t *testing.T) {
 	if enabled && status != "enabled" {
 		t.Errorf("Status() = %q when Enabled() = true, want \"enabled\"", status)
 	}
-	if !enabled && status != "not available" {
-		t.Errorf("Status() = %q when Enabled() = false, want \"not available\"", status)
+	if !enabled && status != "disabled" {
+		t.Errorf("Status() = %q when Enabled() = false, want \"disabled\"", status)
 	}
 }

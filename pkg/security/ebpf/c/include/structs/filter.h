@@ -80,4 +80,9 @@ struct is_discarded_by_inode_t {
     u64 now;
 };
 
+struct auid_discarder_params_t {
+    u64 event_mask;
+    u32 revision;
+};
+
 #endif
