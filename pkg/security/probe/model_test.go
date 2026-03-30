@@ -31,7 +31,7 @@ func TestProcessArgsFlags(t *testing.T) {
 	}
 
 	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&utils.Scrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
+		&utils.Scrubber{}, nil, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -94,7 +94,7 @@ func TestProcessArgsOptions(t *testing.T) {
 	}
 
 	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&utils.Scrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
+		&utils.Scrubber{}, nil, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
 		Exec: model.ExecEvent{

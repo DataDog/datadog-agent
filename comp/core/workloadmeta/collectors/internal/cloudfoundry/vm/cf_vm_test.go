@@ -29,8 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var waitFor = 10 * time.Second
-var tick = 50 * time.Millisecond
+var (
+	waitFor = 10 * time.Second
+	tick    = 50 * time.Millisecond
+)
 
 var activeContainerWithoutProperties = gardenfakes.FakeContainer{
 	HandleStub: func() string {
@@ -89,6 +91,7 @@ type FakeGardenUtil struct {
 func (f *FakeGardenUtil) ListContainers() ([]garden.Container, error) {
 	return f.containers, nil
 }
+
 func (f *FakeGardenUtil) GetContainersInfo(handles []string) (map[string]garden.ContainerInfoEntry, error) {
 	containersInfo := make(map[string]garden.ContainerInfoEntry)
 	for _, container := range f.containers {
@@ -110,8 +113,8 @@ func (f *FakeGardenUtil) GetContainersInfo(handles []string) (map[string]garden.
 
 func (f *FakeGardenUtil) GetContainersMetrics(_ []string) (map[string]garden.ContainerMetricsEntry, error) {
 	return map[string]garden.ContainerMetricsEntry{}, nil
-
 }
+
 func (f *FakeGardenUtil) GetContainer(handle string) (garden.Container, error) {
 	for _, container := range f.containers {
 		if container.Handle() == handle {
@@ -171,6 +174,10 @@ func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 }
 
 func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) GetNodeInfo(_ string, _ ...string) (*clusteragent.NodeSystemInfo, error) {
 	panic("implement me")
 }
 

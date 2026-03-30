@@ -19,6 +19,7 @@ import (
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
 	cmddogstatsdreplay "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay"
 	cmddogstatsdstats "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdstats"
+	cmdexperimental "github.com/DataDog/datadog-agent/cmd/agent/subcommands/experimental"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/agent/subcommands/flare"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
@@ -37,6 +38,7 @@ import (
 	cmdstreamep "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamep"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
+	cmdvalidatepodannotation "github.com/DataDog/datadog-agent/cmd/agent/subcommands/validatepodannotation"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
 	cmdworkloadfilterlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadfilterlist"
 	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadlist"
@@ -49,6 +51,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdcheck.Commands,
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
+		cmdexperimental.Commands,
 		cmddiagnose.Commands,
 		cmddogstatsd.Commands,
 		cmddogstatsdcapture.Commands,
@@ -68,6 +71,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdstreamlogs.Commands,
 		cmdstreamep.Commands,
 		cmdtaggerlist.Commands,
+		cmdvalidatepodannotation.Commands,
 		cmdversion.Commands,
 		cmdworkloadlist.Commands,
 		cmdworkloadfilterlist.Commands,

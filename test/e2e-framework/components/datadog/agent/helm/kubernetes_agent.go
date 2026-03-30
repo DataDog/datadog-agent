@@ -6,9 +6,10 @@
 package helm
 
 import (
-	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 
@@ -46,6 +47,8 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			GKEAutopilot:                   params.GKEAutopilot,
 			FIPS:                           params.FIPS,
 			JMX:                            params.JMX,
+			WindowsImage:                   params.WindowsImage,
+			TimeoutSeconds:                 params.TimeoutSeconds,
 		}, pulumiResourceOptions...)
 		if err != nil {
 			return err

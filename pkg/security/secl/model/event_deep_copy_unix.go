@@ -78,6 +78,9 @@ func (e *Event) DeepCopy() *Event {
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
+	// FieldHandlers is an interface that must be copied by reference (not deep copied)
+	// It provides access to shared resolvers needed for field resolution
+	copied.FieldHandlers = e.FieldHandlers
 	return copied
 }
 func deepCopyAcceptEvent(fieldToCopy AcceptEvent) AcceptEvent {
@@ -183,8 +186,10 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied := PIDContext{}
 	copied.ExecInode = fieldToCopy.ExecInode
 	copied.IsKworker = fieldToCopy.IsKworker
+	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
@@ -235,6 +240,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
+	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
 	copied.IsExec = fieldToCopy.IsExec
 	copied.IsExecExec = fieldToCopy.IsExecExec
@@ -243,7 +249,6 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
@@ -429,6 +434,7 @@ func deepCopySSHSessionContext(fieldToCopy SSHSessionContext) SSHSessionContext 
 	copied.SSHAuthMethod = fieldToCopy.SSHAuthMethod
 	copied.SSHClientIP = fieldToCopy.SSHClientIP
 	copied.SSHClientPort = fieldToCopy.SSHClientPort
+	copied.SSHDPid = fieldToCopy.SSHDPid
 	copied.SSHPublicKey = fieldToCopy.SSHPublicKey
 	copied.SSHSessionID = fieldToCopy.SSHSessionID
 	return copied
@@ -460,6 +466,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
+	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
 	copied.IsExec = fieldToCopy.IsExec
 	copied.IsExecExec = fieldToCopy.IsExecExec
@@ -468,7 +475,6 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr

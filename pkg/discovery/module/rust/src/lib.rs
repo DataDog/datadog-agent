@@ -21,11 +21,11 @@
 
 mod apm;
 mod binary;
-pub mod cli;
-pub mod config;
+mod comm;
 mod envs;
 mod ephemeral;
 mod errors;
+pub mod ffi;
 mod fs;
 mod injector;
 mod language;

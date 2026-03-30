@@ -173,8 +173,8 @@ func (m *Monitor) Resume() error {
 }
 
 // GetUSMStats returns the current state of the USM monitor
-func (m *Monitor) GetUSMStats() map[string]interface{} {
-	response := map[string]interface{}{
+func (m *Monitor) GetUSMStats() map[string]any {
+	response := map[string]any{
 		"state": usmstate.Get(),
 	}
 

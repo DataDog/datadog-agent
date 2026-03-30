@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"

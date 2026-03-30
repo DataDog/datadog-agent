@@ -54,9 +54,9 @@ func TestGetPayload(t *testing.T) {
 	p := io.getPayload()
 	payload := p.(*Payload)
 
-	data := haAgentMetadata{
-		"enabled": true,
-		"state":   "standby",
+	data := &haAgentMetadata{
+		Enabled: true,
+		State:   "standby",
 	}
 
 	assert.True(t, payload.Timestamp >= startTime)
@@ -64,7 +64,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, data, payload.Metadata)
 
 	// check payload is a copy
-	io.data["state"] = "active"
+	io.data.State = "active"
 	assert.Equal(t, data, payload.Metadata)
 }
 
@@ -79,10 +79,10 @@ func TestGet(t *testing.T) {
 
 	p := io.Get()
 
-	// verify that the return map is a copy
-	p["state"] = ""
-	assert.Equal(t, "standby", io.data["state"])
-	assert.NotEqual(t, p["state"], io.data["state"])
+	// verify that the return struct is a copy
+	p.State = ""
+	assert.Equal(t, "standby", io.data.State)
+	assert.NotEqual(t, p.State, io.data.State)
 }
 
 func TestFlareProviderFilename(t *testing.T) {
@@ -130,4 +130,30 @@ func TestStatusHeaderProvider(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+func TestStatusHeaderProviderEnabled(t *testing.T) {
+	overrides := map[string]any{}
+	io := getTestInventoryPayload(t, overrides)
+	haAgentMock := io.haAgent.(haagentmock.Component)
+	haAgentMock.SetEnabled(true)
+	io.refreshMetadata()
+
+	t.Run("Text", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		err := io.Text(false, b)
+
+		assert.NoError(t, err)
+		assert.Contains(t, b.String(), "enabled: true")
+		assert.Contains(t, b.String(), "state: standby")
+	})
+
+	t.Run("HTML", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		err := io.HTML(false, b)
+
+		assert.NoError(t, err)
+		assert.Contains(t, b.String(), "enabled: true")
+		assert.Contains(t, b.String(), "state: standby")
+	})
 }

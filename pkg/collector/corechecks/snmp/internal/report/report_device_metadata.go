@@ -296,6 +296,16 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 		ifIDTags := store.GetIDTags("interface", strIndex)
 
 		name := store.GetColumnAsString("interface.name", strIndex)
+		ifType := int32(store.GetColumnAsFloat("interface.type", strIndex))
+
+		// Compute is_physical based on ifType
+		// Physical ethernet types: 6 (ethernetCsmacd), 62 (fastEther), 69 (fastEtherFX), 117 (gigabitEthernet)
+		var isPhysical *bool
+		if ifType != 0 {
+			physical := ifType == 6 || ifType == 62 || ifType == 69 || ifType == 117
+			isPhysical = &physical
+		}
+
 		networkInterface := devicemetadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
@@ -305,6 +315,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
 			AdminStatus: devicemetadata.IfAdminStatus(store.GetColumnAsFloat("interface.admin_status", strIndex)),
 			OperStatus:  devicemetadata.IfOperStatus(store.GetColumnAsFloat("interface.oper_status", strIndex)),
+			Type:        ifType,
+			IsPhysical:  isPhysical,
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)

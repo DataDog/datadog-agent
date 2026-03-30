@@ -340,3 +340,42 @@ func ParseAndRender(tmpl string, input interface{}, opts ...Option) (string, err
 	}
 	return template.Render(input)
 }
+
+// Expressions returns the path segments of every expression fragment in the template,
+// in order of appearance. String literal fragments are not included.
+func (t *Template) Expressions() [][]string {
+	var paths [][]string
+	for _, frag := range t.fragments {
+		if ef, ok := frag.(expressionFragment); ok {
+			paths = append(paths, ef.path)
+		}
+	}
+	return paths
+}
+
+// RenderWith renders the template using a caller-supplied expression evaluator.
+// For each expression fragment, eval is called with the path segments; the returned
+// string is inserted in place of the {{ … }} expression.
+// String literal fragments are emitted as-is.
+func (t *Template) RenderWith(eval func(path []string) (string, error)) (string, error) {
+	var sb strings.Builder
+	for _, frag := range t.fragments {
+		switch f := frag.(type) {
+		case stringFragment:
+			sb.WriteString(f.text)
+		case expressionFragment:
+			val, err := eval(f.path)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(val)
+		}
+	}
+	return sb.String(), nil
+}
+
+// EvaluatePathParts evaluates a path given as a slice of path segments against input,
+// equivalent to EvaluatePath but accepting a pre-split path instead of a dot-notation string.
+func EvaluatePathParts(input interface{}, path []string) (interface{}, error) {
+	return evaluatePath(input, path)
+}

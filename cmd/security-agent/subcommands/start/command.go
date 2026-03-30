@@ -25,8 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -36,11 +36,10 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -55,7 +54,8 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -102,10 +102,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				remotehostnameimpl.Module(),
-				statsd.Module(),
-				secretsfx.Module(),
+				statsdFx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -174,7 +173,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				),
 				statusimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-				autoexitimpl.Module(),
+				autoexitfx.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
@@ -278,7 +277,12 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 	complianceRunInSystemProbe := config.GetBool("compliance_config.run_in_system_probe")
 	securityAgentShouldRunCompliance := complianceEnabled && !complianceRunInSystemProbe
 
-	if !securityAgentShouldRunCompliance && !config.GetBool("runtime_security_config.enabled") {
+	// Check if security-agent should run CWS (runtime security)
+	cwsEnabled := config.GetBool("runtime_security_config.enabled")
+	cwsDirectSendFromSystemProbe := config.GetBool("runtime_security_config.direct_send_from_system_probe")
+	securityAgentShouldRunCWS := cwsEnabled && !cwsDirectSendFromSystemProbe
+
+	if !securityAgentShouldRunCompliance && !securityAgentShouldRunCWS {
 		log.Infof("All security-agent components are deactivated, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
@@ -325,7 +329,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 	}
 
 	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
+		return log.Errorf("Error while setting up internal profiling, exiting: %v", err)
 	}
 
 	log.Infof("Datadog Security Agent is now running.")

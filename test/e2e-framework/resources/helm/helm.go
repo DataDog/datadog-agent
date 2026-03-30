@@ -13,13 +13,14 @@ import (
 )
 
 type InstallArgs struct {
-	RepoURL     string
-	ChartName   string
-	InstallName string
-	Namespace   string
-	ValuesYAML  pulumi.AssetOrArchiveArrayInput
-	Values      pulumi.MapInput
-	Version     pulumi.StringPtrInput
+	RepoURL        string
+	ChartName      string
+	InstallName    string
+	Namespace      string
+	ValuesYAML     pulumi.AssetOrArchiveArrayInput
+	Values         pulumi.MapInput
+	Version        pulumi.StringPtrInput
+	TimeoutSeconds int // Optional timeout in seconds (default: 300)
 }
 
 // Important: set relevant Kubernetes provider in `opts`
@@ -37,9 +38,9 @@ func NewInstallation(e config.Env, args InstallArgs, opts ...pulumi.ResourceOpti
 		Values:           args.Values,
 		Version:          args.Version,
 	}
-	// Only set timeout for OpenShift deployments
-	if args.Namespace == "datadog-openshift" {
-		releaseArgs.Timeout = pulumi.IntPtr(600)
+	// Set timeout if specified, otherwise use default
+	if args.TimeoutSeconds > 0 {
+		releaseArgs.Timeout = pulumi.IntPtr(args.TimeoutSeconds)
 	}
 	return helm.NewRelease(e.Ctx(), args.InstallName, releaseArgs, opts...)
 }

@@ -57,6 +57,10 @@ type Agent interface {
 	// This function should rarely be used.
 	IsReady() bool
 
+	// Restart restarts the Agent service and returns an error if the restart command fails.
+	// After a successful call the agent is not yet ready; callers should poll IsReady if needed.
+	Restart() error
+
 	// Status runs status command and returns a Status struct
 	Status(commandArgs ...AgentArgsOption) *Status
 

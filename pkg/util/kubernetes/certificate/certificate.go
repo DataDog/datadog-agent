@@ -10,7 +10,6 @@ package certificate
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -23,10 +22,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 const (
@@ -139,19 +135,9 @@ func generateCertificate(hosts []string, notBefore, notAfter time.Time) ([]byte,
 	return certBuf.Bytes(), keyBuf.Bytes(), nil
 }
 
-// GetCertificateFromSecret returns the certificate stored in a given Secret object.
-// It caches the certificate and invalidates the cache after 5 minutes.
-func GetCertificateFromSecret(secretNs, secretName string, client kubernetes.Interface) (*tls.Certificate, error) {
-	cacheKey := fmt.Sprintf(certCacheKey, secretNs, secretName)
-	if cacheCert, found := cache.Cache.Get(cacheKey); found {
-		cert, ok := cacheCert.(tls.Certificate)
-		if !ok {
-			return nil, errors.New("couldn't cast certificate from cache")
-		}
-		return &cert, nil
-	}
-
-	secret, err := client.CoreV1().Secrets(secretNs).Get(context.TODO(), secretName, metav1.GetOptions{})
+// GetCertificateFromLister returns the certificate from the informer cache.
+func GetCertificateFromLister(lister corelisters.SecretNamespaceLister, secretName string) (*tls.Certificate, error) {
+	secret, err := lister.Get(secretName)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +147,5 @@ func GetCertificateFromSecret(secretNs, secretName string, client kubernetes.Int
 		return nil, err
 	}
 
-	cache.Cache.Set(cacheKey, cert, certCacheExpiration)
 	return &cert, nil
 }

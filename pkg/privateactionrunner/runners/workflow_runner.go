@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -40,9 +42,11 @@ func NewWorkflowRunner(
 	keysManager taskverifier.KeysManager,
 	verifier *taskverifier.TaskVerifier,
 	opmsClient opms.Client,
+	traceroute traceroute.Component,
+	eventPlatform eventplatform.Component,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,

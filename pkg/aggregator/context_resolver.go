@@ -107,12 +107,13 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
-	if metricSampleContext.GetMetricType() == metrics.DistributionType {
+	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
 			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
 			// metric.
-			cr.taggerBuffer.RetainFunc(tagMatcher)
-			cr.metricBuffer.RetainFunc(tagMatcher)
+			removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
+			removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
+			tlmFilteredTags.Add(float64(removedTagger + removedMetric))
 		}
 	}
 

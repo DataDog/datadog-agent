@@ -100,6 +100,11 @@ func probeConfigsWithMaxReferenceDepth(
 				cfg.Capture = new(rcjson.Capture)
 				cfg.Capture.MaxReferenceDepth = &limit
 			}
+		case *rcjson.CaptureExpressionProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = &limit
+			}
 		}
 	}
 	return probesCfgs
@@ -129,6 +134,9 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 			gotIssues[issue.ProbeDefinition.GetID()] = issue.Issue.Kind.String()
 		}
 		return gotIssues
+	}
+	for _, issue := range irWithDefaultLimits.Issues {
+		t.Logf("issue %s: %s: %s", issue.ProbeDefinition.GetID(), issue.Issue.Kind.String(), issue.Issue.Message)
 	}
 	require.Equal(t, expectedIssues, computeGotIssues(irWithDefaultLimits))
 

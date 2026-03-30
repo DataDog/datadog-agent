@@ -144,10 +144,12 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 // Returns nil if the Agent service does not exist.
 func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error) {
 	allAgentServices := []string{
+		"datadog-otel-agent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"datadog-agent-action",
 		"Datadog Installer",
 		"datadogagent",
 	}

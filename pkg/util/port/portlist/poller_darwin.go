@@ -50,8 +50,6 @@ func newMacOSImpl(includeLocalhost bool) osImpl {
 	}
 }
 
-func (*macOSImpl) Close() error { return nil }
-
 func (im *macOSImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	var err error
 	im.portsBuf, err = im.appendListeningPortsNetstat(im.portsBuf[:0])
