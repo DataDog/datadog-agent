@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // PingPonger is a bidirectional echo interface satisfied by each transport
@@ -31,7 +33,7 @@ type PingPonger interface {
 func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
 	log.Debug("starting remote config transport echo tests")
 
-	if err := preflightCheck(ctx, httpClient); err != nil {
+	if err := preflightCheck(ctx, httpClient, runCount); err != nil {
 		log.Debugf("transport echo pre-flight check failed: %s", err)
 		return
 	}
@@ -50,7 +52,7 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount
 
 // preflightCheck performs an HTTP GET to the echo-test endpoint. If the
 // backend does not return 200 OK, the echo tests should not proceed.
-func preflightCheck(ctx context.Context, httpClient *api.HTTPClient) error {
+func preflightCheck(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) error {
 	baseURL, err := httpClient.BaseUrl()
 	if err != nil {
 		return err
@@ -70,6 +72,8 @@ func preflightCheck(ctx context.Context, httpClient *api.HTTPClient) error {
 	for k, v := range httpClient.Headers() {
 		req.Header[k] = v
 	}
+	req.Header.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
+	req.Header.Set("X-Agent-UUID", uuid.GetUUID())
 
 	resp, err := client.Do(req)
 	if err != nil {
