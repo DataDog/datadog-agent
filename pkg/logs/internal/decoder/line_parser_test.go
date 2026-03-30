@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -185,4 +186,34 @@ func TestMultilineParserLimit(t *testing.T) {
 	message := <-lineHandler.ch
 	assert.Equal(t, "aaaa", string(message.GetContent()))
 	assert.Equal(t, message.RawDataLen, 13)
+}
+
+func TestMultilineParserTruncatesReassembledKubernetesPartialLine(t *testing.T) {
+	const contentLenLimit = 20
+
+	var output *message.Message
+
+	lineHandler := NewSingleLineHandler(func(msg *message.Message) {
+		output = msg
+	}, contentLenLimit)
+	lineParser := NewMultiLineParser(lineHandler, time.Second, kubernetes.New(), contentLenLimit)
+
+	firstChunk := strings.Repeat("a", 15)
+	secondChunk := strings.Repeat("b", 10)
+	combinedContent := firstChunk + secondChunk
+
+	firstLine := []byte("2019-06-06T16:35:55.930852911Z stderr P " + firstChunk)
+	lineParser.process(message.NewMessage(firstLine, nil, "", 0), len(firstLine))
+	assert.Nil(t, output)
+
+	secondLine := []byte("2019-06-06T16:35:55.930852912Z stderr F " + secondChunk)
+	lineParser.process(message.NewMessage(secondLine, nil, "", 0), len(secondLine))
+
+	assert.NotNil(t, output)
+	assert.Equal(t, []byte(combinedContent+string(message.TruncatedFlag)), output.GetContent())
+	assert.Equal(t, len(firstLine)+len(secondLine), output.RawDataLen)
+	assert.Equal(t, message.StatusError, output.Status)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
+	assert.True(t, output.ParsingExtra.IsTruncated)
+	assert.Greater(t, len(output.GetContent()), contentLenLimit)
 }
