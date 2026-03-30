@@ -295,6 +295,8 @@ func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
+	flake.Mark(v.T())
+
 	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		statusOutput, err := v.caps.Agent().StatusWithError(agentclient.WithArgs([]string{"collector", "--json"}))
