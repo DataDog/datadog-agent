@@ -51,7 +51,7 @@ type Provides struct {
 }
 
 // NewComponent creates a new submitter component.
-func NewComponent(deps dependencies) (result, error) {
+func NewComponent(deps dependencies) (Provides, error) {
 	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, deps.HostInfo.Object().HostName, deps.SysProbeConfig)
 	if err != nil {
 		return Provides{}, err
