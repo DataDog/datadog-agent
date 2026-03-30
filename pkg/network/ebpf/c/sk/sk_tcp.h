@@ -55,7 +55,7 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     conn->conn_stats.recv_bytes = tp->bytes_received;
     conn->conn_stats.sent_packets = tp->segs_out;
     conn->conn_stats.recv_packets = tp->segs_in;
-    conn->conn_stats.timestamp = tp->tcp_mstamp;
+    conn->conn_stats.timestamp = tp->tcp_mstamp * NSEC_PER_USEC;
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);
     // TODO conn->conn_stats.protocol_stack
     // TODO this seems incorrect for determining assured state since we just have absolute counts
