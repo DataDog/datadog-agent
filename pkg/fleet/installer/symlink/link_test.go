@@ -100,6 +100,17 @@ func TestLinkSetWhenExists(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestLinkExistsWhenDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	dirPath := filepath.Join(tmpDir, "notasymlink")
+
+	err := os.Mkdir(dirPath, 0755)
+	assert.NoError(t, err)
+
+	_, err = Exist(dirPath)
+	assert.ErrorIs(t, err, ErrNotSymlink)
+}
+
 func TestLinkDelete(t *testing.T) {
 	tmpDir := t.TempDir()
 	linkPath := filepath.Join(tmpDir, "link")

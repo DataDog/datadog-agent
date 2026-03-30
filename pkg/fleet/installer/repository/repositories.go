@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v4/disk"
 )
 
@@ -126,7 +127,7 @@ func (r *Repositories) Cleanup(ctx context.Context) error {
 	for _, repo := range repositories {
 		err := repo.Cleanup(ctx)
 		if err != nil {
-			return fmt.Errorf("could not clean up repository: %w", err)
+			log.Errorf("installer: could not clean up repository %s: %v", repo.rootPath, err)
 		}
 	}
 	return nil

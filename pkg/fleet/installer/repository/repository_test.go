@@ -230,6 +230,40 @@ func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	assertLinkTarget(t, repository, experimentVersionLink, "stable")
 }
 
+func TestCleanupStableDanglingSymlink(t *testing.T) {
+	dir := t.TempDir()
+	repositoryPath := path.Join(dir, "repository")
+
+	err := os.MkdirAll(repositoryPath, 0755)
+	assert.NoError(t, err)
+
+	deletedTarget := path.Join(repositoryPath, "7.74.1-1")
+	err = os.MkdirAll(deletedTarget, 0755)
+	assert.NoError(t, err)
+
+	err = symlink.Set(path.Join(repositoryPath, stableVersionLink), deletedTarget)
+	assert.NoError(t, err)
+
+	err = os.RemoveAll(deletedTarget)
+	assert.NoError(t, err)
+
+	r := &Repository{rootPath: repositoryPath}
+	err = r.Cleanup(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestCleanupStableIsRealDirectory(t *testing.T) {
+	dir := t.TempDir()
+	repositoryPath := path.Join(dir, "repository")
+	err := os.MkdirAll(path.Join(repositoryPath, stableVersionLink), 0755)
+	assert.NoError(t, err)
+
+	r := &Repository{rootPath: repositoryPath}
+	err = r.Cleanup(context.Background())
+	assert.NoError(t, err)
+	assert.DirExists(t, path.Join(repositoryPath, stableVersionLink))
+}
+
 func TestDelete(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)

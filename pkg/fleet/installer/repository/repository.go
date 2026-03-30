@@ -505,6 +505,10 @@ type link struct {
 func newLink(linkPath string) (*link, error) {
 	linkExists, err := symlink.Exist(linkPath)
 	if err != nil {
+		if errors.Is(err, symlink.ErrNotSymlink) {
+			log.Warnf("installer: %s exists but is not a symlink, treating as missing link: %v", linkPath, err)
+			return &link{linkPath: linkPath}, nil
+		}
 		return nil, fmt.Errorf("could check if link exists: %w", err)
 	}
 	if !linkExists {
@@ -518,6 +522,10 @@ func newLink(linkPath string) (*link, error) {
 	}
 	_, err = os.Stat(packagePath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			log.Warnf("installer: link target %s no longer exists, treating as missing link", packagePath)
+			return &link{linkPath: linkPath}, nil
+		}
 		return nil, fmt.Errorf("could not read package: %w", err)
 	}
 
