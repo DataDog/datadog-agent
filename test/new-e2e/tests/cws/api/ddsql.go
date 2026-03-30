@@ -31,6 +31,7 @@ type DDSQLTableQueryParams struct {
 	DefaultEnd      int    `json:"default_end"`
 	DefaultInterval int    `json:"default_interval"`
 	Query           string `json:"query"`
+	Source          string `json:"source"`
 }
 
 // DDSQLTableResponse is a struct that represents a DDSQL table response
@@ -64,6 +65,7 @@ func (c *Client) TableQuery(query string) (*DDSQLTableResponse, error) {
 		DefaultEnd:      int(now.UnixMilli()),
 		DefaultInterval: 20000,
 		Query:           query,
+		Source:          "inventories",
 	}
 	payload := JSONAPIPayload[DDSQLTableQueryParams]{
 		Data: JSONAPIPayloadData[DDSQLTableQueryParams]{
