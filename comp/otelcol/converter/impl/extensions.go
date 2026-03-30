@@ -67,6 +67,17 @@ var (
 		Type:         "extensions",
 		Config:       datadogConfig,
 	}
+
+	// dogtel (standalone mode only)
+	dogtelName         = "dogtel"
+	dogtelEnhancedName = dogtelName + "/" + ddAutoconfiguredSuffix
+	dogtelConfig       any
+	dogtelComponent    = component{
+		Name:         dogtelName,
+		EnhancedName: dogtelEnhancedName,
+		Type:         "extensions",
+		Config:       dogtelConfig,
+	}
 )
 
 func createExtensions(enabledFeatures []string) []component {

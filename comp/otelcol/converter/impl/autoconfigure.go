@@ -76,6 +76,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		addExtensionToPipeline(conf, extension)
 	}
 
+	// dogtel extension (standalone mode only)
+	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
+		addComponentToConfig(conf, dogtelComponent)
+		addExtensionToPipeline(conf, dogtelComponent)
+	}
+
 	// infra attributes processor
 	if slices.Contains(enabledFeatures, "infraattributes") {
 		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)

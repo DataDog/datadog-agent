@@ -423,6 +423,24 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/no-extensions/dd-no-hostname/acfg.yaml",
 			hostnameErr:    true,
 		},
+		{
+			name:           "extensions/standalone-mode/dogtel-injected",
+			provided:       "extensions/standalone-mode/dogtel-injected/config.yaml",
+			expectedResult: "extensions/standalone-mode/dogtel-injected/config-result.yaml",
+			agentConfig:    "extensions/standalone-mode/dogtel-injected/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone-mode/dogtel-no-inject",
+			provided:       "extensions/standalone-mode/dogtel-no-inject/config.yaml",
+			expectedResult: "extensions/standalone-mode/dogtel-no-inject/config-result.yaml",
+			agentConfig:    "extensions/standalone-mode/dogtel-no-inject/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone-mode/dogtel-already-present",
+			provided:       "extensions/standalone-mode/dogtel-already-present/config.yaml",
+			expectedResult: "extensions/standalone-mode/dogtel-already-present/config-result.yaml",
+			agentConfig:    "extensions/standalone-mode/dogtel-already-present/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
