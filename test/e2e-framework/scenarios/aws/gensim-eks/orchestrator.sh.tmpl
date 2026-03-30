@@ -177,7 +177,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   # play-episode.sh requires DD_ENV, DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE.
   # DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE are set on the Job env. DD_ENV must
   # be set to the episode helm release name (used for monitor scoping).
-  export DD_ENV="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+  export DD_ENV="$EP_RELEASE"
   EP_OUTCOME="success"
   bash /workspace/play-episode.sh run-episode "$SCENARIO" || EP_OUTCOME="failure"
   cd /
