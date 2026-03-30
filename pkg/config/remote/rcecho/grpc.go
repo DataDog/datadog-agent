@@ -9,6 +9,7 @@ import (
 	"context"
 	"path"
 	"strconv"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -36,7 +37,10 @@ func NewGrpcPingPonger(ctx context.Context, httpClient *api.HTTPClient, runCount
 	meta.Set("X-Agent-UUID", uuid.GetUUID())
 
 	ctx = metadata.NewOutgoingContext(ctx, meta)
-	ctx, cancel := context.WithCancel(ctx)
+	// Set a stream deadline that the gRPC library encodes as the
+	// "grpc-timeout" wire header. Envoy uses this to allow long-lived
+	// streams instead of applying its default route timeout.
+	ctx, cancel := context.WithTimeout(ctx, 7*24*time.Hour)
 
 	client := pbgo.NewRcEchoClient(conn)
 	stream, err := client.RunEchoTest(ctx)
