@@ -43,7 +43,7 @@ type dependencies struct {
 	Statsd         statsd.ClientInterface
 }
 
-type result struct {
+type Provides struct {
 	compdef.Out
 
 	RTResponseNotifier <-chan types.RTResponse
@@ -54,7 +54,7 @@ type result struct {
 func NewComponent(deps dependencies) (result, error) {
 	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, deps.HostInfo.Object().HostName, deps.SysProbeConfig)
 	if err != nil {
-		return result{}, err
+		return Provides{}, err
 	}
 
 	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
@@ -69,7 +69,7 @@ func NewComponent(deps dependencies) (result, error) {
 		})
 	}
 
-	return result{
+	return Provides{
 		Submitter: &submitterImpl{
 			s: s,
 		},
