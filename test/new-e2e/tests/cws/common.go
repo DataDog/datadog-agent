@@ -58,6 +58,10 @@ func (a *agentSuite) Hostname() string {
 	return a.Env().Agent.Client.Hostname()
 }
 
+func (a *agentSuite) InstanceID() string {
+	return ""
+}
+
 func (a *agentSuite) Client() *api.Client {
 	return a.apiClient
 }
@@ -240,12 +244,19 @@ func (a *agentSuite) Test99CWSEnabled() {
 type testSuite interface {
 	Hostname() string
 	Client() *api.Client
+	InstanceID() string
 }
 
 type eventValidationCb[T any] func(e T)
 
 func testRulesetLoaded(t assert.TestingT, ts testSuite, policySource string, policyName string, extraValidations ...eventValidationCb[*api.RulesetLoadedEvent]) {
-	query := fmt.Sprintf("rule_id:ruleset_loaded host:%s @policies.source:%s @policies.name:%s", ts.Hostname(), policySource, policyName)
+	query := fmt.Sprintf("rule_id:ruleset_loaded @policies.source:%s @policies.name:%s", policySource, policyName)
+	if hostname := ts.Hostname(); hostname != "" {
+		query = fmt.Sprintf("%s host:%s", query, hostname)
+	}
+	if instanceID := ts.InstanceID(); instanceID != "" {
+		query = fmt.Sprintf("%s instance_id:%s", query, instanceID)
+	}
 	rulesetLoaded, err := api.GetAppEvent[api.RulesetLoadedEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get %s/%s ruleset_loaded event for host %s", policySource, policyName, ts.Hostname()) {
 		return
@@ -261,7 +272,13 @@ func testRulesetLoaded(t assert.TestingT, ts testSuite, policySource string, pol
 }
 
 func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidations ...eventValidationCb[*api.RuleEvent]) {
-	query := fmt.Sprintf("rule_id:%s host:%s", ruleID, ts.Hostname())
+	query := "rule_id:" + ruleID
+	if hostname := ts.Hostname(); hostname != "" {
+		query = fmt.Sprintf("%s host:%s", query, hostname)
+	}
+	if instanceID := ts.InstanceID(); instanceID != "" {
+		query = fmt.Sprintf("%s instance_id:%s", query, instanceID)
+	}
 	ruleEvent, err := api.GetAppEvent[api.RuleEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get %s event for host %s", ruleID, ts.Hostname()) {
 		return
@@ -323,7 +340,13 @@ func testCwsEnabled(t assert.TestingT, ts testSuite) {
 }
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {
-	query := "rule_id:self_test host:" + ts.Hostname()
+	query := "rule_id:self_test"
+	if hostname := ts.Hostname(); hostname != "" {
+		query = fmt.Sprintf("%s host:%s", query, hostname)
+	}
+	if instanceID := ts.InstanceID(); instanceID != "" {
+		query = fmt.Sprintf("%s instance_id:%s", query, instanceID)
+	}
 	selftestsEvent, err := api.GetAppEvent[api.SelftestsEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get selftests event for host %s", ts.Hostname()) {
 		return
