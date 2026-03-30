@@ -26,7 +26,7 @@ func newTestMessage(content []byte) *message.Message {
 }
 
 func TestFileParser_NetworkFormat_RFC5424(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	input := newTestMessage([]byte(`<165>1 2003-10-11T22:14:15.003Z mymachine evntslog - ID47 [exampleSDID@32473 iut="3"] An application event log entry`))
 	result, err := parser.Parse(input)
@@ -53,7 +53,7 @@ func TestFileParser_NetworkFormat_RFC5424(t *testing.T) {
 }
 
 func TestFileParser_NetworkFormat_BSD(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	input := newTestMessage([]byte(`<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8`))
 	result, err := parser.Parse(input)
@@ -68,7 +68,7 @@ func TestFileParser_NetworkFormat_BSD(t *testing.T) {
 }
 
 func TestFileParser_BSDLineFormat(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	// BSD line without PRI: "Oct 11 22:14:15 mymachine su: message"
 	input := newTestMessage([]byte(`Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8`))
@@ -86,7 +86,7 @@ func TestFileParser_BSDLineFormat(t *testing.T) {
 }
 
 func TestFileParser_AppNameNILVALUE(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	input := newTestMessage([]byte(`<14>1 2003-10-11T22:14:15.003Z mymachine - - - - test message`))
 	result, err := parser.Parse(input)
@@ -99,7 +99,7 @@ func TestFileParser_AppNameNILVALUE(t *testing.T) {
 }
 
 func TestFileParser_Malformed(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	input := newTestMessage([]byte(`<14>`))
 	result, err := parser.Parse(input)
@@ -111,13 +111,13 @@ func TestFileParser_Malformed(t *testing.T) {
 }
 
 func TestFileParser_SupportsPartialLine(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 	assert.False(t, parser.SupportsPartialLine())
 }
 
 func TestFileParser_AutoDetect_MixedFormats(t *testing.T) {
 	// A single parser instance should auto-detect PRI vs non-PRI per line.
-	parser := NewFileParser()
+	parser := NewParser()
 
 	// Line with PRI (network format)
 	priInput := newTestMessage([]byte(`<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - PRI message`))
@@ -144,7 +144,7 @@ func TestFileParser_AutoDetect_MixedFormats(t *testing.T) {
 }
 
 func TestFileParser_NonSyslogText(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	lines := []string{
 		"this is not syslog at all",
@@ -182,7 +182,7 @@ func TestFileParser_NonSyslogText(t *testing.T) {
 }
 
 func TestFileParser_RenderedContent_RFC5424(t *testing.T) {
-	parser := NewFileParser()
+	parser := NewParser()
 
 	input := newTestMessage([]byte(`<165>1 2003-10-11T22:14:15.003Z mymachine evntslog - ID47 [exampleSDID@32473 iut="3"] An application event log entry`))
 	result, err := parser.Parse(input)

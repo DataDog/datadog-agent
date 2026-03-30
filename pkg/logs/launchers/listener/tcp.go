@@ -6,6 +6,7 @@
 package listener
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"slices"
@@ -29,6 +30,7 @@ type TCPListener struct {
 	source           *sources.LogSource
 	idleTimeout      time.Duration
 	frameSize        int
+	tlsConfig        *tls.Config
 	listener         net.Listener
 	tailers          []startstop.StartStoppable
 	mu               sync.Mutex
@@ -47,11 +49,22 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		}
 	}
 
+	var tlsCfg *tls.Config
+	if source.Config.TLS != nil {
+		var err error
+		tlsCfg, err = source.Config.TLS.BuildTLSConfig()
+		if err != nil {
+			log.Errorf("Failed to build TLS config for TCP listener on port %d: %v", source.Config.Port, err)
+			source.Status.Error(err)
+		}
+	}
+
 	return &TCPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
 		idleTimeout:      idleTimeout,
 		frameSize:        frameSize,
+		tlsConfig:        tlsCfg,
 		tailers:          []startstop.StartStoppable{},
 		stop:             make(chan struct{}, 1),
 	}
@@ -59,10 +72,14 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 
 // Start starts the listener to accepts new incoming connections.
 func (l *TCPListener) Start() {
-	log.Infof("Starting TCP forwarder on port %d, with read buffer size: %d", l.source.Config.Port, l.frameSize)
+	tlsLabel := ""
+	if l.tlsConfig != nil {
+		tlsLabel = "+TLS"
+	}
+	log.Infof("Starting TCP%s forwarder on port %d, with read buffer size: %d", tlsLabel, l.source.Config.Port, l.frameSize)
 	err := l.startListener()
 	if err != nil {
-		log.Errorf("Can't start TCP forwarder on port %d: %v", l.source.Config.Port, err)
+		log.Errorf("Can't start TCP%s forwarder on port %d: %v", tlsLabel, l.source.Config.Port, err)
 		l.source.Status.Error(err)
 		return
 	}
@@ -127,6 +144,9 @@ func (l *TCPListener) startListener() error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
 	if err != nil {
 		return err
+	}
+	if l.tlsConfig != nil {
+		listener = tls.NewListener(listener, l.tlsConfig)
 	}
 	l.listener = listener
 	return nil

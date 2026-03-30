@@ -168,8 +168,9 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	switch c.Type {
 	case config.TCPType, config.UDPType:
 		dictionary["Port"] = c.Port
-	case config.UnixType, config.UnixgramType:
-		dictionary["SocketPath"] = c.SocketPath
+		if c.TLS != nil {
+			dictionary["TLS"] = true
+		}
 	case config.FileType:
 		dictionary["Path"] = c.Path
 		dictionary["TailingMode"] = c.TailingMode

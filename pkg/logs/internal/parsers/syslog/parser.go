@@ -12,24 +12,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// syslogFileParser implements parsers.Parser for syslog-formatted log files.
+// parser implements parsers.Parser for syslog-formatted input.
 // It converts each newline-framed line into a StateStructured message,
 // preserving all syslog metadata in a BasicStructuredContent.
 //
 // PRI detection is automatic: if a line starts with '<', it is parsed as a
 // network-format syslog message (RFC 5424 or BSD with PRI). Otherwise it is
 // parsed as a plain BSD line without PRI (e.g., traditional /var/log/syslog).
-type syslogFileParser struct{}
+type parser struct{}
 
-// NewFileParser returns a parsers.Parser for syslog-formatted log files.
+// NewParser returns a parsers.Parser for syslog-formatted input.
 // PRI headers are auto-detected per line; no configuration is needed.
-func NewFileParser() parsers.Parser {
-	return &syslogFileParser{}
+func NewParser() parsers.Parser {
+	return &parser{}
 }
 
 // Parse implements parsers.Parser. It parses the unstructured line content
 // and returns a new StateStructured message with syslog metadata.
-func (p *syslogFileParser) Parse(msg *message.Message) (*message.Message, error) {
+func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	var parsed SyslogMessage
 	var err error
 
@@ -70,6 +70,6 @@ func (p *syslogFileParser) Parse(msg *message.Message) (*message.Message, error)
 
 // SupportsPartialLine implements parsers.Parser. Syslog lines are always
 // complete (one message per line), so partial line support is not needed.
-func (p *syslogFileParser) SupportsPartialLine() bool {
+func (p *parser) SupportsPartialLine() bool {
 	return false
 }

@@ -24,9 +24,7 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 		{Type: UDPType, Port: 5678, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: TCPType, Port: 514, Format: SyslogFormat, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: UDPType, Port: 514, Format: SyslogFormat, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: UnixType, SocketPath: "/var/run/myapp.sock", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: UnixgramType, SocketPath: "/var/run/myapp.sock", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: UnixType, SocketPath: "/var/run/myapp.sock", Format: SyslogFormat, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: DockerType, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
@@ -43,9 +41,9 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		{Type: FileType},
 		{Type: TCPType},
 		{Type: UDPType},
-		{Type: UnixType},
-		{Type: UnixgramType},
 		{Type: TCPType, Port: 1234, Format: "yaml"},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert"}},
+		{Type: UDPType, Port: 514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: "bar"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch}}},
@@ -59,75 +57,6 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		err := config.Validate()
 		assert.NotNil(t, err)
 	}
-}
-
-func TestApplyDefaultsUnixSocketPath(t *testing.T) {
-	t.Run("unix with source and no socket_path gets auto-derived path", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
-		cfg.ApplyDefaults(mockConfig)
-		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", cfg.SocketPath)
-	})
-
-	t.Run("unixgram with source and no socket_path gets auto-derived path", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: UnixgramType, Source: "my_app"}
-		cfg.ApplyDefaults(mockConfig)
-		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", cfg.SocketPath)
-	})
-
-	t.Run("explicit socket_path is not overwritten", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: UnixType, Source: "my_app", SocketPath: "/custom/path.sock"}
-		cfg.ApplyDefaults(mockConfig)
-		assert.Equal(t, "/custom/path.sock", cfg.SocketPath)
-	})
-
-	t.Run("no source means no auto-derivation", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: UnixType}
-		cfg.ApplyDefaults(mockConfig)
-		assert.Equal(t, "", cfg.SocketPath)
-	})
-
-	t.Run("empty base dir means no auto-derivation", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "")
-		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
-		cfg.ApplyDefaults(mockConfig)
-		assert.Equal(t, "", cfg.SocketPath)
-	})
-
-	t.Run("tcp type is not affected", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: TCPType, Port: 1234, Source: "my_app"}
-		cfg.ApplyDefaults(mockConfig)
-		assert.Equal(t, "", cfg.SocketPath)
-	})
-
-	t.Run("validate passes after ApplyDefaults derives path", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
-		cfg.ApplyDefaults(mockConfig)
-		err := cfg.Validate()
-		assert.Nil(t, err)
-	})
-
-	t.Run("validate still fails without source or socket_path", func(t *testing.T) {
-		mockConfig := config.NewMock(t)
-		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
-		cfg := &LogsConfig{Type: UnixType}
-		cfg.ApplyDefaults(mockConfig)
-		err := cfg.Validate()
-		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "socket_path")
-	})
 }
 
 func TestAutoMultilineEnabled(t *testing.T) {
@@ -324,6 +253,119 @@ func TestFingerprintConfig(t *testing.T) {
 		err := ValidateFingerprintConfig(config)
 		assert.NotNil(t, err)
 	}
+}
+
+func TestValidateTLSConfig(t *testing.T) {
+	t.Run("valid TLS with cert and key", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/path/to/cert.pem", KeyFile: "/path/to/key.pem"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("valid TLS with mutual auth", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: "require_and_verify"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("nil TLS is valid", func(t *testing.T) {
+		cfg := &LogsConfig{Type: TCPType, Port: 1234}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("TLS on non-TCP type fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: UDPType,
+			Port: 514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "only supported for tcp")
+	})
+
+	t.Run("TLS missing key_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "cert_file and key_file")
+	})
+
+	t.Run("TLS missing cert_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{KeyFile: "/key"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "cert_file and key_file")
+	})
+
+	t.Run("verify client_auth without ca_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "verify"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "ca_file")
+	})
+
+	t.Run("require_and_verify client_auth without ca_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "require_and_verify"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "ca_file")
+	})
+
+	t.Run("request client_auth without ca_file is OK", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "request"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+}
+
+func TestParseTLSVersion(t *testing.T) {
+	assert.Equal(t, uint16(0x0301), parseTLSVersion("tlsv1.0"))
+	assert.Equal(t, uint16(0x0302), parseTLSVersion("tlsv1.1"))
+	assert.Equal(t, uint16(0x0303), parseTLSVersion("tlsv1.2"))
+	assert.Equal(t, uint16(0x0304), parseTLSVersion("tlsv1.3"))
+	assert.Equal(t, uint16(0x0303), parseTLSVersion(""))
+	assert.Equal(t, uint16(0x0303), parseTLSVersion("invalid"))
+	assert.Equal(t, uint16(0x0304), parseTLSVersion("TLSv1.3"))
+}
+
+func TestParseClientAuth(t *testing.T) {
+	assert.Equal(t, uint(0), uint(parseClientAuth("")))
+	assert.Equal(t, uint(0), uint(parseClientAuth("none")))
+	assert.Equal(t, uint(1), uint(parseClientAuth("request")))
+	assert.Equal(t, uint(2), uint(parseClientAuth("require")))
+	assert.Equal(t, uint(3), uint(parseClientAuth("verify")))
+	assert.Equal(t, uint(4), uint(parseClientAuth("require_and_verify")))
+	assert.Equal(t, uint(0), uint(parseClientAuth("bogus")))
 }
 
 func TestValidateWildcardWithBeginningMode(t *testing.T) {

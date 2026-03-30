@@ -6,10 +6,12 @@
 package config
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"os"
 	"strings"
 	"sync"
 
@@ -22,8 +24,6 @@ import (
 const (
 	TCPType           = "tcp"
 	UDPType           = "udp"
-	UnixType          = "unix"
-	UnixgramType      = "unixgram"
 	FileType          = "file"
 	DockerType        = "docker"
 	ContainerdType    = "containerd"
@@ -50,10 +50,10 @@ type LogsConfig struct {
 
 	IntegrationName string
 
-	Port        int    // Network (tcp, udp)
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network (tcp, unix)
-	SocketPath  string `mapstructure:"socket_path" json:"socket_path" yaml:"socket_path"`    // Unix socket (unix, unixgram)
-	Path        string // File, Journald
+	Port        int                `mapstructure:"port" json:"port" yaml:"port"`                         // Network (tcp, udp)
+	IdleTimeout string             `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network (tcp)
+	TLS         *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`        // TCP TLS
+	Path        string             // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
@@ -167,6 +167,87 @@ type AutoMultilineSample struct {
 	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
 }
 
+// TLSListenerConfig holds TLS settings for a TCP log listener.
+// When present on a TCP source, the listener will require TLS connections.
+type TLSListenerConfig struct {
+	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
+	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
+	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
+}
+
+// BuildTLSConfig creates a *tls.Config from the user-supplied file paths and options.
+func (t *TLSListenerConfig) BuildTLSConfig() (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(t.CertFile, t.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load TLS cert/key: %w", err)
+	}
+
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   parseTLSVersion(t.MinTLSVersion),
+		ClientAuth:   parseClientAuth(t.ClientAuth),
+	}
+
+	if t.CAFile != "" {
+		caPEM, err := os.ReadFile(t.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read TLS CA file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, errors.New("failed to parse TLS CA certificate")
+		}
+		tlsCfg.ClientCAs = pool
+	}
+
+	return tlsCfg, nil
+}
+
+// parseTLSVersion converts a user-facing version string to a tls.VersionTLSxx constant.
+// Defaults to TLS 1.2 for empty or unrecognized values.
+func parseTLSVersion(v string) uint16 {
+	switch strings.ToLower(v) {
+	case "tlsv1.0":
+		return tls.VersionTLS10
+	case "tlsv1.1":
+		return tls.VersionTLS11
+	case "tlsv1.3":
+		return tls.VersionTLS13
+	default:
+		return tls.VersionTLS12
+	}
+}
+
+// parseClientAuth converts a user-facing client auth string to a tls.ClientAuthType.
+// Defaults to NoClientCert for empty or unrecognized values.
+func parseClientAuth(s string) tls.ClientAuthType {
+	switch strings.ToLower(s) {
+	case "request":
+		return tls.RequestClientCert
+	case "require":
+		return tls.RequireAnyClientCert
+	case "verify":
+		return tls.VerifyClientCertIfGiven
+	case "require_and_verify":
+		return tls.RequireAndVerifyClientCert
+	default:
+		return tls.NoClientCert
+	}
+}
+
+// clientAuthRequiresVerification returns true if the given client_auth setting
+// requires a CA certificate for client verification.
+func clientAuthRequiresVerification(s string) bool {
+	switch strings.ToLower(s) {
+	case "verify", "require_and_verify":
+		return true
+	default:
+		return false
+	}
+}
+
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
 type StringSliceField []string
 
@@ -217,19 +298,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
 		}
+		if c.TLS != nil {
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
-		if c.Format != "" {
-			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
-		}
-	case UnixType:
-		fmt.Fprintf(&b, ws("SocketPath: %#v,"), c.SocketPath)
-		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
-		if c.Format != "" {
-			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
-		}
-	case UnixgramType:
-		fmt.Fprintf(&b, ws("SocketPath: %#v,"), c.SocketPath)
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
 		}
@@ -370,18 +444,7 @@ func (mode TailingMode) String() string {
 
 // ApplyDefaults populates configuration fields with sensible defaults derived
 // from the core agent configuration. Call this before Validate().
-//
-// For unix/unixgram sources without an explicit socket_path, a path is derived
-// as <dogstatsd_host_socket_path>/logs-<source>.socket when the source field
-// is set.
-func (c *LogsConfig) ApplyDefaults(coreConfig pkgconfigmodel.Reader) {
-	if (c.Type == UnixType || c.Type == UnixgramType) && c.SocketPath == "" && c.Source != "" {
-		baseDir := coreConfig.GetString("dogstatsd_host_socket_path")
-		if baseDir != "" {
-			c.SocketPath = filepath.Join(baseDir, fmt.Sprintf("logs-%s.socket", c.Source))
-			log.Infof("Auto-derived socket_path %q for %s source %q", c.SocketPath, c.Type, c.Source)
-		}
-	}
+func (c *LogsConfig) ApplyDefaults(_ pkgconfigmodel.Reader) {
 }
 
 // Validate returns an error if the config is misconfigured
@@ -404,10 +467,10 @@ func (c *LogsConfig) Validate() error {
 		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
 		return errors.New("udp source must have a port")
-	case c.Type == UnixType && c.SocketPath == "":
-		return fmt.Errorf("unix source must have a socket_path (or set source to auto-derive one under %s)", "dogstatsd_host_socket_path")
-	case c.Type == UnixgramType && c.SocketPath == "":
-		return fmt.Errorf("unixgram source must have a socket_path (or set source to auto-derive one under %s)", "dogstatsd_host_socket_path")
+	}
+
+	if err := c.validateTLS(); err != nil {
+		return err
 	}
 
 	if c.Format != "" && c.Format != SyslogFormat {
@@ -438,6 +501,22 @@ func (c *LogsConfig) validateTailingMode() error {
 
 	if isWildcardWithBeginning && noFingerprinting {
 		log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
+	}
+	return nil
+}
+
+func (c *LogsConfig) validateTLS() error {
+	if c.TLS == nil {
+		return nil
+	}
+	if c.Type != TCPType {
+		return fmt.Errorf("tls configuration is only supported for %s sources, got %s", TCPType, c.Type)
+	}
+	if c.TLS.CertFile == "" || c.TLS.KeyFile == "" {
+		return errors.New("tls requires both cert_file and key_file")
+	}
+	if clientAuthRequiresVerification(c.TLS.ClientAuth) && c.TLS.CAFile == "" {
+		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
 	}
 	return nil
 }
