@@ -10,10 +10,10 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -129,8 +129,10 @@ func newTcpClient(ctx context.Context, httpClient *api.HTTPClient) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	// Construct the dial address for this client.
-	endpoint := fmt.Sprintf("%v:%d", url.Host, tcpPort)
+	// Construct the dial address using only the hostname (stripping any
+	// port in the base URL) so that "host:443" doesn't produce the invalid
+	// address "host:443:8042".
+	endpoint := net.JoinHostPort(url.Hostname(), strconv.Itoa(tcpPort))
 
 	log.Debugf("connecting to tcp endpoint %s", endpoint)
 
