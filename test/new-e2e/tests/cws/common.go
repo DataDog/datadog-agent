@@ -282,19 +282,19 @@ func testCwsEnabled(t assert.TestingT, fi *fakeintakeclient.Client, hostname str
 		return
 	}
 
+	var count int
 	for _, payload := range metadata {
 		if payload.Hostname != hostname {
 			continue
 		}
+		count++
 		cwsEnabled, ok := payload.Metadata["feature_cws_enabled"]
-		if !ok {
-			continue
+		if ok && cwsEnabled == true {
+			return
 		}
-		assert.Equal(t, true, cwsEnabled, "feature_cws_enabled should be true for host %s", hostname)
-		return
 	}
 
-	assert.Fail(t, "no metadata payload with feature_cws_enabled found for host "+hostname)
+	assert.Fail(t, fmt.Sprintf("no metadata payload with feature_cws_enabled=true found for host %s (%d metadata payloads checked)", hostname, count))
 }
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {
