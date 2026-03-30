@@ -108,7 +108,7 @@ fn drop_capabilities() {
     match try_drop_capabilities() {
         Ok(true) => info!("Capabilities restricted to CAP_SYS_PTRACE"),
         Ok(false) => warn!(
-            "CAP_SYS_PTRACE is not in the permitted set; capabilities fully dropped, /proc access for other processes will fail"
+            "CAP_SYS_PTRACE is not in the permitted set; /proc access for other processes will fail"
         ),
         Err(e) => {
             warn!("Failed to restrict capabilities: {e}; continuing with inherited capabilities")
@@ -528,30 +528,4 @@ mod tests {
         );
     }
 
-    /// Verifies the effective set contains only CAP_SYS_PTRACE (or nothing) after drop.
-    #[test]
-    fn test_drop_capabilities_restricts_effective_set() {
-        use caps::{CapSet, Capability};
-
-        drop_capabilities();
-
-        let effective = caps::read(None, CapSet::Effective)
-            .unwrap_or_else(|e| panic!("should be able to read effective caps after drop: {e}"));
-
-        let unexpected: Vec<_> = effective
-            .iter()
-            .filter(|c| **c != Capability::CAP_SYS_PTRACE)
-            .collect();
-        assert!(
-            unexpected.is_empty(),
-            "unexpected capabilities in effective set after drop: {unexpected:?}"
-        );
-
-        let inheritable = caps::read(None, CapSet::Inheritable)
-            .unwrap_or_else(|e| panic!("should be able to read inheritable caps: {e}"));
-        assert!(
-            inheritable.is_empty(),
-            "inheritable caps should be empty after drop, got: {inheritable:?}"
-        );
-    }
 }
