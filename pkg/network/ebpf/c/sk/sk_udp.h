@@ -101,9 +101,32 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 SEC("fexit/udpv6_sendmsg")
 int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
     log_debug("udpv6_sendmsg: sk=%p sent=%d", sk, sent);
+    if (sent <= 0) {
+        return 0;
+    }
+
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
+    }
+
+    if (!(sk_stats->tup.daddr_h || sk_stats->tup.daddr_l || sk_stats->tup.dport)) {
+        if (msg && msg->msg_name) {
+            // TODO this is probably not correct to store in sk_stats since it is per-msg, not per-sock
+            if (msg->msg_namelen >= sizeof(struct sockaddr_in6)) {
+                struct sockaddr_in6 *usin = bpf_core_cast(msg->msg_name, struct sockaddr_in6);
+                if (usin->sin6_family == AF_INET6) {
+                    read_in6_addr(&sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l, &usin->sin6_addr);
+                    sk_stats->tup.dport = bpf_ntohs(usin->sin6_port);
+                }
+            }
+        } else {
+            // connected UDP sock
+            if (sk && sk->__sk_common.skc_state == TCP_ESTABLISHED) {
+                read_daddr_v6(sk, &sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l);
+                sk_stats->tup.dport = bpf_ntohs(inet_sk(sk)->inet_dport);
+            }
+        }
     }
 
     sk_stats->sent_packets += 1;
@@ -115,9 +138,33 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
 SEC("fexit/udp_sendmsg")
 int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
     log_debug("udp_sendmsg: sk=%p sent=%d", sk, sent);
+    if (sent <= 0) {
+        return 0;
+    }
+
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
+    }
+
+    if (!(sk_stats->tup.daddr_l || sk_stats->tup.dport)) {
+        if (msg && msg->msg_name) {
+            // TODO this is probably not correct to store in sk_stats since it is per-msg, not per-sock
+            if (msg->msg_namelen >= sizeof(struct sockaddr_in)) {
+                struct sockaddr_in *usin = bpf_core_cast(msg->msg_name, struct sockaddr_in);
+                if (usin->sin_family == AF_INET) {
+                    sk_stats->tup.daddr_l = usin->sin_addr.s_addr;
+                    sk_stats->tup.dport = bpf_ntohs(usin->sin_port);
+                }
+            }
+        } else {
+            // connected UDP sock
+            if (sk && sk->__sk_common.skc_state == TCP_ESTABLISHED) {
+                struct inet_sock *inet = inet_sk(sk);
+                sk_stats->tup.daddr_l = inet->inet_daddr;
+                sk_stats->tup.dport = bpf_ntohs(inet->inet_dport);
+            }
+        }
     }
 
     sk_stats->sent_packets += 1;
