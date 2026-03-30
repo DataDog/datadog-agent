@@ -57,6 +57,7 @@
 #   auth → JSON payload → POST to artifact-gateway → poll for completion
 .docker_publish_job_definition_via_gateway:
   extends: .image-promotion
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   variables:
     <<: *docker_variables
