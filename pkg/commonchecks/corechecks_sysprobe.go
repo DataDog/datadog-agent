@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/lockcontentioncheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/oomkill"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/syscalllatencycheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 )
 
@@ -23,4 +24,5 @@ func registerSystemProbeChecks(tagger tagger.Component) {
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(lockcontentioncheck.CheckName, lockcontentioncheck.Factory())
+	corecheckLoader.RegisterCheck(syscalllatencycheck.CheckName, syscalllatencycheck.Factory())
 }

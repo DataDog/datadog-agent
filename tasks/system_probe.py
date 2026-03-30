@@ -378,6 +378,7 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         "tcp-queue-length",
         "ebpf",
         "lock-contention-check",
+        "syscall-latency",
     ]
 
     for prog in container_integrations_co_re_programs:

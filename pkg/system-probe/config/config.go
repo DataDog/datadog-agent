@@ -46,6 +46,7 @@ const (
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 	LogonDurationModule          types.ModuleName = "logon_duration"
 	LockContentionCheckModule    types.ModuleName = "lock_contention_check"
+	SyscallLatencyCheckModule    types.ModuleName = "syscall_latency_check"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -195,6 +196,9 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool(NSkey("lock_contention_check", "enabled")) {
 		c.EnabledModules[LockContentionCheckModule] = struct{}{}
+	}
+	if cfg.GetBool(NSkey("syscall_latency_check", "enabled")) {
+		c.EnabledModules[SyscallLatencyCheckModule] = struct{}{}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
