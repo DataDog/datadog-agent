@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "doc.go",
+        "elements.go",
+        "error.go",
+        "fuzz.go",
+        "gobuild.go",
+        "patternscanner.go",
+        "tempfolder.go",
+        "timeout.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "testutil_test",
+    srcs = ["elements_test.go"],
+    embed = [":testutil"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

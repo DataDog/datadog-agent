@@ -93,7 +93,6 @@ docker-compose logs host-profiler -f
 
 # Then, in another terminal, start the host-profiler with Agent integration
 ./bin/host-profiler/host-profiler run \
-  -c cmd/host-profiler/dist/host-profiler-config.yaml \
   --core-config ./dev/dist/datadog.yaml
 ```
 
@@ -105,7 +104,7 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 
 ### Key Configuration Sections
 
-- **`receivers.hostprofiler`**: eBPF profiling parameters, tracers, symbol upload settings
+- **`receivers.profiling`**: eBPF profiling parameters, tracers, symbol upload settings
 - **`processors.infraattributes`**: Infrastructure metadata enrichment (Agent mode only)
 - **`processors.k8sattributes`**: Kubernetes metadata enrichment (standalone mode)
 - **`exporters.otlphttp`**: Datadog profiling intake endpoint configuration

@@ -31,7 +31,7 @@ processors:
               key: profiler_version
               value: 7.0.0-test
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
@@ -69,4 +69,4 @@ service:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

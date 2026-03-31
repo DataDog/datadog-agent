@@ -30,6 +30,8 @@ const (
 	DatadogAPMLibraryDotNetPackage string = "datadog-apm-library-dotnet"
 	// DatadogAPMLibraryPHPPackage is the datadog apm library php package
 	DatadogAPMLibraryPHPPackage string = "datadog-apm-library-php"
+	// DatadogAPMLibraryNginxPackage is the datadog apm library nginx package
+	DatadogAPMLibraryNginxPackage string = "datadog-apm-library-nginx"
 )
 
 var (
@@ -43,6 +45,7 @@ var (
 		DatadogAPMLibraryJSPackage,
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
+		DatadogAPMLibraryNginxPackage,
 	}
 
 	// ApmLibraries is a list of all the apm libraries
@@ -53,6 +56,7 @@ var (
 		DatadogAPMLibraryJSPackage,
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
+		DatadogAPMLibraryNginxPackage,
 	}
 )
 

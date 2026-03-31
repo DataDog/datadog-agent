@@ -544,17 +544,24 @@ var systemProbeConfigByMode = map[discoveryMode]string{
 }
 
 func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
-	ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
-	s.T().Logf("Process list:\n%s", ps)
-
-	// system-probe-lite execs into system-probe (process replacement), they don't run simultaneously
+	// system-probe execs into system-probe-lite (process replacement), they don't run simultaneously
 	if mode == discoveryModeSystemProbeLite {
-		// In system-probe-lite mode, system-probe-lite runs its own server (no exec)
-		require.Contains(s.T(), ps, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
+		// In system-probe-lite mode, system-probe execs into system-probe-lite during startup.
+		// Retry because the exec happens after fx initialization completes.
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
+			s.T().Logf("Process list:\n%s", ps)
+			assert.Contains(c, ps, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
+		}, 1*time.Minute, 5*time.Second)
 		s.T().Logf("Found system-probe-lite process (mode: %s)", mode)
 	} else if mode == discoveryModeSystemProbe {
-		// In system-probe mode, system-probe-lite exec'd into system-probe (replaced itself)
-		require.NotContains(s.T(), ps, "system-probe-lite", "system-probe-lite should not be running in system-probe mode (it should have exec'd into system-probe)")
+		// In system-probe mode, system-probe should NOT exec into system-probe-lite.
+		// Wait for system-probe to finish startup before checking, to avoid
+		// false success if we check before the (incorrect) exec would happen.
+		time.Sleep(30 * time.Second)
+		ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
+		s.T().Logf("Process list:\n%s", ps)
+		require.NotContains(s.T(), ps, "system-probe-lite", "system-probe-lite should not be running in system-probe mode (system-probe should not have exec'd into system-probe-lite)")
 		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
 		s.T().Logf("Found system-probe process (mode: %s)", mode)
 	}
