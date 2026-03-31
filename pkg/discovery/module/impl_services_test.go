@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
