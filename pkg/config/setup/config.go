@@ -368,6 +368,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// These high-frequency samples are never forwarded to Datadog intake.
 	// The normal 15-second system check pipeline is unaffected.
 	config.BindEnvAndSetDefault("observer.high_frequency_system_checks.enabled", false)
+	// When true, the observer runs the generic container check at 1-second intervals
+	// with HighCardinality tags (container_id, image, etc.) and feeds metrics directly
+	// into the anomaly detection pipeline. Requires workloadmeta and tagger.
+	// These high-frequency samples are never forwarded to Datadog intake.
+	config.BindEnvAndSetDefault("observer.high_frequency_container_checks.enabled", false)
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
 	// Observer component toggles — values must match catalog defaults in

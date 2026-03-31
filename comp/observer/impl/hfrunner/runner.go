@@ -15,6 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
@@ -35,10 +39,13 @@ const (
 	// maxBackoff caps the retry wait to avoid long silences.
 	maxBackoff = 60 * time.Second
 
-	// hfSource is the observer handle source name for HF system check metrics.
+	// HFSource is the observer handle source name for HF system check metrics.
 	// Using a distinct name from "all-metrics" lets the observer suppress the
 	// lower-frequency 15s versions of these metrics when HF mode is active.
 	HFSource = "system-checks-hf"
+
+	// HFContainerSource is the observer handle source name for HF container metrics.
+	HFContainerSource = "container-checks-hf"
 )
 
 // checkEntry tracks a single check instance and its retry state.
@@ -108,6 +115,57 @@ func New(handle observerdef.Handle) *Runner {
 	}
 
 	log.Infof("[observer/hfrunner] initialized %d system checks for high-frequency collection", len(entries))
+	return &Runner{entries: entries, stopCh: make(chan struct{})}
+}
+
+// ContainerDeps holds the components required to run the generic container check.
+// All three must be non-nil; NewContainer returns nil if any are missing.
+type ContainerDeps struct {
+	WMeta       workloadmetadef.Component
+	FilterStore workloadfilterdef.Component
+	Tagger      taggerdef.Component
+}
+
+// NewContainer creates a Runner that collects container metrics (cpu, memory, io,
+// network) at 1-second intervals via the generic container check. The runner uses
+// the same observerSender pattern as New — metrics flow directly into the observer
+// pipeline and never touch the aggregator or forwarder.
+//
+// Returns nil if any dep in ContainerDeps is nil, logging a warning.
+func NewContainer(handle observerdef.Handle, deps ContainerDeps) *Runner {
+	if deps.WMeta == nil || deps.FilterStore == nil || deps.Tagger == nil {
+		log.Warn("[observer/hfrunner] container check deps incomplete, skipping container HF runner")
+		return nil
+	}
+
+	mgr := newObserverSenderManager(handle)
+
+	type factoryEntry struct {
+		name    string
+		factory option.Option[func() check.Check]
+	}
+
+	factories := []factoryEntry{
+		{"container", generic.Factory(deps.WMeta, deps.FilterStore, deps.Tagger)},
+	}
+
+	var entries []*checkEntry
+	for _, fe := range factories {
+		factory, ok := fe.factory.Get()
+		if !ok {
+			log.Debugf("[observer/hfrunner] %s check not available on this platform, skipping", fe.name)
+			continue
+		}
+		ch := factory()
+		err := ch.Configure(mgr, 0, integration.Data("{}"), integration.Data("{}"), "hf-container-runner", "hf-container-runner")
+		if err != nil {
+			log.Warnf("[observer/hfrunner] failed to configure %s check, skipping: %v", fe.name, err)
+			continue
+		}
+		entries = append(entries, &checkEntry{name: fe.name, ch: ch})
+	}
+
+	log.Infof("[observer/hfrunner] initialized %d container checks for high-frequency collection", len(entries))
 	return &Runner{entries: entries, stopCh: make(chan struct{})}
 }
 

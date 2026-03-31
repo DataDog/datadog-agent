@@ -23,5 +23,9 @@ func Module() fxutil.Module {
 			observerimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[observerdef.Component](),
+		// option.Option[workloadmeta.Component], option.Option[workloadfilter.Component],
+		// and option.Option[tagger.Component] are already provided by their respective
+		// fx modules (workloadmeta/fx, workloadfilter/fx, tagger/fx). The observer's
+		// Requires fields pick them up automatically when those modules are in the graph.
 	)
 }
