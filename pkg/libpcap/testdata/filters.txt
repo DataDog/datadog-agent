@@ -1,0 +1,78 @@
+# Basic protocol filters
+tcp
+udp
+icmp
+arp
+ip
+ip6
+sctp
+
+# Direction + protocol
+src host 192.168.1.1
+dst host 10.0.0.1
+host 172.16.0.1
+src net 192.168.0.0/16
+dst net 10.0.0.0/8
+src port 80
+dst port 443
+port 8080
+portrange 8000-9000
+
+# Combined filters
+tcp dst port 80
+udp src port 53
+tcp port 80 and host 192.168.1.1
+tcp port 80 or udp port 53
+not tcp
+tcp and not port 22
+
+# EtherType
+ether proto 0x0800
+ether proto 0x86dd
+
+# Ethernet addresses
+ether src 00:11:22:33:44:55
+ether dst ff:ff:ff:ff:ff:ff
+ether host 00:11:22:33:44:55
+
+# TCP flags
+tcp[tcpflags] & tcp-syn != 0
+tcp[tcpflags] & (tcp-syn|tcp-ack) != 0
+tcp[tcpflags] == tcp-syn
+tcp[13] & 0x02 != 0
+
+# IP header fields
+ip[8] < 64
+ip proto 6
+ip proto 17
+
+# IPv6
+ip6 src host ::1
+ip6 dst host fe80::1
+icmp6
+
+# Byte offset access
+ether[0] & 1 != 0
+ip[0] & 0xf != 5
+
+# Broadcast / multicast
+ether broadcast
+ether multicast
+ip multicast
+
+# Length
+less 100
+greater 1000
+len >= 64
+len <= 1500
+
+# VLAN
+vlan
+vlan 100
+vlan and tcp port 80
+
+# Complex expressions
+(tcp or udp) and port 53
+tcp dst port 5555 and tcp[tcpflags] == tcp-syn
+src net 192.168.0.0/24 and dst port 80
+ip and not ip multicast
