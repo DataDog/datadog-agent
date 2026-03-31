@@ -169,8 +169,31 @@ type CompilerState struct {
 	// Name resolver
 	Resolver NameResolver
 
+	// Qualifier stack for inherited attributes (replaces yacc $0 idiom)
+	qualStack []Qual
+
 	// Error handling
 	Err error
+}
+
+// PushQual pushes a qualifier onto the stack (used by head → id inheritance).
+func (cs *CompilerState) PushQual(q Qual) {
+	cs.qualStack = append(cs.qualStack, q)
+}
+
+// PopQual pops the qualifier stack.
+func (cs *CompilerState) PopQual() {
+	if len(cs.qualStack) > 0 {
+		cs.qualStack = cs.qualStack[:len(cs.qualStack)-1]
+	}
+}
+
+// PeekQual returns the current qualifier from the stack, or a default.
+func (cs *CompilerState) PeekQual() Qual {
+	if len(cs.qualStack) > 0 {
+		return cs.qualStack[len(cs.qualStack)-1]
+	}
+	return Qual{Addr: QUndef, Proto: QUndef, Dir: QUndef}
 }
 
 // NameResolver resolves symbolic names to addresses, ports, and protocols.

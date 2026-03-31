@@ -13,13 +13,6 @@ import (
 	"unicode"
 )
 
-// SymType holds the semantic value for a token.
-// This will be replaced by goyacc's generated yySymType once grammar.y is processed.
-type SymType struct {
-	H uint32 // numeric value (for NUM tokens)
-	S string // string value (for ID, HID, HID6, EID, AID tokens)
-}
-
 // Scanner tokenizes a BPF filter expression string.
 // It implements the yyLexer interface expected by goyacc.
 type Scanner struct {
@@ -45,7 +38,7 @@ func (s *Scanner) Err() string {
 
 // Lex returns the next token and fills lval with its value.
 // Returns 0 at end of input.
-func (s *Scanner) Lex(lval *SymType) int {
+func (s *Scanner) Lex(lval *yySymType) int {
 	// Skip whitespace
 	for s.pos < len(s.input) {
 		c := s.input[s.pos]
@@ -114,7 +107,7 @@ func (s *Scanner) Lex(lval *SymType) int {
 		for s.pos < len(s.input) && isHexDigit(s.input[s.pos]) {
 			s.pos++
 		}
-		lval.S = s.input[start:s.pos]
+		lval.s = s.input[start:s.pos]
 		return AID
 	}
 
@@ -127,7 +120,7 @@ func (s *Scanner) Lex(lval *SymType) int {
 			s.input[s.pos] != ')' {
 			s.pos++
 		}
-		lval.S = s.input[start:s.pos]
+		lval.s = s.input[start:s.pos]
 		return ID
 	}
 
@@ -142,7 +135,7 @@ func (s *Scanner) Lex(lval *SymType) int {
 }
 
 // scanIPv6 scans an IPv6 address starting with "::".
-func (s *Scanner) scanIPv6(lval *SymType) int {
+func (s *Scanner) scanIPv6(lval *yySymType) int {
 	start := s.pos
 	// Consume characters valid in IPv6: hex digits, colons, dots (for ::ffff:1.2.3.4)
 	for s.pos < len(s.input) {
@@ -155,7 +148,7 @@ func (s *Scanner) scanIPv6(lval *SymType) int {
 	}
 	word := s.input[start:s.pos]
 	if ip := net.ParseIP(word); ip != nil {
-		lval.S = word
+		lval.s = word
 		if ip.To4() == nil {
 			return HID6
 		}
@@ -167,7 +160,7 @@ func (s *Scanner) scanIPv6(lval *SymType) int {
 }
 
 // scanWord handles keywords, identifiers, numbers, and addresses.
-func (s *Scanner) scanWord(lval *SymType) int {
+func (s *Scanner) scanWord(lval *yySymType) int {
 	start := s.pos
 
 	// Collect word: alphanumeric, dots, colons, hyphens, underscores
@@ -190,21 +183,21 @@ func (s *Scanner) scanWord(lval *SymType) int {
 
 	// Try MAC address (xx:xx:xx:xx:xx:xx or xx-xx-xx-xx-xx-xx or xxxx.xxxx.xxxx)
 	if isMAC(word) {
-		lval.S = word
+		lval.s = word
 		return EID
 	}
 
 	// Try IPv6 address
 	if strings.Contains(word, "::") || isIPv6(word) {
 		if ip := net.ParseIP(word); ip != nil && ip.To4() == nil {
-			lval.S = word
+			lval.s = word
 			return HID6
 		}
 	}
 
 	// Try dotted IPv4 address (N.N, N.N.N, or N.N.N.N)
 	if isDottedAddr(word) {
-		lval.S = word
+		lval.s = word
 		return HID
 	}
 
@@ -215,21 +208,21 @@ func (s *Scanner) scanWord(lval *SymType) int {
 			s.Error(fmt.Sprintf("number %s: %v", word, err))
 			return LEX_ERROR
 		}
-		lval.H = n
+		lval.h = n
 		return NUM
 	}
 
 	// Identifier
-	lval.S = word
+	lval.s = word
 	return ID
 }
 
 // handleKeyword processes a keyword match and returns the appropriate token.
-func (s *Scanner) handleKeyword(tok int, word string, lval *SymType) int {
+func (s *Scanner) handleKeyword(tok int, word string, lval *yySymType) int {
 	switch tok {
 	case NUM:
 		// Keywords that return NUM with a specific value (ICMP types, TCP flags, etc.)
-		lval.H = numericKeywordValue(word)
+		lval.h = numericKeywordValue(word)
 		return NUM
 	default:
 		return tok
@@ -294,7 +287,7 @@ var keywords = map[string]int{
 	"l1":    L1,
 	"l2":    L2,
 	"iih":   IIH,
-	"lsp":   tokLSP,
+	"lsp":   LSP,
 	"snp":   SNP,
 	"csnp":  CSNP,
 	"psnp":  PSNP,
@@ -331,7 +324,7 @@ var keywords = map[string]int{
 	"oamf4":       OAMF4,
 	"oamf4ec":     OAMF4EC,
 	"oamf4sc":     OAMF4SC,
-	"sc":          tokSC,
+	"sc":          SC,
 	"ilmic":       ILMIC,
 	"vpi":         VPI,
 	"vci":         VCI,
