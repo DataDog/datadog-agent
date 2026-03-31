@@ -339,11 +339,11 @@ def get_node_types_and_default(full_name, node, os_target):
 
 
 def print_default(default, one_liner, env_var):
-    if type(default) is str:
+    if isinstance(default, str):
         return f"\"{default}\""
-    if type(default) is bool:
+    if isinstance(default, bool):
         return str(default).lower()
-    if type(default) is list:
+    if isinstance(default, list):
         if len(default) == 0:
             return "[]"
 
@@ -351,7 +351,7 @@ def print_default(default, one_liner, env_var):
             if env_var:
                 default = "'" + " ".join([str(x) for x in default]) + "'"
             else:
-                if type(default[0]) is int:
+                if isinstance(default[0], int):
                     default = "[" + ", ".join([f"{x}" for x in default]) + "]"
                 else:
                     default = "[" + ", ".join([f"\"{x}\"" for x in default]) + "]"

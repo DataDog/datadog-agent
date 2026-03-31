@@ -141,7 +141,7 @@ def fix_defaults(core_schema, sysprobe_schema):
                     del node["default"]
                 node["platform_default"] = default
             else:
-                panic(f"unknown custom default type {type(default)} for {key}")
+                raise RuntimeError(f"unknown custom default type {type(default)} for {key}")
     return core_schema, sysprobe_schema
 
 

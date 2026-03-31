@@ -17,26 +17,29 @@ def remove_first_pound(block):
     cleaned = []
     # edge case for the top level where the comments don't have a space after the "#" but the setting does
     if block[0].startswith("##"):
-        for l in block:
-            if l.startswith("# "):
-                l = l[2:]
+        for line in block:
+            if line.startswith("# "):
+                line = line[2:]
             else:
-                l = l[1:]
-            cleaned.append(l)
+                line = line[1:]
+            cleaned.append(line)
         return cleaned
 
     # remove first '# "
-    return [l[2:] for l in block]
+    return [line[2:] for line in block]
 
 
 def get_doc(block):
     doc = []
-    for idx, l in enumerate(block):
-        if l.startswith("#"):
-            l = l[2:]
-            if l.startswith("@param") or l.startswith("@env"):
+    idx = 0
+    for line in block:
+        if line.startswith("#"):
+            stripped = line[2:]
+            if stripped.startswith("@param") or stripped.startswith("@env"):
+                idx += 1
                 continue
-            doc.append(l)
+            doc.append(stripped)
+            idx += 1
         else:
             break
     return "\n".join(doc).strip(), block[idx:]
@@ -107,7 +110,7 @@ class Parser:
         indent = get_indent(block[0])
 
         # we remove the YAML indent
-        block = [l[indent * 2 :] for l in block]
+        block = [line[indent * 2 :] for line in block]
 
         name, doc, example = parse_block(block)
 
@@ -160,7 +163,7 @@ class Parser:
         if res:
             self.template_section = res.group(1)
             # we found a new template block. This means that the previous setting is done
-            new_block == True
+            new_block = True
         self.template_nested_level += 1
         return new_block
 
@@ -168,7 +171,7 @@ class Parser:
         block = []
         for line in template.split("\n"):
             if line.startswith("{{"):
-                new_block = self.handle_template_section(line)
+                self.handle_template_section(line)
                 continue
 
             if line != "":
@@ -208,7 +211,7 @@ def nice_key_order(obj):
     # validate the keys are the same
     missing = set(obj.keys()) - set(res.keys())
     if missing:
-        raise RuntimeError('missing keys: %s' % (missing,))
+        raise RuntimeError(f'missing keys: {missing}')
     return res
 
 
@@ -221,7 +224,7 @@ def reorder_it(schema, currpath, trackorder):
     missing_from_want = set(useorder) - set(havekeys)
     # This should always be empty! Because config_template keys should be a subset of the schema
     if len(missing_from_want):
-        raise RuntimeError('*** key:%s missing: %s' % (currkey, missing_from_want))
+        raise RuntimeError(f'*** key:{currkey} missing: {missing_from_want}')
     # If there are missing from `havekeys` that's okay. These are *undocumented* keys that are
     # defined in setup.go but not in the config_template.yaml
     missing_from_have = set(havekeys) - set(useorder)

@@ -148,7 +148,7 @@ class Processor:
                     num_known += 1
                 elif row[1] == 'default':
                     num_default += 1
-                print('  %s %s %s' % (row[0], row[1], row[2]))
+                print(f'  {row[0]} {row[1]} {row[2]}')
             print('}')
         print('Fail:    %s' % self.num_fail)
         print('Declare: %s' % num_declare)

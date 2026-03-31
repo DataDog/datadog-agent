@@ -127,8 +127,8 @@ def retrieve_default_value(keypath, schema):
             return '[]interface{}{}'
         settingItemsType = curr.get('items').get('type')
         if settingItemsType == 'object':
-            return '[]map[string]interface{}%s' % (as_go_array(settingDefault),)
-        return '[]%s%s' % (settingItemsType, as_go_array(settingDefault))
+            return f'[]map[string]interface{{}}{as_go_array(settingDefault)}'
+        return f'[]{settingItemsType}{as_go_array(settingDefault)}'
     elif settingType == 'boolean':
         if settingDefault is True:
             return 'true'
@@ -162,8 +162,7 @@ def retrieve_default_value(keypath, schema):
                 return 'map[string][]string%s' % as_go_value(settingDefault)
         return 'map[string]interface{}%s' % as_go_value(settingDefault)
     raise RuntimeError(
-        'setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s'
-        % (keypath, settingType, settingDefault, type(settingDefault))
+        f'setting {keypath}: cant handle settingType: "{settingType}", settingDefault: "{settingDefault}" of {type(settingDefault)}'
     )
 
 
