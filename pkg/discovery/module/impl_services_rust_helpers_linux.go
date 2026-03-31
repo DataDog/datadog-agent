@@ -12,7 +12,7 @@
 
 package module
 
-import "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+import tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 
 // buildTracerMetadata constructs a tracermetadata.TracerMetadata from its
 // individual fields. All fields are plain Go values so this function can live
