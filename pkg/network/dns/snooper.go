@@ -56,9 +56,12 @@ type socketFilterSnooper struct {
 	// cache translation object to avoid allocations
 	translation *translation
 
-	// packetHandler is called for each captured packet. Defaults to processPacket
-	// but can be overridden (e.g. by the darwin monitor for dual-parser dispatch).
-	packetHandler func(data []byte, info filter.PacketInfo, ts time.Time) error
+	// parserFor returns the DNS parser to use for a given packet. Defaults to
+	// returning s.parser (ignoring the PacketInfo). On darwin this is overridden
+	// to select between ethernet and loopback parsers based on the packet's
+	// link-layer type. It is always invoked from the single pollPackets
+	// goroutine, so it may safely access shared state without synchronization.
+	parserFor func(info filter.PacketInfo) *dnsParser
 }
 
 func (s *socketFilterSnooper) WaitForDomain(domain string) error {
@@ -68,9 +71,9 @@ func (s *socketFilterSnooper) WaitForDomain(domain string) error {
 	return s.statKeeper.WaitForDomain(domain)
 }
 
-// newSocketFilterSnooper returns a new socketFilterSnooper. If handler is nil,
-// the snooper's own processPacket is used.
-func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, handler func([]byte, filter.PacketInfo, time.Time) error) (*socketFilterSnooper, error) {
+// newSocketFilterSnooper returns a new socketFilterSnooper. If parserSelector
+// is nil, the snooper uses its default parser for all packets.
+func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, parserSelector func(filter.PacketInfo) *dnsParser) (*socketFilterSnooper, error) {
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
@@ -91,10 +94,10 @@ func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, hand
 		exit:            make(chan struct{}),
 		collectLocalDNS: cfg.CollectLocalDNS,
 	}
-	if handler != nil {
-		snooper.packetHandler = handler
+	if parserSelector != nil {
+		snooper.parserFor = parserSelector
 	} else {
-		snooper.packetHandler = snooper.processPacket
+		snooper.parserFor = func(_ filter.PacketInfo) *dnsParser { return snooper.parser }
 	}
 
 	return snooper, nil
@@ -149,31 +152,17 @@ func (s *socketFilterSnooper) Close() {
 	})
 }
 
-// addToCache records a successful DNS response in the reverse DNS cache.
-// Used by the default processPacket and by darwin's dual-parser path.
-func (s *socketFilterSnooper) addToCache(t *translation) {
-	s.cache.Add(t)
-}
-
-// processPacketInfo feeds a parsed DNS packet into the stat keeper when enabled.
-// Used by the default processPacket and by darwin's dual-parser path.
-func (s *socketFilterSnooper) processPacketInfo(pktInfo dnsPacketInfo, ts time.Time) {
-	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
-		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
-	}
-}
-
 // processPacket retrieves DNS information from the received packet data and adds it to
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
 // call since the underlying memory content gets invalidated by `afpacket`.
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts time.Time) error {
+func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo, ts time.Time) error {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
-	if err := s.parser.ParseInto(data, t, &pktInfo); err != nil {
+	if err := s.parserFor(info).ParseInto(data, t, &pktInfo); err != nil {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
@@ -184,10 +173,12 @@ func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts
 		return nil
 	}
 
-	s.processPacketInfo(pktInfo, ts)
+	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
+		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
+	}
 
 	if pktInfo.pktType == successfulResponse {
-		s.addToCache(t)
+		s.cache.Add(t)
 		snooperTelemetry.successes.Inc()
 	} else if pktInfo.pktType == failedResponse {
 		snooperTelemetry.errors.Inc()
@@ -200,7 +191,7 @@ func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts
 
 func (s *socketFilterSnooper) pollPackets() {
 	for {
-		err := s.source.VisitPackets(s.packetHandler)
+		err := s.source.VisitPackets(s.processPacket)
 
 		if err != nil {
 			log.Warnf("error reading packet: %s", err)

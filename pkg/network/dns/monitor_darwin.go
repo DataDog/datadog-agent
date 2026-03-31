@@ -8,8 +8,6 @@
 package dns
 
 import (
-	"time"
-
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -26,17 +24,6 @@ const (
 	dnsSnapLen = 512
 )
 
-// dnsMonitor implements ReverseDNS for macOS using libpcap packet capture.
-// It embeds socketFilterSnooper and overrides packet processing to dispatch
-// between ethernet and BSD loopback parsers based on per-packet layer type.
-type dnsMonitor struct {
-	*socketFilterSnooper
-	ethernetParser *dnsParser
-	loopbackParser *dnsParser
-}
-
-var _ ReverseDNS = &dnsMonitor{}
-
 // NewReverseDNS starts DNS traffic monitoring on macOS and returns a ReverseDNS
 // implementation backed by libpcap packet capture.
 func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error) {
@@ -51,59 +38,23 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 	return newDarwinDNSMonitorWithSource(cfg, src)
 }
 
-// newDarwinDNSMonitorWithSource constructs a dnsMonitor using the provided
+// newDarwinDNSMonitorWithSource constructs a DNS monitor using the provided
 // PacketSource. Used by NewReverseDNS and tests that inject a mock source.
-func newDarwinDNSMonitorWithSource(cfg *config.Config, src filter.PacketSource) (*dnsMonitor, error) {
-	m := &dnsMonitor{
-		ethernetParser: newDNSParser(layers.LayerTypeEthernet, cfg),
-		loopbackParser: newDNSParser(layers.LayerTypeLoopback, cfg),
+func newDarwinDNSMonitorWithSource(cfg *config.Config, src filter.PacketSource) (*socketFilterSnooper, error) {
+	ethernetParser := newDNSParser(layers.LayerTypeEthernet, cfg)
+	loopbackParser := newDNSParser(layers.LayerTypeLoopback, cfg)
+
+	parserSelector := func(info filter.PacketInfo) *dnsParser {
+		if info.LinkLayerType() == layers.LayerTypeLoopback {
+			return loopbackParser
+		}
+		return ethernetParser
 	}
-	// Construct without starting goroutines. m.socketFilterSnooper must be
-	// assigned before polling begins so that m.processPacket can safely
-	// dereference the embedded field without a data race.
-	snoop, err := newSocketFilterSnooper(cfg, src, m.processPacket)
+
+	snoop, err := newSocketFilterSnooper(cfg, src, parserSelector)
 	if err != nil {
 		return nil, err
 	}
-	m.socketFilterSnooper = snoop
 	snoop.startPolling()
-	return m, nil
-}
-
-// processPacket selects the appropriate parser based on the packet's link-layer
-// type, then delegates to the embedded snooper's cache, stat keeper, and telemetry.
-func (m *dnsMonitor) processPacket(data []byte, info filter.PacketInfo, ts time.Time) error {
-	var parser *dnsParser
-	if info.LinkLayerType() == layers.LayerTypeLoopback {
-		parser = m.loopbackParser
-	} else {
-		parser = m.ethernetParser
-	}
-
-	t := m.getCachedTranslation()
-	dnsInfo := dnsPacketInfo{}
-
-	if err := parser.ParseInto(data, t, &dnsInfo); err != nil {
-		switch err {
-		case errSkippedPayload:
-		case errTruncated:
-			snooperTelemetry.truncatedPkts.Inc()
-		default:
-			snooperTelemetry.decodingErrors.Inc()
-		}
-		return nil
-	}
-
-	m.processPacketInfo(dnsInfo, ts)
-
-	if dnsInfo.pktType == successfulResponse {
-		m.addToCache(t)
-		snooperTelemetry.successes.Inc()
-	} else if dnsInfo.pktType == failedResponse {
-		snooperTelemetry.errors.Inc()
-	} else {
-		snooperTelemetry.queries.Inc()
-	}
-
-	return nil
+	return snoop, nil
 }

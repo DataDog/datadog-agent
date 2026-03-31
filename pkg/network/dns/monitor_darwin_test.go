@@ -59,7 +59,7 @@ func (m *mockSubSource) VisitPackets(visitor func(data []byte, info filter.Packe
 			return nil
 		default:
 		}
-		info := filter.NewDarwinPacketInfo(0, pkt.layerType)
+		info := &filter.DarwinPacketInfo{PktType: 0, LayerType: pkt.layerType}
 		if err := visitor(pkt.data, info, pkt.ts); err != nil {
 			return err
 		}
@@ -182,9 +182,9 @@ func buildNonDNSPacket() []byte {
 // Test helpers
 // ============================================================================
 
-// newTestMonitor constructs a dnsMonitor with default config and the
+// newTestMonitor constructs a socketFilterSnooper with default config and the
 // given mock source, suitable for unit tests.
-func newTestMonitor(t *testing.T, src filter.PacketSource) *dnsMonitor {
+func newTestMonitor(t *testing.T, src filter.PacketSource) *socketFilterSnooper {
 	t.Helper()
 	cfg := config.New()
 	m, err := newDarwinDNSMonitorWithSource(cfg, src)

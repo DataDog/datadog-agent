@@ -33,10 +33,6 @@ const (
 	defaultSnapLen      = 4096
 	pcapTimeout         = time.Second
 	pcapBPFBufferSize   = 16 * 1024 * 1024 // 16 MB per-interface BPF ring buffer
-	// DNSBPFBufferSize is a smaller ring buffer suitable for DNS-only capture,
-	// where packet rates are much lower than general traffic.
-	DNSBPFBufferSize = 1 * 1024 * 1024 // 1 MB
-
 	// localAddrRefreshInterval controls how often we discover new interfaces
 	// and refresh local address caches. After a BPF error (e.g. interface
 	// removal), capture on that interface stops immediately; if the interface
@@ -127,16 +123,11 @@ type DarwinPacketInfo struct {
 	// PktType indicates packet direction:
 	// PACKET_HOST (0) for incoming, PACKET_OUTGOING (4) for outgoing
 	PktType uint8
-	// layerType is the gopacket layer type for this packet's link-layer
+	// LayerType is the gopacket layer type for this packet's link-layer
 	// encapsulation. Callers must use this to select the correct decoder —
 	// different interfaces on macOS may use different encapsulations
 	// (e.g. LayerTypeEthernet for en0, LayerTypeLoopback for utun0).
-	layerType gopacket.LayerType
-}
-
-// NewDarwinPacketInfo creates a DarwinPacketInfo with the given direction and link-layer type.
-func NewDarwinPacketInfo(pktType uint8, linkLayer gopacket.LayerType) *DarwinPacketInfo {
-	return &DarwinPacketInfo{PktType: pktType, layerType: linkLayer}
+	LayerType gopacket.LayerType
 }
 
 // PacketType returns the packet direction type
@@ -147,8 +138,8 @@ func (d *DarwinPacketInfo) PacketType() uint8 {
 // LinkLayerType returns the gopacket layer type for this packet's
 // link-layer encapsulation. Falls back to LayerTypeEthernet if unset.
 func (d *DarwinPacketInfo) LinkLayerType() gopacket.LayerType {
-	if d.layerType != 0 {
-		return d.layerType
+	if d.LayerType != 0 {
+		return d.LayerType
 	}
 	return layers.LayerTypeEthernet
 }
@@ -394,7 +385,7 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 		select {
 		case pkt := <-p.packetChan:
 			packetInfo.PktType = pkt.direction
-			packetInfo.layerType = pkt.layerType
+			packetInfo.LayerType = pkt.layerType
 
 			// Wrap in a closure so putBuffer runs via defer even if visitor
 			// panics, preventing a permanent pool leak.
