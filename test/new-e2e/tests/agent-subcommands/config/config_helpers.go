@@ -44,12 +44,14 @@ func getConfigValue(t *testing.T, config map[interface{}]interface{}, key string
 	return value
 }
 
-func assertConfigValueEqual(t *testing.T, config map[interface{}]interface{}, key string, expectedValue interface{}) {
+// AssertConfigValueEqual asserts that the value in config for the given key equals expectedValue
+func AssertConfigValueEqual(t *testing.T, config map[interface{}]interface{}, key string, expectedValue interface{}) {
 	value := getConfigValue(t, config, key)
 	assert.Equal(t, expectedValue, value)
 }
 
-func assertConfigValueContains(t *testing.T, config map[interface{}]interface{}, key string, expectedValue interface{}) {
+// AssertConfigValueContains asserts that the value in config for the given key contains expectedValue
+func AssertConfigValueContains(t *testing.T, config map[interface{}]interface{}, key string, expectedValue interface{}) {
 	value := getConfigValue(t, config, key)
 	assert.Contains(t, value, expectedValue)
 }
