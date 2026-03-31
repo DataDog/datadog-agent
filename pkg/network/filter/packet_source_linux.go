@@ -66,6 +66,17 @@ type AFPacketInfo struct {
 	PktType uint8
 }
 
+// PacketType returns the packet direction type
+func (a *AFPacketInfo) PacketType() uint8 {
+	return a.PktType
+}
+
+// LinkLayerType returns the gopacket layer type for this packet.
+// Linux AF_PACKET always delivers Ethernet frames.
+func (a *AFPacketInfo) LinkLayerType() gopacket.LayerType {
+	return layers.LayerTypeEthernet
+}
+
 // GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
 func (p *AFPacketSource) GetPacketInfoBuffer() *AFPacketInfo {
 	return p.afPacketInfo
