@@ -51,12 +51,6 @@ func GenNcode(cs *CompilerState, name string, v uint32, q Qual) *Block {
 	return nil
 }
 
-// GenProtoAbbrev generates code for a protocol keyword (tcp, udp, ip, etc.).
-func GenProtoAbbrev(cs *CompilerState, proto int) *Block {
-	stub(cs, "gen_proto_abbrev")
-	return nil
-}
-
 // GenRelation generates code for a comparison expression.
 func GenRelation(cs *CompilerState, code int, a0, a1 *Arth, reversed int) *Block {
 	stub(cs, "gen_relation")
