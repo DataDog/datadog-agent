@@ -495,6 +495,7 @@ func TestInfoConfig(t *testing.T) {
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
 
 	conf.ContainerTags = nil
+	conf.ContainerTagsWithCompleteness = nil
 	conf.ContainerIDFromOriginInfo = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
