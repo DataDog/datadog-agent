@@ -1,6 +1,8 @@
 """Rules for compiling Windows resource files (.mc -> .rc -> .syso)."""
 
-_DEFAULT_MINGW_PATH = "C:/tools/msys64/mingw64"
+load("//bazel/toolchains/mingw:paths.bzl", "MINGW_PATH")
+
+_DEFAULT_MINGW_PATH = MINGW_PATH
 
 def _win_messagetable_impl(ctx):
     src = ctx.file.src
