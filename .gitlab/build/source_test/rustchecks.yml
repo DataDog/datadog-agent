@@ -1,0 +1,9 @@
+rustchecks_test:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  script:
+    # Build the Rust shared library checks from source to verify they compile.
+    # The actual test artifacts are built in go_e2e_test_binaries before E2E tests.
+    - dda inv -- -e rustchecks.build
