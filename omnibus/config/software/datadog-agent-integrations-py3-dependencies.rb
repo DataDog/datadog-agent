@@ -7,7 +7,7 @@ dependency 'openssl3'
 if linux_target?
 
   build do
-    command_on_repo_root "bazelisk run -- @unixodbc//:install --destdir='#{install_dir}/embedded'"
+    command_on_repo_root "bazelisk run -- @unixodbc//:install --destdir='#{install_dir}'"
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libodbc.so" \
     " #{install_dir}/embedded/lib/libodbccr.so" \
@@ -16,18 +16,8 @@ if linux_target?
     command_on_repo_root "bazelisk run -- @freetds//:install --destdir='#{install_dir}'"
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libtdsodbc.so"
-  
+
     unless heroku_target?
-      pc_files = [
-          'gssrpc.pc',
-          'kadm-client.pc',
-          'kadm-server.pc',
-          'kdb.pc',
-          'krb5-gssapi.pc',
-          'krb5.pc',
-          'mit-krb5-gssapi.pc',
-          'mit-krb5.pc',
-        ]
       lib_files = [
           'krb5/plugins/tls/k5tls.so',
           'krb5/plugins/kdb/db2.so',
@@ -52,13 +42,11 @@ if linux_target?
       bin_files = [
           'kinit',
         ]
-      
+
       command_on_repo_root "bazelisk run -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
       # (TODO(agent-build): Check if we still need pc files)
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
         + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
-        + " " \
-        + pc_files.map{ |pc| "#{install_dir}/embedded/lib/pkgconfig/#{pc}" }.join(' ') \
         + " " \
         + bin_files.map{ |bin| "#{install_dir}/embedded/bin/#{bin}" }.join(' ') \
         + " '#{install_dir}/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.3.1'"

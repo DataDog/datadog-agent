@@ -93,7 +93,7 @@ func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 		networkID: funcs.MemoizeNoError(func() string {
 			nid, err := retryGetNetworkID()
 			if err != nil {
-				log.Errorf("failed to get network ID: %s", err.Error())
+				log.Warnf("failed to get network ID: %s", err.Error())
 			}
 			return nid
 		}),

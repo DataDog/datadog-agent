@@ -22,7 +22,7 @@ import (
 )
 
 // processSample handles the complex time-weighted averaging logic for NVML sample types
-func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64) ([]Metric, uint64, error) {
+func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64, priority MetricPriority) ([]Metric, uint64, error) {
 	// GetSamples returns a list of samples (timestamp + value) for the
 	// given counter type (GPU utilization, memory activity, etc).
 	// Note that timestamps are in microseconds always.
@@ -87,9 +87,10 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	total /= float64(currentTimestamp - lastTimestamp)
 
 	metric := Metric{
-		Name:  metricName,
-		Value: total,
-		Type:  ddmetrics.GaugeType,
+		Name:     metricName,
+		Value:    total,
+		Type:     ddmetrics.GaugeType,
+		Priority: priority,
 	}
 
 	return []Metric{metric}, currentTimestamp, multiErr
@@ -160,25 +161,25 @@ func createSampleAPIs() []apiCallInfo {
 		{
 			Name: "gr_engine_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp, Medium)
 			},
 		},
 		{
 			Name: "dram_active_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "encoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "decoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		}}
 }

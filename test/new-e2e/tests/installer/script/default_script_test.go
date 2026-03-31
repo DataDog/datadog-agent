@@ -99,7 +99,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
-		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
 	}
@@ -152,7 +151,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 				s.T().Fatalf("config key api_key differs in file %s (not logging values)", file)
 			}
 		}
-		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs", file)
+		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs, %s VS %s", file, installerScriptConfig, agent7Config)
 	}
 }
 

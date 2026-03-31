@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -33,10 +34,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
@@ -53,6 +56,7 @@ const (
 	eventTypeDBMMetadata        = "dbm-metadata"
 	eventTypeDBMHealth          = "dbm-health"
 	eventTypeDataStreamsMessage = "data-streams-message"
+	eventTypeDoQueryResults     = "do-query-results"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
@@ -164,9 +168,10 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 
-			// Each NetFlow flow is about 500 bytes
-			// 10k BatchMaxSize is about 5Mo of content size
-			defaultBatchMaxSize: 10000,
+			// Each NetFlow flow is about 500 bytes, we could fit ~10k is the default 5Mb content size. However,
+			// this is also directly tied to the amount of work we need to do atomically in our event processing code to add enrichments.
+			// Let's limit this size to 250 events, there will be some increased overhead since more packets will need to be sent.
+			defaultBatchMaxSize: 250,
 			// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
 			// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
 			// due to input channel being full.
@@ -278,6 +283,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
+		{
+			eventType:                     eventTypeDoQueryResults,
+			category:                      "DO",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "data_observability.forwarder.",
+			hostnameEndpointPrefix:        "data-obs-intake.",
+			intakeTrackType:               "query-actions",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    20e6,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          500,
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
@@ -334,6 +351,10 @@ func Diagnose() []diagnose.Diagnosis {
 		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
+			continue
+		}
+		if desc.eventType == eventTypeDoQueryResults {
+			log.Debugf("Skipping diagnosis for data-obs-intake query-actions because it does not support the empty payload")
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
@@ -493,6 +514,7 @@ func newHTTPPassthroughPipeline(
 	desc passthroughPipelineDesc,
 	destinationsContext *client.DestinationsContext,
 	pipelineID int,
+	hostname string,
 ) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
 	compressionOptions := config.EndpointCompressionOptions{
@@ -514,6 +536,20 @@ func newHTTPPassthroughPipeline(
 	if !endpoints.UseHTTP {
 		return nil, errors.New("endpoints must be http")
 	}
+
+	if desc.eventType == eventTypeDataStreamsMessage {
+		tags := fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion)
+		if taskARN := getECSFargateTaskARN(); taskARN != "" {
+			tags += ",task_arn:" + taskARN
+		}
+		extraHeaders := map[string]string{
+			"X-Datadog-Additional-Tags": tags,
+		}
+		for i := range endpoints.Endpoints {
+			endpoints.Endpoints[i].ExtraHTTPHeaders = extraHeaders
+		}
+	}
+
 	// epforwarder pipelines apply their own defaults on top of the hardcoded logs defaults
 	if endpoints.BatchMaxConcurrentSend <= 0 {
 		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
@@ -607,6 +643,24 @@ func (p *passthroughPipeline) Stop() {
 	}
 }
 
+// getECSFargateTaskARN returns the ECS task ARN when running on Fargate, or empty string otherwise.
+func getECSFargateTaskARN() string {
+	if !env.IsECSFargate() {
+		return ""
+	}
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Debugf("Failed to initialize ECS metadata V2 client for task ARN: %v", err)
+		return ""
+	}
+	taskMeta, err := client.GetTask(context.Background())
+	if err != nil {
+		log.Debugf("Failed to get ECS task metadata for task ARN: %v", err)
+		return ""
+	}
+	return taskMeta.TaskARN
+}
+
 func joinHosts(endpoints []config.Endpoint) string {
 	var additionalHosts []string
 	for _, e := range endpoints {
@@ -615,12 +669,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -650,7 +704,8 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 	if deps.Params.UseNoopEventPlatformForwarder {
 		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
 	} else if deps.Params.UseEventPlatformForwarder {
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression)
+		hostnameStr := deps.Hostname.GetSafe(context.Background())
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression, hostnameStr)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -675,7 +730,8 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression)
+	hostnameStr := hostname.GetSafe(context.Background())
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

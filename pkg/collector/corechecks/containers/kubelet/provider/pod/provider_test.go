@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -83,6 +84,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	env.SetFeatures(suite.T(), env.Kubernetes) // Required to enable the "kubelet" collector
 	wmeta := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		workloadfilterfxmock.MockModule(),
 		// GetCatalog() returns all collectors but only the kubelet one will
@@ -111,7 +113,7 @@ func (suite *ProviderTestSuite) TestTransformRunningPods() {
 	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
-	suite.mockSender.AssertNumberOfCalls(suite.T(), "Gauge", 36)
+	suite.mockSender.AssertNumberOfCalls(suite.T(), "Gauge", 42)
 
 	// 1) pod running metrics
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.running", 2, "", append(config.Tags, "kube_container_name:prometheus-to-sd-exporter", "kube_deployment:fluentd-gcp-v2.0.10", "kube_namespace:default"))

@@ -37,7 +37,6 @@ import (
 func init() { registerModule(GPUMonitoring) }
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
 // processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
 // Note: In the future we should have a better way to handle dependencies between modules
@@ -53,8 +52,7 @@ var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.
 
 // GPUMonitoring Factory
 var GPUMonitoring = &module.Factory{
-	Name:             config.GPUMonitoringModule,
-	ConfigNamespaces: gpuMonitoringConfigNamespaces,
+	Name: config.GPUMonitoringModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		if processEventConsumer == nil {
 			return nil, errors.New("process event consumer not initialized")
@@ -100,7 +98,7 @@ type GPUMonitoringModule struct {
 // Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	// Ensure only one concurrent check is allowed, as the GetAndFlush method is not thread safe.
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
 			log.Errorf("Error getting GPU stats: %v", err)
@@ -108,7 +106,7 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	}))
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))

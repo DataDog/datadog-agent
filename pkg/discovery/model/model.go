@@ -7,7 +7,7 @@
 package model
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 )
 
 // Service represents a listening process.
@@ -22,7 +22,6 @@ type Service struct {
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
-	Type                     string                          `json:"service_type"`
 	UST                      UST                             `json:"ust"`
 }
 
@@ -37,4 +36,5 @@ type UST struct {
 type ServicesResponse struct {
 	Services     []Service `json:"services"`
 	InjectedPIDs []int     `json:"injected_pids"`
+	GPUPIDs      []int     `json:"gpu_pids"`
 }

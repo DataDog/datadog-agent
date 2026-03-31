@@ -30,6 +30,27 @@ func TestMkHuman(t *testing.T) {
 	assert.Equal(t, "1.5", mkHuman(float32(1.5)))
 }
 
+func TestMkHumanDuration(t *testing.T) {
+	cases := []struct {
+		value    interface{}
+		unit     string
+		expected string
+	}{
+		{30, "s", "30s"},
+		{90, "s", "1m30s"},
+		{3600, "s", "1h0m0s"},
+		{86399, "s", "23h59m59s"},
+		{86400, "s", "1d0s"},
+		{86401, "s", "1d1s"},
+		{199199, "s", "2d7h19m59s"},
+		{1997699, "s", "23d2h54m59s"},
+	}
+
+	for _, tc := range cases {
+		assert.Equal(t, tc.expected, mkHumanDuration(tc.value, tc.unit))
+	}
+}
+
 func TestParseUnixTime(t *testing.T) {
 	cases := []struct {
 		value          any

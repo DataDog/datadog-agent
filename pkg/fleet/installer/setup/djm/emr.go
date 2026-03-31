@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.53.0-1"
-	emrJavaTracerVersion = "1.58.0-1"
-	emrAgentVersion      = "7.74.0-1"
+	emrInjectorVersion   = "0.55.0-1"
+	emrJavaTracerVersion = "1.60.0-1"
+	emrAgentVersion      = "7.76.1-1"
 	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
 )
 
@@ -78,7 +78,7 @@ func SetupEmr(s *common.Setup) error {
 	}
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		tracerConfigEmr.TraceDebug = config.BoolToPtr(false)
+		tracerConfigEmr.TraceDebug = config.BoolToPtr(true)
 	}
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigEmr,

@@ -41,6 +41,9 @@ common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
+# rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
+# that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
+common:windows --enable_runfiles
 # Neither repo_env nor shell_executable affect action keys. It can be both an advantage and a disadvantage.
 # For instance, if we need to have some special behavior in bash we can add it, however, in some cases
 # it may lead to cache poisoning.
@@ -64,9 +67,12 @@ common:ci --config=cache
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
-# Project configs --------------------------------------------------------------------------------------
-import %workspace%/bazel/configs/sdagent.bazelrc
-import %workspace%/bazel/configs/procmgrd.bazelrc
+# Project/Language configs --------------------------------------------------------------------------------------
+import %workspace%/bazel/configs/rust.bazelrc
+
+# Global release config ------------------------------------------------------------------------------------------------
+# This should aggregate all the release configs for all the languages with enabled optimizations, stripping, etc.
+common:release --config=rust-release
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

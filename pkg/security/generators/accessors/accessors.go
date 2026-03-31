@@ -896,7 +896,7 @@ func newField(allFields map[string]*common.StructField, fieldName string, inputF
 				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") && !strings.HasPrefix(fieldName, "ptrace.") {
 					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 				}
-			} else if field.IsArray && fieldPath != inputField.Name {
+			} else if field.IsArray && fieldPath != inputField.Name && !inputField.IsRootDomain && !inputField.IsLength {
 				result += fmt.Sprintf("if len(ev.%s) == 0 { ev.%s = append(ev.%s, %s{}) }\n", field.Name, field.Name, field.Name, field.OrigType)
 			}
 		}

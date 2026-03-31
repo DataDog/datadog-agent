@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var hostRoot = funcs.MemoizeNoError(func() string {
@@ -63,6 +65,16 @@ func newContainerReader(reader resolvConfReader) containerReader {
 type readContainerItemResult struct {
 	item         containerStoreItem
 	noDataReason string
+}
+
+func (r readContainerItemResult) String() string {
+	if r.noDataReason != "" {
+		return fmt.Sprintf("noData(%s)", r.noDataReason)
+	}
+	if r.item.resolvConf == nil {
+		return "empty"
+	}
+	return fmt.Sprintf("resolvConf(%d bytes)", len(r.item.resolvConf.Get()))
 }
 
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
@@ -124,7 +136,7 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
 
 	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
 		return "<missing>", nil
@@ -141,6 +153,7 @@ func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 
 	stat, err := file.Stat()
 	if err != nil {
@@ -195,7 +208,14 @@ func errIsProcessNotRunning(err error) bool {
 		errors.Is(err, os.ErrNotExist)
 }
 
-func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
+func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (running bool, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("Recovered panic in isProcessStillRunningImpl for pid %d (likely malformed /proc stat): %v", entry.Pid, r)
+			running = false
+			retErr = nil
+		}
+	}()
 	_, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
 	if errIsProcessNotRunning(err) {
 		return false, nil

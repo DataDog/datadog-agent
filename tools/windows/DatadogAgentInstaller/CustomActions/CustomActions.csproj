@@ -56,12 +56,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CiInfo.cs" />
+    <Compile Include="AutoLoggerCustomAction.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="ConfigureUserCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
     <Compile Include="InstallOciPackages.cs" />
+    <Compile Include="InstallerHooksCustomAction.cs" />
     <Compile Include="Interfaces\IFeatureInfo.cs" />
     <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
@@ -93,6 +95,7 @@
     <Compile Include="Rollback\FilePermissionRollbackData.cs" />
     <Compile Include="Rollback\FileStorageRollbackData.cs" />
     <Compile Include="Rollback\RollbackDataStore.cs" />
+    <Compile Include="Rollback\RegistryKeyRollbackData.cs" />
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="SetupInstallerCustomAction.cs" />
@@ -111,7 +114,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json">
-      <Version>13.0.3</Version>
+      <Version>13.0.4</Version>
     </PackageReference>
     <PackageReference Include="System.Memory">
       <Version>4.5.5</Version>

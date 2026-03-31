@@ -16,16 +16,20 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -35,6 +39,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
@@ -42,10 +47,12 @@ import (
 // ExtraFactories is an interface that provides extra factories for the collector.
 // It is used to provide extra factories for the collector when the Agent Core is available or not.
 type ExtraFactories interface {
+	GetReceivers() []receiver.Factory
 	GetProcessors() []processor.Factory
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
 	GetLoggingOptions() []zap.Option
+	GetAgentConfig() config.Component
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -84,6 +91,7 @@ func NewExtraFactoriesWithAgentCore(
 	}
 }
 
+// GetLoggingOptions returns the logging options for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
 	zapCore := zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
 	return []zap.Option{
@@ -93,6 +101,17 @@ func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
 	}
 }
 
+// GetReceivers returns the receivers for the collector when the Agent Core is available.
+func (e extraFactoriesWithAgentCore) GetReceivers() []receiver.Factory {
+	return nil
+}
+
+// GetAgentConfig returns the Agent Core configuration when the Agent Core is available
+func (e extraFactoriesWithAgentCore) GetAgentConfig() config.Component {
+	return e.config
+}
+
+// GetExtensions returns the extensions for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
@@ -100,6 +119,7 @@ func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	}
 }
 
+// GetProcessors returns the processors for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
@@ -107,13 +127,12 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	}
 }
 
+// GetConverters returns the converters for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
-	return []confmap.ConverterFactory{
-		converters.NewFactoryWithAgent(e.config),
-	}
+	return []confmap.ConverterFactory{}
 }
 
-// extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.
+// extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is not available.
 type extraFactoriesWithoutAgentCore struct{}
 
 var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
@@ -123,16 +142,31 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}
 }
 
+// GetLoggingOptions returns the logging options for the collector when the Agent Core is not available.
 func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
 	return []zap.Option{}
 }
 
-// GetExtensions returns the extensions for the collector.
-func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
-	return []extension.Factory{}
+// GetReceivers returns the receivers for the collector when the Agent Core is not available.
+func (e extraFactoriesWithoutAgentCore) GetReceivers() []receiver.Factory {
+	return []receiver.Factory{
+		filelogreceiver.NewFactory(),
+	}
 }
 
-// GetProcessors returns the processors for the collector.
+// GetAgentConfig always returns nil in Standalone mode as the Core Agent is not available
+func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
+	return nil
+}
+
+// GetExtensions returns the extensions for the collector.
+func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
+	return []extension.Factory{
+		healthcheckextension.NewFactory(),
+	}
+}
+
+// GetProcessors returns the processors for the collector when the Agent Core is not available.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		k8sattributesprocessor.NewFactory(),
@@ -141,7 +175,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	}
 }
 
-// GetConverters returns the converters for the collector.
+// GetConverters returns the converters for the collector when the Agent Core is not available.
 func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFactory {
 	return []confmap.ConverterFactory{
 		converters.NewFactoryWithoutAgent(),
@@ -151,12 +185,14 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory(), otlpreceiver.NewFactory())
+		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(), otlpreceiver.NewFactory(), prometheusreceiver.NewFactory()}
+		receiverFactories = append(receiverFactories, extraFactories.GetReceivers()...)
+		receivers, err := otelcol.MakeFactoryMap(receiverFactories...)
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
 
-		expMap, err := otelcol.MakeFactoryMap(
+		exporters, err := otelcol.MakeFactoryMap(
 			debugexporter.NewFactory(),
 			otlphttpexporter.NewFactory(),
 		)
@@ -164,7 +200,11 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		processorFactories := []processor.Factory{attributesprocessor.NewFactory(), cumulativetodeltaprocessor.NewFactory()}
+		processorFactories := []processor.Factory{
+			attributesprocessor.NewFactory(),
+			cumulativetodeltaprocessor.NewFactory(),
+			filterprocessor.NewFactory(),
+		}
 		processorFactories = append(processorFactories, extraFactories.GetProcessors()...)
 		processors, err := otelcol.MakeFactoryMap(processorFactories...)
 		if err != nil {
@@ -178,8 +218,8 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 		}
 
 		return otelcol.Factories{
-			Receivers:  recvMap,
-			Exporters:  expMap,
+			Receivers:  receivers,
+			Exporters:  exporters,
 			Processors: processors,
 			Extensions: extensions,
 			Telemetry:  otelconftelemetry.NewFactory(),

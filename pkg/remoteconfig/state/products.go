@@ -45,6 +45,7 @@ var validProducts = map[string]struct{}{
 	ProductBTFDD:                        {},
 	ProductFFEFlags:                     {},
 	ProductAgentFlags:                   {},
+	ProductDOQueryActions:               {},
 }
 
 const (
@@ -127,4 +128,6 @@ const (
 	ProductFFEFlags = "FFE_FLAGS"
 	// ProductAgentFlags is used for remote feature flags
 	ProductAgentFlags = "AGENT_FLAGS"
+	// ProductDOQueryActions is used for executing database queries remotely for Data Observability
+	ProductDOQueryActions = "DO_QUERY_ACTIONS"
 )

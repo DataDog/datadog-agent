@@ -79,7 +79,8 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/rcstatusimpl"
+	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -207,7 +208,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
-				rctelemetryreporterimpl.Module(),
+				rcstatusimpl.Module(),
+				rctelemetryreporterfx.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
 						Port:           config.GetInt("health_port"),
@@ -596,6 +598,7 @@ func start(log log.Component,
 			patchCtx := admissionpatch.ControllerContext{
 				LeadershipStateSubscribeFunc: le.Subscribe,
 				K8sClient:                    apiCl.Cl,
+				DynamicClient:                apiCl.DynamicCl,
 				RcClient:                     rcClient,
 				ClusterName:                  clusterName,
 				ClusterID:                    clusterID,
