@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package dockerlogsrotation provides a health check for Docker container log rotation issues.
-// It detects when the agent is collecting Docker logs via socket-based tailing while
-// log rotation is enabled, which can cause log gaps or complete collection failures.
+// Package dockerlogsrotation provides the issue module for Docker container log rotation risk.
+// Detection happens in-workflow: when the Docker log reader initializes in socket-based mode,
+// it calls ReportIssue() directly, rather than relying on a periodic background check.
 package dockerlogsrotation
 
 import "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
@@ -17,12 +17,6 @@ func init() {
 const (
 	// IssueID is the unique identifier for Docker log rotation risk issues
 	IssueID = "docker-logs-rotation-risk"
-
-	// CheckID is the unique identifier for the built-in health check
-	CheckID = "docker-logs-rotation-config"
-
-	// CheckName is the human-readable name for the health check
-	CheckName = "Docker Container Log Rotation Configuration"
 )
 
 // module implements issues.Module
@@ -47,12 +41,9 @@ func (m *module) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns the built-in health check configuration
-// Interval is 0 to use the default (15 minutes)
+// BuiltInCheck returns nil because detection happens in-workflow:
+// the Docker log rotation risk is reported via ReportIssue() when the
+// Docker log reader initializes in socket-based mode.
 func (m *module) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
-		ID:      CheckID,
-		Name:    CheckName,
-		CheckFn: Check,
-	}
+	return nil
 }
