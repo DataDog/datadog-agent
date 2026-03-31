@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
