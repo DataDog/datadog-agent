@@ -184,6 +184,8 @@ func (c *Check) Run() error {
 			ManifestProducer: true,
 			Kind:             kubernetes.PodKind,
 			APIVersion:       utilTypes.PodVersion,
+			CollectorGroup:   utilTypes.PodGroup,
+			CollectorName:    utilTypes.PodName,
 			CollectorTags:    []string{"kube_api_version:" + utilTypes.PodVersion},
 			AgentVersion:     c.agentVersion,
 		},
