@@ -29,7 +29,7 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 
 	ctx, ok := e.GetContextByKey(res.Metrics[0].ContextKey)
 	require.True(t, ok)
-	assert.Equal(t, "log_pattern_extractor", ctx.Source)
+	assert.Equal(t, LogPatternExtractorName, ctx.Source)
 	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
 	assert.NotEmpty(t, ctx.Pattern)
 }

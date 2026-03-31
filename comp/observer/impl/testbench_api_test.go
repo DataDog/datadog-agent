@@ -126,14 +126,14 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 	var logPatternSeen bool
 	for _, s := range body {
 		switch s.Namespace {
-		case "log_pattern_extractor":
+		case LogPatternExtractorName:
 			logPatternSeen = true
-			assert.True(t, s.Virtual, "log_pattern_extractor series should be virtual")
+			assert.True(t, s.Virtual, LogPatternExtractorName+" series should be virtual")
 		case "full":
 			assert.False(t, s.Virtual, "non-extractor namespace should not be virtual")
 		}
 	}
-	require.True(t, logPatternSeen, "expected at least one log_pattern_extractor series in /api/series")
+	require.True(t, logPatternSeen, "expected at least one "+LogPatternExtractorName+" series in /api/series")
 }
 
 // Telemetry counters used to be listed as avg+count+sum with identical tags, which produced three

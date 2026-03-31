@@ -110,7 +110,7 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: true,
 			},
 			{
-				name:           "log_pattern_extractor",
+				name:           LogPatternExtractorName,
 				displayName:    "Log Pattern Extractor",
 				kind:           componentExtractor,
 				defaultConfig:  DefaultLogPatternExtractorConfig(),

@@ -1540,7 +1540,7 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	ci, ok := tb.components["log_pattern_extractor"]
+	ci, ok := tb.components[LogPatternExtractorName]
 	if !ok {
 		return []LogPatternInfo{}
 	}
@@ -1595,7 +1595,7 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 func (tb *TestBench) getLogPatternExtractor() *LogPatternExtractor {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	ci, ok := tb.components["log_pattern_extractor"]
+	ci, ok := tb.components[LogPatternExtractorName]
 	if !ok {
 		return nil
 	}

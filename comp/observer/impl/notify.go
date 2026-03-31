@@ -67,7 +67,7 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 			}
 			// If this metric is a log related one, find its pattern and create a custom message
 			// TODO(celian): When this will be split by tags, add tags to the description. Then be sure that we don't have twice (pattern, tags) tuples
-			if a.Source.Namespace == "log_pattern_extractor" && pattern != "" {
+			if a.Source.Namespace == LogPatternExtractorName && pattern != "" {
 				var example string
 				if a.Context.Example != "" {
 					example = "\tlog example: " + strings.TrimSpace(a.Context.Example)

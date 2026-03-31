@@ -13,6 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
 
+// LogPatternExtractorName is the canonical name for the log pattern extractor.
+// It is used as the storage namespace for emitted metrics, as the component
+// name in the catalog, and as a lookup key in notify and filter logic.
+const LogPatternExtractorName = "log_pattern_extractor"
+
 // defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
 // inside a cluster (pattern) before we emit a metric.
 const defaultMinClusterSizeBeforeEmitMetrics = 5
@@ -67,7 +72,7 @@ func NewLogPatternExtractor() *LogPatternExtractor {
 
 // Name returns the extractor name.
 func (e *LogPatternExtractor) Name() string {
-	return "log_pattern_extractor"
+	return LogPatternExtractorName
 }
 
 // Reset clears clustering and cached per-series context so reanalysis starts

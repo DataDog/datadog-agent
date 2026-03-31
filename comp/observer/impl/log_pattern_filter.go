@@ -48,7 +48,7 @@ func (f *logPatternRateFilter) Name() string {
 // Anomalies that lack DebugInfo (no rate information) are passed through
 // to avoid silently dropping detections from detectors that do not populate it.
 func (f *logPatternRateFilter) ShouldFilterOut(a observerdef.Anomaly) bool {
-	if a.Source.Namespace != "log_pattern_extractor" {
+	if a.Source.Namespace != LogPatternExtractorName {
 		return false
 	}
 	if a.DebugInfo == nil {

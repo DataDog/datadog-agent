@@ -354,7 +354,7 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 
 	e.enrichAnomaly(&anomaly)
 	require.NotNil(t, anomaly.Context)
-	assert.Equal(t, "log_pattern_extractor", anomaly.Context.Source)
+	assert.Equal(t, LogPatternExtractorName, anomaly.Context.Source)
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
 	assert.Contains(t, anomaly.Context.Pattern, "*")
 	assert.NotContains(t, anomaly.Context.Example, "456")

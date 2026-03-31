@@ -24,7 +24,7 @@ const (
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
 
 	// Log pattern extractor — counter: delta (new clusters) per processed log
-	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
+	telemetryLogPatternExtractorPatternCount = "observer." + LogPatternExtractorName + ".pattern_count"
 )
 
 // This is used to:
