@@ -4953,5 +4953,6 @@ api_key:
 #   # for the list of available actions.
 #
 #   actions_allowlist:
-#     - com.datadoghq.script.runPredefinedScript
+#     - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
+#     - com.datadoghq.script.runPredefinedScript                       # on Linux and Darwin
 {{ end -}}
