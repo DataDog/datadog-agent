@@ -14,10 +14,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const defaultBaseController = "memory"
+
 func rescueEventWithProcfs(entry *events.Process) *events.Process {
-	cid, _ := cgroups.IdentiferFromCgroupReferences("/proc", strconv.FormatUint(uint64(entry.Pid), 10), "", cgroups.ContainerFilter)
+	pid := strconv.FormatUint(uint64(entry.Pid), 10)
+	procRoot := kernel.ProcFSRoot()
+
+	// Try cgroup v2 first (controller ""), then fall back to v1 ("memory").
+	cid, _ := cgroups.IdentiferFromCgroupReferences(procRoot, pid, "", cgroups.ContainerFilter)
+	if cid == "" {
+		cid, _ = cgroups.IdentiferFromCgroupReferences(procRoot, pid, defaultBaseController, cgroups.ContainerFilter)
+	}
 	if cid != "" {
 		entry.ContainerID = intern.GetByString(cid)
 		return entry
