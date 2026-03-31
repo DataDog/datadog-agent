@@ -86,6 +86,46 @@ func compileBPF(linkType int, snaplen int, expr string, optimize bool) ([]RawIns
 	return raw, nil
 }
 
+// CaptureInfo contains metadata about a captured packet.
+// This is a minimal version of gopacket.CaptureInfo with only
+// the fields needed for BPF matching.
+type CaptureInfo struct {
+	// Timestamp is the time the packet was captured.
+	Timestamp interface{} // any type — not used by the BPF interpreter
+	// CaptureLength is the number of bytes captured.
+	CaptureLength int
+	// Length is the original packet length on the wire.
+	Length int
+}
+
+// BPF is a compiled BPF filter that can match packets.
+// Drop-in replacement for gopacket/pcap.BPF.
+type BPF struct {
+	insns []bpf.Instruction
+}
+
+// NewBPF compiles a BPF filter expression and returns a matcher.
+// Drop-in replacement for gopacket/pcap.NewBPF.
+func NewBPF(linkType int, snaplen int, expr string) (*BPF, error) {
+	prog, err := CompileToProgram(linkType, snaplen, expr)
+	if err != nil {
+		return nil, err
+	}
+	return &BPF{insns: prog.Instructions}, nil
+}
+
+// Matches returns true if the packet data matches the compiled filter.
+// ci provides packet metadata (Length is the wire length).
+// data is the captured packet bytes.
+func (b *BPF) Matches(ci CaptureInfo, data []byte) bool {
+	wirelen := uint32(ci.Length)
+	if wirelen == 0 {
+		wirelen = uint32(len(data))
+	}
+	ret := bpf.Filter(b.insns, data, wirelen)
+	return ret != 0
+}
+
 // CompileToProgram compiles a filter expression to a bpf.Program.
 func CompileToProgram(linkType int, snaplen int, expr string) (*bpf.Program, error) {
 	raw, err := CompileBPFFilter(linkType, snaplen, expr)

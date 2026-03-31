@@ -34,6 +34,10 @@ import "github.com/DataDog/datadog-agent/pkg/libpcap"
 // Compile a filter to BPF instructions
 insns, err := libpcap.CompileBPFFilter(libpcap.LinkTypeEthernet, 256, "tcp dst port 80")
 
+// Compile and match packets
+filter, err := libpcap.NewBPF(libpcap.LinkTypeEthernet, 256, "tcp dst port 80")
+ok := filter.Matches(libpcap.CaptureInfo{Length: len(pkt)}, pkt)
+
 // Compile and get a human-readable dump
 dump, err := libpcap.DumpFilter(libpcap.LinkTypeEthernet, 256, "tcp dst port 80")
 ```
@@ -114,7 +118,7 @@ They are planned for future implementation.
 | **Memory management** | Custom chunked allocator (`newchunk`) | Go garbage collector |
 | **Name resolution** | `gethostbyname`, `getaddrinfo`, `/etc/protocols`, `/etc/ethers` | Go `net.LookupIP`, `net.LookupPort`, built-in protocol table |
 | **Optimizer** | Full optimizer (dead code elimination, constant folding, jump optimization) | Full optimizer — 49/52 corpus filters produce instruction-identical optimized output |
-| **Matching API** | `pcap_offline_filter()`, `BPF.Matches()` | Not yet implemented (Phase 4) — `bpf.Filter()` interpreter exists |
+| **Matching API** | `pcap_offline_filter()`, `BPF.Matches()` | `NewBPF()` + `BPF.Matches()` using `bpf.Filter()` interpreter |
 | **Link types** | ~60 DLT types | Ethernet (`DLT_EN10MB`), loopback, Linux cooked, raw IP |
 | **Unoptimized output** | Compact shortcuts for common patterns | General-purpose register-based form for byte access/arithmetic (optimizer eliminates the differences) |
 | **Thread safety** | Reentrant parser via Flex/Bison options | Naturally safe (no global state) |
@@ -166,7 +170,7 @@ go generate ./pkg/libpcap/grammar/
 | 1. Foundation (bpf/, test harness) | Complete |
 | 2. Compiler pipeline (scanner, grammar, codegen, linearizer) | Complete |
 | 3. Optimizer | Complete |
-| 4. Matching API (`NewBPF`, `Matches`) | Not started |
+| 4. Matching API (`NewBPF`, `Matches`) | Complete |
 | 5. Integration (switch agent consumers) | Not started |
 | 6. Cleanup (remove gopacket/pcap dep) | Not started |
 
