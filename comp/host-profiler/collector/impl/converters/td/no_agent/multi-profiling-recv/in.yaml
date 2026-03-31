@@ -1,11 +1,11 @@
 receivers:
-  hostprofiler:
+  profiling:
     symbol_uploader:
       enabled: true
       symbol_endpoints:
       - api_key: 11111
         app_key: 22222
-  hostprofiler/custom:
+  profiling/custom:
     symbol_uploader:
       enabled: true
       symbol_endpoints:
@@ -16,8 +16,8 @@ service:
     profiles:
       processors: []
       receivers:
-      - hostprofiler
-      - hostprofiler/custom
+      - profiling
+      - profiling/custom
       exporters:
       - otlphttp
 exporters:

@@ -116,6 +116,13 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
 
+	// Same max message size as core agent AgentSecure gRPC (impl-agent.BuildServer).
+	maxMsgSize := pkgconfigsetup.Datadog().GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	opts = append(opts, grpc.WithDefaultCallOptions(
+		grpc.MaxCallRecvMsgSize(maxMsgSize),
+		grpc.MaxCallSendMsgSize(maxMsgSize),
+	))
+
 	log.Infof("initializing remote collector with address: %s", address)
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
