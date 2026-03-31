@@ -61,8 +61,6 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
-	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
-	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/score", api.cors(api.handleScore))
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
@@ -1157,30 +1155,6 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 	}
 
 	api.writeJSON(w, response)
-}
-
-// handleLeadLag returns lead-lag edges.
-func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, _ *http.Request) {
-	edges, enabled := api.tb.GetLeadLagEdges()
-	if edges == nil {
-		edges = []LeadLagEdge{}
-	}
-	api.writeJSON(w, map[string]interface{}{
-		"enabled": enabled,
-		"edges":   edges,
-	})
-}
-
-// handleSurprise returns surprise edges.
-func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, _ *http.Request) {
-	edges, enabled := api.tb.GetSurpriseEdges()
-	if edges == nil {
-		edges = []SurpriseEdge{}
-	}
-	api.writeJSON(w, map[string]interface{}{
-		"enabled": enabled,
-		"edges":   edges,
-	})
 }
 
 // handleStats returns correlator statistics.

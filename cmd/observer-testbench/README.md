@@ -53,8 +53,6 @@ Components are controlled via `--enable` and `--disable` using their names.
 | Name | Default | Description |
 |------|---------|-------------|
 | `time_cluster` | enabled | Groups anomalies that occur close together in time |
-| `lead_lag` | disabled | Finds temporal causality (which sources consistently precede others) |
-| `surprise` | disabled | Finds lift-based patterns (sources that co-occur more/less than expected) |
 
 ## Examples
 
@@ -62,13 +60,9 @@ Components are controlled via `--enable` and `--disable` using their names.
 # Run with all defaults
 ./observer-testbench --scenarios-dir ./comp/observer/scenarios
 
-# Enable lead-lag correlator
-./observer-testbench --scenarios-dir ./comp/observer/scenarios \
-  --enable lead_lag
-
 # Only CUSUM + TimeCluster (disable everything else)
 ./observer-testbench --scenarios-dir ./comp/observer/scenarios \
-  --disable bocpd,lead_lag,surprise
+  --disable bocpd
 
 # Run on a different port
 ./observer-testbench --scenarios-dir ./comp/observer/scenarios \
@@ -111,7 +105,7 @@ my-scenarios/
   --output results.json \
   --scenarios-dir ./path/to/scenarios \
   --enable cusum,time_cluster \
-  --disable bocpd,lead_lag,surprise
+  --disable bocpd
 ```
 
 ### Output Format
@@ -204,8 +198,6 @@ These endpoints are available in interactive mode (not headless).
 | GET | `/api/reports` | Datadog-style report events (same payload as headless `reports` JSON) |
 | GET | `/api/correlations/compressed` | Get compressed correlation outputs |
 | GET | `/api/correlators/{name}` | Get data for a specific correlator |
-| GET | `/api/leadlag` | Get LeadLag edges (if enabled) |
-| GET | `/api/surprise` | Get Surprise edges (if enabled) |
 | GET | `/api/stats` | Correlator statistics |
 
 ## UI Features
@@ -215,8 +207,6 @@ These endpoints are available in interactive mode (not headless).
 - **Series Tree**: Browse and select time series to visualize
 - **Aggregation Types**: Switch between avg, count, sum, min, max views
 - **Time Clusters**: View correlated anomaly groups
-- **Lead-Lag Edges**: See temporal causality relationships
-- **Surprise Patterns**: View unexpected co-occurrence patterns
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison
 - **Reports**: Datadog-style incident events on a zoomable timeline (same gestures as Logs); hover a row to highlight the span on the chart

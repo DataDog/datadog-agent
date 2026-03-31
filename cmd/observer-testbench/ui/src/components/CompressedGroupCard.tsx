@@ -3,8 +3,6 @@ import type { CompressedGroup } from '../api/client';
 // Correlator badge colors
 const CORRELATOR_COLORS: Record<string, string> = {
   time_cluster: '#8b5cf6',
-  lead_lag: '#3b82f6',
-  surprise: '#f59e0b',
 };
 
 function getCorrelatorColor(name: string): string {

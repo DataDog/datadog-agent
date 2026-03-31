@@ -198,25 +198,7 @@ export interface ReportEvent {
   formattedTime: string;
 }
 
-// Lead-Lag edge represents temporal causality between sources
-export interface LeadLagEdge {
-  leader: SeriesID;
-  follower: SeriesID;
-  typical_lag: number;  // Seconds
-  confidence: number;   // 0-1
-  observations: number;
-}
 
-// Surprise edge represents unexpected co-occurrence (high lift)
-export interface SurpriseEdge {
-  source1: SeriesID;
-  source2: SeriesID;
-  lift: number;
-  support: number;         // Number of co-occurrences
-  source1_count: number;   // Total anomalies from source1
-  source2_count: number;   // Total anomalies from source2
-  is_surprising: boolean;  // true if lift > MinLift
-}
 
 // Compressed group description from trie-based metric compression
 export interface MetricPattern {
@@ -398,15 +380,6 @@ class ApiClient {
 
   async getComponentData(name: string): Promise<ComponentDataResponse> {
     return this.fetch(`/components/${encodeURIComponent(name)}/data`);
-  }
-
-  // Legacy endpoints (thin wrappers for backward compat)
-  async getLeadLag(): Promise<{ enabled: boolean; edges: LeadLagEdge[] }> {
-    return this.fetch('/leadlag');
-  }
-
-  async getSurprise(): Promise<{ enabled: boolean; edges: SurpriseEdge[] }> {
-    return this.fetch('/surprise');
   }
 
   async getCompressedCorrelations(threshold?: number): Promise<CompressedGroup[]> {

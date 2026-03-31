@@ -29,7 +29,7 @@ type ReportedEvent struct {
 // It tracks which patterns are currently active and appends a new ReportedEvent
 // each time a pattern first appears or reappears after going inactive — exactly
 // matching the live EventReporter semantics, including repeated incidents for
-// stable pattern names (cross-signal, lead-lag, surprise).
+// stable pattern names.
 type replayReporter struct {
 	seenPatterns map[string]bool
 	events       []ReportedEvent

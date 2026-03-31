@@ -24,18 +24,22 @@ type ScoreInput struct {
 
 // ScoreResult contains the Gaussian F1 scoring output.
 type ScoreResult struct {
-	F1                   float64 `json:"f1"`
-	Precision            float64 `json:"precision"`
-	Recall               float64 `json:"recall"`
-	TP                   float64 `json:"tp"`
-	FP                   float64 `json:"fp"`
-	FN                   float64 `json:"fn"`
-	NumPredictions       int     `json:"num_predictions"`
-	NumGroundTruths      int     `json:"num_ground_truths"`
-	NumFilteredWarmup    int     `json:"num_filtered_warmup"`
-	NumFilteredCascading int     `json:"num_filtered_cascading"`
-	NumBaselineFPs       int     `json:"num_baseline_fps"`
-	Sigma                float64 `json:"sigma"`
+	F1                      float64 `json:"f1"`
+	Precision               float64 `json:"precision"`
+	Recall                  float64 `json:"recall"`
+	TP                      float64 `json:"tp"`
+	FP                      float64 `json:"fp"`
+	FN                      float64 `json:"fn"`
+	NumPredictions          int     `json:"num_predictions"`
+	NumGroundTruths         int     `json:"num_ground_truths"`
+	NumFilteredWarmup       int     `json:"num_filtered_warmup"`
+	NumFilteredCascading    int     `json:"num_filtered_cascading"`
+	NumBaselineFPs          int     `json:"num_baseline_fps"`
+	Sigma                   float64 `json:"sigma"`
+	BaselineDurationSeconds int64   `json:"baseline_duration_seconds"`
+	// Alpha is the false positive rate during the baseline phase:
+	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
+	Alpha float64 `json:"alpha"`
 }
 
 // ComputeGaussianF1 scores predicted anomaly events against ground truth events
@@ -50,6 +54,7 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		NumPredictions:  len(input.PredictionTimestamps),
 		NumGroundTruths: len(input.GroundTruthTimestamps),
 		Sigma:           input.Sigma,
+		Alpha:           -1, // not computable without baseline duration; set by ScoreOutputFile
 	}
 
 	if len(input.PredictionTimestamps) == 0 && len(input.GroundTruthTimestamps) == 0 {
@@ -213,6 +218,7 @@ func scoreGaussianPDF(x, sigma float64) float64 {
 type scenarioMetadata struct {
 	Baseline struct {
 		Start string `json:"start"`
+		End   string `json:"end"`
 	} `json:"baseline"`
 	Disruption struct {
 		Start string `json:"start"`
@@ -223,6 +229,7 @@ type scenarioMetadata struct {
 type scoringMetadata struct {
 	groundTruthTimestamps []int64
 	baselineStart         int64 // 0 if not available
+	baselineEnd           int64 // 0 if not available
 }
 
 // loadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
@@ -259,6 +266,14 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		result.baselineStart = bt.Unix()
 	}
 
+	if meta.Baseline.End != "" {
+		et, err := time.Parse(time.RFC3339, meta.Baseline.End)
+		if err != nil {
+			return nil, fmt.Errorf("parsing baseline.end %q: %w", meta.Baseline.End, err)
+		}
+		result.baselineEnd = et.Unix()
+	}
+
 	return result, nil
 }
 
@@ -281,8 +296,8 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, fmt.Errorf("parsing output JSON: %w", err)
 	}
 
-	// Load metadata if needed (for ground truth and/or baseline start).
-	var baselineStart int64
+	// Load metadata if needed (for ground truth and/or baseline start/end).
+	var baselineStart, baselineEnd int64
 	if scenariosDir != "" && output.Metadata.Scenario != "" {
 		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
 		if err != nil {
@@ -295,6 +310,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 				groundTruthTimestamps = sm.groundTruthTimestamps
 			}
 			baselineStart = sm.baselineStart
+			baselineEnd = sm.baselineEnd
 		}
 	}
 
@@ -335,6 +351,14 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumBaselineFPs = numBaselineFPs
+
+	// Alpha: FP rate during baseline = num_baseline_fps / baseline_duration_seconds.
+	if baselineStart > 0 && baselineEnd > baselineStart {
+		result.BaselineDurationSeconds = baselineEnd - baselineStart
+		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)
+	} else {
+		result.Alpha = -1
+	}
 
 	return &result, nil
 }
