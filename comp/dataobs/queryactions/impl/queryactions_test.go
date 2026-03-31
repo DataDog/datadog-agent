@@ -58,7 +58,7 @@ func newStreamComponent(t *testing.T, postgresConfigs []integration.Config) (*co
 		log:           logmock.New(t),
 		ac:            newMockAutodiscovery(t, postgresConfigs),
 		rcclient:      rc,
-		activeConfigs: make(map[string]integration.Config),
+		activeConfigs: make(map[string]activeConfigEntry),
 	}
 	return c, rc
 }
@@ -113,11 +113,11 @@ func TestStream_ContextCancel_ClosesChannel(t *testing.T) {
 }
 
 func TestStream_SubscribesImmediatelyWhenPostgresAvailable(t *testing.T) {
-	// When postgres is already configured, Stream() must subscribe to RC without waiting
-	// for the 10-second polling ticker.
+	// When postgres is already configured with data_observability.enabled, Stream() must
+	// subscribe to RC without waiting for the 10-second polling ticker.
 	postgresCfg := integration.Config{
 		Name:      "postgres",
-		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\n")},
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -150,7 +150,7 @@ func TestStream_NoPostgresAvailable_DoesNotSubscribeImmediately(t *testing.T) {
 func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name:      "postgres",
-		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\n")},
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -170,7 +170,7 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 	select {
 	case changes := <-outCh:
 		require.Len(t, changes.Schedule, 1)
-		assert.Equal(t, "do_query_actions", changes.Schedule[0].Name)
+		assert.Equal(t, "postgres", changes.Schedule[0].Name)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for ConfigChanges from RC callback")
 	}
@@ -187,8 +187,8 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name: "postgres",
 		Instances: []integration.Data{
-			integration.Data("host: localhost\ndbname: db-a\n"),
-			integration.Data("host: localhost\ndbname: db-b\n"),
+			integration.Data("host: localhost\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: localhost\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
 		},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
@@ -208,24 +208,22 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	update1 := <-outCh
 	require.Len(t, update1.Schedule, 1, "update 1 should schedule cfg-A")
 
-	// Update 2: remove cfg-A (empty queries = unschedule). Channel is now empty — writes directly.
+	// Update 2: remove cfg-A (empty queries = disable). Channel is now empty — writes directly.
+	// With the new semantics, disabling schedules a config with data_observability.enabled: false.
 	removeA, _ := json.Marshal(DOQueryPayload{ConfigID: "cfg-A"})
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: removeA}}, noStatus)
-	// DON'T read outCh — leave update 2 ({Unschedule: [cfg-A]}) buffered.
+	// DON'T read outCh — leave update 2 ({Schedule: [cfg-A-disable]}) buffered.
 
 	// Update 3: schedule cfg-B. Channel is FULL with update 2.
 	// sendChanges must drain the full channel and merge update 2's Unschedule into update 3.
 	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", "db-b", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
-	// The merged result must contain cfg-B's Schedule AND cfg-A's Unschedule.
-	// Without the merge, the Unschedule(cfg-A) would be silently dropped and cfg-A
-	// would remain scheduled in autodiscovery forever.
+	// The merged result must contain cfg-B's Schedule AND cfg-A's disable Schedule.
 	select {
 	case changes := <-outCh:
-		require.Len(t, changes.Schedule, 1, "cfg-B should be scheduled")
-		assert.Equal(t, "do_query_actions", changes.Schedule[0].Name)
-		require.Len(t, changes.Unschedule, 1, "cfg-A Unschedule must not be lost in the channel replace")
+		require.Len(t, changes.Schedule, 2, "should contain cfg-A disable + cfg-B schedule")
+		assert.Empty(t, changes.Unschedule, "no Unschedule entries expected with disable semantics")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for merged ConfigChanges")
 	}
@@ -236,7 +234,7 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 func TestStream_NoPanicAfterContextCancel(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name:      "postgres",
-		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\n")},
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
 	ctx, cancel := context.WithCancel(context.Background())
