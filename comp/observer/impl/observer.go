@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -257,6 +258,30 @@ func NewComponent(deps Requires) Provides {
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+
+		// Record detect digests and advance log alongside parquet for parity debugging.
+		parquetDir := cfg.GetString("observer.recording.parquet_output_dir")
+		if parquetDir != "" {
+			digestPath := filepath.Join(parquetDir, detectDigestFileName)
+			cleanup, err := enableDetectDigestRecordingToFile(eng, digestPath)
+			if err != nil {
+				deps.Log.Warnf("[observer] detect digest recording disabled: %v", err)
+			} else {
+				obs.digestCleanup = cleanup
+			}
+
+			advPath := filepath.Join(parquetDir, advanceLogFileName)
+			advRec, err := newAdvanceLogRecorder(advPath)
+			if err != nil {
+				deps.Log.Warnf("[observer] advance log recording disabled: %v", err)
+			} else {
+				eng.onAdvance = advRec.record
+				obs.advanceLogCleanup = func() {
+					eng.onAdvance = nil
+					advRec.close()
+				}
+			}
+		}
 	}
 
 	// Optionally add the event reporter when sending is enabled via config.
@@ -404,7 +429,9 @@ type observerImpl struct {
 	// fetcher pulls traces/profiles from remote trace-agents
 	fetcher *observerFetcher
 
-	telemetryHandler *telemetryHandler
+	telemetryHandler    *telemetryHandler
+	digestCleanup      func() // flushes detect digest recording file
+	advanceLogCleanup  func() // flushes advance log recording file
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -583,7 +610,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 
 // innerHandle creates the base handle without any middleware wrapping.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	return &handle{ch: o.obsCh, source: name}
+	return &handle{ch: o.obsCh, source: name, dropCount: &o.engine.droppedObs}
 }
 
 // noopHandle returns a handle that discards all observations.
@@ -611,8 +638,9 @@ func (o *observerImpl) DumpMetrics(path string) error {
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	ch     chan<- observation
-	source string
+	ch         chan<- observation
+	source     string
+	dropCount  *atomic.Int64 // shared counter for channel-full drops (nil = don't track)
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -640,11 +668,12 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	}
 
 	// Non-blocking send - drop if channel is full.
-	// In production, this prevents slow consumers from blocking data ingestion.
-	// For demo comparison, this means faster correlators see more data.
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
 	}
 }
 
@@ -668,6 +697,9 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
 	}
 }
 
@@ -718,6 +750,9 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
 	}
 }
 
@@ -754,6 +789,9 @@ func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
 	}
 }
 

@@ -395,10 +395,56 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
+	// Check for parity debugging files from a live recording.
+	var digestComp *detectDigestComparator
+	var advComp *advanceLogComparator
+
+	// Detection digest comparison.
+	digestPath := filepath.Join(scenarioPath, detectDigestFileName)
+	if _, err := os.Stat(digestPath); os.IsNotExist(err) {
+		digestPath = filepath.Join(scenarioPath, "parquet", detectDigestFileName)
+	}
+	if _, statErr := os.Stat(digestPath); statErr == nil {
+		comp, loadErr := newDetectDigestComparator(digestPath)
+		if loadErr != nil {
+			fmt.Printf("[testbench] WARNING: failed to load detection digest: %v\n", loadErr)
+		} else {
+			digestComp = comp
+			tb.engine.enableDetectDigestRecording(comp.compare)
+			fmt.Printf("[testbench] Detection digest comparison enabled (%d live digests loaded)\n", len(comp.expected))
+		}
+	}
+
+	// Advance log comparison.
+	advPath := filepath.Join(scenarioPath, advanceLogFileName)
+	if _, err := os.Stat(advPath); os.IsNotExist(err) {
+		advPath = filepath.Join(scenarioPath, "parquet", advanceLogFileName)
+	}
+	if _, statErr := os.Stat(advPath); statErr == nil {
+		comp, loadErr := newAdvanceLogComparator(advPath)
+		if loadErr != nil {
+			fmt.Printf("[testbench] WARNING: failed to load advance log: %v\n", loadErr)
+		} else {
+			advComp = comp
+			tb.engine.onAdvance = advComp.compare
+			fmt.Printf("[testbench] Advance log comparison enabled (%d live advances loaded)\n", len(comp.liveAdvances))
+		}
+	}
+
 	// Run analyses on all loaded data (detectors sync, correlators async)
 	analysisStart := time.Now()
 	tb.rerunDetectorsLocked()
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
+
+	// Print parity debugging summaries.
+	if advComp != nil {
+		advComp.printSummary()
+		tb.engine.onAdvance = nil
+	}
+	if digestComp != nil {
+		digestComp.printSummary()
+		tb.engine.enableDetectDigestRecording(nil)
+	}
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 	rs := tb.replayStats
 	fmt.Printf("Scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
@@ -435,19 +481,11 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	// Batch add all metrics to storage
 	for _, m := range metrics {
-		// Strip aggregation suffix from metric name (e.g., ":avg", ":count")
 		metricName := m.Name
 
 		// filter internal Datadog Agent telemetry
 		if strings.HasPrefix(metricName, "datadog.") {
 			continue
-		}
-
-		if idx := strings.LastIndex(metricName, ":"); idx != -1 {
-			suffix := metricName[idx+1:]
-			if suffix == "avg" || suffix == "count" || suffix == "sum" || suffix == "min" || suffix == "max" {
-				metricName = metricName[:idx]
-			}
 		}
 
 		byTimestampCounter[m.Timestamp]++
