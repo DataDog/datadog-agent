@@ -293,7 +293,7 @@ func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidati
 }
 
 func testCwsEnabled(t assert.TestingT, ts testSuite) {
-	query := fmt.Sprintf("SELECT hostname, enabled_features->'cws' AS feature_cws_enabled FROM dd.datadog_agents WHERE hostname = '%s' AND enabled_features->'cws' = 'true'", ts.Hostname())
+	query := fmt.Sprintf("SELECT hostname, enabled_features['cws'] AS feature_cws_enabled FROM dd.datadog_agents WHERE hostname = '%s' AND enabled_features['cws'] = 'true'", ts.Hostname())
 	resp, err := ts.Client().TableQuery(query)
 	if !assert.NoErrorf(t, err, "ddsql query failed") {
 		return
@@ -315,7 +315,7 @@ func testCwsEnabled(t assert.TestingT, ts testSuite) {
 		},
 		{
 			name:          "feature_cws_enabled",
-			expectedValue: true,
+			expectedValue: "true",
 		},
 	}
 
