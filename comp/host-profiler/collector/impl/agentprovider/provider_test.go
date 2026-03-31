@@ -210,6 +210,21 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/infer-dc-add-ep/agent.yaml",
 			expectedOTel: "provider/infer-dc-add-ep/otel.yaml",
 		},
+		{
+			name:         "debug-enabled",
+			agentConfig:  "provider/debug-enabled/agent.yaml",
+			expectedOTel: "provider/debug-enabled/otel.yaml",
+		},
+		{
+			name:         "debug-disabled",
+			agentConfig:  "provider/debug-disabled/agent.yaml",
+			expectedOTel: "provider/debug-disabled/otel.yaml",
+		},
+		{
+			name:         "debug-multi-field",
+			agentConfig:  "provider/debug-multi-field/agent.yaml",
+			expectedOTel: "provider/debug-multi-field/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {
