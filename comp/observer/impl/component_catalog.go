@@ -14,6 +14,7 @@ const (
 	componentDetector componentKind = iota
 	componentCorrelator
 	componentExtractor
+	componentFilter
 )
 
 // componentEntry describes a registered pipeline component.
@@ -80,7 +81,7 @@ type ComponentSettings struct {
 //
 //	catalog := defaultCatalog()
 //	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
-//	detectors, correlators, extractors, components := catalog.Instantiate(settings)
+//	detectors, correlators, extractors, filters, components := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
@@ -156,6 +157,14 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
+			// ---- Filters ----
+			{
+				name:           "log_pattern_rate_filter",
+				displayName:    "Log Pattern Rate Filter",
+				kind:           componentFilter,
+				factory:        func(any) any { return NewLogPatternRateFilter() },
+				defaultEnabled: true,
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
@@ -192,6 +201,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	detectors []observerdef.Detector,
 	correlators []observerdef.Correlator,
 	extractors []observerdef.LogMetricsExtractor,
+	filters []observerdef.DetectorFilter,
 	components map[string]*componentInstance,
 ) {
 	components = make(map[string]*componentInstance, len(c.entries))
@@ -234,9 +244,13 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			if ext, ok := instance.(observerdef.LogMetricsExtractor); ok {
 				extractors = append(extractors, ext)
 			}
+		case componentFilter:
+			if f, ok := instance.(observerdef.DetectorFilter); ok {
+				filters = append(filters, f)
+			}
 		}
 	}
-	return detectors, correlators, extractors, components
+	return detectors, correlators, extractors, filters, components
 }
 
 // CatalogEntry is a public view of a catalog component for CLI use.
@@ -259,8 +273,25 @@ func TestbenchCatalogEntries() []CatalogEntry {
 			kind = "correlator"
 		case componentExtractor:
 			kind = "extractor"
+		case componentFilter:
+			kind = "filter"
 		}
 		result[i] = CatalogEntry{Name: e.name, Kind: kind}
+	}
+	return result
+}
+
+// catalogEnabledFilters returns the enabled DetectorFilter instances from a components map.
+func catalogEnabledFilters(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.DetectorFilter {
+	var result []observerdef.DetectorFilter
+	for _, entry := range catalog.entries {
+		ci, ok := components[entry.name]
+		if !ok || !ci.enabled || ci.entry.kind != componentFilter {
+			continue
+		}
+		if f, ok := ci.instance.(observerdef.DetectorFilter); ok {
+			result = append(result, f)
+		}
 	}
 	return result
 }

@@ -30,14 +30,6 @@ func NewLogPatternRateFilter() observerdef.DetectorFilter {
 	return &logPatternRateFilter{}
 }
 
-// defaultDetectorFilters returns the set of DetectorFilters applied in every
-// engine instance (live observer and testbench replay).
-func defaultDetectorFilters() []observerdef.DetectorFilter {
-	return []observerdef.DetectorFilter{
-		NewLogPatternRateFilter(),
-	}
-}
-
 // Name returns the filter name.
 func (f *logPatternRateFilter) Name() string {
 	return "log_pattern_rate_filter"

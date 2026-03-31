@@ -77,7 +77,7 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
+				_, _, extractors, _, _ := defaultCatalog().Instantiate(benchmarkSettings)
 				storage := newTimeSeriesStorage()
 				e := newEngine(engineConfig{
 					storage:    storage,
@@ -114,7 +114,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
+				_, _, extractors, _, _ := defaultCatalog().Instantiate(benchmarkSettings)
 				storage := newTimeSeriesStorage()
 				e := newEngine(engineConfig{
 					storage:    storage,

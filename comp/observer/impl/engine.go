@@ -579,6 +579,14 @@ func (e *engine) SetDetectors(detectors []observerdef.Detector) {
 	}
 }
 
+// SetDetectorFilters replaces the engine's detector filters.
+func (e *engine) SetDetectorFilters(filters []observerdef.DetectorFilter) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.detectorFilters = filters
+}
+
 // SetCorrelators replaces the engine's correlators.
 func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	e.mu.Lock()

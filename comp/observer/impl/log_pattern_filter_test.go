@@ -166,11 +166,12 @@ func TestEngine_FilteredAnomalyDoesNotEmitEvent(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// defaultDetectorFilters
+// Catalog integration: filters are wired through defaultCatalog
 // ---------------------------------------------------------------------------
 
-func TestDefaultDetectorFilters_ContainsLogPatternRateFilter(t *testing.T) {
-	filters := defaultDetectorFilters()
+func TestCatalog_DefaultFiltersContainLogPatternRateFilter(t *testing.T) {
+	catalog := defaultCatalog()
+	_, _, _, filters, _ := catalog.Instantiate(ComponentSettings{})
 	require.NotEmpty(t, filters)
 
 	var found bool
@@ -180,5 +181,5 @@ func TestDefaultDetectorFilters_ContainsLogPatternRateFilter(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "defaultDetectorFilters should contain log_pattern_rate_filter")
+	assert.True(t, found, "default catalog should produce a log_pattern_rate_filter")
 }

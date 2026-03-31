@@ -185,13 +185,13 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	}
 
 	catalog := defaultCatalog()
-	detectors, correlators, extractors, components := catalog.Instantiate(config.ComponentSettings)
+	detectors, correlators, extractors, filters, components := catalog.Instantiate(config.ComponentSettings)
 
 	eng := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       extractors,
 		detectors:        detectors,
-		detectorFilters:  defaultDetectorFilters(),
+		detectorFilters:  filters,
 		correlators:      correlators,
 		contextProviders: collectContextProviders(extractors),
 		scheduler:        &currentBehaviorPolicy{},
@@ -668,6 +668,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	tb.engine.SetDetectors(catalogEnabledDetectors(tb.components, tb.catalog))
 	tb.engine.SetCorrelators(catalogEnabledCorrelators(tb.components, tb.catalog))
 	tb.engine.SetExtractors(catalogEnabledExtractors(tb.components, tb.catalog))
+	tb.engine.SetDetectorFilters(catalogEnabledFilters(tb.components, tb.catalog))
 	tb.engine.resetFull()
 
 	// Reset ALL components (not just enabled) so disabled ones clear stale state

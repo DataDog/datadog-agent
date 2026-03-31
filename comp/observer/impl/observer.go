@@ -214,13 +214,13 @@ func NewComponent(deps Requires) Provides {
 	cfg := deps.Config
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, extractors, filters, _ := catalog.Instantiate(settings)
 
 	eng := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       extractors,
 		detectors:        detectors,
-		detectorFilters:  defaultDetectorFilters(),
+		detectorFilters:  filters,
 		correlators:      correlators,
 		contextProviders: collectContextProviders(extractors),
 		scheduler:        &currentBehaviorPolicy{},
