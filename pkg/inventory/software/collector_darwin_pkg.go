@@ -8,10 +8,13 @@
 package software
 
 import (
+	"bufio"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,22 +27,41 @@ import (
 // by the applicationsCollector (apps in /Applications), to avoid confusing duplicates.
 type pkgReceiptsCollector struct{}
 
-// pkgFilesCacheEntry holds a cached file list with its timestamp for TTL checking
+// pkgSummary stores compact derived facts from pkgutil --files output.
+// It intentionally avoids retaining full file lists to reduce memory usage.
+type pkgSummary struct {
+	// HasApplicationsApp is true when pkg payload contains an app bundle under /Applications.
+	HasApplicationsApp bool
+	// HasNonAppPayload is true when pkg payload includes likely files outside /Applications app bundles.
+	HasNonAppPayload bool
+	// TopLevelPaths stores deduplicated top-level install directories derived from pkg payload file paths.
+	TopLevelPaths []string
+}
+
+// pkgFilesCacheEntry holds a cached package summary with its timestamp for TTL checking.
 type pkgFilesCacheEntry struct {
-	Files     []string
+	Summary   pkgSummary
 	Timestamp time.Time
 }
 
 // pkgFilesCache holds cached results from pkgutil --files queries
 type pkgFilesCache struct {
-	mu      sync.RWMutex
-	cache   map[string]*pkgFilesCacheEntry // pkgID -> cache entry with files and timestamp
-	ttl     time.Duration                  // Time-to-live for cache entries
-	sfGroup singleflight.Group             // deduplicates fetchPkgFiles per pkgID across goroutines
+	mu             sync.RWMutex
+	cache          map[string]*pkgFilesCacheEntry
+	ttl            time.Duration
+	maxEntries     int
+	fetchSummaryFn func(pkgID, prefixPath string) pkgSummary
+	sfGroup        singleflight.Group
 }
 
 // Default TTL for pkgutil --files cache entries
-const defaultPkgFilesCacheTTL = 1 * time.Hour
+const (
+	defaultPkgFilesCacheTTL      = 1 * time.Hour
+	defaultPkgFilesCacheMaxItems = 512
+	pkgutilFilesCommandTimeout   = 30 * time.Second
+	pkgutilScannerMaxTokenSize   = 2 * 1024 * 1024
+	maxTopLevelPathsPerPackage   = 128
+)
 
 // Global cache instance for pkgutil --files results
 var (
@@ -52,79 +74,134 @@ var (
 func getGlobalPkgFilesCache() *pkgFilesCache {
 	globalCacheOnce.Do(func() {
 		globalPkgFilesCache = &pkgFilesCache{
-			cache: make(map[string]*pkgFilesCacheEntry),
-			ttl:   defaultPkgFilesCacheTTL,
+			cache:      make(map[string]*pkgFilesCacheEntry),
+			ttl:        defaultPkgFilesCacheTTL,
+			maxEntries: defaultPkgFilesCacheMaxItems,
 		}
 	})
 	return globalPkgFilesCache
 }
 
-// get retrieves cached file list for a package, or fetches it if not cached or expired
-func (c *pkgFilesCache) get(pkgID string) []string {
+// makePkgCacheKey builds a stable cache key from package ID and normalized install prefix.
+func makePkgCacheKey(pkgID, prefixPath string) string {
+	normalizedPrefix := strings.TrimSpace(prefixPath)
+	if normalizedPrefix == "/" {
+		return pkgID + "|/"
+	}
+	normalizedPrefix = strings.TrimSuffix(normalizedPrefix, "/")
+	return pkgID + "|" + normalizedPrefix
+}
+
+// get retrieves a cached package summary, or fetches it if not cached or expired.
+func (c *pkgFilesCache) get(pkgID, prefixPath string) pkgSummary {
+	key := makePkgCacheKey(pkgID, prefixPath)
 	now := time.Now()
 
 	// Check cache with read lock
 	c.mu.RLock()
-	entry, ok := c.cache[pkgID]
+	entry, ok := c.cache[key]
 	if ok && entry != nil {
 		// Check if entry is still valid (not expired)
 		age := now.Sub(entry.Timestamp)
 		if age < c.ttl {
 			// Cache hit - entry is valid
-			files := entry.Files
+			summary := entry.Summary
 			c.mu.RUnlock()
-			return files
+			return summary
 		}
 		// Entry exists but is expired - will fetch new data below
 	}
 	c.mu.RUnlock()
 
-	// Not in cache or expired: use singleflight so only one goroutine runs pkgutil per pkgID
-	v, err, _ := c.sfGroup.Do(pkgID, func() (interface{}, error) {
-		files := fetchPkgFiles(pkgID)
+	// Not in cache or expired: use singleflight so only one goroutine runs pkgutil per key.
+	v, err, _ := c.sfGroup.Do(key, func() (interface{}, error) {
+		fetchSummary := c.fetchSummaryFn
+		if fetchSummary == nil {
+			fetchSummary = streamPkgSummary
+		}
+		summary := fetchSummary(pkgID, prefixPath)
+
 		c.mu.Lock()
-		c.cache[pkgID] = &pkgFilesCacheEntry{
-			Files:     files,
+		c.deleteExpiredLocked(time.Now())
+		if c.maxEntries > 0 {
+			if _, exists := c.cache[key]; !exists && len(c.cache) >= c.maxEntries {
+				c.evictOldestLocked()
+			}
+		}
+		c.cache[key] = &pkgFilesCacheEntry{
+			Summary:   summary,
 			Timestamp: time.Now(),
 		}
 		c.mu.Unlock()
-		return files, nil
+
+		return summary, nil
 	})
 	if err != nil {
-		return nil
+		return pkgSummary{}
 	}
-	return v.([]string)
+	return v.(pkgSummary)
+}
+
+// deleteExpiredLocked removes stale cache entries older than the configured TTL.
+func (c *pkgFilesCache) deleteExpiredLocked(now time.Time) {
+	for key, entry := range c.cache {
+		if entry == nil || now.Sub(entry.Timestamp) >= c.ttl {
+			delete(c.cache, key)
+		}
+	}
+}
+
+// evictOldestLocked removes the oldest cache entry to honor the maxEntries limit.
+func (c *pkgFilesCache) evictOldestLocked() {
+	var oldestKey string
+	var oldest time.Time
+	first := true
+	for key, entry := range c.cache {
+		if entry == nil {
+			oldestKey = key
+			first = false
+			break
+		}
+		if first || entry.Timestamp.Before(oldest) {
+			oldest = entry.Timestamp
+			oldestKey = key
+			first = false
+		}
+	}
+	if !first {
+		delete(c.cache, oldestKey)
+	}
 }
 
 // prefetch fetches pkgutil --files for multiple packages in parallel
 // Uses a worker pool to limit concurrent pkgutil processes
-func (c *pkgFilesCache) prefetch(pkgIDs []string) {
+func (c *pkgFilesCache) prefetch(receipts []pkgReceiptInfo) {
 	const maxWorkers = 10 // Limit concurrent pkgutil processes
 
-	if len(pkgIDs) == 0 {
+	if len(receipts) == 0 {
 		return
 	}
 
 	// Create a channel for work items
-	jobs := make(chan string, len(pkgIDs))
-	for _, pkgID := range pkgIDs {
-		jobs <- pkgID
+	jobs := make(chan pkgReceiptInfo, len(receipts))
+	for _, receipt := range receipts {
+		jobs <- receipt
 	}
 	close(jobs)
 
 	// Start worker pool
 	var wg sync.WaitGroup
 	workerCount := maxWorkers
-	if len(pkgIDs) < maxWorkers {
-		workerCount = len(pkgIDs)
+	if len(receipts) < maxWorkers {
+		workerCount = len(receipts)
 	}
 
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for pkgID := range jobs {
-				c.get(pkgID) // This will fetch and cache if not already cached
+			for receipt := range jobs {
+				c.get(receipt.packageID, receipt.prefixPath) // This will fetch and cache if not already cached
 			}
 		}()
 	}
@@ -132,50 +209,167 @@ func (c *pkgFilesCache) prefetch(pkgIDs []string) {
 	wg.Wait()
 }
 
-// fetchPkgFiles runs pkgutil --files and returns the list of files
-func fetchPkgFiles(pkgID string) []string {
-	cmd := exec.Command("pkgutil", "--files", pkgID)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil
+// isApplicationsAppPath reports whether a pkg file path belongs to an app bundle in Applications.
+func isApplicationsAppPath(path string) bool {
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
+		return false
 	}
-
-	var files []string
-	for _, line := range strings.Split(string(output), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			files = append(files, line)
-		}
+	if strings.HasSuffix(parts[0], ".app") {
+		return true
 	}
-	return files
+	return len(parts) >= 2 && parts[0] == "Applications" && strings.HasSuffix(parts[1], ".app")
 }
 
-// pkgInstalledAppFromCache checks if a package installed an application bundle
-// using cached file list instead of calling pkgutil again
-func pkgInstalledAppFromCache(files []string) bool {
-	for _, line := range files {
-		// Check if this line represents an .app bundle
-		// We look for .app in the path and verify it's a bundle (not just a file with .app in name)
-		if strings.Contains(line, ".app") {
-			// Get the first path component to check if it's the app bundle itself
-			// or if it's inside an Applications directory
-			parts := strings.Split(line, "/")
+// topLevelPathFromLine derives a representative top-level install path from a pkg payload line.
+func topLevelPathFromLine(line, prefixPath string) string {
+	parts := strings.Split(line, "/")
+	if len(parts) == 0 {
+		return ""
+	}
 
-			// Case 1: Direct app bundle (InstallPrefixPath = "Applications")
-			// e.g., "Google Chrome.app" or "Google Chrome.app/Contents"
-			if strings.HasSuffix(parts[0], ".app") {
-				return true
-			}
+	// Normalize prefix path for building absolute paths
+	var basePrefix string
+	if prefixPath == "" || prefixPath == "/" {
+		basePrefix = ""
+	} else if strings.HasPrefix(prefixPath, "/") {
+		basePrefix = prefixPath
+	} else {
+		basePrefix = "/" + prefixPath
+	}
 
-			// Case 2: App inside Applications folder (InstallPrefixPath = "/")
-			// e.g., "Applications/Numbers.app" or "Applications/Numbers.app/Contents"
-			if len(parts) >= 2 && parts[0] == "Applications" && strings.HasSuffix(parts[1], ".app") {
-				return true
-			}
+	var topLevelDir string
+	switch parts[0] {
+	case "usr":
+		if len(parts) >= 3 {
+			topLevelDir = "/" + parts[0] + "/" + parts[1] + "/" + parts[2]
+		}
+	case "Library":
+		if len(parts) >= 2 {
+			topLevelDir = "/" + parts[0] + "/" + parts[1]
+		}
+	case "opt":
+		if len(parts) >= 2 {
+			topLevelDir = "/" + parts[0] + "/" + parts[1]
+		}
+	case "Applications":
+		if len(parts) >= 2 {
+			topLevelDir = "/" + parts[0] + "/" + parts[1]
+		}
+	case "System", "private", "var":
+		if len(parts) >= 3 {
+			topLevelDir = "/" + parts[0] + "/" + parts[1] + "/" + parts[2]
+		} else if len(parts) >= 2 {
+			topLevelDir = "/" + parts[0] + "/" + parts[1]
+		}
+	default:
+		if basePrefix != "" && basePrefix != "/" {
+			topLevelDir = basePrefix + "/" + parts[0]
+		} else if len(parts) >= 1 {
+			topLevelDir = "/" + parts[0]
 		}
 	}
 
-	return false
+	if topLevelDir == "" || topLevelDir == "/" {
+		return ""
+	}
+	return strings.ReplaceAll(topLevelDir, "//", "/")
+}
+
+// updatePkgSummaryFromLine updates summary flags and top-level path set from one pkg payload line.
+func updatePkgSummaryFromLine(summary *pkgSummary, topLevelSet map[string]struct{}, line, prefixPath string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+
+	appPath := isApplicationsAppPath(line)
+	if appPath {
+		summary.HasApplicationsApp = true
+	}
+
+	// We only track payload based on likely files, not directory marker lines.
+	if !isLikelyFile(line) {
+		return
+	}
+
+	if !appPath {
+		summary.HasNonAppPayload = true
+	}
+
+	topLevelDir := topLevelPathFromLine(line, prefixPath)
+	if topLevelDir == "" {
+		return
+	}
+	if _, exists := topLevelSet[topLevelDir]; exists || len(topLevelSet) < maxTopLevelPathsPerPackage {
+		topLevelSet[topLevelDir] = struct{}{}
+	}
+}
+
+// buildPkgSummaryFromLines builds a compact package summary from pkgutil --files output lines.
+func buildPkgSummaryFromLines(lines []string, prefixPath string) pkgSummary {
+	summary := pkgSummary{}
+	topLevelSet := make(map[string]struct{})
+	for _, line := range lines {
+		updatePkgSummaryFromLine(&summary, topLevelSet, line, prefixPath)
+	}
+	summary.TopLevelPaths = sortedPathsFromSet(topLevelSet)
+	return summary
+}
+
+// sortedPathsFromSet converts a path set into a lexicographically sorted slice.
+func sortedPathsFromSet(paths map[string]struct{}) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(paths))
+	for path := range paths {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// streamPkgSummary runs pkgutil --files and summarizes package contents in a single pass.
+func streamPkgSummary(pkgID, prefixPath string) pkgSummary {
+	ctx, cancel := context.WithTimeout(context.Background(), pkgutilFilesCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "pkgutil", "--files", pkgID)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return pkgSummary{}
+	}
+	if err := cmd.Start(); err != nil {
+		return pkgSummary{}
+	}
+
+	summary := pkgSummary{}
+	topLevelSet := make(map[string]struct{})
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), pkgutilScannerMaxTokenSize)
+	for scanner.Scan() {
+		updatePkgSummaryFromLine(&summary, topLevelSet, scanner.Text(), prefixPath)
+	}
+	if scanErr := scanner.Err(); scanErr != nil {
+		_ = cmd.Wait()
+		return pkgSummary{}
+	}
+	if err := cmd.Wait(); err != nil {
+		// Preserve old behavior on pkgutil failure: keep package with minimal metadata
+		// by returning an empty summary (which does not trigger app-only skip).
+		return pkgSummary{}
+	}
+
+	summary.TopLevelPaths = sortedPathsFromSet(topLevelSet)
+	return summary
+}
+
+// shouldSkipPkgFromSummary applies baseline pkg suppression semantics for app-backed software.
+func shouldSkipPkgFromSummary(summary pkgSummary) bool {
+	// If a package installs any app bundle in /Applications,
+	// prefer the app representation and skip the package representation.
+	return summary.HasApplicationsApp
 }
 
 // isLikelyFile checks if a path looks like a file (not a directory).
@@ -226,99 +420,16 @@ func isLikelyFile(path string) bool {
 	return false
 }
 
-// getPkgTopLevelPathsFromCache extracts top-level directories from cached file list
-func getPkgTopLevelPathsFromCache(files []string, prefixPath string) []string {
-	// Normalize prefix path for building absolute paths
-	var basePrefix string
-	if prefixPath == "" || prefixPath == "/" {
-		basePrefix = ""
-	} else if strings.HasPrefix(prefixPath, "/") {
-		basePrefix = prefixPath
-	} else {
-		basePrefix = "/" + prefixPath
-	}
-
-	// Collect file parent directories at appropriate depth
-	dirSet := make(map[string]bool)
-
-	for _, line := range files {
-		// Only process files (items with extensions or in known file locations)
-		if !isLikelyFile(line) {
+// filterGenericSystemPaths removes overly generic install roots from summarized path output.
+func filterGenericSystemPaths(paths []string) []string {
+	filtered := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path == "/etc" || path == "/var" || path == "/tmp" || path == "/System" {
 			continue
 		}
-
-		// Get path components
-		parts := strings.Split(line, "/")
-		if len(parts) == 0 {
-			continue
-		}
-
-		// Determine the meaningful top-level directory based on path structure
-		// We want to capture the "application directory" level, not every nested dir
-		var topLevelDir string
-
-		switch parts[0] {
-		case "usr":
-			// For /usr paths, capture at the 3rd level (e.g., /usr/local/bin, /usr/local/ykman)
-			if len(parts) >= 3 {
-				topLevelDir = "/" + parts[0] + "/" + parts[1] + "/" + parts[2]
-			}
-		case "Library":
-			// For /Library, capture at 2nd level (e.g., /Library/LaunchDaemons)
-			if len(parts) >= 2 {
-				topLevelDir = "/" + parts[0] + "/" + parts[1]
-			}
-		case "opt":
-			// For /opt, capture the application directory (e.g., /opt/datadog-agent)
-			if len(parts) >= 2 {
-				topLevelDir = "/" + parts[0] + "/" + parts[1]
-			}
-		case "Applications":
-			// For /Applications, capture the app bundle (e.g., /Applications/Chrome.app)
-			if len(parts) >= 2 {
-				topLevelDir = "/" + parts[0] + "/" + parts[1]
-			}
-		case "System", "private", "var":
-			// For system paths, capture at 3rd level
-			if len(parts) >= 3 {
-				topLevelDir = "/" + parts[0] + "/" + parts[1] + "/" + parts[2]
-			} else if len(parts) >= 2 {
-				topLevelDir = "/" + parts[0] + "/" + parts[1]
-			}
-		default:
-			// For paths with a prefix (e.g., "Applications" prefix), combine with first component
-			if basePrefix != "" && basePrefix != "/" {
-				topLevelDir = basePrefix + "/" + parts[0]
-			} else if len(parts) >= 1 {
-				topLevelDir = "/" + parts[0]
-			}
-		}
-
-		// Clean up and add to set
-		if topLevelDir != "" && topLevelDir != "/" {
-			topLevelDir = strings.ReplaceAll(topLevelDir, "//", "/")
-			dirSet[topLevelDir] = true
-		}
+		filtered = append(filtered, path)
 	}
-
-	// Convert map to sorted slice
-	paths := make([]string, 0, len(dirSet))
-	for path := range dirSet {
-		paths = append(paths, path)
-	}
-
-	// Sort for consistent output
-	if len(paths) > 1 {
-		for i := 0; i < len(paths)-1; i++ {
-			for j := i + 1; j < len(paths); j++ {
-				if paths[i] > paths[j] {
-					paths[i], paths[j] = paths[j], paths[i]
-				}
-			}
-		}
-	}
-
-	return paths
+	return filtered
 }
 
 // pkgReceiptInfo holds parsed info from a PKG receipt plist
@@ -357,7 +468,6 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	// First pass: Read all receipt plists and collect package IDs
 	var receipts []pkgReceiptInfo
-	var pkgIDsToFetch []string
 
 	for _, dirEntry := range dirEntries {
 		if !strings.HasSuffix(dirEntry.Name(), ".plist") {
@@ -395,24 +505,22 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 			installDate: plistData["InstallDate"],
 			prefixPath:  prefixPath,
 		})
-		pkgIDsToFetch = append(pkgIDsToFetch, packageID)
 	}
 
-	// Prefetch all pkgutil --files results in parallel
+	// Prefetch all pkgutil --files summaries in parallel
 	// Use global cache that persists across collection runs
 	cache := getGlobalPkgFilesCache()
-	cache.prefetch(pkgIDsToFetch)
+	cache.prefetch(receipts)
 
 	// Determine architecture
 	is64Bit := runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
 
 	// Second pass: Process receipts using cached data
 	for _, receipt := range receipts {
-		files := cache.get(receipt.packageID)
+		summary := cache.get(receipt.packageID, receipt.prefixPath)
 
-		// Skip packages that installed applications to /Applications
-		// These are already captured by applicationsCollector
-		if pkgInstalledAppFromCache(files) {
+		// Skip packages with Applications representation.
+		if shouldSkipPkgFromSummary(summary) {
 			continue
 		}
 
@@ -428,18 +536,8 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 			installPath = "N/A"
 		}
 
-		// Get top-level installation directories from cached file list
-		installPaths := getPkgTopLevelPathsFromCache(files, receipt.prefixPath)
-
-		// Filter out generic system directories
-		filteredPaths := make([]string, 0, len(installPaths))
-		for _, p := range installPaths {
-			if p == "/etc" || p == "/var" || p == "/tmp" || p == "/System" {
-				continue
-			}
-			filteredPaths = append(filteredPaths, p)
-		}
-		installPaths = filteredPaths
+		// Use summary top-level installation directories and filter generic system directories
+		installPaths := filterGenericSystemPaths(summary.TopLevelPaths)
 
 		// Determine which path field(s) to include
 		if installPath != "N/A" && len(installPaths) > 0 {
