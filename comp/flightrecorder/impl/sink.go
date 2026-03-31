@@ -24,6 +24,8 @@ var tagPool = sync.Pool{New: func() any { s := make([]string, 0, 32); return &s 
 // contentPool recycles byte slices used for log content copies.
 var contentPool = sync.Pool{New: func() any { s := make([]byte, 0, 256); return &s }}
 
+
+
 // Requires defines the dependencies injected into the flight recorder component.
 type Requires struct {
 	Lc     compdef.Lifecycle
@@ -83,7 +85,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
 	if hookBufSize <= 0 {
-		hookBufSize = 512
+		hookBufSize = 128
 	}
 	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
 	if contextCap <= 0 {
@@ -119,7 +121,7 @@ func NewComponent(req Requires) (Provides, error) {
 		mh.Subscribe("flightrecorder-metrics", func(batch []hook.MetricSampleSnapshot) {
 			for i := range batch {
 				s := &batch[i]
-				ckey := computeContextKey(s.Name, s.RawTags)
+				ckey := s.ContextKey
 				ts := int64(s.Timestamp * float64(time.Second/time.Nanosecond))
 
 				if bat.IsContextKnown(ckey) {
@@ -131,10 +133,6 @@ func NewComponent(req Requires) (Provides, error) {
 						Source:      source,
 					})
 				} else {
-					// MetricSampleSnapshot owns its Name and RawTags
-					// (value-type copies). Safe to reference directly —
-					// Go GC keeps the strings alive as long as the
-					// contextDef holds them in the ring buffer.
 					bat.AddContextDef(contextDef{
 						ContextKey:   ckey,
 						Name:         s.Name,
