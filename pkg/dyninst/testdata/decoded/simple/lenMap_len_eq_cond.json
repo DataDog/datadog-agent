@@ -1,0 +1,66 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.lenMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "lenMap_len_eq_cond",
+          "location": {
+            "method": "main.lenMap"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "tag=match",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.lenMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "lenMap_len_eq_cond",
+          "location": {
+            "method": "main.lenMap"
+          }
+        }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "len(m) == 3",
+          "message": "nil pointer dereference"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "tag=miss",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

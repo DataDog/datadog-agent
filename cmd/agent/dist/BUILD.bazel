@@ -1,0 +1,62 @@
+# assets
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+
+pkg_files(
+    name = "all_files",
+    srcs = [
+        "//pkg/config:security_agent_config",
+        "//pkg/config:system_probe_config",
+    ] + select({
+        "//packages/agent:iot_flavor": [
+            "//pkg/config:iot_agent_config",
+        ],
+        "//conditions:default": [
+            "//pkg/config:agent_config",
+        ],
+    }),
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = "bin/agent/dist",
+    renames = select({
+        "//packages/agent:iot_flavor": {"//pkg/config:iot_agent_config": "datadog.yaml"},
+        "//conditions:default": None,
+    }),
+    visibility = ["//packages/agent:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)
+
+pkg_files(
+    name = "python_files",
+    srcs = [
+        "config.py",
+    ],
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = "bin/agent/dist",
+)
+
+pkg_filegroup(
+    name = "all_python_files",
+    srcs = [
+        ":python_files",
+        "//cmd/agent/dist/checks:python_files",
+        "//cmd/agent/dist/utils:python_files",
+    ],
+    visibility = [
+        "//cmd/agent:__subpackages__",
+        "//packages/agent:__subpackages__",
+    ],
+)
+
+pkg_install(
+    name = "python_install",
+    srcs = [
+        ":all_python_files",
+    ],
+)

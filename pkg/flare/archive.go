@@ -169,7 +169,7 @@ func provideSystemProbe(_ context.Context, fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_symdb.json"), getSystemProbeDyninstSymDB)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
-		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettingsWithoutSecrets()) })
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
 	}
 	return nil
 }

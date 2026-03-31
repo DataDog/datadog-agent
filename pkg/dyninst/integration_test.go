@@ -198,9 +198,10 @@ func testDyninst(
 		Updates: []process.Config{
 			{
 				Info: process.Info{
-					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
-					Executable: exe,
-					Service:    service,
+					ProcessID:   process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable:  exe,
+					Service:     service,
+					ProcessTags: []string{"entrypoint.name:sample", "svc.user:sample"},
 				},
 				RuntimeID:         runtimeID,
 				Probes:            slices.Clone(probes),
@@ -245,7 +246,7 @@ func testDyninst(
 		}
 	}
 
-	timeout := time.Second
+	timeout := 5 * time.Second
 	if !rewriteEnabled {
 		// In CI the machines seem to get very overloaded and this takes a
 		// shocking amount of time. Given we don't wait for this timeout in

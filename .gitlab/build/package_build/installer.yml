@@ -43,7 +43,6 @@ datadog-agent-oci-x64-a7:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
-      "go_mod_tidy_check",
       "build_system-probe-x64",
       "go_deps",
       "generate_minimized_btfs_x64",
@@ -52,7 +51,6 @@ datadog-agent-oci-x64-a7:
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
@@ -64,7 +62,6 @@ datadog-agent-oci-arm64-a7:
   tags: ["arch:arm64", "specific:true"]
   needs:
     [
-      "go_mod_tidy_check",
       "build_system-probe-arm64",
       "go_deps",
       "generate_minimized_btfs_arm64",
@@ -73,7 +70,6 @@ datadog-agent-oci-arm64-a7:
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
     DD_CXX: "aarch64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -87,7 +83,6 @@ installer-install-scripts:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
-      "go_mod_tidy_check",
       "go_deps",
       "installer-amd64-oci",
       "installer-arm64-oci",
@@ -150,7 +145,7 @@ installer-amd64:
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
@@ -165,7 +160,7 @@ installer-arm64:
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"

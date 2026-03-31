@@ -13,13 +13,13 @@ import (
 	"go.uber.org/fx"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
+	statusfx "github.com/DataDog/datadog-agent/comp/snmptraps/status/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -44,8 +44,8 @@ type services struct {
 func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	conf.Enabled = true
 	s := fxutil.Test[services](t,
-		configimpl.MockModule(),
-		statusimpl.MockModule(),
+		configfx.MockModule(),
+		statusfx.MockModule(),
 		senderhelper.Opts,
 		Module(),
 		fx.Replace(conf),

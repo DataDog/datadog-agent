@@ -167,8 +167,8 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			*/
 
 			// check the cgroup id
-			asm.LoadImm(asm.R8, int64(filter.CGroupPathKey.Inode), asm.DWord),
-			asm.JEq.Reg(asm.R7, asm.R8, opts.onMatchLabel),
+			asm.LoadImm(asm.R4, int64(filter.CGroupPathKey.Inode), asm.DWord),
+			asm.JEq.Reg(asm.R7, asm.R4, opts.onMatchLabel),
 			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel), // nop instruction, just hold the symbol
 		)
 	} else {
