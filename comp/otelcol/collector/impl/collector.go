@@ -31,13 +31,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
+	dogtelextension "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
@@ -85,6 +88,8 @@ type Requires struct {
 	Ipc                 ipc.Component
 	Telemetry           telemetry.Component
 	AgentTelemetry      agenttelemetry.Component
+	WorkloadMeta        workloadmeta.Component
+	Secrets             secrets.Component
 	Params              Params
 }
 
@@ -197,6 +202,17 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
+	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(
+		reqs.Config,
+		reqs.Log,
+		reqs.Serializer,
+		reqs.Hostname,
+		reqs.WorkloadMeta,
+		reqs.Tagger,
+		reqs.Ipc,
+		reqs.Telemetry,
+		reqs.Secrets,
+	)
 }
 
 var buildInfo = component.BuildInfo{

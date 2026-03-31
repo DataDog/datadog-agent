@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The OTel Agent now supports a standalone mode (``DD_OTEL_STANDALONE=true``) that
+    runs without a co-resident core Datadog Agent. In standalone mode a new
+    ``dogtelextension`` OpenTelemetry Collector extension provides Datadog Agent
+    functionality directly.

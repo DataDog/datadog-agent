@@ -173,7 +173,10 @@ func getContainerHostType() model.ContainerHostType {
 	case fargate.EKS:
 		return model.ContainerHostType_fargateEKS
 	case fargate.ECSManagedInstances:
-		return model.ContainerHostType_sidecar
+		if fargate.IsSidecar() {
+			return model.ContainerHostType_sidecar
+		}
+		return model.ContainerHostType_notSpecified
 	}
 	return model.ContainerHostType_notSpecified
 }

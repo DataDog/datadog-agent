@@ -1,0 +1,18 @@
+extensions:
+  dogtel:
+    enable_metadata_collection: false
+    metadata_interval: 120
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+    api:
+      key: STANDALONE_API_KEY
+service:
+  extensions: [dogtel]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

@@ -200,8 +200,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
-  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
+  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   # Keep the PAR config read-only, but group-readable so init containers can
   # copy it on OpenShift where containers run with a random UID in the root group.
   && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
