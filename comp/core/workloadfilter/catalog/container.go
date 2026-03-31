@@ -8,8 +8,8 @@ package catalog
 
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/legacy"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // ContainerPausedProgram creates a program for filtering paused containers
@@ -17,7 +17,7 @@ func ContainerPausedProgram(b *ProgramBuilder) program.FilterProgram {
 	return b.CreateLegacyProgram(
 		workloadfilter.ContainerPaused,
 		nil,
-		containers.GetPauseContainerExcludeList(),
+		legacy.GetPauseContainerExcludeList(),
 	)
 }
 
