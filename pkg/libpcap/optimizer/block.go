@@ -213,7 +213,12 @@ func (os *OptState) optJ(ep *codegen.Edge) {
 	}
 }
 
-// orPullup and andPullup are predicate assertion optimizations.
-// Stub implementations for now — will be filled in Task 5.
-func (os *OptState) orPullup(b *codegen.Block, root *codegen.Block)  {}
-func (os *OptState) andPullup(b *codegen.Block, root *codegen.Block) {}
+// orPullup delegates to the real implementation in pullup.go.
+func (os *OptState) orPullup(b *codegen.Block, root *codegen.Block) {
+	os.orPullupImpl(b, root)
+}
+
+// andPullup delegates to the real implementation in pullup.go.
+func (os *OptState) andPullup(b *codegen.Block, root *codegen.Block) {
+	os.andPullupImpl(b, root)
+}
