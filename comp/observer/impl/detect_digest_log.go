@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -135,16 +134,13 @@ func newDetectDigestComparator(path string) (*detectDigestComparator, error) {
 	defer f.Close()
 
 	expected := make(map[string]detectDigest)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
+	dec := json.NewDecoder(f)
+	for dec.More() {
 		var d detectDigest
-		if err := json.Unmarshal(scanner.Bytes(), &d); err != nil {
-			return nil, fmt.Errorf("parse detect digest line: %w", err)
+		if err := dec.Decode(&d); err != nil {
+			return nil, fmt.Errorf("parse detect digest entry: %w", err)
 		}
 		expected[detectDigestKey(d.DetectorName, d.DataTime)] = d
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read detect digest log: %w", err)
 	}
 
 	return &detectDigestComparator{

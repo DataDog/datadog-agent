@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -88,18 +87,15 @@ func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
 
 	advances := make(map[int64]advanceEntry)
 	var totalLate, totalDropped int64
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
+	dec := json.NewDecoder(f)
+	for dec.More() {
 		var e advanceEntry
-		if err := json.Unmarshal(scanner.Bytes(), &e); err != nil {
-			return nil, fmt.Errorf("parse advance log line: %w", err)
+		if err := dec.Decode(&e); err != nil {
+			return nil, fmt.Errorf("parse advance log entry: %w", err)
 		}
 		advances[e.DataTime] = e
 		totalLate += e.LatePoints
 		totalDropped += e.DroppedObs
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read advance log: %w", err)
 	}
 
 	return &advanceLogComparator{
