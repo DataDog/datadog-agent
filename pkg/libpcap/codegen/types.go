@@ -28,9 +28,10 @@ type SList struct {
 type Edge struct {
 	ID   uint
 	Code int
-	Succ *Block // successor vertex
-	Pred *Block // predecessor vertex
-	Next *Edge  // linked list of incoming edges for a node
+	Succ *Block   // successor vertex
+	Pred *Block   // predecessor vertex
+	Next *Edge    // linked list of incoming edges for a node
+	Edom []uint32 // edge dominator set (bitset, used by optimizer)
 }
 
 // Block is a vertex in the control flow graph.
