@@ -524,6 +524,8 @@ use_repo(
     "tools_gotest_gotestsum",
 )
 
+use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
+
 use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")
 
 use_repo_rule("//bazel/rules/go_stringer:repo.bzl", "go_stringer")(name = "go_stringer")
