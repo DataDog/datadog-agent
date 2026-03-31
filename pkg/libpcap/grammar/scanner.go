@@ -163,14 +163,37 @@ func (s *Scanner) scanIPv6(lval *yySymType) int {
 func (s *Scanner) scanWord(lval *yySymType) int {
 	start := s.pos
 
-	// Collect word: alphanumeric, dots, colons, hyphens, underscores
-	// We greedily collect, then classify
+	// First pass: collect without colons (alphanumeric, dots, hyphens, underscores)
 	for s.pos < len(s.input) {
 		c := s.input[s.pos]
-		if isAlphaNum(c) || c == '.' || c == ':' || c == '-' || c == '_' {
+		if isAlphaNum(c) || c == '.' || c == '-' || c == '_' {
 			s.pos++
 		} else {
 			break
+		}
+	}
+
+	// If followed by ':', this might be a MAC address (xx:xx:...) or IPv6.
+	// Extend the scan to include colons and subsequent hex characters only if
+	// it looks like a MAC or IPv6 pattern.
+	if s.pos < len(s.input) && s.input[s.pos] == ':' {
+		// Speculatively extend to include colon-separated tokens
+		saved := s.pos
+		for s.pos < len(s.input) {
+			c := s.input[s.pos]
+			if isAlphaNum(c) || c == ':' || c == '.' {
+				s.pos++
+			} else {
+				break
+			}
+		}
+		extended := s.input[start:s.pos]
+		// Keep the extension only if it's a valid MAC or IPv6 address
+		if isMAC(extended) || isIPv6(extended) {
+			// Use extended word
+		} else {
+			// Not a MAC or IPv6 — revert to before the colon
+			s.pos = saved
 		}
 	}
 
