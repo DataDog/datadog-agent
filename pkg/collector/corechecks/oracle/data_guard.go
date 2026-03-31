@@ -47,7 +47,11 @@ func (c *Check) dataGuard() error {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	var stats []dataguardStats
-	err = selectWrapper(c, &stats, `SELECT name, EXTRACT(DAY from TO_DSINTERVAL(value)*86400) value
+	err = selectWrapper(c, &stats, `SELECT name,
+	EXTRACT(DAY FROM TO_DSINTERVAL(value)) * 86400 +
+	EXTRACT(HOUR FROM TO_DSINTERVAL(value)) * 3600 +
+	EXTRACT(MINUTE FROM TO_DSINTERVAL(value)) * 60 +
+	EXTRACT(SECOND FROM TO_DSINTERVAL(value)) AS value
 	FROM v$dataguard_stats WHERE name IN ('apply lag','transport lag')`)
 	if err != nil {
 		return fmt.Errorf("failed to query data guard statistics %w", err)
