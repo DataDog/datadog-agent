@@ -58,6 +58,8 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
             in_file = ":{}".format(gen_name),
             out_file = out_go_file,
             check_that_out_file_exists = False,
+            # Out files are .gitignored; tag as manual so bazel test //... skips them.
+            tags = ["manual"],
         )
 
 runtime_compilation_bundle = macro(
