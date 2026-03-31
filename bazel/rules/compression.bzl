@@ -36,8 +36,8 @@ def get_compression_level():
     """
     if env_vars.FORCED_PACKAGE_COMPRESSION_LEVEL:
         compression_level = int(env_vars.FORCED_PACKAGE_COMPRESSION_LEVEL)
-        if compression_level > 0:
-            return compression_level
+        if compression_level >= 0:
+            return compression_level if compression_level > 0 else COMPRESSION_OFF
 
     if env_vars.DEPLOY_AGENT:
         if env_vars.DEPLOY_AGENT == "true":
