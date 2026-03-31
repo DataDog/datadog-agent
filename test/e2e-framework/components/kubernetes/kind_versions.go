@@ -27,9 +27,28 @@ type KindConfig struct {
 // It can be extended in the future to add more configuration options, mount path, featureflags etc.
 // It must match the fields in the kind-cluster.yaml template
 type KindConfigFlags struct {
-	NewContainerdRegistryConfig bool // whether to use the new containerd registry mirror config format (for containerd >= 2.2, used in kubernetes >= v1.32)
-	KubeProxyReplacement        bool // whether to set kubeProxyMode to "none" in the kind config
-	DualNodeSetup               bool
+	NewContainerdRegistryConfig bool             // whether to use the new containerd registry mirror config format (for containerd >= 2.2, used in kubernetes >= v1.32)
+	KubeProxyReplacement        bool             // whether to set kubeProxyMode to "none" in the kind config
+	WorkerNodes                 []KindWorkerNode // additional worker nodes beyond the control-plane
+}
+
+// KindWorkerNode describes a kind worker node.
+type KindWorkerNode struct {
+	Labels []Label
+	Taints []Taint
+}
+
+// Label represents a Kubernetes node label as a key-value pair.
+type Label struct {
+	Key   string
+	Value string
+}
+
+// Taint represents a Kubernetes node taint applied via kubeadm at cluster creation time.
+type Taint struct {
+	Key    string
+	Value  string
+	Effect string
 }
 
 //go:embed kind_versions.json

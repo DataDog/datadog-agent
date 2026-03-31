@@ -14,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
@@ -44,6 +45,8 @@ type ProvisionerParams struct {
 	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
 	// instead of the Datadog Helm chart. See StandaloneAgentDeployFunc.
 	standaloneAgentFunc StandaloneAgentDeployFunc
+	workerNodes         []kubeComp.KindWorkerNode
+	imagesToLoad        []string
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -60,6 +63,8 @@ func newProvisionerParams() *ProvisionerParams {
 type ProvisionerOption func(*ProvisionerParams) error
 
 // PreAgentHook is executed after the Kubernetes provider is ready but before the agent is installed.
+// It is called during the Pulumi program registration phase to register additional resources
+// (e.g. RBAC bindings) that must be created before the agent is deployed.
 type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
 
 // StandaloneAgentDeployFunc is a callback invoked by KindRunFunc to deploy a
@@ -141,6 +146,25 @@ func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) ProvisionerOption {
 	}
 }
 
+// WithKindWorkerNodes sets the worker nodes for the kind cluster.
+func WithKindWorkerNodes(nodes ...kubeComp.KindWorkerNode) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.workerNodes = nodes
+		return nil
+	}
+}
+
+// WithKindLoadImage pre-loads a Docker image into the kind cluster before the agent is deployed.
+// This is required when using locally-built images that are not available in any registry;
+// pair it with imagePullPolicy: Never in Helm values.
+// The image must be present in the local Docker daemon before running the test.
+func WithKindLoadImage(image string) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.imagesToLoad = append(params.imagesToLoad, image)
+		return nil
+	}
+}
+
 // Provisioner creates a new provisioner
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -168,7 +192,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, params.name, localEnv.KubernetesVersion())
+	kindCluster, err := kubeComp.NewLocalKindClusterWithConfig(&localEnv, params.name, localEnv.KubernetesVersion(), kubeComp.KindConfigFlags{
+		WorkerNodes: params.workerNodes,
+	})
 	if err != nil {
 		return err
 	}
@@ -186,7 +212,49 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	// Execute pre-agent hooks to allow callers to register additional Pulumi resources
+	// (e.g. RBAC bindings) that must exist before the agent is installed.
+	for _, hook := range params.preAgentHooks {
+		if err := hook(&localEnv, kubeProvider); err != nil {
+			return err
+		}
+	}
+
+	// Load images into kind cluster before agent deployment.
+	// Creates a Pulumi local.Command resource for each image that depends on the cluster being up.
+	// The agent deployment will depend on these commands to ensure images are loaded first.
+	var imageLoadOptions []kubernetesagentparams.Option
+	if len(params.imagesToLoad) > 0 {
+		localRunner := command.NewLocalRunner(&localEnv, command.LocalRunnerArgs{
+			OSCommand: command.NewUnixOSCommand(),
+		})
+		var imageLoadDeps []pulumi.Resource
+		for i, img := range params.imagesToLoad {
+			img := img // capture for closure
+			loadCmd, loadErr := localRunner.Command(
+				fmt.Sprintf("kind-load-image-%d", i),
+				&command.Args{
+					Create: kindCluster.ClusterName.ApplyT(func(name string) string {
+						return fmt.Sprintf("kind load docker-image %s --name %s", img, name)
+					}).(pulumi.StringOutput),
+					// Trigger re-run when the cluster is recreated. KubeConfig changes on
+					// every new cluster (new TLS certs), so this ensures the image is
+					// reloaded into the replacement cluster even when the cluster name and
+					// image haven't changed.
+					Triggers: pulumi.Array{kindCluster.KubeConfig},
+				},
+				utils.PulumiDependsOn(kindCluster),
+			)
+			if loadErr != nil {
+				return loadErr
+			}
+			imageLoadDeps = append(imageLoadDeps, loadCmd)
+		}
+		imageLoadOptions = append(imageLoadOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(imageLoadDeps...)))
+	}
+
 	var fakeIntake *fakeintakeComp.Fakeintake
+
 	if params.fakeintakeOptions != nil {
 		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
 		if err != nil {
@@ -226,6 +294,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
+		params.agentOptions = append(params.agentOptions, imageLoadOptions...)
 		agent, err := helm.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err

@@ -190,6 +190,11 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 }
 
 func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts ...pulumi.ResourceOption) (*Cluster, error) {
+	return NewLocalKindClusterWithConfig(env, name, kubeVersion, KindConfigFlags{}, opts...)
+}
+
+// NewLocalKindClusterWithConfig creates a local kind cluster with the given flags.
+func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion string, flags KindConfigFlags, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
@@ -200,10 +205,8 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 			return err
 		}
 
-		kindConfigFlags := KindConfigFlags{
-			NewContainerdRegistryConfig: kindVersionConfig.UseNewContainerdConfig,
-		}
-		kindConfig, err := generateKindConfig(kindClusterConfig, kindConfigFlags)
+		flags.NewContainerdRegistryConfig = kindVersionConfig.UseNewContainerdConfig
+		kindConfig, err := generateKindConfig(kindClusterConfig, flags)
 		if err != nil {
 			return fmt.Errorf("could not generate kind cluster config: %w", err)
 		}
