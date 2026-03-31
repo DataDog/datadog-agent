@@ -25,13 +25,13 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
                 - api_key: "11111"
                   app_key: "22222"
-    hostprofiler/custom:
+    profiling/custom:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
@@ -48,5 +48,5 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
-                - hostprofiler/custom
+                - profiling
+                - profiling/custom

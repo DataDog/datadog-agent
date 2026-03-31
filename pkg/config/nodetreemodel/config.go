@@ -315,6 +315,8 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 
 // UnsetForSource unsets a config entry for a given source
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -426,6 +428,8 @@ func (c *ntmConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	return c.isKnownKey(key)
@@ -657,6 +661,8 @@ func hasNonDefaultLeaf(node *nodeImpl) bool {
 
 // IsConfigured checks if a key is set in the config but not from the defaults
 func (c *ntmConfig) IsConfigured(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -699,6 +705,8 @@ func isInnerOrLeafWithNilValue(node *nodeImpl) bool {
 // HasSection returns true if the setting is either an inner node,
 // or a leaf node with a nil value
 func (c *ntmConfig) HasSection(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -735,6 +743,8 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 // AllKeysLowercased returns all keys, including unknown keys and those without default values
 // Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
 func (c *ntmConfig) AllKeysLowercased() []string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 

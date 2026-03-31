@@ -314,57 +314,30 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     if (val == NULL) {
         return;
     }
-
-    // On CO-RE, we cannot use BPF_CORE_READ_INTO because poisoned CO-RE
-    // relocations for missing fields are not pruned by the BPF verifier on
-    // older kernels (e.g. 4.15), even when guarded by bpf_core_field_exists().
-    // Instead, Go looks up the field offsets via BTF at startup and passes them
-    // as constants. A zero offset means the field doesn't exist on this kernel.
 #if defined(COMPILE_CORE)
-    __u64 reord_seen_offset = 0;
-    LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
-    if (reord_seen_offset > 0) {
-        __u32 tmp = 0;
-        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + reord_seen_offset);
-        val->reord_seen = tmp;
+    __u8 ecn = 0;
+    if (bpf_core_field_exists(struct tcp_sock, reord_seen)) {
+        BPF_CORE_READ_INTO(&val->reord_seen, tcp_sk(sk), reord_seen);
     }
-    __u64 rcv_ooopack_offset = 0;
-    LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
-    if (rcv_ooopack_offset > 0) {
-        __u32 tmp = 0;
-        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + rcv_ooopack_offset);
-        val->rcv_ooopack = tmp;
+    if (bpf_core_field_exists(struct tcp_sock, rcv_ooopack)) {
+        BPF_CORE_READ_INTO(&val->rcv_ooopack, tcp_sk(sk), rcv_ooopack);
     }
-    __u64 delivered_ce_offset = 0;
-    LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
-    if (delivered_ce_offset > 0) {
-        __u32 tmp = 0;
-        bpf_probe_read_kernel(&tmp, sizeof(tmp), (char *)sk + delivered_ce_offset);
-        val->delivered_ce = tmp;
+    if (bpf_core_field_exists(struct tcp_sock, delivered_ce)) {
+        BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
     }
-    // ECN negotiation: ecn_flags is a u8 in vmlinux headers (was a bitfield
-    // in kernel source on older versions, but BTF exposes it as a full byte).
-    // Read via offset to avoid poisoned CO-RE relocations on older kernels.
-    __u64 ecn_flags_offset = 0;
-    LOAD_CONSTANT("ecn_flags_offset", ecn_flags_offset);
-    if (ecn_flags_offset > 0) {
-        __u8 ecn = 0;
-        bpf_probe_read_kernel(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
-        val->ecn_negotiated = (ecn & 1) ? 1 : 0;
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        val->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    __u8 ecn = 0;
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
     BPF_CORE_READ_INTO(&val->rcv_ooopack,  tcp_sk(sk), rcv_ooopack);
 #endif
-    // ECN negotiation: ecn_flags is u8 in vmlinux headers. Bit 0 (TCP_ECN_OK)
-    // indicates ECN was successfully negotiated for this connection.
-    {
-        u8 ecn = 0;
-        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
-        val->ecn_negotiated = (ecn & 1) ? 1 : 0;
-    }
+    BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+    val->ecn_negotiated = ecn & 1;
 #endif
 #endif
 }
@@ -375,40 +348,31 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
 #if !defined(COMPILE_PREBUILT)
 #if defined(COMPILE_CORE)
     __u32 val = 0;
-    __u64 reord_seen_offset = 0;
-    LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
-    if (reord_seen_offset > 0) {
-        val = 0;
-        bpf_probe_read_kernel(&val, sizeof(val), (char *)sk + reord_seen_offset);
+    __u8 ecn = 0;
+    if (bpf_core_field_exists(struct tcp_sock, reord_seen)) {
+        BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
         if (val > ts->reord_seen)
             ts->reord_seen = val;
     }
-    __u64 rcv_ooopack_offset = 0;
-    LOAD_CONSTANT("rcv_ooopack_offset", rcv_ooopack_offset);
-    if (rcv_ooopack_offset > 0) {
+    if (bpf_core_field_exists(struct tcp_sock, rcv_ooopack)) {
         val = 0;
-        bpf_probe_read_kernel(&val, sizeof(val), (char *)sk + rcv_ooopack_offset);
+        BPF_CORE_READ_INTO(&val, tcp_sk(sk), rcv_ooopack);
         if (val > ts->rcv_ooopack)
             ts->rcv_ooopack = val;
     }
-    __u64 delivered_ce_offset = 0;
-    LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
-    if (delivered_ce_offset > 0) {
+    if (bpf_core_field_exists(struct tcp_sock, delivered_ce)) {
         val = 0;
-        bpf_probe_read_kernel(&val, sizeof(val), (char *)sk + delivered_ce_offset);
+        BPF_CORE_READ_INTO(&val, tcp_sk(sk), delivered_ce);
         if (val > ts->delivered_ce)
             ts->delivered_ce = val;
     }
-    // ECN negotiation: read via offset (same approach as handle_congestion_stats).
-    __u64 ecn_flags_offset = 0;
-    LOAD_CONSTANT("ecn_flags_offset", ecn_flags_offset);
-    if (ecn_flags_offset > 0) {
-        __u8 ecn = 0;
-        bpf_probe_read_kernel(&ecn, sizeof(ecn), (char *)sk + ecn_flags_offset);
-        ts->ecn_negotiated = (ecn & 1) ? 1 : 0;
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        ts->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     __u32 val = 0;
+    __u8 ecn = 0;
     BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
     if (val > ts->reord_seen)
         ts->reord_seen = val;
@@ -422,12 +386,8 @@ static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats
     if (val > ts->rcv_ooopack)
         ts->rcv_ooopack = val;
 #endif
-    // ECN negotiation: not a counter, just a flag — always overwrite.
-    {
-        u8 ecn = 0;
-        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
-        ts->ecn_negotiated = (ecn & 1) ? 1 : 0;
-    }
+    BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+    ts->ecn_negotiated = ecn & 1;
 #endif
 #endif
 }

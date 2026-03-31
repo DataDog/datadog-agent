@@ -28,6 +28,7 @@ var (
 		"datadog-apm-library-java",
 		"datadog-apm-library-python",
 		"datadog-apm-library-ruby",
+		"datadog-apm-library-nginx",
 	}
 )
 

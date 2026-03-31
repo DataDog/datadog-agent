@@ -121,56 +121,72 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
-	// Separate events into images and containers
-	var imageEvents []workloadmeta.Event
-	var containerEvents []workloadmeta.Event
+	// Separate events by kind and type so we can process them in an order that
+	// keeps imageUsers accurate when SBOMs are computed.
+	var (
+		imageSetEvents       []workloadmeta.Event
+		imageUnsetEvents     []workloadmeta.Event
+		containerSetEvents   []workloadmeta.Event
+		containerUnsetEvents []workloadmeta.Event
+	)
 
 	for _, event := range evBundle.Events {
-		entityID := event.Entity.GetID()
-		switch entityID.Kind {
+		switch event.Entity.GetID().Kind {
 		case workloadmeta.KindContainerImageMetadata:
-			imageEvents = append(imageEvents, event)
+			if event.Type == workloadmeta.EventTypeSet {
+				imageSetEvents = append(imageSetEvents, event)
+			} else {
+				imageUnsetEvents = append(imageUnsetEvents, event)
+			}
 		case workloadmeta.KindContainer:
-			containerEvents = append(containerEvents, event)
+			if event.Type == workloadmeta.EventTypeSet {
+				containerSetEvents = append(containerSetEvents, event)
+			} else {
+				containerUnsetEvents = append(containerUnsetEvents, event)
+			}
 		}
 	}
 
-	// Process all image events first
-	for _, event := range imageEvents {
-		switch event.Type {
-		case workloadmeta.EventTypeSet:
-			filterableContainerImage := workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name)
-			if p.containerFilter.IsExcluded(filterableContainerImage) {
-				continue
-			}
-
-			p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-			p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
-		case workloadmeta.EventTypeUnset:
-			p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-			// Let the SBOM expire on back-end side
-		}
+	// 1. Unregister removed containers first so imageUsers is up to date before
+	//    we compute inUse below. Processing image Set events before these removals
+	//    would cause false-positive inUse=true on the emitted SBOM.
+	for _, event := range containerUnsetEvents {
+		p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 	}
 
-	// Process all container events after images
-	for _, event := range containerEvents {
-		switch event.Type {
-		case workloadmeta.EventTypeSet:
-			container := event.Entity.(*workloadmeta.Container)
-			p.registerContainer(container)
+	// 2. Unregister removed images.
+	for _, event := range imageUnsetEvents {
+		p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		// Let the SBOM expire on back-end side
+	}
 
-			filterableContainer := workloadmetafilter.CreateContainer(container, nil)
-			if p.containerFilter.IsExcluded(filterableContainer) {
-				continue
-			}
+	// 3. Register updated images and emit SBOMs; inUse now reflects the
+	//    current set of running containers.
+	for _, event := range imageSetEvents {
+		filterableContainerImage := workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name)
+		if p.containerFilter.IsExcluded(filterableContainerImage) {
+			continue
+		}
 
-			if p.procfsSBOM {
-				if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
-					p.triggerProcfsScan(container)
-				}
+		p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+	}
+
+	// 4. Register new/updated containers. registerContainer may emit a second
+	//    SBOM for an image that just gained its first running container.
+	for _, event := range containerSetEvents {
+		container := event.Entity.(*workloadmeta.Container)
+		p.registerContainer(container)
+
+		filterableContainer := workloadmetafilter.CreateContainer(container, nil)
+		if p.containerFilter.IsExcluded(filterableContainer) {
+			continue
+		}
+
+		if p.procfsSBOM {
+			if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
+				p.triggerProcfsScan(container)
 			}
-		case workloadmeta.EventTypeUnset:
-			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
 	}
 }
@@ -195,6 +211,10 @@ func (p *processor) registerContainer(ctr *workloadmeta.Container) {
 	ctrID := ctr.ID
 
 	if !ctr.State.Running {
+		// Container is no longer running. Remove it from imageUsers so that a
+		// subsequent SBOM computation does not incorrectly set inUse=true for
+		// an image that has no running containers.
+		p.unregisterContainer(ctr)
 		return
 	}
 
@@ -381,6 +401,11 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			break
 		}
 	}
+	// Fallback for runtimes (e.g. containerd) where ctr.Image.ID is the image
+	// config digest rather than a repo digest, so imageUsers is keyed by img.ID.
+	if !inUse {
+		_, inUse = p.imageUsers[img.ID]
+	}
 
 	cyclosbom, err := sbomutil.UncompressSBOM(img.SBOM)
 	if err != nil {
@@ -412,10 +437,6 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			if !allowMissingRepodigest || len(img.RepoDigests) != 0 {
 				log.Infof("The image %s has no repo digest for repo %s, skipping", img.ID, repo)
 				continue
-			}
-
-			if !inUse {
-				_, inUse = p.imageUsers[img.ID]
 			}
 
 			log.Infof("The image %s has no repo digest for repo %s", img.Name, repo)

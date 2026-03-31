@@ -22,8 +22,8 @@ type confMap = map[string]any
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
-	hostProfiler := make(confMap)
-	_ = converters.Set(hostProfiler, "symbol_uploader::enabled", true)
+	profiling := make(confMap)
+	_ = converters.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -35,11 +35,11 @@ func buildReceivers(conf confMap, agent configManager) []any {
 		}
 	}
 
-	_ = converters.Set(hostProfiler, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	_ = converters.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
 
-	receivers["hostprofiler"] = hostProfiler
+	receivers["profiling"] = profiling
 	conf["receivers"] = receivers
-	return []any{"hostprofiler"}
+	return []any{"profiling"}
 }
 
 func buildExporters(conf confMap, agent configManager) []any {
