@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -117,18 +118,51 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
-func buildConfig(agent configManager) confMap {
+func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesProcessors, profilesExporters []any) {
+	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
+
+	receivers, _ := converters.Ensure[confMap](conf, "receivers")
+	receivers["prometheus"] = converters.PrometheusReceiverConfig()
+
+	processors, _ := converters.Ensure[confMap](conf, "processors")
+	processors["cumulativetodelta"] = confMap{}
+	processors["filter"] = converters.FilterProcessorConfig()
+
+	metricsProcessors := []any{"filter", "cumulativetodelta"}
+	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+	metricsReceivers := []any{"prometheus"}
+	if enableGoRuntimeMetrics {
+		receivers["otlp"] = confMap{
+			"protocols": confMap{
+				"grpc": nil,
+				"http": nil,
+			},
+		}
+		metricsReceivers = append(metricsReceivers, "otlp")
+	}
+
+	metricsPipeline["receivers"] = metricsReceivers
+	metricsPipeline["processors"] = metricsProcessors
+	metricsPipeline["exporters"] = profilesExporters
+}
+
+func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	config := make(confMap)
 
 	profilesPipeline, _ := converters.Ensure[confMap](config, "service::pipelines::profiles")
 
-	profilesPipeline["processors"] = buildProcessors(config)
-	profilesPipeline["exporters"] = buildExporters(config, agent)
-	profilesPipeline["receivers"] = buildReceivers(config, agent)
+	profilesProcessors := buildProcessors(config)
+	profilesExporters := buildExporters(config, agent)
+	profilesReceivers := buildReceivers(config, agent)
+
+	profilesPipeline["processors"] = profilesProcessors
+	profilesPipeline["exporters"] = profilesExporters
+	profilesPipeline["receivers"] = profilesReceivers
+
+	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
 
 	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
-	_ = converters.Set(config, "service::telemetry::metrics::level", "none")
 
 	log.Debugf("Generated configuration: %+v", config)
 

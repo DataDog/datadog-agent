@@ -22,9 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -39,6 +41,10 @@ import (
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
+
+type testCollectorParams struct{}
+
+func (testCollectorParams) GetGoRuntimeMetrics() bool { return false }
 
 const testVersion = "7.0.0-test"
 
@@ -57,6 +63,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	receivers, err := otelcol.MakeFactoryMap(
 		receiver.NewFactory(),
 		otlpreceiver.NewFactory(),
+		prometheusreceiver.NewFactory(),
 	)
 	require.NoError(t, err)
 
@@ -69,6 +76,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	processors, err := otelcol.MakeFactoryMap(
 		attributesprocessor.NewFactory(),
 		cumulativetodeltaprocessor.NewFactory(),
+		filterprocessor.NewFactory(),
 		infraattributesprocessor.NewFactory(),
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
@@ -208,7 +216,7 @@ func TestProvider(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS", "")
 			cfg := loadConfig(t, filepath.Join("td", tt.agentConfig))
-			provider := newProvider(cfg)(confmap.ProviderSettings{})
+			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 
@@ -253,7 +261,7 @@ func TestProvider(t *testing.T) {
 func TestProviderMultipleEndpoints(t *testing.T) {
 	t.Setenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS", "")
 	cfg := loadConfig(t, filepath.Join("td", "provider/multiple-endpoints/agent.yaml"))
-	provider := newProvider(cfg)(confmap.ProviderSettings{})
+	provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 	retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 	require.NoError(t, err)
@@ -280,7 +288,7 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 }
 
 func TestProviderMethods(t *testing.T) {
-	provider := newProvider(config.NewMock(t))(confmap.ProviderSettings{})
+	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 
 	require.Equal(t, "dd", provider.Scheme())
 

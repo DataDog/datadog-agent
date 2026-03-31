@@ -1035,7 +1035,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceSecretBackend)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
 		return nil
 	}
 
@@ -1149,7 +1149,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecretBackend)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
 	return nil
 }
 
