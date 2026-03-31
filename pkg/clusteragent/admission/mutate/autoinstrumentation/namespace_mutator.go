@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,29 @@ func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator, 
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
+	}
+
+	// Check the registry allow list before any mutation. kpiEnvVarsMutator runs first and
+	// sets DD_INSTRUMENTATION_INSTALL_TYPE; if we only check inside InjectAPMLibraries (which
+	// runs later), that env var would already be set on blocked pods, causing RequireNoInjection
+	// to fail. Checking here lets us abort cleanly before any env vars are written.
+	if len(m.config.registryAllowList) > 0 {
+		injectorImage := m.resolveInjectorImage(pod)
+		if !slices.Contains(m.config.registryAllowList, injectorImage.Registry) {
+			msg := fmt.Sprintf("registry %q is not in the allow list", injectorImage.Registry)
+			log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), msg)
+			annotation.Set(pod, annotation.InjectionError, msg)
+			return nil
+		}
+		for _, lib := range config.libs {
+			libImage := m.resolveLibraryImage(lib)
+			if libImage.Registry != "" && !slices.Contains(m.config.registryAllowList, libImage.Registry) {
+				msg := fmt.Sprintf("registry %q is not in the allow list", libImage.Registry)
+				log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), msg)
+				annotation.Set(pod, annotation.InjectionError, msg)
+				return nil
+			}
+		}
 	}
 
 	autoDetected := config.source.isFromLanguageDetection()
