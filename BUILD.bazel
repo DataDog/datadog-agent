@@ -237,7 +237,16 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
-# gazelle:exclude pkg/discovery
+# gazelle:exclude pkg/discovery/apm
+# gazelle:exclude pkg/discovery/core
+# gazelle:exclude pkg/discovery/envs
+# gazelle:exclude pkg/discovery/language
+# gazelle:exclude pkg/discovery/model
+# gazelle:exclude pkg/discovery/module
+# gazelle:exclude pkg/discovery/module
+# gazelle:exclude pkg/discovery/testdata
+# gazelle:exclude pkg/discovery/tracermetadata/language
+# gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
 # gazelle:exclude pkg/dyninst/dispatcher
 # gazelle:exclude pkg/dyninst/dwarf
@@ -471,7 +480,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/sync
 # gazelle:exclude pkg/util/system
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/util/testutil
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
