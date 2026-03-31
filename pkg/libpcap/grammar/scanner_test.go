@@ -10,7 +10,7 @@ import "testing"
 func scanAll(input string) []int {
 	s := NewScanner(input)
 	var tokens []int
-	var lval SymType
+	var lval yySymType
 	for {
 		tok := s.Lex(&lval)
 		if tok == 0 {
@@ -54,7 +54,7 @@ func TestScannerProtocols(t *testing.T) {
 		"carp":   CARP,
 	}
 	for word, want := range tests {
-		var lval SymType
+		var lval yySymType
 		s := NewScanner(word)
 		got := s.Lex(&lval)
 		if got != want {
@@ -64,7 +64,7 @@ func TestScannerProtocols(t *testing.T) {
 }
 
 func TestScannerDirections(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("src")
 	if tok := s.Lex(&lval); tok != SRC {
@@ -87,7 +87,7 @@ func TestScannerQualifiers(t *testing.T) {
 		"gateway":   GATEWAY,
 	}
 	for word, want := range tests {
-		var lval SymType
+		var lval yySymType
 		s := NewScanner(word)
 		got := s.Lex(&lval)
 		if got != want {
@@ -97,74 +97,74 @@ func TestScannerQualifiers(t *testing.T) {
 }
 
 func TestScannerNumber(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("80")
 	if tok := s.Lex(&lval); tok != NUM {
 		t.Fatalf("expected NUM, got %d", tok)
 	}
-	if lval.H != 80 {
-		t.Errorf("value = %d, want 80", lval.H)
+	if lval.h != 80 {
+		t.Errorf("value = %d, want 80", lval.h)
 	}
 }
 
 func TestScannerHexNumber(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("0x0800")
 	if tok := s.Lex(&lval); tok != NUM {
 		t.Fatalf("expected NUM, got %d", tok)
 	}
-	if lval.H != 0x0800 {
-		t.Errorf("value = %#x, want 0x0800", lval.H)
+	if lval.h != 0x0800 {
+		t.Errorf("value = %#x, want 0x0800", lval.h)
 	}
 }
 
 func TestScannerDottedAddr(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("192.168.1.1")
 	if tok := s.Lex(&lval); tok != HID {
 		t.Fatalf("expected HID, got %d", tok)
 	}
-	if lval.S != "192.168.1.1" {
-		t.Errorf("value = %q, want 192.168.1.1", lval.S)
+	if lval.s != "192.168.1.1" {
+		t.Errorf("value = %q, want 192.168.1.1", lval.s)
 	}
 }
 
 func TestScannerIPv6(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("::1")
 	if tok := s.Lex(&lval); tok != HID6 {
 		t.Fatalf("expected HID6, got %d", tok)
 	}
-	if lval.S != "::1" {
-		t.Errorf("value = %q, want ::1", lval.S)
+	if lval.s != "::1" {
+		t.Errorf("value = %q, want ::1", lval.s)
 	}
 }
 
 func TestScannerIPv6Full(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("fe80::1")
 	if tok := s.Lex(&lval); tok != HID6 {
 		t.Fatalf("expected HID6 for fe80::1, got %d", tok)
 	}
-	if lval.S != "fe80::1" {
-		t.Errorf("value = %q, want fe80::1", lval.S)
+	if lval.s != "fe80::1" {
+		t.Errorf("value = %q, want fe80::1", lval.s)
 	}
 }
 
 func TestScannerMAC(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("00:11:22:33:44:55")
 	if tok := s.Lex(&lval); tok != EID {
 		t.Fatalf("expected EID, got %d", tok)
 	}
-	if lval.S != "00:11:22:33:44:55" {
-		t.Errorf("value = %q, want 00:11:22:33:44:55", lval.S)
+	if lval.s != "00:11:22:33:44:55" {
+		t.Errorf("value = %q, want 00:11:22:33:44:55", lval.s)
 	}
 }
 
@@ -193,7 +193,7 @@ func TestScannerTwoCharOps(t *testing.T) {
 		"||": OR,
 	}
 	for input, want := range tests {
-		var lval SymType
+		var lval yySymType
 		s := NewScanner(input)
 		got := s.Lex(&lval)
 		if got != want {
@@ -203,7 +203,7 @@ func TestScannerTwoCharOps(t *testing.T) {
 }
 
 func TestScannerBoolOps(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	s := NewScanner("and")
 	if tok := s.Lex(&lval); tok != AND {
@@ -232,15 +232,15 @@ func TestScannerTCPFlags(t *testing.T) {
 		"tcpflags": 13,
 	}
 	for word, wantVal := range tests {
-		var lval SymType
+		var lval yySymType
 		s := NewScanner(word)
 		tok := s.Lex(&lval)
 		if tok != NUM {
 			t.Errorf("Lex(%q) token = %d, want NUM(%d)", word, tok, NUM)
 			continue
 		}
-		if lval.H != wantVal {
-			t.Errorf("Lex(%q) value = %d, want %d", word, lval.H, wantVal)
+		if lval.h != wantVal {
+			t.Errorf("Lex(%q) value = %d, want %d", word, lval.h, wantVal)
 		}
 	}
 }
@@ -252,15 +252,15 @@ func TestScannerICMPTypes(t *testing.T) {
 		"icmp-unreach":   3,
 	}
 	for word, wantVal := range tests {
-		var lval SymType
+		var lval yySymType
 		s := NewScanner(word)
 		tok := s.Lex(&lval)
 		if tok != NUM {
 			t.Errorf("Lex(%q) token = %d, want NUM", word, tok)
 			continue
 		}
-		if lval.H != wantVal {
-			t.Errorf("Lex(%q) value = %d, want %d", word, lval.H, wantVal)
+		if lval.h != wantVal {
+			t.Errorf("Lex(%q) value = %d, want %d", word, lval.h, wantVal)
 		}
 	}
 }
@@ -299,14 +299,14 @@ func TestScannerBracketExpression(t *testing.T) {
 }
 
 func TestScannerIdentifier(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 	s := NewScanner("myhost.example.com")
 	tok := s.Lex(&lval)
 	if tok != ID {
 		t.Fatalf("expected ID, got %d", tok)
 	}
-	if lval.S != "myhost.example.com" {
-		t.Errorf("value = %q, want myhost.example.com", lval.S)
+	if lval.s != "myhost.example.com" {
+		t.Errorf("value = %q, want myhost.example.com", lval.s)
 	}
 }
 
@@ -319,7 +319,7 @@ func TestScannerVLAN(t *testing.T) {
 		"geneve": GENEVE,
 	}
 	for word, want := range tests {
-		var lval SymType
+		var lval yySymType
 		s := NewScanner(word)
 		got := s.Lex(&lval)
 		if got != want {
@@ -329,7 +329,7 @@ func TestScannerVLAN(t *testing.T) {
 }
 
 func TestScannerLen(t *testing.T) {
-	var lval SymType
+	var lval yySymType
 
 	for _, word := range []string{"len", "length"} {
 		s := NewScanner(word)
