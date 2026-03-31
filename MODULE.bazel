@@ -189,7 +189,7 @@ git_override(
     commit = "cd3e7ee1027a3ecc8b89dc61eb485299ed833399",
     patch_args = ["-p1"],
     patches = [
-        "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
+        "//bazel/patches:gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
