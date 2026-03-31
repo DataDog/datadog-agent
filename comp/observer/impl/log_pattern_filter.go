@@ -7,38 +7,24 @@ package observerimpl
 
 import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 
-// minLogPatternRateLogsPerSec is the minimum log rate (logs/s) for a
-// log_pattern_extractor anomaly to be forwarded to correlators and reporters.
-// Anomalies on patterns that arrive slower than this threshold are suppressed
-// because they are unlikely to represent a meaningful workload change.
+// Suppress log_pattern_extractor anomalies below this log rate (logs/s)
 const minLogPatternRateLogsPerSec = 1.0
 
-// logPatternRateFilter suppresses anomalies produced by the log_pattern_extractor
-// when the current metric rate (DebugInfo.CurrentValue, in logs/s) is below
-// minLogPatternRateLogsPerSec.
-//
-// Rationale: patterns that fire less than once per second are too sparse to
-// generate reliable anomaly signals — baseline estimation is noisy and false
-// positives are common. The threshold can be adjusted via the constant above.
+// logPatternRateFilter filters out low-rate log_pattern_extractor anomalies
 type logPatternRateFilter struct{}
 
 var _ observerdef.DetectorFilter = (*logPatternRateFilter)(nil)
 
-// NewLogPatternRateFilter returns a DetectorFilter that discards low-rate
-// log_pattern_extractor anomalies (< 1 log/s at detection time).
+// NewLogPatternRateFilter creates a log_pattern rate-based filter
 func NewLogPatternRateFilter() observerdef.DetectorFilter {
 	return &logPatternRateFilter{}
 }
 
-// Name returns the filter name.
 func (f *logPatternRateFilter) Name() string {
 	return "log_pattern_rate_filter"
 }
 
-// ShouldFilterOut returns true when the anomaly originates from the
-// log_pattern_extractor namespace and its current rate is below 1 log/s.
-// Anomalies that lack DebugInfo (no rate information) are passed through
-// to avoid silently dropping detections from detectors that do not populate it.
+// Filter out log_pattern_extractor anomalies with rate < 1 log/s. Pass through if no DebugInfo.
 func (f *logPatternRateFilter) ShouldFilterOut(a observerdef.Anomaly) bool {
 	if a.Source.Namespace != LogPatternExtractorName {
 		return false
