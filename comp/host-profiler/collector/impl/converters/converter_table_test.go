@@ -180,23 +180,8 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 		{
 			name:     "multiple-profiling-receivers",
-			provided: "no_agent/multi-hostprof-recv/in.yaml",
-			expected: "no_agent/multi-hostprof-recv/out.yaml",
-		},
-		{
-			name:     "renames-legacy-hostprofiler-receiver",
-			provided: "no_agent/legacy-hostprofiler/in.yaml",
-			expected: "no_agent/legacy-hostprofiler/out.yaml",
-		},
-		{
-			name:     "renames-legacy-hostprofiler-receiver-with-id",
-			provided: "no_agent/legacy-hostprofiler-id/in.yaml",
-			expected: "no_agent/legacy-hostprofiler-id/out.yaml",
-		},
-		{
-			name:     "renames-legacy-hostprofiler-orphan-receiver",
-			provided: "no_agent/legacy-hostprofiler-orphan/in.yaml",
-			expected: "no_agent/legacy-hostprofiler-orphan/out.yaml",
+			provided: "no_agent/multi-profiling-recv/in.yaml",
+			expected: "no_agent/multi-profiling-recv/out.yaml",
 		},
 		{
 			name:     "ensures-headers",
@@ -339,11 +324,6 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			name:          "reserved-processor-in-pipeline-not-defined",
 			provided:      "no_agent/reserved-proc-in-pipeline/in.yaml",
 			expectedError: "reserved resource processor name",
-		},
-		{
-			name:          "legacy-hostprofiler-collision-with-profiling",
-			provided:      "no_agent/legacy-hostprofiler-collision/in.yaml",
-			expectedError: "a receiver with that name already exists",
 		},
 		{
 			name:          "reserved-processor-empty",

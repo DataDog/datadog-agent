@@ -100,13 +100,6 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	}
 	profilesPipeline["processors"] = newProcessorNames
 
-	// Rename any legacy hostprofiler receivers to profiling before checking the pipeline
-	// TODO: Remove this once we no longer support legacy hostprofiler receivers.
-	receiverNames, err = c.fixLegacyHostProfilerReceiver(confStringMap, receiverNames)
-	if err != nil {
-		return err
-	}
-
 	// Ensures at least one profiling receiver is used & configured
 	// If not, create a minimal component with symbol uploading disabled
 	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
@@ -279,40 +272,6 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	return nil
 }
 
-// fixLegacyHostProfilerReceiver renames all hostprofiler receivers to profiling in the global receivers map
-// to keep compatibility with existing configs.
-// TODO: Remove this once we no longer support legacy hostprofiler receivers.
-func (c *converterWithoutAgent) fixLegacyHostProfilerReceiver(conf confMap, receiverNames []any) ([]any, error) {
-	receivers, err := Ensure[confMap](conf, "receivers")
-	if err != nil {
-		return nil, err
-	}
-
-	for name, cfg := range receivers {
-		if !isComponentType(name, componentTypeHostProfiler) {
-			continue
-		}
-		newName := strings.Replace(name, defaultHostProfilerName, defaultProfilingName, 1)
-		if _, exists := receivers[newName]; exists {
-			return nil, fmt.Errorf("cannot rename legacy receiver %q to %q: a receiver with that name already exists", name, newName)
-		}
-		delete(receivers, name)
-		receivers[newName] = cfg
-		slog.Warn("Renamed legacy hostprofiler receiver to profiling", slog.String("old", name), slog.String("new", newName))
-	}
-
-	for i, nameAny := range receiverNames {
-		name, ok := nameAny.(string)
-		if !ok {
-			continue
-		}
-		if isComponentType(name, componentTypeHostProfiler) {
-			receiverNames[i] = strings.Replace(name, defaultHostProfilerName, defaultProfilingName, 1)
-		}
-	}
-
-	return receiverNames, nil
-}
 
 // fixReceiversPipeline ensures at least one profiling receiver is configured in the pipeline
 // If none exists, it adds a minimal profiling receiver with symbol_uploader disabled
