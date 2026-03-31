@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -100,30 +101,32 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 	return text
 }
 
-// send formats a correlation into an event and either prints or posts it.
+// send formats a correlation into a change event and either prints or posts it.
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
-	text := correlationMessage(c)
+	msg := buildChangeMessage(c)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
+	aggKey := "observer:" + c.Pattern
 
-	s.logger.Infof("[observer] sending event: pattern=%s title=%q timestamp=%s\n%s\n", c.Pattern, c.Title, ts, text)
+	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
 	if s.api == nil {
-		fmt.Printf("[dry-run] pattern=%s title=%q timestamp=%s\n%s\n\n", c.Pattern, c.Title, ts, text)
+		fmt.Printf("[dry-run] change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n\n", c.Pattern, c.Title, aggKey, ts, msg)
 		return nil
 	}
 
-	attrs := datadogV2.AlertEventCustomAttributesAsEventPayloadAttributes(
-		datadogV2.NewAlertEventCustomAttributes(datadogV2.ALERTEVENTCUSTOMATTRIBUTESSTATUS_ERROR),
-	)
+	changeAttrs := buildChangeAttributes(c)
+	attrs := datadogV2.ChangeEventCustomAttributesAsEventPayloadAttributes(&changeAttrs)
 	payload := datadogV2.EventCreateRequestPayload{
 		Data: datadogV2.EventCreateRequest{
 			Type: datadogV2.EVENTCREATEREQUESTTYPE_EVENT,
 			Attributes: datadogV2.EventPayload{
-				Title:      c.Title,
-				Message:    datadog.PtrString(text),
-				Category:   datadogV2.EVENTCATEGORY_ALERT,
-				Tags:       []string{"source:agent-q-branch-observer", "pattern:" + c.Pattern},
-				Attributes: attrs,
+				Title:          c.Title,
+				Message:        datadog.PtrString(msg),
+				Category:       datadogV2.EVENTCATEGORY_CHANGE,
+				Tags:           []string{"source:agent-q-branch-observer", "pattern:" + c.Pattern},
+				Timestamp:      datadog.PtrString(ts),
+				AggregationKey: datadog.PtrString(aggKey),
+				Attributes:     attrs,
 			},
 		},
 	}
@@ -136,6 +139,199 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		}
 	}
 	return err
+}
+
+// buildChangeAttributes constructs the change event attributes for a correlation.
+func buildChangeAttributes(c observerdef.ActiveCorrelation) datadogV2.ChangeEventCustomAttributes {
+	name := c.Pattern
+	if len(name) > 128 {
+		name = name[:128]
+	}
+	changedResource := *datadogV2.NewChangeEventCustomAttributesChangedResource(
+		name,
+		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESCHANGEDRESOURCETYPE_CONFIGURATION,
+	)
+	changeAttrs := *datadogV2.NewChangeEventCustomAttributes(changedResource)
+
+	author := *datadogV2.NewChangeEventCustomAttributesAuthor(
+		"datadog-agent-observer",
+		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESAUTHORTYPE_AUTOMATION,
+	)
+	changeAttrs.SetAuthor(author)
+	changeAttrs.SetImpactedResources(extractImpactedServices(c))
+	changeAttrs.SetPrevValue(buildPrevValue(c))
+	changeAttrs.SetNewValue(buildNewValue(c))
+	changeAttrs.SetChangeMetadata(buildChangeMetadata(c))
+
+	return changeAttrs
+}
+
+// extractImpactedServices collects unique service names from anomaly and member tags.
+func extractImpactedServices(c observerdef.ActiveCorrelation) []datadogV2.ChangeEventCustomAttributesImpactedResourcesItems {
+	seen := make(map[string]bool)
+	for _, m := range c.Members {
+		for _, tag := range m.Tags {
+			if strings.HasPrefix(tag, "service:") {
+				seen[strings.TrimPrefix(tag, "service:")] = true
+			}
+		}
+	}
+	for _, a := range c.Anomalies {
+		for _, tag := range a.Source.Tags {
+			if strings.HasPrefix(tag, "service:") {
+				seen[strings.TrimPrefix(tag, "service:")] = true
+			}
+		}
+	}
+	var items []datadogV2.ChangeEventCustomAttributesImpactedResourcesItems
+	for svc := range seen {
+		items = append(items, *datadogV2.NewChangeEventCustomAttributesImpactedResourcesItems(
+			svc,
+			datadogV2.CHANGEEVENTCUSTOMATTRIBUTESIMPACTEDRESOURCESITEMSTYPE_SERVICE,
+		))
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+	if len(items) > 100 {
+		items = items[:100]
+	}
+	return items
+}
+
+// buildPrevValue creates a per-series baseline snapshot for the change event.
+func buildPrevValue(c observerdef.ActiveCorrelation) map[string]interface{} {
+	prev := make(map[string]interface{})
+	for _, a := range c.Anomalies {
+		if a.DebugInfo == nil {
+			continue
+		}
+		key := anomalyDisplayKey(a)
+		prev[key] = map[string]interface{}{
+			"mean":   a.DebugInfo.BaselineMean,
+			"median": a.DebugInfo.BaselineMedian,
+			"stddev": a.DebugInfo.BaselineStddev,
+		}
+	}
+	return prev
+}
+
+// buildNewValue creates a per-series current-state snapshot for the change event.
+func buildNewValue(c observerdef.ActiveCorrelation) map[string]interface{} {
+	newVal := make(map[string]interface{})
+	for _, a := range c.Anomalies {
+		if a.DebugInfo == nil {
+			continue
+		}
+		key := anomalyDisplayKey(a)
+		entry := map[string]interface{}{
+			"value":           a.DebugInfo.CurrentValue,
+			"deviation_sigma": a.DebugInfo.DeviationSigma,
+		}
+		if a.DebugInfo.Threshold != 0 {
+			entry["threshold"] = a.DebugInfo.Threshold
+		}
+		newVal[key] = entry
+	}
+	return newVal
+}
+
+// buildChangeMetadata creates the full structured anomaly inventory.
+func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{} {
+	var metricAnomalies, logAnomalies []interface{}
+	for _, a := range c.Anomalies {
+		entry := map[string]interface{}{
+			"source":    a.Source.DisplayName(),
+			"detector":  a.DetectorName,
+			"title":     a.Title,
+			"timestamp": a.Timestamp,
+		}
+		if a.Description != "" {
+			entry["description"] = a.Description
+		}
+		if a.Score != nil {
+			entry["score"] = *a.Score
+		}
+		if a.DebugInfo != nil {
+			entry["debug_info"] = map[string]interface{}{
+				"baseline_mean":   a.DebugInfo.BaselineMean,
+				"baseline_stddev": a.DebugInfo.BaselineStddev,
+				"baseline_median": a.DebugInfo.BaselineMedian,
+				"baseline_mad":    a.DebugInfo.BaselineMAD,
+				"threshold":       a.DebugInfo.Threshold,
+				"current_value":   a.DebugInfo.CurrentValue,
+				"deviation_sigma": a.DebugInfo.DeviationSigma,
+			}
+		}
+		if a.Context != nil {
+			ctx := map[string]interface{}{}
+			if a.Context.Pattern != "" {
+				ctx["pattern"] = a.Context.Pattern
+			}
+			if a.Context.Example != "" {
+				ctx["example"] = a.Context.Example
+			}
+			if len(ctx) > 0 {
+				entry["context"] = ctx
+			}
+		}
+		if a.Type == observerdef.AnomalyTypeLog {
+			logAnomalies = append(logAnomalies, entry)
+		} else {
+			metricAnomalies = append(metricAnomalies, entry)
+		}
+	}
+
+	meta := map[string]interface{}{
+		"anomaly_count": len(c.Anomalies),
+		"first_seen":    time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339),
+		"last_updated":  time.Unix(c.LastUpdated, 0).UTC().Format(time.RFC3339),
+	}
+	if len(metricAnomalies) > 0 {
+		meta["metric_anomalies"] = metricAnomalies
+	}
+	if len(logAnomalies) > 0 {
+		meta["log_anomalies"] = logAnomalies
+	}
+	if len(c.Members) > 0 {
+		members := make([]string, len(c.Members))
+		for i, m := range c.Members {
+			members[i] = m.DisplayName()
+		}
+		meta["member_series"] = members
+	}
+	return meta
+}
+
+// buildChangeMessage creates a compact human-readable summary for the change event message.
+func buildChangeMessage(c observerdef.ActiveCorrelation) string {
+	var lines []string
+	lines = append(lines, fmt.Sprintf("Correlated behavior change detected: %d anomalies in pattern %q", len(c.Anomalies), c.Pattern))
+	lines = append(lines, "")
+
+	for _, a := range c.Anomalies {
+		display := anomalyDisplayKey(a)
+		if a.DebugInfo != nil {
+			lines = append(lines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
+		} else if a.Description != "" {
+			lines = append(lines, "- "+a.Description)
+		} else {
+			lines = append(lines, "- "+display)
+		}
+	}
+
+	text := strings.Join(lines, "\n")
+	const maxLen = 4000
+	if len(text) > maxLen {
+		text = text[:maxLen-3] + "..."
+	}
+	return text
+}
+
+// anomalyDisplayKey returns a human-readable key for an anomaly's source series.
+func anomalyDisplayKey(a observerdef.Anomaly) string {
+	if key := a.Source.DisplayName(); key != "" {
+		return key
+	}
+	return a.Source.String()
 }
 
 // sendCorrelationEvents sends one event per correlation.
