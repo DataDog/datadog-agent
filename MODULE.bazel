@@ -69,10 +69,17 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
+# Temporary until gazelle > 0.48.0 with ignore_local_replaced_modules is in BCR
+git_override(
+    module_name = "gazelle",
+    commit = "7c548446d7044d3d5c57a74096851ae6b0a9192f",  # main as of Mar 29, 2026
+    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
+)
+
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "e7fb6ab0b4380ba16607152b0bef3e09ff66d8ab",  # main as of Feb 11, 2026
+    commit = "2ce3598fc987420d180649847f3bf1cc044494e6",  # main as of Feb 11, 2026
     remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 
@@ -332,4 +339,4 @@ include("//deps:go.MODULE.bazel")
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "2.3.0")
 
-use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")
+use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")

@@ -4,5 +4,5 @@ processors:
     send_batch_size: 100
 
 receivers:
-  hostprofiler:
+  profiling:
     enabled: false

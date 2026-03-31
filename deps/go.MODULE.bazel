@@ -9,6 +9,12 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/DataDog/sketches-go",
+)
 use_repo(
     go_deps,
     "cc_mvdan_sh_v3",
@@ -138,6 +144,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_config_setup",
     "com_github_datadog_datadog_agent_pkg_config_structure",
     "com_github_datadog_datadog_agent_pkg_config_utils",
+    "com_github_datadog_datadog_agent_pkg_discovery_tracermetadata_model",
     "com_github_datadog_datadog_agent_pkg_errors",
     "com_github_datadog_datadog_agent_pkg_fips",
     "com_github_datadog_datadog_agent_pkg_fleet_installer",
@@ -330,11 +337,13 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_probabilisticsamplerprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourcedetectionprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
@@ -512,6 +521,8 @@ use_repo(
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
 )
+
+use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
 use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")
 

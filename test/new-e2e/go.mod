@@ -2,10 +2,6 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 
 go 1.25.0
 
-// Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
-// The plugin versions NEED to be aligned.
-// TODO: Implement hard check in CI
-
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.184
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
@@ -30,7 +26,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.9 // indirect
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.83.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
 	github.com/pulumi/pulumi/sdk/v3 v3.190.0
@@ -447,6 +443,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer

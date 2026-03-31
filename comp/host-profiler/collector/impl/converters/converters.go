@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
@@ -33,7 +34,7 @@ type confMap = map[string]any
 const (
 	componentTypeInfraAttributes   = "infraattributes"
 	componentTypeResourceDetection = "resourcedetection"
-	componentTypeHostProfiler      = "hostprofiler"
+	componentTypeProfiling         = "profiling"
 	componentTypeOtlpHTTP          = "otlphttp"
 	componentTypeDDProfiling       = "ddprofiling"
 	componentTypeHPFlare           = "hpflare"
@@ -43,7 +44,15 @@ const (
 const (
 	defaultInfraAttributesName   = "infraattributes/default"
 	defaultResourceDetectionName = "resourcedetection/default"
-	defaultHostProfilerName      = "hostprofiler"
+	defaultProfilingName         = "profiling"
+)
+
+// Reserved component names for internal metrics pipeline
+const (
+	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
+	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
+	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
 // Configuration paths used multiple times across converters
@@ -71,7 +80,7 @@ const (
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
+// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
 }
@@ -269,4 +278,62 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	return append(profilesProcessors, resourceProcessorName), nil
+}
+
+// inferMetricsEndpoint derives OTLP metrics endpoint from profiles endpoint.
+// Transforms profile intake URLs to OTLP metrics endpoints by extracting the site.
+//
+// Examples:
+//   - "https://intake.profile.us3.datadoghq.com/v1development/profiles" -> "https://otlp.us3.datadoghq.com/v1/metrics"
+//   - "https://intake.profile.datadoghq.com/v1development/profiles" -> "https://otlp.datadoghq.com/v1/metrics"
+//
+// Returns an error if the URL cannot be parsed or if the site cannot be extracted.
+func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
+	site := configutils.ExtractSiteFromURL(profilesEndpoint)
+	if site == "" {
+		return "", fmt.Errorf("cannot extract site from URL: %s", profilesEndpoint)
+	}
+
+	return fmt.Sprintf("https://otlp.%s/v1/metrics", site), nil
+}
+
+// PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
+// that scrapes OTel collector's internal telemetry metrics.
+func PrometheusReceiverConfig() map[string]any {
+	return confMap{
+		"config": confMap{
+			"scrape_configs": []any{
+				confMap{
+					"job_name":                      "host-profiler-internal",
+					"metric_name_validation_scheme": "legacy",
+					"metric_name_escaping_scheme":   "underscores",
+					"scrape_interval":               "60s",
+					"scrape_protocols":              []any{"PrometheusText0.0.4"},
+					"fallback_scrape_protocol":      "PrometheusText0.0.4",
+					"static_configs": []any{
+						confMap{
+							"targets": []any{"127.0.0.1:8888"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// FilterProcessorConfig returns the default configuration for the filter processor
+// that drops internal prometheus scrape metrics from being exported.
+func FilterProcessorConfig() map[string]any {
+	return confMap{
+		"metrics": confMap{
+			"exclude": confMap{
+				"match_type": "regexp",
+				"metric_names": []any{
+					"^scrape_.*$",                            // Prometheus scraper timing metrics
+					"^up$",                                   // Scraper up/down status
+					"^promhttp_metric_handler_errors_total$", // Prometheus HTTP handler errors
+				},
+			},
+		},
+	}
 }

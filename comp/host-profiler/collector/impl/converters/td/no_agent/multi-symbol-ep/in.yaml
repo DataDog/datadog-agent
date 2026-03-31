@@ -1,5 +1,5 @@
 receivers:
-  hostprofiler:
+  profiling:
     symbol_uploader:
       enabled: true
       symbol_endpoints:
@@ -12,7 +12,7 @@ service:
     profiles:
       processors: []
       receivers:
-      - hostprofiler
+      - profiling
       exporters:
       - otlphttp
 exporters:

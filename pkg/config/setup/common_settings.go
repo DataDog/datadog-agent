@@ -820,6 +820,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
+	// otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
+	// or connected mode (expects core agent for secrets and tagger)
+	config.BindEnvAndSetDefault("otel_standalone", false)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -1048,6 +1051,13 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Integrations excluded from these restrictions.
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
+
+	// Host Profiler config
+
+	// Individual debug options don't need to be registered here - the section is
+	// passed as-is to the OTel debug exporter which handles its own validation.
+	config.BindEnvAndSetDefault("hostprofiler.debug", map[string]any{})
+	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
