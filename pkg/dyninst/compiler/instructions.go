@@ -47,8 +47,8 @@ func makeInstruction(op Op) codeFragment {
 		e := op.EventRootType.Expressions[op.ExprIdx]
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Expression.Type.GetByteSize())
-		// Presence bit index.
-		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprIdx)
+		// Presence bit index (2 bits per expression).
+		bytes = binary.LittleEndian.AppendUint32(bytes, 2*op.ExprIdx)
 		return staticInstruction{
 			opcode: OpcodeExprSave,
 			bytes:  bytes,
@@ -74,9 +74,10 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ExprDereferencePtrOp:
-		bytes := make([]byte, 0, 8)
+		bytes := make([]byte, 0, 12)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.NilBitIdx)
 		return staticInstruction{
 			opcode: OpcodeExprDereferencePtr,
 			bytes:  bytes,
@@ -181,6 +182,51 @@ func makeInstruction(op Op) codeFragment {
 		return staticInstruction{
 			opcode: OpcodePrepareEventRoot,
 			bytes:  bytes,
+		}
+
+	case ExprPushOffsetOp:
+		return staticInstruction{
+			opcode: OpcodeExprPushOffset,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ByteSize),
+		}
+
+	case ExprLoadLiteralOp:
+		bytes := make([]byte, 0, 2+len(op.Data))
+		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.Data)))
+		bytes = append(bytes, op.Data...)
+		return staticInstruction{
+			opcode: OpcodeExprLoadLiteral,
+			bytes:  bytes,
+		}
+
+	case ExprReadStringOp:
+		return staticInstruction{
+			opcode: OpcodeExprReadString,
+			bytes:  binary.LittleEndian.AppendUint16(nil, op.MaxLen),
+		}
+
+	case ExprCmpEqBaseOp:
+		return staticInstruction{
+			opcode: OpcodeExprCmpEqBase,
+			bytes:  []byte{op.ByteSize},
+		}
+
+	case ExprCmpEqStringOp:
+		return staticInstruction{
+			opcode: OpcodeExprCmpEqString,
+			bytes:  []byte{},
+		}
+
+	case ConditionBeginOp:
+		return staticInstruction{
+			opcode: OpcodeConditionBegin,
+			bytes:  []byte{},
+		}
+
+	case ConditionCheckOp:
+		return staticInstruction{
+			opcode: OpcodeConditionCheck,
+			bytes:  []byte{},
 		}
 
 	default:

@@ -145,42 +145,9 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     }
     header->event_pairing_expectation = EVENT_PAIRING_ENTRY_PAIRING_EXPECTED;
   } else if (params->kind == EVENT_KIND_ENTRY && params->has_associated_return) {
+    // Defer in_progress_calls insertion until after condition + throttle gates.
+    // Set the pairing expectation tentatively; actual insertion happens later.
     header->event_pairing_expectation = EVENT_PAIRING_RETURN_PAIRING_EXPECTED;
-    // Optimistically assume this is the first call for this goid by just
-    // attempting to insert with a single entry.
-    //
-    // In order to do an update, we need a value to write. We keep a per-cpu
-    // array (in_progress_calls_buf) with a single element in the first slot
-    // that we can use to update the in_progress_calls map.
-    call_depths_t* depths = bpf_map_lookup_elem(&in_progress_calls_buf, &zero_uint32);
-    if (!depths) {
-      // This should never happen.
-      LOG(1, "failed to get in_progress_calls_buf for %lld", header->goid);
-      return;
-    }
-    depths->depths[0].depth = header->stack_byte_depth;
-    depths->depths[0].probe_id = params->probe_id;
-    int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
-    if (ret != 0) {
-      if (ret == -E2BIG) {
-        // If the map is full, we can't insert any more calls so make sure we
-        // tell userspace not to expect a return event.
-        header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_MAP_FULL;
-      } else if (ret == -EEXIST) {
-        // If there are outstanding calls for this goid, we need to add this one
-        // to the set.
-        depths = bpf_map_lookup_elem(&in_progress_calls, &header->goid);
-        if (!depths) {
-          LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
-          return;
-        }
-        // If we can't insert this call, we need to tell userspace not to expect
-        // a return event.
-        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id)) {
-          header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
-        }
-      }
-    }
   } else {
     switch (params->no_return_reason) {
     case NO_RETURN_REASON_INLINED:
@@ -257,6 +224,64 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
   }
+  header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? (global_ctx.stack_machine->condition_nil_deref ? 2 : 1) : 0;
+  if (global_ctx.stack_machine->condition_failed) {
+    LOG(4, "probe_run: condition failed, skipping event");
+    if (params->kind == EVENT_KIND_RETURN) {
+      // Send minimal event so userspace can discard the orphaned entry.
+      scratch_buf_set_len(global_ctx.buf, sizeof(di_event_header_t));
+      header->data_byte_len = sizeof(di_event_header_t);
+      header->stack_byte_len = 0;
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CONDITION_FAILED;
+      // TODO: If the ring buffer is full here, we leak the entry event in
+      // userspace. We accept this as a known limitation for now.
+      if (!events_scratch_buf_submit(global_ctx.buf)) {
+        LOG(1, "probe_run: failed to submit condition-failed signal for return event");
+      }
+    }
+    // Entry: in_progress_calls insertion was deferred, so nothing to clean up.
+    return;
+  }
+  if (params->throttle_mode == THROTTLE_AFTER_COND_CHECK &&
+      should_throttle(params->throttler_idx, start_ns)) {
+    if (params->kind == EVENT_KIND_RETURN) {
+      // Return throttled after condition passed — send signal to discard buffered entry.
+      scratch_buf_set_len(global_ctx.buf, sizeof(di_event_header_t));
+      header->data_byte_len = sizeof(di_event_header_t);
+      header->stack_byte_len = 0;
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CONDITION_FAILED;
+      if (!events_scratch_buf_submit(global_ctx.buf)) {
+        LOG(1, "probe_run: failed to submit throttled condition-failed signal");
+      }
+    }
+    // Entry: in_progress_calls insertion was deferred, so nothing to clean up.
+    return;
+  }
+  // Deferred insertion: only insert after condition + throttle gates have passed.
+  if (params->kind == EVENT_KIND_ENTRY && params->has_associated_return) {
+    call_depths_t* depths = bpf_map_lookup_elem(&in_progress_calls_buf, &zero_uint32);
+    if (!depths) {
+      LOG(1, "failed to get in_progress_calls_buf for %lld", header->goid);
+      return;
+    }
+    depths->depths[0].depth = header->stack_byte_depth;
+    depths->depths[0].probe_id = params->probe_id;
+    int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
+    if (ret != 0) {
+      if (ret == -E2BIG) {
+        header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_MAP_FULL;
+      } else if (ret == -EEXIST) {
+        depths = bpf_map_lookup_elem(&in_progress_calls, &header->goid);
+        if (!depths) {
+          LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
+          return;
+        }
+        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id)) {
+          header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
+        }
+      }
+    }
+  }
   chase_steps = stack_machine_chase_pointers(&global_ctx);
   if (!events_scratch_buf_submit(global_ctx.buf)) {
     // TODO: Report dropped events metric.
@@ -295,7 +320,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
-  if (params->kind != EVENT_KIND_RETURN && should_throttle(params->throttler_idx, start_ns)) {
+  if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
     stats->throttled_cnt++;
   } else {
     probe_run(start_ns, params, regs);

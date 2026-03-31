@@ -20,6 +20,11 @@ env_vars(
     ],
 )
 
+# Expose release.json for information about the current release.
+release_json = use_repo_rule("//bazel/repo:release_json.bzl", "release_json")
+
+release_json(name = "dd_release_json")
+
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
 bazel_dep(name = "package_metadata", version = "0.0.7")
@@ -39,12 +44,12 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.1.1")
+bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "gazelle", version = "0.47.0")
-bazel_dep(name = "libarchive", version = "3.8.1")
+bazel_dep(name = "gazelle", version = "0.48.0")
+bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "protobuf", version = "29.1")
+bazel_dep(name = "protobuf", version = "34.1")
 single_version_override(
     module_name = "protobuf",
     patch_strip = 1,
@@ -55,32 +60,33 @@ bazel_dep(name = "re.bzl", version = "0.2.0")
 bazel_dep(name = "rules_go", version = "0.60.0")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "rules_python", version = "1.8.5")
-bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "rules_python", version = "1.9.0")
+bazel_dep(name = "rules_rs", version = "0.0.27")
+bazel_dep(name = "rules_rust", version = "0.69.0")
+bazel_dep(name = "rules_rust_prost", version = "0.69.0")
+bazel_dep(name = "rules_shell", version = "0.7.1")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
-# Temporary until gazelle > 0.47.0 with Go 1.24+ fixes is in BCR
-# and until a release includes bazel-contrib/bazel-gazelle#2284
-# (switch from deprecated rules_proto to protobuf module)
+# Temporary until gazelle > 0.48.0 with ignore_local_replaced_modules is in BCR
 git_override(
     module_name = "gazelle",
-    commit = "a3e63b06e1e5c4c7a7849874fadf7ccda8868870",  # master as of Feb 26, 2026
+    commit = "7c548446d7044d3d5c57a74096851ae6b0a9192f",  # main as of Mar 29, 2026
     remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
 )
 
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "9ca4797bbca6f785febcff7bc1508c83110a5de8",  # main as of Feb 11, 2026
+    commit = "2ce3598fc987420d180649847f3bf1cc044494e6",  # main as of Feb 11, 2026
     remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
+    commit = "14c78b8e9347a60919999f13177f1aa3fb850ea3",  # main as of Mar 17, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
@@ -106,7 +112,7 @@ http_archive(
     ],
 )
 
-bazel_dep(name = "rules_multitool", version = "1.9.0")
+bazel_dep(name = "rules_multitool", version = "1.11.1")
 
 multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
@@ -127,6 +133,14 @@ use_repo(find_system_patchelf, "patchelf_toolchains")
 
 register_toolchains(
     "@patchelf_toolchains//:all",
+    dev_dependency = True,
+)
+
+find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
+use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
+
+register_toolchains(
+    "@rules_pkg_rpmbuild//:all",
     dev_dependency = True,
 )
 
@@ -154,13 +168,17 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
+## Linux kernel headers for eBPF prebuilt compilation
+linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
+use_repo(linux_headers_ext, "linux_headers")
+
 ######################################
 ## Compilers and toolchains        ##
 ####################################
 
-bazel_dep(name = "rules_cc", version = "0.2.8")
+bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "rules_flex", version = "0.4")
-bazel_dep(name = "rules_m4", version = "0.3")
+bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
 bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
@@ -172,6 +190,7 @@ git_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
+        "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )
@@ -203,7 +222,7 @@ register_toolchains(
 visual_studio(
     name = "visual_studio",
     path_variable = "VSTUDIO_ROOT",
-    version = "17.14.36717.8",
+    version = "17.14.36717.8",  # 18.4.11612.150
 )
 
 # =========================================
@@ -239,9 +258,6 @@ register_toolchains("@pythons_hub//:all")
 ## Rust dependencies ##
 #######################
 
-bazel_dep(name = "rules_rust", version = "0.68.1")
-bazel_dep(name = "rules_rust_prost", version = "0.68.1")
-
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2024",
@@ -252,8 +268,6 @@ use_repo(rust, "rust_toolchains")
 register_toolchains("@rust_toolchains//:all")
 
 register_toolchains("//bazel/toolchains/prost:prost_toolchain")
-
-bazel_dep(name = "rules_rs", version = "0.0.27")
 
 include("//deps:crates.MODULE.bazel")
 
@@ -271,6 +285,9 @@ include("//deps:repos.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/cacerts:cacerts.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/compile_policy:compile_policy.MODULE.bazel")
@@ -320,6 +337,6 @@ include("//deps:go.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "1.24.1")
+bazel_dep(name = "apple_support", version = "2.3.0")
 
-use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")
+use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")

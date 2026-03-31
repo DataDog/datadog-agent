@@ -10,6 +10,7 @@ package compliance
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules/filter"
@@ -23,7 +24,7 @@ type seclRuleFilter struct {
 // newSECLRuleFilter returns a new agent version based rule filter
 func newSECLRuleFilter(hostname string) (*seclRuleFilter, error) {
 	cfg := filtermodel.RuleFilterEventConfig{}
-	model, err := filtermodel.NewRuleFilterModel(cfg, hostname)
+	model, err := filtermodel.NewRuleFilterModel(cfg, hostname, runtime.GOOS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
 	}

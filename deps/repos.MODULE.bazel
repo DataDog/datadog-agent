@@ -73,14 +73,27 @@ http_archive(
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
+# Pinned to main commit 2373ac51627f05029b0068884c93fa82a11df400 to get:
+# - bazel-contrib/rules_foreign_cc#1451: out_data_dirs in output groups
+# - bazel-contrib/rules_foreign_cc#1465: resource_set integration (fixes overcommitting)
+# - bazel-contrib/rules_foreign_cc#1493: load CcSharedLibraryInfo from rules_cc (Bazel 9)
+# - bazel-contrib/rules_foreign_cc#1492: bump bazel_skylib_gazelle_plugin to 1.9.0 (Bazel 9)
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-single_version_override(
+git_override(
     module_name = "rules_foreign_cc",
+    commit = "7e486222f4899ea22f6f7b689534fc8b9e54b575",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
         "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1491
+        "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/issues/985
+        # TODO(agent-build): Ideally we'd like to find a better way to solve this, possibly
+        # finding a general solution that could be properly upstreamed
+        "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
     ],
+    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
 )
 
 register_toolchains(
@@ -158,6 +171,19 @@ http_archive(
     urls = [
         "https://dd-agent-omnibus.s3.amazonaws.com/bazel/util-linux-2.39.2.tar.gz",
         "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "libseccomp",
+    files = {
+        "BUILD.bazel": "//deps/libseccomp:overlay.BUILD.bazel",
+        "src/configure.h": "//deps/libseccomp:configure.h",
+    },
+    sha256 = "83b6085232d1588c379dc9b9cae47bb37407cf262e6e74993c61ba72d2a784dc",
+    strip_prefix = "libseccomp-2.6.0",
+    urls = [
+        "https://github.com/seccomp/libseccomp/releases/download/v2.6.0/libseccomp-2.6.0.tar.gz",
     ],
 )
 

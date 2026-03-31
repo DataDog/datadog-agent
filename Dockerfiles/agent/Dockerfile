@@ -26,16 +26,15 @@ RUN if [ "$CI" = "true" ]; then \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 FROM baseimage AS extract-base
-RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
+RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 
 ############################################################
 #  Preparation stage: retrieval of 3rd party dependencies  #
@@ -81,7 +80,8 @@ ENV DOCKER_DD_AGENT=true \
     S6_READ_ONLY_ROOT=1
 
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y \
+RUN apt update \
+  && apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
@@ -200,9 +200,11 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
-  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
+  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
+  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
+  # Keep the PAR config read-only, but group-readable so init containers can
+  # copy it on OpenShift where containers run with a random UID in the root group.
+  && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
 # Check that the UID of dd-agent is still 100.
 #

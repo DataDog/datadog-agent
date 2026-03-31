@@ -19,6 +19,7 @@ typedef enum event_pairing_expectation {
   EVENT_PAIRING_EXPECTATION_BUFFER_FULL = 5, // only used in userspace
   EVENT_PAIRING_EXPECTATION_NONE_INLINED = 6,
   EVENT_PAIRING_EXPECTATION_NONE_NO_BODY = 7,
+  EVENT_PAIRING_EXPECTATION_CONDITION_FAILED = 8,
 } event_pairing_expectation_t;
 
 // The message header used for the event program.
@@ -52,7 +53,11 @@ typedef struct di_event_header {
   // Event pairing expectation marks whether a return event is expected for this
   // event and if not, why not.
   unsigned char event_pairing_expectation;
-  char __padding[5];
+  // Set to non-zero when the condition expression could not be fully evaluated
+  // (e.g. nil pointer in the dereference chain). The event is still emitted
+  // (condition error treated as pass) but userspace should report the error.
+  unsigned char condition_eval_error;
+  char __padding[4];
 
   // Hash of the stack trace that follows this header.
   uint64_t stack_hash;

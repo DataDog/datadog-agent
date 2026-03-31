@@ -96,12 +96,12 @@ The config stream is automatically enabled when the component is loaded. No expl
 **Optional settings:**
 ```yaml
 # datadog.yaml
-config_stream:
-  sleep_interval: 10ms  # Backoff on non-terminal errors (default: 10ms)
-
 remote_agent:
   registry:
     enabled: true  # Required for RAR-gated authorization
+  configstream:
+    enabled: true # Required to use the configstreamconsumer
+    sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
 ```
 
 ## Telemetry
