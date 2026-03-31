@@ -29,8 +29,10 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 			// datadog.yaml not yet written (fresh install); the install script or a
 			// subsequent configure step is responsible for enabling otelcollector.
 			log.Warnf("datadog.yaml not found at %s, skipping otelcollector enablement — ensure it is configured before starting the agent", datadogYamlPath)
+			span.SetTag("datadog.yaml_found", false)
 			return nil
 		}
+		span.SetTag("datadog.yaml_found", true)
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
 	var existing map[string]any
