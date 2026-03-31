@@ -7,6 +7,7 @@
 package observerimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.uber.org/fx"
+
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -22,6 +25,8 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/hfrunner"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -33,6 +38,7 @@ type Requires struct {
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
 
+	Lifecycle fx.Lifecycle
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
@@ -240,10 +246,17 @@ func NewComponent(deps Requires) Provides {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 
+	hfSystemEnabled := cfg.GetBool("observer.high_frequency_system_checks.enabled")
+	th := newTelemetryHandler(telemetryComp)
+
 	obs := &observerImpl{
 		engine:           eng,
 		obsCh:            make(chan observation, 1000),
-		telemetryHandler: newTelemetryHandler(telemetryComp),
+		telemetryHandler: th,
+		dropCounter:      th.telemetryCounters[telemetryObsChannelDropped],
+		// hfEnabled is set to true only AFTER the runner starts successfully,
+		// so the 15s system.* stream is not suppressed when the HF runner
+		// fails to start (e.g. check configuration errors).
 	}
 
 	// Set up handle function based on recording and analysis configuration.
@@ -298,6 +311,23 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
+
+	// Start high-frequency system check runner if enabled.
+	// Checks run at 1s and route metrics into the observer via a dedicated
+	// "system-checks-hf" handle, never touching the aggregator or forwarder.
+	if hfSystemEnabled {
+		hfHandle := obs.GetHandle(hfrunner.HFSource)
+		obs.hfRunner = hfrunner.New(hfHandle)
+		obs.hfRunner.Start()
+		obs.hfEnabled = true // Activate 15s suppression only after runner is confirmed started.
+		pkglog.Info("[observer] high-frequency system check runner started (1s interval)")
+		deps.Lifecycle.Append(fx.Hook{
+			OnStop: func(_ context.Context) error {
+				obs.hfRunner.Stop()
+				return nil
+			},
+		})
+	}
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -432,6 +462,17 @@ type observerImpl struct {
 	telemetryHandler  *telemetryHandler
 	digestCleanup     func() // flushes detect digest recording file
 	advanceLogCleanup func() // flushes advance log recording file
+
+	// dropCounter counts observations silently dropped when the channel is full.
+	// Tagged by source for Prometheus visibility. Complements engine.droppedObs
+	// which tracks drops for live/replay parity analysis.
+	dropCounter telemetry.Counter
+
+	// hfRunner is the high-frequency system check runner, non-nil when enabled.
+	hfRunner *hfrunner.Runner
+
+	// hfEnabled is true when high-frequency system check collection is active.
+	hfEnabled bool
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -609,9 +650,64 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 }
 
 // innerHandle creates the base handle without any middleware wrapping.
+// When HF system check collection is enabled, the "all-metrics" handle is
+// wrapped to suppress system.* metrics — the scorer should only see those
+// from the higher-resolution "system-checks-hf" source instead.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	return &handle{ch: o.obsCh, source: name, dropCount: &o.engine.droppedObs}
+	h := &handle{ch: o.obsCh, source: name, dropCount: &o.engine.droppedObs, dropCounter: o.dropCounter}
+	if o.hfEnabled && name == "all-metrics" {
+		return &systemFilteredHandle{inner: h}
+	}
+	return h
 }
+
+// sourceProvider is a structural interface satisfied by *metrics.MetricSample,
+// which carries a MetricSource enum populated by the standard check sender.
+// Using a type assertion (rather than adding GetSource to MetricView) avoids
+// importing pkg/metrics into comp/observer/def.
+type sourceProvider interface {
+	GetSource() metrics.MetricSource
+}
+
+// systemCheckSources is the set of MetricSource values produced by the system
+// checks that the HF runner executes. It mirrors the check list in hfrunner/runner.go.
+var systemCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceCPU:        {},
+	metrics.MetricSourceLoad:       {},
+	metrics.MetricSourceMemory:     {},
+	metrics.MetricSourceIo:         {},
+	metrics.MetricSourceDisk:       {},
+	metrics.MetricSourceNetwork:    {},
+	metrics.MetricSourceUptime:     {},
+	metrics.MetricSourceFileHandle: {},
+}
+
+// systemFilteredHandle wraps a Handle and drops system check metrics so that
+// the 15-second pipeline samples do not compete with the 1-second HF runner
+// stream in the scorer.
+//
+// Filtering uses a MetricSource enum map lookup via a type assertion to
+// sourceProvider. Samples that do not implement sourceProvider pass through
+// unchanged — absence of metadata is not sufficient grounds to drop.
+type systemFilteredHandle struct {
+	inner observerdef.Handle
+}
+
+func (f *systemFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
+	if sp, ok := sample.(sourceProvider); ok {
+		if _, isSystemCheck := systemCheckSources[sp.GetSource()]; isSystemCheck {
+			return
+		}
+	}
+	f.inner.ObserveMetric(sample)
+}
+
+func (f *systemFilteredHandle) ObserveLog(msg observerdef.LogView)       { f.inner.ObserveLog(msg) }
+func (f *systemFilteredHandle) ObserveTrace(trace observerdef.TraceView) { f.inner.ObserveTrace(trace) }
+func (f *systemFilteredHandle) ObserveTraceStats(s observerdef.TraceStatsView) {
+	f.inner.ObserveTraceStats(s)
+}
+func (f *systemFilteredHandle) ObserveProfile(p observerdef.ProfileView) { f.inner.ObserveProfile(p) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -638,9 +734,10 @@ func (o *observerImpl) DumpMetrics(path string) error {
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	ch        chan<- observation
-	source    string
-	dropCount *atomic.Int64 // shared counter for channel-full drops (nil = don't track)
+	ch          chan<- observation
+	source      string
+	dropCount   *atomic.Int64     // shared with engine.droppedObs for parity debugging; may be nil
+	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -674,6 +771,9 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 		if h.dropCount != nil {
 			h.dropCount.Add(1)
 		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
 	}
 }
 
@@ -699,6 +799,9 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	default:
 		if h.dropCount != nil {
 			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
 		}
 	}
 }
@@ -753,6 +856,9 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 		if h.dropCount != nil {
 			h.dropCount.Add(1)
 		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
 	}
 }
 
@@ -791,6 +897,9 @@ func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
 	default:
 		if h.dropCount != nil {
 			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
 		}
 	}
 }
