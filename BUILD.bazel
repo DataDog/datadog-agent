@@ -76,7 +76,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/host-profiler/version
 # gazelle:exclude comp/languagedetection
 # gazelle:exclude comp/logonduration
-# gazelle:exclude comp/logs-library
 # gazelle:exclude comp/logs
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
