@@ -47,8 +47,7 @@ var resourceDetectionDefaultConfig = confMap{
 //   - At least one otlphttpexporter with dd-api-key declared & used
 //   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
-//   - Rename legacy hostprofiler receivers to profiling and warn. TODO: remove when confident the rename is stable
-//   - If no profiling receiver is used & configured, add a minimal one with symbol_uploader: false
+//   - If no profiling is used & configured, add minimal one with symbol_uploader: false
 //   - remove ddprofiling & hpflare extensions
 type converterWithoutAgent struct{}
 
@@ -77,11 +76,6 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	if err != nil {
 		return err
 	}
-	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
-	if err != nil {
-		return err
-	}
-	profilesPipeline["receivers"] = newReceiverNames
 
 	exporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
 	if err != nil {
@@ -105,6 +99,21 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		return err
 	}
 	profilesPipeline["processors"] = newProcessorNames
+
+	// Rename any legacy hostprofiler receivers to profiling before checking the pipeline
+	// TODO: Remove this once we no longer support legacy hostprofiler receivers.
+	receiverNames, err = c.fixLegacyHostProfilerReceiver(confStringMap, receiverNames)
+	if err != nil {
+		return err
+	}
+
+	// Ensures at least one profiling receiver is used & configured
+	// If not, create a minimal component with symbol uploading disabled
+	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
+	if err != nil {
+		return err
+	}
+	profilesPipeline["receivers"] = newReceiverNames
 
 	// Go through every configured processor to make sure there are no infraattributes declared that were not in the
 	// pipeline
@@ -270,60 +279,67 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	return nil
 }
 
-// fixReceiversPipeline ensures at least one profiling receiver is configured in the pipeline.
-// If none exists, it adds a minimal profiling receiver with symbol_uploader disabled.
-func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
+// fixLegacyHostProfilerReceiver renames all hostprofiler receivers to profiling in the global receivers map
+// to keep compatibility with existing configs.
+// TODO: Remove this once we no longer support legacy hostprofiler receivers.
+func (c *converterWithoutAgent) fixLegacyHostProfilerReceiver(conf confMap, receiverNames []any) ([]any, error) {
 	receivers, err := Ensure[confMap](conf, "receivers")
 	if err != nil {
 		return nil, err
 	}
 
+	for name, cfg := range receivers {
+		if !isComponentType(name, componentTypeHostProfiler) {
+			continue
+		}
+		newName := strings.Replace(name, defaultHostProfilerName, defaultProfilingName, 1)
+		if _, exists := receivers[newName]; exists {
+			return nil, fmt.Errorf("cannot rename legacy receiver %q to %q: a receiver with that name already exists", name, newName)
+		}
+		delete(receivers, name)
+		receivers[newName] = cfg
+		slog.Warn("Renamed legacy hostprofiler receiver to profiling", slog.String("old", name), slog.String("new", newName))
+	}
+
+	for i, nameAny := range receiverNames {
+		name, ok := nameAny.(string)
+		if !ok {
+			continue
+		}
+		if isComponentType(name, componentTypeHostProfiler) {
+			receiverNames[i] = strings.Replace(name, defaultHostProfilerName, defaultProfilingName, 1)
+		}
+	}
+
+	return receiverNames, nil
+}
+
+// fixReceiversPipeline ensures at least one profiling receiver is configured in the pipeline
+// If none exists, it adds a minimal profiling receiver with symbol_uploader disabled
+func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
 	// Check if profiling is in the pipeline
 	hasProfiling := false
-	renamedReceiverNames := make([]any, 0, len(receiverNames))
 	for _, nameAny := range receiverNames {
 		name, ok := nameAny.(string)
 		if !ok {
 			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
 		}
 
-		if isComponentType(name, componentTypeProfiling) {
-			hasProfiling = true
-			if profilingConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
-				if err := c.checkProfilingReceiverConfig(profilingConfig); err != nil {
-					return nil, err
-				}
-			}
-			renamedReceiverNames = append(renamedReceiverNames, name)
+		if !isComponentType(name, componentTypeProfiling) {
 			continue
 		}
 
-		if isLegacyHostProfilerType(name) {
-			renamed := renameLegacyHostProfiler(name)
-			if receiverCfg, ok := receivers[name]; ok {
-				if existing, exists := receivers[renamed]; exists && existing != receiverCfg {
-					return nil, fmt.Errorf("legacy receiver %q conflicts with existing receiver %q", name, renamed)
-				}
-				receivers[renamed] = receiverCfg
-				delete(receivers, name)
-			}
-			slog.Warn("Renamed legacy hostprofiler receiver to profiling", slog.String("old", name), slog.String("new", renamed))
-			name = renamed
-			hasProfiling = true
-			if profilingConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
-				if err := c.checkProfilingReceiverConfig(profilingConfig); err != nil {
-					return nil, err
-				}
-			}
-			renamedReceiverNames = append(renamedReceiverNames, name)
-			continue
-		}
+		hasProfiling = true
 
-		renamedReceiverNames = append(renamedReceiverNames, name)
+		if profilingConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
+			if err := c.checkProfilingReceiverConfig(profilingConfig); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if hasProfiling {
-		return renamedReceiverNames, nil
+		return receiverNames, nil
 	}
 
 	// Ensure default config exists if profiling receiver is not configured
@@ -332,23 +348,12 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 	}
 
 	slog.Warn("Added minimal profiling receiver to user configuration")
-	return append(renamedReceiverNames, defaultProfilingName), nil
+	return append(receiverNames, defaultProfilingName), nil
 }
 
-func isLegacyHostProfilerType(name string) bool {
-	return name == "hostprofiler" || strings.HasPrefix(name, "hostprofiler/")
-}
-
-func renameLegacyHostProfiler(name string) string {
-	if name == "hostprofiler" {
-		return defaultProfilingName
-	}
-	return strings.Replace(name, "hostprofiler/", defaultProfilingName+"/", 1)
-}
-
-// checkProfilingReceiverConfig validates and normalizes profiling receiver configuration
+// checkProfilingReceiverConfig validates and normalizes a profiling receiver configuration.
 // It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
-// and all api_key/app_key values are strings
+// and all api_key/app_key values are strings.
 func (c *converterWithoutAgent) checkProfilingReceiverConfig(profiling confMap) error {
 	if isEnabled, ok := Get[bool](profiling, pathSymbolUploaderEnabled); !ok || !isEnabled {
 		return nil

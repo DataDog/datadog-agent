@@ -35,6 +35,7 @@ const (
 	componentTypeInfraAttributes   = "infraattributes"
 	componentTypeResourceDetection = "resourcedetection"
 	componentTypeProfiling         = "profiling"
+	componentTypeHostProfiler      = "hostprofiler"
 	componentTypeOtlpHTTP          = "otlphttp"
 	componentTypeDDProfiling       = "ddprofiling"
 	componentTypeHPFlare           = "hpflare"
@@ -45,6 +46,7 @@ const (
 	defaultInfraAttributesName   = "infraattributes/default"
 	defaultResourceDetectionName = "resourcedetection/default"
 	defaultProfilingName         = "profiling"
+	defaultHostProfilerName      = "hostprofiler"
 )
 
 // Reserved component names for internal metrics pipeline
