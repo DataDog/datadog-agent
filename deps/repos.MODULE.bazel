@@ -81,7 +81,7 @@ http_archive(
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 git_override(
     module_name = "rules_foreign_cc",
-    commit = "fc7ed21622180af6622a9710a6cdf684aaaae30b",
+    commit = "7e486222f4899ea22f6f7b689534fc8b9e54b575",
     patch_strip = 1,
     patches = [
         # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452

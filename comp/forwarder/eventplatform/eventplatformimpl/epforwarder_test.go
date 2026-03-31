@@ -164,6 +164,19 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 	}
 }
 
+func (suite *EventPlatformForwarderTestSuite) TestGetECSFargateTaskARN() {
+	suite.Run("returns empty when not on fargate", func() {
+		// ECS_FARGATE is not set in test environment
+		suite.Equal("", getECSFargateTaskARN())
+	})
+
+	suite.Run("returns empty when on fargate but metadata unavailable", func() {
+		suite.T().Setenv("ECS_FARGATE", "true")
+		// No ECS metadata endpoint available in test, should degrade gracefully
+		suite.Equal("", getECSFargateTaskARN())
+	})
+}
+
 func (suite *EventPlatformForwarderTestSuite) resetCompression() {
 	// Reset compression settings to default state
 	suite.config.SetWithoutSource("database_monitoring.metrics.use_compression", true)
