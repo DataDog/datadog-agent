@@ -32,6 +32,12 @@ type HttpDetails struct {
 	Headers       []PrivateCredentialsToken
 	UrlParameters []PrivateCredentialsToken
 	Body          HttpDetailsBody
+	Testing       *HttpDetailsTesting
+}
+
+type HttpDetailsTesting struct {
+	Path string
+	Verb string
 }
 
 type HttpDetailsBody struct {
