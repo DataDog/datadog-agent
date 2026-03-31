@@ -68,6 +68,8 @@ and unoptimized (`filtertest -O`):
 | Packet length | `less 100`, `greater 1000`, `len >= 64`, `len <= 1500` | Exact match |
 | Protocol numbers | `ip proto 6`, `ip proto 17` | Exact match |
 | Named ports/protos | `port http`, `proto tcp` (via name resolver) | Exact match |
+| Bracket access with size | `ip[2:2] > 576`, `tcp[12:1] & 0xf0 > 0x50`, `ip[0:1] & 0x0f > 5` | Exact match |
+| ICMP type/code names | `icmp[icmptype] == icmp-echo`, `icmp[icmptype] == icmp-echoreply` | Exact match |
 | Combined filters | `tcp port 80 and host 192.168.1.1`, `tcp or udp`, `not tcp`, `(tcp or udp) and port 53`, `src net 192.168.0.0/24 and dst port 80` | Exact match |
 
 ### Filter expressions — supported with unoptimized output differences
@@ -117,7 +119,7 @@ They are planned for future implementation.
 | **Error handling** | `setjmp`/`longjmp` | Go error returns (`cs.Err`) |
 | **Memory management** | Custom chunked allocator (`newchunk`) | Go garbage collector |
 | **Name resolution** | `gethostbyname`, `getaddrinfo`, `/etc/protocols`, `/etc/ethers` | Go `net.LookupIP`, `net.LookupPort`, built-in protocol table |
-| **Optimizer** | Full optimizer (dead code elimination, constant folding, jump optimization) | Full optimizer — 49/52 corpus filters produce instruction-identical optimized output |
+| **Optimizer** | Full optimizer (dead code elimination, constant folding, jump optimization) | Full optimizer — 64/67 corpus filters produce instruction-identical optimized output (3 skipped: VLAN) |
 | **Matching API** | `pcap_offline_filter()`, `BPF.Matches()` | `NewBPF()` + `BPF.Matches()` using `bpf.Filter()` interpreter |
 | **Link types** | ~60 DLT types | Ethernet (`DLT_EN10MB`), loopback, Linux cooked, raw IP |
 | **Unoptimized output** | Compact shortcuts for common patterns | General-purpose register-based form for byte access/arithmetic (optimizer eliminates the differences) |
@@ -129,6 +131,28 @@ The goyacc grammar was mechanically ported from `grammar.y.in`. See
 [`grammar/PORTING.md`](grammar/PORTING.md) for the full list of modifications
 and [`grammar/convert_grammar.sh`](grammar/convert_grammar.sh) for the
 automated conversion script.
+
+## Test coverage
+
+The Go implementation has significantly more automated test coverage than the
+C libpcap library, which relies on 13 manual diagnostic programs with no
+automated test suite, no filter corpus, and no regression tests.
+
+**Go test infrastructure:** 26 test files, 270+ test cases across 6 packages.
+
+| Area | Tests | Description |
+|------|-------|-------------|
+| Golden tests (optimized) | 67 filters | Instruction-for-instruction comparison against C `filtertest` default output. 64 exact matches, 3 skipped (VLAN). |
+| Golden tests (unoptimized) | 67 filters | Comparison against C `filtertest -O`. Validates codegen output before optimization. |
+| Packet matching | 10 tests | End-to-end: compile filter, run against crafted Ethernet+IPv4+TCP/UDP packets, verify accept/reject. |
+| BPF interpreter | 16 tests | All opcode families: loads (abs/ind/imm/mem/len), ALU, jumps, stores, register transfers, bounds checking. |
+| BPF validator | 12 tests | Jump bounds, memory access ranges, division by zero, program termination. |
+| BPF image formatter | 22 tests | Human-readable instruction formatting for all opcode types. |
+| Scanner | 21 tests | All token types: keywords, operators, numbers, IPv4/IPv6 addresses, MAC addresses, TCP flags, ICMP types. |
+| Parser | 4 tests | Empty filter, syntax errors, protocol keywords, boolean operators. |
+| Codegen | 80+ tests | Per-function tests for link-layer, protocol, host, port, arithmetic, comparison, broadcast, multicast, entry points. |
+| Optimizer | 30+ tests | Value numbering, constant folding, peephole patterns, dead store elimination, block/jump optimization, pullup, interning. |
+| Name resolver | 10 tests | Hostname, port, protocol, ethertype, network, MAC address resolution. |
 
 ## Development
 
@@ -148,11 +172,12 @@ For running golden tests (comparison against C libpcap), you need the C
 go test ./pkg/libpcap/...
 
 # Golden tests comparing Go vs C filtertest (requires filtertest binary)
-go test -tags libpcap_test ./pkg/libpcap/ -run TestGoldenSimpleFilters
+go test -tags libpcap_test ./pkg/libpcap/ -run TestGoldenFiltertestOptimized
 go test -tags libpcap_test ./pkg/libpcap/ -run TestGoldenFiltertestUnoptimized
+go test -tags libpcap_test ./pkg/libpcap/ -run TestGoldenSimpleFilters
 
 # Verbose output showing BPF instruction dumps
-go test -tags libpcap_test ./pkg/libpcap/ -v -run TestGoldenSimpleFilters
+go test -tags libpcap_test ./pkg/libpcap/ -v -run TestGoldenFiltertestOptimized
 ```
 
 ### Parser generation
