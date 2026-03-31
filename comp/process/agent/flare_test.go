@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -22,6 +23,6 @@ func TestFillFlare(t *testing.T) {
 
 	fc := NewFlareHelper([]checks.Check{check})
 
-	fc.FillFlare(f)
+	fc.FillFlare(context.Background(), f)
 	f.AssertFileExists("process_check_output.json")
 }

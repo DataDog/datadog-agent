@@ -10,6 +10,7 @@ package pipelineimpl
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -141,7 +142,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	// Fill the flare
 	f := helpers.NewFlareBuilderMock(t, false)
-	col.fillFlare(f)
+	col.fillFlare(context.Background(), f)
 
 	f.AssertFileExists("otel", "otel-response.json")
 

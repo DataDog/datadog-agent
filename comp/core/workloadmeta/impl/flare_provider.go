@@ -6,6 +6,7 @@
 package workloadmetaimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -24,7 +25,7 @@ with workloadmeta to dump its state.
 
 // sbomFlareProvider will add the SBOMs of all the images in the flare archive.
 // Note that the generated file uncompressed can be very large
-func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
+func (w *workloadmeta) sbomFlareProvider(_ context.Context, fb flaretypes.FlareBuilder) error {
 	images := w.ListImages()
 	names := make(map[string]int)
 

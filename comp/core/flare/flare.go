@@ -270,36 +270,34 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
 		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		fb.SetProviderContext(ctx)
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
-		// Buffered so the goroutine can send even if we already left via timeout.
-		done := make(chan struct{}, 1)
-		go func() {
-			startTime := time.Now()
-			err := p.Callback(fb)
-			duration := time.Since(startTime)
+			// Buffered so the goroutine can send even if we already left via timeout.
+			done := make(chan struct{}, 1)
+			go func() {
+				startTime := time.Now()
+				err := p.Callback(ctx, fb)
+				duration := time.Since(startTime)
 
-			if err == nil {
-				f.log.Debugf("flare provider '%s' completed in %s", providerName, duration)
-			} else {
-				errMsg := f.log.Errorf("flare provider '%s' failed after %s: %s", providerName, duration, err)
-				_ = fb.Logf("%s", errMsg.Error())
+				if err == nil {
+					f.log.Debugf("flare provider '%s' completed in %s", providerName, duration)
+				} else {
+					errMsg := f.log.Errorf("flare provider '%s' failed after %s: %s", providerName, duration, err)
+					_ = fb.Logf("%s", errMsg.Error())
+				}
+
+				done <- struct{}{}
+			}()
+
+			select {
+			case <-done:
+			case <-ctx.Done():
+				err := f.log.Warnf("flare provider '%s' timedout after %s", providerName, timeout)
+				_ = fb.Logf("%s", err.Error())
 			}
-
-			done <- struct{}{}
 		}()
-
-		select {
-		case <-done:
-			cancel()
-		case <-ctx.Done():
-			err := f.log.Warnf("flare provider '%s' timedout after %s", providerName, timeout)
-			_ = fb.Logf("%s", err.Error())
-			cancel()
-		}
-
-		fb.SetProviderContext(context.Background())
 	}
 
 	f.log.Info("All flare providers have been run, creating archive...")

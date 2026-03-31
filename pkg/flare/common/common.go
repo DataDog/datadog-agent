@@ -7,6 +7,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -73,7 +74,7 @@ func GetLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 }
 
 // GetExpVar copies expvar files to the flare archive.
-func GetExpVar(fb flaretypes.FlareBuilder) error {
+func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
 	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		variable := make(map[string]interface{})

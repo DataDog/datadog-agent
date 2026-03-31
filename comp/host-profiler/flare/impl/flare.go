@@ -7,6 +7,7 @@
 package flareimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -43,7 +44,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-func (c *flareImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+func (c *flareImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	responseBytes, err := c.requestOtelConfigInfo()
 	if err != nil {
 		msg := fmt.Sprintf("did not get host-profiler configuration: %v", err)

@@ -7,6 +7,7 @@ package diagnoseimpl
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
@@ -186,7 +187,7 @@ func TestFlareProvider(t *testing.T) {
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 
-	flarecallback(mock)
+	flarecallback(context.Background(), mock)
 
 	expectedResult := strings.ReplaceAll(runSuitetextresult, "\r\n", "\n")
 

@@ -9,6 +9,7 @@
 package pipelineimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+func (c *collectorImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	if !c.config.GetBool("otelcollector.enabled") {
 		fb.AddFile("otel/otel-agent.log", []byte("'otelcollector.enabled' is disabled in the configuration"))
 		return nil

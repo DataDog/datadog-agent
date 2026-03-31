@@ -90,7 +90,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 	} {
 		providers = append(providers, flaretypes.NewFiller(
-			func(fb flaretypes.FlareBuilder) error {
+			func(_ context.Context, fb flaretypes.FlareBuilder) error {
 				fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
 				return nil
 			},
@@ -100,8 +100,8 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	return providers
 }
 
-func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
-	return func(fb flaretypes.FlareBuilder) error {
+func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(context.Context, flaretypes.FlareBuilder) error {
+	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
 		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                               //nolint:errcheck
 		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                //nolint:errcheck
 		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                    //nolint:errcheck
@@ -112,26 +112,26 @@ func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(
 	}
 }
 
-func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
+func provideAuthTokenPerm(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 	return nil
 }
 
-func provideInstallInfo(fb flaretypes.FlareBuilder) error {
+func provideInstallInfo(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFileTo(installinfo.GetFilePath(pkgconfigsetup.Datadog()), "install_info.log") //nolint:errcheck
 	return nil
 }
 
-func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideRemoteConfig(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		if err := r.exportRemoteConfig(fb); err != nil {
+		if err := r.exportRemoteConfig(ctx, fb); err != nil {
 			log.Errorf("Could not export remote-config state: %s", err)
 		}
 	}
 	return nil
 }
 
-func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideConfigDump(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                                            //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettingsWithoutSecrets()) }) //nolint:errcheck
 	return nil
@@ -153,7 +153,7 @@ func getVPCSubnetsForHost() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func provideSystemProbe(fb flaretypes.FlareBuilder) error {
+func provideSystemProbe(_ context.Context, fb flaretypes.FlareBuilder) error {
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
@@ -174,7 +174,7 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
 		// Can't reach the agent, mention it in those two files
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
@@ -190,12 +190,12 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	return nil
 }
 
-func getVersionHistory(fb flaretypes.FlareBuilder) error {
+func getVersionHistory(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "version-history.json")) //nolint:errcheck
 	return nil
 }
 
-func getRegistryJSON(fb flaretypes.FlareBuilder) error {
+func getRegistryJSON(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("logs_config.run_path"), "registry.json")) //nolint:errcheck
 	return nil
 }

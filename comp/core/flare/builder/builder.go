@@ -141,13 +141,12 @@ type FlareBuilder interface {
 	// GetFlareArgs will return the struct of caller-provided arguments that can be referenced by various flare providers
 	GetFlareArgs() FlareArgs
 
-	// SetProviderContext configures the context scoped to the current flare provider callback. The flare
-	// orchestrator sets this before each provider and resets it afterward. Other callers may use a no-op.
+	// SetProviderContext records a context retrievable via ProviderContext. The flare orchestrator passes
+	// a per-provider context as the first argument to FlareCallback instead of calling this.
 	SetProviderContext(ctx context.Context)
 
-	// ProviderContext returns the context for the active flare provider. It is canceled when the provider
-	// exceeds its timeout. Subprocesses started during flare collection should use exec.CommandContext with
-	// a context derived from this value so they stop when the orchestrator times out.
+	// ProviderContext returns the context last stored by SetProviderContext, or Background if none.
+	// Prefer the context argument to FlareCallback for subprocess deadlines.
 	ProviderContext() context.Context
 
 	// Save archives all the data added to the flare, cleanup all the temporary directories and return the path to

@@ -333,7 +333,7 @@ func (is *softwareInventory) writePayloadAsJSON(w http.ResponseWriter, _ *http.R
 // FlareProvider returns a flare provider for the software inventory component
 func (is *softwareInventory) FlareProvider() flaretypes.Provider {
 	return flaretypes.NewProvider(
-		func(fb flaretypes.FlareBuilder) error {
+		func(_ context.Context, fb flaretypes.FlareBuilder) error {
 			payload := is.getPayload()
 			if payload == nil {
 				msg := "Software inventory data collection failed or returned no results"

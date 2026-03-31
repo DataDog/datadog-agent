@@ -9,6 +9,7 @@ package clusteragent
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,6 +56,7 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 }
 
 func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, statusComponent status.Component, diagnose diagnose.Component, ipc ipc.Component) {
+	ctx := context.Background()
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil) //nolint:errcheck
@@ -84,8 +86,8 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	flarecommon.GetLogFiles(fb, logFilePath)
 	flarecommon.GetConfigFiles(fb, confSearchPaths)
 	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
-	flarecommon.GetExpVar(fb)              //nolint:errcheck
-	getMetadataMap(fb)                     //nolint:errcheck
+	flarecommon.GetExpVar(ctx, fb)         //nolint:errcheck
+	getMetadataMap(ctx, fb)              //nolint:errcheck
 	if err := getClusterChecksMetadata(fb, client); err != nil {
 		log.Debugf("Could not collect cluster checks metadata for flare: %v", err)
 	}
@@ -107,7 +109,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	getPerformanceProfileDCA(fb, pdata)
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
-		getHPAStatus(fb) //nolint:errcheck
+		getHPAStatus(ctx, fb) //nolint:errcheck
 	}
 }
 
@@ -121,7 +123,7 @@ func QueryDCAMetrics() ([]byte, error) {
 	return io.ReadAll(r.Body)
 }
 
-func getMetadataMap(fb flaretypes.FlareBuilder) error {
+func getMetadataMap(_ context.Context, fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -178,7 +180,7 @@ func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, client ipc.HTTPCli
 	return fb.AddFile("clusterchecks.log", b.Bytes())
 }
 
-func getHPAStatus(fb flaretypes.FlareBuilder) error {
+func getHPAStatus(_ context.Context, fb flaretypes.FlareBuilder) error {
 	stats := make(map[string]interface{})
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {

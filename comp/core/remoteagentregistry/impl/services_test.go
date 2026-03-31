@@ -54,7 +54,7 @@ func TestFlareProvider(t *testing.T) {
 	fb := helpers.NewFlareBuilderMock(t, false)
 	fb.AssertNoFileExists("test-agent/test_file.yaml")
 
-	err := flareProvider.FlareFiller.Callback(fb)
+	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
 	require.NoError(t, err)
 
 	flareFilePath := remoteAgent.RegistrationData.AgentDisplayName + "-" + remoteAgent.RegistrationData.AgentFlavor + "-" + remoteAgent.registeredSessionID + "/test_file.yaml"
