@@ -339,4 +339,4 @@ include("//deps:go.MODULE.bazel")
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "2.3.0")
 
-use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")
+use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
