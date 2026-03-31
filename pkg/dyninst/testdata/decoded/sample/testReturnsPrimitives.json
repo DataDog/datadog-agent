@@ -90,6 +90,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsPrimitives"
+    "message": "testReturnsPrimitives",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
