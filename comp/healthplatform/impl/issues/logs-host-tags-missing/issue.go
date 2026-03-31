@@ -6,8 +6,6 @@
 package logshosttagsmissing
 
 import (
-	"fmt"
-
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
@@ -43,7 +41,7 @@ func buildRemediation() *healthplatform.Remediation {
 		Steps: []*healthplatform.RemediationStep{
 			{
 				Order: 1,
-				Text:  fmt.Sprintf("Add tags to datadog.yaml: %s", "`tags: [\"env:production\", \"service:myapp\"]`"),
+				Text:  "Add tags to datadog.yaml: `tags: [\"env:production\", \"service:myapp\"]`",
 			},
 			{
 				Order: 2,
