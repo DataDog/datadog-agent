@@ -17,7 +17,7 @@ import (
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
+	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
