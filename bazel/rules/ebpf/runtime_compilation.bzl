@@ -10,6 +10,7 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 
 def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_dirs, header_deps, out_go_file):
+    _ = visibility  # Bundle outputs are unconditionally public (cross-package consumers).
     flat_name = "{}_flat".format(name)
     run_binary(
         name = flat_name,
@@ -47,7 +48,7 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
         srcs = [":{}".format(raw_name)],
         outs = ["{}/{}.go".format(name, out_name)],
         cmd = "sed -e '/^import \"github.com\\/DataDog\\/datadog-agent\\/pkg\\/ebpf\\/bytecode\\/runtime\"/d' -e 's/runtime\\.newAsset/newAsset/g' $< > $@",
-        visibility = visibility,
+        visibility = ["//visibility:public"],
     )
 
     if out_go_file:
