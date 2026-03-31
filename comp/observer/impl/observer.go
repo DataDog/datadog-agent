@@ -262,7 +262,7 @@ func NewComponent(deps Requires) Provides {
 
 	// Optionally add the event reporter when sending is enabled via config.
 	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
+		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
 			eventReporter := &EventReporter{sender: sender, logger: deps.Log}

@@ -677,7 +677,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Register a replay reporter before the run so it captures events exactly as
 	// EventReporter would in live mode: one event per pattern appearance, with
 	// patterns eligible to re-fire after going inactive.
-	replay := &replayReporter{}
+	replay := &replayReporter{storage: tb.engine.Storage()}
 	unsub := tb.engine.Subscribe(&reporterEventSink{
 		reporters: []observerdef.Reporter{replay},
 		state:     tb.engine.StateView(),
@@ -1331,7 +1331,7 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
 
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger)
+	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger, tb.engine.Storage())
 	if err != nil {
 		return err
 	}

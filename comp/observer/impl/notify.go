@@ -24,16 +24,18 @@ import (
 // eventSender formats and dispatches one Datadog event per correlation.
 // When api is nil, send prints to stdout (dry-run mode) instead of calling the API.
 type eventSender struct {
-	api    *datadogV2.EventsApi
-	ctx    context.Context
-	logger log.Component
+	api     *datadogV2.EventsApi
+	ctx     context.Context
+	logger  log.Component
+	storage observerdef.StorageReader
 }
 
 // newEventSender creates an eventSender. It reads observer.event_reporter.sending_enabled
 // from cfg; when false, api is left nil and events are only logged (dry-run mode).
-func newEventSender(cfg config.Component, logger log.Component) (*eventSender, error) {
+// storage is used to compute windowed log rates for display in event messages.
+func newEventSender(cfg config.Component, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
 	if !cfg.GetBool("observer.event_reporter.sending_enabled") {
-		return &eventSender{logger: logger}, nil
+		return &eventSender{logger: logger, storage: storage}, nil
 	}
 	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
@@ -45,14 +47,29 @@ func newEventSender(cfg config.Component, logger log.Component) (*eventSender, e
 		map[string]datadog.APIKey{"apiKeyAuth": {Key: apiKey}},
 	)
 	return &eventSender{
-		api:    datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
-		ctx:    ctx,
-		logger: logger,
+		api:     datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
+		ctx:     ctx,
+		logger:  logger,
+		storage: storage,
 	}, nil
 }
 
+// logPatternRate returns the average log/s over the last logPatternRateWindowSec seconds
+// for the given anomaly. It uses SumRange on storage when a series ref is available,
+// otherwise falls back to DebugInfo.CurrentValue.
+func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
+	if a.SourceRef != nil && storage != nil {
+		total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
+		return total / logPatternRateWindowSec, true
+	}
+	if a.DebugInfo != nil {
+		return a.DebugInfo.CurrentValue, true
+	}
+	return 0, false
+}
+
 // correlationMessage builds the event message body for a correlation.
-func correlationMessage(c observerdef.ActiveCorrelation) string {
+func correlationMessage(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) string {
 	var metricLines, logLines []string
 	for _, a := range c.Anomalies {
 		if a.Description == "" {
@@ -73,10 +90,10 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 					example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
 				}
 				var ratePart string
-				if a.DebugInfo != nil {
-					ratePart = fmt.Sprintf("\tcurrent rate: %.1flog/s", a.DebugInfo.CurrentValue)
+				if rate, ok := logPatternRate(a, storage); ok {
+					ratePart = fmt.Sprintf("\tavg rate (60s): %.1flog/s", rate)
 				} else {
-					ratePart = "\tcurrent rate: unknown"
+					ratePart = "\tavg rate (60s): unknown"
 				}
 				logDescription := fmt.Sprintf("Log pattern change rate detected: %s%s%s", pattern, example, ratePart)
 				logLines = append(logLines, "- "+logDescription)
@@ -102,7 +119,7 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 
 // send formats a correlation into an event and either prints or posts it.
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
-	text := correlationMessage(c)
+	text := correlationMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
 
 	s.logger.Infof("[observer] sending event: pattern=%s title=%q timestamp=%s\n%s\n", c.Pattern, c.Title, ts, text)
