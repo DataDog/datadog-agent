@@ -71,6 +71,26 @@ vlan
 vlan 100
 vlan and tcp port 80
 
+# Bracket access with explicit size
+ip[2:2] > 576
+tcp[12:1] & 0xf0 > 0x50
+ip[0:1] & 0x0f > 5
+
+# ICMPtype/code named access
+icmp[icmptype] == icmp-echo
+icmp[icmptype] == icmp-echoreply
+
+# Additional protocol combinations
+ip6 and tcp
+ip6 and udp
+not arp and not rarp
+ip and not net 192.168.0.0/16
+host 127.0.0.1
+net 10.0.0.0/8
+ether dst ff:ff:ff:ff:ff:ff and arp
+dst port 22 and src net 10.0.0.0/8
+src portrange 1024-65535
+
 # Complex expressions
 (tcp or udp) and port 53
 tcp dst port 5555 and tcp[tcpflags] == tcp-syn
