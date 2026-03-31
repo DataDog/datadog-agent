@@ -272,7 +272,6 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	return nil
 }
 
-
 // fixReceiversPipeline ensures at least one profiling receiver is configured in the pipeline
 // If none exists, it adds a minimal profiling receiver with symbol_uploader disabled
 func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {

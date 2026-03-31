@@ -340,7 +340,6 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
 }
 
-
 func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	// Verify that ToStringMapRaw preserves ExpandedValue types in standalone mode
 	configData := confMap{
