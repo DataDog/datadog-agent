@@ -13,9 +13,9 @@ include:
   - .gitlab/.pre/common/shared.yml
   - .gitlab/.pre/common/container_publish_job_templates.yml
   - .gitlab/build/bazel/defs.yml
-  - project: DataDog/dd-source
+  - project: DataDog/public-images
     ref: ali.benabdallah/BARX-1709/image-promotion-template
-    file: domains/agent_delivery/gitlab-templates/image-promotion.yml
+    file: gitlab-templates/image-promotion.yml
   - .gitlab/deploy/conditions.yml
   - local: .gitlab/deploy/trigger_release/**.yml
   - local: .gitlab/distribute/**.yml
