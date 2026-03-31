@@ -19,10 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Health check constants
-const (
+// Health check defaults
+var (
 	// HealthCheckInterval is the interval between health checks after a flag is enabled
 	HealthCheckInterval = 10 * time.Second
+)
+
+const (
 	// DefaultHealthCheckDuration is the default duration for health monitoring after flag activation
 	DefaultHealthCheckDuration = 1 * time.Minute
 	// DefaultFailuresBeforeRecover is the default number of consecutive health check failures before SafeRecover is called
@@ -295,7 +298,8 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 
 // startHealthMonitor starts a goroutine that periodically checks the health of a subscription
 // after a flag is enabled (value=true). If the component becomes unhealthy for the configured
-// number of consecutive checks, SafeRecover is called.
+// number of consecutive checks, SafeRecover is called, followed by a recovery probe to validate
+// that the recovery was successful.
 func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 	// Only monitor when enabling (value=true)
 	if !flag.Value {
@@ -332,6 +336,7 @@ func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 						err := fmt.Errorf("remote flag %s: unhealthy for %d checks", sub.handler.FlagName(), consecutiveFailures)
 						sub.handler.SafeRecover(err, flag.Value)
 						cancel()
+						c.startRecoveryMonitor(sub, flag)
 						return
 					}
 				} else {
@@ -340,6 +345,38 @@ func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 					}
 					consecutiveFailures = 0 // Reset on healthy check
 				}
+			}
+		}
+	}()
+}
+
+// startRecoveryMonitor starts a goroutine that probes the health of a subscription after
+// SafeRecover has been called, to validate that the recovery was successful.
+// It uses the same probe timeout as the initial health monitor.
+// If the component is still unhealthy after the recovery probe window, we log and give up.
+func (c *Client) startRecoveryMonitor(sub *subscription, flag Flag) {
+	ctx, cancel := context.WithTimeout(c.ctx, flag.HealthCheckDuration())
+
+	c.mu.Lock()
+	sub.cancelHealthCheck = cancel
+	c.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(HealthCheckInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Warnf("Remote flag %s: recovery probe ended without confirming healthy state", sub.handler.FlagName())
+				return
+			case <-ticker.C:
+				if sub.handler.IsHealthy() {
+					log.Infof("Remote flag %s: component healthy after recovery", sub.handler.FlagName())
+					cancel()
+					return
+				}
+				log.Warnf("Remote flag %s: component still unhealthy after recovery", sub.handler.FlagName())
 			}
 		}
 	}()

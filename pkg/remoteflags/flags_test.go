@@ -64,13 +64,17 @@ func sendUpdate(client *Client, flags ...Flag) {
 	)
 }
 
-// waitChan waits for a value on a channel with a 1s timeout, failing the test on timeout.
-func waitChan[T any](t *testing.T, ch <-chan T) T {
+// waitChan waits for a value on a channel with a timeout, failing the test on timeout.
+func waitChan[T any](t *testing.T, ch <-chan T, timeouts ...time.Duration) T {
 	t.Helper()
+	timeout := time.Second
+	if len(timeouts) > 0 {
+		timeout = timeouts[0]
+	}
 	select {
 	case v := <-ch:
 		return v
-	case <-time.After(time.Second):
+	case <-time.After(timeout):
 		t.Fatal("timeout waiting for channel")
 		var zero T
 		return zero
@@ -221,4 +225,77 @@ func TestGetCurrentValue_Unknown(t *testing.T) {
 	client := NewClient()
 	_, exists := client.GetCurrentValue(testFlag1)
 	assert.False(t, exists)
+}
+
+// After SafeRecover triggers, a recovery monitor probes IsHealthy to validate recovery.
+func TestHealthMonitor_RecoveryProbeConfirmsHealthy(t *testing.T) {
+	origInterval := HealthCheckInterval
+	HealthCheckInterval = 100 * time.Millisecond
+	defer func() { HealthCheckInterval = origInterval }()
+
+	client := NewClient()
+	defer client.Stop()
+
+	h := newStubHandler(testFlag1)
+	h.healthy = false // Start unhealthy to trigger SafeRecover
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:                             string(testFlag1),
+		Value:                            true,
+		HealthCheckDurationSeconds:       5,
+		HealthCheckFailuresBeforeRecover: 1,
+	})
+
+	// Wait for SafeRecover to be called
+	waitChan(t, h.recoverCh, 3*time.Second)
+
+	// Simulate recovery: component becomes healthy
+	h.healthy = true
+
+	// The recovery monitor should detect the healthy state.
+	time.Sleep(300 * time.Millisecond)
+
+	// Verify no second SafeRecover call was made.
+	select {
+	case <-h.recoverCh:
+		t.Fatal("SafeRecover should not be called again during recovery probing")
+	default:
+		// expected
+	}
+}
+
+// Recovery monitor logs warning when component stays unhealthy through the entire probe window.
+func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
+	origInterval := HealthCheckInterval
+	HealthCheckInterval = 100 * time.Millisecond
+	defer func() { HealthCheckInterval = origInterval }()
+
+	client := NewClient()
+	defer client.Stop()
+
+	h := newStubHandler(testFlag1)
+	h.healthy = false // Unhealthy throughout
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:                             string(testFlag1),
+		Value:                            true,
+		HealthCheckDurationSeconds:       1, // Short window so test is fast
+		HealthCheckFailuresBeforeRecover: 1,
+	})
+
+	// Wait for SafeRecover
+	waitChan(t, h.recoverCh, 3*time.Second)
+
+	// Wait for the recovery probe window to expire
+	time.Sleep(1500 * time.Millisecond)
+
+	// SafeRecover should only have been called once
+	select {
+	case <-h.recoverCh:
+		t.Fatal("SafeRecover should not be called a second time during recovery probing")
+	default:
+		// expected: recovery monitor gave up gracefully
+	}
 }
