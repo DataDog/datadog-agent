@@ -8,6 +8,7 @@ package process
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -59,13 +60,8 @@ func (s *windowsTestSuite) SetupSuite() {
 
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
-	// Install chocolatey - https://chocolatey.org/install
-	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
-	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
-	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
-	// Install diskspd for IO tests - https://learn.microsoft.com/en-us/azure/azure-local/manage/diskspd-overview
-	stdout, err = s.Env().RemoteHost.Execute("C:\\ProgramData\\chocolatey\\bin\\choco.exe install -y diskspd")
-	require.NoErrorf(s.T(), err, "Failed to install diskspd: %s, err: %s", stdout, err)
+	// DiskSpd for IO tests: zip on E2E artifact host at processes/DiskSpd.zip (see diskspd.go).
+	require.NoError(s.T(), setupDiskSpd(s.Env().RemoteHost))
 }
 
 func (s *windowsTestSuite) TestAPIKeyRefresh() {
@@ -323,7 +319,7 @@ func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) (string, []stri
 	// -Sh: Disable both software caching and hardware write caching.
 	// -w50: Write percentage
 	cmd := []string{
-		"diskspd",
+		DiskSpdExe,
 		"-d120",
 		"-c128M",
 		"-t2",
@@ -349,5 +345,6 @@ func runWindowsCommand(t *testing.T, remoteHost *components.RemoteHost, cmd []st
 		_ = session.Close()
 		_ = stdin.Close()
 	})
-	return cmd[0] + ".exe", nil
+	// Payloads use the executable file name (e.g. diskspd.exe), not the full path.
+	return filepath.Base(cmd[0]), nil
 }
