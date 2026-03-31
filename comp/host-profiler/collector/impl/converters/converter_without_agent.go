@@ -346,6 +346,17 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
 				return err
 			}
+
+			// Validate x-datadog-additional-headers if present
+			if raw, ok := headers["x-datadog-additional-headers"]; ok {
+				if str, ok := raw.(string); ok {
+					if parsed := ParseAdditionalHeaders(str); parsed != "" {
+						headers["x-datadog-additional-headers"] = parsed
+					} else {
+						delete(headers, "x-datadog-additional-headers")
+					}
+				}
+			}
 		}
 	}
 

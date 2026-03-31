@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
@@ -222,6 +223,31 @@ func ensureKeyStringValue(config confMap, key string) bool {
 		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		return false
 	}
+}
+
+// ParseAdditionalHeaders parses a comma-separated list of key:value pairs,
+// normalizes each entry, and returns them as a comma-separated string.
+// Entries containing spaces are rejected rather than silently normalized.
+func ParseAdditionalHeaders(raw string) string {
+	var valid []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		key, _, _ := strings.Cut(part, ":")
+		if strings.ContainsRune(part, ' ') {
+			slog.Warn("Skipping header entry containing spaces", slog.String("key", key))
+			continue
+		}
+		normalized := normalize.NormalizeTag(part)
+		if normalized == "" {
+			slog.Warn("Skipping invalid header entry", slog.String("key", key))
+			continue
+		}
+		valid = append(valid, normalized)
+	}
+	return strings.Join(valid, ",")
 }
 
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor

@@ -15,34 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// parseAdditionalHeaders parses a comma-separated list of key:value pairs,
-// normalizes each entry, and returns them as a comma-separated string.
-// Entries containing spaces are rejected rather than silently normalized.
-func parseAdditionalHeaders(raw string) string {
-	var valid []string
-	for _, part := range strings.Split(raw, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		key, _, _ := strings.Cut(part, ":")
-		if strings.ContainsRune(part, ' ') {
-			log.Warnf("Skipping header entry containing spaces (key: %s)", key)
-			continue
-		}
-		normalized := normalize.NormalizeTag(part)
-		if normalized == "" {
-			log.Warnf("Skipping invalid header entry (key: %s)", key)
-			continue
-		}
-		valid = append(valid, normalized)
-	}
-	return strings.Join(valid, ",")
-}
 
 type confMap = map[string]any
 
@@ -85,7 +59,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 			"dd-evp-origin-version": version.ProfilerVersion,
 		}
 		if raw := os.Getenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS"); raw != "" {
-			if parsed := parseAdditionalHeaders(raw); parsed != "" {
+			if parsed := converters.ParseAdditionalHeaders(raw); parsed != "" {
 				headers["x-datadog-additional-headers"] = parsed
 				log.Debugf("Setting x-datadog-additional-headers with %d entries", len(strings.Split(parsed, ",")))
 			}

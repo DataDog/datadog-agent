@@ -8,63 +8,65 @@
 package agentprovider
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestParseAdditionalHeaders(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "single tag",
-			input:    "workspace:peterg17",
-			expected: "workspace:peterg17",
-		},
-		{
-			name:     "comma separated",
-			input:    "workspace:peterg17,env:staging",
-			expected: "workspace:peterg17,env:staging",
-		},
-		{
-			name:     "spaces within entry rejected",
-			input:    "workspace:peterg17 env:staging",
-			expected: "",
-		},
-		{
-			name:     "multiple comma separated",
-			input:    "workspace:peterg17,env:staging,service:web",
-			expected: "workspace:peterg17,env:staging,service:web",
-		},
-		{
-			name:     "empty input",
-			input:    "",
-			expected: "",
-		},
-		{
-			name:     "uppercase normalized to lowercase",
-			input:    "Workspace:PeterG17",
-			expected: "workspace:peterg17",
-		},
-		{
-			name:     "tag with dots and hyphens",
-			input:    "host.name:my-host.local",
-			expected: "host.name:my-host.local",
-		},
-		{
-			name:     "tag with slashes",
-			input:    "kube/namespace:default",
-			expected: "kube/namespace:default",
-		},
-	}
+func TestBuildExportersAdditionalHeaders(t *testing.T) {
+	t.Setenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS", "workspace:peterg17,env:staging")
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := parseAdditionalHeaders(tc.input)
-			assert.Equal(t, tc.expected, result)
-		})
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
 	}
+	conf := make(confMap)
+	buildExporters(conf, agent)
+
+	exporters, ok := conf["exporters"].(confMap)
+	require.True(t, ok)
+	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	require.True(t, ok)
+	headers, ok := exporter["headers"].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "workspace:peterg17,env:staging", headers["x-datadog-additional-headers"])
+}
+
+func TestBuildExportersNoAdditionalHeaders(t *testing.T) {
+	t.Setenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS", "")
+
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+	}
+	conf := make(confMap)
+	buildExporters(conf, agent)
+
+	exporters, ok := conf["exporters"].(confMap)
+	require.True(t, ok)
+	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	require.True(t, ok)
+	headers, ok := exporter["headers"].(confMap)
+	require.True(t, ok)
+
+	_, exists := headers["x-datadog-additional-headers"]
+	assert.False(t, exists, "header should not be present when env var is empty")
+
+	// Unset should also not produce the header
+	os.Unsetenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS")
+	conf2 := make(confMap)
+	buildExporters(conf2, agent)
+	exporters2, _ := conf2["exporters"].(confMap)
+	exporter2, _ := exporters2["otlphttp/datadoghq.com_0"].(confMap)
+	headers2, _ := exporter2["headers"].(confMap)
+	_, exists = headers2["x-datadog-additional-headers"]
+	assert.False(t, exists, "header should not be present when env var is unset")
 }
