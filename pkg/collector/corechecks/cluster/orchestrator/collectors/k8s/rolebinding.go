@@ -8,11 +8,11 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +23,9 @@ import (
 )
 
 // NewRoleBindingCollectorVersions builds the group of collector versions.
-func NewRoleBindingCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewRoleBindingCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewRoleBindingCollector(metadataAsTags),
+		NewRoleBindingCollector(tagger),
 	)
 }
 
@@ -39,11 +39,7 @@ type RoleBindingCollector struct {
 
 // NewRoleBindingCollector creates a new collector for the Kubernetes
 // RoleBinding resource.
-func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.RoleBindingName, utilTypes.RoleBindingVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewRoleBindingCollector(tagger tagger.Component) *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,12 +50,11 @@ func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCo
 			Name:                                 utilTypes.RoleBindingName,
 			Kind:                                 kubernetes.RoleBindingKind,
 			NodeType:                             orchestrator.K8sRoleBinding,
+			Group:                                utilTypes.RoleBindingGroup,
 			Version:                              utilTypes.RoleBindingVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewRoleBindingHandlers(tagger)),
 	}
 }
 
