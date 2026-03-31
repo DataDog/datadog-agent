@@ -336,5 +336,11 @@ func extractAuthFromInstanceData(instanceData integration.Data) map[string]any {
 			}
 		}
 	}
+
+	// Map kafka_consumer's kafka_cluster_id_override to kafka_actions' kafka_cluster_id
+	if v, ok := raw["kafka_cluster_id_override"]; ok {
+		out["kafka_cluster_id"] = v
+	}
+
 	return out
 }

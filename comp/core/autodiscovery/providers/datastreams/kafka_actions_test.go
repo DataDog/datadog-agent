@@ -59,6 +59,19 @@ schema_registry_username: sr-user
 schema_registry_password: sr-pass
 `
 
+const kafkaConsumerConfigWithClusterIDOverride = `
+kafka_connect_str: localhost:9092
+consumer_groups:
+  - test-group
+topics:
+  - test-topic
+sasl_mechanism: PLAIN
+sasl_plain_username: user
+sasl_plain_password: pass
+security_protocol: SASL_SSL
+kafka_cluster_id_override: msk-cluster-1
+`
+
 func TestActionsController(t *testing.T) {
 	kafkaConsumerCfg := integration.Config{
 		Name:       kafkaConsumerIntegrationName,
@@ -262,4 +275,60 @@ func TestActionsControllerNoMatchingKafkaConsumer(t *testing.T) {
 	// Should fail with error
 	assert.Equal(t, state.ApplyStateError, updateStatus["config_1"].State)
 	assert.Contains(t, updateStatus["config_1"].Error, "kafka_consumer integration")
+}
+
+func TestActionsControllerClusterIDOverride(t *testing.T) {
+	kafkaConsumerCfg := integration.Config{
+		Name:       kafkaConsumerIntegrationName,
+		Instances:  []integration.Data{integration.Data(kafkaConsumerConfigWithClusterIDOverride)},
+		InitConfig: integration.Data{},
+	}
+
+	c := &actionsController{
+		ac:            getMockedAutodiscoveryActions(t, []integration.Config{kafkaConsumerCfg}),
+		rcclient:      &mockedRcClient{},
+		configChanges: make(chan integration.ConfigChanges, 10),
+	}
+
+	actions := map[string]any{
+		"read_messages": map[string]any{
+			"cluster": "msk-cluster-1",
+			"topic":   "test-topic",
+		},
+	}
+	actionsJSON, err := json.Marshal(actions)
+	require.NoError(t, err)
+
+	kafkaActionsConfig := kafkaActionsConfig{
+		Actions:          actionsJSON,
+		BootstrapServers: "localhost:9092",
+	}
+	serializedConfig, err := json.Marshal(kafkaActionsConfig)
+	require.NoError(t, err)
+
+	rcUpdate := map[string]state.RawConfig{
+		"config_1": {Config: serializedConfig, Metadata: state.Metadata{ID: "cluster_override_test"}},
+	}
+
+	updateStatus := make(map[string]state.ApplyStatus)
+	callback := func(path string, status state.ApplyStatus) {
+		updateStatus[path] = status
+	}
+
+	c.update(rcUpdate, callback)
+
+	assert.Equal(t, state.ApplyStateAcknowledged, updateStatus["config_1"].State)
+
+	updates := c.Stream(context.Background())
+	cfg := <-updates
+
+	require.Len(t, cfg.Schedule, 1)
+	var instance map[string]any
+	err = yaml.Unmarshal(cfg.Schedule[0].Instances[0], &instance)
+	require.NoError(t, err)
+
+	// kafka_cluster_id_override from kafka_consumer should be mapped to kafka_cluster_id
+	assert.Equal(t, "msk-cluster-1", instance["kafka_cluster_id"])
+	// The original field name should not be present
+	assert.Nil(t, instance["kafka_cluster_id_override"])
 }
