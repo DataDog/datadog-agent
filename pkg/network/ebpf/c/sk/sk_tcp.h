@@ -8,6 +8,7 @@
 #include "maps.h"
 #include "sock.h"
 #include "tracer/tracer.h"
+#include "tracer/port.h"
 #include "sk.h"
 
 __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
@@ -30,19 +31,6 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     }
     conn->tup.metadata |= CONN_TYPE_TCP;
 
-    if (sk_stats) {
-        conn->tcp_stats.failure_reason = sk_stats->failure_reason;
-        conn->tcp_stats.state_transitions = sk_stats->state_transitions;
-        conn->tcp_stats.tcp_event_stats = sk_stats->tcp_event_stats;
-        // TODO the following will be unset for connections we didn't see the start of
-        conn->tup.pid = sk_stats->pid;
-        conn->conn_stats.duration = sk_stats->start_ns;
-        conn->conn_stats.direction = sk_stats->direction;
-        //conn->conn_stats.cookie = sk_stats->cookie;
-    } else {
-        // TODO initialize with information we are sure of
-    }
-
     conn->tcp_stats.rtt = tp->srtt_us >> 3;
     conn->tcp_stats.rtt_var = tp->mdev_us >> 2;
     conn->tcp_stats.retransmits = tp->total_retrans;
@@ -59,10 +47,28 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);
     // TODO conn->conn_stats.protocol_stack
     // TODO this seems incorrect for determining assured state since we just have absolute counts
-    // assured only matters for UDP connections
-    // update_conn_state(&conn->tup, &conn->conn_stats, conn->conn_stats.sent_bytes, conn->conn_stats.recv_bytes);
     // TODO conn->conn_stats.tls_tags
     // TODO conn->conn_stats.cert_id
+
+    if (sk_stats) {
+        conn->tcp_stats.failure_reason = sk_stats->failure_reason;
+        conn->tcp_stats.state_transitions = sk_stats->state_transitions;
+        conn->tcp_stats.tcp_event_stats = sk_stats->tcp_event_stats;
+        // TODO the following will be unset for connections we didn't see the start of
+        conn->tup.pid = sk_stats->pid;
+        conn->conn_stats.duration_ms = sk_stats->start_ms;
+        conn->conn_stats.direction = sk_stats->direction;
+        //conn->conn_stats.cookie = sk_stats->cookie;
+
+        conn->conn_stats.sent_bytes -= sk_stats->initial_sent_bytes;
+        conn->conn_stats.recv_bytes -= sk_stats->initial_recv_bytes;
+        conn->conn_stats.sent_packets -= sk_stats->initial_sent_packets;
+        conn->conn_stats.recv_packets -= sk_stats->initial_recv_packets;
+        conn->tcp_stats.retransmits -= sk_stats->initial_retransmits;
+    } else {
+        // TODO initialize with information we are sure of
+    }
+
     return 1;
 }
 
@@ -108,12 +114,157 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
     return 1;
 }
 
+static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_struct *task) {
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    if (!sk_stats) {
+        return;
+    }
+    struct tcp_sock *tp = bpf_skc_to_tcp_sock(sk);
+    if (!tp) {
+        return;
+    }
+
+    // TODO do any of these need to be stored?
+//    conn->tcp_stats.reord_seen = tp->reord_seen;
+//    conn->tcp_stats.rcv_ooopack = tp->rcv_ooopack;
+//    conn->tcp_stats.delivered_ce = tp->delivered_ce;
+
+    sk_stats->initial_sent_bytes = tp->bytes_sent;
+    sk_stats->initial_recv_bytes = tp->bytes_received;
+    sk_stats->initial_sent_packets = tp->segs_out;
+    sk_stats->initial_recv_packets = tp->segs_in;
+    sk_stats->initial_retransmits = tp->total_retrans;
+
+    sk_stats->pid = task->tgid;
+
+    port_binding_t pb = {};
+    pb.netns = get_netns_from_sock(sk);
+    pb.port = read_sport(sk);
+    u32 *port_count = bpf_map_lookup_elem(&port_bindings, &pb);
+    sk_stats->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+}
+
+static __always_inline void initialize_udp_socket(struct sock *sk, struct task_struct *task) {
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    if (!sk_stats) {
+        return;
+    }
+
+    sk_stats->pid = task->tgid;
+
+    port_binding_t pb = {};
+    pb.netns = get_netns_from_sock(sk);
+    pb.port = read_sport(sk);
+    u32 *port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
+    sk_stats->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+}
+
+SEC("iter/task_file")
+int bpf_iter__task_file_port_bindings(struct bpf_iter__task_file *ctx) {
+    struct task_struct *task = ctx->task;
+    struct file *file = ctx->file;
+    if (!task || !file) {
+        return 0;
+    }
+    struct socket *sock = bpf_sock_from_file(file);
+    if (!sock) {
+        return 0;
+    }
+    struct sock *sk = sock->sk;
+
+    if (sk->sk_protocol == IPPROTO_TCP) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (!is_tcpv6_enabled()) return 0;
+            break;
+        case AF_INET:
+            if (!is_tcpv4_enabled()) return 0;
+            break;
+        default:
+            return 0;
+        }
+
+        if (sk->__sk_common.skc_state == TCP_LISTEN) {
+            port_binding_t pb = {};
+            pb.netns = get_netns_from_sock(sk);
+            pb.port = read_sport(sk);
+            add_port_bind(&pb, port_bindings);
+        }
+        return 0;
+    } else if (sk->sk_protocol == IPPROTO_UDP) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (!is_udpv6_enabled()) return 0;
+            break;
+        case AF_INET:
+            if (!is_udpv4_enabled()) return 0;
+            break;
+        default:
+            return 0;
+        }
+
+        // TODO skip if in ephemeral port range
+        if (sk->__sk_common.skc_state == TCP_CLOSE) {
+            port_binding_t pb = {};
+            pb.netns = get_netns_from_sock(sk);
+            pb.port = read_sport(sk);
+            add_port_bind(&pb, udp_port_bindings);
+        }
+        return 0;
+    }
+    return 0;
+}
+
+SEC("iter/task_file")
+int bpf_iter__task_file_initial_sockets(struct bpf_iter__task_file *ctx) {
+    struct task_struct *task = ctx->task;
+    struct file *file = ctx->file;
+    if (!task || !file) {
+        return 0;
+    }
+    struct socket *sock = bpf_sock_from_file(file);
+    if (!sock) {
+        return 0;
+    }
+    struct sock *sk = sock->sk;
+
+    if (sk->sk_protocol == IPPROTO_TCP) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (!is_tcpv6_enabled()) return 0;
+            break;
+        case AF_INET:
+            if (!is_tcpv4_enabled()) return 0;
+            break;
+        default:
+            return 0;
+        }
+
+        initialize_tcp_socket(sk, task);
+        return 0;
+    } else if (sk->sk_protocol == IPPROTO_UDP) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (!is_udpv6_enabled()) return 0;
+            break;
+        case AF_INET:
+            if (!is_udpv4_enabled()) return 0;
+            break;
+        default:
+            return 0;
+        }
+
+        initialize_udp_socket(sk, task);
+        return 0;
+    }
+    return 0;
+}
+
 SEC("iter/task_file")
 int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
     struct task_struct *task = ctx->task;
     struct file *file = ctx->file;
     struct seq_file *seq = ctx->meta->seq;
-
     if (!task || !file) {
         return 0;
     }
@@ -125,10 +276,14 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
 
     conn_t conn = {};
     if (sk->sk_protocol == IPPROTO_TCP) {
-        if (sk->sk_family == AF_INET6 && !is_tcpv6_enabled()) {
-            return 0;
-        }
-        if (sk->sk_family == AF_INET && !is_tcpv4_enabled()) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (!is_tcpv6_enabled()) return 0;
+            break;
+        case AF_INET:
+            if (!is_tcpv4_enabled()) return 0;
+            break;
+        default:
             return 0;
         }
 
@@ -138,10 +293,14 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
             return 0;
         }
     } else if (sk->sk_protocol == IPPROTO_UDP) {
-        if (sk->sk_family == AF_INET6 && !is_udpv6_enabled()) {
-            return 0;
-        }
-        if (sk->sk_family == AF_INET && !is_udpv4_enabled()) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (!is_udpv6_enabled()) return 0;
+            break;
+        case AF_INET:
+            if (!is_udpv4_enabled()) return 0;
+            break;
+        default:
             return 0;
         }
 

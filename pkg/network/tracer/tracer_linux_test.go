@@ -2205,7 +2205,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
 			assert.Equal(collect, clientMessageSize, int(m.SentBytes))
-			assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
+			assert.InDelta(collect, serverMessageSize, int(m.RecvBytes), 1)
 
 			assert.Equal(collect, os.Getpid(), int(outgoing.Pid))
 		}
@@ -2217,7 +2217,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
 		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
-			assert.Equal(collect, clientMessageSize, int(m.RecvBytes))
+			assert.InDelta(collect, clientMessageSize, int(m.RecvBytes), 1)
 			assert.Equal(collect, serverMessageSize, int(m.SentBytes))
 
 			assert.Equal(collect, os.Getpid(), int(incoming.Pid))

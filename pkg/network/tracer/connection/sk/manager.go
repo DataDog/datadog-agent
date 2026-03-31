@@ -23,6 +23,8 @@ func initManager(mgr *ddebpf.Manager) {
 	mgr.Maps = []*manager.Map{
 		{Name: "sk_tcp_stats"},
 		{Name: "sk_udp_stats"},
+		{Name: "port_bindings"},
+		{Name: "udp_port_bindings"},
 	}
 	for funcName := range programs {
 		p := &manager.Probe{

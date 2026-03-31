@@ -12,6 +12,12 @@
 #endif
 
 typedef struct {
+    __u64 initial_sent_bytes;
+    __u64 initial_recv_bytes;
+    __u32 initial_sent_packets;
+    __u32 initial_recv_packets;
+    __u32 initial_retransmits;
+
     __u32 pid;
     __u16 state_transitions;
     __u16 failure_reason;
