@@ -2077,11 +2077,15 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	stats := ebpftelemetry.GetProbeStats()
 	require.NotNil(t, stats)
 
-	pTCPSendmsg, ok := stats["p_tcp_sendmsg_hits"]
+	key := "p_tcp_sendmsg_hits"
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		key = "p___nf_conntrack_hash_insert_hits"
+	}
+	hitCount, ok := stats[key]
 	require.True(t, ok)
-	fmt.Printf("p_tcp_sendmsg_hits = %d\n", pTCPSendmsg)
+	fmt.Printf("%s = %d\n", key, hitCount)
 
-	assert.Greater(t, pTCPSendmsg, uint64(0))
+	assert.Greater(t, hitCount, uint64(0))
 }
 
 func (s *TracerSuite) TestBlockingReadCounts() {
