@@ -631,6 +631,13 @@ type StorageReader interface {
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
 
+	// SumRange returns the sum of the specified aggregate over all points with
+	// timestamp in (start, end] without allocating any intermediate slices.
+	// Returns 0 if the series is not found or the range is empty.
+	// This is more efficient than ForEachPoint when only the aggregate total
+	// is needed (e.g. computing an average rate over a window).
+	SumRange(handle SeriesRef, start, end int64, agg Aggregate) float64
+
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.
@@ -658,13 +665,15 @@ type Detector interface {
 // reaches correlators and reporters. Filters are evaluated in order; the first
 // filter that returns true discards the anomaly.
 //
-// Implementations should be stateless and fast — they run synchronously inside
-// the detection loop on every anomaly produced by every detector.
-// Filtering criteria are based on the anomaly's source namespace, metric name,
-// and its current value (e.g. rate) as reported by DebugInfo.CurrentValue.
+// Implementations should be fast — they run synchronously inside the detection
+// loop on every anomaly produced by every detector. Storage is provided so
+// filters can query historical data (e.g. compute a windowed average rate)
+// rather than relying solely on the single-point value in DebugInfo.
 type DetectorFilter interface {
 	// Name returns the filter name for debugging and logging.
 	Name() string
 	// ShouldFilterOut returns true when the anomaly should be discarded.
-	ShouldFilterOut(a Anomaly) bool
+	// storage and dataTime are provided so filters can query the series
+	// history up to the current advance timestamp.
+	ShouldFilterOut(a Anomaly, storage StorageReader, dataTime int64) bool
 }

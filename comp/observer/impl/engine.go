@@ -321,7 +321,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		for _, anomaly := range result.Anomalies {
 			// First filter out anomaly if needed
 			for _, filter := range e.detectorFilters {
-				if filter.ShouldFilterOut(anomaly) {
+				if filter.ShouldFilterOut(anomaly, e.storage, upTo) {
 					continue anomalyLoop
 				}
 			}
