@@ -87,10 +87,11 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":         common.GetEnvVars,
-		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return remote.GetGoRoutineDump() },
-		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"envvars.log":                         common.GetEnvVars,
+		"health.yaml":                         getHealth,
+		"go-routine-dump.log":                 func() ([]byte, error) { return remote.GetGoRoutineDump() },
+		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
 			func(fb flaretypes.FlareBuilder) error {
@@ -100,14 +101,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		))
 	}
 
-	providers = append(providers, flaretypes.NewFiller(provideEndpointDNSResolution))
-
 	return providers
-}
-
-func provideEndpointDNSResolution(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("connectivity/resolved_endpoints.txt", getEndpointDNS) //nolint:errcheck
-	return nil
 }
 
 // getEndpointDNS resolves the hostnames of all configured agent endpoints.
