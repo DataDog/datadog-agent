@@ -77,8 +77,9 @@ type ExprReadRegisterOp struct {
 
 type ExprDereferencePtrOp struct {
 	baseOp
-	Bias uint32
-	Len  uint32
+	Bias      uint32
+	Len       uint32
+	NilBitIdx uint32
 }
 
 // Special type processing ops, that evaluate data of a specific type (already
@@ -159,6 +160,40 @@ type ChasePointersOp struct {
 type PrepareEventRootOp struct {
 	baseOp
 	EventRootType *ir.EventRootType
+}
+
+// Condition expression ops.
+
+type ExprPushOffsetOp struct {
+	baseOp
+	ByteSize uint32
+}
+
+type ExprLoadLiteralOp struct {
+	baseOp
+	Data []byte
+}
+
+type ExprReadStringOp struct {
+	baseOp
+	MaxLen uint16
+}
+
+type ExprCmpEqBaseOp struct {
+	baseOp
+	ByteSize uint8
+}
+
+type ExprCmpEqStringOp struct {
+	baseOp
+}
+
+type ConditionBeginOp struct {
+	baseOp
+}
+
+type ConditionCheckOp struct {
+	baseOp
 }
 
 //revive:enable:exported

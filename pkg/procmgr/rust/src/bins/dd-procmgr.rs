@@ -644,6 +644,7 @@ async fn cmd_create(
         let val = serde_json::json!({
             "name": name,
             "uuid": resp.uuid,
+            "warnings": resp.warnings,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -651,6 +652,9 @@ async fn cmd_create(
 
     println!("{}", name);
     println!("  UUID:   {}", resp.uuid);
+    for w in &resp.warnings {
+        eprintln!("Warning: {w}");
+    }
     Ok(())
 }
 

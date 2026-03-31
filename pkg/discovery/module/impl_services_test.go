@@ -30,11 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
@@ -291,6 +292,118 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	assert.Equal(t, string(language.Go), svc.Language)
 }
 
+// TestServicesTracerMetadata tests that both Go and Rust implementations correctly
+// parse tracer metadata from real binary dumps across different tracer versions
+// and schema versions.
+func (s *discoveryTestSuite) TestServicesTracerMetadata() {
+	curDir, err := testutil.CurDir()
+	require.NoError(s.T(), err)
+
+	tests := []struct {
+		name             string
+		dataFile         string
+		expectedMeta     []tracermetadata.TracerMetadata
+		expectedLanguage string
+	}{
+		{
+			name:     "go_v2",
+			dataFile: "testdata/tracer_go_v2.data",
+			expectedMeta: []tracermetadata.TracerMetadata{{
+				SchemaVersion:  2,
+				RuntimeID:      "bfed5675-a8f9-4d3d-a630-64713d543d1a",
+				TracerLanguage: "go",
+				TracerVersion:  "v2.3.0-dev.1",
+				Hostname:       "my-hostname",
+				ServiceName:    "test-go",
+				ServiceEnv:     "prod",
+				ServiceVersion: "abc123",
+				ProcessTags:    "entrypoint.basedir:exe,entrypoint.name:gotrace,entrypoint.type:executable,entrypoint.workdir:gotrace",
+				ContainerID:    "d7827075-010c-4e21-a663-daa3cd34e6f2",
+			}},
+			expectedLanguage: string(language.Go),
+		},
+		{
+			name:     "java",
+			dataFile: "testdata/tracer_java.data",
+			expectedMeta: []tracermetadata.TracerMetadata{{
+				SchemaVersion:  2,
+				RuntimeID:      "62af2d66-bb47-4801-b64d-6c12b0f8a11b",
+				TracerLanguage: "java",
+				TracerVersion:  "1.59.0~7e1bb03bc3",
+				Hostname:       "raphael-debian12",
+				ServiceName:    "com.example.demo.DemoApplication",
+				ProcessTags:    "entrypoint.name:com.example.demo.demoapplication,entrypoint.type:class,entrypoint.workdir:java_app,svc.auto:com.example.demo.demoapplication",
+				LogsCollected:  true,
+			}},
+			expectedLanguage: string(language.Java),
+		},
+		{
+			name:     "cpp_v1",
+			dataFile: "testdata/tracer_cpp.data",
+			expectedMeta: []tracermetadata.TracerMetadata{{
+				SchemaVersion:  1,
+				RuntimeID:      "f685d66a-7c12-4c47-84d0-c8ba75856374",
+				TracerLanguage: "cpp",
+				TracerVersion:  "v1.0.0",
+				Hostname:       "my-hostname",
+				ServiceName:    "my-service",
+				ServiceEnv:     "my-env",
+				ServiceVersion: "my-version",
+			}},
+			expectedLanguage: string(language.CPlusPlus),
+		},
+		{
+			name:     "invalid",
+			dataFile: "testdata/tracer_invalid.data",
+		},
+	}
+
+	for _, tc := range tests {
+		s.T().Run(tc.name, func(t *testing.T) {
+			discovery := s.discovery
+
+			data, err := os.ReadFile(filepath.Join(curDir, tc.dataFile))
+			require.NoError(t, err)
+
+			createTracerMemfd(t, data)
+
+			listener, err := net.Listen("tcp", "")
+			require.NoError(t, err)
+			f, err := listener.(*net.TCPListener).File()
+			listener.Close()
+
+			require.NoError(t, err)
+			t.Cleanup(func() { f.Close() })
+			disableCloseOnExec(t, f)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
+
+			cmd := exec.CommandContext(ctx, "sleep", "1000")
+			cmd.Dir = "/tmp/"
+			err = cmd.Start()
+			require.NoError(t, err)
+			f.Close()
+
+			pid := cmd.Process.Pid
+			var svc *model.Service
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				resp := getServices(collect, discovery)
+				svc = findService(pid, resp.Services)
+				require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+			}, 30*time.Second, 100*time.Millisecond)
+
+			if tc.expectedMeta != nil {
+				assert.Equal(t, tc.expectedMeta, svc.TracerMetadata)
+			} else {
+				assert.Empty(t, svc.TracerMetadata)
+				assert.False(t, svc.APMInstrumentation)
+			}
+			assert.Equal(t, tc.expectedLanguage, svc.Language)
+		})
+	}
+}
+
 // TestServicesTracerMetadataWithoutPorts checks that processes with tracer metadata
 // are discovered even when they have no open listening ports.
 func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
@@ -420,6 +533,56 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 		}
 	}
 	assert.True(t, found, "expected to find log file %s in LogFiles: %v", logFileName, svc.LogFiles)
+}
+
+// TestServicesGoDetectionDeletedExe tests that Go language detection works even
+// when the binary has been deleted after the process started. This simulates
+// the container case where /proc/<pid>/exe points to a path inside the
+// container's filesystem that doesn't exist on the host — resolving the
+// symlink separately won't work, but opening /proc/<pid>/exe directly does.
+func (s *discoveryTestSuite) TestServicesGoDetectionDeletedExe() {
+	t := s.T()
+	discovery := s.discovery
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
+	require.NoError(t, err)
+
+	// Copy the Go binary to a temp directory so we can delete it
+	tmpDir := t.TempDir()
+	tmpBin := filepath.Join(tmpDir, "fake_server")
+	data, err := os.ReadFile(serverBin)
+	require.NoError(t, err)
+	err = os.WriteFile(tmpBin, data, 0755)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, tmpBin)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	pid := cmd.Process.Pid
+
+	// Delete the binary so that the original path no longer exists.
+	// /proc/<pid>/exe still works (the kernel keeps the inode alive), but
+	// resolving the symlink target gives a path with " (deleted)" appended.
+	err = os.Remove(tmpBin)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc := findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+
+		assert.Equal(collect, string(language.Go), svc.Language,
+			"Go binary should be detected as Go even after the exe has been deleted")
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func (s *discoveryTestSuite) TestServicesAPMInstrumentationProvided() {

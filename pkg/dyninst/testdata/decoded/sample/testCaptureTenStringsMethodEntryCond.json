@@ -1,0 +1,36 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testTenStrings",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "testCaptureTenStringsMethodEntryCond",
+          "location": {
+            "method": "main.testTenStrings"
+          }
+        }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "x={first: one, second: two, third: three, fourth: four, fifth: five, ...}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

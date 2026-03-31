@@ -30,6 +30,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -131,8 +132,8 @@ func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) er
 }
 
 func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                                            //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettingsWithoutSecrets()) }) //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                              //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
 	return nil
 }
 
@@ -161,9 +162,14 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "vpc_subnets.log"), getVPCSubnetsForHost)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_goprocs.json"), getSystemProbeDyninstProcs)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_stats.json"), getSystemProbeDyninstStats)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_state.json"), getSystemProbeDyninstState)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_diagnostics.json"), getSystemProbeDyninstDiagnostics)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_config.json"), getSystemProbeDyninstConfig)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_symdb.json"), getSystemProbeDyninstSymDB)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
-		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettingsWithoutSecrets()) })
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
 	}
 	return nil
 }
@@ -176,7 +182,7 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	} else {
 		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
-		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}
@@ -221,6 +227,36 @@ func getSystemProbeConfig() ([]byte, error) {
 func getSystemProbeDyninstProcs() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.URL("/dynamic_instrumentation/debug/goprocs")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstStats() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/stats")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstState() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/state")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstDiagnostics() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/diagnostics")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstConfig() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/config")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstSymDB() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/symdb")
 	return getHTTPData(sysProbeClient, url)
 }
 

@@ -198,9 +198,10 @@ func testDyninst(
 		Updates: []process.Config{
 			{
 				Info: process.Info{
-					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
-					Executable: exe,
-					Service:    service,
+					ProcessID:   process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable:  exe,
+					Service:     service,
+					ProcessTags: []string{"entrypoint.name:sample", "svc.user:sample"},
 				},
 				RuntimeID:         runtimeID,
 				Probes:            slices.Clone(probes),
@@ -245,7 +246,7 @@ func testDyninst(
 		}
 	}
 
-	timeout := time.Second
+	timeout := 5 * time.Second
 	if !rewriteEnabled {
 		// In CI the machines seem to get very overloaded and this takes a
 		// shocking amount of time. Given we don't wait for this timeout in
@@ -339,47 +340,90 @@ func runIntegrationTestSuite(
 	for _, cfg := range cfgs {
 		probes := testprogs.MustGetProbeDefinitions(t, service)
 		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
-		// Some probes have different output in different versions, due to
-		// compiler changes. We rename the probes to organize output into different files.
+
+		// For each probe, resolve which output file name applies to the
+		// current config (stored in resultNames) and which names belong
+		// to other configs (stored in otherVariantNames). The latter is
+		// needed because output files for all configs live in the same
+		// directory — without tracking them, the "unexpected probes"
+		// check would flag files belonging to other configs as errors.
+		//
+		// otherVariantNames is populated from two sources:
+		//  1. Probes skipped entirely for this config — all their
+		//     variant names (base + version_diff + config_diff) go here.
+		//  2. Non-matching variants of kept probes — e.g. a probe kept
+		//     with result name "foo_geq_1.23" still has "foo" on disk
+		//     for older toolchains; that name goes here.
+		otherVariantNames := make(map[string]struct{})
 		resultNames := make(map[string]string)
-		otherVersionNames := make(map[string]struct{})
+		var keptProbes []ir.ProbeDefinition
 		for _, p := range probes {
+			skipped := testprogs.IsIntegrationConfigSkipped(t, p, cfg)
+			if !skipped {
+				keptProbes = append(keptProbes, p)
+			}
+
+			// Resolve version_diff tags to pick the base result name.
+			// Skipped probes still go through resolution so all their
+			// variant names land in otherVariantNames.
 			var versions []string
 			for _, tag := range p.GetTags() {
 				if strings.HasPrefix(tag, "version_diff:") {
 					versionDiff := strings.TrimPrefix(tag, "version_diff:")
 					versions = append(versions, versionDiff)
-					if cfg.GOTOOLCHAIN >= versionDiff {
-						resultNames[p.GetID()] = p.GetID() + "_geq_" + versionDiff
-						break
-					}
 				}
 			}
 			if versions == nil {
-				resultNames[p.GetID()] = p.GetID()
-				continue
-			}
-			// Find the largest version diff tag that applies to the version we are running with.
-			// Save other variants to recognize unexpected outputs.
-			slices.Sort(versions)
-			slices.Reverse(versions)
-			versions = append(versions, "")
-			found := false
-			for _, version := range versions {
-				var resultName string
-				if version == "" {
-					resultName = p.GetID()
+				if skipped {
+					otherVariantNames[p.GetID()] = struct{}{}
 				} else {
-					resultName = p.GetID() + "_geq_" + version
+					resultNames[p.GetID()] = p.GetID()
 				}
-				if !found && cfg.GOTOOLCHAIN >= version {
-					resultNames[p.GetID()] = resultName
-					found = true
+			} else {
+				// Find the largest version diff tag that applies to the
+				// version we are running with. Save other variants to
+				// recognize unexpected outputs.
+				slices.Sort(versions)
+				slices.Reverse(versions)
+				versions = append(versions, "")
+				found := false
+				for _, version := range versions {
+					var resultName string
+					if version == "" {
+						resultName = p.GetID()
+					} else {
+						resultName = p.GetID() + "_geq_" + version
+					}
+					if !skipped && !found && cfg.GOTOOLCHAIN >= version {
+						resultNames[p.GetID()] = resultName
+						found = true
+					} else {
+						otherVariantNames[resultName] = struct{}{}
+					}
+				}
+			}
+
+			// config_diff tags override the version_diff result for a
+			// specific arch+toolchain pair. The tag value is a Config
+			// string (arch=ARCH,toolchain=VERSION) parsed by parseConfig.
+			for _, tag := range p.GetTags() {
+				if !strings.HasPrefix(tag, "config_diff:") {
+					continue
+				}
+				diffCfg, err := testprogs.ParseConfig(tag[len("config_diff:"):])
+				require.NoError(t, err, "invalid config_diff tag %q on probe %s", tag, p.GetID())
+				configName := p.GetID() + "_config_" + diffCfg.String()
+				if !skipped && diffCfg == cfg {
+					if prev := resultNames[p.GetID()]; prev != "" {
+						otherVariantNames[prev] = struct{}{}
+					}
+					resultNames[p.GetID()] = configName
 				} else {
-					otherVersionNames[resultName] = struct{}{}
+					otherVariantNames[configName] = struct{}{}
 				}
 			}
 		}
+		probes = keptProbes
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
@@ -421,7 +465,7 @@ func runIntegrationTestSuite(
 								if _, ok := got[id]; ok {
 									return true
 								}
-								if _, ok := otherVersionNames[id]; ok {
+								if _, ok := otherVariantNames[id]; ok {
 									return true
 								}
 								return false

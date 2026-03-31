@@ -136,6 +136,11 @@ func TestGetDatadogHost(t *testing.T) {
 			expected: "api.ddog-gov.com",
 		},
 		{
+			name:     "handles gov cloud mil site",
+			endpoint: "https://api.ddog-gov.mil.",
+			expected: "api.ddog-gov.mil",
+		},
+		{
 			name:     "handles custom domain",
 			endpoint: "https://custom.endpoint.example.com.",
 			expected: "custom.endpoint.example.com",
@@ -223,4 +228,15 @@ func TestFromDDConfig(t *testing.T) {
 			assert.Equal(t, tt.expectedDDHost, cfg.DDApiHost, "DDApiHost should match DDHost")
 		})
 	}
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
 }

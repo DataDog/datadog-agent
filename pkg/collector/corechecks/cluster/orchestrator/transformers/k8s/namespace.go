@@ -16,6 +16,8 @@ import (
 )
 
 // ExtractNamespace returns the protobuf model corresponding to a Kubernetes Namespace resource.
+//
+//nolint:revive
 func ExtractNamespace(ctx processors.ProcessorContext, ns *corev1.Namespace) *model.Namespace {
 	n := &model.Namespace{
 		Metadata: extractMetadata(&ns.ObjectMeta),
@@ -29,9 +31,8 @@ func ExtractNamespace(ctx processors.ProcessorContext, ns *corev1.Namespace) *mo
 		n.Tags = append(n.Tags, conditionTags...)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	n.Tags = append(n.Tags, transformers.RetrieveUnifiedServiceTags(ns.ObjectMeta.Labels)...)
-	n.Tags = append(n.Tags, transformers.RetrieveMetadataTags(ns.ObjectMeta.Labels, ns.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	n.Tags = append(n.Tags, transformers.RetrieveTeamTag(ns.ObjectMeta.Labels, ns.ObjectMeta.Annotations)...)
 
 	return n
 }

@@ -128,3 +128,1503 @@ probes:
   evaluateAt: "exit"
   tags:
   - "issue:UnsupportedFeature"
+
+# ==========================================================================
+# Condition tests: base type comparisons (one per kind)
+#
+# Each cond* function is called twice. Conditional probes match only the first
+# call (the "matching" value). Unconditional snapshot probes fire on both calls
+# and serve as controls.
+#
+# The log template on each _cond probe references "tag" (the second parameter),
+# NOT the condition variable "x", so that the template and condition exercise
+# different variables.
+# ==========================================================================
+
+# --- int8 ---
+- id: condInt8_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt8
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt8_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt8
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- int16 ---
+- id: condInt16_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt16
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt16_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt16
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- int32 ---
+- id: condInt32_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt32_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt32
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- int64 ---
+- id: condInt64_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt64
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt64_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt64
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- uint8 ---
+- id: condUint8_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint8
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint8_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint8
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- uint16 ---
+- id: condUint16_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint16
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint16_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint16
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- uint32 ---
+- id: condUint32_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint32_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint32
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- uint64 ---
+- id: condUint64_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint64
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint64_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint64
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- float32 ---
+- id: condFloat32_cond
+  type: LOG_PROBE
+  tags: ["issue:ConditionVariableUnavailable"]
+  captureSnapshot: false
+  where:
+    methodName: main.condFloat32
+  when:
+    dsl: "x == 3.14"
+    json: {eq: [{ref: "x"}, 3.14]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condFloat32_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condFloat32
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- float64 ---
+- id: condFloat64_cond
+  tags: ["issue:ConditionVariableUnavailable"]
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condFloat64
+  when:
+    dsl: "x == 3.14"
+    json: {eq: [{ref: "x"}, 3.14]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condFloat64_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condFloat64
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- bool ---
+- id: condBool_cond_true
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condBool
+  when:
+    dsl: "x == true"
+    json: {eq: [{ref: "x"}, true]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condBool_cond_false
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condBool
+  when:
+    dsl: "x == false"
+    json: {eq: [{ref: "x"}, false]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condBool_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condBool
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- string ---
+- id: condString_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x == \"hello\""
+    json: {eq: [{ref: "x"}, "hello"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- string: empty string comparison ---
+- id: condString_cond_empty
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x == \"\""
+    json: {eq: [{ref: "x"}, ""]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: coercion through resolveCondition
+# ==========================================================================
+
+# String-to-uint8 coercion (hex literal). Template references tag, not x.
+- id: condUint8_cond_hex
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint8
+  when:
+    dsl: "x == \"0x2a\""
+    json: {eq: [{ref: "x"}, "0x2a"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# int64 literal coerced to float64. Template references tag, not x.
+- id: condFloat64_cond_int_coerce
+  tags: ["issue:ConditionVariableUnavailable"]
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condFloat64
+  when:
+    dsl: "x == 1"
+    json: {eq: [{ref: "x"}, 1]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: struct field (getmember) conditions
+#
+# Template references "tag" (the second parameter), separate from condition on
+# x's fields.
+# ==========================================================================
+
+# Condition on struct value field: x.I32 == 300
+- id: condStruct_field_i32
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I32 == 300"
+    json: {eq: [{getmember: [{ref: "x"}, "I32"]}, 300]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on struct string field: x.S == "world"
+- id: condStruct_field_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.S == \"world\""
+    json: {eq: [{getmember: [{ref: "x"}, "S"]}, "world"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on struct bool field: x.B == true
+- id: condStruct_field_bool
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.B == true"
+    json: {eq: [{getmember: [{ref: "x"}, "B"]}, true]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on struct float64 field: x.F64 == 2.5
+- id: condStruct_field_f64
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.F64 == 2.5"
+    json: {eq: [{getmember: [{ref: "x"}, "F64"]}, 2.5]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Unconditional snapshot on condStructArg for control.
+- id: condStruct_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condStructArg
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: pointer-to-struct dereference + member access
+# ==========================================================================
+
+# Condition on pointer-to-struct field: x.I32 == 300. Template uses tag.
+- id: condPtrStruct_field_i32
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condPtrStructArg
+  when:
+    dsl: "x.I32 == 300"
+    json: {eq: [{getmember: [{ref: "x"}, "I32"]}, 300]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on pointer-to-struct string field: x.S == "world". Template uses tag.
+- id: condPtrStruct_field_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condPtrStructArg
+  when:
+    dsl: "x.S == \"world\""
+    json: {eq: [{getmember: [{ref: "x"}, "S"]}, "world"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Unconditional snapshot on condPtrStructArg for control.
+- id: condPtrStruct_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condPtrStructArg
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: nil pointer in condition dereference chain
+#
+# condNilPtrStruct is called twice:
+#   1. Non-nil pointer matching condition → normal snapshot, no eval error
+#   2. Nil pointer → condition eval error (treated as pass), snapshot emitted
+#
+# Both calls should produce snapshots. The nil-pointer call should additionally
+# have an evaluationErrors entry for the condition expression.
+# ==========================================================================
+
+# Condition on pointer-to-struct field: fires for both calls (match + nil eval error).
+- id: condNilPtr_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNilPtrStruct
+  when:
+    dsl: "x.I32 == 300"
+    json: {eq: [{getmember: [{ref: "x"}, "I32"]}, 300]}
+  template: "condNilPtr {tag}"
+  segments:
+    - str: "condNilPtr "
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Unconditional snapshot on condNilPtrStruct for control (fires on both calls).
+- id: condNilPtr_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condNilPtrStruct
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: event kind mapping (parameter → entry, local → return)
+# ==========================================================================
+
+# Condition on parameter 'a' → should be on entry event only.
+# Template references 'b' (different parameter).
+- id: condReturnAndLocal_cond_param
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a == 5"
+    json: {eq: [{ref: "a"}, 5]}
+  template: "b={b}"
+  segments:
+    - str: "b="
+    - json: {ref: "b"}
+      dsl: "b"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Unconditional snapshot for control (fires on both calls).
+- id: condReturnAndLocal_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condReturnAndLocal
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: condition-only probe (no captures, no template)
+#
+# This exercises the code path where the condition's root variable type must
+# still be added to exploration roots even without capture expressions.
+# ==========================================================================
+
+- id: condOnly_cond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condOnly
+  when:
+    dsl: "x == 99"
+    json: {eq: [{ref: "x"}, 99]}
+  sampling:
+    snapshotsPerSecond: 10
+- id: condOnly_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condOnly
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: line probes
+# ==========================================================================
+
+# Line probe with condition on 'n', capture expression on 'tag'.
+- id: condLine_cond
+  tags:
+    # For whatever reason, the location lists of the line probe are bad
+    # on 1.23.
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "381"
+  when:
+    dsl: "n == 7"
+    json: {eq: [{ref: "n"}, 7]}
+  captureExpressions:
+    - name: "tag_val"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Line probe without condition (fires on both calls).
+- id: condLine_nocond
+  tags:
+    # For whatever reason, the location lists of the line probe are bad
+    # on 1.23.
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "381"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: condition + capture expressions on the same probe
+# ==========================================================================
+
+# Condition and capture expression on same variable (x), plus capture of tag.
+- id: condInt32_cond_with_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  captureExpressions:
+    - name: "tag_val"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on x.I32, capture expression on tag (different root variable).
+- id: condStruct_cond_i32_capture_tag
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I32 == 300"
+    json: {eq: [{getmember: [{ref: "x"}, "I32"]}, 300]}
+  captureExpressions:
+    - name: "tag_val"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: snapshot probes with conditions
+# ==========================================================================
+
+# Snapshot probe with condition — condition applies, snapshot vars captured.
+- id: condString_snapshot_with_cond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x == \"hello\""
+    json: {eq: [{ref: "x"}, "hello"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: error cases
+#
+# These probes should fail at analysis or resolution time and produce issues.
+# ==========================================================================
+
+# when JSON fails to parse (invalid expression).
+- id: condErr_bad_json
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "???"
+    json: {not_a_valid_op: ["x"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+# when expression is not an EqExpr (bare ref).
+- id: condErr_bare_ref
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x"
+    json: {ref: "x"}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+# when LHS root variable doesn't match any subprogram variable.
+- id: condErr_unknown_var
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "nonexistent == 42"
+    json: {eq: [{ref: "nonexistent"}, 42]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionVariableUnavailable"
+
+# Condition on a slice variable (unsupported LHS type).
+- id: condErr_slice
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condSliceArg
+  when:
+    dsl: "x == 1"
+    json: {eq: [{ref: "x"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Condition on a map variable (unsupported LHS type).
+- id: condErr_map
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condMapArg
+  when:
+    dsl: "x == 1"
+    json: {eq: [{ref: "x"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Condition on a struct directly (not a field, unsupported).
+- id: condErr_struct_direct
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condStructDirect
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# RHS is a variable reference instead of a literal (unsupported).
+- id: condErr_rhs_ref
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a == b"
+    json: {eq: [{ref: "a"}, {ref: "b"}]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Condition on nonexistent struct field (unresolvable).
+- id: condErr_bad_field
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.NoSuchField == 42"
+    json: {eq: [{getmember: [{ref: "x"}, "NoSuchField"]}, 42]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# int64 literal out of range for uint8 (256 > 255).
+- id: condErr_uint8_overflow
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint8
+  when:
+    dsl: "x == 256"
+    json: {eq: [{ref: "x"}, 256]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# int64 literal negative for unsigned target.
+- id: condErr_uint32_negative
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x == -1"
+    json: {eq: [{ref: "x"}, -1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# int64 literal out of range for int8 (128 > 127).
+- id: condErr_int8_overflow
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt8
+  when:
+    dsl: "x == 128"
+    json: {eq: [{ref: "x"}, 128]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# String literal non-string comparison (string var compared with int).
+- id: condErr_string_vs_int
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x == 42"
+    json: {eq: [{ref: "x"}, 42]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# ==========================================================================
+# len/isEmpty tests
+# ==========================================================================
+
+# --- lenString: len in template ---
+- id: lenString_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  template: "len={len(s)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "s"}}
+      dsl: "len(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: len as capture expression ---
+- id: lenString_len_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  captureExpressions:
+    - name: "s_len"
+      expr:
+        dsl: "len(s)"
+        json: {len: {ref: "s"}}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: len inside eq condition ---
+- id: lenString_len_eq_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  when:
+    dsl: "len(s) == 5"
+    json: {eq: [{len: {ref: "s"}}, 5]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: isEmpty as standalone condition ---
+- id: lenString_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  when:
+    dsl: "isEmpty(s)"
+    json: {isEmpty: {ref: "s"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenString: unconditional control probe ---
+- id: lenString_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenString
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: len in template ---
+- id: lenSlice_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  template: "len={len(s)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "s"}}
+      dsl: "len(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: len as capture expression ---
+- id: lenSlice_len_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  captureExpressions:
+    - name: "s_len"
+      expr:
+        dsl: "len(s)"
+        json: {len: {ref: "s"}}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: len inside eq condition ---
+- id: lenSlice_len_eq_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  when:
+    dsl: "len(s) == 5"
+    json: {eq: [{len: {ref: "s"}}, 5]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: isEmpty as standalone condition ---
+- id: lenSlice_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  when:
+    dsl: "isEmpty(s)"
+    json: {isEmpty: {ref: "s"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenSlice: unconditional control probe ---
+- id: lenSlice_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenSlice
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: len in template ---
+- id: lenMap_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  template: "len={len(m)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "m"}}
+      dsl: "len(m)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: len as capture expression ---
+- id: lenMap_len_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  captureExpressions:
+    - name: "m_len"
+      expr:
+        dsl: "len(m)"
+        json: {len: {ref: "m"}}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: len inside eq condition ---
+- id: lenMap_len_eq_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  when:
+    dsl: "len(m) == 3"
+    json: {eq: [{len: {ref: "m"}}, 3]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: isEmpty as standalone condition ---
+- id: lenMap_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  when:
+    dsl: "isEmpty(m)"
+    json: {isEmpty: {ref: "m"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenMap: unconditional control probe ---
+- id: lenMap_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenMap
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenPtrString: len with pointer auto-dereference ---
+- id: lenPtrString_len_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrString
+  template: "len={len(s)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "s"}}
+      dsl: "len(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- lenPtrString: unconditional control probe ---
+- id: lenPtrString_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenPtrString
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# len/isEmpty on struct fields (getmember + len)
+# ==========================================================================
+
+# len of struct string field: x.S
+- id: lenStruct_field_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.S)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "S"]}}
+      dsl: "len(x.S)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct slice field: x.Items
+- id: lenStruct_field_slice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.Items)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Items"]}}
+      dsl: "len(x.Items)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct map field: x.Dict
+- id: lenStruct_field_map
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.Dict)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Dict"]}}
+      dsl: "len(x.Dict)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty of struct slice field as condition
+- id: lenStruct_isEmpty_slice_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  when:
+    dsl: "isEmpty(x.Items)"
+    json: {isEmpty: {getmember: [{ref: "x"}, "Items"]}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty of struct map field as condition
+- id: lenStruct_isEmpty_map_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  when:
+    dsl: "isEmpty(x.Dict)"
+    json: {isEmpty: {getmember: [{ref: "x"}, "Dict"]}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty of struct string field as condition
+- id: lenStruct_isEmpty_string_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  when:
+    dsl: "isEmpty(x.S)"
+    json: {isEmpty: {getmember: [{ref: "x"}, "S"]}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct pointer-to-string field: x.PtrStr (pointer auto-deref on leaf)
+- id: lenStruct_field_ptrstr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.PtrStr)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "PtrStr"]}}
+      dsl: "len(x.PtrStr)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of struct pointer-to-slice field: x.PtrSlice (pointer auto-deref on leaf)
+- id: lenStruct_field_ptrslice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  template: "len={len(x.PtrSlice)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "PtrSlice"]}}
+      dsl: "len(x.PtrSlice)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# unconditional control probe for lenStructFields
+- id: lenStructFields_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenStructFields
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# len/isEmpty on pointer-to-struct fields (deref struct ptr, then field, then len)
+# ==========================================================================
+
+# len of ptr-struct string field: x.S
+- id: lenPtrStruct_field_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  template: "len={len(x.S)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "S"]}}
+      dsl: "len(x.S)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of ptr-struct slice field: x.Items
+- id: lenPtrStruct_field_slice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  template: "len={len(x.Items)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Items"]}}
+      dsl: "len(x.Items)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# len of ptr-struct map field: x.Dict
+- id: lenPtrStruct_field_map
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  template: "len={len(x.Dict)}"
+  segments:
+    - str: "len="
+    - json: {len: {getmember: [{ref: "x"}, "Dict"]}}
+      dsl: "len(x.Dict)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# unconditional control probe for lenPtrStructFields
+- id: lenPtrStructFields_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenPtrStructFields
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# len/isEmpty error cases: unsupported types
+# ==========================================================================
+
+# len on int (base type — should fail)
+- id: lenErr_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrInt
+  template: "len={len(x)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "x"}}
+      dsl: "len(x)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty on int as condition (base type — should fail)
+- id: lenErr_int_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrInt
+  when:
+    dsl: "isEmpty(x)"
+    json: {isEmpty: {ref: "x"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# len on struct (structure type — should fail)
+- id: lenErr_struct
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrStruct
+  template: "len={len(x)}"
+  segments:
+    - str: "len="
+    - json: {len: {ref: "x"}}
+      dsl: "len(x)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# isEmpty on struct as condition (structure type — should fail)
+- id: lenErr_struct_isEmpty_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenErrStruct
+  when:
+    dsl: "isEmpty(x)"
+    json: {isEmpty: {ref: "x"}}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# unconditional control probe for lenErrInt
+- id: lenErrInt_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenErrInt
+  sampling:
+    snapshotsPerSecond: 10
+
+# unconditional control probe for lenErrStruct
+- id: lenErrStruct_nocond
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.lenErrStruct
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# eq() and isEmpty() as top-level expressions (template + capture)
+# ==========================================================================
+
+# --- isEmpty in template ---
+- id: lenString_isEmpty_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  template: "empty={isEmpty(s)}"
+  segments:
+    - str: "empty="
+    - json: {isEmpty: {ref: "s"}}
+      dsl: "isEmpty(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: lenMap_isEmpty_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenMap
+  template: "empty={isEmpty(m)}"
+  segments:
+    - str: "empty="
+    - json: {isEmpty: {ref: "m"}}
+      dsl: "isEmpty(m)"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: lenSlice_isEmpty_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenSlice
+  template: "empty={isEmpty(s)}"
+  segments:
+    - str: "empty="
+    - json: {isEmpty: {ref: "s"}}
+      dsl: "isEmpty(s)"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- eq in template ---
+- id: lenString_eq_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  template: "eq={len(s) == 5}"
+  segments:
+    - str: "eq="
+    - json: {eq: [{len: {ref: "s"}}, 5]}
+      dsl: "len(s) == 5"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condString_eq_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  template: "eq={x == \"hello\"}"
+  segments:
+    - str: "eq="
+    - json: {eq: [{ref: "x"}, "hello"]}
+      dsl: "x == \"hello\""
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- isEmpty as capture expression ---
+- id: lenString_isEmpty_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  captureExpressions:
+    - name: "s_isEmpty"
+      expr:
+        dsl: "isEmpty(s)"
+        json: {isEmpty: {ref: "s"}}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- eq as capture expression ---
+- id: lenString_eq_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  captureExpressions:
+    - name: "s_len_eq_5"
+      expr:
+        dsl: "len(s) == 5"
+        json: {eq: [{len: {ref: "s"}}, 5]}
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condString_eq_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  captureExpressions:
+    - name: "x_eq_hello"
+      expr:
+        dsl: "x == \"hello\""
+        json: {eq: [{ref: "x"}, "hello"]}
+  sampling:
+    snapshotsPerSecond: 10

@@ -250,6 +250,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
+    bpf_memset(&empty, 0, sizeof(tcp_stats_t));
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
@@ -290,20 +291,144 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
         return 0;
     }
 
-    // initialize-if-no-exist the connection state, and load it
-    u32 u32_zero = 0;
-
-    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
-    // and do not provide any useful signal since the key is expected to be present sometimes.
-    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
     u32 *val = bpf_map_lookup_elem(&tcp_retransmits, &t);
     if (val == NULL) {
-        return 0;
+        u32 u32_zero = 0;
+        bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
+        val = bpf_map_lookup_elem(&tcp_retransmits, &t);
+        if (val == NULL) {
+            return 0;
+        }
     }
 
     __sync_fetch_and_add(val, count);
 
     return 0;
+}
+
+// handle_congestion_stats reads TCP congestion fields from tcp_sock into the
+// tcp_stats map.
+static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+#if !defined(COMPILE_PREBUILT)
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+    if (val == NULL) {
+        return;
+    }
+#if defined(COMPILE_CORE)
+    __u8 ecn = 0;
+    if (bpf_core_field_exists(struct tcp_sock, reord_seen)) {
+        BPF_CORE_READ_INTO(&val->reord_seen, tcp_sk(sk), reord_seen);
+    }
+    if (bpf_core_field_exists(struct tcp_sock, rcv_ooopack)) {
+        BPF_CORE_READ_INTO(&val->rcv_ooopack, tcp_sk(sk), rcv_ooopack);
+    }
+    if (bpf_core_field_exists(struct tcp_sock, delivered_ce)) {
+        BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
+    }
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        val->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    }
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    __u8 ecn = 0;
+    BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+    BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+    BPF_CORE_READ_INTO(&val->rcv_ooopack,  tcp_sk(sk), rcv_ooopack);
+#endif
+    BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+    val->ecn_negotiated = ecn & 1;
+#endif
+#endif
+}
+
+// finalize_congestion_stats reads the final tcp_sock congestion field values at
+// connection close time and takes the max of the tcp_stats value vs the sock value.
+static __always_inline void finalize_congestion_stats(struct sock *sk, tcp_stats_t *ts) {
+#if !defined(COMPILE_PREBUILT)
+#if defined(COMPILE_CORE)
+    __u32 val = 0;
+    __u8 ecn = 0;
+    if (bpf_core_field_exists(struct tcp_sock, reord_seen)) {
+        BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
+        if (val > ts->reord_seen)
+            ts->reord_seen = val;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, rcv_ooopack)) {
+        val = 0;
+        BPF_CORE_READ_INTO(&val, tcp_sk(sk), rcv_ooopack);
+        if (val > ts->rcv_ooopack)
+            ts->rcv_ooopack = val;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, delivered_ce)) {
+        val = 0;
+        BPF_CORE_READ_INTO(&val, tcp_sk(sk), delivered_ce);
+        if (val > ts->delivered_ce)
+            ts->delivered_ce = val;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+        ts->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    }
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    __u32 val = 0;
+    __u8 ecn = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), reord_seen);
+    if (val > ts->reord_seen)
+        ts->reord_seen = val;
+    val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), delivered_ce);
+    if (val > ts->delivered_ce)
+        ts->delivered_ce = val;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+    val = 0;
+    BPF_CORE_READ_INTO(&val, tcp_sk(sk), rcv_ooopack);
+    if (val > ts->rcv_ooopack)
+        ts->rcv_ooopack = val;
+#endif
+    BPF_CORE_READ_INTO(&ecn, tcp_sk(sk), ecn_flags);
+    ts->ecn_negotiated = ecn & 1;
+#endif
+#endif
+}
+
+// get_or_create_tcp_event_stats returns a pointer to the tcp_event_stats entry
+// for this socket, creating it if needed. Returns NULL if the socket tuple
+// can't be read. Shared between tracer.c and tracer-fentry.c.
+static __always_inline tcp_event_stats_t *get_or_create_tcp_event_stats(struct sock *sk) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return NULL;
+    }
+    tcp_event_stats_t *tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    if (!tes) {
+        tcp_event_stats_t empty = {};
+        bpf_memset(&empty, 0, sizeof(tcp_event_stats_t));
+        bpf_map_update_with_telemetry(tcp_event_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+        tes = bpf_map_lookup_elem(&tcp_event_stats, &t);
+    }
+    return tes;
+}
+
+static __always_inline void handle_tcp_enter_loss(struct sock *sk) {
+    tcp_event_stats_t *tes = get_or_create_tcp_event_stats(sk);
+    if (tes) {
+        __sync_fetch_and_add(&tes->rto_count, 1);
+    }
+}
+
+static __always_inline void handle_tcp_enter_recovery(struct sock *sk) {
+    tcp_event_stats_t *tes = get_or_create_tcp_event_stats(sk);
+    if (tes) {
+        __sync_fetch_and_add(&tes->recovery_count, 1);
+    }
+}
+
+static __always_inline void handle_tcp_send_probe0(struct sock *sk) {
+    tcp_event_stats_t *tes = get_or_create_tcp_event_stats(sk);
+    if (tes) {
+        __sync_fetch_and_add(&tes->probe0_count, 1);
+    }
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
@@ -316,11 +441,15 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     BPF_CORE_READ_INTO(&rtt_var, tcp_sk(sk), mdev_us);
 #endif
 
-    tcp_stats_t stats = { .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = {};
+    bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+    stats.rtt = rtt;
+    stats.rtt_var = rtt_var;
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
     update_tcp_stats(t, stats);
+    handle_congestion_stats(t, sk);
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
@@ -427,7 +556,9 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
         return false;
     }
     if (is_tcp_failure_recognized(err)) {
-        tcp_stats_t stats = { .failure_reason = err };
+        tcp_stats_t stats = {};
+        bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+        stats.failure_reason = err;
         update_tcp_stats(t, stats);
         return true;
     }

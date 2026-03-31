@@ -42,4 +42,6 @@ var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
 	{ActionFQN: "com.datadoghq.script.testConnection", ExpectedPrefix: "com.datadoghq.script"},
 	{ActionFQN: "com.datadoghq.script.enrichScript", ExpectedPrefix: "com.datadoghq.script"},
 	{ActionFQN: "com.datadoghq.ddagent.testConnection", ExpectedPrefix: "com.datadoghq.ddagent"},
+	{ActionFQN: "com.datadoghq.http.testConnection", ExpectedPrefix: "com.datadoghq.http"},
+	{ActionFQN: "com.datadoghq.remoteaction.testConnection", ExpectedPrefix: "com.datadoghq.remoteaction"},
 }

@@ -18,12 +18,12 @@
           {
             "function": "main.testDeepPtr7",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 120
+            "lineNumber": 139
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 278
+            "lineNumber": 299
           },
           {
             "function": "main.main",
@@ -90,6 +90,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{a: {a: {a: {interface: unknown type *main.deepPtr1}}}}"
+    "message": "{a: {a: {a: {interface: unknown type *main.deepPtr1}}}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

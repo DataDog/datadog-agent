@@ -6,8 +6,8 @@ A shared Go library for remote agents (system-probe, trace-agent, process-agent,
 
 - **Real-time config**: Receive full snapshot then incremental updates from the core agent over gRPC.
 - **RAR-gated**: Only registered remote agents can subscribe; session ID is required (fixed or via `SessionIDProvider`).
-- **Readiness gating**: `WaitReady(ctx)` blocks until the first config snapshot is received.
-- **Single source of truth**: Streamed config is written into `config.Component` via `model.Writer`. Callers read config and subscribe to changes through `config.Component` directly — not through this component.
+- **Readiness gating**: `OnStart` blocks until the first config snapshot is received, aborting startup if `Params.ReadyTimeout` (default: 60s) is exceeded.
+- **Single source of truth**: Streamed config is written into `config.Component` via `model.Writer`. Callers read config through `config.Component` directly — not through this component.
 - **Ordered updates**: Sequential application by sequence ID; stale updates dropped, discontinuities trigger resync.
 - **Restart safety**: `lastSeqID` is never reset on reconnect. If the core agent restarts and its sequence counter resets, the consumer logs an error and refuses the new snapshot until the sub-process itself restarts.
 - **Telemetry**: Metrics for time-to-first-snapshot, reconnects, sequence ID, and dropped updates.
@@ -41,57 +41,67 @@ See `../configstream/README.md` for the producer side and the gRPC/protobuf cont
 
 Supply **either** a fixed `SessionID` **or** a `SessionIDProvider` (e.g. from the remote agent component). The consumer uses the provider at connect time so RAR can register first.
 
-**Blocking startup**: `OnStart` blocks until the first config snapshot is received, so all other components and the binary's `run` function see a fully-populated config without any extra synchronization. Set `Params.ReadyTimeout` to control how long to wait (default: 60s); exceeding it aborts FX startup.
+## Wiring guide
 
-**`Params` must be non-nil**: if a binary includes this component, it must provide `*Params`. Returning nil `Params` is an error — binaries that do not need config streaming should not include this component.
+### Only include the module when the feature is enabled
 
-**`model.Writer`** (`config.Component`) must be provided in `Requires` as a mandatory FX dependency. Do not pass it via `Params`.
+Including `configstreamconsumerfx.Module()` when config streaming is disabled will abort FX startup. Check the feature flag before building FX options and include the module conditionally:
 
 ```go
-// 1. Add configstreamconsumerfx.Module() to the binary's FX options.
-configstreamconsumerfx.Module()
-
-// 2. Provide the SessionIDProvider from the remote agent component (it will block until RAR registration completes).
-fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
-    if ra == nil {
-        return nil
-    }
-    if p, ok := ra.(configstreamconsumerimpl.SessionIDProvider); ok {
-        return p
-    }
-    return nil
-})
-
-// 3. Provide *Params only when configstream is enabled.
-//    config.Component satisfies model.Writer and is injected into Requires automatically by FX.
-fx.Provide(func(c config.Component, deps struct {
-    fx.In
-    SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
-}) (*configstreamconsumerimpl.Params, error) {
-    if !c.GetBool("remote_agent.configstream.enabled") {
-        // Do not return nil — do not include this component when streaming is disabled.
-        return nil, errors.New("configstream is disabled; do not include configstreamconsumerfx.Module()")
-    }
-    host := c.GetString("cmd_host")
-    port := c.GetInt("cmd_port")
-    if port <= 0 {
-        port = 5001
-    }
-    return &configstreamconsumerimpl.Params{
-        ClientName:        "my-agent",
-        CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-        SessionIDProvider: deps.SessionProvider,
-    }, nil
-})
+if configstreamEnabled {
+    opts = append(opts, configstreamFxOptions())
+}
 ```
 
+### Full example
+
+```go
+func configstreamFxOptions() fx.Option {
+    return fx.Options(
+        // Bridge config.Component to model.Writer so the consumer can write streamed config.
+        fx.Provide(func(c config.Component) model.Writer { return c }),
+
+        // Provide the SessionIDProvider from the remote agent (blocks until RAR registration).
+        fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
+            if ra == nil {
+                return nil
+            }
+            if p, ok := ra.(configstreamconsumerimpl.SessionIDProvider); ok {
+                return p
+            }
+            return nil
+        }),
+
+        // Provide Params — only reached when configstream is known to be enabled.
+        fx.Provide(func(c config.Component, deps struct {
+            fx.In
+            SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
+        }) *configstreamconsumerimpl.Params {
+            host := c.GetString("cmd_host")
+            port := c.GetInt("cmd_port")
+            if port <= 0 {
+                port = 5001
+            }
+            return &configstreamconsumerimpl.Params{
+                ClientName:        "my-agent",
+                CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
+                SessionIDProvider: deps.SessionProvider,
+            }
+        }),
+
+        configstreamconsumerfx.Module(),
+        // Force instantiation so OnStart runs and blocks until the first snapshot.
+        fx.Invoke(func(_ configstreamconsumer.Component) {}),
+    )
+}
+```
 
 ## Requirements
 
 - **Core agent**: `configstream` component (`remote_agent.configstream.enabled: true`) and RAR enabled (`remote_agent.registry.enabled: true`).
 - **RAR**: Remote agent must register with RAR before subscribing; pass `session_id` via gRPC metadata (supply fixed `SessionID` or `SessionIDProvider` with `WaitSessionID(ctx) (string, error)`).
 - **IPC**: mTLS and auth token for gRPC (same as other core-agent IPC).
-- **ConfigWriter**: `config.Component` (implements `model.Writer`) must be provided as a mandatory FX dependency in `Requires`. Streamed snapshot/updates are written with `SourceLocalConfigProcess`.
+- **`model.Writer`**: `config.Component` must be explicitly provided as `model.Writer` in the same FX scope. Streamed settings are written with `SourceLocalConfigProcess`.
 
 ## Telemetry
 

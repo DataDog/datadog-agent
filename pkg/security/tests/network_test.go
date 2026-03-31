@@ -688,9 +688,13 @@ func TestRawPacketFilter(t *testing.T) {
 		},
 		{
 			BPFFilter: "tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420",
+			CGroupPathKey: model.PathKey{
+				Inode: 1234,
+			},
 		},
 		{
 			BPFFilter: "icmp[icmptype] != icmp-echo and icmp[icmptype] != icmp-echoreply",
+			Pid:       123,
 		},
 		{
 			BPFFilter: "port ftp or ftp-data",

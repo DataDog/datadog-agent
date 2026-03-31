@@ -22,6 +22,20 @@ const (
 	poolCapacity = 100
 )
 
+// ignoreComms is the hardcoded set of exact command names to ignore.
+var ignoreComms = map[string]struct{}{
+	"chronyd":         {},
+	"cilium-agent":    {},
+	"containerd":      {},
+	"dhclient":        {},
+	"dockerd":         {},
+	"kubelet":         {},
+	"livenessprobe":   {},
+	"local-volume-pr": {},
+	"sshd":            {},
+	"systemd":         {},
+}
+
 // ignoreFamily list of processes with hyphens in their names,
 // matching up to the hyphen excludes process from reporting.
 var ignoreFamily = map[string]struct{}{
@@ -37,9 +51,6 @@ var (
 
 // shouldIgnoreComm returns true if process should be ignored
 func (s *discovery) shouldIgnoreComm(pid int32) bool {
-	if s.config.IgnoreComms == nil {
-		return false
-	}
 	commPath := kernel.HostProc(strconv.Itoa(int(pid)), "comm")
 	file, err := os.Open(commPath)
 	if err != nil {
@@ -63,7 +74,7 @@ func (s *discovery) shouldIgnoreComm(pid int32) bool {
 	}
 
 	comm := strings.TrimSuffix(string((*buf)[:n]), "\n")
-	_, found := s.config.IgnoreComms[comm]
+	_, found := ignoreComms[comm]
 
 	return found
 }
