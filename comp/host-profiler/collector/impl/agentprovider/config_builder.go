@@ -53,14 +53,18 @@ func buildExporters(conf confMap, agent configManager) []any {
 	exporters := make(confMap)
 
 	createOtlpHTTPFromEndpoint := func(site, key string) confMap {
+		headers := make(confMap, 3+len(agent.hostProfilerConfig.AdditionalHTTPHeaders))
+		for k, v := range agent.hostProfilerConfig.AdditionalHTTPHeaders {
+			headers[k] = v
+		}
+		// Required headers set after additional headers to prevent overrides
+		headers["dd-api-key"] = key
+		headers["dd-evp-origin"] = version.ProfilerName
+		headers["dd-evp-origin-version"] = version.ProfilerVersion
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
-			"headers": confMap{
-				"dd-api-key":            key,
-				"dd-evp-origin":         version.ProfilerName,
-				"dd-evp-origin-version": version.ProfilerVersion,
-			},
+			"headers":           headers,
 		}
 	}
 

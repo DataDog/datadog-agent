@@ -15,7 +15,8 @@ import (
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
-	Debug confMap
+	Debug                 confMap
+	AdditionalHTTPHeaders map[string]string
 }
 
 type endpoint struct {
@@ -87,7 +88,8 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 	hostProfilerConfig := hostProfilerConfig{
-		Debug: config.GetStringMap("hostprofiler.debug"),
+		Debug:                 config.GetStringMap("hostprofiler.debug"),
+		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 	}
 
 	return configManager{

@@ -38,3 +38,44 @@ site: datadoghq.com
 
 	assert.Equal(t, "detailed", mgr.hostProfilerConfig.Debug["verbosity"])
 }
+
+func TestNewConfigManagerAdditionalHTTPHeadersFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  additional_http_headers:
+    x-custom-header: custom-value
+    x-another: another-value
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, map[string]string{
+		"x-custom-header": "custom-value",
+		"x-another":       "another-value",
+	}, mgr.hostProfilerConfig.AdditionalHTTPHeaders)
+}
+
+func TestNewConfigManagerAdditionalHTTPHeadersFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS", `{"x-custom-header":"custom-value"}`)
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, map[string]string{
+		"x-custom-header": "custom-value",
+	}, mgr.hostProfilerConfig.AdditionalHTTPHeaders)
+}
+
+func TestNewConfigManagerAdditionalHTTPHeadersEmpty(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Empty(t, mgr.hostProfilerConfig.AdditionalHTTPHeaders)
+}

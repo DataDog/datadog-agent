@@ -66,6 +66,7 @@ UID=1234 # required on Datadog workspace, set to the output of `id -u` on the wo
 GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
 DD_TAGS="key:value,key1:value2" # optional, defaults to workspace:${workspace-name} on a Datadog workspace
 DD_HOSTPROFILER_DEBUG='{"verbosity":"detailed"}' # optional, enable debug exporter (basic|normal|detailed|none)
+DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS='{"x-custom-header":"value"}' # optional, additional HTTP headers on OTLP exporter requests; defaults to workspace metadata on Datadog workspaces
 ```
 
 Then run
