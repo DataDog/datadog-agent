@@ -7,13 +7,15 @@ package codegen
 
 import "fmt"
 
-// This file contains stub implementations of codegen functions.
-// They will be replaced with real implementations in subsequent tasks.
-// Each stub sets cs.Err and returns nil, causing the parser to abort.
+// This file contains stub implementations of codegen functions that are
+// not yet fully implemented. They will be replaced with real implementations
+// in subsequent tasks. Each stub sets cs.Err and returns nil.
 
 func stub(cs *CompilerState, name string) {
 	cs.SetError(fmt.Errorf("%s: not yet implemented", name))
 }
+
+// --- Entry points (Task 11) ---
 
 // GenScode generates code for a symbolic name (host, net, etc.).
 func GenScode(cs *CompilerState, name string, q Qual) *Block {
@@ -51,53 +53,7 @@ func GenNcode(cs *CompilerState, name string, v uint32, q Qual) *Block {
 	return nil
 }
 
-// GenRelation generates code for a comparison expression.
-func GenRelation(cs *CompilerState, code int, a0, a1 *Arth, reversed int) *Block {
-	stub(cs, "gen_relation")
-	return nil
-}
-
-// GenLess generates code for "less N" (packet length < N).
-func GenLess(cs *CompilerState, n int) *Block {
-	stub(cs, "gen_less")
-	return nil
-}
-
-// GenGreater generates code for "greater N" (packet length > N).
-func GenGreater(cs *CompilerState, n int) *Block {
-	stub(cs, "gen_greater")
-	return nil
-}
-
-// GenByteop generates code for a byte operation expression.
-func GenByteop(cs *CompilerState, op int, idx int, val uint32) *Block {
-	stub(cs, "gen_byteop")
-	return nil
-}
-
-// GenBroadcast generates code for "broadcast" filter.
-func GenBroadcast(cs *CompilerState, proto int) *Block {
-	stub(cs, "gen_broadcast")
-	return nil
-}
-
-// GenMulticast generates code for "multicast" filter.
-func GenMulticast(cs *CompilerState, proto int) *Block {
-	stub(cs, "gen_multicast")
-	return nil
-}
-
-// GenInbound generates code for "inbound"/"outbound" filter.
-func GenInbound(cs *CompilerState, dir int) *Block {
-	stub(cs, "gen_inbound")
-	return nil
-}
-
-// GenIfindex generates code for "ifindex N" filter.
-func GenIfindex(cs *CompilerState, ifindex int) *Block {
-	stub(cs, "gen_ifindex")
-	return nil
-}
+// --- Encapsulation (Task 11) ---
 
 // GenVlan generates code for VLAN matching.
 func GenVlan(cs *CompilerState, id uint32, hasID int) *Block {
@@ -129,35 +85,7 @@ func GenGeneve(cs *CompilerState, vni uint32, hasVNI int) *Block {
 	return nil
 }
 
-// GenLoadi generates code to load an immediate value.
-func GenLoadi(cs *CompilerState, val uint32) *Arth {
-	stub(cs, "gen_loadi")
-	return nil
-}
-
-// GenLoad generates code to load from a packet offset.
-func GenLoad(cs *CompilerState, proto int, index *Arth, size uint32) *Arth {
-	stub(cs, "gen_load")
-	return nil
-}
-
-// GenLoadlen generates code to load the packet length.
-func GenLoadlen(cs *CompilerState) *Arth {
-	stub(cs, "gen_loadlen")
-	return nil
-}
-
-// GenNeg generates code to negate an arithmetic expression.
-func GenNeg(cs *CompilerState, a *Arth) *Arth {
-	stub(cs, "gen_neg")
-	return nil
-}
-
-// GenArth generates code for an arithmetic operation.
-func GenArth(cs *CompilerState, op int, a0, a1 *Arth) *Arth {
-	stub(cs, "gen_arth")
-	return nil
-}
+// --- LLC (Task 11) ---
 
 // GenLLC generates code for LLC matching.
 func GenLLC(cs *CompilerState) *Block {
@@ -194,6 +122,8 @@ func GenLLCUSubtype(cs *CompilerState, subtype uint32) *Block {
 	stub(cs, "gen_llc_u_subtype")
 	return nil
 }
+
+// --- ATM/MTP/PF/802.11 (Task 11 — rare protocols) ---
 
 // GenAtmtypeAbbrev generates code for ATM type matching.
 func GenAtmtypeAbbrev(cs *CompilerState, atmtype int) *Block {
