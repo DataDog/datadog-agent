@@ -90,6 +90,22 @@ struct dd_discovery_result {
 };
 
 /**
+ * Log callback function pointer type.
+ * `level`: 0=error, 1=warn, 2=info, 3=debug, 4=trace.
+ * `msg` / `len`: UTF-8 message (not NUL-terminated). Valid only for the duration of the call.
+ */
+typedef void (*dd_log_fn)(uint8_t level, const char *msg, size_t len);
+
+/**
+ * Register a callback to receive log messages from the Rust library.
+ *
+ * Call this once before the first call to dd_discovery_get_services.
+ * `max_level`: 0=error, 1=warn, 2=info, 3=debug, 4=trace.
+ * Subsequent calls are no-ops (the first registration wins).
+ */
+void dd_discovery_set_log_callback(dd_log_fn callback, uint8_t max_level);
+
+/**
  * Run service discovery and return a heap-allocated result.
  *
  * # Parameters

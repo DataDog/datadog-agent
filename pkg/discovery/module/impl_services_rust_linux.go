@@ -13,6 +13,14 @@ package module
 #cgo CFLAGS:  -I${SRCDIR}/rust/include
 #cgo LDFLAGS: -L${SRCDIR}/rust -L${SRCDIR}/rust/target/release -ldd_discovery
 #include "dd_discovery.h"
+
+// goDiscoveryLog is exported by Go (see impl_services_rust_log_linux.go).
+extern void goDiscoveryLog(uint8_t level, const char *msg, size_t msg_len);
+
+// dd_init_logger registers goDiscoveryLog as the Rust log callback at debug level.
+static void dd_init_logger(void) {
+    dd_discovery_set_log_callback(goDiscoveryLog, 3);
+}
 */
 import "C"
 
@@ -22,6 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 )
+
+func init() {
+	C.dd_init_logger()
+}
 
 func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()

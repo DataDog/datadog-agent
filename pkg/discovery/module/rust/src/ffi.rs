@@ -5,7 +5,8 @@
 
 //! C ABI interface for `get_services`.
 //!
-//! Exports two symbols:
+//! Exports three symbols:
+//! - `dd_discovery_set_log_callback` — registers a Go log callback before first use.
 //! - `dd_discovery_get_services` — runs discovery and returns a heap-allocated result.
 //! - `dd_discovery_free` — deallocates the result.
 //!
@@ -16,6 +17,8 @@
 
 use std::ffi::c_char;
 use std::ptr;
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::language::Language;
 use crate::params::Params;
@@ -288,6 +291,51 @@ fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
 }
 
 // ---------------------------------------------------------------------------
+// Logging bridge
+// ---------------------------------------------------------------------------
+
+/// Log callback function pointer type.
+/// `level`: 0=error, 1=warn, 2=info, 3=debug, 4=trace.
+/// `msg` / `len`: UTF-8 log message (not NUL-terminated). Valid only for the duration of the call.
+pub type dd_log_fn = Option<unsafe extern "C" fn(level: u8, msg: *const c_char, len: usize)>;
+
+static LOG_CALLBACK: OnceLock<unsafe extern "C" fn(u8, *const c_char, usize)> = OnceLock::new();
+static LOG_MAX_LEVEL: AtomicU8 = AtomicU8::new(0);
+
+struct FfiLogger;
+
+impl log::Log for FfiLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        // log::Level is 1 (Error) .. 5 (Trace); our scale is 0 (error) .. 4 (trace).
+        let max = LOG_MAX_LEVEL.load(Ordering::Relaxed);
+        (metadata.level() as u8).saturating_sub(1) <= max
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        if let Some(&cb) = LOG_CALLBACK.get() {
+            let msg = record.args().to_string();
+            let level: u8 = match record.level() {
+                log::Level::Error => 0,
+                log::Level::Warn => 1,
+                log::Level::Info => 2,
+                log::Level::Debug => 3,
+                log::Level::Trace => 4,
+            };
+            // SAFETY: cb is a valid function pointer registered by dd_discovery_set_log_callback.
+            // msg is alive for the duration of the call; the Go side copies it via GoStringN.
+            unsafe { cb(level, msg.as_ptr() as *const c_char, msg.len()) };
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static FFI_LOGGER: FfiLogger = FfiLogger;
+
+// ---------------------------------------------------------------------------
 // Exported C ABI functions
 // ---------------------------------------------------------------------------
 
@@ -302,6 +350,33 @@ unsafe fn pids_from_c(ptr: *const i32, len: usize) -> Option<Vec<i32>> {
     // SAFETY: Caller guarantees ptr points to len valid i32 values.
     let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
     Some(slice.to_vec())
+}
+
+/// Register a callback to receive log messages from the Rust library.
+///
+/// Call this once before the first call to `dd_discovery_get_services`.
+/// `max_level`: 0=error, 1=warn, 2=info, 3=debug, 4=trace.
+/// Subsequent calls are no-ops (the first registration wins).
+///
+/// # Safety
+/// `callback`, if non-null, must remain valid for the lifetime of the process.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn dd_discovery_set_log_callback(callback: dd_log_fn, max_level: u8) {
+    let Some(cb) = callback else { return };
+
+    let level_filter = match max_level {
+        0 => log::LevelFilter::Error,
+        1 => log::LevelFilter::Warn,
+        2 => log::LevelFilter::Info,
+        3 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
+    };
+
+    LOG_CALLBACK.get_or_init(|| cb);
+    LOG_MAX_LEVEL.store(max_level, Ordering::Relaxed);
+    // set_logger returns an error if already set; ignore it.
+    let _ = log::set_logger(&FFI_LOGGER);
+    log::set_max_level(level_filter);
 }
 
 /// Run service discovery and return a heap-allocated result.
