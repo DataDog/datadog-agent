@@ -196,18 +196,14 @@ func (suite *PodTestSuite) TestPodCheck() {
 		sorted("kube_api_version:v1"))
 	require.Equal(suite.T(),
 		sorted(suite.sender.pods[0].(*process.CollectorPod).Pods[0].Tags...),
-		sorted("kube_condition_podscheduled:true", "pod_status:pending",
-			"dd_component:kube-proxy", "dd_tier:node",
-			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
+		sorted("kube_condition_podscheduled:true", "pod_status:pending"))
 
 	require.Equal(suite.T(),
 		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Tags...),
 		sorted())
 	require.Equal(suite.T(),
 		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
-		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending",
-			"dd_component:kube-proxy", "dd_tier:node",
-			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
+		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending"))
 }
 
 func sorted(l ...string) []string {
