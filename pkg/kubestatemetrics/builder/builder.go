@@ -336,7 +336,7 @@ func (b *Builder) startReflector(
 	if useAPIServerCache {
 		listWatcher = newCacheEnabledListerWatcher(listWatcher)
 	}
-	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync*time.Second)
+	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync)
 	go reflector.Run(b.ctx.Done())
 }
 
