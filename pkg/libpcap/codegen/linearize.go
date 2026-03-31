@@ -26,14 +26,15 @@ func slength(s *SList) uint {
 	return n
 }
 
-// countStmts returns the total number of instructions reachable from block p.
+// CountStmts returns the total number of instructions reachable from block p.
 // Includes side-effect statements, the conditional jump, and any extra long jumps.
-func countStmts(ic *ICode, p *Block) uint {
+// The ICode must have all blocks unmarked before calling.
+func CountStmts(ic *ICode, p *Block) uint {
 	if p == nil || ic.IsMarked(p) {
 		return 0
 	}
 	ic.MarkBlock(p)
-	n := countStmts(ic, JT(p)) + countStmts(ic, JF(p))
+	n := CountStmts(ic, JT(p)) + CountStmts(ic, JF(p))
 	return slength(p.Stmts) + n + 1 + uint(p.LongJt) + uint(p.LongJf)
 }
 
@@ -50,7 +51,7 @@ func IcodeToFcode(ic *ICode, root *Block) ([]bpf.Instruction, error) {
 	// the instruction count and requires re-linearization.
 	for iteration := 0; iteration < 100; iteration++ {
 		ic.UnMarkAll()
-		n := countStmts(ic, root)
+		n := CountStmts(ic, root)
 		if n == 0 {
 			return nil, fmt.Errorf("filter has no instructions")
 		}
