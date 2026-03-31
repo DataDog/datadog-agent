@@ -1,8 +1,29 @@
-"""Rules for compiling Windows resource files (.mc -> .rc -> .syso)."""
+"""Rules for compiling Windows resource files (.mc -> .rc -> .syso).
 
+windres internally calls gcc -E to preprocess .rc files. We resolve gcc
+and its environment from the registered CC toolchain (MinGW) so that
+actions run correctly under --incompatible_strict_action_env.
+"""
+
+load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
+load("@rules_cc//cc:defs.bzl", "cc_common")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
 load("//bazel/toolchains/mingw:paths.bzl", "MINGW_PATH")
 
-_DEFAULT_MINGW_PATH = MINGW_PATH
+def _cc_env(ctx):
+    """Returns (env, cc_toolchain) from the resolved CC toolchain."""
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    env = cc_common.get_environment_variables(
+        feature_configuration = feature_configuration,
+        action_name = C_COMPILE_ACTION_NAME,
+    )
+    return env, cc_toolchain
 
 def _win_messagetable_impl(ctx):
     src = ctx.file.src
@@ -12,29 +33,36 @@ def _win_messagetable_impl(ctx):
     h_out = ctx.actions.declare_file(basename + ".h")
     bin_out = ctx.actions.declare_file("MSG00409.bin")
 
-    windmc = ctx.attr._mingw_path + "/bin/windmc"
-    ctx.actions.run_shell(
-        outputs = [rc_out, h_out, bin_out],
+    windmc_args = ctx.actions.args()
+    windmc_args.add("--target", "pe-x86-64")
+    windmc_args.add("-r", rc_out.dirname)
+    windmc_args.add("-h", rc_out.dirname)
+    windmc_args.add(src)
+
+    ctx.actions.run(
+        executable = MINGW_PATH + "/bin/windmc",
+        arguments = [windmc_args],
         inputs = [src],
-        command = '"{windmc}" --target pe-x86-64 -r "{outdir}" -h "{outdir}" "{src}"'.format(
-            windmc = windmc,
-            outdir = rc_out.dirname,
-            src = src.path,
-        ),
+        outputs = [rc_out, h_out, bin_out],
         mnemonic = "WindMC",
         progress_message = "Compiling message table %s" % src.short_path,
     )
 
     syso_out = ctx.actions.declare_file("rsrc.syso")
-    windres = ctx.attr._mingw_path + "/bin/windres"
-    ctx.actions.run_shell(
+    env, cc_toolchain = _cc_env(ctx)
+
+    windres_args = ctx.actions.args()
+    windres_args.add("--target", "pe-x86-64")
+    windres_args.add("-i", rc_out)
+    windres_args.add("-O", "coff")
+    windres_args.add("-o", syso_out)
+
+    ctx.actions.run(
+        executable = MINGW_PATH + "/bin/windres",
+        arguments = [windres_args],
+        env = env,
+        inputs = depset([rc_out, bin_out], transitive = [cc_toolchain.all_files]),
         outputs = [syso_out],
-        inputs = [rc_out, bin_out],
-        command = '"{windres}" --target pe-x86-64 -i "{rc}" -O coff -o "{out}"'.format(
-            windres = windres,
-            rc = rc_out.path,
-            out = syso_out.path,
-        ),
         mnemonic = "WindRes",
         progress_message = "Linking message resource %s" % rc_out.short_path,
     )
@@ -46,38 +74,38 @@ win_messagetable = rule(
     doc = "Compiles a .mc message file into a .syso resource and .h header via windmc + windres.",
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".mc"]),
-        "_mingw_path": attr.string(default = _DEFAULT_MINGW_PATH),
-    },
+    } | CC_TOOLCHAIN_ATTRS,
+    toolchains = use_cc_toolchain(),
+    fragments = ["cpp"],
 )
 
 def _win_resource_impl(ctx):
     src = ctx.file.src
     syso_out = ctx.actions.declare_file("rsrc.syso")
 
-    windres = ctx.attr._mingw_path + "/bin/windres"
+    env, cc_toolchain = _cc_env(ctx)
 
-    defines = " ".join([
-        "--define %s=%s" % (k, v)
-        for k, v in ctx.attr.defines.items()
-    ])
+    windres_args = ctx.actions.args()
+    windres_args.add("--target", "pe-x86-64")
+    for k, v in ctx.attr.defines.items():
+        windres_args.add("--define", "%s=%s" % (k, v))
 
-    # windres resolves #include relative to -I paths;
-    # resource paths (ICON etc.) resolve relative to the .rc file's directory.
     include_dirs = {src.dirname: True}
     for dep in ctx.files.deps:
         include_dirs[dep.dirname] = True
-    includes = " ".join(['-I "%s"' % d for d in include_dirs])
+    for d in include_dirs:
+        windres_args.add("-I", d)
 
-    ctx.actions.run_shell(
+    windres_args.add("-i", src)
+    windres_args.add("-O", "coff")
+    windres_args.add("-o", syso_out)
+
+    ctx.actions.run(
+        executable = MINGW_PATH + "/bin/windres",
+        arguments = [windres_args],
+        env = env,
+        inputs = depset([src] + ctx.files.deps, transitive = [cc_toolchain.all_files]),
         outputs = [syso_out],
-        inputs = [src] + ctx.files.deps,
-        command = '"{windres}" --target pe-x86-64 {defines} {includes} -i "{rc}" -O coff -o "{out}"'.format(
-            windres = windres,
-            defines = defines,
-            includes = includes,
-            rc = src.path,
-            out = syso_out.path,
-        ),
         mnemonic = "WindRes",
         progress_message = "Linking resource %s" % src.short_path,
     )
@@ -91,6 +119,7 @@ win_resource = rule(
         "src": attr.label(mandatory = True, allow_single_file = [".rc"]),
         "deps": attr.label_list(allow_files = True),
         "defines": attr.string_dict(),
-        "_mingw_path": attr.string(default = _DEFAULT_MINGW_PATH),
-    },
+    } | CC_TOOLCHAIN_ATTRS,
+    toolchains = use_cc_toolchain(),
+    fragments = ["cpp"],
 )
