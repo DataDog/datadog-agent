@@ -60,6 +60,7 @@
       "fallbacks": [
         {"name": "topicname", "provider": "datadog", "type": "string"},
         {"name": "messaging.destination", "provider": "otel", "type": "string"},
+        {"name": "messaging.destination.template", "provider": "otel", "version": "1.23.0", "type": "string"},
         {"name": "messaging.destination.name", "provider": "otel", "version": "1.21.0", "type": "string"},
         {"name": "messaging.rabbitmq.exchange", "provider": "otel", "type": "string"},
         {"name": "amqp.destination", "provider": "datadog", "type": "string"},

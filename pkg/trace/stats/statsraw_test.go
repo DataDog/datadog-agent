@@ -303,6 +303,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		"http.server_name",
 		"messaging.destination",
 		"messaging.destination.name",
+		"messaging.destination.template",
 		"messaging.kafka.bootstrap.servers",
 		"messaging.rabbitmq.exchange",
 		"messaging.system",
