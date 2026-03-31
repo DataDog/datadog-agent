@@ -49,4 +49,3 @@ func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 		ConfFilePath: configPath,
 	}
 }
-
