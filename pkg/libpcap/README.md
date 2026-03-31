@@ -21,6 +21,7 @@ This package replaces the cgo dependency with a native Go implementation.
 | `bpf/` | BPF instruction types, interpreter, validator, formatter | `pcap/bpf.h`, `bpf_filter.c`, `bpf_image.c`, `bpf_dump.c` |
 | `grammar/` | Hand-written lexer + goyacc-generated parser | `scanner.l`, `grammar.y.in` |
 | `codegen/` | BPF code generator (expression → block CFG → instructions) | `gencode.c` |
+| `optimizer/` | BPF optimizer (constant folding, dead code elimination, jump threading, predicate assertion) | `optimize.c` |
 | `nameresolver/` | Host, port, and protocol name resolution | `nametoaddr.c` |
 
 ## API
@@ -42,7 +43,8 @@ dump, err := libpcap.DumpFilter(libpcap.LinkTypeEthernet, 256, "tcp dst port 80"
 ### Filter expressions — full support
 
 The following filter constructs produce **instruction-for-instruction identical**
-unoptimized BPF output compared to C libpcap 1.10.6 (`filtertest -O`):
+BPF output compared to C libpcap 1.10.6, both optimized (`filtertest` default)
+and unoptimized (`filtertest -O`):
 
 | Category | Examples | Status |
 |----------|---------|--------|
@@ -64,21 +66,20 @@ unoptimized BPF output compared to C libpcap 1.10.6 (`filtertest -O`):
 | Named ports/protos | `port http`, `proto tcp` (via name resolver) | Exact match |
 | Combined filters | `tcp port 80 and host 192.168.1.1`, `tcp or udp`, `not tcp`, `(tcp or udp) and port 53`, `src net 192.168.0.0/24 and dst port 80` | Exact match |
 
-### Filter expressions — supported with output differences
+### Filter expressions — supported with unoptimized output differences
 
-The following constructs compile correctly and produce **semantically equivalent**
-BPF programs, but the unoptimized instruction sequences differ from C libpcap.
-This is because the Go codegen generates the general-purpose register-based form
-for all arithmetic and byte-access expressions, while C libpcap has specialized
-shortcuts for common patterns. Once the optimizer is implemented (Phase 3), the
-optimized output will match.
+The following constructs compile correctly and produce **instruction-identical
+optimized output** compared to C libpcap. However, their *unoptimized* instruction
+sequences differ because the Go codegen uses the general-purpose register-based
+form for byte-access and arithmetic expressions, while C libpcap has specialized
+shortcuts. The optimizer eliminates these differences.
 
-| Category | Examples | Difference |
-|----------|---------|------------|
-| Byte access | `tcp[13] & 0x02 != 0`, `tcp[tcpflags] & tcp-syn != 0`, `ip[8] < 64` | More register load/store instructions |
-| Bitwise in comparisons | `ether[0] & 1 != 0`, `ip[0] & 0xf != 5` | General-purpose arth path vs shortcut |
-| TCP flags | `tcp[tcpflags] == tcp-syn` | Same as above |
-| Arithmetic expressions | `tcp[tcpflags] & (tcp-syn\|tcp-ack) != 0` | Uses register ALU ops |
+| Category | Examples | Unoptimized difference | Optimized |
+|----------|---------|----------------------|-----------|
+| Byte access | `tcp[13] & 0x02 != 0`, `tcp[tcpflags] & tcp-syn != 0`, `ip[8] < 64` | More register load/store instructions | Exact match |
+| Bitwise in comparisons | `ether[0] & 1 != 0`, `ip[0] & 0xf != 5` | General-purpose arth path vs shortcut | Exact match |
+| TCP flags | `tcp[tcpflags] == tcp-syn` | Same as above | Exact match |
+| Arithmetic expressions | `tcp[tcpflags] & (tcp-syn\|tcp-ack) != 0` | Uses register ALU ops | Exact match |
 
 ### Not yet implemented
 
@@ -101,7 +102,6 @@ They are planned for future implementation.
 | Gateway | `gateway hostname` | `gen_gateway()` |
 | Protochain | `protochain N` | `gen_protochain()` |
 | ARCnet addresses | `$XX` AID tokens | `gen_acode()` |
-| BPF optimizer | (affects all filters) | `optimize.c` |
 
 ### Differences from C libpcap
 
@@ -113,10 +113,10 @@ They are planned for future implementation.
 | **Error handling** | `setjmp`/`longjmp` | Go error returns (`cs.Err`) |
 | **Memory management** | Custom chunked allocator (`newchunk`) | Go garbage collector |
 | **Name resolution** | `gethostbyname`, `getaddrinfo`, `/etc/protocols`, `/etc/ethers` | Go `net.LookupIP`, `net.LookupPort`, built-in protocol table |
-| **Optimizer** | Full optimizer (dead code elimination, constant folding, jump optimization) | Not yet implemented (Phase 3) |
+| **Optimizer** | Full optimizer (dead code elimination, constant folding, jump optimization) | Full optimizer — 49/52 corpus filters produce instruction-identical optimized output |
 | **Matching API** | `pcap_offline_filter()`, `BPF.Matches()` | Not yet implemented (Phase 4) — `bpf.Filter()` interpreter exists |
 | **Link types** | ~60 DLT types | Ethernet (`DLT_EN10MB`), loopback, Linux cooked, raw IP |
-| **Unoptimized output** | Compact shortcuts for common patterns | General-purpose register-based form for byte access/arithmetic |
+| **Unoptimized output** | Compact shortcuts for common patterns | General-purpose register-based form for byte access/arithmetic (optimizer eliminates the differences) |
 | **Thread safety** | Reentrant parser via Flex/Bison options | Naturally safe (no global state) |
 
 ### Grammar porting
@@ -165,7 +165,7 @@ go generate ./pkg/libpcap/grammar/
 |-------|--------|
 | 1. Foundation (bpf/, test harness) | Complete |
 | 2. Compiler pipeline (scanner, grammar, codegen, linearizer) | Complete |
-| 3. Optimizer | Not started |
+| 3. Optimizer | Complete |
 | 4. Matching API (`NewBPF`, `Matches`) | Not started |
 | 5. Integration (switch agent consumers) | Not started |
 | 6. Cleanup (remove gopacket/pcap dep) | Not started |
