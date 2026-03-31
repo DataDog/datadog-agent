@@ -1,9 +1,9 @@
 import argparse
-import analyzer
 import json
 import re
-import yaml
 
+import analyzer
+import yaml
 
 ## WIP: does not correctly generate code yet
 ##
@@ -16,7 +16,7 @@ import yaml
 
 
 def read_file(filename):
-    fp = open(filename, 'r')
+    fp = open(filename)
     content = fp.read()
     fp.close()
     return content
@@ -40,7 +40,7 @@ package setup
 def run_generator(schema_file, hints_file, outsource_file):
     func_names = analyzer.config_setup_func_names
 
-    with open(schema_file, "r") as f:
+    with open(schema_file) as f:
         schema = yaml.safe_load(f)
     hints = json.loads(read_file(hints_file))
 
@@ -161,7 +161,10 @@ def retrieve_default_value(keypath, schema):
             if add.get('type') == 'array' and add.get('items').get('type') == 'string':
                 return 'map[string][]string%s' % as_go_value(settingDefault)
         return 'map[string]interface{}%s' % as_go_value(settingDefault)
-    raise RuntimeError('setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s' % (keypath, settingType, settingDefault, type(settingDefault)))
+    raise RuntimeError(
+        'setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s'
+        % (keypath, settingType, settingDefault, type(settingDefault))
+    )
 
 
 def output_single_setting(name, schema, sourcecode):

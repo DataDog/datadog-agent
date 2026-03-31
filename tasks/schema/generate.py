@@ -3,11 +3,10 @@ Schema generation tasks
 """
 
 import os
-import yaml
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
-
 
 from tasks.schema.fixes import fix_schema
 from tasks.schema.template_parser import parse_template

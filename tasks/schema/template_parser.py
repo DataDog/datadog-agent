@@ -12,6 +12,7 @@ def get_indent(line):
                 raise Exception("Odd indent: {block}")
             return count // 2
 
+
 def remove_first_pound(block):
     cleaned = []
     # edge case for the top level where the comments don't have a space after the "#" but the setting does
@@ -27,6 +28,7 @@ def remove_first_pound(block):
     # remove first '# "
     return [l[2:] for l in block]
 
+
 def get_doc(block):
     doc = []
     for idx, l in enumerate(block):
@@ -38,6 +40,7 @@ def get_doc(block):
         else:
             break
     return "\n".join(doc).strip(), block[idx:]
+
 
 def get_name_and_example(block):
     # remove empty lines
@@ -53,10 +56,12 @@ def get_name_and_example(block):
     example.extend(block[1:])
     return name, "\n".join(example)
 
+
 def parse_block(block):
     doc, block = get_doc(block)
     name, example = get_name_and_example(block)
     return name, doc, example
+
 
 def handle_header(block):
     """
@@ -69,6 +74,7 @@ def handle_header(block):
         raise Exception(f"Invalid header: {block}")
 
     return block[1][3:-3]
+
 
 def get_from_schema(currpath, field, schemaroot):
     node = schemaroot
@@ -83,8 +89,7 @@ def is_node_section(node):
     return node.get("node_type", "") == "section"
 
 
-class Parser(object):
-
+class Parser:
     def __init__(self):
         self.current_title = ""
         self.order = 0
@@ -102,12 +107,12 @@ class Parser(object):
         indent = get_indent(block[0])
 
         # we remove the YAML indent
-        block = [l[indent*2:] for l in block]
+        block = [l[indent * 2 :] for l in block]
 
         name, doc, example = parse_block(block)
 
         # we go one level deeper
-        if self.current_indent()+1 == indent:
+        if self.current_indent() + 1 == indent:
             self.parents.append(self.previous_name)
         elif self.current_indent() == indent:
             pass
@@ -182,7 +187,21 @@ class Parser(object):
 # Each node should use the same key order
 def nice_key_order(obj):
     res = {}
-    key_order = ['node_type', 'title', 'type', 'default', 'env_vars', 'items', 'additionalProperties', 'format', 'visibility', 'description', 'example', 'tags', 'properties']
+    key_order = [
+        'node_type',
+        'title',
+        'type',
+        'default',
+        'env_vars',
+        'items',
+        'additionalProperties',
+        'format',
+        'visibility',
+        'description',
+        'example',
+        'tags',
+        'properties',
+    ]
     for k in key_order:
         if k in obj:
             res[k] = obj[k]
@@ -223,7 +242,7 @@ def reorder_it(schema, currpath, trackorder):
 
 
 def parse_template(tmpl, schema):
-    with open(tmpl, "r") as f:
+    with open(tmpl) as f:
         template = f.read()
 
     parser = Parser()

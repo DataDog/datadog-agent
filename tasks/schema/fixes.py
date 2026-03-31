@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import yaml
-import sys
 
 """
 This script fixes the OS differences in the schema that are hard to capture automatically. This includes information
@@ -36,61 +34,49 @@ core_defaults = {
     "logs_config.open_files_limit": {
         "darwin": 200,
         "other": 500,
-        },
-
-    "use_networkv2_check": {
-        "darwin": False,
-        "other": True
-        },
-    "network_check.use_core_loader": {
-        "darwin": False,
-        "other": True
-        },
-
+    },
+    "use_networkv2_check": {"darwin": False, "other": True},
+    "network_check.use_core_loader": {"darwin": False, "other": True},
     "kubernetes_kubelet_podresources_socket": {
         "windows": "\\\\.\\pipe\\kubelet-pod-resources",
         "other": "/var/lib/kubelet/pod-resources/kubelet.sock",
-        },
+    },
     "kubernetes_kubelet_deviceplugins_socketdir": {
         "windows": "\\\\.\\pipe\\kubelet-device-plugins",
         "other": "/var/lib/kubelet/device-plugins",
-        },
-
+    },
     "logs_config.run_path": "${run_path}",
     "run_path": "${run_path}",
-
     "process_config.dd_agent_bin": {
         "linux": "${install_path}/bin/agent/agent",
         "darwin": "${install_path}/bin/agent/agent",
         "windows": "${install_path}/bin/agent.exe",
-        },
+    },
     "confd_path": "${conf_path}/conf.d",
     "shared_library_check.library_folder_path": "${conf_path}/checks.d",
     "additional_checksd": "${conf_path}/checks.d",
     "GUI_port": {
-            "linux": -1,
-            "other": 5002,
-            },
+        "linux": -1,
+        "other": 5002,
+    },
     "security_agent.log_file": "${log_path}/security-agent.log",
     "process_config.log_file": "${log_path}/process-agent.log",
     "private_action_runner.log_file": "${log_path}/private-action-runner.log",
     "dogstatsd_socket": {
-            "linux": "/var/run/datadog/dsd.socket",
-            "other": "",
-            },
+        "linux": "/var/run/datadog/dsd.socket",
+        "other": "",
+    },
     "apm_config.receiver_socket": {
-            "linux": "/var/run/datadog/apm.socket",
-            "other": "",
-            },
+        "linux": "/var/run/datadog/apm.socket",
+        "other": "",
+    },
     "logs_config.streaming.streamlogs_log_file": "${log_path}/streamlogs_info/streamlogs.log",
-
     "system_tray.log_file": "${conf_path}/logs/ddtray.log",
-
-     # setting duplicated for some reasons between system-probe and core-agent config
+    # setting duplicated for some reasons between system-probe and core-agent config
     "runtime_security_config.socket": {
         "windows": "localhost:3335",
         "other": "${install_path}/run/runtime-security.sock",
-        },
+    },
 }
 
 sysprobe_defaults = {
@@ -99,24 +85,23 @@ sysprobe_defaults = {
     "system_probe_config.process_service_inference.enabled": {
         "windows": True,
         "other": False,
-        },
+    },
     "system_probe_config.sysprobe_socket": {
         "linux": "${run_path}/sysprobe.sock",
         "darwin": "/opt/datadog-agent/run/sysprobe.sock",
         "windows": "\\\\.\\pipe\\dd_system_probe",
-        },
+    },
     "runtime_security_config.security_profile.dir": "${run_path}/runtime-security/profiles",
     "runtime_security_config.activity_dump.local_storage.output_directory": "${run_path}/runtime-security/profiles",
     "runtime_security_config.policies.dir": {
         "windows": "${conf_path}/runtime-security.d",
-        "other": "/etc/datadog-agent/runtime-security.d", # hardcoded for both, probably doesn't work on darwin
+        "other": "/etc/datadog-agent/runtime-security.d",  # hardcoded for both, probably doesn't work on darwin
     },
-
-     # setting duplicated for some reasons between system-probe and core-agent config
+    # setting duplicated for some reasons between system-probe and core-agent config
     "runtime_security_config.socket": {
         "windows": "localhost:3335",
         "other": "${install_path}/run/runtime-security.sock",
-        },
+    },
 }
 
 # extra_tags
@@ -141,9 +126,9 @@ core_extra_env = {
     "proxy.no_proxy": "@env DD_PROXY_NO_PROXY - space-separated list of strings - optional - default: []",
 }
 
+
 def fix_defaults(core_schema, sysprobe_schema):
     for schema, custom_defaults in [[core_schema, core_defaults], [sysprobe_schema, sysprobe_defaults]]:
-
         for key, default in custom_defaults.items():
             node = schema
             for k in key.split("."):
@@ -162,7 +147,6 @@ def fix_defaults(core_schema, sysprobe_schema):
 
 def fix_tags(core_schema, sysprobe_schema):
     for schema, new_tags in [[core_schema, core_extra_tags], [sysprobe_schema, system_probe_extra_tags]]:
-
         for key, tags in new_tags.items():
             node = schema
             for k in key.split("."):
@@ -171,17 +155,18 @@ def fix_tags(core_schema, sysprobe_schema):
             node["tags"] = list(set(node.get("tags", []) + tags))
     return core_schema, sysprobe_schema
 
+
 def fix_missing_env_doc(core_schema, sysprobe_schema):
     # no extra env for sysprobe
     for schema, env_lines in [[core_schema, core_extra_env]]:
-
         for key, line in env_lines.items():
             node = schema
             for k in key.split("."):
                 node = node["properties"][k]
 
-            node["description"] = line +"\n"+node.get("description", "")
+            node["description"] = line + "\n" + node.get("description", "")
     return core_schema, sysprobe_schema
+
 
 def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
