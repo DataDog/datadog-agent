@@ -17,6 +17,6 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"createschema"},
-		showSecretInfo,
+		run,
 		func(_ core.BundleParams) {})
 }
