@@ -202,7 +202,8 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		portToPID = make(map[int32]int32)
 	}
 	for _, cx := range conns.Conns {
-		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 {
+		// USM supports TCP only; skip UDP connections.
+		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 && cx.Type == model.ConnectionType_tcp {
 			if _, exists := portToPID[cx.Laddr.Port]; !exists {
 				portToPID[cx.Laddr.Port] = cx.Pid
 			}
@@ -558,7 +559,8 @@ func batchConnections(
 
 			// For same-host connections, resolve and attach the remote service tags.
 			c.RemoteServiceTagsIdx = -1
-			if c.IntraHost && c.Laddr.ContainerId == "" {
+			// USM supports TCP only; skip UDP connections.
+			if c.IntraHost && c.Laddr.ContainerId == "" && c.Type == model.ConnectionType_tcp {
 				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
 					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
 				}
