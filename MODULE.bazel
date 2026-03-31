@@ -93,33 +93,34 @@ git_override(
 )
 
 ####################################
-## dd-source image-promotion CLI  ##
+## dd-pkg publish-image CLI       ##
 ####################################
-# Imports the image-promotion CLI from dd-source. Pure stdlib Go binary
+# Imports the publish-image CLI from dd-pkg. Pure stdlib Go binary
 # that calls artifact-gateway to publish container images.
+# dd-pkg uses bzlmod so this is a proper cross-repo dependency.
 # TODO: pin to a commit on main once merged.
 new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 
 new_git_repository(
-    name = "dd_source_image_promotion",
-    branch = "ali.benabdallah/BARX-1709/image-promotion-template",
+    name = "dd_pkg_publish_image",
+    branch = "ali.benabdallah/BARX-1709/publish-image",
     build_file_content = """
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "go_default_library",
     srcs = ["main.go"],
-    importpath = "github.com/DataDog/dd-source/domains/agent_delivery/apps/cli/image-promotion",
+    importpath = "github.com/DataDog/dd-pkg/cmd/publish-image",
 )
 
 go_binary(
-    name = "image-promotion",
+    name = "publish-image",
     embed = [":go_default_library"],
     visibility = ["//visibility:public"],
 )
 """,
-    remote = "https://gitlab.ddbuild.io/DataDog/dd-source.git",
-    strip_prefix = "domains/agent_delivery/apps/cli/image-promotion",
+    remote = "https://github.com/DataDog/dd-pkg.git",
+    strip_prefix = "cmd/publish-image",
 )
 
 #########################

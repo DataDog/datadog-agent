@@ -60,9 +60,11 @@
     IMAGE_PROMOTION_POLL_INTERVAL: "30"
     # TODO: switch to prod URL once migration is complete
     ARTIFACT_GATEWAY_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway"
+  before_script:
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/".insteadOf "https://gitlab.ddbuild.io/"
   script:
     - *docker_ecr_suffix_script
-    - bazel run @dd_source_image_promotion//:image-promotion --
+    - bazel run @dd_pkg_publish_image//:publish-image --
         --gateway-url "${ARTIFACT_GATEWAY_URL}"
         --timeout "${IMAGE_PROMOTION_TIMEOUT}"
         --poll-interval "${IMAGE_PROMOTION_POLL_INTERVAL}"
