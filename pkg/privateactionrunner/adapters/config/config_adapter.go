@@ -71,7 +71,7 @@ func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
 }
 
 func (c *Config) IsURLInAllowlist(urlStr string) bool {
-	if len(c.Allowlist) == 0 {
+	if c.Allowlist == nil {
 		return true
 	}
 
