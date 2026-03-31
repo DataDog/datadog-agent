@@ -322,10 +322,6 @@ func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *
 	}
 }
 
-// maxNumberOfPorts is the maximum number of listening ports which we report per
-// service.
-const maxNumberOfPorts = 50
-
 // getPorts gets the list of open ports for the provided process.
 func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64) ([]uint16, []uint16, error) {
 	if len(sockets) == 0 {

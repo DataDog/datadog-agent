@@ -113,11 +113,6 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	}
 }
 
-func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
-	t.Helper()
-	return setupGoDiscoveryModule(t)
-}
-
 // makeRequest wraps the request to the discovery module, setting the JSON body if provided,
 // and returning the response as the given type.
 func makeRequest[T any](t require.TestingT, client *http.Client, url string, params *core.Params) *T {

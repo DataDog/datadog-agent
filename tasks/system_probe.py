@@ -97,7 +97,7 @@ RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
 
-# Rust packages that produce a shared library (.so).
+# Rust packages that produce a static library (.a) for CGo linking.
 # Kept separate from RUST_BINARIES since not every Rust package exposes a library install target.
 RUST_LIBS = [
     "pkg/discovery/module/rust",
@@ -442,6 +442,9 @@ def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
         if tag in build_tags:
             build_tags.remove(tag)
 
+    if not is_windows and not is_macos:
+        build_tags.append("dd_discovery_rust")
+
     build_tags.extend(UNIT_TEST_TAGS)
 
     return build_tags
@@ -478,6 +481,11 @@ def test(
             ctx,
             kernel_release=kernel_release,
         )
+
+        if not is_windows and not is_macos:
+            arch = Arch.from_str(CURRENT_ARCH)
+            build_rust_libs(ctx, arch=arch)
+            build_rust_binaries(ctx, arch=arch)
 
     build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 

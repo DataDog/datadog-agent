@@ -15,7 +15,7 @@ import (
 
 func TestDiscovery(t *testing.T) {
 	t.Run("module", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupDiscoveryModule})
+		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
 	})
 	t.Run("system-probe-lite", func(t *testing.T) {
 		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule})

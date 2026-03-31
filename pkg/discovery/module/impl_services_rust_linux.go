@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 )
 
 func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
@@ -125,21 +124,20 @@ func convertRustService(svc *C.struct_dd_service) model.Service {
 	}
 
 	if metas := sliceFromC(svc.tracer_metadata.data, svc.tracer_metadata.len); len(metas) > 0 {
-		result.TracerMetadata = make([]tracermetadata.TracerMetadata, len(metas))
-		for i, m := range metas {
-			result.TracerMetadata[i] = tracermetadata.TracerMetadata{
-				SchemaVersion:  uint8(m.schema_version),
-				RuntimeID:      fromDDStr(m.runtime_id),
-				TracerLanguage: fromDDStr(m.tracer_language),
-				TracerVersion:  fromDDStr(m.tracer_version),
-				Hostname:       fromDDStr(m.hostname),
-				ServiceName:    fromDDStr(m.service_name),
-				ServiceEnv:     fromDDStr(m.service_env),
-				ServiceVersion: fromDDStr(m.service_version),
-				ProcessTags:    fromDDStr(m.process_tags),
-				ContainerID:    fromDDStr(m.container_id),
-				LogsCollected:  bool(m.logs_collected),
-			}
+		for _, m := range metas {
+			result.TracerMetadata = append(result.TracerMetadata, buildTracerMetadata(
+				uint8(m.schema_version),
+				fromDDStr(m.runtime_id),
+				fromDDStr(m.tracer_language),
+				fromDDStr(m.tracer_version),
+				fromDDStr(m.hostname),
+				fromDDStr(m.service_name),
+				fromDDStr(m.service_env),
+				fromDDStr(m.service_version),
+				fromDDStr(m.process_tags),
+				fromDDStr(m.container_id),
+				bool(m.logs_collected),
+			))
 		}
 	}
 

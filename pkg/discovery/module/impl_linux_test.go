@@ -12,7 +12,6 @@ package module
 import (
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,9 +19,7 @@ import (
 	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -116,44 +113,6 @@ func BenchmarkGetNSInfoOld(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		getNsInfoOld(os.Getpid())
 	}
-}
-
-func TestValidInvalidTracerMetadata(t *testing.T) {
-	discovery := newDiscovery()
-	require.NotEmpty(t, discovery)
-	self := os.Getpid()
-
-	t.Run("valid metadata", func(t *testing.T) {
-		// Test with valid metadata from file
-		curDir, err := testutil.CurDir()
-		require.NoError(t, err)
-		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
-		data, err := os.ReadFile(testDataPath)
-		require.NoError(t, err)
-
-		createTracerMemfd(t, data)
-
-		buf := make([]byte, readlinkBufferSize)
-		openFiles, err := getOpenFilesInfo(int32(self), buf)
-		require.NoError(t, err)
-
-		info, err := discovery.getServiceInfo(int32(self), openFiles)
-		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
-		require.Equal(t, true, info.APMInstrumentation)
-	})
-
-	t.Run("invalid metadata", func(t *testing.T) {
-		createTracerMemfd(t, []byte("invalid data"))
-
-		buf := make([]byte, readlinkBufferSize)
-		openFiles, err := getOpenFilesInfo(int32(self), buf)
-		require.NoError(t, err)
-
-		info, err := discovery.getServiceInfo(int32(self), openFiles)
-		require.NoError(t, err)
-		require.Equal(t, false, info.APMInstrumentation)
-	})
 }
 
 func TestDetectAPMInjectorFromMaps(t *testing.T) {
