@@ -167,17 +167,48 @@ namespace Datadog.CustomActions
         private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
-            var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
+
+            SetDdAgentUserServiceCredentials(
+                _serviceController, _nativeMethods, _session,
+                ddAgentUserName, ddAgentUserPassword, ddAgentUserSID);
+
+            // SYSTEM
+            // LocalSystem is a SCM specific shorthand that doesn't need to be localized
+            _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
+        }
+
+        /// <summary>
+        /// Sets the logon credentials on all services that run as ddagentuser.
+        /// Handles SCM name normalization for well-known SIDs and password rules
+        /// per the ChangeServiceConfig API.
+        /// </summary>
+        /// <remarks>
+        /// This is a shared helper used by both ConfigureServiceUsers (install/upgrade)
+        /// and UninstallUserRollback (uninstall rollback) to avoid duplicating the service
+        /// list and credential logic.
+        /// </remarks>
+        public static void SetDdAgentUserServiceCredentials(
+            IServiceController serviceController,
+            INativeMethods nativeMethods,
+            ISession session,
+            string ddAgentUserName,
+            string ddAgentUserPassword,
+            SecurityIdentifier ddAgentUserSID)
+        {
+            var isServiceAccount = nativeMethods.IsServiceAccount(ddAgentUserSID);
             if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
             {
-                _session.Log("Password not provided, will not change service user password");
+                session.Log("Password not provided, will not change service user password");
                 // set to null so we don't modify the service config
                 ddAgentUserPassword = null;
             }
             else if (isServiceAccount)
             {
-                _session.Log("Ignoring provided password because account is a service account");
+                session.Log("Ignoring provided password because account is a service account");
                 // Follow rules for ChangeServiceConfig
+                // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfigw
                 if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
                     ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
                     ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
@@ -192,9 +223,9 @@ namespace Datadog.CustomActions
                 }
             }
 
-            _session.Log($"Configuring services with account {ddAgentUserName}");
+            session.Log($"Configuring ddagentuser services with account {ddAgentUserName}");
 
-            // ddagentuser
+            // Normalize well-known SID names for SCM
             if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
             {
                 ddAgentUserName = "LocalSystem";
@@ -207,20 +238,14 @@ namespace Datadog.CustomActions
             {
                 ddAgentUserName = "NetworkService";
             }
-            _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
+
+            serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            if (serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
-                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
+                serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
-
-            // SYSTEM
-            // LocalSystem is a SCM specific shorthand that doesn't need to be localized
-            _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
-
-            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)

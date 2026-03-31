@@ -442,7 +442,10 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.rollback,
                 Impersonate = false,
-            };
+            }
+                .SetProperties("DDAGENTUSER_LSA_PASSWORD_BACKUP=[DDAGENTUSER_LSA_PASSWORD_BACKUP], " +
+                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]")
+                .HideTarget(true);
 
             ProcessDdAgentUserCredentials = new CustomAction<CustomActions>(
                     new Id(nameof(ProcessDdAgentUserCredentials)),
