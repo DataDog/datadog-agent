@@ -22,6 +22,7 @@ def _cc_env(ctx):
     env = cc_common.get_environment_variables(
         feature_configuration = feature_configuration,
         action_name = C_COMPILE_ACTION_NAME,
+        variables = cc_common.empty_variables(),
     )
     return env, cc_toolchain
 
