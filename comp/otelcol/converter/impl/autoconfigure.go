@@ -78,8 +78,15 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		addComponentToConfig(conf, dogtelComponent)
-		addExtensionToPipeline(conf, dogtelComponent)
+		if existingID := findExistingExtensionID(conf, dogtelName); existingID != "" {
+			// User already defined a dogtel extension but forgot to wire it into
+			// service.extensions — reuse their definition instead of creating a
+			// second dogtel/dd-autoconfigured with empty config.
+			wireExtensionIDToPipeline(conf, existingID)
+		} else {
+			addComponentToConfig(conf, dogtelComponent)
+			addExtensionToPipeline(conf, dogtelComponent)
+		}
 	}
 
 	// infra attributes processor

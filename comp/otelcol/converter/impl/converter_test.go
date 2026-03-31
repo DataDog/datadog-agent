@@ -441,6 +441,12 @@ func TestConvert(t *testing.T) {
 			expectedResult: "extensions/standalone/dogtel-present/config-result.yaml",
 			agentConfig:    "extensions/standalone/dogtel-present/acfg.yaml",
 		},
+		{
+			name:           "extensions/standalone/dogtel-wired",
+			provided:       "extensions/standalone/dogtel-wired/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
