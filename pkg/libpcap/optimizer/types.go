@@ -143,7 +143,7 @@ func (os *OptState) ConstVal(v uint32) uint32 {
 
 // vstore stores a value number, optionally eliminating redundant stores.
 func (os *OptState) vstore(s *codegen.Stmt, valp *uint32, newval uint32, alter bool) {
-	if alter && newval != ValUnknown && os.IsConst(newval) && *valp == newval {
+	if alter && s != nil && newval != ValUnknown && os.IsConst(newval) && *valp == newval {
 		s.Code = codegen.NOP
 	} else {
 		*valp = newval
