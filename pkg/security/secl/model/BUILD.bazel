@@ -61,6 +61,7 @@ go_library(
         "//pkg/security/secl/model/sharedconsts",
         "//pkg/security/secl/model/usersession",
         "//pkg/security/secl/model/utils",
+        "@com_github_datadog_datadog_agent_pkg_discovery_tracermetadata_model//:model",
         "@com_github_google_uuid//:uuid",
     ] + select({
         "@rules_go//go/platform:aix": [

@@ -1,6 +1,12 @@
+# Do not ignore .bazelbsp: used by IDE BSP integration!
 ignore_directories([
     "**/build",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
-    ".*",  # hidden root directories: .cache, .claude, .cursor, .dda, .github, .gitlab, etc.
+    ".*_cache",  # .mypy_cache, .pytest_cache, .ruff_cache
+    ".c*",  # .cache, .claude, .cursor
+    ".d*",  # .dda, .ddqa
+    ".g*",  # .git, .github, .gitlab
+    ".i*",  # .idea, .ijwb
+    ".v*",  # .venv, .vscode
     "bazel-*",  # bazel convenience symlinks: suddenly caused issues inside arm64 Linux containers
     "target",  # cargo build creates it where Cargo.toml lives
 ])
