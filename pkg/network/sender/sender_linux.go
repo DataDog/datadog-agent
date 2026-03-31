@@ -362,7 +362,8 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	// Build remote service resolver for intra-host connection enrichment.
 	portToPID := make(map[int32]int32)
 	for _, c := range conns.Conns {
-		if c.IntraHost && c.Pid > 0 && c.SPort > 0 {
+		// USM supports TCP only; skip UDP connections.
+		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
 			if _, exists := portToPID[int32(c.SPort)]; !exists {
 				portToPID[int32(c.SPort)] = int32(c.Pid)
 			}

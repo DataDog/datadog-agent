@@ -43,7 +43,8 @@ func getListeningPortToPIDMap() map[int32]int32 {
 
 	result := make(map[int32]int32, len(ports))
 	for _, p := range ports {
-		if p.Pid > 0 {
+		// USM supports TCP only; skip UDP ports.
+		if p.Pid > 0 && p.Proto == "tcp" {
 			result[int32(p.Port)] = int32(p.Pid)
 		}
 	}
