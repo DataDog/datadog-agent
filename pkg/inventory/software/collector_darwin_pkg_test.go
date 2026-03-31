@@ -81,7 +81,7 @@ func TestPkgFilesCacheGet_UsesCacheWithinTTL(t *testing.T) {
 	}
 
 	var calls int
-	cache.fetchSummaryFn = func(pkgID, prefixPath string) pkgSummary {
+	cache.fetchSummaryFn = func(_ string, prefixPath string) pkgSummary {
 		calls++
 		return buildPkgSummaryFromLines([]string{"opt/example/bin/tool"}, prefixPath)
 	}
@@ -101,7 +101,7 @@ func TestPkgFilesCacheGet_RefetchesAfterTTL(t *testing.T) {
 	}
 
 	var calls int
-	cache.fetchSummaryFn = func(pkgID, prefixPath string) pkgSummary {
+	cache.fetchSummaryFn = func(_ string, prefixPath string) pkgSummary {
 		calls++
 		return buildPkgSummaryFromLines([]string{"opt/example/bin/tool"}, prefixPath)
 	}
