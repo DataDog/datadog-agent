@@ -4,6 +4,7 @@ go_library(
     name = "telemetry",
     srcs = [
         "collector.go",
+        "collector_noop.go",
         "component.go",
         "component_mock.go",
         "counter.go",
@@ -11,28 +12,13 @@ go_library(
         "gauge.go",
         "histogram.go",
         "metric.go",
+        "metric_noop.go",
         "options.go",
         "simple_counter.go",
         "simple_gauge.go",
         "simple_histogram.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_prometheus_client_golang//prometheus",
-        "@com_github_prometheus_client_model//go",
-    ],
-)
-
-# keep
-go_library(
-    name = "telemetry_serverless",
-    srcs = [
-        "collector_noop.go",
-        "metric_noop.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry",
-    tags = ["serverless"],
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_prometheus_client_golang//prometheus",
