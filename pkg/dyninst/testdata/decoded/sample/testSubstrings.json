@@ -75,6 +75,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "abcd, ab, abcdef"
+    "message": "abcd, ab, abcdef",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -19,26 +19,24 @@ import (
 // GenericResource is a generic resource that can be used to collect data from a Kubernetes API.
 // It collects data as regular manifests, not CR manifests.
 type GenericResource struct {
-	Name         string
-	GroupVersion string
-	Stable       bool
-	NodeType     pkgorchestratormodel.NodeType
+	Name     string
+	Group    string
+	Version  string
+	Stable   bool
+	NodeType pkgorchestratormodel.NodeType
 }
 
 // NewCollectorVersions creates a new collector versions for the generic resource.
-func (r GenericResource) NewCollectorVersions() (collectors.CollectorVersions, error) {
-	collector, err := r.NewGenericCollector()
-	if err != nil {
-		return collectors.CollectorVersions{}, err
-	}
-	return collectors.NewCollectorVersions(collector), nil
+func (r GenericResource) NewCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(r.NewGenericCollector())
 }
 
 // NewGenericCollector creates a new generic collector for the generic resource.
-func (r GenericResource) NewGenericCollector() (*CRCollector, error) {
-	gv, err := schema.ParseGroupVersion(r.GroupVersion)
-	if err != nil {
-		return nil, err
+func (r GenericResource) NewGenericCollector() *CRCollector {
+	gvr := schema.GroupVersionResource{
+		Group:    r.Group,
+		Resource: r.Name,
+		Version:  r.Version,
 	}
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
@@ -49,11 +47,12 @@ func (r GenericResource) NewGenericCollector() (*CRCollector, error) {
 			SupportsManifestBuffering:            true,
 			Name:                                 r.Name,
 			NodeType:                             r.NodeType,
-			Version:                              r.GroupVersion,
+			Group:                                r.Group,
+			Version:                              r.Version,
 			SupportsTerminatedResourceCollection: true,
 			IsGenericCollector:                   true,
 		},
-		gvr:       gv.WithResource(r.Name),
+		gvr:       gvr,
 		processor: processors.NewProcessor(&k8sProcessors.CRHandlers{IsGenericResource: true}),
-	}, nil
+	}
 }

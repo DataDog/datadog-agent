@@ -225,6 +225,16 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/debug-multi-field/agent.yaml",
 			expectedOTel: "provider/debug-multi-field/otel.yaml",
 		},
+		{
+			name:         "additional-http-headers",
+			agentConfig:  "provider/add-headers/agent.yaml",
+			expectedOTel: "provider/add-headers/otel.yaml",
+		},
+		{
+			name:         "additional-http-headers-with-debug",
+			agentConfig:  "provider/add-headers-debug/agent.yaml",
+			expectedOTel: "provider/add-headers-debug/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {

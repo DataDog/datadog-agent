@@ -89,7 +89,8 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[1, 2, 3, ...]"
+    "message": "[1, 2, 3, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -186,6 +187,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[1, 2, 3, ...]"
+    "message": "[1, 2, 3, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

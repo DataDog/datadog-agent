@@ -81,6 +81,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsStructWithArray"
+    "message": "testReturnsStructWithArray",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

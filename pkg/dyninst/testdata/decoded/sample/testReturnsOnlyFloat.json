@@ -62,6 +62,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsOnlyFloat"
+    "message": "testReturnsOnlyFloat",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

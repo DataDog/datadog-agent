@@ -108,6 +108,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{a: [{a: [{a: [{interface: unknown type *main.deepSlice1}]}]}]}"
+    "message": "{a: [{a: [{a: [{interface: unknown type *main.deepSlice1}]}]}]}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

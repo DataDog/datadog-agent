@@ -75,7 +75,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type main.otherFirstBehavior}"
+    "message": "{interface: unknown type main.otherFirstBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -153,7 +154,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type *main.otherFirstBehavior}"
+    "message": "{interface: unknown type *main.otherFirstBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -231,7 +233,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type main.otherSecondBehavior}"
+    "message": "{interface: unknown type main.otherSecondBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -309,7 +312,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type *main.otherSecondBehavior}"
+    "message": "{interface: unknown type *main.otherSecondBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -387,7 +391,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type lib_v2.V2Type}"
+    "message": "{interface: unknown type lib_v2.V2Type}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -465,7 +470,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type *lib_v2.V2Type}"
+    "message": "{interface: unknown type *lib_v2.V2Type}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -538,7 +544,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -616,7 +623,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -695,7 +703,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -773,6 +782,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "foo"
+    "message": "foo",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -78,6 +78,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{a: {a: {pointer: not captured at 0x[addr]}}}"
+    "message": "{a: {a: {pointer: not captured at 0x[addr]}}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

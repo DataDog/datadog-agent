@@ -23,6 +23,8 @@ type ProcessorContext struct {
 	Kind                string
 	Clock               *clock.Mock
 	ClusterID           string
+	CollectorGroup      string
+	CollectorName       string
 	CollectorTags       []string
 	HostName            string
 	ManifestProducer    bool
@@ -31,6 +33,14 @@ type ProcessorContext struct {
 	OrchestratorConfig  *config.OrchestratorConfig
 	SystemInfo          *model.SystemInfo
 	TerminatedResources bool
+}
+
+// NewProcessorContextBeforeCacheCheck creates a minimal ProcessorContext for BeforeCacheCheck tests.
+func NewProcessorContextBeforeCacheCheck(group, name string) *ProcessorContext {
+	ctx := NewProcessorContext()
+	ctx.CollectorGroup = group
+	ctx.CollectorName = name
+	return ctx
 }
 
 // NewProcessorContext creates a new test ProcessorContext.
@@ -46,6 +56,8 @@ func NewProcessorContext() *ProcessorContext {
 		Kind:             "ResourceKind",
 		Clock:            clock.NewMock(),
 		ClusterID:        "cluster-id",
+		CollectorGroup:   "apiGroup",
+		CollectorName:    "resources",
 		CollectorTags:    []string{"collector_tag:collector_tag_value"},
 		HostName:         "host-name",
 		ManifestProducer: true,
@@ -83,6 +95,16 @@ func (pc *ProcessorContext) GetClock() clock.Clock {
 //nolint:revive
 func (pc *ProcessorContext) GetClusterID() string {
 	return pc.ClusterID
+}
+
+//nolint:revive
+func (pc *ProcessorContext) GetCollectorGroup() string {
+	return pc.CollectorGroup
+}
+
+//nolint:revive
+func (pc *ProcessorContext) GetCollectorName() string {
+	return pc.CollectorName
 }
 
 //nolint:revive

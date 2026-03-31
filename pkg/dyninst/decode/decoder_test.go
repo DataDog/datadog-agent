@@ -80,8 +80,9 @@ type (
 		} `json:"evaluationErrors,omitempty"`
 	}
 	eventCaptures struct {
-		Debugger debugger
-		Message  string `json:"message,omitempty"`
+		Debugger    debugger
+		Message     string `json:"message,omitempty"`
+		ProcessTags string `json:"process_tags,omitempty"`
 	}
 )
 
@@ -116,6 +117,37 @@ func TestDecoderManually(t *testing.T) {
 			require.Zero(t, decoder.message)
 		})
 	}
+}
+
+func TestDecoderProcessTags(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
+	item := c.eventConstructor(t, irProg)
+
+	t.Run("present", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.Event(item),
+			ServiceName: "foo",
+			ProcessTags: "entrypoint.name:myapp,svc.user:my-service",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		var e eventCaptures
+		require.NoError(t, json.Unmarshal(buf, &e))
+		require.Equal(t, "entrypoint.name:myapp,svc.user:my-service", e.ProcessTags)
+	})
+
+	t.Run("empty_omitted", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.Event(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		require.NotContains(t, string(buf), "process_tags")
+	})
 }
 
 func BenchmarkDecoder(b *testing.B) {

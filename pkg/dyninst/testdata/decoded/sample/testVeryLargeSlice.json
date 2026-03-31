@@ -326,6 +326,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[0, 1, 2, ...]"
+    "message": "[0, 1, 2, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

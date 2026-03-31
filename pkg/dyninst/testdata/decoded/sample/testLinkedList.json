@@ -96,6 +96,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{val: 1, b: {val: 2, b: {val: 3, b: nil}}}"
+    "message": "{val: 1, b: {val: 2, b: {val: 3, b: nil}}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

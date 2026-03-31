@@ -17,6 +17,8 @@ import (
 
 // ExtractClusterRoleBinding returns the protobuf model corresponding to a
 // Kubernetes ClusterRoleBinding resource.
+//
+//nolint:revive
 func ExtractClusterRoleBinding(ctx processors.ProcessorContext, crb *rbacv1.ClusterRoleBinding) *model.ClusterRoleBinding {
 	c := &model.ClusterRoleBinding{
 		Metadata: extractMetadata(&crb.ObjectMeta),
@@ -24,9 +26,8 @@ func ExtractClusterRoleBinding(ctx processors.ProcessorContext, crb *rbacv1.Clus
 		Subjects: extractSubjects(crb.Subjects),
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	c.Tags = append(c.Tags, transformers.RetrieveUnifiedServiceTags(crb.ObjectMeta.Labels)...)
-	c.Tags = append(c.Tags, transformers.RetrieveMetadataTags(crb.ObjectMeta.Labels, crb.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	c.Tags = append(c.Tags, transformers.RetrieveTeamTag(crb.ObjectMeta.Labels, crb.ObjectMeta.Annotations)...)
 
 	return c
 }
