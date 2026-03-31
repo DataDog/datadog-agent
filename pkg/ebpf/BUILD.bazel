@@ -39,9 +39,10 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-# Convenience: verify all committed generated files (cgo godefs + runtime hashes)
-# in one shot.  Incompatible targets are skipped via target_compatible_with.
-#   bazel test //pkg/ebpf:verify_generated_files --skip_incompatible_explicit_targets
+# Convenience: verify all committed generated files (cgo godefs) in one shot.
+# Incompatible targets are skipped via target_compatible_with.
+# Runtime hash _verify_test targets are excluded (files are .gitignored).
+#   bazel test //pkg/ebpf:verify_generated_files
 test_suite(
     name = "verify_generated_files",
     tests = [
@@ -95,16 +96,9 @@ test_suite(
         # ── Windows cgo_godefs ─────────────────────────────────────────
         "//pkg/network/driver:types_godefs_test",
         "//pkg/windowsdriver/procmon:types_godefs_test",
-        # ── Runtime compilation hash verification ──────────────────────
-        "//pkg/ebpf/bytecode:oom-kill_verify_test",
-        "//pkg/ebpf/bytecode:tcp-queue-length_verify_test",
-        "//pkg/ebpf/bytecode:usm_verify_test",
-        "//pkg/ebpf/bytecode:shared-libraries_verify_test",
-        "//pkg/ebpf/bytecode:conntrack_verify_test",
-        "//pkg/ebpf/bytecode:tracer_verify_test",
-        "//pkg/ebpf/bytecode:offsetguess-test_verify_test",
-        "//pkg/ebpf/bytecode:runtime-security_verify_test",
-        "//pkg/ebpf/bytecode:gpu_verify_test",
+        # Runtime compilation hash _verify_test targets are excluded:
+        # their out_files are .gitignored so tests only pass after a local build.
+        # Use  bazel run //pkg/ebpf/bytecode:<name>_verify  to update locally.
     ],
 )
 

@@ -118,8 +118,8 @@ cover the most common workflows:
 # Build every eBPF .o program and runtime flattened .c file at once
 bazel build //pkg/ebpf:all_ebpf_programs
 
-# Verify all committed generated files (cgo godefs + runtime integrity hashes)
-# are up to date. Covers both Linux and Windows targets; incompatible tests are
+# Verify all committed cgo godefs files are up to date.
+# Covers both Linux and Windows targets; incompatible tests are
 # skipped automatically via target_compatible_with.
 bazel test //pkg/ebpf:verify_generated_files
 ```
@@ -130,10 +130,11 @@ When a `verify_generated_files` test fails, run the corresponding
 ```bash
 # Update a single cgo godefs output
 bazel run //pkg/ebpf:types_godefs
-
-# Update a single runtime compilation hash
-bazel run //pkg/ebpf/bytecode:tracer_verify
 ```
+
+Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are
+`.gitignored` and generated during the build by `bazel_build_ebpf()`.  To update
+one locally: `bazel run //pkg/ebpf/bytecode:<name>_verify`.
 
 Key Bazel macros:
 - `ebpf_prog` / `ebpf_program_suite` (`bazel/rules/ebpf/ebpf.bzl`) — compile `.c` → `.o`

@@ -34,7 +34,6 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
-    get_gobin,
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
@@ -160,65 +159,6 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     )
 
 
-def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
-    bc_dir = os.path.join("pkg", "ebpf", "bytecode")
-    build_dir = os.path.join(bc_dir, "build")
-
-    rc_tools = {
-        "pkg/ebpf/include_headers.go": "include_headers",
-        "pkg/ebpf/bytecode/runtime/integrity.go": "integrity",
-    }
-
-    toolpaths = []
-    nw.rule(name="rctool", command="go install $in")
-    for in_path, toolname in rc_tools.items():
-        toolpath = os.path.join(gobin, toolname)
-        toolpaths.append(toolpath)
-        nw.build(
-            inputs=[in_path],
-            outputs=[toolpath],
-            rule="rctool",
-        )
-
-    runtime_compiler_files = {
-        "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
-        "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/usm/compile.go": "usm",
-        "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
-        "pkg/network/tracer/compile.go": "conntrack",
-        "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
-        "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
-        "pkg/security/ebpf/compile.go": "runtime-security",
-        "pkg/gpu/compile.go": "gpu",
-    }
-
-    nw.rule(
-        name="headerincl",
-        command="go generate -run=\"include_headers\" -mod=readonly -tags linux_bpf $in",
-        depfile="$out.d",
-    )
-    nw.rule(
-        name="integrity", command="go generate -run=\"integrity\" -mod=readonly -tags linux_bpf $in", depfile="$out.d"
-    )
-    hash_dir = os.path.join(bc_dir, "runtime")
-    rc_dir = os.path.join(build_dir, "runtime")
-    for in_path, out_filename in runtime_compiler_files.items():
-        c_file = os.path.join(rc_dir, f"{out_filename}.c")
-        hash_file = os.path.join(hash_dir, f"{out_filename}.go")
-        nw.build(
-            inputs=[in_path],
-            implicit=toolpaths,
-            outputs=[c_file],
-            rule="headerincl",
-        )
-        nw.build(
-            inputs=[in_path],
-            implicit=toolpaths + [c_file],
-            outputs=[hash_file],
-            rule="integrity",
-        )
-
-
 def ninja_generate(
     ctx: Context,
     ninja_path,
@@ -250,10 +190,7 @@ def ninja_generate(
             rcin = "cmd/system-probe/windows_resources/system-probe.rc"
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
-            gobin = get_gobin(ctx)
-
-            # Runtime bundles (eBPF .o and native binaries are handled by Bazel)
-            ninja_runtime_compilation_files(nw, gobin)
+            pass  # Runtime compilation is fully handled by Bazel (bazel_build_ebpf)
 
 
 @task
@@ -1124,6 +1061,19 @@ _BAZEL_RUNTIME_FLAT_TARGETS = [
     "//pkg/ebpf/bytecode:gpu_flat",
 ]
 
+# _gen targets produce the Go integrity hash files (pkg/ebpf/bytecode/runtime/<name>.go).
+_BAZEL_RUNTIME_GEN_TARGETS = [
+    "//pkg/ebpf/bytecode:oom-kill_gen",
+    "//pkg/ebpf/bytecode:tcp-queue-length_gen",
+    "//pkg/ebpf/bytecode:usm_gen",
+    "//pkg/ebpf/bytecode:shared-libraries_gen",
+    "//pkg/ebpf/bytecode:conntrack_gen",
+    "//pkg/ebpf/bytecode:tracer_gen",
+    "//pkg/ebpf/bytecode:offsetguess-test_gen",
+    "//pkg/ebpf/bytecode:runtime-security_gen",
+    "//pkg/ebpf/bytecode:gpu_gen",
+]
+
 _NON_EBPF_TARGETS = frozenset(
     [
         "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",
@@ -1145,8 +1095,9 @@ def _ebpf_strip_targets(targets, strip):
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
     """Build all eBPF artifacts via a single ``bazel build``.
 
-    Builds eBPF .o objects (prebuilt, CO-RE, inplace) and runtime flattened .c
-    files, then copies outputs to the appropriate staging directories.
+    Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
+    files, and Go integrity hash files, then copies outputs to the
+    appropriate staging directories and source tree.
     """
     import shutil
 
@@ -1161,7 +1112,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
 
     ebpf_targets = prebuilt + core + list(inplace.keys())
-    all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS)
+    all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
     bazel(ctx, "build", *all_build_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
@@ -1230,6 +1181,24 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
     print(f"Copied runtime bundles to {runtime_dir}")
 
+    # Copy generated Go integrity hash files to source tree.
+    go_dest = os.path.join("pkg", "ebpf", "bytecode", "runtime")
+    os.makedirs(go_dest, exist_ok=True)
+    for target in _BAZEL_RUNTIME_GEN_TARGETS:
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        bundle_name = name.removesuffix("_gen")
+        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.go")
+        dst = os.path.join(go_dest, f"{bundle_name}.go")
+        if os.path.exists(src):
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o644)
+        else:
+            print(f"Warning: expected runtime hash output {src} not found")
+
+    print(f"Copied runtime hash files to {go_dest}")
+
 
 @task(aliases=["object-files"])
 def build_object_files(
@@ -1258,9 +1227,8 @@ def build_object_files(
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
 
-    # Verify all committed generated files (cgo godefs + runtime hashes).
-    # The test_suite contains both Linux and Windows tests; target_compatible_with
-    # ensures only platform-appropriate tests run.
+    # Verify all committed cgo godefs files are up to date.
+    # The test_suite skips platform-incompatible tests via target_compatible_with.
     bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
 
     run_ninja(ctx, explain=True, arch=arch)
