@@ -15,7 +15,12 @@ var (
 
 	// Tool-baked Ubuntu variants (tools pre-installed in AMI)
 	Ubuntu2204K8s      = NewDescriptor(Ubuntu, "22-04-k8s")
+	Ubuntu2204GPU      = NewDescriptor(Ubuntu, "22-04-gpu")
 	Ubuntu2204GPUTools = NewDescriptor(Ubuntu, "22-04-gpu-tools")
+
+	// GPU-specific Ubuntu 18.04 variants with old NVIDIA drivers for backward compat testing
+	Ubuntu1804Cuda430 = NewDescriptor(Ubuntu, "18-04-cuda-430")
+	Ubuntu1804Cuda510 = NewDescriptor(Ubuntu, "18-04-cuda-510")
 
 	DebianDefault = Debian12
 	Debian12      = NewDescriptor(Debian, "12")

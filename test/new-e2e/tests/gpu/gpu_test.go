@@ -69,11 +69,13 @@ var (
 	pytorch19DockerImage = fmt.Sprintf("%s/pytorch/pytorch:1.9.0-cuda%s-cudnn7-runtime", dockerRegistry, oldCudaVersion)
 )
 
-// gpuSystems is a map of AMIs for different Ubuntu versions
+// gpuSystems is a map of OS descriptors for different GPU test configurations.
+// The os field selects the AMI for host-based tests; k8sOS (when set) selects
+// the AMI for Kubernetes-based tests and should point to an AMI with K8s tools
+// (kind, kubectl, nvkind) pre-baked in addition to GPU drivers.
 var gpuSystems = map[systemName]systemData{
 	gpuSystemUbuntu2204: {
-		ami:                          "ami-03ee78da2beb5b622",
-		os:                           os.Ubuntu2204,
+		os:                           os.Ubuntu2204GPU,
 		cudaSanityCheckImage:         cuda12DockerImage,
 		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
 		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs
@@ -81,18 +83,16 @@ var gpuSystems = map[systemName]systemData{
 		cudaVersion:                  defaultCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver430: {
-		ami:                          "ami-0cd4aa4912d788419",
+		os:                           os.Ubuntu1804Cuda430,
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
-		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
-		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
+		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver
 		supportsSystemProbeComponent: false,
 		cudaVersion:                  oldCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver510: {
-		ami:                          "ami-0cbf114f88ec230fe",
+		os:                           os.Ubuntu1804Cuda510,
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
-		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs
 		supportsSystemProbeComponent: false,
