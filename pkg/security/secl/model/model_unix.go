@@ -14,11 +14,13 @@ package model
 import (
 	"net/netip"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/google/gopacket"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -390,7 +392,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -472,6 +474,11 @@ type FileFields struct {
 
 	NLink uint32 `field:"-"`
 	Flags int32  `field:"-"`
+}
+
+// IsDir reports whether the file mode represents a directory.
+func (f *FileFields) IsDir() bool {
+	return f.Mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 // FileEvent is the common file event type

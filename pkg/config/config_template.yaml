@@ -3972,13 +3972,25 @@ api_key:
 #
 #   default_scan:
 
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: false
+#     # @param enabled - boolean - optional - default: true
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: true
 #     # Enable automatic scanning of discovered SNMP devices.
 #     # When enabled, devices discovered via autodiscovery or configured
 #     # directly will be scanned to collect OID data.
 #
-#     enabled: false
+#     enabled: true
+
+#     # @param excluded_ips - list of strings - optional - default: []
+#     # List of IP addresses to exclude from automatic scanning.
+#     # Devices with these IP addresses will be skipped during default scan.
+#
+#     excluded_ips: []
+
+#     # @param excluded_ips - list of strings - optional - default: []
+#     # List of IP addresses to exclude from automatic scanning.
+#     # Devices with these IP addresses will be skipped during default scan.
+#
+#     excluded_ips: []
 
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
@@ -4934,12 +4946,16 @@ api_key:
 #
 #   self_enroll: true
 
-#   # @param actions_allowlist - list of strings - optional
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
+#   # @param actions_allowlist - list of strings - optional - default: {{ if eq .OS "windows" }}["com.datadoghq.script.runPredefinedPowershellScript"]{{ else }}["com.datadoghq.script.runPredefinedScript"]{{ end }}
+#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: {{ if eq .OS "windows" }}"com.datadoghq.script.runPredefinedPowershellScript"{{ else }}"com.datadoghq.script.runPredefinedScript"{{ end }}
 #   # List of actions that the Private Action Runner is allowed to execute.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
 #
 #   actions_allowlist:
+{{ if (eq .OS "windows") -}}
+#     - com.datadoghq.script.runPredefinedPowershellScript
+{{ else -}}
 #     - com.datadoghq.script.runPredefinedScript
+{{ end -}}
 {{ end -}}

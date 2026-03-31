@@ -256,7 +256,12 @@ func mkHumanDuration(i interface{}, unit string) string {
 		duration = time.Duration(int64(f)) * time.Second
 	}
 
-	return duration.String()
+	if duration < 24*time.Hour {
+		return duration.String()
+	}
+	days := int(duration.Hours()) / 24
+	remaining := duration - time.Duration(days)*24*time.Hour
+	return fmt.Sprintf("%dd%s", days, remaining)
 }
 
 func stringLength(s string) int {

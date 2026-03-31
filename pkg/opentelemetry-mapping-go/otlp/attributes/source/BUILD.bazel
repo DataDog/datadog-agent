@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "source",
+    srcs = ["source_provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source",
+    visibility = ["//visibility:public"],
+)
