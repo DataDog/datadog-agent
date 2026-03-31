@@ -142,8 +142,11 @@ func (os *OptState) ConstVal(v uint32) uint32 {
 }
 
 // vstore stores a value number, optionally eliminating redundant stores.
+// vstore stores a value number. If alter is true and the value is already
+// the same, marks the statement as NOP (redundant store elimination).
+// Port of vstore() from optimize.c — note: does NOT check is_const.
 func (os *OptState) vstore(s *codegen.Stmt, valp *uint32, newval uint32, alter bool) {
-	if alter && s != nil && newval != ValUnknown && os.IsConst(newval) && *valp == newval {
+	if alter && s != nil && newval != ValUnknown && *valp == newval {
 		s.Code = codegen.NOP
 	} else {
 		*valp = newval
