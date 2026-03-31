@@ -76,6 +76,7 @@ var (
 var gpuSystems = map[systemName]systemData{
 	gpuSystemUbuntu2204: {
 		os:                           os.Ubuntu2204GPU,
+		k8sOS:                        os.Ubuntu2204GPUTools,
 		cudaSanityCheckImage:         cuda12DockerImage,
 		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
 		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs

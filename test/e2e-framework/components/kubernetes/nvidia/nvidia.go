@@ -126,7 +126,7 @@ func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *Kin
 }
 
 // installNvkind sets up the necessary requisites for nvkind.
-// nvkind, Go, and kubectl are pre-baked in the GPU AMI (Ubuntu2204GPUTools).
+// nvkind, Go, kubectl, and kind are pre-baked in the GPU AMI (Ubuntu2204GPUTools).
 func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (command.Command, error) {
 	// kind is a requisite for nvkind; symlink the pre-baked versioned binary
 	kindInstall, err := kubernetes.InstallKindBinary(env, vm, kindVersion, opts...)
