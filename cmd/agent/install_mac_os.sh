@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.7.0
+install_script_version=1.6.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -562,13 +562,9 @@ if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --outp
     exit 1;
 fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
-$sudo_cmd hdiutil detach "/Volumes/datadog_agent" -quiet >/dev/null 2>&1 || true
+$sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
-if ! $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse; then
-    printf "${RED}Failed to mount DMG installer at /Volumes/datadog_agent.${NC}\n"
-    printf "${RED}Please verify the DMG file and ensure the mountpoint is not busy.${NC}\n"
-    exit 1;
-fi
+$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse >/dev/null
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
     printf "${BLUE}\n    - Stopping system-wide Datadog Agent daemon ...\n${NC}"
     # we use "|| true" because if the service is not started/loaded, the commands fail
@@ -626,7 +622,7 @@ fi
 printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a minute) ...\n${NC}"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
-$sudo_cmd hdiutil detach "/Volumes/datadog_agent" -quiet >/dev/null
+$sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
 # Creating or overriding the install information
 install_info_content="---
@@ -673,7 +669,7 @@ fi
 # Per-user GUI: plist has --headless by default; optionally strip it and reload launchd here
 user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
 if [ "$systemdaemon_install" = false ] && [ "$gui_app_menu_enabled" = true ] && [ -f "$user_gui_plist" ]; then
-    printf "${BLUE}\n    - Enabling menu bar GUI (DD_GUI_APP_MENU_ENABLED=true)...\n${NC}"
+    printf "${BLUE}\n    - Enabling menu bar GUI...\n${NC}"
     $sudo_cmd sed -i '' '/<string>--headless<\/string>/d' "$user_gui_plist"
     # Restart the GUI so it picks up the updated plist without --headless
     $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true

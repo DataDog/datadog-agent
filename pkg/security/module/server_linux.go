@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/containerd/protobuf/proto"
@@ -295,7 +296,7 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 			userSessionCtx := &serializers.SSHSessionContextSerializer{
 				SSHSessionID:  strconv.FormatUint(uint64(ev.ProcessContext.UserSession.SSHSessionID), 16),
 				SSHClientPort: ev.ProcessContext.UserSession.SSHClientPort,
-				SSHClientIP:   ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
+				SSHClientIP:   utils.GetIPStringFromIPNet(ev.ProcessContext.UserSession.SSHClientIP),
 			}
 			return probe.NewSSHUserSessionPatcher(
 				userSessionCtx,
