@@ -21,5 +21,6 @@ cc_binary(
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
+    visibility = ["//visibility:public"],
     deps = ["@libseccomp"],
 )

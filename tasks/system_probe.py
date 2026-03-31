@@ -1112,75 +1112,17 @@ _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
-# cgo_godefs _gen targets: produce Go type definitions from C headers.
-# Each target outputs <base>_linux.go and <base>_linux_test.go in bazel-bin.
-_BAZEL_CGO_GODEFS_TARGETS = [
-    "//pkg/ebpf:types_godefs_gen",
-    "//pkg/ebpf/telemetry:types_godefs_gen",
-    "//pkg/network/ebpf:conntrack_types_godefs_gen",
-    "//pkg/network/ebpf:tuple_types_godefs_gen",
-    "//pkg/network/ebpf:kprobe_types_godefs_gen",
-    "//pkg/network/protocols:ebpf_types_godefs_gen",
-    "//pkg/network/protocols/events:types_godefs_gen",
-    "//pkg/network/protocols/http:types_godefs_gen",
-    "//pkg/network/protocols/http/gotls:go_tls_types_godefs_gen",
-    "//pkg/network/protocols/http2:types_godefs_gen",
-    "//pkg/network/protocols/kafka:types_godefs_gen",
-    "//pkg/network/protocols/postgres/ebpf:types_godefs_gen",
-    "//pkg/network/protocols/redis:types_godefs_gen",
-    "//pkg/network/protocols/tls:types_godefs_gen",
-    "//pkg/network/tracer/offsetguess:offsetguess_types_godefs_gen",
-    "//pkg/network/usm/sharedlibraries:types_godefs_gen",
-    "//pkg/collector/corechecks/ebpf/probe/ebpfcheck:c_types_godefs_gen",
-    "//pkg/collector/corechecks/ebpf/probe/noisyneighbor:ebpf_types_godefs_gen",
-    "//pkg/collector/corechecks/ebpf/probe/oomkill:c_types_godefs_gen",
-    "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength:tcp_queue_length_kern_types_godefs_gen",
-    "//pkg/gpu/ebpf:kprobe_types_godefs_gen",
-    "//pkg/dyninst/loader:types_godefs_gen",
-    "//pkg/dyninst/output:framing_godefs_gen",
+_BAZEL_RUNTIME_FLAT_TARGETS = [
+    "//pkg/ebpf/bytecode:oom-kill_flat",
+    "//pkg/ebpf/bytecode:tcp-queue-length_flat",
+    "//pkg/ebpf/bytecode:usm_flat",
+    "//pkg/ebpf/bytecode:shared-libraries_flat",
+    "//pkg/ebpf/bytecode:conntrack_flat",
+    "//pkg/ebpf/bytecode:tracer_flat",
+    "//pkg/ebpf/bytecode:offsetguess-test_flat",
+    "//pkg/ebpf/bytecode:runtime-security_flat",
+    "//pkg/ebpf/bytecode:gpu_flat",
 ]
-
-# Windows cgo_godefs _gen targets: produce <base>_windows.go (no test file).
-_BAZEL_CGO_GODEFS_WIN_TARGETS = [
-    "//pkg/network/driver:types_godefs_gen",
-    "//pkg/windowsdriver/procmon:types_godefs_gen",
-]
-
-
-def _bazel_verify_cgo_godefs(ctx: Context, targets: list[str], has_test_files: bool = True) -> None:
-    """Verify committed cgo godefs files are up to date.
-
-    Runs ``bazel test`` on the write_source_file diff tests (which also
-    builds the _gen targets as dependencies).  Raises Exit if any committed
-    file is stale.
-
-    Args:
-        has_test_files: If True (Linux), each target also produces a _test.go
-            file with a corresponding _test_file_test diff test.
-    """
-    godefs_test_targets = []
-    for target in targets:
-        label_path, name = target.lstrip("/").rsplit(":", 1)
-        macro_name = name.removesuffix("_gen")
-        godefs_test_targets.append(f"//{label_path}:{macro_name}_test")
-        if has_test_files:
-            godefs_test_targets.append(f"//{label_path}:{macro_name}_test_file_test")
-
-    print(f"Verifying {len(godefs_test_targets)} cgo godefs diff tests...")
-    result = ctx.run(
-        f"bazel test {' '.join(godefs_test_targets)}",
-        warn=True,
-    )
-    if not result.ok:
-        raise Exit(
-            "Committed cgo godefs files are out of date. Regenerate and commit them:\n"
-            "  bazel run //pkg/ebpf:types_godefs  # repeat for each stale target\n"
-            "Or regenerate all at once:\n"
-            f"  for t in {' '.join(t.removesuffix('_gen') for t in targets)}; "
-            "do bazel run $t; done",
-            code=1,
-        )
-
 
 _NON_EBPF_TARGETS = frozenset(
     [
@@ -1200,12 +1142,11 @@ def _ebpf_strip_targets(targets, strip):
     return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
 
 
-def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = True) -> None:
-    """Build eBPF object files and cgo type definitions using Bazel.
+def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
+    """Build all eBPF artifacts via a single ``bazel build``.
 
-    When strip=True, the Bazel-side .stripped target variants are built.
-    Stripping is cached by Bazel alongside the compile step.
-    When strip=False, unstripped objects are built and copied directly.
+    Builds eBPF .o objects (prebuilt, CO-RE, inplace) and runtime flattened .c
+    files, then copies outputs to the appropriate staging directories.
     """
     import shutil
 
@@ -1219,26 +1160,25 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS, strip)
     inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
 
-    all_targets = prebuilt + core + list(inplace.keys())
-    print(f"Building {len(all_targets)} eBPF targets via Bazel...")
-    bazel(ctx, "build", *all_targets)
+    ebpf_targets = prebuilt + core + list(inplace.keys())
+    all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS)
+    print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
+    bazel(ctx, "build", *all_build_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
     os.makedirs(co_re_dir, exist_ok=True)
+    os.makedirs(runtime_dir, exist_ok=True)
 
     def _copy_output(target: str, dest_dir: str):
         label_path, name = target.lstrip("/").rsplit(":", 1)
         dest_name = name.removesuffix(".stripped")
 
-        # eBPF targets produce .o files, native cc_binary targets produce bare binaries
         src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
         src_bin = os.path.join(bazel_bin, label_path, name)
 
-        # Only use mtime fast-path when strip mode hasn't changed;
-        # name != dest_name means .stripped suffix was removed, so the
-        # source identity changed and we must re-copy regardless of mtime.
+        # Only use mtime fast-path when strip mode hasn't changed.
         same_mode = name == dest_name
 
         if os.path.exists(src_o):
@@ -1272,7 +1212,23 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
 
     print(f"Copied eBPF objects to {build_dir}")
 
-    _bazel_verify_cgo_godefs(ctx, _BAZEL_CGO_GODEFS_TARGETS)
+    # Copy runtime flattened .c files to staging directory.
+    for target in _BAZEL_RUNTIME_FLAT_TARGETS:
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        # run_binary output is under <name>/<out_name>.c; the directory
+        # name matches the macro name which equals out_name for all bundles.
+        bundle_name = name.removesuffix("_flat")
+        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.c")
+        dst = os.path.join(runtime_dir, f"{bundle_name}.c")
+        if os.path.exists(src):
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o644)
+        else:
+            print(f"Warning: expected runtime bundle output {src} not found")
+
+    print(f"Copied runtime bundles to {runtime_dir}")
 
 
 @task(aliases=["object-files"])
@@ -1289,10 +1245,7 @@ def build_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
-    if is_windows:
-        # Build and verify Windows cgo godefs via Bazel (committed files, no copy needed).
-        _bazel_verify_cgo_godefs(ctx, _BAZEL_CGO_GODEFS_WIN_TARGETS, has_test_files=False)
-    else:
+    if not is_windows:
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
@@ -1303,7 +1256,12 @@ def build_object_files(
         bazel(ctx, "run", "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
 
         # Build eBPF .o files via Bazel
-        bazel_build_ebpf(ctx, arch_obj, build_dir)
+        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
+
+    # Verify all committed generated files (cgo godefs + runtime hashes).
+    # The test_suite contains both Linux and Windows tests; target_compatible_with
+    # ensures only platform-appropriate tests run.
+    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
 
     run_ninja(ctx, explain=True, arch=arch)
 
@@ -1386,7 +1344,8 @@ def build_cws_object_files(
 
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
-    bazel_build_ebpf(ctx, arch_obj, str(build_dir))
+    runtime_dir = get_ebpf_runtime_dir()
+    bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())

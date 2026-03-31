@@ -173,7 +173,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
     )
     write_source_file(
         name = name,
-        visibility = visibility,
+        visibility = ["//visibility:public"],
         in_file = ":" + name + "_main_out",
         out_file = main_file,
         check_that_out_file_exists = False,
@@ -188,6 +188,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         )
         write_source_file(
             name = name + "_test_file",
+            visibility = ["//visibility:public"],
             in_file = ":" + name + "_test_out",
             out_file = test_file,
             check_that_out_file_exists = False,

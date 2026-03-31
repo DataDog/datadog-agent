@@ -1048,7 +1048,8 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 def build_object_files(ctx, fp, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
     build_dir = get_ebpf_build_dir(arch)
-    bazel_build_ebpf(ctx, arch, str(build_dir), strip=False)
+    runtime_dir = get_ebpf_runtime_dir()
+    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
 
     info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
     ninja_generate(ctx, fp, arch=arch)
