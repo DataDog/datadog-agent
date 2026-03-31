@@ -95,6 +95,16 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
     sk_stats->sent_packets += 1;
     sk_stats->sent_bytes += sent;
     sk_stats->timestamp_ns = bpf_ktime_get_ns();
+
+    if (!(sk_stats->flags & CONN_ASSURED)) {
+        if (sk_stats->recv_bytes == 0 && sent > 0) {
+            sk_stats->flags |= CONN_L_INIT;
+        }
+        // If a three-way "handshake" was established, we mark the connection as assured
+        if (sk_stats->flags & CONN_L_INIT && sk_stats->recv_bytes > 0 && sent > 0) {
+            sk_stats->flags |= CONN_ASSURED;
+        }
+    }
     return 0;
 }
 
@@ -132,6 +142,16 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
     sk_stats->sent_packets += 1;
     sk_stats->sent_bytes += sent;
     sk_stats->timestamp_ns = bpf_ktime_get_ns();
+
+    if (!(sk_stats->flags & CONN_ASSURED)) {
+        if (sk_stats->recv_bytes == 0 && sent > 0) {
+            sk_stats->flags |= CONN_L_INIT;
+        }
+        // If a three-way "handshake" was established, we mark the connection as assured
+        if (sk_stats->flags & CONN_L_INIT && sk_stats->recv_bytes > 0 && sent > 0) {
+            sk_stats->flags |= CONN_ASSURED;
+        }
+    }
     return 0;
 }
 
@@ -170,6 +190,16 @@ int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     sk_stats->sent_packets += 1;
     sk_stats->sent_bytes += sent;
     sk_stats->timestamp_ns = bpf_ktime_get_ns();
+
+    if (!(sk_stats->flags & CONN_ASSURED)) {
+        if (sk_stats->recv_bytes == 0 && sent > 0) {
+            sk_stats->flags |= CONN_L_INIT;
+        }
+        // If a three-way "handshake" was established, we mark the connection as assured
+        if (sk_stats->flags & CONN_L_INIT && sk_stats->recv_bytes > 0 && sent > 0) {
+            sk_stats->flags |= CONN_ASSURED;
+        }
+    }
     return 0;
 }
 
@@ -269,6 +299,15 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     sk_stats->recv_packets += 1;
     sk_stats->timestamp_ns = bpf_ktime_get_ns();
     log_debug("skb_consume_udp: sk=%p recv=%d", sk, data_len);
+    if (!(sk_stats->flags & CONN_ASSURED)) {
+        if (sk_stats->sent_bytes == 0 && data_len > 0) {
+            sk_stats->flags |= CONN_R_INIT;
+        }
+        // If a three-way "handshake" was established, we mark the connection as assured
+        if (sk_stats->flags & CONN_R_INIT && sk_stats->sent_bytes > 0 && data_len > 0) {
+            sk_stats->flags |= CONN_ASSURED;
+        }
+    }
     return 0;
 }
 

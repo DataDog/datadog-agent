@@ -39,6 +39,7 @@ typedef struct {
 //    __u32 cookie;
     __u64 start_ns;
     __u64 timestamp_ns;
+    __u8 flags;
     __u8 direction;
     conn_tuple_t tup;
 } sk_udp_stats_t;
