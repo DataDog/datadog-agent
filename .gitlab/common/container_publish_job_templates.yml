@@ -12,7 +12,7 @@
   variables:
     <<: *docker_variables
     IMG_VARIABLES: ""
-    IMG_SIGNING: ""
+    IMG_SIGNING: "false"
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - |
