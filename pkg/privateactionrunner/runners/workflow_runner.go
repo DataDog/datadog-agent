@@ -7,7 +7,6 @@ package runners
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -105,15 +104,6 @@ func (n *WorkflowRunner) RunTask(
 	}
 	if !n.config.IsActionAllowed(bundleName, actionName) {
 		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
-	}
-	if actions.IsHttpBundle(bundleName) {
-		url, ok := task.Data.Attributes.Inputs["url"].(string)
-		if !ok {
-			return nil, util.DefaultActionError(errors.New("missing required field url"))
-		}
-		if !n.config.IsURLInAllowlist(url) {
-			return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
-		}
 	}
 
 	logger := log.FromContext(ctx)
