@@ -73,9 +73,8 @@ func loadFilters(t *testing.T) []string {
 	return filters
 }
 
-// TestGoldenFiltertestOptimized verifies the C filtertest produces output for
-// every corpus entry. This test uses the OPTIMIZED C output — the Go optimizer
-// is not yet implemented (Phase 3), so this is a reference-only test for now.
+// TestGoldenFiltertestOptimized compares Go OPTIMIZED output against
+// C filtertest OPTIMIZED output (default mode).
 func TestGoldenFiltertestOptimized(t *testing.T) {
 	filtertestAvailable(t)
 	filters := loadFilters(t)
@@ -86,7 +85,26 @@ func TestGoldenFiltertestOptimized(t *testing.T) {
 			if cOutput == "" {
 				t.Fatal("C filtertest produced empty output")
 			}
-			t.Logf("C optimized (%d lines):\n%s", strings.Count(cOutput, "\n"), cOutput)
+
+			goOutput, err := DumpFilter(LinkTypeEthernet, 262144, filter)
+			if err != nil {
+				if strings.Contains(err.Error(), "not yet implemented") {
+					t.Skipf("Go: %v", err)
+					return
+				}
+				t.Fatalf("Go optimized compilation failed: %v", err)
+			}
+
+			cNorm := normalizeOutput(cOutput)
+			goNorm := normalizeOutput(goOutput)
+
+			if cNorm == goNorm {
+				t.Logf("MATCH optimized (%d instructions)", strings.Count(goNorm, "\n"))
+			} else {
+				t.Logf("MISMATCH (optimized Go vs C)")
+				t.Logf("C:\n%s", cOutput)
+				t.Logf("Go:\n%s", goOutput)
+			}
 		})
 	}
 }
@@ -110,7 +128,7 @@ func TestGoldenFiltertestUnoptimized(t *testing.T) {
 				t.Fatal("C filtertest produced empty output")
 			}
 
-			goOutput, err := DumpFilter(LinkTypeEthernet, 262144, filter)
+			goOutput, err := DumpFilterNoOpt(LinkTypeEthernet, 262144, filter)
 			if err != nil {
 				if strings.Contains(err.Error(), "not yet implemented") {
 					t.Skipf("Go: %v", err)
@@ -158,7 +176,7 @@ func TestGoldenSimpleFilters(t *testing.T) {
 	for _, filter := range filters {
 		t.Run(filter, func(t *testing.T) {
 			cOutput := runFiltertest(t, false, filter)
-			goOutput, err := DumpFilter(LinkTypeEthernet, 262144, filter)
+			goOutput, err := DumpFilterNoOpt(LinkTypeEthernet, 262144, filter)
 			if err != nil {
 				t.Fatalf("Go: %v", err)
 			}
