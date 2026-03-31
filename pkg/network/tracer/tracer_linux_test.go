@@ -3452,7 +3452,11 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	c := setupNetemCongestionTest(t, []string{"delay", "100ms", "loss", "30%", "50%"}, nil)
 	defer c.Close()
 
-	// Verify rto_count or recovery_count in active connection
+	// Wait for either rto_count or recovery_count to appear. Both live
+	// in the same tcp_event_stats struct that gets copied at close, so
+	// either one is sufficient to validate the sync. This test checks
+	// the close-event plumbing, not which signal fires — TestTCPRTOCount
+	// and TestTCPRecoveryCount cover each signal independently.
 	var rtoCount, recoveryCount uint32
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		data := make([]byte, 64*1024)
@@ -3518,6 +3522,16 @@ func (env *netemTestEnv) addNetem(t *testing.T, args ...string) {
 	})
 }
 
+// changeNetem modifies an existing netem qdisc on the loopback device inside
+// the namespace. The qdisc must have been added with addNetem first.
+func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
+	t.Helper()
+	cmd := append([]string{"ip", "netns", "exec", env.Netns, "tc", "qdisc", "change", "dev", "lo", "root", "netem"}, args...)
+	changeCmd := exec.Command(cmd[0], cmd[1:]...)
+	out, err := changeCmd.CombinedOutput()
+	require.NoError(t, err, "tc qdisc change netem failed: %s", out)
+}
+
 // setupNetemTestEnv creates an isolated network namespace with loopback up.
 // Both client and server run inside the namespace, so tc netem on the
 // namespace's loopback affects all traffic without impacting other tests.
@@ -3575,42 +3589,47 @@ func (s *TracerSuite) TestTCPRTOCount() {
 
 	tr := setupTracer(t, cfg)
 
-	// Try progressively more aggressive loss to trigger RTO across
-	// different kernels/architectures where SACK effectiveness varies.
-	// Milder params suffice on most platforms; aggressive params handle
-	// kernels where SACK recovers losses before the RTO timer fires.
-	netemConfigs := [][]string{
-		{"delay", "100ms", "loss", "30%", "50%"},
-		{"delay", "100ms", "loss", "40%", "75%"},
-		{"delay", "100ms", "loss", "50%", "80%"},
-	}
-	for _, netemArgs := range netemConfigs {
-		t.Logf("trying netem config %v", netemArgs)
-		c := setupNetemCongestionTest(t, netemArgs, nil)
-		deadline := time.Now().Add(20 * time.Second)
-		found := false
-		for time.Now().Before(deadline) {
-			c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-			c.Write(make([]byte, 64*1024)) //nolint:errcheck
-			time.Sleep(100 * time.Millisecond)
+	// Strategy: establish the connection with low delay so the kernel
+	// calibrates a small SRTT/RTO, send a few packets to lock that in,
+	// then spike the delay so packets take far longer than the RTO
+	// estimate — guaranteeing timeout-based retransmits.
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
 
-			conns, cleanup := getConnections(t, tr)
-			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-			if ok && conn.Last.TCPRTOCount > 0 {
-				found = true
-			}
-			cleanup()
-			if found {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		c.Close()
-		if found {
+	// Dial on a clean link, then apply low-delay netem with loss so
+	// the kernel calibrates a small RTO during the first few exchanges.
+	c := env.dialInNs(t)
+	defer c.Close()
+	env.addNetem(t, "delay", "5ms", "loss", "30%", "50%")
+
+	// Send enough packets to let the kernel calibrate RTO based on ~5ms
+	// RTT. With 30% loss some ACKs won't arrive, so send 10 to ensure
+	// several round-trips update the SRTT estimator.
+	for i := 0; i < 10; i++ {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	}
+
+	// Spike delay well above the calibrated RTO so retransmits hit the
+	// RTO timer instead of being recovered by SACK.
+	env.changeNetem(t, "delay", "500ms", "loss", "30%", "50%")
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
 			return
 		}
-	}
-	require.Fail(t, "no netem configuration triggered rto_count > 0")
+		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0")
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
 // setupNetemCongestionTest creates an isolated netns with a discard server,
