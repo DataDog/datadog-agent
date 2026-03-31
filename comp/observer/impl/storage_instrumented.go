@@ -118,12 +118,22 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 	s.readCount++
 	result := s.inner.ListSeries(filter)
 
+	// Hash each series identity independently, then sort and combine.
+	// ListSeries iterates a Go map internally, so slice order is non-deterministic.
+	perSeries := make([]uint64, len(result))
+	for i, m := range result {
+		ih := newCallHasher()
+		ih.mixSeriesIdentity(m.Namespace, m.Name, m.Tags)
+		perSeries[i] = ih.sum()
+	}
+	sort.Slice(perSeries, func(i, j int) bool { return perSeries[i] < perSeries[j] })
+
 	ch := newCallHasher()
 	ch.mixString("ListSeries")
 	ch.mixString(filter.Namespace)
 	ch.mixInt64(int64(len(result)))
-	for _, m := range result {
-		ch.mixSeriesIdentity(m.Namespace, m.Name, m.Tags)
+	for _, h := range perSeries {
+		ch.mixUint64(h)
 	}
 	s.callHashes = append(s.callHashes, ch.sum())
 	return result
