@@ -565,6 +565,11 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	require.Equal(t, process.ContainerInfo{
 		ContainerID: "container-42",
 	}, update.Updates[0].Container)
+	require.Equal(t, []string{
+		"process_tag:1234567890",
+		"git.repository_url:https://github.com/org/repo",
+		"git.commit.sha:deadbeef",
+	}, update.Updates[0].ProcessTags)
 
 	subscriber.Close()
 }

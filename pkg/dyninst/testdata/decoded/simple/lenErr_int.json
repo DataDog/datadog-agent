@@ -25,6 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len={error: len/isEmpty not supported on type \"int\" (int)}"
+    "message": "len={error: len/isEmpty not supported on type \"int\" (int)}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

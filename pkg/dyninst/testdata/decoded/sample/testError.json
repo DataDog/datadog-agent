@@ -78,6 +78,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{s: blah}"
+    "message": "{s: blah}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

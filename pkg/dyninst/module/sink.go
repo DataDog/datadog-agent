@@ -66,6 +66,7 @@ type sink struct {
 	programID    ir.ProgramID
 	processID    actuator.ProcessID
 	service      string
+	processTags  string
 	logUploader  LogsUploader
 	tree         *bufferTree
 	missingTypes missingTypeTracker
@@ -214,6 +215,7 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		EntryOrLine: entryEvent,
 		Return:      returnEvent,
 		ServiceName: s.service,
+		ProcessTags: s.processTags,
 	}, s.symbolicator, &s.missingTypes, decodedBytes)
 	if err != nil {
 		if probe != nil {
