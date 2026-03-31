@@ -15,45 +15,7 @@ func stub(cs *CompilerState, name string) {
 	cs.SetError(fmt.Errorf("%s: not yet implemented", name))
 }
 
-// --- Entry points (Task 11) ---
-
-// GenScode generates code for a symbolic name (host, net, etc.).
-func GenScode(cs *CompilerState, name string, q Qual) *Block {
-	stub(cs, "gen_scode")
-	return nil
-}
-
-// GenEcode generates code for an Ethernet address.
-func GenEcode(cs *CompilerState, name string, q Qual) *Block {
-	stub(cs, "gen_ecode")
-	return nil
-}
-
-// GenAcode generates code for an ARCnet address.
-func GenAcode(cs *CompilerState, name string, q Qual) *Block {
-	stub(cs, "gen_acode")
-	return nil
-}
-
-// GenMcode generates code for a masked address (host/mask or host/prefixlen).
-func GenMcode(cs *CompilerState, addr string, mask string, masklen uint32, q Qual) *Block {
-	stub(cs, "gen_mcode")
-	return nil
-}
-
-// GenMcode6 generates code for an IPv6 address with prefix length.
-func GenMcode6(cs *CompilerState, addr string, masklen uint32, q Qual) *Block {
-	stub(cs, "gen_mcode6")
-	return nil
-}
-
-// GenNcode generates code for a numeric value (address, port, etc.).
-func GenNcode(cs *CompilerState, name string, v uint32, q Qual) *Block {
-	stub(cs, "gen_ncode")
-	return nil
-}
-
-// --- Encapsulation (Task 11) ---
+// --- Encapsulation ---
 
 // GenVlan generates code for VLAN matching.
 func GenVlan(cs *CompilerState, id uint32, hasID int) *Block {
