@@ -33,6 +33,7 @@ needs-rules:
     - new-e2e-cleanup-on-failure
     - lint_macos_gitlab_arm64
     - protobuf_test
+    - rustchecks_test
     - publish_winget_7_x64
     - revert_latest_7
     - security_go_generate_check

@@ -68,6 +68,7 @@ from tasks import (
     quality_gates,
     release,
     rtloader,
+    rustchecks,
     sbomgen,
     secret_generic_connector,
     security_agent,
@@ -237,6 +238,7 @@ ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(rtloader)
+ns.add_collection(rustchecks)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)

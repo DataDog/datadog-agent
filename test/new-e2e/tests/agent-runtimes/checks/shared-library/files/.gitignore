@@ -1,0 +1,4 @@
+# Built by `dda inv rustchecks.build` — do not check in
+*.so
+*.dll
+*.dylib
