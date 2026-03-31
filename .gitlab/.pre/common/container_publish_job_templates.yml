@@ -51,9 +51,7 @@
 # Callers use this exactly like .docker_publish_job_definition — same variables,
 # same before_script patterns.
 .docker_publish_job_definition_via_gateway:
-  extends: .bazel:defs:cache:progressive
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  extends: .bazel:runner:linux-amd64
   variables:
     <<: *docker_variables
     IMG_VARIABLES: ""
