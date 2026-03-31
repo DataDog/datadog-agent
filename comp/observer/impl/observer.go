@@ -220,6 +220,7 @@ func NewComponent(deps Requires) Provides {
 		storage:          newTimeSeriesStorage(),
 		extractors:       extractors,
 		detectors:        detectors,
+		detectorFilters:  defaultDetectorFilters(),
 		correlators:      correlators,
 		contextProviders: collectContextProviders(extractors),
 		scheduler:        &currentBehaviorPolicy{},

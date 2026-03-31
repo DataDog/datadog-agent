@@ -46,6 +46,7 @@ type engine struct {
 	storage          *timeSeriesStorage
 	extractors       []observerdef.LogMetricsExtractor
 	detectors        []observerdef.Detector
+	detectorFilters  []observerdef.DetectorFilter
 	correlators      []observerdef.Correlator
 	contextProviders map[string]observerdef.ContextProvider // namespace → provider
 	contextRefs      map[string]seriesContextRef
@@ -102,6 +103,7 @@ type engineConfig struct {
 	storage          *timeSeriesStorage
 	extractors       []observerdef.LogMetricsExtractor
 	detectors        []observerdef.Detector
+	detectorFilters  []observerdef.DetectorFilter
 	correlators      []observerdef.Correlator
 	contextProviders map[string]observerdef.ContextProvider // namespace → provider
 
@@ -124,6 +126,7 @@ func newEngine(cfg engineConfig) *engine {
 		storage:          cfg.storage,
 		extractors:       cfg.extractors,
 		detectors:        cfg.detectors,
+		detectorFilters:  cfg.detectorFilters,
 		correlators:      cfg.correlators,
 		contextProviders: cfg.contextProviders,
 		contextRefs:      make(map[string]seriesContextRef),
@@ -314,7 +317,16 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		processingTime := time.Since(processingStartTime)
 		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + detector.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
 
+	anomalyLoop:
 		for _, anomaly := range result.Anomalies {
+			// First filter out anomaly if needed
+			for _, filter := range e.detectorFilters {
+				if filter.ShouldFilterOut(anomaly) {
+					continue anomalyLoop
+				}
+			}
+
+			// Enrich and process anomalies with correlators
 			e.enrichAnomaly(&anomaly)
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate — skip correlators, events, and reporters

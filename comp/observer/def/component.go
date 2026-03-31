@@ -270,7 +270,6 @@ type LogMetricsExtractorOutput struct {
 	Telemetry []ObserverTelemetry
 }
 
-
 // SeriesDescriptor is the fully resolved identity of a time series.
 // It carries namespace, metric name, tags, and aggregation — everything
 // needed to display, key, and compare series across correlators and API.
@@ -653,4 +652,19 @@ type Detector interface {
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
+}
+
+// DetectorFilter decides whether an anomaly should be suppressed before it
+// reaches correlators and reporters. Filters are evaluated in order; the first
+// filter that returns true discards the anomaly.
+//
+// Implementations should be stateless and fast — they run synchronously inside
+// the detection loop on every anomaly produced by every detector.
+// Filtering criteria are based on the anomaly's source namespace, metric name,
+// and its current value (e.g. rate) as reported by DebugInfo.CurrentValue.
+type DetectorFilter interface {
+	// Name returns the filter name for debugging and logging.
+	Name() string
+	// ShouldFilterOut returns true when the anomaly should be discarded.
+	ShouldFilterOut(a Anomaly) bool
 }
