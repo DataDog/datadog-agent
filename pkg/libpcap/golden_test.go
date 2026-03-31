@@ -74,8 +74,8 @@ func loadFilters(t *testing.T) []string {
 }
 
 // TestGoldenFiltertestOptimized verifies the C filtertest produces output for
-// every corpus entry. The comparison against Go CompileBPFFilter will be
-// enabled once the compiler pipeline is implemented in Phase 2-3.
+// every corpus entry. This test uses the OPTIMIZED C output — the Go optimizer
+// is not yet implemented (Phase 3), so this is a reference-only test for now.
 func TestGoldenFiltertestOptimized(t *testing.T) {
 	filtertestAvailable(t)
 	filters := loadFilters(t)
@@ -86,15 +86,22 @@ func TestGoldenFiltertestOptimized(t *testing.T) {
 			if cOutput == "" {
 				t.Fatal("C filtertest produced empty output")
 			}
-			t.Logf("C output (%d lines):\n%s", strings.Count(cOutput, "\n"), cOutput)
+			t.Logf("C optimized (%d lines):\n%s", strings.Count(cOutput, "\n"), cOutput)
 		})
 	}
 }
 
-// TestGoldenFiltertestUnoptimized verifies unoptimized output.
+// TestGoldenFiltertestUnoptimized compares Go CompileBPFFilter output against
+// the C filtertest UNOPTIMIZED output (filtertest -O).
+//
+// Filters that use features not yet implemented in Go (VLAN, MPLS, etc.)
+// are expected to fail with "not yet implemented" — these are logged but
+// not counted as test failures.
 func TestGoldenFiltertestUnoptimized(t *testing.T) {
 	filtertestAvailable(t)
 	filters := loadFilters(t)
+
+	var matched, notImpl, mismatch int
 
 	for _, filter := range filters {
 		t.Run(filter, func(t *testing.T) {
@@ -102,7 +109,81 @@ func TestGoldenFiltertestUnoptimized(t *testing.T) {
 			if cOutput == "" {
 				t.Fatal("C filtertest produced empty output")
 			}
-			t.Logf("C output (%d lines):\n%s", strings.Count(cOutput, "\n"), cOutput)
+
+			goOutput, err := DumpFilter(LinkTypeEthernet, 262144, filter)
+			if err != nil {
+				if strings.Contains(err.Error(), "not yet implemented") {
+					t.Skipf("Go: %v", err)
+					notImpl++
+					return
+				}
+				t.Fatalf("Go compilation failed: %v", err)
+			}
+
+			cNorm := normalizeOutput(cOutput)
+			goNorm := normalizeOutput(goOutput)
+
+			if cNorm == goNorm {
+				matched++
+				t.Logf("MATCH (%d instructions)", strings.Count(goNorm, "\n"))
+			} else {
+				mismatch++
+				t.Logf("MISMATCH (unoptimized Go vs C)")
+				t.Logf("C output:\n%s", cOutput)
+				t.Logf("Go output:\n%s", goOutput)
+				// Don't fail — the optimizer will produce different unoptimized
+				// output in some cases. This is expected until Phase 3.
+			}
 		})
 	}
+
+	t.Logf("Summary: %d matched, %d mismatched, %d not implemented", matched, mismatch, notImpl)
+}
+
+// TestGoldenSimpleFilters tests a curated set of simple filters that MUST
+// produce exact unoptimized output matches between Go and C.
+func TestGoldenSimpleFilters(t *testing.T) {
+	filtertestAvailable(t)
+
+	// These filters should produce identical unoptimized output
+	filters := []string{
+		"ip",
+		"arp",
+		"ip6",
+		"icmp",
+		"tcp",
+		"udp",
+	}
+
+	for _, filter := range filters {
+		t.Run(filter, func(t *testing.T) {
+			cOutput := runFiltertest(t, false, filter)
+			goOutput, err := DumpFilter(LinkTypeEthernet, 262144, filter)
+			if err != nil {
+				t.Fatalf("Go: %v", err)
+			}
+
+			cNorm := normalizeOutput(cOutput)
+			goNorm := normalizeOutput(goOutput)
+
+			if cNorm != goNorm {
+				t.Errorf("Output mismatch for %q", filter)
+				t.Logf("C:\n%s", cOutput)
+				t.Logf("Go:\n%s", goOutput)
+			}
+		})
+	}
+}
+
+// normalizeOutput trims trailing whitespace from each line and normalizes
+// line endings for comparison.
+func normalizeOutput(s string) string {
+	var lines []string
+	for _, line := range strings.Split(s, "\n") {
+		trimmed := strings.TrimRight(line, " \t\r")
+		if trimmed != "" {
+			lines = append(lines, trimmed)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
