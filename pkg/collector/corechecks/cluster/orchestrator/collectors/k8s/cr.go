@@ -55,9 +55,10 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 			IsManifestProducer:                   true,
 			IsMetadataProducer:                   false,
 			SupportsManifestBuffering:            false,
+			Group:                                gv.Group,
 			Name:                                 name,
 			NodeType:                             orchestrator.K8sCR,
-			Version:                              groupVersion,
+			Version:                              gv.Version,
 			SupportsTerminatedResourceCollection: true,
 		},
 		gvr:       gv.WithResource(name),
@@ -98,7 +99,7 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 		return nil, collectors.NewListingError(err)
 	}
 	if !c.metadata.IsGenericCollector && len(list) > c.maximumCRDQuota {
-		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, c.maximumCRDQuota))
+		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.GroupVersion(), c.metadata.Name, c.maximumCRDQuota))
 	}
 
 	return c.Process(rcfg, list)

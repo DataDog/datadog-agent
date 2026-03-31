@@ -19,6 +19,8 @@ import (
 
 // ExtractService returns the protobuf model corresponding to a Kubernetes
 // Service resource.
+//
+//nolint:revive
 func ExtractService(ctx processors.ProcessorContext, s *corev1.Service) *model.Service {
 	message := &model.Service{
 		Metadata: extractMetadata(&s.ObjectMeta),
@@ -80,9 +82,8 @@ func ExtractService(ctx processors.ProcessorContext, s *corev1.Service) *model.S
 		})
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(s.ObjectMeta.Labels)...)
-	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(s.ObjectMeta.Labels, s.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	message.Tags = append(message.Tags, transformers.RetrieveTeamTag(s.ObjectMeta.Labels, s.ObjectMeta.Annotations)...)
 
 	return message
 }

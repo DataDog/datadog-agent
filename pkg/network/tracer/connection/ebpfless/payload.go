@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build (linux && linux_bpf) || darwin
 
 // Package ebpfless contains supporting code for the ebpfless tracer
 package ebpfless

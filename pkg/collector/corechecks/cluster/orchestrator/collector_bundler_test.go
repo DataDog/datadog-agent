@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -94,7 +93,7 @@ func TestImportBuiltinCollectors(t *testing.T) {
 		collectorDiscovery:  collectorDiscovery,
 		activatedCollectors: make(map[string]struct{}),
 		collectors: []collectors.K8sCollector{
-			k8s.NewUnassignedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
+			k8s.NewUnassignedPodCollector(nil, nil, nil),
 			k8s.NewCRDCollector(),
 		},
 		inventory: inventory.NewCollectorInventory(cfg, nil, nil),
@@ -332,21 +331,21 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 			terminatedPodsEnabled:         true,
 			terminatedPodsImprovedEnabled: false,
 			unassignedPod:                 true,
-			expected:                      k8s.NewTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
+			expected:                      k8s.NewTerminatedPodCollector(nil, nil, nil),
 		},
 		{
 			name:                          "Terminated pods improved collector enabled",
 			terminatedPodsEnabled:         false,
 			terminatedPodsImprovedEnabled: true,
 			unassignedPod:                 true,
-			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
+			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil),
 		},
 		{
 			name:                          "Terminated pods improved collector takes precedence",
 			terminatedPodsEnabled:         true,
 			terminatedPodsImprovedEnabled: true,
 			unassignedPod:                 true,
-			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
+			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil),
 		},
 		{
 			name:                          "Terminated pods collector disabled",
@@ -381,7 +380,7 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 			}
 
 			if testCase.unassignedPod {
-				cb.collectors = []collectors.K8sCollector{k8s.NewUnassignedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg))}
+				cb.collectors = []collectors.K8sCollector{k8s.NewUnassignedPodCollector(nil, nil, nil)}
 			}
 
 			collector := cb.getTerminatedPodCollector()
