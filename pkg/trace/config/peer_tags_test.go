@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPreparePeerTags(t *testing.T) {
@@ -49,8 +48,7 @@ func TestDefaultPeerTags(t *testing.T) {
 }
 
 func TestPeerTagConceptsHaveMappings(t *testing.T) {
-	r, err := semantics.NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := semantics.DefaultRegistry()
 
 	for _, concept := range peerTagConcepts {
 		keys := r.GetAttributePrecedence(concept)
@@ -59,13 +57,14 @@ func TestPeerTagConceptsHaveMappings(t *testing.T) {
 }
 
 func TestPeerTagConceptKeysInOrder(t *testing.T) {
-	r, err := semantics.NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := semantics.DefaultRegistry()
 
 	t.Run("peer.hostname first key is peer.hostname", func(t *testing.T) {
 		infos := r.GetAttributePrecedence(semantics.ConceptPeerHostname)
-		require.NotEmpty(t, infos)
-		assert.Equal(t, "peer.hostname", infos[0].Name)
+		assert.NotEmpty(t, infos)
+		if len(infos) > 0 {
+			assert.Equal(t, "peer.hostname", infos[0].Name)
+		}
 		var names []string
 		for _, info := range infos {
 			names = append(names, info.Name)
@@ -77,7 +76,7 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 
 	t.Run("peer.db.name contains expected keys", func(t *testing.T) {
 		infos := r.GetAttributePrecedence(semantics.ConceptPeerDBName)
-		require.NotEmpty(t, infos)
+		assert.NotEmpty(t, infos)
 		var names []string
 		for _, info := range infos {
 			names = append(names, info.Name)
