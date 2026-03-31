@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed Oracle Data Guard metrics query that caused ORA-01873 (interval precision overflow)
+    when the replication lag exceeded ~100 seconds. The query now extracts each interval
+    component (day, hour, minute, second) individually instead of multiplying the entire
+    interval by 86400.
