@@ -46,16 +46,6 @@
           "location": {
             "method": "main.testSingleFloat64"
           }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "x": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
-              }
-            }
-          }
         }
       },
       "type": "snapshot",
@@ -67,6 +57,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{unavailable}"
+    "message": "{error: failed to resolve reference \"x\"}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

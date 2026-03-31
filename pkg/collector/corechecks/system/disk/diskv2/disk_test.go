@@ -201,7 +201,7 @@ func (sc *signalClock) After(d time.Duration) <-chan time.Time {
 func configureCheck(t *testing.T, diskCheck check.Check, config, initConfig integration.Data) *mocksender.MockSender {
 	t.Helper()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test") //nolint:errcheck
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test", "") //nolint:errcheck
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
 	return m
@@ -211,7 +211,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckIsConfigured_ThenErrorIsRetur
 	diskCheck := createDiskCheck(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test", "provider")
 
 	assert.NotNil(t, err)
 }
@@ -221,7 +221,7 @@ func TestGivenADiskCheckAndStoppedSender(t *testing.T) {
 	diskCheck := createDiskCheck(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	senderManager.Stop(false)
 	err := diskCheck.Run()
 
@@ -327,7 +327,7 @@ file_system_global_blacklist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`file_system_global_blacklist` is deprecated and will be removed in a future release. Please use `file_system_global_exclude` instead.")
@@ -347,7 +347,7 @@ device_global_blacklist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test", "provider")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`device_global_blacklist` is deprecated and will be removed in a future release. Please use `device_global_exclude` instead.")
@@ -367,7 +367,7 @@ mount_point_global_blacklist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test", "provider")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`mount_point_global_blacklist` is deprecated and will be removed in a future release. Please use `mount_point_global_exclude` instead.")
@@ -387,7 +387,7 @@ file_system_whitelist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`file_system_whitelist` is deprecated and will be removed in a future release. Please use `file_system_include` instead.")
@@ -407,7 +407,7 @@ file_system_blacklist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`file_system_blacklist` is deprecated and will be removed in a future release. Please use `file_system_exclude` instead.")
@@ -427,7 +427,7 @@ device_whitelist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`device_whitelist` is deprecated and will be removed in a future release. Please use `device_include` instead.")
@@ -447,7 +447,7 @@ device_blacklist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`device_blacklist` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
@@ -467,7 +467,7 @@ mount_point_whitelist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`mount_point_whitelist` is deprecated and will be removed in a future release. Please use `mount_point_include` instead.")
@@ -487,7 +487,7 @@ mount_point_blacklist:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`mount_point_blacklist` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
@@ -507,7 +507,7 @@ excluded_mountpoint_re:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`excluded_mountpoint_re` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
@@ -527,7 +527,7 @@ excluded_filesystems:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`excluded_filesystems` is deprecated and will be removed in a future release. Please use `file_system_exclude` instead.")
@@ -547,7 +547,7 @@ excluded_disks:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`excluded_disks` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
@@ -567,7 +567,7 @@ excluded_disk_re:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	_ = diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	w.Flush()
 	assert.Contains(t, b.String(), "`excluded_disk_re` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
@@ -642,7 +642,7 @@ device_global_exclude:
   - /dev/sda(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -760,7 +760,7 @@ device_exclude:
   - /dev/sda(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -794,7 +794,7 @@ func TestGivenADiskCheckWithExcludedDiskReIncorrectlyConfigured_WhenCheckIsConfi
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	config := integration.Data([]byte("excluded_disk_re: /dev/sda(.*"))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -808,7 +808,7 @@ device_include:
   - /dev/sda(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -822,7 +822,7 @@ file_system_global_exclude:
   - tmp(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -836,7 +836,7 @@ file_system_exclude:
   - tmp(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -850,7 +850,7 @@ file_system_include:
   - ext(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -907,7 +907,7 @@ mount_point_global_exclude:
   - /dev/shm(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, initConfig, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -921,7 +921,7 @@ mount_point_exclude:
   - /dev/(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -932,7 +932,7 @@ func TestGivenADiskCheckWithExcludedMountPointReIncorrectlyConfigured_WhenCheckI
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	config := integration.Data([]byte("excluded_mountpoint_re: /dev/(.*"))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -998,7 +998,7 @@ mount_point_include:
   - /dev/(.*
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -1211,7 +1211,7 @@ device_tag_re:
   tmp.(*: role:tmp
 `))
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.NotNil(t, err)
 }
@@ -1226,7 +1226,7 @@ blkid_cache_file: /run/blkid/blkid.tab
 `))
 	expectedError := "only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time"
 
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 
 	assert.EqualError(t, err, expectedError)
 }
@@ -1292,7 +1292,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
-	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "")
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
 	done := make(chan error, 1)
@@ -1335,7 +1335,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 	// Configure with a short timeout (1s) to keep the test fast.
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	config := integration.Data([]byte("timeout: 1"))
-	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
 
@@ -1366,7 +1366,7 @@ func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 			diskCheck := diskCheckFunc()
 
 			senderManager := mocksender.CreateDefaultDemultiplexer()
-			err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+			err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "")
 			require.NoError(t, err)
 		})
 	}
@@ -1483,9 +1483,9 @@ func TestGivenMultipleDiskInstances_WhenConfiguredWithDifferentTags_ThenEachInst
 `))
 	config2 := integration.Data([]byte(``))
 
-	err := check1.Configure(senderManager, 1, config1, nil, "test")
+	err := check1.Configure(senderManager, 1, config1, nil, "test", "")
 	require.NoError(t, err)
-	err = check2.Configure(senderManager, 2, config2, nil, "test")
+	err = check2.Configure(senderManager, 2, config2, nil, "test", "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, check1.ID(), check2.ID(),

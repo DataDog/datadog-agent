@@ -1,0 +1,266 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condPtrStructArg",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.condPtrStructArg",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 340
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 85
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "condPtrStruct_nocond",
+          "location": {
+            "method": "main.condPtrStructArg"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "*main.condFields",
+                "address": "[addr]",
+                "fields": {
+                  "I8": {
+                    "type": "int8",
+                    "value": "10"
+                  },
+                  "I16": {
+                    "type": "int16",
+                    "value": "200"
+                  },
+                  "I32": {
+                    "type": "int32",
+                    "value": "300"
+                  },
+                  "I64": {
+                    "type": "int64",
+                    "value": "400"
+                  },
+                  "U8": {
+                    "type": "uint8",
+                    "value": "50"
+                  },
+                  "U16": {
+                    "type": "uint16",
+                    "value": "600"
+                  },
+                  "U32": {
+                    "type": "uint32",
+                    "value": "700"
+                  },
+                  "U64": {
+                    "type": "uint64",
+                    "value": "800"
+                  },
+                  "F32": {
+                    "type": "float32",
+                    "value": "1.5"
+                  },
+                  "F64": {
+                    "type": "float64",
+                    "value": "2.5"
+                  },
+                  "B": {
+                    "type": "bool",
+                    "value": "true"
+                  },
+                  "S": {
+                    "type": "string",
+                    "value": "world"
+                  },
+                  "arr": {
+                    "type": "[3]int16",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      }
+                    ]
+                  }
+                }
+              },
+              "tag": {
+                "type": "string",
+                "value": "match"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condPtrStructArg",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.condPtrStructArg",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 340
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 90
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "condPtrStruct_nocond",
+          "location": {
+            "method": "main.condPtrStructArg"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "*main.condFields",
+                "address": "[addr]",
+                "fields": {
+                  "I8": {
+                    "type": "int8",
+                    "value": "1"
+                  },
+                  "I16": {
+                    "type": "int16",
+                    "value": "2"
+                  },
+                  "I32": {
+                    "type": "int32",
+                    "value": "3"
+                  },
+                  "I64": {
+                    "type": "int64",
+                    "value": "4"
+                  },
+                  "U8": {
+                    "type": "uint8",
+                    "value": "5"
+                  },
+                  "U16": {
+                    "type": "uint16",
+                    "value": "6"
+                  },
+                  "U32": {
+                    "type": "uint32",
+                    "value": "7"
+                  },
+                  "U64": {
+                    "type": "uint64",
+                    "value": "8"
+                  },
+                  "F32": {
+                    "type": "float32",
+                    "value": "0.10000000149011612"
+                  },
+                  "F64": {
+                    "type": "float64",
+                    "value": "0.2"
+                  },
+                  "B": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "S": {
+                    "type": "string",
+                    "value": "other"
+                  },
+                  "arr": {
+                    "type": "[3]int16",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      }
+                    ]
+                  }
+                }
+              },
+              "tag": {
+                "type": "string",
+                "value": "miss"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

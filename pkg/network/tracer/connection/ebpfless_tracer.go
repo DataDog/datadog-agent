@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build (linux && linux_bpf) || darwin
 
 package connection
 
@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -18,10 +19,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/vishvananda/netns"
-	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -29,13 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	syncutil "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
-	// the segment length to read
-	// mac header (with vlan) + ip header + tcp header
-	segmentLen = 18 + 60 + 60
-
 	ebpfLessTelemetryPrefix = "network_tracer__ebpfless"
 )
 
@@ -54,7 +49,7 @@ type ebpfLessTracer struct {
 
 	config *config.Config
 
-	packetSrc *filter.AFPacketSource
+	packetSrc filter.PacketSource // Use interface to support both AFPacket and Libpcap
 	// packetSrcBusy is needed because you can't close packetSrc while it's still visiting
 	packetSrcBusy sync.WaitGroup
 	exit          chan struct{}
@@ -66,34 +61,38 @@ type ebpfLessTracer struct {
 	conns        map[ebpfless.PCAPTuple]*network.ConnectionStats
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
+	// dnsServerPorts is the set of ports to treat as DNS server ports
+	// (from network_config.dns_monitoring_ports)
+	dnsServerPorts map[uint16]struct{}
 
-	ns netns.NsHandle
+	connPool *syncutil.TypedPool[network.ConnectionStats]
 }
 
 // newEbpfLessTracer creates a new ebpfLessTracer instance
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
-	packetSrc, err := filter.NewAFPacketSource(
-		8<<20, // 8 MB total space
-		filter.OptSnapLen(segmentLen))
+	// Create platform-specific packet source
+	packetSrc, err := createPacketSource(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
 	}
 
-	tr := &ebpfLessTracer{
-		config:        cfg,
-		packetSrc:     packetSrc,
-		packetSrcBusy: sync.WaitGroup{},
-		exit:          make(chan struct{}),
-		udp:           &udpProcessor{},
-		tcp:           ebpfless.NewTCPProcessor(cfg),
-		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		boundPorts:    ebpfless.NewBoundPorts(cfg),
-		cookieHasher:  newCookieHasher(),
+	dnsServerPorts := make(map[uint16]struct{}, len(cfg.DNSMonitoringPortList))
+	for _, port := range cfg.DNSMonitoringPortList {
+		dnsServerPorts[uint16(port)] = struct{}{}
 	}
 
-	tr.ns, err = netns.Get()
-	if err != nil {
-		return nil, fmt.Errorf("error getting current net ns: %w", err)
+	tr := &ebpfLessTracer{
+		config:         cfg,
+		packetSrc:      packetSrc,
+		packetSrcBusy:  sync.WaitGroup{},
+		exit:           make(chan struct{}),
+		udp:            &udpProcessor{},
+		tcp:            ebpfless.NewTCPProcessor(cfg),
+		conns:          make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		boundPorts:     ebpfless.NewBoundPorts(cfg),
+		cookieHasher:   newCookieHasher(),
+		dnsServerPorts: dnsServerPorts,
+		connPool:       syncutil.NewDefaultTypedPool[network.ConnectionStats](),
 	}
 
 	return tr, nil
@@ -111,22 +110,37 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 			t.packetSrcBusy.Done()
 		}()
 		var eth layers.Ethernet
+		var loopback layers.Loopback
 		var ip4 layers.IPv4
 		var ip6 layers.IPv6
 		var tcp layers.TCP
 		var udp layers.UDP
 		decoded := make([]gopacket.LayerType, 0, 5)
-		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
-		parser.IgnoreUnsupported = true
+
+		// Two parsers to handle mixed link types on Darwin (e.g. Ethernet for
+		// en0 and BSD Loopback for utun* VPN interfaces). On Linux, every
+		// packet is Ethernet via AF_PACKET so loopbackParser is never used.
+		ethernetParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
+		ethernetParser.IgnoreUnsupported = true
+		loopbackParser := gopacket.NewDecodingLayerParser(layers.LayerTypeLoopback, &loopback, &ip4, &ip6, &tcp, &udp)
+		loopbackParser.IgnoreUnsupported = true
+
 		for {
 			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
+				var parser *gopacket.DecodingLayerParser
+				if info.LinkLayerType() == layers.LayerTypeLoopback {
+					parser = loopbackParser
+				} else {
+					parser = ethernetParser
+				}
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
 
-				pktType := info.(*filter.AFPacketInfo).PktType
-				// only process PACKET_HOST and PACK_OUTGOING packets
-				if pktType != unix.PACKET_HOST && pktType != unix.PACKET_OUTGOING {
+				pktType := info.PacketType()
+
+				// only process PacketHost and PacketOutgoing packets
+				if pktType != filter.PacketHost && pktType != filter.PacketOutgoing {
 					ebpfLessTracerTelemetry.skippedPackets.Inc("unsupported_packet_type")
 					return nil
 				}
@@ -194,16 +208,22 @@ func (t *ebpfLessTracer) processConnection(
 	conn, ok := t.conns[tuple]
 	isNewConn := !ok
 	if isNewConn {
-		conn = &network.ConnectionStats{
-			// NOTE: this tuple does not have the connection direction set yet.
-			// That will be set from determineConnectionDirection later
-			ConnectionTuple: ebpfless.MakeConnStatsTuple(tuple),
+		conn = t.connPool.Get()
+		conn.ConnectionTuple = ebpfless.MakeConnStatsTuple(tuple)
+
+		// guess direction before calling the processors; for TCP, the processor
+		// may also set direction from the SYN packet
+		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts, t.dnsServerPorts)
+		if err != nil {
+			t.putConn(conn)
+			return err
 		}
+		conn.Direction = direction
 	}
 
 	var ts int64
 	var err error
-	if ts, err = ddebpf.NowNanoseconds(); err != nil {
+	if ts, err = nowNanoseconds(); err != nil {
 		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 	}
 	conn.LastUpdateEpoch = uint64(ts)
@@ -229,21 +249,12 @@ func (t *ebpfLessTracer) processConnection(
 
 	if isNewConn && result.ShouldPersist() {
 		conn.Duration = time.Duration(time.Now().UnixNano())
-		direction, err := t.guessConnectionDirection(conn, pktType)
-		if err != nil {
-			return err
-		}
-		if direction == network.UNKNOWN {
-			return errors.New("could not determine connection direction")
-		}
-		conn.Direction = direction
-
-		// now that the direction is set, hash the connection
 		t.cookieHasher.Hash(conn)
 	}
 
 	switch result {
 	case ebpfless.ProcessResultNone:
+		t.putConn(conn)
 	case ebpfless.ProcessResultStoreConn:
 		// if we fail to store this connection at any point, remove its TCP state tracking
 		storeConnOk := false
@@ -254,6 +265,7 @@ func (t *ebpfLessTracer) processConnection(
 			if conn.Type == network.TCP {
 				t.tcp.RemoveConn(tuple)
 			}
+			t.putConn(conn)
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}()
 
@@ -261,13 +273,20 @@ func (t *ebpfLessTracer) processConnection(
 		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
 		delete(t.conns, tuple)
+		// do not call putConn after this, since the close handler owns it now
 		closeCallback(conn)
 	case ebpfless.ProcessResultMapFull:
 		delete(t.conns, tuple)
+		t.putConn(conn)
 		ebpfLessTracerTelemetry.droppedConnections.Inc()
 	}
 
 	return nil
+}
+
+func (t *ebpfLessTracer) putConn(conn *network.ConnectionStats) {
+	*conn = network.ConnectionStats{}
+	t.connPool.Put(conn)
 }
 
 type packetFlags struct {
@@ -303,37 +322,68 @@ func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.U
 		}
 	}
 
-	if pktType == unix.PACKET_HOST {
+	if pktType == filter.PacketHost {
 		tuple.Dest, tuple.Source = tuple.Source, tuple.Dest
 		tuple.DPort, tuple.SPort = tuple.SPort, tuple.DPort
 	}
 	return tuple, flags
 }
 
+// boundPortLookup is an interface for finding bound ports
+type boundPortLookup interface {
+	Find(proto network.ConnectionType, port uint16) bool
+}
+
 // guessConnectionDirection attempts to guess the connection direction based off bound ports
-func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
+func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, ports boundPortLookup, dnsServerPorts map[uint16]struct{}) (network.ConnectionDirection, error) {
 	// if we already have a direction, return that
 	if conn.Direction != network.UNKNOWN {
 		return conn.Direction, nil
 	}
 
-	ok := t.boundPorts.Find(conn.Type, conn.SPort)
+	ok := ports.Find(conn.Type, conn.SPort)
 	if ok {
 		// incoming connection
 		return network.INCOMING, nil
 	}
 	// for local connections - the destination could be a bound port
 	if conn.Dest.Addr.IsLoopback() {
-		ok := t.boundPorts.Find(conn.Type, conn.DPort)
+		ok := ports.Find(conn.Type, conn.DPort)
 		if ok {
 			return network.OUTGOING, nil
 		}
 	}
 
-	switch pktType {
-	case unix.PACKET_HOST:
+	// for UDP, check if either port is a known DNS server port
+	if conn.Type == network.UDP {
+		_, srcIsDNS := dnsServerPorts[conn.SPort]
+		_, dstIsDNS := dnsServerPorts[conn.DPort]
+		if srcIsDNS && !dstIsDNS {
+			return network.INCOMING, nil
+		}
+		if dstIsDNS && !srcIsDNS {
+			return network.OUTGOING, nil
+		}
+	}
+
+	// system ports are always servers
+	if conn.SPort < 1024 {
 		return network.INCOMING, nil
-	case unix.PACKET_OUTGOING:
+	}
+	if conn.DPort < 1024 {
+		return network.OUTGOING, nil
+	}
+
+	// for TCP, don't guess direction from packet type; if we missed the SYN
+	// then we can't reliably determine direction
+	if conn.Type == network.TCP {
+		return network.UNKNOWN, nil
+	}
+
+	switch pktType {
+	case filter.PacketHost:
+		return network.INCOMING, nil
+	case filter.PacketOutgoing:
 		return network.OUTGOING, nil
 	default:
 		return network.UNKNOWN, fmt.Errorf("unknown packet type %d", pktType)
@@ -351,7 +401,6 @@ func (t *ebpfLessTracer) Stop() {
 	t.packetSrc.Close()
 	t.packetSrcBusy.Wait()
 
-	t.ns.Close()
 	t.boundPorts.Stop()
 }
 
@@ -371,7 +420,6 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 		return nil
 	}
 
-	log.Trace(t.conns)
 	conns := make([]network.ConnectionStats, 0, len(t.conns))
 	for _, c := range t.conns {
 		if filter != nil && !filter(c) {
@@ -388,7 +436,7 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 // cleanupPendingConns removes pending connections from the TCP tracer.
 // For more information, refer to CleanupExpiredPendingConns
 func (t *ebpfLessTracer) cleanupPendingConns() error {
-	ts, err := ddebpf.NowNanoseconds()
+	ts, err := nowNanoseconds()
 	if err != nil {
 		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
 	}
@@ -426,8 +474,11 @@ func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error {
 	return errors.New("not implemented")
 }
 
-// Type returns the type of the underlying ebpf ebpfLessTracer that is currently loaded
+// Type returns the type of the underlying tracer that is currently loaded
 func (t *ebpfLessTracer) Type() TracerType {
+	if runtime.GOOS == "darwin" {
+		return TracerTypeDarwin
+	}
 	return TracerTypeEbpfless
 }
 
@@ -457,10 +508,10 @@ func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, udp
 	}
 
 	switch pktType {
-	case unix.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		conn.Monotonic.SentPackets++
 		conn.Monotonic.SentBytes += uint64(payloadLen)
-	case unix.PACKET_HOST:
+	case filter.PacketHost:
 		conn.Monotonic.RecvPackets++
 		conn.Monotonic.RecvBytes += uint64(payloadLen)
 	}

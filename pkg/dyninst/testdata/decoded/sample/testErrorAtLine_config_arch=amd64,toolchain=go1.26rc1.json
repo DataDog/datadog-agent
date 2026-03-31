@@ -1,0 +1,90 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testErrorAtLine",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testErrorAtLine",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 108
+          },
+          {
+            "function": "main.executeComplexFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 296
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 36
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testErrorAtLine",
+          "location": {
+            "method": "main.testErrorAtLine",
+            "file": "complex.go",
+            "line": 108
+          }
+        },
+        "captures": {
+          "lines": {
+            "108": {
+              "locals": {
+                "~r0": {
+                  "type": "int",
+                  "notCapturedReason": "unavailable"
+                },
+                "x": {
+                  "type": "int",
+                  "notCapturedReason": "unavailable"
+                },
+                "err": {
+                  "type": "error",
+                  "fields": {
+                    "data": {
+                      "type": "*errors.errorString",
+                      "address": "[addr]",
+                      "fields": {
+                        "s": {
+                          "type": "string",
+                          "value": "test error"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "x={unavailable}, err={s: test error}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

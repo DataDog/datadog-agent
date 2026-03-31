@@ -39,6 +39,9 @@ struct dd_tracer_metadata {
   struct dd_str service_name;
   struct dd_str service_env;
   struct dd_str service_version;
+  struct dd_str process_tags;
+  struct dd_str container_id;
+  bool logs_collected;
 };
 
 struct dd_tracer_metadata_slice {

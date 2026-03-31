@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
+	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -119,14 +120,15 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event          *model.Event
-	dnsLayer       *layers.DNS
-	monitors       *EBPFMonitors
-	profileManager securityprofile.ProfileManager
-	fieldHandlers  *EBPFFieldHandlers
-	eventPool      *ddsync.TypedPool[model.Event]
-	variableStore  *eval.VariableStore
-	numCPU         int
+	event           *model.Event
+	dnsLayer        *layers.DNS
+	monitors        *EBPFMonitors
+	profileManager  securityprofile.ProfileManager
+	fieldHandlers   *EBPFFieldHandlers
+	eventPool       *ddsync.TypedPool[model.Event]
+	variableStore   *eval.VariableStore
+	variableStoreMu sync.RWMutex
+	numCPU          int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -836,13 +838,23 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
-		if ok {
-			for _, s := range snapshotBoundSockets {
-				bindEvent := p.newBindEventFromReplay(entry, s)
-				bindEvent.Source = model.EventSourceReplay
+		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		if p.config.RuntimeSecurity.SBOMResolverEnabled {
+			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
+			if err != nil {
+				return
+			}
 
-				events = append(events, bindEvent)
+			mmapedFiles, err := procfs.GetMmapedFiles(proc)
+			if err != nil {
+				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+				return
+			}
+
+			for _, f := range mmapedFiles {
+				openEvent := p.newOpenEventFromReplay(entry, f)
+				openEvent.Source = model.EventSourceReplay
+				events = append(events, openEvent)
 			}
 		}
 	}
@@ -914,6 +926,21 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	// send event to specific event handlers, like the event monitor consumers, subsequently
 	if notifyConsumers {
 		p.probe.sendEventToConsumers(event)
+	}
+
+	// handle sbom resolution
+	if p.Resolvers.SBOMResolver != nil {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+			if event.GetEventType() == model.ExecEventType {
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+			} else if event.GetEventType() == model.FileOpenEventType {
+				// force resolution of the file path
+				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+
+				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+			}
+		}
 	}
 
 	// handle anomaly detections
@@ -989,6 +1016,8 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 
 // evalOpts returns the eval options containing the current variable store
 func (p *EBPFProbe) evalOpts() *eval.Opts {
+	p.variableStoreMu.RLock()
+	defer p.variableStoreMu.RUnlock()
 	return &eval.Opts{VariableStore: p.variableStore}
 }
 
@@ -1079,9 +1108,23 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
 			event.Error = model.ErrNoProcessContext
-		} else if _, err := entry.HasValidLineage(); err != nil {
-			event.Error = &model.ErrProcessBrokenLineage{Err: err}
-			p.Resolvers.ProcessResolver.CountBrokenLineage()
+		} else {
+			// If the kernel reports a different ppid than the one in our
+			// cache, the process was reparented (e.g. subreaper). Update
+			// the cache tree immediately using the authoritative kernel value.
+			if event.PIDContext.PPid != 0 {
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
+			}
+
+			// Attempt to repair the lineage of processes that were orphaned
+			// during subreaper reparenting (the exit tracepoint may fire
+			// before the kernel has completed forget_original_parent).
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, newEntryCb)
+
+			if _, err := entry.HasValidLineage(); err != nil {
+				event.Error = &model.ErrProcessBrokenLineage{Err: err}
+				p.Resolvers.ProcessResolver.CountBrokenLineage()
+			}
 		}
 	}
 
@@ -1158,6 +1201,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 					return
 				}
 			}
+
+			p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(entry, metrics.ReparentCallpathRelatedEvent, nil)
 
 			relatedEvents = append(relatedEvents, relatedEvent)
 		}
@@ -1240,7 +1285,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 	eventType := event.GetEventType()
 	switch eventType {
 
-	case model.FileMountEventType, model.FileMoveMountEventType:
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
 		if !p.regularUnmarshalEvent(&event.Mount, eventType, offset, dataLen, data) {
 			return false
 		}
@@ -1280,6 +1325,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Open, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// handle cgroup v2 creation
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Open.File)
+
+		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
+			cgroupContext := model.CGroupContext{
+				CGroupPathKey: event.Open.File.PathKey,
+			}
+			p.Resolvers.CGroupResolver.Add(cgroupContext, time.Now())
+		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
@@ -1288,9 +1343,21 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Rmdir, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// handle cgroup v2 deletion
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Rmdir.File)
+		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
+			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
+		}
 	case model.FileUnlinkEventType:
 		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
 			return false
+		}
+
+		// handle cgroup v2 deletion
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Unlink.File)
+		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() {
+			p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
 		}
 	case model.FileRenameEventType:
 		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {
@@ -2310,7 +2377,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntriesForMountID(m.MountID)
 
-	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
+	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType && ev.GetEventType() != model.PivotRootEventType {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
@@ -2323,7 +2390,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	var err error
-	if ev.GetEventType() == model.FileMoveMountEventType {
+	if ev.GetEventType() == model.FileMoveMountEventType || ev.GetEventType() == model.PivotRootEventType {
 		err = p.Resolvers.MountResolver.InsertMoved(*m)
 	} else {
 		err = p.Resolvers.MountResolver.Insert(*m)
@@ -2499,7 +2566,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
+	p.variableStoreMu.Unlock()
 
 	p.HandleRemediationStatus(rs)
 }
@@ -2674,6 +2743,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
+		},
+		manager.ConstantEditor{
+			Name:  "has_current_cgroup_id_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupID()),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
@@ -2967,6 +3040,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		Tagger:                   probe.Opts.Tagger,
 		UseRingBuffer:            p.useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
+		WorkloadMeta:             opts.WorkloadMeta,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
@@ -3269,6 +3343,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
@@ -3509,26 +3585,37 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	return event
 }
 
-// newBindEventFromReplay returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
+// newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
 	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
-	event.Type = uint32(model.BindEventType)
+	event.Type = uint32(model.FileOpenEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.AddToFlags(model.EventFlagsFromReplay)
 
-	event.Bind.SyscallEvent.Retval = 0
-	event.Bind.AddrFamily = snapshottedBind.Family
-	event.Bind.Addr.IPNet.IP = snapshottedBind.IP
-	event.Bind.Protocol = snapshottedBind.Protocol
-	if snapshottedBind.Family == unix.AF_INET {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
-	} else {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
+	event.Open.SyscallEvent.Retval = 0
+	event.Open.File.PathnameStr = snapshottedFile.Path
+	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
+
+	// Try to stat the file to get basic metadata (best effort)
+	// This helps with file resolution and enrichment
+	var fileStats unix.Statx_t
+	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
+	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.Open.File.FileFields.Inode = fileStats.Ino
+		event.Open.File.FileFields.UID = fileStats.Uid
+		event.Open.File.FileFields.GID = fileStats.Gid
+		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.Open.File.Mode = fileStats.Mode
+		event.Open.File.Inode = fileStats.Ino
+		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.Open.File.NLink = fileStats.Nlink
+		event.Open.File.MountID = uint32(fileStats.Mnt_id)
 	}
-	event.Bind.Addr.Port = snapshottedBind.Port
 
 	return event
 }

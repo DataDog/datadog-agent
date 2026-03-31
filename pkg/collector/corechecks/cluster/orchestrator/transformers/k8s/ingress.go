@@ -17,6 +17,8 @@ import (
 
 // ExtractIngress returns the protobuf model corresponding to a Kubernetes
 // Ingress resource.
+//
+//nolint:revive
 func ExtractIngress(ctx processors.ProcessorContext, in *netv1.Ingress) *model.Ingress {
 	ingress := model.Ingress{
 		Metadata: extractMetadata(&in.ObjectMeta),
@@ -44,9 +46,8 @@ func ExtractIngress(ctx processors.ProcessorContext, in *netv1.Ingress) *model.I
 		ingress.Status = extractIngressStatus(in.Status)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	ingress.Tags = append(ingress.Tags, transformers.RetrieveUnifiedServiceTags(in.ObjectMeta.Labels)...)
-	ingress.Tags = append(ingress.Tags, transformers.RetrieveMetadataTags(in.ObjectMeta.Labels, in.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	ingress.Tags = append(ingress.Tags, transformers.RetrieveTeamTag(in.ObjectMeta.Labels, in.ObjectMeta.Annotations)...)
 
 	return &ingress
 }

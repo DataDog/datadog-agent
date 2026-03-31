@@ -9,17 +9,21 @@ package helper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -27,6 +31,7 @@ import (
 
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // UnimplementedRemoteAgentServer is a wrapper around a gRPC server that implements the RemoteAgentServer protocol.
@@ -68,12 +73,12 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	}
 
 	// Listen on a random port
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := listener.GetListener("127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
 
-	agentClient, err := newAgentSecureClient(ipcComp, agentIpcAddress)
+	agentClient, err := newAgentSecureClient(ipcComp, agentIpcAddress, config, log)
 	if err != nil {
 		log.Errorf("failed to create agent client: %v", err)
 		return nil, err
@@ -231,11 +236,39 @@ func (s *UnimplementedRemoteAgentServer) stop() {
 	s.log.Debug("remoteAgentServer stopped")
 }
 
-func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string) (pbcore.AgentSecureClient, error) {
-	conn, err := grpc.NewClient(agentIpcAddress,
+func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.AgentSecureClient, error) {
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())),
-	)
+	}
+
+	if vsockAddr := cfg.GetString("vsock_addr"); vsockAddr != "" {
+		cid, err := socket.ParseVSockAddress(vsockAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		_, sPort, err := net.SplitHostPort(agentIpcAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		cmdPort, parseErr := strconv.Atoi(sPort)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid vsock socket path '%s'", agentIpcAddress)
+		}
+
+		if cmdPort <= 0 {
+			return nil, fmt.Errorf("invalid port '%d' for vsock", cmdPort)
+		}
+
+		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			log.Debugf("dialing vsock address with CID %d and port %d", cid, cmdPort)
+			return vsock.Dial(cid, uint32(cmdPort), &vsock.Config{})
+		}))
+	}
+
+	conn, err := grpc.NewClient(agentIpcAddress, opts...)
 	if err != nil {
 		return nil, err
 	}

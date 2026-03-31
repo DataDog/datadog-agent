@@ -7,11 +7,13 @@ services:
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
+      DD_TAGS: ${DD_TAGS:-${WORKSPACE_NAME:+workspace:${WORKSPACE_NAME}}}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc/:/host/proc/:ro
       - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
       - agent-ipc:/etc/datadog-agent:rw
+      - ../../dev/dist/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
     secrets:
       - dd-api-key
     entrypoint: [ '/bin/sh', '-c', 'export DD_API_KEY=$$(cat /run/secrets/dd-api-key) ; /bin/entrypoint.sh' ]
@@ -31,10 +33,13 @@ services:
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
+      DD_HOSTPROFILER_DEBUG:
+      DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS: ${DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS:-${WORKSPACE_NAME:+{"x-datadog-profiling-metadata":"workspace:${WORKSPACE_NAME}"}}}
     volumes:
       - ../..:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - agent-ipc:/etc/datadog-agent:ro
+      - ../../dev/dist/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
     secrets:
       - dd-api-key
       - dd-app-key

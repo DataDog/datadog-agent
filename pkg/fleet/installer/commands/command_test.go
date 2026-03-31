@@ -51,6 +51,8 @@ func TestMain(m *testing.M) {
 		return
 	}
 	os.Setenv(testCmdEnv, "true")
+	cleanup := setupTestPaths()
+	defer cleanup()
 	os.Exit(m.Run())
 }
 
