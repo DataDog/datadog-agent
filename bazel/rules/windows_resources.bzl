@@ -1,8 +1,12 @@
 """Rules for compiling Windows resource files (.mc -> .rc -> .syso).
 
-windres internally calls gcc -E to preprocess .rc files. We resolve gcc
-and its environment from the registered CC toolchain (MinGW) so that
-actions run correctly under --incompatible_strict_action_env.
+windres internally calls gcc -E to preprocess .rc files via popen().
+Under Bazel's --incompatible_strict_action_env the stripped environment
+breaks popen (windres is a MinGW64/CRT binary whose popen needs cmd.exe,
+which isn't in the MinGW-only PATH). We work around this with
+--use-temp-file, which bypasses popen entirely.
+
+We still resolve the CC toolchain to get the correct PATH for gcc itself.
 """
 
 load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
@@ -53,6 +57,7 @@ def _win_messagetable_impl(ctx):
     env, cc_toolchain = _cc_env(ctx)
 
     windres_args = ctx.actions.args()
+    windres_args.add("--use-temp-file")
     windres_args.add("--target", "pe-x86-64")
     windres_args.add("-i", rc_out)
     windres_args.add("-O", "coff")
@@ -87,6 +92,7 @@ def _win_resource_impl(ctx):
     env, cc_toolchain = _cc_env(ctx)
 
     windres_args = ctx.actions.args()
+    windres_args.add("--use-temp-file")
     windres_args.add("--target", "pe-x86-64")
     for k, v in ctx.attr.defines.items():
         windres_args.add("--define", "%s=%s" % (k, v))
