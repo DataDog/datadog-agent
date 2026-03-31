@@ -1,0 +1,14 @@
+load("//bazel/rules:version_info.bzl", "agent_version_defines")
+load("//bazel/rules:windows_resources.bzl", "win_resource")
+
+win_resource(
+    name = "rsrc",
+    src = "system-probe.rc",
+    defines = agent_version_defines(),
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//cmd/system-probe:__subpackages__"],
+    deps = [
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)
