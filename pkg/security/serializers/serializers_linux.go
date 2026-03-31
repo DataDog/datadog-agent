@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -332,8 +332,8 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
-	// Tags from an APM tracer instrumentation
-	Tracer map[string]string `json:"tracer,omitempty"`
+	// Metadata from APM tracer instrumentation
+	Tracer *tracermetadata.TracerMetadata `json:"tracer,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -1006,15 +1006,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.TracerTags) > 0 {
-			tracerTags := make(map[string]string, len(ps.TracerTags))
-			for _, tag := range ps.TracerTags {
-				key, value, found := strings.Cut(tag, ":")
-				if found {
-					tracerTags[key] = value
-				}
-			}
-			psSerializer.Tracer = tracerTags
+		if (ps.TracerMetadata != tracermetadata.TracerMetadata{}) {
+			tmetaCopy := ps.TracerMetadata
+			psSerializer.Tracer = &tmetaCopy
 		}
 
 		if len(ps.ContainerContext.ContainerID) != 0 {
