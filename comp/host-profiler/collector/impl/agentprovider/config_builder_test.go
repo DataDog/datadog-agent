@@ -30,13 +30,13 @@ func TestParseAdditionalHeaders(t *testing.T) {
 			expected: "workspace:peterg17,env:staging",
 		},
 		{
-			name:     "space separated",
+			name:     "spaces within entry rejected",
 			input:    "workspace:peterg17 env:staging",
-			expected: "workspace:peterg17,env:staging",
+			expected: "",
 		},
 		{
-			name:     "mixed separators",
-			input:    "workspace:peterg17, env:staging service:web",
+			name:     "multiple comma separated",
+			input:    "workspace:peterg17,env:staging,service:web",
 			expected: "workspace:peterg17,env:staging,service:web",
 		},
 		{

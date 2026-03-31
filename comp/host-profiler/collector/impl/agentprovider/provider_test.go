@@ -206,6 +206,7 @@ func TestProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS", "")
 			cfg := loadConfig(t, filepath.Join("td", tt.agentConfig))
 			provider := newProvider(cfg)(confmap.ProviderSettings{})
 
@@ -250,6 +251,7 @@ func TestProvider(t *testing.T) {
 // TestProviderMultipleEndpoints tests the multiple-endpoints case with structure validation
 // instead of golden file comparison due to non-deterministic map iteration order
 func TestProviderMultipleEndpoints(t *testing.T) {
+	t.Setenv("DD_HOST_PROFILER_ADDITIONAL_HEADERS", "")
 	cfg := loadConfig(t, filepath.Join("td", "provider/multiple-endpoints/agent.yaml"))
 	provider := newProvider(cfg)(confmap.ProviderSettings{})
 

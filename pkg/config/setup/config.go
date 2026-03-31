@@ -586,6 +586,8 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_APM_NET_RECEIVER_FD":  {},
 		"DD_APM_UNIX_RECEIVER_FD": {},
 		"DD_OTLP_CONFIG_GRPC_FD":  {},
+		// host-profiler additional headers (read via os.Getenv, not Config)
+		"DD_HOST_PROFILER_ADDITIONAL_HEADERS": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
