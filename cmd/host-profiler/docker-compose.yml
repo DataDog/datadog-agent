@@ -33,6 +33,7 @@ services:
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
+      DD_HOSTPROFILER_DEBUG:
     volumes:
       - ../..:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro
