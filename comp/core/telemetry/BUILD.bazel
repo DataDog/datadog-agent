@@ -24,6 +24,22 @@ go_library(
     ],
 )
 
+# keep
+go_library(
+    name = "telemetry_serverless",
+    srcs = [
+        "collector_noop.go",
+        "metric_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry",
+    tags = ["serverless"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+    ],
+)
+
 go_test(
     name = "telemetry_test",
     srcs = ["gather_filters_test.go"],
