@@ -11,7 +11,8 @@ def color_status(status: GPUConfigValidationState) -> str:
         GPUConfigValidationState.MISSING: Color.ORANGE,
         GPUConfigValidationState.UNKNOWN: Color.ORANGE,
     }
-    return color_message(status.value, colors[status]) if status in colors else status.value
+    name = status.name.lower()
+    return color_message(name, colors[status]) if status in colors else name
 
 
 def color_metric_counts(missing: int, known: int, unknown: int) -> str:
