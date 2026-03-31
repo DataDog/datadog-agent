@@ -33,11 +33,13 @@ import (
 type Requires struct {
 	compdef.In
 
-	Lifecycle compdef.Lifecycle
-	Log       log.Component
-	IPC       ipc.Component
-	Telemetry telemetry.Component
-	// Params is optional; when nil the component is not created (e.g. when RAR is disabled).
+	Lifecycle    compdef.Lifecycle
+	Log          log.Component
+	IPC          ipc.Component
+	Telemetry    telemetry.Component
+	ConfigWriter model.Writer
+	// Params is optional; when nil the component is disabled (e.g. when RAR is not enabled).
+	// Binaries that do not need config streaming should not include this component at all.
 	Params *Params `optional:"true"`
 }
 
@@ -58,9 +60,6 @@ type Params struct {
 	// SessionIDProvider supplies the session ID at connect time (e.g. from remote agent component).
 	// When set, SessionID may be empty; the consumer will block on WaitSessionID before connecting.
 	SessionIDProvider SessionIDProvider
-	// ConfigWriter if set receives streamed config updates (same source as configsync: SourceLocalConfigProcess).
-	// Used by remote agents to mirror core agent config into the local config.Component.
-	ConfigWriter model.Writer
 	// ReadyTimeout is how long OnStart blocks waiting for the first config snapshot before
 	// returning an error and aborting startup. Defaults to 60s when zero.
 	ReadyTimeout time.Duration
@@ -79,7 +78,7 @@ type consumer struct {
 	ipc          ipc.Component
 	telemetry    telemetry.Component
 	params       Params
-	configWriter model.Writer // optional: mirrors streamed config into the local config.Component
+	configWriter model.Writer // writes streamed config into the local config.Component
 
 	conn       *grpc.ClientConn
 	client     pb.AgentSecureClient
@@ -89,33 +88,26 @@ type consumer struct {
 	effectiveConfig map[string]interface{}
 	configLock      sync.RWMutex
 	lastSeqID       int32
-	reader          *configReader
 
 	ready     bool
 	readyCh   chan struct{}
 	readyOnce sync.Once
 
-	subscribers   map[int]chan configstreamconsumer.ChangeEvent
-	nextSubID     int
-	subscribersMu sync.RWMutex
-
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	metricsInitOnce         sync.Once
-	timeToFirstSnapshot     telemetry.Gauge
-	streamReconnectCount    telemetry.Counter
-	lastSeqIDMetric         telemetry.Gauge
-	droppedStaleUpdates     telemetry.Counter
-	bufferOverflowDiscounts telemetry.Counter
+	metricsInitOnce      sync.Once
+	timeToFirstSnapshot  telemetry.Gauge
+	streamReconnectCount telemetry.Counter
+	lastSeqIDMetric      telemetry.Gauge
+	droppedStaleUpdates  telemetry.Counter
 }
 
 // NewComponent creates a new configstreamconsumer component
 func NewComponent(reqs Requires) (Provides, error) {
 	if reqs.Params == nil {
-		reqs.Log.Warnf("configstreamconsumer: no Params provided, component disabled")
-		return Provides{}, nil
+		return Provides{}, errors.New("configstreamconsumer: Params is required; binaries that do not need config streaming should not include this component")
 	}
 	p := *reqs.Params
 	if p.ClientName == "" {
@@ -124,8 +116,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if p.CoreAgentAddress == "" {
 		return Provides{}, errors.New("CoreAgentAddress is required")
 	}
-	// When both are empty the component is disabled (e.g. RAR not enabled).
 	if p.SessionID == "" && p.SessionIDProvider == nil {
+		reqs.Log.Errorf("configstreamconsumer: neither SessionID nor SessionIDProvider set for client %s; component will not connect", p.ClientName)
 		return Provides{}, nil
 	}
 	hasID := p.SessionID != ""
@@ -139,13 +131,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ipc:             reqs.IPC,
 		telemetry:       reqs.Telemetry,
 		params:          p,
-		configWriter:    p.ConfigWriter,
+		configWriter:    reqs.ConfigWriter,
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
-		subscribers:     make(map[int]chan configstreamconsumer.ChangeEvent),
 	}
-
-	c.reader = &configReader{consumer: c}
 
 	// Register lifecycle hooks
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -211,31 +200,6 @@ func (c *consumer) WaitReady(ctx context.Context) error {
 	}
 }
 
-// Reader returns a config reader backed by the streamed configuration
-func (c *consumer) Reader() model.Reader {
-	return c.reader
-}
-
-// Subscribe returns a channel that receives config change events
-func (c *consumer) Subscribe() (<-chan configstreamconsumer.ChangeEvent, func()) {
-	ch := make(chan configstreamconsumer.ChangeEvent, 100)
-
-	c.subscribersMu.Lock()
-	id := c.nextSubID
-	c.nextSubID++
-	c.subscribers[id] = ch
-	c.subscribersMu.Unlock()
-
-	return ch, func() {
-		c.subscribersMu.Lock()
-		defer c.subscribersMu.Unlock()
-		if _, ok := c.subscribers[id]; ok {
-			close(c.subscribers[id])
-			delete(c.subscribers, id)
-		}
-	}
-}
-
 // streamLoop manages the lifecycle of the config stream connection
 func (c *consumer) streamLoop() {
 	defer c.wg.Done()
@@ -271,12 +235,6 @@ func (c *consumer) streamLoop() {
 
 // connectAndStream establishes a gRPC connection and processes the config stream
 func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) error {
-	// Reset sequence tracking for this connection. The server always sends a full
-	// snapshot first on a new stream, so starting from 0 is correct.
-	c.configLock.Lock()
-	c.lastSeqID = 0
-	c.configLock.Unlock()
-
 	conn, err := grpc.NewClient(c.params.CoreAgentAddress,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.ipc.GetTLSClientConfig())),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(c.ipc.GetAuthToken())),
@@ -349,9 +307,13 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent, startTime time.Time,
 
 // applySnapshot applies a complete config snapshot
 func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Time, firstSnapshot *bool) error {
-	// An out-of-order snapshot should never happen (seqIDs are reset per connection in connectAndStream).
+	// Reject out-of-order or server-restart snapshots. lastSeqID is never reset between
+	// reconnects: if the server restarts and its sequence counter resets to a lower value,
+	// we refuse the new snapshot and log an error. Sub-processes are expected to restart
+	// when the core agent restarts.
 	if snapshot.SequenceId <= c.lastSeqID {
-		c.log.Errorf("Received out-of-order snapshot (seq_id: %d <= current %d); ignoring", snapshot.SequenceId, c.lastSeqID)
+		c.log.Errorf("Received snapshot with seq_id %d <= current %d; the core agent may have restarted. "+
+			"This sub-process must be restarted to accept a new configuration.", snapshot.SequenceId, c.lastSeqID)
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
@@ -366,14 +328,11 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 
 	// Update effective config atomically
 	c.configLock.Lock()
-	oldConfig := c.effectiveConfig
 	c.effectiveConfig = newConfig
 	c.lastSeqID = snapshot.SequenceId
 	c.configLock.Unlock()
 
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
-
-	c.emitChangeEvents(oldConfig, newConfig)
 
 	if c.configWriter != nil {
 		for key, val := range newConfig {
@@ -381,7 +340,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 		}
 	}
 
-	// Signal readiness only after the snapshot is fully applied, events emitted, and config mirrored.
+	// Signal readiness only after the snapshot is fully applied and config mirrored.
 	if *firstSnapshot {
 		*firstSnapshot = false
 		c.readyOnce.Do(func() {
@@ -414,67 +373,20 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
 
-	c.configLock.Lock()
-	oldValue := c.effectiveConfig[update.Setting.Key]
 	newValue := pbValueToGo(update.Setting.Value)
+
+	c.configLock.Lock()
 	c.effectiveConfig[update.Setting.Key] = newValue
 	c.lastSeqID = update.SequenceId
 	c.configLock.Unlock()
 
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 
-	c.emitChangeEvent(configstreamconsumer.ChangeEvent{
-		Key:      update.Setting.Key,
-		OldValue: oldValue,
-		NewValue: newValue,
-	})
-
 	if c.configWriter != nil {
 		c.configWriter.Set(update.Setting.Key, newValue, model.SourceLocalConfigProcess)
 	}
 
 	return nil
-}
-
-// emitChangeEvents emits change events for all differences between old and new config
-func (c *consumer) emitChangeEvents(oldConfig, newConfig map[string]interface{}) {
-	// Find changed and added keys
-	for key, newVal := range newConfig {
-		oldVal, existed := oldConfig[key]
-		if !existed || !valuesEqual(oldVal, newVal) {
-			c.emitChangeEvent(configstreamconsumer.ChangeEvent{
-				Key:      key,
-				OldValue: oldVal,
-				NewValue: newVal,
-			})
-		}
-	}
-
-	// Find deleted keys
-	for key, oldVal := range oldConfig {
-		if _, exists := newConfig[key]; !exists {
-			c.emitChangeEvent(configstreamconsumer.ChangeEvent{
-				Key:      key,
-				OldValue: oldVal,
-				NewValue: nil,
-			})
-		}
-	}
-}
-
-// emitChangeEvent sends a change event to all subscribers
-func (c *consumer) emitChangeEvent(event configstreamconsumer.ChangeEvent) {
-	c.subscribersMu.RLock()
-	defer c.subscribersMu.RUnlock()
-
-	for _, ch := range c.subscribers {
-		select {
-		case ch <- event:
-		default:
-			c.log.Warnf("Subscriber buffer full, dropping event for key: %s", event.Key)
-			c.bufferOverflowDiscounts.Inc()
-		}
-	}
 }
 
 // initMetrics initializes telemetry metrics
@@ -504,12 +416,6 @@ func (c *consumer) initMetrics() {
 			[]string{},
 			"Number of stale config updates dropped",
 		)
-		c.bufferOverflowDiscounts = c.telemetry.NewCounter(
-			"configstream_consumer",
-			"buffer_overflow_disconnects",
-			[]string{},
-			"Number of stream disconnects due to buffer overflow",
-		)
 	})
 }
 
@@ -536,15 +442,4 @@ func pbValueToGo(pbValue *structpb.Value) interface{} {
 	}
 
 	return result
-}
-
-// valuesEqual checks if two values are equal (simplified comparison)
-func valuesEqual(a, b interface{}) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
 }

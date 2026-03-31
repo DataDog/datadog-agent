@@ -8,35 +8,14 @@
 // team: agent-configuration
 package configstreamconsumer
 
-import (
-	"context"
-
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-)
+import "context"
 
 // Component is the config stream consumer component interface.
+// Its sole purpose is to receive configuration from the core agent stream and write it
+// into the local config.Component via the model.Writer provided at construction.
+// Callers that need to read config or subscribe to changes should use config.Component directly.
 type Component interface {
 	// WaitReady blocks until the first config snapshot has been received and applied.
 	// This ensures the consumer has a consistent config view before proceeding.
 	WaitReady(ctx context.Context) error
-
-	// Reader returns a config reader backed by the streamed configuration.
-	// This provides a model.Reader interface for accessing config values.
-	Reader() model.Reader
-
-	// Subscribe returns a channel that receives config change events.
-	// The returned unsubscribe function should be called to clean up.
-	// Callers that set ConfigWriter can rely on the config.Component's own
-	// notification system instead of subscribing here.
-	Subscribe() (<-chan ChangeEvent, func())
-}
-
-// ChangeEvent represents a configuration change event.
-type ChangeEvent struct {
-	// Key is the configuration key that changed
-	Key string
-	// OldValue is the previous value (nil if newly set)
-	OldValue interface{}
-	// NewValue is the new value (nil if deleted)
-	NewValue interface{}
 }

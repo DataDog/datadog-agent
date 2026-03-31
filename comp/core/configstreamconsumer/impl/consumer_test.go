@@ -24,7 +24,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -105,10 +104,7 @@ func createTestConsumer(t *testing.T, serverAddr string, ipcComp *ipcmock.IPCMoc
 		},
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
-		subscribers:     make(map[int]chan configstreamconsumer.ChangeEvent),
 	}
-
-	c.reader = &configReader{consumer: c}
 
 	cleanup := func() {
 		if c.cancel != nil {
@@ -164,11 +160,13 @@ func TestConsumerSnapshot(t *testing.T) {
 	err := consumer.WaitReady(ctx)
 	require.NoError(t, err)
 
-	// Verify config was applied
-	assert.Equal(t, "hello", consumer.Reader().GetString("test_string"))
-	assert.Equal(t, 42, consumer.Reader().GetInt("test_int"))
-	assert.True(t, consumer.Reader().GetBool("test_bool"))
-	assert.Equal(t, uint64(1), consumer.Reader().GetSequenceID())
+	// Verify config was applied to the effective config map
+	consumer.configLock.RLock()
+	defer consumer.configLock.RUnlock()
+	assert.Equal(t, "hello", consumer.effectiveConfig["test_string"])
+	assert.Equal(t, int64(42), consumer.effectiveConfig["test_int"])
+	assert.Equal(t, true, consumer.effectiveConfig["test_bool"])
+	assert.Equal(t, int32(1), consumer.lastSeqID)
 }
 
 func TestConsumerUpdates(t *testing.T) {
@@ -222,8 +220,10 @@ func TestConsumerUpdates(t *testing.T) {
 	// Wait a bit for the update to be processed
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(t, "updated", consumer.Reader().GetString("test_key"))
-	assert.Equal(t, uint64(2), consumer.Reader().GetSequenceID())
+	consumer.configLock.RLock()
+	defer consumer.configLock.RUnlock()
+	assert.Equal(t, "updated", consumer.effectiveConfig["test_key"])
+	assert.Equal(t, int32(2), consumer.lastSeqID)
 }
 
 func TestConsumerStaleUpdates(t *testing.T) {
@@ -278,138 +278,10 @@ func TestConsumerStaleUpdates(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify stale update was NOT applied
-	assert.Equal(t, "current", consumer.Reader().GetString("test_key"))
-	assert.Equal(t, uint64(5), consumer.Reader().GetSequenceID())
-}
-
-func TestConsumerChangeSubscription(t *testing.T) {
-	ipcComp := ipcmock.New(t)
-	_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
-	defer cleanup()
-
-	consumer, cleanupConsumer := createTestConsumer(t, serverAddr, ipcComp)
-	defer cleanupConsumer()
-
-	// Subscribe to changes
-	changeCh, unsubscribe := consumer.Subscribe()
-	defer unsubscribe()
-
-	// Send initial snapshot
-	events <- &pb.ConfigEvent{
-		Event: &pb.ConfigEvent_Snapshot{
-			Snapshot: &pb.ConfigSnapshot{
-				SequenceId: 1,
-				Settings: []*pb.ConfigSetting{
-					{Key: "key1", Value: mustNewValue(t, "value1")},
-				},
-			},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Start streaming
-	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
-	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
-	}()
-
-	err := consumer.WaitReady(ctx)
-	require.NoError(t, err)
-
-	// Collect initial snapshot changes
-	changeCount := 0
-	timeout := time.After(500 * time.Millisecond)
-drainInitial:
-	for {
-		select {
-		case <-changeCh:
-			changeCount++
-		case <-timeout:
-			break drainInitial
-		}
-	}
-
-	// Should have received at least one change for the initial snapshot
-	assert.Greater(t, changeCount, 0)
-
-	// Send an update
-	events <- &pb.ConfigEvent{
-		Event: &pb.ConfigEvent_Update{
-			Update: &pb.ConfigUpdate{
-				SequenceId: 2,
-				Setting: &pb.ConfigSetting{
-					Key:   "key1",
-					Value: mustNewValue(t, "value2"),
-				},
-			},
-		},
-	}
-
-	// Wait for the change event
-	select {
-	case change := <-changeCh:
-		assert.Equal(t, "key1", change.Key)
-		assert.Equal(t, "value1", change.OldValue)
-		assert.Equal(t, "value2", change.NewValue)
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for change event")
-	}
-}
-
-func TestConsumerReader(t *testing.T) {
-	log := logmock.New(t)
-	ipcComp := ipcmock.New(t)
-	telemetryComp := telemetryimpl.NewMock(t)
-
-	consumer := &consumer{
-		log:       log,
-		ipc:       ipcComp,
-		telemetry: telemetryComp,
-		params: Params{
-			ClientName:       "test",
-			CoreAgentAddress: "localhost:1234",
-			SessionID:        "test-session",
-		},
-		effectiveConfig: map[string]interface{}{
-			"string_key": "hello",
-			"int_key":    int64(42),
-			"bool_key":   true,
-			"float_key":  3.14,
-			"slice_key":  []interface{}{"a", "b", "c"},
-			"map_key":    map[string]interface{}{"nested": "value"},
-		},
-		lastSeqID: 10,
-	}
-
-	reader := &configReader{consumer: consumer}
-
-	// Test various reader methods
-	assert.Equal(t, "hello", reader.GetString("string_key"))
-	assert.Equal(t, 42, reader.GetInt("int_key"))
-	assert.Equal(t, int32(42), reader.GetInt32("int_key"))
-	assert.Equal(t, int64(42), reader.GetInt64("int_key"))
-	assert.True(t, reader.GetBool("bool_key"))
-	assert.Equal(t, 3.14, reader.GetFloat64("float_key"))
-	assert.Equal(t, []string{"a", "b", "c"}, reader.GetStringSlice("slice_key"))
-	assert.Equal(t, uint64(10), reader.GetSequenceID())
-
-	// Test map access
-	stringMap := reader.GetStringMap("map_key")
-	require.NotNil(t, stringMap)
-	assert.Equal(t, "value", stringMap["nested"])
-
-	// Test AllSettings
-	allSettings := reader.AllSettings()
-	assert.Equal(t, 6, len(allSettings))
-
-	// Test IsSet
-	assert.True(t, reader.IsSet("string_key"))
-	assert.False(t, reader.IsSet("nonexistent_key"))
+	consumer.configLock.RLock()
+	defer consumer.configLock.RUnlock()
+	assert.Equal(t, "current", consumer.effectiveConfig["test_key"])
+	assert.Equal(t, int32(5), consumer.lastSeqID)
 }
 
 // mustNewValue creates a structpb.Value or fails the test
@@ -511,8 +383,10 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 		}
 
 		// Verify final state
-		assert.Equal(t, 5, consumer.Reader().GetInt("counter"))
-		assert.Equal(t, uint64(5), consumer.Reader().GetSequenceID())
+		consumer.configLock.RLock()
+		defer consumer.configLock.RUnlock()
+		assert.Equal(t, int64(5), consumer.effectiveConfig["counter"])
+		assert.Equal(t, int32(5), consumer.lastSeqID)
 	})
 }
 
@@ -550,9 +424,10 @@ func TestStartBlocksUntilSnapshot(t *testing.T) {
 	assert.GreaterOrEqual(t, startDuration, 50*time.Millisecond, "Start should have blocked until snapshot arrived")
 
 	// Config is guaranteed to be fully populated when Start returns.
-	cfg := consumer.Reader()
-	assert.Equal(t, 8080, cfg.GetInt("server.port"))
-	assert.True(t, cfg.GetBool("feature.enabled"))
+	consumer.configLock.RLock()
+	defer consumer.configLock.RUnlock()
+	assert.Equal(t, int64(8080), consumer.effectiveConfig["server.port"])
+	assert.Equal(t, true, consumer.effectiveConfig["feature.enabled"])
 
 	consumer.stop(context.Background())
 }
