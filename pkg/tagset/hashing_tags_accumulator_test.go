@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/twmb/murmur3"
@@ -105,6 +106,31 @@ func TestRemoveSorted(t *testing.T) {
 	r.SortUniq()
 	r.removeSorted(l)
 	assert.ElementsMatch(t, []string{"A", "e"}, r.Get())
+}
+
+func TestRemoveSortedHashCollision(t *testing.T) {
+	const collisionHash = uint64(0xdeadbeef)
+
+	h := NewHashingTagsAccumulator()
+	h.data = []string{"tag:keep"}
+	h.hash = []uint64{collisionHash}
+
+	o := NewHashingTagsAccumulator()
+	o.data = []string{"tag:other"} // same hash, different string
+	o.hash = []uint64{collisionHash}
+
+	done := make(chan struct{})
+	go func() {
+		h.removeSorted(o)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		assert.ElementsMatch(t, []string{"tag:keep"}, h.Get())
+	case <-time.After(3 * time.Second):
+		t.Fatal("removeSorted hung: infinite loop on hash collision")
+	}
 }
 
 func testTagsMatchHash(t *testing.T, acc *HashingTagsAccumulator) {
