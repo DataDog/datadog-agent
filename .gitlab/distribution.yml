@@ -12,6 +12,7 @@ stages:
 include:
   - .gitlab/.pre/common/shared.yml
   - .gitlab/.pre/common/container_publish_job_templates.yml
+  - .gitlab/build/bazel/defs.yml
   - .gitlab/deploy/conditions.yml
   - local: .gitlab/deploy/trigger_release/**.yml
   - local: .gitlab/distribute/**.yml
