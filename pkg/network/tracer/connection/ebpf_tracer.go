@@ -168,6 +168,8 @@ type ebpfTracer struct {
 
 	lastTCPFailureTelemetry map[int32]uint64
 	socketDumpIter          *manager.Probe
+	initialSocketIter       *manager.Probe
+	initialPortBindingIter  *manager.Probe
 }
 
 // NewTracer creates a new tracer
@@ -223,6 +225,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	var tracerType = TracerTypeSK
 	var closeTracerFn func()
 
+	mgrOptions.MapSpecEditors[probes.PortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
+	mgrOptions.MapSpecEditors[probes.UDPPortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
+
 	m, closeTracerFn, err = sk.LoadTracer(config, mgrOptions, connCloseEventHandler)
 	if err != nil && !errors.Is(err, sk.ErrorDisabled) {
 		// failed to load sk tracer
@@ -234,8 +239,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		mgrOptions.MapSpecEditors[probes.TCPStatsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPRetransmitsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPEventStatsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
-		mgrOptions.MapSpecEditors[probes.PortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
-		mgrOptions.MapSpecEditors[probes.UDPPortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.EnhancedTLSTagsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
@@ -302,7 +305,35 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	tr.setupMapCleaners(m.Manager)
 
-	if tracerType != TracerTypeSK {
+	if tracerType == TracerTypeSK {
+		var ok bool
+		tr.socketDumpIter, ok = m.Manager.GetProbe(manager.ProbeIdentificationPair{
+			EBPFFuncName: "bpf_iter__task_file_socket",
+			UID:          "net",
+		})
+		if !ok {
+			tr.Stop()
+			return nil, errors.New("error retrieving socket dump iter")
+		}
+
+		tr.initialSocketIter, ok = m.Manager.GetProbe(manager.ProbeIdentificationPair{
+			EBPFFuncName: "bpf_iter__task_file_initial_sockets",
+			UID:          "net",
+		})
+		if !ok {
+			tr.Stop()
+			return nil, errors.New("error retrieving initial socket iter")
+		}
+
+		tr.initialPortBindingIter, ok = m.Manager.GetProbe(manager.ProbeIdentificationPair{
+			EBPFFuncName: "bpf_iter__task_file_port_bindings",
+			UID:          "net",
+		})
+		if !ok {
+			tr.Stop()
+			return nil, errors.New("error retrieving initial socket iter")
+		}
+	} else {
 		tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m.Manager, probes.ConnMap)
 		if err != nil {
 			tr.Stop()
@@ -337,16 +368,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		tr.sslCertInfoMap, err = maps.GetMap[uint32, netebpf.CertItem](m.Manager, probes.SSLCertInfoMap)
 		if err != nil {
 			log.Warnf("error retrieving ssl cert info map: %s", err)
-		}
-	} else {
-		var ok bool
-		tr.socketDumpIter, ok = m.Manager.GetProbe(manager.ProbeIdentificationPair{
-			EBPFFuncName: "bpf_iter__task_file_socket",
-			UID:          "net",
-		})
-		if !ok {
-			tr.Stop()
-			return nil, errors.New("error retrieving socket dump iter")
 		}
 	}
 
@@ -435,6 +456,12 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 			t.closeConsumer.Stop()
 			return fmt.Errorf("could not start sslProgram: %w", err)
 		}
+	}
+
+	// this must come after the manager starts
+	err = t.initializeSocketCounters()
+	if err != nil {
+		return fmt.Errorf("error initializing TCP socket counters: %s", err)
 	}
 
 	ddebpf.AddProbeFDMappings(t.m.Manager)
@@ -826,6 +853,33 @@ func (t *ebpfTracer) DumpMaps(w io.Writer, maps ...string) error {
 // Type returns the type of the underlying ebpf tracer that is currently loaded
 func (t *ebpfTracer) Type() TracerType {
 	return t.ebpfTracerType
+}
+
+func (t *ebpfTracer) initializeSocketCounters() error {
+	if t.initialSocketIter == nil || t.initialPortBindingIter == nil {
+		return nil
+	}
+	// TODO cleanup port binding maps and detach iterators?
+
+	// read port bindings first
+	pbIter, err := t.initialPortBindingIter.Iterator()
+	if err != nil {
+		return err
+	}
+	defer pbIter.Close()
+	_, err = io.ReadAll(pbIter)
+	if err != nil {
+		return err
+	}
+
+	// read existing sockets and use port bindings to help determine direction
+	connIter, err := t.initialSocketIter.Iterator()
+	if err != nil {
+		return err
+	}
+	defer connIter.Close()
+	_, err = io.ReadAll(connIter)
+	return err
 }
 
 func (t *ebpfTracer) initializePortBindingMaps() error {

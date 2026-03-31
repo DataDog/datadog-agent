@@ -14,7 +14,9 @@ import (
 )
 
 var programs = map[string]struct{}{
-	"bpf_iter__task_file_socket": {},
+	"bpf_iter__task_file_socket":          {},
+	"bpf_iter__task_file_initial_sockets": {},
+	"bpf_iter__task_file_port_bindings":   {},
 
 	//"bpf_iter__dump_tcp":       {},
 	"tcp_connect_entry":        {},
@@ -57,6 +59,8 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, "bpf_iter__task_file_socket")
+		enableProgram(enabled, "bpf_iter__task_file_initial_sockets")
+		enableProgram(enabled, "bpf_iter__task_file_port_bindings")
 		enableProgram(enabled, "tcp_connect_entry")
 		enableProgram(enabled, "inet_csk_accept_exit")
 		enableProgram(enabled, "tcp_finish_connect_entry")
@@ -70,6 +74,8 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 	if c.CollectUDPv4Conns {
 		enableProgram(enabled, "bpf_iter__task_file_socket")
+		enableProgram(enabled, "bpf_iter__task_file_initial_sockets")
+		enableProgram(enabled, "bpf_iter__task_file_port_bindings")
 		enableProgram(enabled, "udp_sendmsg_exit")
 		enableProgram(enabled, "skb_consume_udp")
 		enableProgram(enabled, "udp_destroy_sock_exit")
@@ -79,6 +85,8 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 	if c.CollectUDPv6Conns {
 		enableProgram(enabled, "bpf_iter__task_file_socket")
+		enableProgram(enabled, "bpf_iter__task_file_initial_sockets")
+		enableProgram(enabled, "bpf_iter__task_file_port_bindings")
 		enableProgram(enabled, "udpv6_sendmsg_exit")
 		enableProgram(enabled, "skb_consume_udp")
 		enableProgram(enabled, "udpv6_destroy_sock_exit")
