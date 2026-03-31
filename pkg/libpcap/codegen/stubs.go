@@ -15,29 +15,6 @@ func stub(cs *CompilerState, name string) {
 	cs.SetError(fmt.Errorf("%s: not yet implemented", name))
 }
 
-// GenAnd combines two blocks with logical AND.
-func GenAnd(b0, b1 *Block) {
-	// Will be implemented in Task 5
-}
-
-// GenOr combines two blocks with logical OR.
-func GenOr(b0, b1 *Block) {
-	// Will be implemented in Task 5
-}
-
-// GenNot negates a block by flipping its sense.
-func GenNot(b *Block) {
-	if b != nil {
-		b.Sense = !b.Sense
-	}
-}
-
-// FinishParse finalizes the compilation of a filter expression.
-func FinishParse(cs *CompilerState, b *Block) error {
-	cs.IC.Root = b
-	return cs.Err
-}
-
 // GenScode generates code for a symbolic name (host, net, etc.).
 func GenScode(cs *CompilerState, name string, q Qual) *Block {
 	stub(cs, "gen_scode")
