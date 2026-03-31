@@ -7,6 +7,7 @@ package setup
 
 import (
 	"path"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -69,7 +70,11 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// General config
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
-	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	if runtime.GOOS == "windows" {
+		config.BindEnvAndSetDefault(PARActionsAllowlist, []string{"com.datadoghq.script.runPredefinedPowershellScript"})
+	} else {
+		config.BindEnvAndSetDefault(PARActionsAllowlist, []string{"com.datadoghq.script.runPredefinedScript"})
+	}
 	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
 		return strings.Split(s, ",")
 	})
