@@ -63,7 +63,7 @@
     ARTIFACT_GATEWAY_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway"
   script:
     - *docker_ecr_suffix_script
-    - bzl run @dd_source_image_promotion//:image-promotion --
+    - bazel run @dd_source_image_promotion//:image-promotion --
         --gateway-url "${ARTIFACT_GATEWAY_URL}"
         --timeout "${IMAGE_PROMOTION_TIMEOUT}"
         --poll-interval "${IMAGE_PROMOTION_POLL_INTERVAL}"
