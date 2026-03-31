@@ -355,8 +355,8 @@ func GenMulticast(cs *CompilerState, proto int) *Block {
 	case QDefault, QLink:
 		switch cs.Linktype {
 		case DLTEN10MB:
-			// ether[0] & 1 != 0
-			return GenMcmp(cs, OrLinkhdr, 0, bpf.BPF_B, 0x01, 0x01)
+			// ether[0] & 1 != 0 — use JSET directly (matching C gen_mac_multicast)
+			return genMacMulticast(cs, 0)
 		default:
 			cs.SetError(fmt.Errorf("link-layer multicast not supported for DLT %d", cs.Linktype))
 			return nil
@@ -380,6 +380,16 @@ func GenMulticast(cs *CompilerState, proto int) *Block {
 		cs.SetError(fmt.Errorf("multicast not supported for protocol %d", proto))
 		return nil
 	}
+}
+
+// genMacMulticast generates code to check if the MAC address at offset
+// has the multicast bit set: load byte, JSET #1.
+// Port of gen_mac_multicast() from gencode.c.
+func genMacMulticast(cs *CompilerState, offset uint32) *Block {
+	s := GenLoadA(cs, OrLinkhdr, offset, bpf.BPF_B)
+	b := cs.NewBlock(JmpCode(int(bpf.BPF_JSET)), 1)
+	b.Stmts = s
+	return b
 }
 
 // GenByteop generates code for a byte operation expression.

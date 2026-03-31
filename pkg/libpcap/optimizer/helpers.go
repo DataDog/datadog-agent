@@ -121,7 +121,11 @@ func NumberBlocks(ic *codegen.ICode, p *codegen.Block, blocks []*codegen.Block, 
 }
 
 // FindInedges populates the InEdges list for each block (predecessors).
-// Port of find_inedges() from optimize.c.
+// Only includes edges from blocks that appear in the levels[] lists
+// (i.e., reachable blocks found by FindLevels), to avoid stale
+// predecessor references from blocks that became unreachable after
+// jump threading.
+// Port of find_inedges() from optimize.c, with reachability filtering.
 func FindInedges(os *OptState) {
 	// Clear all in-edge lists
 	for i := uint(0); i < os.NBlocks; i++ {
@@ -131,19 +135,19 @@ func FindInedges(os *OptState) {
 		}
 	}
 
-	// For each block, add its edges to successors' in-edge lists
-	for i := uint(0); i < os.NBlocks; i++ {
-		b := os.Blocks[i]
-		if b == nil {
-			continue
-		}
-		if codegen.JT(b) != nil {
-			b.Et.Next = codegen.JT(b).InEdges
-			codegen.JT(b).InEdges = &b.Et
-		}
-		if codegen.JF(b) != nil {
-			b.Ef.Next = codegen.JF(b).InEdges
-			codegen.JF(b).InEdges = &b.Ef
+	// Only add edges from blocks in the levels lists (reachable blocks).
+	// This avoids phantom predecessors from unreachable blocks whose
+	// JT/JF pointers still reference reachable blocks.
+	for _, head := range os.Levels {
+		for b := head; b != nil; b = b.Link {
+			if codegen.JT(b) != nil {
+				b.Et.Next = codegen.JT(b).InEdges
+				codegen.JT(b).InEdges = &b.Et
+			}
+			if codegen.JF(b) != nil {
+				b.Ef.Next = codegen.JF(b).InEdges
+				codegen.JF(b).InEdges = &b.Ef
+			}
 		}
 	}
 }
