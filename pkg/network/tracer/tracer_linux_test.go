@@ -2237,6 +2237,9 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	// However, in ebpfless they are easy to track, so disable this test.
 	// For more context, see PR #31100
 	skipOnEbpflessNotSupported(t, testConfig())
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer easily finds existing connections")
+	}
 
 	t.Run("ringbuf_enabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
