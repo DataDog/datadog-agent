@@ -225,6 +225,7 @@ func (cs *CompilerState) NewBlock(code int, k uint32) *Block {
 		ID: cs.NextBlockID,
 		S:  Stmt{Code: code, K: k},
 	}
+	b.Head = b
 	b.Et.Pred = b
 	b.Ef.Pred = b
 	cs.NextBlockID++
