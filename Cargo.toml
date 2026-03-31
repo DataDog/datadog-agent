@@ -63,4 +63,3 @@ tempfile = "3.0"
 [profile.release]
 lto = "fat"
 opt-level = "z"
-strip = "symbols"

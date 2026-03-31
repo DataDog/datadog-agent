@@ -248,6 +248,31 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
 			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
 		},
+		{
+			name:     "preserve-user-evp-headers",
+			provided: "no_agent/preserve-evp-headers/in.yaml",
+			expected: "no_agent/preserve-evp-headers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-creates-pipeline-with-inferred-endpoint",
+			provided: "no_agent/int-metrics-infer-ep/in.yaml",
+			expected: "no_agent/int-metrics-infer-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-user-metrics-endpoint",
+			provided: "no_agent/int-metrics-existing-ep/in.yaml",
+			expected: "no_agent/int-metrics-existing-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-when-telemetry-level-none",
+			provided: "no_agent/int-metrics-level-none/in.yaml",
+			expected: "no_agent/int-metrics-level-none/out.yaml",
+		},
+		{
+			name:     "internal-metrics-only-includes-exporters-with-profiles-endpoint",
+			provided: "no_agent/int-metrics-mixed/in.yaml",
+			expected: "no_agent/int-metrics-mixed/out.yaml",
+		},
 	}
 
 	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
