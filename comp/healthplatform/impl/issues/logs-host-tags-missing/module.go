@@ -47,12 +47,8 @@ func (m *logsHostTagsMissingModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns the built-in health check configuration
-// Interval is 0 to use the default (15 minutes)
+// BuiltInCheck returns nil because detection is performed inline at logs agent
+// startup via healthplatform.ReportIssue(), not by a polling check.
 func (m *logsHostTagsMissingModule) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
-		ID:      CheckID,
-		Name:    CheckName,
-		CheckFn: Check,
-	}
+	return nil
 }
