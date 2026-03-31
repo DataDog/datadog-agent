@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "attributes",
+    srcs = [
+        "attributes.go",
+        "constants.go",
+        "gateway_usage.go",
+        "process.go",
+        "source.go",
+        "system.go",
+        "translator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/azure",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/ec2",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/gcp",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/trace/log",
+        "//pkg/trace/traceutil/normalize",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.12.0:v1_12_0",
+        "@io_opentelemetry_go_otel//semconv/v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_otel//semconv/v1.27.0:v1_27_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel_metric//:metric",
+    ],
+)
+
+go_test(
+    name = "attributes_test",
+    srcs = [
+        "attributes_test.go",
+        "gateway_usage_test.go",
+        "process_test.go",
+        "source_test.go",
+        "system_test.go",
+        "translator_test.go",
+    ],
+    embed = [":attributes"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/azure",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.12.0:v1_12_0",
+        "@io_opentelemetry_go_otel//semconv/v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_otel//semconv/v1.27.0:v1_27_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+        "@io_opentelemetry_go_otel_sdk_metric//metricdata",
+    ],
+)
