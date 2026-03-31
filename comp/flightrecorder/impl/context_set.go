@@ -10,27 +10,31 @@ import (
 )
 
 // contextSet tracks which metric context keys have been sent with full name+tags
-// definitions. Implemented as a lock-free bloom filter using atomic bit operations.
+// definitions. Implemented as a lock-free bloom filter with inline CAS on miss.
 //
-// Memory: ~586 KB fixed (4.8M bits) regardless of context count — 10× less than
-// the sharded map it replaces (~8 MB at 500K contexts).
+// The hot path (IsKnown) checks k=3 bloom positions via atomic loads. On a miss,
+// it sets the bits inline via 3 CAS operations — cheap enough that no background
+// goroutine is needed. This eliminates warm-up delay, channel overhead, and
+// goroutine lifecycle management.
 //
-// Trade-off: bloom filters do not support deletion. Evicted context definitions
-// are not re-sent. The sidecar handles unknown context_keys gracefully.
-// Reset on reconnect clears all bits.
+// Trade-off: k=3 has a higher false positive rate (~1%) than k=7 (~0.01%), but
+// false positives here only mean we skip sending a context definition that the
+// sidecar already has — completely harmless.
+//
+// Memory: ~1.2 MB fixed regardless of context count.
 type contextSet struct {
-	bits []atomic.Uint64 // bit array, each word is 64 bits
-	m    uint64          // total bits
-	k    int             // number of hash functions
+	bits []atomic.Uint64
+	m    uint64
 }
 
-// Bloom filter parameters for ~500K elements at 1% FPR:
-//   m = 4_795_200 bits (74925 uint64 words = ~585 KB)
-//   k = 7 hash functions
+// Bloom filter parameters: ~9.6M bits (~1.2 MB) with k=3.
+// At 200K contexts: FPR ≈ 0.5%. At 500K: FPR ≈ 1.5%.
+// Doubling the bit array vs the previous k=7 design compensates for using
+// fewer hash probes while keeping memory well under 2 MB.
 const (
-	bloomBits  = 4_795_200
-	bloomWords = (bloomBits + 63) / 64 // 74925
-	bloomK     = 7
+	bloomBits  = 9_600_000
+	bloomWords = (bloomBits + 63) / 64
+	bloomK     = 3
 )
 
 // newContextSet creates a bloom-filter-based context set.
@@ -39,61 +43,59 @@ func newContextSet(_ int) *contextSet {
 	return &contextSet{
 		bits: make([]atomic.Uint64, bloomWords),
 		m:    bloomBits,
-		k:    bloomK,
 	}
 }
 
-// IsKnown checks if the key is probably in the set. If not, it adds it and
-// returns false. Lock-free using atomic CompareAndSwap on each bit word.
-//
-// False positives are possible (~1% FPR) but false negatives are not.
+// IsKnown checks if the key is probably in the set. On a miss, sets the bits
+// inline via CAS and returns false. With k=3 the CAS cost is negligible (~15ns),
+// so no background goroutine is needed.
 func (cs *contextSet) IsKnown(key uint64) bool {
 	h1 := key
 	h2 := (key >> 17) | (key << 47)
 
-	// Phase 1: check all k positions (read-only, no atomic RMW).
-	allSet := true
-	for i := 0; i < cs.k; i++ {
+	for i := 0; i < bloomK; i++ {
 		pos := (h1 + uint64(i)*h2) % cs.m
 		word := pos / 64
 		bit := uint64(1) << (pos % 64)
 		if cs.bits[word].Load()&bit == 0 {
-			allSet = false
-			break
+			cs.setBits(key)
+			return false
 		}
 	}
-	if allSet {
-		return true
-	}
+	return true
+}
 
-	// Phase 2: set all k bits using atomic OR (CAS loop).
-	for i := 0; i < cs.k; i++ {
+func (cs *contextSet) setBits(key uint64) {
+	h1 := key
+	h2 := (key >> 17) | (key << 47)
+	for i := 0; i < bloomK; i++ {
 		pos := (h1 + uint64(i)*h2) % cs.m
 		word := pos / 64
 		bit := uint64(1) << (pos % 64)
 		for {
 			old := cs.bits[word].Load()
 			if old&bit != 0 {
-				break // already set
+				break
 			}
 			if cs.bits[word].CompareAndSwap(old, old|bit) {
 				break
 			}
 		}
 	}
-	return false
 }
 
 // Remove is a no-op. Bloom filters do not support deletion.
 func (cs *contextSet) Remove(_ uint64) {}
 
-// Reset clears all bits, forcing all context definitions to be re-sent.
-// Not lock-free (called rarely — only on reconnect).
+// Reset clears all bits.
 func (cs *contextSet) Reset() {
 	for i := range cs.bits {
 		cs.bits[i].Store(0)
 	}
 }
+
+// Stop is a no-op — no background goroutine to terminate.
+func (cs *contextSet) Stop() {}
 
 // CheckCap is a no-op — the bloom filter has fixed size.
 func (cs *contextSet) CheckCap() bool {

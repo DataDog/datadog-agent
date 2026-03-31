@@ -388,6 +388,7 @@ func (b *batcher) ResetContexts() {
 func (b *batcher) Stop() {
 	close(b.stopCh)
 	b.wg.Wait()
+	b.seenContexts.Stop()
 }
 
 // returnDefSlicesRing returns pooled tag slices for context definitions.
