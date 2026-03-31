@@ -118,7 +118,7 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 """,
-    remote = "https://github.com/DataDog/dd-source.git",
+    remote = "https://gitlab.ddbuild.io/DataDog/dd-source.git",
     strip_prefix = "domains/agent_delivery/apps/cli/image-promotion",
 )
 
