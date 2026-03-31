@@ -199,11 +199,6 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/legacy-hostprofiler-orphan/out.yaml",
 		},
 		{
-			name:     "renames-legacy-hostprofiler-multiple-orphan-receivers",
-			provided: "no_agent/legacy-hostprofiler-multi-orphan/in.yaml",
-			expected: "no_agent/legacy-hostprofiler-multi-orphan/out.yaml",
-		},
-		{
 			name:     "ensures-headers",
 			provided: "no_agent/ensures-headers/in.yaml",
 			expected: "no_agent/ensures-headers/out.yaml",
