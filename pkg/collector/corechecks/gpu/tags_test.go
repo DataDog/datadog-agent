@@ -865,9 +865,9 @@ func TestGetContainerIDPIDNotFound(t *testing.T) {
 
 // TestGetNsPID_NotFoundError tests that getNsPID returns NotFound when there's no nspid field
 func TestGetNsPIDNotFoundError(t *testing.T) {
-	pid := int32(1234)
+	pid := uint32(1234)
 	fakeprocfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
-		{Pid: uint32(pid), NsPid: 0}, // With 0 will not have the nspid field
+		{Pid: pid, NsPid: 0}, // With 0 will not have the nspid field
 	})
 	kernel.WithFakeProcFS(t, fakeprocfs)
 

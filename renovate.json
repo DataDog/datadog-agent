@@ -73,6 +73,11 @@
         "matchManagers": ["bazelisk"],
         "matchUpdateTypes": ["major"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["gomod", "dockerfile", "docker-compose"],
+        "matchDepNames": ["golang"],
+        "enabled": false
       }
     ],
     "customManagers" : [
