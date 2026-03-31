@@ -6,11 +6,15 @@
 package packages
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"go.yaml.in/yaml/v2"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
@@ -21,6 +25,12 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 
 	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// datadog.yaml not yet written (fresh install); the install script or a
+			// subsequent configure step is responsible for enabling otelcollector.
+			log.Warnf("datadog.yaml not found at %s, skipping otelcollector enablement — ensure it is configured before starting the agent", datadogYamlPath)
+			return nil
+		}
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
 	var existing map[string]any
@@ -75,16 +85,25 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		}
 	}
 
+	var apiKey, site string
 	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return fmt.Errorf("failed to parse datadog.yaml: %w", err)
+	if err == nil {
+		var cfg map[string]any
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
+		}
+		apiKey, _ = cfg["api_key"].(string)
+		site, _ = cfg["site"].(string)
+	} else {
+		// datadog.yaml not yet written (fresh install); fall back to environment variables
+		log.Warnf("datadog.yaml not found at %s, falling back to environment variables for OTel config", datadogYamlPath)
+		e := env.FromEnv()
+		apiKey = e.APIKey
+		site = e.Site
 	}
-	apiKey, _ := cfg["api_key"].(string)
-	site, _ := cfg["site"].(string)
 
 	templateData, err := os.ReadFile(templatePath)
 	if err != nil {
