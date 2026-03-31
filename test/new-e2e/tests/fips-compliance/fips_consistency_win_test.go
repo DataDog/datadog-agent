@@ -38,7 +38,6 @@ func TestFIPSConsistencyWindowsSuite(t *testing.T) {
 
 func (s *fipsConsistencyWinSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
 	agentHost := s.Env().WindowsVM
@@ -48,27 +47,42 @@ func (s *fipsConsistencyWinSuite) SetupSuite() {
 	composeFilePath := "/tmp/docker-compose.yaml"
 	s.fipsServer = newFIPSServer(dockerHost, composeFilePath)
 
-	// Write docker-compose.yaml to disk
 	_, err := dockerHost.WriteFile(composeFilePath, bytes.ReplaceAll(dockerFipsServerCompose, []byte("{APPS_VERSION}"), []byte(apps.Version)))
 	require.NoError(s.T(), err)
 
-	// Enable FIPS mode via registry before the agent starts
 	err = windowsCommon.EnableFIPSMode(agentHost)
 	require.NoError(s.T(), err)
 
-	// Install FIPS Agent
 	agentPackage, err := windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))
 	require.NoError(s.T(), err)
 	s.T().Logf("Using Agent: %#v", agentPackage)
 	logFile := filepath.Join(s.SessionOutputDir(), "install.log")
+
+	// Point dd_url at the fips-server so the cipher test can observe the daemon's
+	// TLS negotiation without --local. WithInstallOnly defers service start so we
+	// can append skip_ssl_validation before the daemon makes its first connection.
+	fipsServerURL := fmt.Sprintf("https://%s:443", dockerHost.HostOutput.Address)
 	_, err = windowsAgent.InstallAgent(agentHost,
 		windowsAgent.WithPackage(agentPackage),
 		windowsAgent.WithInstallLogFile(logFile),
 		// The connectivity-datadog-core-endpoints diagnoses require a non-empty API key
-		windowsAgent.WithZeroAPIKey())
+		windowsAgent.WithZeroAPIKey(),
+		windowsAgent.WithDdURL(fipsServerURL),
+		// Defer service start so we can write skip_ssl_validation before first connect
+		windowsAgent.WithInstallOnly("1"),
+	)
 	require.NoError(s.T(), err)
 
 	s.installPath, err = windowsAgent.GetInstallPathFromRegistry(agentHost)
+	require.NoError(s.T(), err)
+
+	// skip_ssl_validation is not a standard MSI parameter; append it directly.
+	// The fips-server uses a self-signed certificate.
+	_, err = agentHost.Execute(`Add-Content -Path 'C:\ProgramData\Datadog\datadog.yaml' -Value 'skip_ssl_validation: true'`)
+	require.NoError(s.T(), err)
+
+	// Start the service now; it initializes FIPS mode from the registry (currently enabled).
+	err = windowsCommon.StartService(agentHost, "datadogagent")
 	require.NoError(s.T(), err)
 
 	// Start the fips-server so the image is pulled before any test runs
@@ -79,11 +93,10 @@ func (s *fipsConsistencyWinSuite) SetupSuite() {
 //  1. The agent reports FIPS Mode: enabled when started with the registry key set
 //  2. Disabling the registry key while the agent is running does not change the
 //     reported FIPS mode (FIPS is determined at agent init and is sticky)
-//  3. After the registry key is disabled, the agent continues to use only
+//  3. After the registry key is disabled, the running daemon continues to use only
 //     FIPS-compliant TLS ciphers
 func (s *fipsConsistencyWinSuite) TestFIPSConsistency() {
 	agentHost := s.Env().WindowsVM
-	dockerHost := s.Env().LinuxDockerVM
 
 	s.Run("FIPSStatusEnabledAtStart", func() {
 		status, err := s.execAgentCommand("agent.exe", "status")
@@ -105,16 +118,12 @@ func (s *fipsConsistencyWinSuite) TestFIPSConsistency() {
 				"even after the registry key is disabled without a restart")
 	})
 
-	// With the registry key disabled, verify the agent still uses only FIPS-compliant ciphers.
+	// With the registry key disabled, verify the running daemon still uses only
+	// FIPS-compliant ciphers. The daemon's dd_url was configured at install time to
+	// point at the fips-server, so the diagnose command (without --local) makes the
+	// running daemon establish the connection, proving its cipher selection is locked
+	// in at initialization and is not affected by the registry key change.
 	s.Run("FIPSCiphersAfterRegistryDisable", func() {
-		// datadog/apps-fips-server creates a self-signed cert; point the diagnose
-		// command at the container running on the Linux Docker VM.
-		ddURL := fmt.Sprintf(`https://%s:443`, dockerHost.HostOutput.Address)
-		agentEnv := client.EnvVar{
-			"DD_SKIP_SSL_VALIDATION": "true",
-			"DD_DD_URL":              ddURL,
-		}
-
 		for _, tc := range testcases {
 			s.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
 				s.fipsServer.Start(s.T(), tc)
@@ -122,7 +131,7 @@ func (s *fipsConsistencyWinSuite) TestFIPSConsistency() {
 					s.fipsServer.Stop()
 				})
 
-				out, _ := s.execAgentCommand("agent.exe", "diagnose --include connectivity-datadog-core-endpoints --local", client.WithEnvVariables(agentEnv))
+				out, _ := s.execAgentCommand("agent.exe", "diagnose --include connectivity-datadog-core-endpoints")
 				require.NotContains(s.T(), out, "Total:0", "Expected diagnoses to run, ensure an API key is configured")
 
 				serverLogs := s.fipsServer.Logs()
