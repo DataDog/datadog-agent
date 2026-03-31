@@ -15,7 +15,10 @@
 #![allow(non_camel_case_types)] // C ABI types use C naming conventions
 
 use std::ffi::c_char;
+use std::panic::{self, AssertUnwindSafe};
 use std::ptr;
+
+use log::error;
 
 use crate::language::Language;
 use crate::params::Params;
@@ -313,13 +316,16 @@ unsafe fn pids_from_c(ptr: *const i32, len: usize) -> Option<Vec<i32>> {
 ///   Pass NULL + 0 for none.
 ///
 /// # Returns
-/// Pointer to a `dd_discovery_result`. The caller MUST pass it to
-/// `dd_discovery_free` exactly once after reading the fields.
+/// A non-null pointer to a heap-allocated `dd_discovery_result` on success.
+/// Returns NULL if an internal panic occurs. On a NULL return no memory was
+/// allocated; the caller must NOT call `dd_discovery_free` on NULL.
+/// On a non-NULL return, the caller MUST pass the pointer to `dd_discovery_free`
+/// exactly once after reading the fields.
 ///
 /// # Safety
 /// - If `new_pids` is non-NULL, it must point to a valid array of `new_pids_len` i32 values.
 /// - If `heartbeat_pids` is non-NULL, it must point to a valid array of `heartbeat_pids_len` i32 values.
-/// - The returned pointer must be freed with `dd_discovery_free` exactly once.
+/// - A non-NULL returned pointer must be freed with `dd_discovery_free` exactly once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dd_discovery_get_services(
     new_pids: *const i32,
@@ -327,20 +333,31 @@ pub unsafe extern "C" fn dd_discovery_get_services(
     heartbeat_pids: *const i32,
     heartbeat_pids_len: usize,
 ) -> *mut dd_discovery_result {
-    // SAFETY: caller guarantees new_pids points to a valid array.
-    let new = unsafe { pids_from_c(new_pids, new_pids_len) };
-    // SAFETY: caller guarantees heartbeat_pids points to a valid array.
-    let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
+    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding across
+    // the C ABI boundary, which would be undefined behaviour. On panic, NULL is
+    // returned so the caller can surface an error without crashing the process.
+    match panic::catch_unwind(AssertUnwindSafe(|| {
+        // SAFETY: caller guarantees new_pids points to a valid array.
+        let new = unsafe { pids_from_c(new_pids, new_pids_len) };
+        // SAFETY: caller guarantees heartbeat_pids points to a valid array.
+        let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
 
-    let params = Params {
-        new_pids: new,
-        heartbeat_pids: heartbeat,
-    };
+        let params = Params {
+            new_pids: new,
+            heartbeat_pids: heartbeat,
+        };
 
-    let resp = services::get_services(params);
-    let result = services_response_to_result(resp);
+        let resp = services::get_services(params);
+        let result = services_response_to_result(resp);
 
-    Box::into_raw(Box::new(result))
+        Box::into_raw(Box::new(result))
+    })) {
+        Ok(ptr) => ptr,
+        Err(_) => {
+            error!("dd_discovery_get_services: caught internal panic");
+            ptr::null_mut()
+        }
+    }
 }
 
 /// Free a `dd_discovery_result` previously returned by `dd_discovery_get_services`.
@@ -354,47 +371,56 @@ pub unsafe extern "C" fn dd_discovery_free(result: *mut dd_discovery_result) {
         return;
     }
 
-    // SAFETY: `result` was created by `Box::into_raw(Box::new(...))` in
-    // `dd_discovery_get_services` and has not been freed yet.
-    let result = unsafe { Box::from_raw(result) };
+    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding across
+    // the C ABI boundary. A panic during deallocation is a bug, but it is better
+    // to leak memory than to abort the calling process.
+    if panic::catch_unwind(AssertUnwindSafe(|| {
+        // SAFETY: `result` was created by `Box::into_raw(Box::new(...))` in
+        // `dd_discovery_get_services` and has not been freed yet.
+        let result = unsafe { Box::from_raw(result) };
 
-    // Free the services array and all nested allocations
-    if !result.services.is_null() {
-        // SAFETY: `result.services` came from `Box::into_raw` in `services_response_to_result`.
-        let services = unsafe {
-            Box::from_raw(ptr::slice_from_raw_parts_mut(
-                result.services,
-                result.services_len,
-            ))
-        };
+        // Free the services array and all nested allocations
+        if !result.services.is_null() {
+            // SAFETY: `result.services` came from `Box::into_raw` in `services_response_to_result`.
+            let services = unsafe {
+                Box::from_raw(ptr::slice_from_raw_parts_mut(
+                    result.services,
+                    result.services_len,
+                ))
+            };
 
-        for service in services.iter() {
-            // SAFETY: All service fields are either NULL or heap-allocated via `Box::into_raw`.
-            unsafe {
-                free_dd_service(service);
+            for service in services.iter() {
+                // SAFETY: All service fields are either NULL or heap-allocated via `Box::into_raw`.
+                unsafe {
+                    free_dd_service(service);
+                }
             }
         }
-    }
 
-    // Free the injected_pids array
-    if !result.injected_pids.is_null() {
-        // SAFETY: `result.injected_pids` came from `Box::into_raw` in `services_response_to_result`.
-        let _injected = unsafe {
-            Box::from_raw(ptr::slice_from_raw_parts_mut(
-                result.injected_pids,
-                result.injected_pids_len,
-            ))
-        };
-    }
+        // Free the injected_pids array
+        if !result.injected_pids.is_null() {
+            // SAFETY: `result.injected_pids` came from `Box::into_raw` in `services_response_to_result`.
+            let _injected = unsafe {
+                Box::from_raw(ptr::slice_from_raw_parts_mut(
+                    result.injected_pids,
+                    result.injected_pids_len,
+                ))
+            };
+        }
 
-    if !result.gpu_pids.is_null() {
-        // SAFETY: `result.gpu_pids` came from `Box::into_raw` in `services_response_to_result`.
-        let _gpu = unsafe {
-            Box::from_raw(ptr::slice_from_raw_parts_mut(
-                result.gpu_pids,
-                result.gpu_pids_len,
-            ))
-        };
+        if !result.gpu_pids.is_null() {
+            // SAFETY: `result.gpu_pids` came from `Box::into_raw` in `services_response_to_result`.
+            let _gpu = unsafe {
+                Box::from_raw(ptr::slice_from_raw_parts_mut(
+                    result.gpu_pids,
+                    result.gpu_pids_len,
+                ))
+            };
+        }
+    }))
+    .is_err()
+    {
+        error!("dd_discovery_free: caught internal panic, memory may have leaked");
     }
 }
 

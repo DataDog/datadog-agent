@@ -99,13 +99,16 @@ struct dd_discovery_result {
  *   Pass NULL + 0 for none.
  *
  * # Returns
- * Pointer to a `dd_discovery_result`. The caller MUST pass it to
- * `dd_discovery_free` exactly once after reading the fields.
+ * A non-null pointer to a heap-allocated `dd_discovery_result` on success.
+ * Returns NULL if an internal panic occurs. On a NULL return no memory was
+ * allocated.
+ * On a non-NULL return, the caller MUST pass the pointer to `dd_discovery_free`
+ * exactly once after reading the fields.
  *
  * # Safety
  * - If `new_pids` is non-NULL, it must point to a valid array of `new_pids_len` i32 values.
  * - If `heartbeat_pids` is non-NULL, it must point to a valid array of `heartbeat_pids_len` i32 values.
- * - The returned pointer must be freed with `dd_discovery_free` exactly once.
+ * - A non-NULL returned pointer must be freed with `dd_discovery_free` exactly once.
  */
 struct dd_discovery_result *dd_discovery_get_services(const int32_t *new_pids,
                                                       size_t new_pids_len,
