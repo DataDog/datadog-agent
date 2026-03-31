@@ -153,6 +153,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "map[{redacted-entries}, ...]: 3]"
+    "message": "map[{redacted-entries}, ...]: 3]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

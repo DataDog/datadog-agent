@@ -198,9 +198,10 @@ func testDyninst(
 		Updates: []process.Config{
 			{
 				Info: process.Info{
-					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
-					Executable: exe,
-					Service:    service,
+					ProcessID:   process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable:  exe,
+					Service:     service,
+					ProcessTags: []string{"entrypoint.name:sample", "svc.user:sample"},
 				},
 				RuntimeID:         runtimeID,
 				Probes:            slices.Clone(probes),

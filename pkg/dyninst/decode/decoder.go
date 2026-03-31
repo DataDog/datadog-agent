@@ -243,16 +243,18 @@ type Event struct {
 	EntryOrLine output.Event
 	Return      output.Event
 	ServiceName string
+	ProcessTags string
 }
 
 type message struct {
-	Service   string           `json:"service"`
-	DDSource  ddDebuggerSource `json:"ddsource"`
-	Logger    logger           `json:"logger"`
-	Debugger  debuggerData     `json:"debugger"`
-	Timestamp int              `json:"timestamp"`
-	Duration  uint64           `json:"duration,omitzero"`
-	Message   *messageData     `json:"message,omitempty"`
+	Service     string           `json:"service"`
+	DDSource    ddDebuggerSource `json:"ddsource"`
+	Logger      logger           `json:"logger"`
+	Debugger    debuggerData     `json:"debugger"`
+	Timestamp   int              `json:"timestamp"`
+	Duration    uint64           `json:"duration,omitzero"`
+	Message     *messageData     `json:"message,omitempty"`
+	ProcessTags string           `json:"process_tags,omitempty"`
 }
 
 // populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
@@ -293,6 +295,7 @@ func (s *message) init(
 	symbolicator symbol.Symbolicator,
 ) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
+	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
 			ID:       uuid.New(),
