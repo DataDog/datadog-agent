@@ -28,7 +28,7 @@ protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
 lru = { version = "0.16.0", default-features = false }
 memchr = "2.7.6"
-nom = "7.1"
+nom = "8.0"
 normalize-path = "0.2"
 phf = { version = "0.13", features = ["macros"] }
 quick-xml = { version = "0.37", features = ["serialize"] }
