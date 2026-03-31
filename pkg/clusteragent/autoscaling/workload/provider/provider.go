@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,7 +59,8 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
-	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
+	patcher := workloadpatcher.NewPatcher(apiCl.DynamicCl, isLeaderFunc)
+	podPatcher := workload.NewPodPatcher(store, patcher, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 
 	clock := clock.RealClock{}
