@@ -92,20 +92,6 @@ git_override(
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
-####################################
-## dd-pkg publish-image CLI       ##
-####################################
-# Imports dd-pkg as a bzlmod module. The publish-image CLI lives at
-# //cmd/publish-image:publish-image — a pure stdlib Go binary that
-# calls artifact-gateway to publish container images.
-# TODO: pin to a commit on main once merged.
-bazel_dep(name = "dd-pkg", version = "0.0.0")
-git_override(
-    module_name = "dd-pkg",
-    commit = "606c8aa7c79b8b4413a64079fe3ff216ea69bf43",  # ali.benabdallah/BARX-1709/publish-image branch
-    remote = "https://github.com/DataDog/dd-pkg.git",
-)
-
 #########################
 ## Prebuilt binaries   ##
 #########################
