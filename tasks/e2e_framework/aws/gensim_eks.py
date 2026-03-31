@@ -191,15 +191,14 @@ def submit_gensim_eks(
 
     # ── 7. Compute ECR registry URL if any episode has docker-compose.yaml
     ecr_registry = ""
-    if skip_build:
-        tool.info("Skipping episode image build (--skip-build). Using cached ECR images.")
-    else:
-        for ep_name, _ in episode_pairs:
-            ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
-            if (ep_dir / "docker-compose.yaml").exists():
-                ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
-                tool.info(f"ECR registry: {ecr_registry}")
-                break
+    for ep_name, _ in episode_pairs:
+        ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
+        if (ep_dir / "docker-compose.yaml").exists():
+            ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
+            tool.info(f"ECR registry: {ecr_registry}")
+            if skip_build:
+                tool.info("Skipping episode image build (--skip-build). Using cached ECR images.")
+            break
 
     # ── 8. Deploy via Pulumi ──────────────────────────────────────────────
     extra_flags = {

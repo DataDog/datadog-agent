@@ -18,8 +18,8 @@ Usage:
     # 1. Submit an evaluation run
     dda inv aws.eks.gensim.submit --image=<agent-image> --episodes=<ep:scenario> --mode=record-parquet
 
-    # 2. Monitor it live with this TUI
-    uv run q_branch/gensim-status.py
+    # 2. Monitor it live with this TUI (run under aws-vault for EKS status)
+    aws-vault exec sso-agent-sandbox-account-admin -- uv run q_branch/gensim-status.py
 
     # Other useful commands
     dda inv aws.eks.gensim.status    # Quick non-interactive status check
@@ -53,8 +53,6 @@ _STACK_NAME = os.environ.get("GENSIM_STACK_NAME", f"{_USER}-gensim-eks")
 # All paths derived from stack name -- override via env vars if needed.
 KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
 PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
-AWS_VAULT_PREFIX = os.environ.get("AWS_VAULT_PROFILE", "sso-agent-sandbox-account-admin").split()
-AWS_VAULT_PREFIX = ["aws-vault", "exec", *AWS_VAULT_PREFIX, "--"]
 EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
 EKS_REGION = os.environ.get("EKS_REGION", "us-east-1")
 
@@ -152,10 +150,12 @@ async def fetch_logs() -> str:
 
 
 async def fetch_eks_status() -> str:
-    """Fetch EKS cluster status via AWS CLI."""
+    """Fetch EKS cluster status via AWS CLI.
+
+    Expects AWS credentials in the environment (run the TUI under aws-vault exec).
+    """
     return await run_cmd(
         [
-            *AWS_VAULT_PREFIX,
             "aws",
             "eks",
             "describe-cluster",
@@ -715,6 +715,7 @@ class GensimStatusApp(App):
         self._node_counts: str = "?"
         self._pod_counts: str = "?"
         self._pod_list: list[dict[str, str]] = []
+        self._eks_failures: int = 0  # consecutive EKS poll failures for backoff
 
     # Minimum terminal height to show the pod logs panel
     _POD_LOGS_MIN_HEIGHT = 40
@@ -788,7 +789,25 @@ class GensimStatusApp(App):
         self.query_one(PodsWidget).content_text = build_pods_markup(self._pod_list)
 
     async def _poll_eks(self) -> None:
-        self._eks_status = await fetch_eks_status()
+        # Exponential backoff: skip polls after consecutive failures to avoid
+        # hammering AWS auth (which can open browser tabs on SSO expiry).
+        if self._eks_failures >= 3:
+            skip_rounds = min(2 ** (self._eks_failures - 3), 16)
+            if not hasattr(self, "_eks_skip_count"):
+                self._eks_skip_count = 0
+            self._eks_skip_count += 1
+            if self._eks_skip_count < skip_rounds:
+                return
+            self._eks_skip_count = 0
+
+        result = await fetch_eks_status()
+        if result:
+            self._eks_status = result
+            self._eks_failures = 0
+        else:
+            self._eks_failures += 1
+            if self._eks_failures == 3:
+                self._eks_status = "auth-error (backoff)"
         self._refresh_infra()
 
     def _refresh_episodes(self) -> None:
