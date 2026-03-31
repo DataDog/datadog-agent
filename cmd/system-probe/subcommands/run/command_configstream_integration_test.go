@@ -135,6 +135,7 @@ system_probe_config:
 		)),
 		fx.Supply(pidimpl.NewParams("")),
 		getSharedFxOption(),
+		configstreamFxOptions(),
 	)
 	overrides := fx.Options(
 		fx.Replace(ipcComp),

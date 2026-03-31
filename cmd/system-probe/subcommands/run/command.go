@@ -23,6 +23,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -120,7 +121,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(run,
+			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
@@ -128,7 +129,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
-			)
+			}
+			if isConfigstreamEnabled(globalParams.DatadogConfFilePath()) {
+				opts = append(opts, configstreamFxOptions())
+			}
+			return fxutil.OneShot(run, opts...)
 		},
 	}
 	runCmd.Flags().StringVarP(&cliParams.pidfilePath, "pid", "p", "", "path to the pidfile")
@@ -188,6 +193,24 @@ func getSharedFxOption() fx.Option {
 		remotehostnameimpl.Module(),
 		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
+		fxinstrumentation.Module(),
+		localtraceroute.Module(),
+		connectionsforwarderfx.Module(),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		rdnsquerierfx.Module(),
+		npcollectorimpl.Module(),
+	)
+}
+
+// configstreamFxOptions returns FX options for the config stream consumer.
+// Only include this when remote_agent.configstream.enabled is true.
+func configstreamFxOptions() fx.Option {
+	return fx.Options(
+		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
+		fx.Provide(func(c config.Component) model.Writer {
+			return c
+		}),
 		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
 		fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
 			if ra == nil {
@@ -198,14 +221,10 @@ func getSharedFxOption() fx.Option {
 			}
 			return nil
 		}),
-		// Config stream consumer Params.
 		fx.Provide(func(c config.Component, deps struct {
 			fx.In
 			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
 		}) *configstreamconsumerimpl.Params {
-			if !c.GetBool("remote_agent.configstream.enabled") {
-				return nil
-			}
 			host := c.GetString("cmd_host")
 			port := c.GetInt("cmd_port")
 			if port <= 0 {
@@ -215,20 +234,35 @@ func getSharedFxOption() fx.Option {
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
 				SessionIDProvider: deps.SessionProvider,
-				ConfigWriter:      c,
 			}
 		}),
 		configstreamconsumerfx.Module(),
 		// Trigger instantiation; OnStart handles the blocking wait internally.
 		fx.Invoke(func(_ configstreamconsumer.Component) {}),
-		fxinstrumentation.Module(),
-		localtraceroute.Module(),
-		connectionsforwarderfx.Module(),
-		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-		rdnsquerierfx.Module(),
-		npcollectorimpl.Module(),
 	)
+}
+
+// isConfigstreamEnabled does a lightweight pre-FX check of whether config stream is enabled in the YAML config.
+// The default is false, matching the BindEnvAndSetDefault in pkg/config/setup/config.go.
+func isConfigstreamEnabled(configPath string) bool {
+	if configPath == "" {
+		return false
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return false
+	}
+	var cfg struct {
+		RemoteAgent struct {
+			ConfigStream struct {
+				Enabled bool `yaml:"enabled"`
+			} `yaml:"configstream"`
+		} `yaml:"remote_agent"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return false
+	}
+	return cfg.RemoteAgent.ConfigStream.Enabled
 }
 
 // run starts the main loop.
