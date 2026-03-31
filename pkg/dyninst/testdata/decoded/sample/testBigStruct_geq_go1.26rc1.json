@@ -92,6 +92,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{x: [abc], z: 5, writer: {pointer: not captured at 0x[addr]}}"
+    "message": "{x: [abc], z: 5, writer: {pointer: not captured at 0x[addr]}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
