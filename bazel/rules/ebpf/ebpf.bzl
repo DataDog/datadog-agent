@@ -213,7 +213,7 @@ _ebpf_prog = rule(
 )
 
 def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):
-    _ = visibility  # eBPF outputs are unconditionally public (cross-package consumers).
+    _unused = visibility  # eBPF outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     _ebpf_prog(
         name = name,
         visibility = ["//visibility:public"],
@@ -246,7 +246,7 @@ ebpf_prog = macro(
 )
 
 def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch):
-    _ = visibility  # eBPF outputs are unconditionally public (cross-package consumers).
+    _unused = visibility  # eBPF outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     _ebpf_prog(
         name = name,
         visibility = ["//visibility:public"],

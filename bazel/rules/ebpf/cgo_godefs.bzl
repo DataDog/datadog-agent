@@ -149,7 +149,7 @@ _STD_LINUX_DEPS = [
 ]
 
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
-    _ = visibility  # Godefs outputs are unconditionally public (cross-package consumers).
+    _unused = visibility  # Godefs outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     all_deps = (_STD_LINUX_DEPS if platform == "linux" else []) + deps
 
     gen = name + "_gen"

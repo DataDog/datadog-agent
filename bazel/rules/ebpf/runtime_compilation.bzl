@@ -10,7 +10,7 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 
 def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_dirs, header_deps, out_go_file):
-    _ = visibility  # Bundle outputs are unconditionally public (cross-package consumers).
+    _unused = visibility  # Bundle outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     flat_name = "{}_flat".format(name)
     run_binary(
         name = flat_name,
