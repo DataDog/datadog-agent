@@ -13,14 +13,12 @@ import (
 	"testing"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Mock is a mock implementation of configstreamconsumer.Component
 type Mock struct {
-	t      *testing.T
-	reader model.Reader
-	ready  bool
+	t     *testing.T
+	ready bool
 }
 
 // New creates a new mock configstreamconsumer component
@@ -31,15 +29,6 @@ func New(t *testing.T) configstreamconsumer.Component {
 	}
 }
 
-// NewWithReader creates a new mock with a custom reader
-func NewWithReader(t *testing.T, reader model.Reader) configstreamconsumer.Component {
-	return &Mock{
-		t:      t,
-		reader: reader,
-		ready:  true,
-	}
-}
-
 // WaitReady implements configstreamconsumer.Component
 func (m *Mock) WaitReady(ctx context.Context) error {
 	if !m.ready {
@@ -47,17 +36,6 @@ func (m *Mock) WaitReady(ctx context.Context) error {
 		return ctx.Err()
 	}
 	return nil
-}
-
-// Reader implements configstreamconsumer.Component
-func (m *Mock) Reader() model.Reader {
-	return m.reader
-}
-
-// Subscribe implements configstreamconsumer.Component
-func (m *Mock) Subscribe() (<-chan configstreamconsumer.ChangeEvent, func()) {
-	ch := make(chan configstreamconsumer.ChangeEvent)
-	return ch, func() { close(ch) }
 }
 
 // SetReady sets the ready state for testing
