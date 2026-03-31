@@ -42,6 +42,7 @@ var basePeerTags = func() []string {
 			precursors = append(precursors, info.Name)
 		}
 	}
+	sort.Strings(precursors)
 	return precursors
 }()
 
