@@ -142,6 +142,8 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/otelcol/ddflareextension/impl
 # gazelle:exclude comp/otelcol/ddprofilingextension/fx
 # gazelle:exclude comp/otelcol/ddprofilingextension/impl
+# gazelle:exclude comp/otelcol/dogtelextension/fx
+# gazelle:exclude comp/otelcol/dogtelextension/impl
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp
 # gazelle:exclude comp/otelcol/status/fx
