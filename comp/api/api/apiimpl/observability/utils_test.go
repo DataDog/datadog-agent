@@ -75,6 +75,21 @@ func TestCaptureRouteTemplateMiddleware(t *testing.T) {
 		})
 	}
 
+	t.Run("with strip prefix - prefix is prepended to template", func(t *testing.T) {
+		// Simulate http.StripPrefix("/agent", router): the router only sees the path after the prefix,
+		// so the captured template must include the prefix to reflect the full request path.
+		router := mux.NewRouter()
+		router.Use(CaptureRouteTemplateMiddlewareWithPrefix("/agent"))
+		router.HandleFunc("/{component}/status", func(_ http.ResponseWriter, _ *http.Request) {})
+
+		// Mimic what http.StripPrefix does: strip "/agent" before handing off to the router.
+		strippedReq := httptest.NewRequest("GET", "http://agent.host/trace-agent/status", nil)
+		r, capture := withRouteCapture(strippedReq)
+		router.ServeHTTP(httptest.NewRecorder(), r)
+
+		assert.Equal(t, "/agent/{component}/status", capture.template)
+	})
+
 	t.Run("no matching route leaves capture empty", func(t *testing.T) {
 		router := mux.NewRouter()
 		router.Use(CaptureRouteTemplateMiddleware)

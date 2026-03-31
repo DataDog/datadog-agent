@@ -35,25 +35,30 @@ func extractPath(r *http.Request) string {
 	return reqURL.Path
 }
 
-// CaptureRouteTemplateMiddleware must be registered via gorilla/mux Router.Use() so that it runs
-// inside the routing context where mux.CurrentRoute returns the matched route. It fills in the
-// routeCapture that was planted in the request context by the outer telemetry middleware, allowing
-// the outer middleware to read the route template after the request is handled.
+// CaptureRouteTemplateMiddlewareWithPrefix returns a gorilla/mux middleware that captures the
+// matched route template and prepends prefix to it. Use this when the router is mounted via
+// http.StripPrefix so that the full request path is reflected in the metric tag.
 //
-// Without this middleware, requests that contain path variables (e.g. /{component}/status) would
-// produce high-cardinality metric tags because each unique component value would become a tag.
-func CaptureRouteTemplateMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
-			if route := mux.CurrentRoute(r); route != nil {
-				if template, err := route.GetPathTemplate(); err == nil {
-					capture.template = template
+// Must be registered via gorilla/mux Router.Use() so that it runs inside the routing context
+// where mux.CurrentRoute returns the matched route.
+func CaptureRouteTemplateMiddlewareWithPrefix(prefix string) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
+				if route := mux.CurrentRoute(r); route != nil {
+					if template, err := route.GetPathTemplate(); err == nil {
+						capture.template = prefix + template
+					}
 				}
 			}
-		}
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
+
+// When the router is mounted under http.StripPrefix, use CaptureRouteTemplateMiddlewareWithPrefix
+// instead to preserve the full path in the metric tag.
+var CaptureRouteTemplateMiddleware mux.MiddlewareFunc = CaptureRouteTemplateMiddlewareWithPrefix("")
 
 // extractStatusCodeHandler is a middleware which extracts the status code from the response,
 // and stores it in the provided pointer.
