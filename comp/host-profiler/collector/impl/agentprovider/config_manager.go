@@ -11,7 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/go-viper/mapstructure/v2"
 )
+
+// hostProfilerConfig holds host-profiler settings extracted from the Agent config.
+type hostProfilerConfig struct {
+	Debug confMap `mapstructure:"debug"`
+}
 
 type endpoint struct {
 	site    string
@@ -22,6 +28,7 @@ type configManager struct {
 	endpointsTotalLength int
 	endpoints            []endpoint
 	config               config.Component
+	hostProfilerConfig   hostProfilerConfig
 }
 
 func newConfigManager(config config.Component) configManager {
@@ -77,5 +84,17 @@ func newConfigManager(config config.Component) configManager {
 		log.Warnf("No API key registered for main site %s", usedSite)
 	}
 
-	return configManager{config: config, endpoints: endpoints, endpointsTotalLength: endpointsTotalLength}
+	var hostProfilerConfig hostProfilerConfig
+	if raw := config.GetStringMap("hostprofiler"); len(raw) > 0 {
+		if err := mapstructure.Decode(raw, &hostProfilerConfig); err != nil {
+			log.Warnf("Failed to decode host_profiler config: %v", err)
+		}
+	}
+
+	return configManager{
+		config:               config,
+		endpoints:            endpoints,
+		endpointsTotalLength: endpointsTotalLength,
+		hostProfilerConfig:   hostProfilerConfig,
+	}
 }
