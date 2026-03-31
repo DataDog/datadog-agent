@@ -65,6 +65,10 @@
         "enabled": false
       },
       {
+        "matchManagers": ["pyenv"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["maven"],
         "matchUpdateTypes": ["major", "minor"],
         "enabled": false
@@ -75,8 +79,18 @@
         "enabled": false
       },
       {
-        "matchManagers": ["gomod", "dockerfile", "docker-compose"],
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["go"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["dockerfile", "docker-compose"],
         "matchDepNames": ["golang"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepTypes": ["git_override"],
         "enabled": false
       }
     ],
