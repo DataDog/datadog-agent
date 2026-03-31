@@ -7,9 +7,18 @@
 
 package flags
 
-const (
-	// DefaultConfPath points to the location of datadog.yaml
-	DefaultConfPath = "/opt/datadog-agent/etc/datadog.yaml"
-	// DefaultSysProbeConfPath is set to empty since system-probe is not yet supported on darwin
-	DefaultSysProbeConfPath = ""
+import (
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
+
+// DefaultConfPath returns the default location of datadog.yaml
+func DefaultConfPath() string {
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
+}
+
+// DefaultSysProbeConfPath returns empty since system-probe is not yet supported on darwin
+func DefaultSysProbeConfPath() string {
+	return ""
+}

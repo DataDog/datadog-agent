@@ -10,20 +10,15 @@ package flags
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
-var (
-	// DefaultConfPath points to the location of datadog.yaml
-	DefaultConfPath = "c:\\programdata\\datadog\\datadog.yaml"
-	// DefaultSysProbeConfPath points to the location of system-probe.yaml
-	DefaultSysProbeConfPath = "c:\\programdata\\datadog\\system-probe.yaml"
-)
+// DefaultConfPath returns the default location of datadog.yaml
+func DefaultConfPath() string {
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
+}
 
-func init() {
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		DefaultConfPath = filepath.Join(pd, "datadog.yaml")
-		DefaultSysProbeConfPath = filepath.Join(pd, "system-probe.yaml")
-	}
+// DefaultSysProbeConfPath returns the default location of system-probe.yaml
+func DefaultSysProbeConfPath() string {
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 }

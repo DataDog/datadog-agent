@@ -59,7 +59,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 		syslogURI := pkglogsetup.GetSyslogURI(config)
 		jmxLogFile := config.GetString("jmx_log_file")
 		if jmxLogFile == "" {
-			jmxLogFile = defaultpaths.JmxLogFile
+			jmxLogFile = defaultpaths.GetDefaultJmxLogFile()
 		}
 
 		if config.GetBool("disable_file_logging") {

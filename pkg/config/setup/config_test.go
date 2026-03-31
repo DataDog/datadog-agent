@@ -22,6 +22,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -1091,7 +1092,7 @@ func TestLogDefaults(t *testing.T) {
 	testConfig := newTestConf(t)
 	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", testConfig.GetString("log_file_max_size"))
-	require.Equal(t, "", testConfig.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetDefaultLogFile(), testConfig.GetString("log_file"))
 	require.Equal(t, "info", testConfig.GetString("log_level"))
 	require.True(t, testConfig.GetBool("log_to_console"))
 	require.False(t, testConfig.GetBool("log_format_json"))
@@ -1103,7 +1104,7 @@ func TestLogDefaults(t *testing.T) {
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", SystemProbe.GetString("log_file_max_size"))
-	require.Equal(t, defaultSystemProbeLogFilePath, SystemProbe.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetDefaultSystemProbeLogFile(), SystemProbe.GetString("log_file"))
 	require.Equal(t, "info", SystemProbe.GetString("log_level"))
 	require.True(t, SystemProbe.GetBool("log_to_console"))
 	require.False(t, SystemProbe.GetBool("log_format_json"))

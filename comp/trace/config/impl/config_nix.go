@@ -11,12 +11,15 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // team: agent-apm
 
-// DefaultLogFilePath is where the agent will write logs if not overridden in the conf
-const DefaultLogFilePath = "/var/log/datadog/trace-agent.log"
+// DefaultLogFilePath returns the default path where the agent will write logs
+func DefaultLogFilePath() string {
+	return defaultpaths.GetDefaultTraceAgentLogFile()
+}
 
 // defaultDDAgentBin specifies the default path to the main agent binary.
 var defaultDDAgentBin = filepath.Join(setup.InstallPath, "bin/agent/agent")

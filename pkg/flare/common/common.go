@@ -60,8 +60,8 @@ func GetConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 	}
 }
 
-// GetLogFiles copies log files to the flare archive.
-func GetLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
+// GetDefaultLogFiles copies log files to the flare archive.
+func GetDefaultLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	log.Flush()
 
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFileDir), "logs", func(path string) bool { //nolint:errcheck
