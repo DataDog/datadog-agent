@@ -95,4 +95,4 @@
     - dda inv -- -e rtloader.install
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e install-tools
+    - dda inv -- -e install-tools --verbose

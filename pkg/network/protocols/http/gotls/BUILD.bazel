@@ -10,4 +10,5 @@ exports_files([
 cgo_godefs(
     name = "go_tls_types_godefs",
     src = "go_tls_types.go",
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )

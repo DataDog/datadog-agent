@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
-// assertFilesExist verifies that all files in filenames exist in the flare archive
-func assertFilesExist(t *testing.T, flare flare.Flare, filenames []string) {
+// AssertFilesExist verifies that all files in filenames exist in the flare archive
+func AssertFilesExist(t *testing.T, flare flare.Flare, filenames []string) {
 	t.Helper()
 
 	verifyAssertionsOnFilesList(t, flare, filenames, fileExists)
@@ -30,8 +31,8 @@ func fileExists(t *testing.T, flare flare.Flare, filename string) {
 	}
 }
 
-// assertFoldersExist verifies that all files in filenames exist in the flare archive and are folders
-func assertFoldersExist(t *testing.T, flare flare.Flare, filenames []string) {
+// AssertFoldersExist verifies that all files in filenames exist in the flare archive and are folders
+func AssertFoldersExist(t *testing.T, flare flare.Flare, filenames []string) {
 	t.Helper()
 
 	verifyAssertionsOnFilesList(t, flare, filenames, folderExists)
@@ -47,8 +48,8 @@ func folderExists(t *testing.T, flare flare.Flare, filename string) {
 	}
 }
 
-// assertLogsFolderOnlyContainsLogFile verifies that all files in "logs" folder are logs file (filename containing ".log") or folders
-func assertLogsFolderOnlyContainsLogFile(t *testing.T, flare flare.Flare) {
+// AssertLogsFolderOnlyContainsLogFile verifies that all files in "logs" folder are logs file (filename containing ".log") or folders
+func AssertLogsFolderOnlyContainsLogFile(t *testing.T, flare flare.Flare) {
 	t.Helper()
 
 	// Get all files in "logs/" folder
@@ -64,8 +65,8 @@ func assertIsLogFileOrFolder(t *testing.T, flare flare.Flare, filename string) {
 	assert.True(t, isLogFileOrFolder, "'%v' is in logs/ folder but is not a log file (does not contains .log, and is not a folder)", filename)
 }
 
-// assertLogsFolderOnlyContainsLogFile verifies that all files in "etc" folder are configuration file (filename containing ".yaml" / ".yml") or folders
-func assertEtcFolderOnlyContainsConfigFile(t *testing.T, flare flare.Flare) {
+// AssertEtcFolderOnlyContainsConfigFile verifies that all files in "etc" folder are configuration file (filename containing ".yaml" / ".yml") or folders
+func AssertEtcFolderOnlyContainsConfigFile(t *testing.T, flare flare.Flare) {
 	t.Helper()
 
 	// Get all files in "etc/" folder
@@ -83,8 +84,8 @@ func assertIsConfigFileOrFolder(t *testing.T, flare flare.Flare, filename string
 	assert.True(t, isConfigFileOrFolder, "'%v' is in etc/ folder but is not a configuration file (does not contains .yml or .yaml, and is not a folder)", filename)
 }
 
-// assertEventlogFolderOnlyContainsWindoesEventLog verifies that all files in "eventlog" (windows) folder are Windows Event log file (name ends with .evtx) or folders
-func assertEventlogFolderOnlyContainsWindoesEventLog(t *testing.T, flare flare.Flare) {
+// AssertEventlogFolderOnlyContainsWindowsEventLog verifies that all files in "eventlog" (windows) folder are Windows Event log file (name ends with .evtx) or folders
+func AssertEventlogFolderOnlyContainsWindowsEventLog(t *testing.T, flare flare.Flare) {
 	t.Helper()
 
 	// Get all files in "eventlog/" folder
@@ -100,7 +101,7 @@ func assertIsWindowsEventLogOrFolder(t *testing.T, flare flare.Flare, filename s
 	assert.True(t, isWindowsEventLogFolder, "'%v' is in eventlog/ folder but is not a Windows Event Log file (extension is not .evtx, and is not a folder)", filename)
 }
 
-// verifyAssetionsOnFilesList runs an assertion function on all files in filenames
+// verifyAssertionsOnFilesList runs an assertion function on all files in filenames
 func verifyAssertionsOnFilesList(t *testing.T, flare flare.Flare, filenames []string, assertFn func(*testing.T, flare.Flare, string)) {
 	t.Helper()
 
@@ -131,8 +132,8 @@ func isDir(flare flare.Flare, filename string) bool {
 	return fileInfo.IsDir()
 }
 
-// assertFileContains verifies that `filename` contains every string in `expectedContents`
-func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
+// AssertFileContains verifies that `filename` contains every string in `expectedContents`
+func AssertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
 	t.Helper()
 
 	fileContent, err := flare.GetFileContent(filename)
@@ -143,8 +144,8 @@ func assertFileContains(t *testing.T, flare flare.Flare, filename string, expect
 	}
 }
 
-// assertFileNotContains verifies that `filename` does not contain any string in `expectedContents`
-func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
+// AssertFileNotContains verifies that `filename` does not contain any string in `expectedContents`
+func AssertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
 	t.Helper()
 
 	fileContent, err := flare.GetFileContent(filename)
