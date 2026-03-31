@@ -171,14 +171,18 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		logUnixSec = time.Now().Unix()
 	}
 	gc := e.maybeGarbageCollect(logUnixSec)
+	telemetry := []observerdef.ObserverTelemetry{}
 	result := observerdef.LogMetricsExtractorOutput{
 		EvictedContextKeys: gc.contextKeys,
 		EvictedMetricNames: gc.metricNames,
 	}
+	if len(gc.metricNames) > 0 {
+		// We count active patterns so we remove them
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(gc.metricNames)), logUnixSec))
+	}
 	if !logSeverityIsWarnPlus(log) {
 		return result
 	}
-	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
 	cluster, ok := e.PatternClusterer.Process(message, logUnixSec)
 	if !ok {

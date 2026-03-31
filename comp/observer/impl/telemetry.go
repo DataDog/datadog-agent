@@ -14,6 +14,7 @@ import (
 const (
 	// Observer
 	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
+	telemetryDetectorEvictedCount     = "observer.detector.evicted_count"
 	// Only in testbench
 	telemetryTbInputMetricsCount       = "observer.input_metrics.count"
 	telemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
@@ -60,6 +61,12 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 	)
 
 	// Counters
+	counters[telemetryDetectorEvictedCount] = telemetryComp.NewCounter(
+		"observer",
+		telemetryDetectorEvictedCount,
+		[]string{"detector"},
+		"Number of evicted items (time series) by detectors",
+	)
 	counters[telemetryTbInputMetricsCount] = telemetryComp.NewCounter(
 		"observer",
 		telemetryTbInputMetricsCount,
@@ -82,7 +89,7 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		"observer",
 		telemetryLogPatternExtractorPatternCount,
 		[]string{"detector"},
-		"Log pattern extractor new clusters added per processed log",
+		"Log pattern extractor number of patterns (clusters) that are active (not garbage collected)",
 	)
 
 	return &telemetryHandler{
