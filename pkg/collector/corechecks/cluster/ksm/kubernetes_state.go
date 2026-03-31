@@ -431,6 +431,10 @@ func (k *KSMCheck) buildStores() error {
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel existing store to avoid memory leaks.
+	if k.cancel != nil {
+		k.cancel()
+	}
 	k.cancel = cancel
 	builder.WithContext(ctx)
 
