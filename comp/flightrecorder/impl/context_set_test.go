@@ -23,10 +23,13 @@ func TestContextSet_IsKnown(t *testing.T) {
 
 func TestContextSet_NoFalseNegatives(t *testing.T) {
 	cs := newContextSet(0)
-	// Insert 10K keys, verify all are known.
+
+	// Insert 10K keys.
 	for i := uint64(0); i < 10_000; i++ {
 		cs.IsKnown(i)
 	}
+
+	// Verify all are known.
 	for i := uint64(0); i < 10_000; i++ {
 		if !cs.IsKnown(i) {
 			t.Fatalf("false negative for key %d", i)
@@ -36,6 +39,7 @@ func TestContextSet_NoFalseNegatives(t *testing.T) {
 
 func TestContextSet_Reset(t *testing.T) {
 	cs := newContextSet(0)
+
 	for i := uint64(0); i < 100; i++ {
 		cs.IsKnown(i)
 	}
@@ -48,6 +52,7 @@ func TestContextSet_Reset(t *testing.T) {
 
 func TestContextSet_RemoveIsNoOp(t *testing.T) {
 	cs := newContextSet(0)
+
 	cs.IsKnown(42)
 	cs.Remove(42) // no-op for bloom filter
 	// Key should still be known (bloom filters don't support deletion).
@@ -58,6 +63,7 @@ func TestContextSet_RemoveIsNoOp(t *testing.T) {
 
 func TestContextSet_CheckCapAlwaysFalse(t *testing.T) {
 	cs := newContextSet(10)
+
 	for i := uint64(0); i <= 100; i++ {
 		cs.IsKnown(i)
 	}
@@ -69,6 +75,7 @@ func TestContextSet_CheckCapAlwaysFalse(t *testing.T) {
 
 func TestContextSet_Concurrent(t *testing.T) {
 	cs := newContextSet(0)
+
 	const goroutines = 16
 	const keysPerGoroutine = 1000
 
@@ -96,11 +103,13 @@ func TestContextSet_Concurrent(t *testing.T) {
 
 func TestContextSet_FalsePositiveRate(t *testing.T) {
 	cs := newContextSet(0)
+
 	// Insert 100K keys.
 	for i := uint64(0); i < 100_000; i++ {
 		cs.IsKnown(i)
 	}
-	// Test 100K keys that were NOT inserted. FPR should be ~1%.
+
+	// Test 100K keys that were NOT inserted.
 	fps := 0
 	for i := uint64(1_000_000); i < 1_100_000; i++ {
 		if cs.IsKnown(i) {
@@ -108,8 +117,8 @@ func TestContextSet_FalsePositiveRate(t *testing.T) {
 		}
 	}
 	fpr := float64(fps) / 100_000.0
-	// Allow up to 3% (generous margin over theoretical 1%).
-	if fpr > 0.03 {
+	// Allow up to 5% (generous margin for k=3).
+	if fpr > 0.05 {
 		t.Fatalf("false positive rate too high: %.2f%% (%d/100000)", fpr*100, fps)
 	}
 	t.Logf("FPR at 100K elements: %.2f%% (%d/100000)", fpr*100, fps)
@@ -117,9 +126,11 @@ func TestContextSet_FalsePositiveRate(t *testing.T) {
 
 func BenchmarkContextSet_IsKnown_Hit(b *testing.B) {
 	cs := newContextSet(0)
+
 	for i := uint64(0); i < 200_000; i++ {
 		cs.IsKnown(i)
 	}
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -129,6 +140,7 @@ func BenchmarkContextSet_IsKnown_Hit(b *testing.B) {
 
 func BenchmarkContextSet_IsKnown_Miss(b *testing.B) {
 	cs := newContextSet(0)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

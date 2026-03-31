@@ -83,7 +83,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
 	if hookBufSize <= 0 {
-		hookBufSize = 4096
+		hookBufSize = 512
 	}
 	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
 	if contextCap <= 0 {
