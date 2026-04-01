@@ -386,13 +386,13 @@ func (r *MetricDataReader) NextPoint() error {
 		r.sketchBinsIdx += r.SketchNumBins()
 		switch r.ValueType() {
 		case pb.ValueType_Float64:
-			r.valsFloat64Idx += 4
+			r.valsFloat64Idx += 3
 			r.valsSint64Idx++
 		case pb.ValueType_Float32:
-			r.valsFloat32Idx += 4
+			r.valsFloat32Idx += 3
 			r.valsSint64Idx++
 		case pb.ValueType_Sint64:
-			r.valsSint64Idx += 5
+			r.valsSint64Idx += 4
 		case pb.ValueType_Zero:
 			r.valsSint64Idx++
 		}
@@ -455,7 +455,7 @@ func (r *MetricDataReader) Value() float64 {
 // SketchSummary returns sketch summary for current metric data point.
 //
 // Only valid if r.Type() == MetricType_Sketch, panics otherwise.
-func (r *MetricDataReader) SketchSummary() (sum, avg, min, max float64, cnt uint64) {
+func (r *MetricDataReader) SketchSummary() (sum, min, max float64, cnt uint64) {
 	if r.Type() != pb.MetricType_Sketch {
 		panic("invalid type")
 	}
@@ -465,19 +465,16 @@ func (r *MetricDataReader) SketchSummary() (sum, avg, min, max float64, cnt uint
 	switch r.ValueType() {
 	case pb.ValueType_Zero:
 	case pb.ValueType_Sint64:
-		sum = float64(r.data.ValsSint64[r.valsSint64Idx-5])
-		avg = float64(r.data.ValsSint64[r.valsSint64Idx-4])
+		sum = float64(r.data.ValsSint64[r.valsSint64Idx-4])
 		min = float64(r.data.ValsSint64[r.valsSint64Idx-3])
 		max = float64(r.data.ValsSint64[r.valsSint64Idx-2])
 		// -1 is cnt
 	case pb.ValueType_Float32:
-		sum = float64(r.data.ValsFloat32[r.valsFloat32Idx-4])
-		avg = float64(r.data.ValsFloat32[r.valsFloat32Idx-3])
+		sum = float64(r.data.ValsFloat32[r.valsFloat32Idx-3])
 		min = float64(r.data.ValsFloat32[r.valsFloat32Idx-2])
 		max = float64(r.data.ValsFloat32[r.valsFloat32Idx-1])
 	case pb.ValueType_Float64:
-		sum = r.data.ValsFloat64[r.valsFloat64Idx-4]
-		avg = r.data.ValsFloat64[r.valsFloat64Idx-3]
+		sum = r.data.ValsFloat64[r.valsFloat64Idx-3]
 		min = r.data.ValsFloat64[r.valsFloat64Idx-2]
 		max = r.data.ValsFloat64[r.valsFloat64Idx-1]
 	}

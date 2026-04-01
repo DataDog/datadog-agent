@@ -31,7 +31,7 @@ func TestSketchIterator(t *testing.T) {
 			SourceTypeNameRefs: []int64{0, 0},
 			OriginInfoRefs:     []int64{0, 0},
 			Timestamps:         []int64{1000, 1000, 1000},
-			ValsSint64:         []int64{4, 2, 1, 3, 2, 6, 2, 2, 4, 3, 5},
+			ValsSint64:         []int64{4, 1, 3, 2, 6, 2, 4, 3, 5},
 			SketchNumBins:      []uint64{2, 1, 0},
 			SketchBinKeys:      []int32{0, 2, 1},
 			SketchBinCnts:      []uint32{1, 1, 3},
