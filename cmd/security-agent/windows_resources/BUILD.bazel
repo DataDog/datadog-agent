@@ -1,0 +1,11 @@
+load("//bazel/rules:windows_resources.bzl", "win_resource")
+
+win_resource(
+    name = "rsrc",
+    src = "security-agent.rc",
+    visibility = ["//cmd/security-agent:__subpackages__"],
+    deps = [
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)

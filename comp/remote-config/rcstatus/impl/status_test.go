@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package rcstatusimpl
 
 import (
@@ -10,17 +12,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestStatusOuput(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-	))
-
-	provides := newStatus(deps)
+	provides := NewStatus(Requires{
+		Config: config.NewMock(t),
+	})
 
 	statusProvider := provides.StatusProvider.Provider
 
