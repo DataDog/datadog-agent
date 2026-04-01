@@ -8,13 +8,11 @@
 package logondurationimpl
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -23,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -92,9 +89,9 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(tl)
 
-		assert.InDelta(t, 0.0, milestones[0].OffsetS, 0.001)
-		assert.InDelta(t, 2.0, milestones[1].OffsetS, 0.001)
-		assert.InDelta(t, 90.0, milestones[2].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[0].OffsetMs, 0.001)
+		assert.InDelta(t, 2000.0, milestones[1].OffsetMs, 0.001)
+		assert.InDelta(t, 90000.0, milestones[2].OffsetMs, 0.001)
 	})
 
 	t.Run("formats timestamps correctly", func(t *testing.T) {
@@ -125,8 +122,8 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(tl)
 
 		require.Len(t, milestones, 2)
-		assert.InDelta(t, 0.0, milestones[0].OffsetS, 0.001)
-		assert.InDelta(t, 0.0, milestones[1].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[0].OffsetMs, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].OffsetMs, 0.001)
 		assert.NotEmpty(t, milestones[0].Timestamp)
 		assert.NotEmpty(t, milestones[1].Timestamp)
 	})
@@ -139,33 +136,33 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		require.Len(t, milestones, 20)
 
 		expected := []struct {
-			name    string
-			offsetS float64
+			name     string
+			offsetMs float64
 		}{
 			{"Boot Start", 0},
-			{"SMSS Start", 1},
-			{"User Session SMSS Start", 5},
-			{"Winlogon Start", 3},
-			{"Winlogon Init", 4},
-			{"Login UI Start", 8},
-			{"Computer Group Policy", 12},
-			{"User Group Policy", 32},
-			{"User Session Winlogon Start", 25},
-			{"User Logon", 30},
-			{"Profile Loaded", 31},
-			{"Profile Created", 33},
-			{"Execute Shell Commands", 40},
-			{"Userinit.exe", 42},
-			{"Explorer.exe Start", 50},
-			{"Explorer Initializing", 51},
-			{"Desktop Created", 53},
-			{"Desktop Visible", 55},
-			{"Desktop Startup Apps", 58},
-			{"Desktop Ready", 59},
+			{"SMSS Start", 1000},
+			{"User Session SMSS Start", 5000},
+			{"Winlogon Start", 3000},
+			{"Winlogon Init", 4000},
+			{"Login UI Start", 8000},
+			{"Computer Group Policy", 12000},
+			{"User Group Policy", 32000},
+			{"User Session Winlogon Start", 25000},
+			{"User Logon", 30000},
+			{"Profile Loaded", 31000},
+			{"Profile Created", 33000},
+			{"Execute Shell Commands", 40000},
+			{"Userinit.exe", 42000},
+			{"Explorer.exe Start", 50000},
+			{"Explorer Initializing", 51000},
+			{"Desktop Created", 53000},
+			{"Desktop Visible", 55000},
+			{"Desktop Startup Apps", 58000},
+			{"Desktop Ready", 59000},
 		}
 		for i, exp := range expected {
 			assert.Equal(t, exp.name, milestones[i].Name, "milestone %d name", i)
-			assert.InDelta(t, exp.offsetS, milestones[i].OffsetS, 0.001, "milestone %d offset", i)
+			assert.InDelta(t, exp.offsetMs, milestones[i].OffsetMs, 0.001, "milestone %d offset", i)
 		}
 	})
 }
@@ -340,6 +337,7 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 	result := &AnalysisResult{
 		Timeline: BootTimeline{
 			BootStart:           boot,
+			LoginUIStart:        boot.Add(10 * time.Second),
 			LogonStart:          boot.Add(30 * time.Second),
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		},
@@ -358,7 +356,7 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
-	assert.Equal(t, "Windows logon took 60000 ms", attrs["message"])
+	assert.Equal(t, "Total boot duration took 70000 ms.", attrs["message"])
 }
 
 func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
@@ -388,250 +386,6 @@ func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
 
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
-	assert.Equal(t, "Windows logon duration analysis after reboot", attrs["message"])
+	assert.Equal(t, "Total boot duration analysis after reboot", attrs["message"])
 }
 
-func TestSubmitMetrics_AllPhases(t *testing.T) {
-	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	mockSender := mocksender.NewMockSender("test")
-
-	comp := &logonDurationComponent{
-		hostname: hostnameComp,
-		sender:   mockSender,
-	}
-
-	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-	result := &AnalysisResult{
-		Timeline: fullBootTimeline(boot),
-	}
-
-	hostname := hostnameComp.GetSafe(context.TODO())
-
-	// Total: boot (8000) + logon (25000) = 33000
-	mockSender.On("Distribution", "eudm.boot_duration", float64(33000), hostname, []string{"phase:total"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:winlogon_init"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:computer_group_policy"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(6000), hostname, []string{"phase:user_group_policy"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(5000), hostname, []string{"phase:user_logon"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:profile_load"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:profile_create"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(5000), hostname, []string{"phase:execute_shell_commands"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:userinit"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:explorer_initializing"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(3000), hostname, []string{"phase:desktop_created"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(4000), hostname, []string{"phase:desktop_startup_apps"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(6000), hostname, []string{"phase:desktop_ready"}).Return()
-	mockSender.On("Commit").Return()
-
-	comp.submitMetrics(result)
-
-	mockSender.AssertExpectations(t)
-}
-
-func TestSubmitMetrics_TotalRequiresAllFourTimestamps(t *testing.T) {
-	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-
-	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-
-	t.Run("missing LoginUIStart omits total", func(t *testing.T) {
-		mockSender := mocksender.NewMockSender("test")
-		comp := &logonDurationComponent{
-			hostname: hostnameComp,
-			sender:   mockSender,
-		}
-
-		result := &AnalysisResult{
-			Timeline: BootTimeline{
-				BootStart:           boot,
-				LogonStart:          boot.Add(30 * time.Second),
-				DesktopVisibleStart: boot.Add(55 * time.Second),
-				DesktopVisibleEnd:   boot.Add(57 * time.Second),
-			},
-		}
-
-		hostname := hostnameComp.GetSafe(context.TODO())
-
-		mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
-		mockSender.On("Commit").Return()
-
-		comp.submitMetrics(result)
-
-		mockSender.AssertExpectations(t)
-		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
-	})
-
-	t.Run("missing DesktopVisibleStart omits total", func(t *testing.T) {
-		mockSender := mocksender.NewMockSender("test")
-		comp := &logonDurationComponent{
-			hostname: hostnameComp,
-			sender:   mockSender,
-		}
-
-		result := &AnalysisResult{
-			Timeline: BootTimeline{
-				BootStart:    boot,
-				LoginUIStart: boot.Add(8 * time.Second),
-				LoginUIDone:  boot.Add(10 * time.Second),
-				LogonStart:   boot.Add(30 * time.Second),
-				LogonStop:    boot.Add(35 * time.Second),
-			},
-		}
-
-		hostname := hostnameComp.GetSafe(context.TODO())
-
-		mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(5000), hostname, []string{"phase:user_logon"}).Return()
-		mockSender.On("Commit").Return()
-
-		comp.submitMetrics(result)
-
-		mockSender.AssertExpectations(t)
-		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
-	})
-
-	t.Run("missing LogonStart omits total", func(t *testing.T) {
-		mockSender := mocksender.NewMockSender("test")
-		comp := &logonDurationComponent{
-			hostname: hostnameComp,
-			sender:   mockSender,
-		}
-
-		result := &AnalysisResult{
-			Timeline: BootTimeline{
-				BootStart:           boot,
-				LoginUIStart:        boot.Add(8 * time.Second),
-				LoginUIDone:         boot.Add(10 * time.Second),
-				DesktopVisibleStart: boot.Add(55 * time.Second),
-				DesktopVisibleEnd:   boot.Add(57 * time.Second),
-			},
-		}
-
-		hostname := hostnameComp.GetSafe(context.TODO())
-
-		mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
-		mockSender.On("Commit").Return()
-
-		comp.submitMetrics(result)
-
-		mockSender.AssertExpectations(t)
-		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
-	})
-
-	t.Run("missing BootStart omits total", func(t *testing.T) {
-		mockSender := mocksender.NewMockSender("test")
-		comp := &logonDurationComponent{
-			hostname: hostnameComp,
-			sender:   mockSender,
-		}
-
-		result := &AnalysisResult{
-			Timeline: BootTimeline{
-				LoginUIStart:        boot.Add(8 * time.Second),
-				LoginUIDone:         boot.Add(10 * time.Second),
-				LogonStart:          boot.Add(30 * time.Second),
-				DesktopVisibleStart: boot.Add(55 * time.Second),
-				DesktopVisibleEnd:   boot.Add(57 * time.Second),
-			},
-		}
-
-		hostname := hostnameComp.GetSafe(context.TODO())
-
-		mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:login_ui"}).Return()
-		mockSender.On("Distribution", "eudm.boot_duration", float64(2000), hostname, []string{"phase:desktop_visible"}).Return()
-		mockSender.On("Commit").Return()
-
-		comp.submitMetrics(result)
-
-		mockSender.AssertExpectations(t)
-		mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:total"})
-	})
-}
-
-func TestSubmitMetrics_SkipsPhaseWithZeroStartOrEnd(t *testing.T) {
-	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	mockSender := mocksender.NewMockSender("test")
-
-	comp := &logonDurationComponent{
-		hostname: hostnameComp,
-		sender:   mockSender,
-	}
-
-	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-	result := &AnalysisResult{
-		Timeline: BootTimeline{
-			BootStart:    boot,
-			LoginUIStart: boot.Add(8 * time.Second),
-			WinlogonInit: boot.Add(4 * time.Second),
-			// WinlogonInitDone is zero → winlogon_init phase skipped
-			LogonStart:          boot.Add(30 * time.Second),
-			DesktopVisibleStart: boot.Add(55 * time.Second),
-			// MachineGPStart set but MachineGPEnd zero → computer_group_policy skipped
-			MachineGPStart: boot.Add(12 * time.Second),
-		},
-	}
-
-	hostname := hostnameComp.GetSafe(context.TODO())
-
-	mockSender.On("Distribution", "eudm.boot_duration", float64(33000), hostname, []string{"phase:total"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(8000), hostname, []string{"phase:boot"}).Return()
-	mockSender.On("Distribution", "eudm.boot_duration", float64(25000), hostname, []string{"phase:logon"}).Return()
-	mockSender.On("Commit").Return()
-
-	comp.submitMetrics(result)
-
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:winlogon_init"})
-	mockSender.AssertNotCalled(t, "Distribution", "eudm.boot_duration", mock.Anything, hostname, []string{"phase:computer_group_policy"})
-}
-
-func TestSubmitMetrics_AllZeroDurations(t *testing.T) {
-	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	mockSender := mocksender.NewMockSender("test")
-
-	comp := &logonDurationComponent{
-		hostname: hostnameComp,
-		sender:   mockSender,
-	}
-
-	result := &AnalysisResult{
-		Timeline: BootTimeline{},
-	}
-
-	mockSender.On("Commit").Return()
-
-	comp.submitMetrics(result)
-
-	mockSender.AssertExpectations(t)
-	mockSender.AssertNotCalled(t, "Distribution", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestSubmitMetrics_NilSender(t *testing.T) {
-	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-
-	comp := &logonDurationComponent{
-		hostname: hostnameComp,
-		sender:   nil,
-	}
-
-	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-	result := &AnalysisResult{
-		Timeline: BootTimeline{
-			BootStart:           boot,
-			LoginUIStart:        boot.Add(8 * time.Second),
-			LogonStart:          boot.Add(30 * time.Second),
-			DesktopVisibleStart: boot.Add(55 * time.Second),
-		},
-	}
-
-	// Should not panic with nil sender
-	comp.submitMetrics(result)
-}

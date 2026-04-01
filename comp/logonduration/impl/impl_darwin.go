@@ -17,14 +17,12 @@ import (
 
 	"github.com/shirou/gopsutil/v4/host"
 
-	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -40,7 +38,6 @@ type Requires struct {
 	Log            logcomp.Component
 	EventPlatform  eventplatform.Component
 	Hostname       hostname.Component
-	Demultiplexer  demultiplexer.Component
 }
 
 // sysProbeClient is an interface for system probe used for dependency injection and testing.
@@ -91,7 +88,6 @@ type logonDurationComponent struct {
 	sysProbeClient         sysProbeClient
 	wg                     sync.WaitGroup
 	ctxCancel              context.CancelFunc
-	sender                 sender.Sender
 }
 
 // NewComponent creates a new logon duration component for macOS
@@ -118,21 +114,12 @@ func newWithClient(reqs Requires, client sysProbeClient) Provides {
 		}
 	}
 
-	sender, err := reqs.Demultiplexer.GetDefaultSender()
-	if err != nil {
-		log.Error("Logon duration: failed to get default sender")
-		return Provides{
-			Comp: &logonDurationComponent{},
-		}
-	}
-
 	comp := &logonDurationComponent{
 		config:                 reqs.Config,
 		sysprobeConfig:         reqs.SysprobeConfig,
 		hostname:               reqs.Hostname,
 		eventPlatformForwarder: forwarder,
 		sysProbeClient:         client,
-		sender:                 sender,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -217,8 +204,6 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 		log.Warnf("Logon duration: failed to update persistent cache: %v", err)
 	}
 
-	c.submitMetrics(bootTime, loginTimestamps)
-
 	log.Info("Logon duration: boot analysis complete")
 }
 
@@ -244,14 +229,6 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// safeDurationSeconds returns a.Sub(b).Seconds() if both are non-zero, otherwise 0.
-func safeDurationSeconds(a, b time.Time) float64 {
-	if a.IsZero() || b.IsZero() {
-		return 0
-	}
-	return a.Sub(b).Seconds()
-}
-
 // safeDurationMs returns a.Sub(b).Milliseconds() if both are non-zero, otherwise 0.
 func safeDurationMs(a, b time.Time) int64 {
 	if a.IsZero() || b.IsZero() {
@@ -272,28 +249,28 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 
 	milestones := []Milestone{
 		{
-			Name:      "Boot Start",
-			OffsetS:   0,
-			DurationS: safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			Timestamp: bootTime.UTC().Format(tsFmt),
+			Name:       "Boot Start",
+			OffsetMs:   0,
+			DurationMs: float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
+			Timestamp:  bootTime.UTC().Format(tsFmt),
 		},
 		{
-			Name:      "Login Window Ready",
-			OffsetS:   safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			DurationS: 0,
-			Timestamp: formatTS(ts.LoginWindowTime),
+			Name:       "Login Window Ready",
+			OffsetMs:   float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
+			DurationMs: 0,
+			Timestamp:  formatTS(ts.LoginWindowTime),
 		},
 		{
-			Name:      "User Login",
-			OffsetS:   safeDurationSeconds(ts.LoginTime, bootTime),
-			DurationS: safeDurationSeconds(ts.DesktopReadyTime, ts.LoginTime),
-			Timestamp: formatTS(ts.LoginTime),
+			Name:       "User Login",
+			OffsetMs:   float64(safeDurationMs(ts.LoginTime, bootTime)),
+			DurationMs: float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)),
+			Timestamp:  formatTS(ts.LoginTime),
 		},
 		{
-			Name:      "Desktop Ready",
-			OffsetS:   safeDurationSeconds(ts.DesktopReadyTime, bootTime),
-			DurationS: 0,
-			Timestamp: formatTS(ts.DesktopReadyTime),
+			Name:       "Desktop Ready",
+			OffsetMs:   float64(safeDurationMs(ts.DesktopReadyTime, bootTime)),
+			DurationMs: 0,
+			Timestamp:  formatTS(ts.DesktopReadyTime),
 		},
 	}
 
@@ -324,10 +301,10 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
 	custom := buildCustomPayload(bootTime, ts)
 
-	msg := "macOS logon duration analysis after reboot"
+	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if logonMs, ok := durations["logon_duration_ms"]; ok {
-			msg = fmt.Sprintf("macOS logon took %d ms", logonMs)
+		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
+			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 		}
 	}
 
@@ -339,33 +316,3 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 	})
 }
 
-func (c *logonDurationComponent) submitMetrics(bootTime time.Time, ts logonduration.LoginTimestamps) {
-	if c.sender == nil {
-		return
-	}
-	hostname := c.hostname.GetSafe(context.TODO())
-
-	bootMs := float64(safeDurationMs(ts.LoginWindowTime, bootTime))
-	logonMs := float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime))
-	totalMs := bootMs + logonMs
-
-	var filevaultTag string
-
-	if !ts.FileVaultEnabled {
-		filevaultTag = "filevault:disabled"
-	} else {
-		filevaultTag = "filevault:enabled"
-	}
-
-	if totalMs > 0 {
-		c.sender.Distribution("eudm.boot_duration", totalMs, hostname, []string{"phase:total", filevaultTag})
-	}
-	if bootMs > 0 {
-		c.sender.Distribution("eudm.boot_duration", bootMs, hostname, []string{"phase:boot", filevaultTag})
-	}
-	if logonMs > 0 {
-		c.sender.Distribution("eudm.boot_duration", logonMs, hostname, []string{"phase:logon", filevaultTag})
-	}
-
-	c.sender.Commit()
-}

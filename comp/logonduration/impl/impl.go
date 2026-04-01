@@ -31,8 +31,8 @@ type Provides struct {
 type Milestone struct {
 	Id        string  `json:"id"`
 	Name      string  `json:"name"`
-	OffsetS   float64 `json:"offset_s"`
-	DurationS float64 `json:"duration_s"`
+	OffsetMs   float64 `json:"offset_ms"`
+	DurationMs float64 `json:"duration_ms"`
 	Timestamp string  `json:"timestamp"`
 }
 
@@ -56,7 +56,7 @@ func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 				"category":       "alert",
 				"integration_id": "system-notable-events",
 				"system-notable-events": map[string]interface{}{
-					"event_type": "Logon duration",
+					"event_type": "logon_duration",
 				},
 				"attributes": map[string]interface{}{
 					"status":   "ok",
