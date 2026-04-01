@@ -23,6 +23,12 @@ type (
 
 	podOwner objectKey // Direct pod owner, e.g. ReplicaSet
 	workload objectKey // Workload, e.g. Deployment
+
+	// podGroup combines a pod's direct owner with its top-level workload.
+	podGroup struct {
+		owner    podOwner
+		workload workload
+	}
 )
 
 func (o objectKey) String() string {
@@ -72,6 +78,32 @@ func resolveWLMPodOwner(pod *workloadmeta.KubernetesPod) (podOwner, bool) {
 	}
 
 	return podOwner{Kind: owner.Kind, Namespace: pod.Namespace, Name: owner.Name}, true
+}
+
+// resolveCoreV1PodGroup resolves both the direct owner and the top-level workload for a corev1.Pod.
+func resolveCoreV1PodGroup(pod *corev1.Pod) (podGroup, bool) {
+	owner, ok := resolveCoreV1PodOwner(pod)
+	if !ok {
+		return podGroup{}, false
+	}
+	w, ok := resolveOwnerWorkload(owner)
+	if !ok {
+		return podGroup{}, false
+	}
+	return podGroup{owner: owner, workload: w}, true
+}
+
+// resolveWLMPodGroup resolves both the direct owner and the top-level workload for a workloadmeta KubernetesPod.
+func resolveWLMPodGroup(pod *workloadmeta.KubernetesPod) (podGroup, bool) {
+	owner, ok := resolveWLMPodOwner(pod)
+	if !ok {
+		return podGroup{}, false
+	}
+	w, ok := resolveOwnerWorkload(owner)
+	if !ok {
+		return podGroup{}, false
+	}
+	return podGroup{owner: owner, workload: w}, true
 }
 
 // resolveOwnerWorkload maps a direct pod owner to its top-level workload.

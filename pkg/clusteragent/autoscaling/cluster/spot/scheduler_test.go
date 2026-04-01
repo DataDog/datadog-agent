@@ -195,7 +195,7 @@ func TestScenarios(t *testing.T) {
 
 		// Then
 		require.Eventually(t, func() bool {
-			return s.IsSpotSchedulingDisabledForOwner("default", kubernetes.ReplicaSetKind, rs)
+			return s.IsSpotSchedulingDisabled(kubernetes.DeploymentKind, d.namespace, d.name)
 		}, 1*time.Second, 50*time.Millisecond)
 
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
@@ -205,7 +205,7 @@ func TestScenarios(t *testing.T) {
 		// When
 		// ReplicaSet recreates pods
 		for range 6 {
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs))
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 		}
 
 		// Then
@@ -217,7 +217,7 @@ func TestScenarios(t *testing.T) {
 		// Advance past disabled interval to re-enable spot scheduling
 		clk.Step(s.Config().FallbackDuration + epsilon)
 		require.Eventually(t, func() bool {
-			return !s.IsSpotSchedulingDisabledForOwner("default", kubernetes.ReplicaSetKind, rs)
+			return !s.IsSpotSchedulingDisabled(kubernetes.DeploymentKind, d.namespace, d.name)
 		}, 1*time.Second, 50*time.Millisecond)
 
 		// Rebalancing
@@ -229,7 +229,7 @@ func TestScenarios(t *testing.T) {
 			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(10-1-i))
 
 			// ReplicaSet recreates pod
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs))
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 			// Important: wait for it to be Running before next step
 			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(i+1))
 		}
@@ -272,7 +272,7 @@ func TestScenarios(t *testing.T) {
 				cluster.DeletePod(pod)
 				deleted[pod.ID] = struct{}{}
 
-				cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs))
+				cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 			}
 
 			// Important: wait until deletion is complete before checking expectations to avoid counting deleted pods.
@@ -305,7 +305,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
 
 		// ReplicaSet recreates the evicted pod as spot
-		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs))
+		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 
 		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=2 satisfied)
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
@@ -335,7 +335,7 @@ func TestScenarios(t *testing.T) {
 			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(4-i))
 
 			// ReplicaSet recreates the evicted pod as on-demand (on-demand count still below minOnDemand)
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs))
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(i+1))
 		}
 
@@ -367,7 +367,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
 
 		// ReplicaSet recreates the evicted pod as on-demand
-		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs))
+		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 
 		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=1 satisfied)
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
@@ -412,6 +412,44 @@ func TestScenarios(t *testing.T) {
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", d.ReplicaSet(), expectRunningSpot(0))
 	})
 
+	t.Run("Opt-in to spot scheduling after initial deployment converges via rebalancing", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, clk := runTestScheduler(t.Context(), cluster)
+
+		const replicas = 10
+		const spotPercentage = 60
+		const expectedSpot = 6
+
+		// When: create deployment without spot label — all pods go on-demand
+		d := cluster.CreateDeployment("default", "nginx", nil, nil, replicas)
+		rs := d.ReplicaSet()
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(replicas))
+
+		// When: opt in to spot scheduling (no new pods created)
+		d.UpdateMetadata(spotEnabledLabels(), spotAnnotations(spotPercentage, 2))
+
+		// Wait for pod fetcher backfill: tracker must know all 10 pods before advancing the clock.
+		require.Eventually(t, func() bool {
+			total, _ := s.TrackedCounts(kubernetes.DeploymentKind, d.namespace, d.name)
+			return total == replicas
+		}, 1*time.Second, 10*time.Millisecond)
+
+		// Then: rebalancer evicts one on-demand pod per cycle; RS recreates it as spot.
+		for i := range expectedSpot {
+			clk.Step(s.Config().RebalanceStabilizationPeriod + epsilon)
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(replicas-1-i))
+			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
+			cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(i+1))
+		}
+
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(expectedSpot))
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(replicas-expectedSpot))
+	})
+
 	t.Run("Pods not eligible for spot are not tracked", func(t *testing.T) {
 		// Given
 		cluster := newFakeCluster(t)
@@ -426,7 +464,7 @@ func TestScenarios(t *testing.T) {
 
 		// Then
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(5))
-		total, spot := s.TrackedCounts("default", kubernetes.ReplicaSetKind, rs)
+		total, spot := s.TrackedCounts(kubernetes.DeploymentKind, d.namespace, d.name)
 		assert.Zero(t, total)
 		assert.Zero(t, spot)
 
@@ -465,7 +503,7 @@ func TestScenarios(t *testing.T) {
 
 		// Then
 		assert.Eventually(t, func() bool {
-			total, spotCount := s2.TrackedCounts("default", kubernetes.ReplicaSetKind, rs)
+			total, spotCount := s2.TrackedCounts(kubernetes.DeploymentKind, d.namespace, d.name)
 			return total == replicas && spotCount == 6
 		}, 1*time.Second, 10*time.Millisecond)
 	})

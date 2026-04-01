@@ -73,6 +73,7 @@ type fakeDeployment struct {
 	namespace          string
 	name               string
 	existingReplicaSet string
+	podSelector        map[string]string
 }
 
 // newFakeCluster creates a fakeCluster.
@@ -296,6 +297,9 @@ func (c *fakeCluster) trySchedule(uid string) {
 }
 
 func (c *fakeCluster) CreateDeployment(namespace, name string, labels, annotations map[string]string, replicas int) *fakeDeployment {
+	// Use "deployment": name as the pod selector so the pod fetcher can match pods by label.
+	podSelector := map[string]string{"deployment": name}
+
 	u := &unstructured.Unstructured{}
 	u.SetAPIVersion("apps/v1")
 	u.SetKind("Deployment")
@@ -303,11 +307,14 @@ func (c *fakeCluster) CreateDeployment(namespace, name string, labels, annotatio
 	u.SetNamespace(namespace)
 	u.SetLabels(labels)
 	u.SetAnnotations(annotations)
+	// Set spec.selector.matchLabels so the pod fetcher can extract the selector on opt-in.
+	require.NoError(c.t, unstructured.SetNestedStringMap(u.Object, podSelector, "spec", "selector", "matchLabels"))
 
 	d := &fakeDeployment{
-		cluster:   c,
-		namespace: namespace,
-		name:      name,
+		cluster:     c,
+		namespace:   namespace,
+		name:        name,
+		podSelector: podSelector,
 	}
 
 	_, err := c.dynamicClient.Resource(deploymentsGVR).Namespace(namespace).Create(context.Background(), u, metav1.CreateOptions{})
@@ -351,6 +358,33 @@ func (d *fakeDeployment) Rollout(labels, annotations map[string]string, replicas
 	return d.rolloutWithDelay(replicas)
 }
 
+// UpdateMetadata merges the given labels and annotations into the Deployment without creating new pods.
+func (d *fakeDeployment) UpdateMetadata(newLabels, newAnnotations map[string]string) {
+	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(context.Background(), d.name, metav1.GetOptions{})
+	require.NoError(d.cluster.t, err)
+
+	if len(newLabels) > 0 {
+		lbl := u.GetLabels()
+		if lbl == nil {
+			lbl = make(map[string]string)
+		}
+		maps.Copy(lbl, newLabels)
+		u.SetLabels(lbl)
+	}
+
+	if len(newAnnotations) > 0 {
+		ann := u.GetAnnotations()
+		if ann == nil {
+			ann = make(map[string]string)
+		}
+		maps.Copy(ann, newAnnotations)
+		u.SetAnnotations(ann)
+	}
+
+	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(context.Background(), u, metav1.UpdateOptions{})
+	require.NoError(d.cluster.t, err)
+}
+
 func (d *fakeDeployment) rolloutWithDelay(replicas int) string {
 	// TODO: fixme
 	// Let workload config store pick up the change so test do not rely on rebalancing.
@@ -360,7 +394,7 @@ func (d *fakeDeployment) rolloutWithDelay(replicas int) string {
 	// A new ReplicaSet created
 	newReplicaSet := replicaSetName(d.name)
 	for range replicas {
-		d.cluster.CreatePod(newPod(d.namespace, kubernetes.ReplicaSetKind, newReplicaSet))
+		d.cluster.CreatePod(newPod(d.namespace, kubernetes.ReplicaSetKind, newReplicaSet, d.podSelector))
 	}
 	// Existing ReplicaSet is scaled down
 	if d.existingReplicaSet != "" {
@@ -413,12 +447,13 @@ func randomSuffix(n int) string {
 	return b.String()
 }
 
-// newPod builds a corev1.Pod with the given owner.
-func newPod(namespace, ownerKind, ownerName string) *corev1.Pod {
+// newPod builds a corev1.Pod with the given owner and labels.
+func newPod(namespace, ownerKind, ownerName string, labels map[string]string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    namespace,
 			GenerateName: ownerName + "-",
+			Labels:       maps.Clone(labels),
 			OwnerReferences: []metav1.OwnerReference{
 				{Kind: ownerKind, Name: ownerName},
 			},

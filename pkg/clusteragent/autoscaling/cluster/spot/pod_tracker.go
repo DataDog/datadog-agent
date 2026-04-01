@@ -19,7 +19,7 @@ import (
 )
 
 type pendingSpotPod struct {
-	owner     podOwner
+	workload  workload
 	name      string
 	createdAt time.Time
 }
@@ -41,81 +41,82 @@ type podInfo struct {
 	phase string
 }
 
-// podTracker keeps track of running pods and in-flight admissions per workload owner.
+// podTracker keeps track of running pods and in-flight admissions per workload.
 // It is populated from two sources:
 //   - The admission webhook calls admitNewPod on every pod CREATE request and records
 //     the spot/on-demand decision before the pod is visible in Kubernetes.
 //   - The Kubernetes watch calls addedOrUpdated/deleted as pods appear
 //     converting in-flight admission counts into UID-keyed records.
+//
+// Pods are grouped first by workload (e.g. Deployment) and then by direct owner
+// (e.g. ReplicaSet). This enables O(1) per-workload operations.
 type podTracker struct {
 	clock         clock.Clock
 	defaultConfig workloadSpotConfig
-	configSource  func(podOwner) (workloadSpotConfig, bool)
+	configSource  func(workload) (workloadSpotConfig, bool)
 
-	mu sync.RWMutex
-	// podsPerOwner groups pods and in-flight admission counts by owner.
-	podsPerOwner map[podOwner]*pods
-	// pendingSpotPods tracks spot-assigned pods that are pending scheduling, keyed by pod UID.
+	mu              sync.RWMutex
+	podGroups       map[workload]map[podOwner]*pods
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock, defaultConfig workloadSpotConfig, configSource func(podOwner) (workloadSpotConfig, bool)) *podTracker {
+func newPodTracker(clk clock.Clock, defaultConfig workloadSpotConfig, configSource func(workload) (workloadSpotConfig, bool)) *podTracker {
 	return &podTracker{
 		clock:           clk,
 		defaultConfig:   defaultConfig,
 		configSource:    configSource,
-		podsPerOwner:    make(map[podOwner]*pods),
+		podGroups:       make(map[workload]map[podOwner]*pods),
 		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
 }
 
 // admitNewPod decides whether the new pod should be spot-assigned using
-// the per-owner config and returns true if the pod was assigned to spot.
-func (t *podTracker) admitNewPod(owner podOwner) bool {
+// the per-group config and returns true if the pod was assigned to spot.
+func (t *podTracker) admitNewPod(g podGroup) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	pods := t.getPodsLocked(owner)
-	t.refreshConfigLocked(owner, pods)
+	pods := t.getOrCreatePodsLocked(g)
+	t.refreshConfigLocked(g.workload, pods)
 
 	total := pods.totalCount()
 	spot := pods.spotCount()
 	onDemand := total - spot
 
 	if onDemand < pods.config.minOnDemand {
-		log.Debugf("Skipping pod for %s: on-demand minimum not met (%d < %d), total: %d, spot: %d", owner, onDemand, pods.config.minOnDemand, total, spot)
+		log.Debugf("Skipping pod for %s: on-demand minimum not met (%d < %d), total: %d, spot: %d", g.owner, onDemand, pods.config.minOnDemand, total, spot)
 		return pods.admit(false)
 	}
 
 	desiredSpot := (total + 1) * pods.config.percentage / 100
 	if spot >= desiredSpot {
-		log.Debugf("Skipping pod for %s: desired spot reached (%d >= %d), total: %d", owner, spot, desiredSpot, total)
+		log.Debugf("Skipping pod for %s: desired spot reached (%d >= %d), total: %d", g.owner, spot, desiredSpot, total)
 		return pods.admit(false)
 	}
 
-	log.Debugf("Assigning pod for %s to spot (%d of desired %d spot, %d on-demand), total: %d", owner, spot, desiredSpot, onDemand, total)
+	log.Debugf("Assigning pod for %s to spot (%d of desired %d spot, %d on-demand), total: %d", g.owner, spot, desiredSpot, onDemand, total)
 	return pods.admit(true)
 }
 
-// admitNewOnDemandPod records an on-demand admission for owner.
-func (t *podTracker) admitNewOnDemandPod(owner podOwner) {
+// admitNewOnDemandPod records an on-demand admission for the pod group.
+func (t *podTracker) admitNewOnDemandPod(g podGroup) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.getPodsLocked(owner).admit(false)
+	t.getOrCreatePodsLocked(g).admit(false)
 }
 
 // addedOrUpdated updates tracking state when a pod is added or updated.
 func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
-	owner, hasOwner := resolveWLMPodOwner(pod)
-	if !hasOwner {
-		log.Debugf("Ignoring pod %s without owner", pod.ID)
+	g, ok := resolveWLMPodGroup(pod)
+	if !ok {
+		log.Debugf("Ignoring pod %s: cannot resolve group", pod.ID)
 		return
 	}
 
 	isSpot := isSpotAssigned(pod)
 
-	log.Debugf("Pod %s added/updated for owner %s (phase=%s, spot=%v)", pod.ID, owner, pod.Phase, isSpot)
+	log.Debugf("Pod %s added/updated for owner %s (phase=%s, spot=%v)", pod.ID, g.owner, pod.Phase, isSpot)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -123,11 +124,11 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 	// Terminal pods are treated as removed to free their spot/on-demand slot
 	// before replacement pods are admitted.
 	if pod.Phase == string(corev1.PodSucceeded) || pod.Phase == string(corev1.PodFailed) {
-		t.deletePodLocked(owner, pod.ID)
+		t.deletePodLocked(g, pod.ID)
 		return
 	}
 
-	t.getPodsLocked(owner).track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, t.clock.Now())
+	t.getOrCreatePodsLocked(g).track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, t.clock.Now())
 
 	if isSpot {
 		// Note: we can not use CreationTimestamp or NodeName of [workloadmeta.KubernetesPod]
@@ -135,7 +136,7 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		// so only check the Phase and use now for createdAt.
 		if pod.Phase == string(corev1.PodPending) {
 			if _, exists := t.pendingSpotPods[pod.ID]; !exists {
-				t.pendingSpotPods[pod.ID] = pendingSpotPod{owner: owner, name: pod.Name, createdAt: t.clock.Now()}
+				t.pendingSpotPods[pod.ID] = pendingSpotPod{workload: g.workload, name: pod.Name, createdAt: t.clock.Now()}
 				log.Debugf("Tracking pending spot pod %s", pod.ID)
 			}
 		} else {
@@ -146,30 +147,35 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 
 // deleted updates tracking state when a pod is deleted.
 func (t *podTracker) deleted(pod *workloadmeta.KubernetesPod) {
-	owner, hasOwner := resolveWLMPodOwner(pod)
-	if !hasOwner {
-		log.Debugf("Ignoring pod %s without owner", pod.ID)
+	g, ok := resolveWLMPodGroup(pod)
+	if !ok {
+		log.Debugf("Ignoring pod %s: cannot resolve group", pod.ID)
 		return
 	}
 
-	log.Debugf("Pod %s deleted for owner %s (spot=%v)", pod.ID, owner, isSpotAssigned(pod))
+	log.Debugf("Pod %s deleted for owner %s (spot=%v)", pod.ID, g.owner, isSpotAssigned(pod))
 
-	t.deletePod(owner, pod.ID)
+	t.deletePod(g, pod.ID)
 }
 
-// deletePod deletes pod by owner and uid.
-func (t *podTracker) deletePod(owner podOwner, uid string) {
+// deletePod deletes pod by group and uid.
+func (t *podTracker) deletePod(g podGroup, uid string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.deletePodLocked(owner, uid)
+	t.deletePodLocked(g, uid)
 }
 
-// deletePodLocked deletes a pod from podsPerOwner. Must be called with t.mu held.
-func (t *podTracker) deletePodLocked(owner podOwner, uid string) {
-	if pods, ok := t.podsPerOwner[owner]; ok {
-		if pods.delete(uid, t.clock.Now()) {
-			delete(t.podsPerOwner, owner)
+// deletePodLocked deletes a pod from podGroups. Must be called with t.mu held.
+func (t *podTracker) deletePodLocked(g podGroup, uid string) {
+	if owners, ok := t.podGroups[g.workload]; ok {
+		if pods, ok := owners[g.owner]; ok {
+			if pods.delete(uid, t.clock.Now()) {
+				delete(owners, g.owner)
+			}
+		}
+		if len(owners) == 0 {
+			delete(t.podGroups, g.workload)
 		}
 	}
 	delete(t.pendingSpotPods, uid)
@@ -177,20 +183,25 @@ func (t *podTracker) deletePodLocked(owner podOwner, uid string) {
 
 // refreshConfigLocked refreshes the spot config for pods from the configSource.
 // Must be called with t.mu held.
-func (t *podTracker) refreshConfigLocked(owner podOwner, pods *pods) {
-	if cfg, ok := t.configSource(owner); ok {
+func (t *podTracker) refreshConfigLocked(w workload, pods *pods) {
+	if cfg, ok := t.configSource(w); ok {
 		pods.config = cfg
 	}
 }
 
-// getPodsLocked returns the pods for owner, creating it if absent.
+// getOrCreatePodsLocked returns the pods for g, creating it if absent.
 // Must be called with t.mu held.
-func (t *podTracker) getPodsLocked(owner podOwner) *pods {
-	if pods, ok := t.podsPerOwner[owner]; ok {
+func (t *podTracker) getOrCreatePodsLocked(g podGroup) *pods {
+	owners, ok := t.podGroups[g.workload]
+	if !ok {
+		owners = make(map[podOwner]*pods)
+		t.podGroups[g.workload] = owners
+	}
+	if pods, ok := owners[g.owner]; ok {
 		return pods
 	}
 	pods := t.newPods()
-	t.podsPerOwner[owner] = pods
+	owners[g.owner] = pods
 	return pods
 }
 
@@ -204,14 +215,16 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 
 	now := t.clock.Now()
 	lastUpdatedBefore := now.Add(-rebalanceStabilizationPeriod)
-	for owner, pods := range t.podsPerOwner {
-		t.refreshConfigLocked(owner, pods)
-		if pods.config.isDisabled(now) {
-			continue
-		}
-		if uid, name := pods.getPodToDelete(lastUpdatedBefore); uid != "" {
-			pods.lastUpdate = now // suppress re-selection until stabilization period elapses
-			return uid, name, owner.Namespace
+	for w, owners := range t.podGroups {
+		for owner, pods := range owners {
+			t.refreshConfigLocked(w, pods)
+			if pods.config.isDisabled(now) {
+				continue
+			}
+			if uid, name := pods.getPodToDelete(lastUpdatedBefore); uid != "" {
+				pods.lastUpdate = now // suppress re-selection until stabilization period elapses
+				return uid, name, owner.Namespace
+			}
 		}
 	}
 	return "", "", ""

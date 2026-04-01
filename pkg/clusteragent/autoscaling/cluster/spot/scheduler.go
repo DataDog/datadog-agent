@@ -43,21 +43,23 @@ type scheduler struct {
 	configStore workloadConfigStore
 	isLeader    func() bool
 	tracker     *podTracker
+	fetcher     *podFetcher
 	synced      chan struct{}
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, isLeader func() bool) *scheduler {
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool) *scheduler {
 	s := &scheduler{
-		config:      cfg,
-		clock:       clk,
-		wlm:         wlm,
-		evictor:     evictor,
-		patcher:     patcher,
-		configStore: newKubeWorkloadConfigStore(dynamicClient, cfg),
-		isLeader:    isLeader,
-		synced:      make(chan struct{}),
+		config:   cfg,
+		clock:    clk,
+		wlm:      wlm,
+		evictor:  evictor,
+		patcher:  patcher,
+		isLeader: isLeader,
+		synced:   make(chan struct{}),
 	}
 	s.tracker = newPodTracker(clk, workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
+	s.fetcher = newPodFetcher(lister, s.tracker)
+	s.configStore = newKubeWorkloadConfigStore(dynamicClient, cfg, s.fetcher)
 	return s
 }
 
@@ -67,6 +69,7 @@ func (s *scheduler) Start(ctx context.Context) {
 
 	// Run in separate goroutines to not not delay pod updates processing.
 	go s.configStore.run(ctx)
+	go s.fetcher.start(ctx)
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)
 	go s.rebalance(ctx)
@@ -163,25 +166,25 @@ func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 		return false, nil
 	}
 
-	owner, ok := resolveCoreV1PodOwner(pod)
+	g, ok := resolveCoreV1PodGroup(pod)
 	if !ok {
 		return unchanged()
 	}
 
-	cfg, ok := s.getSpotConfig(owner)
+	cfg, ok := s.getSpotConfig(g.workload)
 	if !ok {
 		return unchanged()
 	}
 
-	log.Debugf("Pod created via webhook for owner %s", owner)
+	log.Debugf("Pod created via webhook for owner %s", g.owner)
 
 	if cfg.isDisabled(s.clock.Now()) {
-		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", cfg.disabledUntil, owner)
-		s.tracker.admitNewOnDemandPod(owner)
+		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", cfg.disabledUntil, g.owner)
+		s.tracker.admitNewOnDemandPod(g)
 		return unchanged()
 	}
 
-	if s.tracker.admitNewPod(owner) {
+	if s.tracker.admitNewPod(g) {
 		assignToSpot(pod)
 		return true, nil
 	}
@@ -191,37 +194,25 @@ func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 // PodDeleted is called via admission webhook.
 // It stops tracking the pod.
 func (s *scheduler) PodDeleted(pod *corev1.Pod) {
-	if !s.isSpotEligible(pod) {
-		return
-	}
-
-	owner, ok := resolveCoreV1PodOwner(pod)
+	g, ok := resolveCoreV1PodGroup(pod)
 	if !ok {
 		return
 	}
+
+	if _, eligible := s.getSpotConfig(g.workload); !eligible {
+		return
+	}
+
 	uid := string(pod.UID)
 
-	log.Debugf("Pod %s (phase=%s) removed via webhook for owner %s", uid, pod.Status.Phase, owner)
+	log.Debugf("Pod %s (phase=%s) removed via webhook for owner %s", uid, pod.Status.Phase, g.owner)
 
-	s.tracker.deletePod(owner, uid)
+	s.tracker.deletePod(g, uid)
 }
 
-// getSpotConfig returns the spot config for the given owner.
-func (s *scheduler) getSpotConfig(owner podOwner) (workloadSpotConfig, bool) {
-	workload, ok := resolveOwnerWorkload(owner)
-	if !ok {
-		return workloadSpotConfig{}, false
-	}
-	return s.configStore.getConfig(workload)
-}
-
-func (s *scheduler) isSpotEligible(pod *corev1.Pod) bool {
-	owner, hasOwner := resolveCoreV1PodOwner(pod)
-	if !hasOwner {
-		return false
-	}
-	_, ok := s.getSpotConfig(owner)
-	return ok
+// getSpotConfig returns the spot config for the given workload.
+func (s *scheduler) getSpotConfig(w workload) (workloadSpotConfig, bool) {
+	return s.configStore.getConfig(w)
 }
 
 func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
@@ -229,11 +220,11 @@ func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	if !ok {
 		return false
 	}
-	owner, hasOwner := resolveWLMPodOwner(pod)
-	if !hasOwner {
+	g, ok := resolveWLMPodGroup(pod)
+	if !ok {
 		return false
 	}
-	_, ok = s.getSpotConfig(owner)
+	_, ok = s.getSpotConfig(g.workload)
 	return ok
 }
 
@@ -271,49 +262,32 @@ func (s *scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 		return
 	}
 
-	byWorkload, orphaned := groupByWorkload(pending)
-	for workload, pods := range byWorkload {
+	for workload, pods := range groupByWorkload(pending) {
 		if err := s.disableSpotScheduling(ctx, workload, now); err != nil {
 			log.Errorf("Failed to disable spot scheduling for %s: %v", workload, err)
 			continue
 		}
 		for uid, pod := range pods {
-			if err := s.evictor.evictPod(ctx, pod.owner.Namespace, pod.name, corev1.PodPending); err != nil {
-				log.Errorf("Failed to evict timed-out pending spot pod %s/%s: %v", pod.owner.Namespace, pod.name, err)
+			if err := s.evictor.evictPod(ctx, pod.workload.Namespace, pod.name, corev1.PodPending); err != nil {
+				log.Errorf("Failed to evict timed-out pending spot pod %s of %s: %v", pod.name, pod.workload, err)
 				continue
 			}
-			log.Infof("Evicted timed-out pending spot pod %s/%s for on-demand fallback", pod.owner.Namespace, pod.name)
+			log.Infof("Evicted timed-out pending spot pod %s of %s for on-demand fallback", pod.name, pod.workload)
 			s.tracker.deletePendingSpotPod(uid)
 		}
 	}
-
-	// There should not be any orphaned pods due to admission check
-	for uid, pod := range orphaned {
-		log.Warnf("Cannot resolve workload for pending spot pod %s/%s (owner %s, uid %s)", pod.owner.Namespace, pod.name, pod.owner, uid)
-	}
 }
 
-// groupByWorkload resolves each pending pod's owner to its top-level workload and groups by it.
-// It returns the grouped pods and a map of pods whose owner could not be resolved (keyed by pod UID).
-func groupByWorkload(pods map[string]pendingSpotPod) (map[workload]map[string]pendingSpotPod, map[string]pendingSpotPod) {
+// groupByWorkload groups pending pods by their workload, outside the tracker lock.
+func groupByWorkload(pods map[string]pendingSpotPod) map[workload]map[string]pendingSpotPod {
 	result := make(map[workload]map[string]pendingSpotPod)
-	var orphaned map[string]pendingSpotPod
 	for uid, pod := range pods {
-		w, ok := resolveOwnerWorkload(pod.owner)
-		if !ok {
-			// Should not happen but collect them for logging.
-			if orphaned == nil {
-				orphaned = make(map[string]pendingSpotPod)
-			}
-			orphaned[uid] = pod
-			continue
+		if result[pod.workload] == nil {
+			result[pod.workload] = make(map[string]pendingSpotPod)
 		}
-		if _, ok := result[w]; !ok {
-			result[w] = make(map[string]pendingSpotPod)
-		}
-		result[w][uid] = pod
+		result[pod.workload][uid] = pod
 	}
-	return result, orphaned
+	return result
 }
 
 // disableSpotScheduling disables spot scheduling for the workload.

@@ -14,6 +14,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -52,6 +53,7 @@ var spotWorkloadResources = []workloadResource{
 // maintains a map of objectKey → workloadSpotConfig updated on informer events.
 type kubeWorkloadConfigStore struct {
 	defaultConfig workloadSpotConfig
+	podFetcher    *podFetcher
 
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	hasSynced       []cache.InformerSynced
@@ -61,9 +63,10 @@ type kubeWorkloadConfigStore struct {
 	configs map[workload]workloadSpotConfig
 }
 
-func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig Config) *kubeWorkloadConfigStore {
+func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig Config, pf *podFetcher) *kubeWorkloadConfigStore {
 	s := &kubeWorkloadConfigStore{
 		defaultConfig: workloadSpotConfig{percentage: defaultConfig.Percentage, minOnDemand: defaultConfig.MinOnDemandReplicas},
+		podFetcher:    pf,
 		configs:       make(map[workload]workloadSpotConfig),
 		synced:        make(chan struct{}),
 	}
@@ -153,10 +156,21 @@ func (s *kubeWorkloadConfigStore) onUpdated(kind string, obj any) {
 	overrideFromAnnotations(&cfg, u.GetAnnotations())
 
 	s.mu.Lock()
+	_, existed := s.configs[key]
 	s.configs[key] = cfg
 	s.mu.Unlock()
 
 	log.Debugf("Spot workload config updated %s: %#v", key, cfg)
+
+	// Enqueue a pod backfill when a workload opts in for the first time.
+	// Pods created before the workload config key appeared were not delivered by WLM
+	// (the filter rejected them); backfilling ensures the rebalancer can act on them.
+	if !existed && s.podFetcher != nil {
+		matchLabels, _, _ := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
+		if len(matchLabels) > 0 {
+			s.podFetcher.enqueue(key, labels.SelectorFromSet(labels.Set(matchLabels)))
+		}
+	}
 }
 
 func (s *kubeWorkloadConfigStore) onDeleted(kind string, obj any) {

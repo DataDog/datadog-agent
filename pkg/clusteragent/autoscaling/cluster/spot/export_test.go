@@ -12,6 +12,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/clock"
 
@@ -32,18 +33,23 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	patcherFunc := workloadPatcherFunc(func(context.Context, workload, time.Time) error {
 		return nil
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, isLeader)
+	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, &wlmPodLister{wlm: wlm}, isLeader)
 }
 
-// TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given owner.
-func (s *TestScheduler) TrackedCounts(namespace, kind, name string) (total, spot int) {
+// TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given workload.
+func (s *TestScheduler) TrackedCounts(kind, namespace, name string) (total, spot int) {
 	s.tracker.mu.RLock()
 	defer s.tracker.mu.RUnlock()
-	owner := podOwner{Kind: kind, Namespace: namespace, Name: name}
-	if pods, ok := s.tracker.podsPerOwner[owner]; ok {
-		return pods.totalCount(), pods.spotCount()
+	w := workload{Kind: kind, Namespace: namespace, Name: name}
+	owners, ok := s.tracker.podGroups[w]
+	if !ok {
+		return 0, 0
 	}
-	return 0, 0
+	for _, pods := range owners {
+		total += pods.totalCount()
+		spot += pods.spotCount()
+	}
+	return total, spot
 }
 
 // WaitSynced blocks until the workload config store is synced and the scheduler has subscribed to workloadmeta events.
@@ -56,11 +62,10 @@ func (s *TestScheduler) Config() Config {
 	return s.config
 }
 
-// IsSpotSchedulingDisabledForOwner returns whether spot scheduling is currently disabled
-// for the workload that owns the given resource.
-func (s *TestScheduler) IsSpotSchedulingDisabledForOwner(namespace, kind, name string) bool {
-	owner := podOwner{Kind: kind, Namespace: namespace, Name: name}
-	cfg, ok := s.getSpotConfig(owner)
+// IsSpotSchedulingDisabled returns whether spot scheduling is currently disabled for the given workload.
+func (s *TestScheduler) IsSpotSchedulingDisabled(kind, namespace, name string) bool {
+	w := workload{Kind: kind, Namespace: namespace, Name: name}
+	cfg, ok := s.getSpotConfig(w)
 	if !ok {
 		return false
 	}
@@ -92,4 +97,20 @@ type workloadPatcherFunc func(ctx context.Context, owner workload, until time.Ti
 
 func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner workload, until time.Time) error {
 	return f(ctx, owner, until)
+}
+
+// wlmPodLister implements podLister using the in-process workloadmeta store.
+// Suitable for tests where pods live in WLM rather than a real k8s API server.
+type wlmPodLister struct {
+	wlm workloadmeta.Component
+}
+
+func (l *wlmPodLister) listPods(_ context.Context, namespace string, sel labels.Selector) ([]*workloadmeta.KubernetesPod, error) {
+	var result []*workloadmeta.KubernetesPod
+	for _, pod := range l.wlm.ListKubernetesPods() {
+		if pod.Namespace == namespace && sel.Matches(labels.Set(pod.Labels)) {
+			result = append(result, pod)
+		}
+	}
+	return result, nil
 }
