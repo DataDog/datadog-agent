@@ -220,10 +220,8 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 				if _, err := os.Stat(masReceiptPath); err == nil {
 					source = softwareTypeMAS
 					installSource = installSourceMAS
-				} else {
-					// Not a MAS app or system app - will need to check pkgutil later (in parallel)
-					needsPkgLookup = true
 				}
+				needsPkgLookup = true
 			}
 
 			// Determine architecture
