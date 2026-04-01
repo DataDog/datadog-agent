@@ -95,7 +95,7 @@ func GetHostID(ctx context.Context) string {
 
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn(ctx context.Context) bool {
-	if _, err := GetHostname(ctx); err == nil {
+	if _, err := GetAMIID(ctx); err == nil {
 		return true
 	}
 	if isBoardVendorEC2() || isEC2UUID() {
@@ -131,6 +131,21 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	}
 
 	return []string{}, nil
+}
+
+var amiIDFetcher = cachedfetch.Fetcher{
+	Name: "EC2 AMI ID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return ec2internal.GetMetadataItemWithMaxLength(ctx, imdsAMIID, ec2internal.UseIMDSv2(), true)
+	},
+}
+
+// GetAMIID fetches the AMI ID for the current host from the EC2 metadata API.
+// Used by IsRunningOn as a probe for EC2 presence: /ami-id is an IMDS 1.0
+// category (2006) guaranteed to exist on every EC2 instance. A successful
+// fetch is treated as proof of EC2; the response body is not parsed.
+func GetAMIID(ctx context.Context) (string, error) {
+	return amiIDFetcher.FetchString(ctx)
 }
 
 var hostnameFetcher = cachedfetch.Fetcher{
