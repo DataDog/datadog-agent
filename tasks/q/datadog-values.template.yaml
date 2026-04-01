@@ -38,8 +38,10 @@ datadog:
   # Agent capture to parquet
   - name: DD_OBSERVER_CAPTURE_METRICS_ENABLED
     value: "true"
-  - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
-    value: "1s"
+  - name: DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED
+    value: "true"
+  - name: DD_OBSERVER_HIGH_FREQUENCY_CONTAINER_CHECKS_ENABLED
+    value: "true"
   - name: DD_OBSERVER_PARQUET_OUTPUT_DIR
     value: "/tmp/observer-metrics"
   - name: DD_OBSERVER_PARQUET_FLUSH_INTERVAL
