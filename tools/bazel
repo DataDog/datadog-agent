@@ -30,9 +30,10 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
   unset GOCACHE                               # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
   export GOMODCACHE="$XDG_CACHE_HOME"/go/mod  # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
   unset PIP_CACHE_DIR                         # https://pip.pypa.io/en/stable/topics/caching/#default-paths
-  [ -n "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && extra_args+=(--config=ci)
+  extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
   # https://github.com/bazelbuild/bazel/issues/26384
   [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
+  [ -n "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && extra_args+=(--config=ci)
 fi
 
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
