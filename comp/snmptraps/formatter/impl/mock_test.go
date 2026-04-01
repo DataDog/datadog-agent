@@ -8,15 +8,13 @@ package formatterimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestMockFormatter(t *testing.T) {
-	formatter := fxutil.Test[formatter.Component](t, MockModule())
+	formatter := NewDummyFormatter()
 	packet := packet.CreateTestV1GenericPacket()
 	// we don't check the value itself because it uses "encoding/gob", which
 	// produces different values depending on the platform.
