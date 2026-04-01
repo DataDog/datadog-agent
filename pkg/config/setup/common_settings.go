@@ -1772,6 +1772,19 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
 
+	// Adaptive sampler (experimental) rate-limits repetitive log patterns per source.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.enabled", false)
+	// Maximum number of distinct patterns the sampler tracks at once.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.max_patterns", 1000)
+	// Steady-state logs per second allowed for each matched pattern.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1)
+	// Maximum burst allowance per pattern, measured in accumulated credits/logs.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", 1000.0)
+	// Fraction of tokens that must match for two logs to be treated as the same pattern.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", 0.9)
+	// The sampler needs a larger tokenizer window than the auto-multiline labeler.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 2048)
+
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
 
