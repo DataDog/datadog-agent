@@ -112,7 +112,7 @@ func populateStruct(t *testing.T, v reflect.Value, path string, depth int) {
 		v.Set(elem)
 
 	default:
-		t.Logf("populateStruct: unhandled kind %s at %s", v.Kind(), path)
+		t.Errorf("populateStruct: unhandled kind %s at %s — field will be zero-valued and round-trip comparison will be a no-op", v.Kind(), path)
 	}
 }
 
