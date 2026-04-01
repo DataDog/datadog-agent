@@ -1719,6 +1719,27 @@ tag_by_physical_storage: true
 	assert.Contains(t, err.Error(), "permission denied")
 }
 
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenBothCallsYieldZeroPartitions_ThenCheckReturnsError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return nil, errors.New("all-partitions enumeration failed")
+		}
+		return []gopsutil_disk.PartitionStat{}, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "all-partitions enumeration failed")
+}
+
 func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallReturnsPartialResults_ThenClassificationIsSkipped(t *testing.T) {
 	setupDefaultMocks()
 	partialPhysical := []gopsutil_disk.PartitionStat{
