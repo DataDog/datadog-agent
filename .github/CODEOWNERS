@@ -399,6 +399,7 @@
 /comp/snmpscan @DataDog/network-device-monitoring-core
 /comp/snmpscanmanager @DataDog/network-device-monitoring-core
 /comp/softwareinventory @DataDog/windows-products
+/comp/statusrclistener @DataDog/fleet
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
