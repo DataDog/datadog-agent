@@ -15,15 +15,15 @@ Real-time TUI that tracks a gensim-eks evaluation run by polling:
   - AWS EKS cluster status (optional)
 
 Usage:
-    # 1. Submit an evaluation run
-    dda inv aws.eks.gensim.submit --image=<agent-image> --episodes=<ep:scenario> --mode=record-parquet
-
-    # 2. Monitor it live with this TUI (run under aws-vault for EKS status)
+    # Remote (EKS) — monitor an evaluation run on gensim-eks
     aws-vault exec sso-agent-sandbox-account-admin -- uv run q_branch/gensim-status.py
 
+    # Local (Kind) — monitor a local episode run
+    uv run q_branch/gensim-status.py --local
+
     # Other useful commands
-    dda inv aws.eks.gensim.status    # Quick non-interactive status check
-    dda inv aws.eks.gensim.destroy   # Tear down the EKS cluster
+    dda inv aws.eks.gensim.status    # Quick non-interactive status check (EKS)
+    dda inv q.run-local-episode ...  # Start a local episode run
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,17 +47,38 @@ from textual.widgets import Footer, Header, Static
 # Config
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Mode detection: --local flag switches to Kind cluster, skips Pulumi/EKS
+# ---------------------------------------------------------------------------
+LOCAL_MODE = "--local" in sys.argv
+
 # Auto-detect stack name from the user prefix (matches e2e framework convention).
 _USER = os.environ.get("USER", "unknown").replace(".", "-")
 _STACK_NAME = os.environ.get("GENSIM_STACK_NAME", f"{_USER}-gensim-eks")
 
-# All paths derived from stack name -- override via env vars if needed.
-KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
-PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
-EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
+if LOCAL_MODE:
+    _LOCAL_CLUSTER = os.environ.get("LOCAL_CLUSTER_NAME", "observer-local")
+    KUBECONFIG = os.path.expanduser("~/.kube/config")
+    PULUMI_STATE = "/dev/null"  # no Pulumi for local
+    EKS_CLUSTER_NAME = ""
+    LOCAL_EPISODE_LOG = "/tmp/local-episode-runner.log"
+else:
+    _LOCAL_CLUSTER = ""
+    LOCAL_EPISODE_LOG = ""
+    # All paths derived from stack name -- override via env vars if needed.
+    KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
+    PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
+    EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
+
 EKS_REGION = os.environ.get("EKS_REGION", "us-east-1")
 
 KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG}
+if LOCAL_MODE:
+    # For Kind, we need the context in all kubectl calls. The easiest way is to
+    # set KUBECTL_CONTEXT which some helpers use, and inject --context into
+    # fetch_configmap. For the generic kubectl calls (pods, nodes) that go via
+    # run_cmd, we just set the current-context in KUBECTL_ENV.
+    KUBECTL_ENV["KUBECTL_CONTEXT"] = f"kind-{_LOCAL_CLUSTER}"
 
 # Phase durations (seconds) extracted from typical gensim orchestrator defaults.
 PHASE_DURATIONS: dict[str, int] = {
@@ -114,16 +136,17 @@ async def fetch_pulumi_state() -> dict[str, Any]:
 async def fetch_configmap() -> dict[str, Any] | None:
     """Fetch the gensim-run-status configmap."""
     raw = await run_cmd(
-        [
-            "kubectl",
-            "get",
-            "configmap",
-            "gensim-run-status",
-            "-o",
-            "jsonpath={.data.status}",
-            "-n",
-            "default",
-        ],
+        _kubectl_cmd(
+            [
+                "get",
+                "configmap",
+                "gensim-run-status",
+                "-o",
+                "jsonpath={.data.status}",
+                "-n",
+                "default",
+            ]
+        ),
         env=KUBECTL_ENV,
     )
     if not raw:
@@ -135,7 +158,17 @@ async def fetch_configmap() -> dict[str, Any] | None:
 
 
 async def fetch_logs() -> str:
-    """Fetch recent orchestrator logs."""
+    """Fetch recent orchestrator logs (or local episode log in --local mode)."""
+    if LOCAL_MODE:
+        try:
+            path = Path(LOCAL_EPISODE_LOG)
+            if not path.exists():
+                return ""
+            text = await asyncio.to_thread(path.read_text)
+            # Return last 80 lines to match the kubectl tail behavior
+            return "\n".join(text.splitlines()[-80:])
+        except Exception:
+            return ""
     return await run_cmd(
         [
             "kubectl",
@@ -172,14 +205,22 @@ async def fetch_eks_status() -> str:
     )
 
 
+def _kubectl_cmd(args: list[str]) -> list[str]:
+    """Build a kubectl command, injecting --context for local mode."""
+    cmd = ["kubectl"]
+    if LOCAL_MODE:
+        cmd += ["--context", f"kind-{_LOCAL_CLUSTER}"]
+    return cmd + args
+
+
 async def fetch_node_pod_counts() -> tuple[str, str]:
     """Fetch node and pod ready counts."""
     nodes_raw = await run_cmd(
-        ["kubectl", "get", "nodes", "-o", "json"],
+        _kubectl_cmd(["get", "nodes", "-o", "json"]),
         env=KUBECTL_ENV,
     )
     pods_raw = await run_cmd(
-        ["kubectl", "get", "pods", "-A", "-o", "json"],
+        _kubectl_cmd(["get", "pods", "-A", "-o", "json"]),
         env=KUBECTL_ENV,
     )
 
@@ -213,16 +254,17 @@ async def fetch_node_pod_counts() -> tuple[str, str]:
 async def fetch_pod_list() -> list[dict[str, str]]:
     """Fetch pod names and statuses in default namespace using lightweight output."""
     raw = await run_cmd(
-        [
-            "kubectl",
-            "get",
-            "pods",
-            "-n",
-            "default",
-            "--no-headers",
-            "-o",
-            "custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount",
-        ],
+        _kubectl_cmd(
+            [
+                "get",
+                "pods",
+                "-n",
+                "default",
+                "--no-headers",
+                "-o",
+                "custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount",
+            ]
+        ),
         env=KUBECTL_ENV,
     )
     if not raw:
@@ -316,6 +358,18 @@ def build_episode_markup(
     remaining: int | None,
 ) -> str:
     if cm is None:
+        if LOCAL_MODE:
+            return (
+                "[bold]No active local run detected.[/bold]\n"
+                "\n"
+                "Start one with:\n"
+                "  [bold cyan]dda inv q.run-local-episode \\\\[/bold cyan]\n"
+                "    [cyan]--episode=food-delivery-redis \\\\[/cyan]\n"
+                "    [cyan]--image=<agent-image> \\\\[/cyan]\n"
+                "    [cyan]--mode=live-and-record[/cyan]\n"
+                "\n"
+                "[dim]This TUI will auto-refresh when a run starts.[/dim]"
+            )
         return (
             "[bold]No active gensim run detected.[/bold]\n"
             "\n"
@@ -698,7 +752,7 @@ class GensimStatusApp(App):
     }
     """
 
-    TITLE = "Gensim EKS Monitor"
+    TITLE = "Gensim Local Monitor" if LOCAL_MODE else "Gensim EKS Monitor"
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh now"),
@@ -732,12 +786,13 @@ class GensimStatusApp(App):
 
     def on_mount(self) -> None:
         self.call_later(self.action_refresh)
-        self.set_interval(5, self._poll_pulumi)
+        if not LOCAL_MODE:
+            self.set_interval(5, self._poll_pulumi)
+            self.set_interval(60, self._poll_eks)
         self.set_interval(10, self._poll_configmap)
         self.set_interval(5, self._poll_logs)
         self.set_interval(30, self._poll_infra_kube)
         self.set_interval(30, self._poll_pods)
-        self.set_interval(60, self._poll_eks)
         self._update_pod_logs_visibility()
 
     def on_resize(self) -> None:
@@ -829,8 +884,8 @@ class GensimStatusApp(App):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import sys
-
     headless = "--headless" in sys.argv
+    # Strip custom flags before Textual sees argv
+    sys.argv = [a for a in sys.argv if a not in ("--local", "--headless")]
     app = GensimStatusApp()
     app.run(headless=headless)
