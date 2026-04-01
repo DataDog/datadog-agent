@@ -367,7 +367,6 @@ func getPublisherFromInfoPlist(bundlePath string) string {
 	return getPublisherFromPlistData(plistData)
 }
 
-
 // entryWithPath pairs an Entry with its bundle path for parallel processing.
 // When plistData is non-nil, the worker uses it to compute publisher without reading the file.
 type entryWithPath struct {
