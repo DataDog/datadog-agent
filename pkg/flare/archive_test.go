@@ -184,7 +184,7 @@ func TestVersionHistory(t *testing.T) {
 	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getVersionHistory(mock)
+	getVersionHistory(context.Background(), mock)
 
 	mock.AssertFileContent("mockfilecontent", "version-history.json")
 }
