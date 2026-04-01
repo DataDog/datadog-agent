@@ -273,7 +273,7 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{}
 				entry["context"] = ctx
 			}
 		}
-		if a.Type == observerdef.AnomalyTypeLog {
+		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
 			logAnomalies = append(logAnomalies, entry)
 		} else {
 			metricAnomalies = append(metricAnomalies, entry)
@@ -308,13 +308,15 @@ func buildChangeMessage(c observerdef.ActiveCorrelation) string {
 	lines = append(lines, "")
 
 	for _, a := range c.Anomalies {
-		display := anomalyDisplayKey(a)
-		if a.DebugInfo != nil {
+		if isLogDerivedAnomaly(a) {
+			lines = append(lines, "- "+logDerivedDescription(a))
+		} else if a.DebugInfo != nil {
+			display := anomalyDisplayKey(a)
 			lines = append(lines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
 		} else if a.Description != "" {
 			lines = append(lines, "- "+a.Description)
 		} else {
-			lines = append(lines, "- "+display)
+			lines = append(lines, "- "+anomalyDisplayKey(a))
 		}
 	}
 
@@ -332,6 +334,33 @@ func anomalyDisplayKey(a observerdef.Anomaly) string {
 		return key
 	}
 	return a.Source.String()
+}
+
+// isLogDerivedAnomaly returns true for metric anomalies that originate from
+// log pattern extraction. These should be presented as log anomalies with
+// pattern/example/rate context rather than raw metric descriptions.
+func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
+	return a.Type != observerdef.AnomalyTypeLog &&
+		a.Source.Namespace == "log_pattern_extractor" &&
+		a.Context != nil &&
+		strings.TrimSpace(a.Context.Pattern) != ""
+}
+
+// logDerivedDescription builds a human-readable description for a log-derived
+// metric anomaly, including pattern, example, and current rate.
+func logDerivedDescription(a observerdef.Anomaly) string {
+	pattern := strings.TrimSpace(a.Context.Pattern)
+	var example string
+	if a.Context.Example != "" {
+		example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
+	}
+	var ratePart string
+	if a.DebugInfo != nil {
+		ratePart = fmt.Sprintf("\tcurrent rate: %.1flog/s", a.DebugInfo.CurrentValue)
+	} else {
+		ratePart = "\tcurrent rate: unknown"
+	}
+	return fmt.Sprintf("Log pattern change rate detected: %s%s%s", pattern, example, ratePart)
 }
 
 // sendCorrelationEvents sends one event per correlation.
