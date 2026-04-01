@@ -4,9 +4,9 @@ clusterAgent:
     configMode: "hostip"
   env:
     - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY_ALLOW_LIST
-      value: "registry.datadoghq.com"
+      value: "gcr.io/datadoghq"
     # Disable gradual rollout so the injector resolves deterministically to
-    # registry.datadoghq.com (the NoOpResolver). Without this, the rollout
+    # gcr.io/datadoghq (the NoOpResolver). Without this, the rollout
     # resolver may return an image from a different registry, causing the
     # allow list check to block the "allowed" pod unexpectedly.
     - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
