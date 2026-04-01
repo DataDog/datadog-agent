@@ -241,7 +241,8 @@ metrics:
   clock.throttle_reasons.sync_boost:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to match clock speed of another GPU in the current sync boost group
+      description: GPU clocks that are throttled to match clock speed of another GPU
+        in the current sync boost group
       aggregation:
         type: sensor_data
     tagsets:
@@ -260,6 +261,7 @@ metrics:
       metric_type: gauge
       unit: core
       description: Number of GPU cores that the process/container/device has available
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -296,6 +298,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of GPU devices found in the host
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -380,6 +383,7 @@ metrics:
   errors.ecc.uncorrected.total:
     metadata:
       metric_type: gauge
+      used_in_dd_ui: true
       description: >-
         Uncorrectable ECC (Error Correcting Code) errors indicate GPU memory
         corruption that could not be automatically fixed. These errors can lead
@@ -430,11 +434,11 @@ metrics:
   errors.xid.total:
     metadata:
       metric_type: gauge
+      used_in_dd_ui: true
       description: >-
         XID errors are NVIDIA driver error codes that indicate GPU hardware or
-        software issues like thermal throttling to hardware defects.
-        Investigate these errors immediately as they often precede total GPU
-        failures.
+        software issues like thermal throttling to hardware defects. Investigate
+        these errors immediately as they often precede total GPU failures.
     tagsets:
       - device
     custom_tags:
@@ -467,7 +471,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 16-bit floating point calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the 16-bit floating point calculation
+        engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     aggregation:
@@ -490,7 +495,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 32-bit floating point calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the 32-bit floating point calculation
+        engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     aggregation:
@@ -513,7 +519,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 64-bit floating point calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the 64-bit floating point calculation
+        engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     aggregation:
@@ -537,6 +544,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time that the graphics engine was active
+      used_in_dd_ui: true
     tagsets:
       - device
     aggregation:
@@ -552,7 +560,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the integer calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the integer calculation engine was
+        active. Only for Hopper and newer GPUs
     tagsets:
       - device
     aggregation:
@@ -642,6 +651,7 @@ metrics:
       metric_type: gauge
       unit: byte
       description: The maximum amount of memory a process/container/device could allocate
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -1276,7 +1286,8 @@ metrics:
   nvlink.plr.tx.retry_events_within_t_sec_max:
     metadata:
       metric_type: gauge
-      description: Maximum NVLink PLR TX retry events within the configured time window for the port
+      description: Maximum NVLink PLR TX retry events within the configured time
+        window for the port
     tagsets:
       - device
     custom_tags:
@@ -1433,6 +1444,7 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Total RX of all NVLINK links
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -1456,6 +1468,7 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Total TX of all NVLINK links
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -1606,6 +1619,7 @@ metrics:
       metric_type: gauge
       unit: byte/second
       description: Bytes received through PCI to the GPU device per second
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -1626,6 +1640,7 @@ metrics:
       metric_type: gauge
       unit: byte/second
       description: Bytes transmitted through PCI from the GPU device per second
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     tagsets:
@@ -1675,9 +1690,10 @@ metrics:
       metric_type: gauge
       unit: milliwatt
       description: >-
-        Power usage for the GPU device. On GA100 and older architectures this
-        is the instantaneous power at that moment, in newer ones it represents
-        the average power draw over one second
+        Power usage for the GPU device. On GA100 and older architectures this is
+        the instantaneous power at that moment, in newer ones it represents the
+        average power draw over one second
+      used_in_dd_ui: true
     tagsets:
       - device
     aggregation:
@@ -1692,7 +1708,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: core
-      description: Average number of GPU cores that a process was using in the interval. Only emitted when processes are active.
+      description: Average number of GPU cores that a process was using in the
+        interval. Only emitted when processes are active.
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     workload_only: true
@@ -1771,7 +1789,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: byte
-      description: The memory used by this process at the point the metric was given. Only emitted when processes are active.
+      description: The memory used by this process at the point the metric was given.
+        Only emitted when processes are active.
+      used_in_dd_ui: true
       aggregation:
         type: absolute_usage
     workload_only: true
@@ -1793,7 +1813,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the streaming multiprocessor was active for a specific process
+      description: Percentage of time the streaming multiprocessor was active for a
+        specific process
       aggregation:
         type: relative_activity
     workload_only: true
@@ -1924,6 +1945,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the streaming multiprocessor was active
+      used_in_dd_ui: true
       aggregation:
         type: relative_activity
     tagsets:
@@ -1942,7 +1964,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were active in the interval
+      description: Percentage of the Streaming Multiprocessors that were active in the
+        interval
+      used_in_dd_ui: true
     tagsets:
       - device
     aggregation:
@@ -1965,7 +1989,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were in use in the interval
+      description: Percentage of the Streaming Multiprocessors that were in use in the
+        interval
     tagsets:
       - device
     aggregation:
@@ -1989,6 +2014,7 @@ metrics:
       metric_type: gauge
       unit: degree celsius
       description: Temperature of the GPU device
+      used_in_dd_ui: true
       aggregation:
         type: sensor_data
     tagsets:
@@ -2007,7 +2033,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the tensor calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the tensor calculation engine was
+        active. Only for Hopper and newer GPUs
     tagsets:
       - device
     aggregation:
