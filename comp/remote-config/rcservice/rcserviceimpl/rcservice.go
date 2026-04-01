@@ -127,6 +127,9 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
 		configService.Start()
 		deps.Logger.Info("remote config service started")
+		// Sleep for 2 seconds to avoid timestamp collision issues where rapid consecutive
+		// refresh calls within the same second cause TUF to see updates as identical versions
+		time.Sleep(2 * time.Second)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
