@@ -7,6 +7,7 @@ exports_files([
 
 cgo_godefs(
     name = "types_godefs",
+    visibility = ["//visibility:public"],
     src = "types.go",
     platform = "windows",
     deps = ["//pkg/windowsdriver/include:procmonapi"],

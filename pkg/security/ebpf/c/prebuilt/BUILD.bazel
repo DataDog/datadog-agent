@@ -15,6 +15,7 @@ _SECURITY_FLAGS = [
 # runtime-security: basic variant
 ebpf_prog(
     name = "runtime-security",
+    visibility = ["//visibility:public"],
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS,
     deps = _COMMON_DEPS,
@@ -23,6 +24,7 @@ ebpf_prog(
 # runtime-security: syscall wrapper variant
 ebpf_prog(
     name = "runtime-security-syscall-wrapper",
+    visibility = ["//visibility:public"],
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
     deps = _COMMON_DEPS,
@@ -31,6 +33,7 @@ ebpf_prog(
 # runtime-security: fentry variant (syscall wrapper + fentry)
 ebpf_prog(
     name = "runtime-security-fentry",
+    visibility = ["//visibility:public"],
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS + [
         "-DUSE_SYSCALL_WRAPPER",
@@ -47,6 +50,7 @@ _BALOUM_FLAGS = _SECURITY_FLAGS + ["-D__BALOUM__"]
 # and build them in the same way as the other eBPF programs.
 ebpf_prog(
     name = "runtime-security-baloum",
+    visibility = ["//visibility:public"],
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS,
     deps = _COMMON_DEPS,
@@ -54,6 +58,7 @@ ebpf_prog(
 
 ebpf_prog(
     name = "runtime-security-syscall-wrapper-baloum",
+    visibility = ["//visibility:public"],
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
     deps = _COMMON_DEPS,
@@ -61,6 +66,7 @@ ebpf_prog(
 
 ebpf_prog(
     name = "runtime-security-fentry-baloum",
+    visibility = ["//visibility:public"],
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS + [
         "-DUSE_SYSCALL_WRAPPER",
@@ -72,6 +78,7 @@ ebpf_prog(
 # offset guesser
 ebpf_prog(
     name = "runtime-security-offset-guesser",
+    visibility = ["//visibility:public"],
     src = "offset-guesser.c",
     extra_flags = _SECURITY_FLAGS,
     deps = _COMMON_DEPS,

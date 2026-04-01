@@ -4,6 +4,7 @@ exports_files(["gpu.c"])
 
 ebpf_program_suite(
     name = "gpu",
+    visibility = ["//visibility:public"],
     src = "gpu.c",
     core = True,
     extra_flags = [

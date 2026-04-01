@@ -1314,6 +1314,7 @@ def build_cws_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
+    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())

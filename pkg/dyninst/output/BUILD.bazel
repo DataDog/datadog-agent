@@ -9,6 +9,7 @@ exports_files([
 
 cgo_godefs(
     name = "framing_godefs",
+    visibility = ["//visibility:public"],
     src = "framing.go",
     hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
 )

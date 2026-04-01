@@ -2,6 +2,7 @@ load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
 ebpf_program_suite(
     name = "tracer-fentry",
+    visibility = ["//visibility:public"],
     src = "tracer-fentry.c",
     core = True,
     extra_flags = [

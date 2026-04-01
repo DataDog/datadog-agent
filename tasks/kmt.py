@@ -52,6 +52,7 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_ge
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
     get_gitlab_job_dependencies,
@@ -1050,6 +1051,7 @@ def build_object_files(ctx, fp, arch: Arch):
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
+    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
 
     info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
     ninja_generate(ctx, fp, arch=arch)

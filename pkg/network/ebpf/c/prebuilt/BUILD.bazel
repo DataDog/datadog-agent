@@ -29,6 +29,7 @@ _NETWORK_FLAGS = [
 
 ebpf_program_suite(
     name = "dns",
+    visibility = ["//visibility:public"],
     src = "dns.c",
     extra_flags = _NETWORK_FLAGS,
     deps = _COMMON_DEPS,
@@ -36,6 +37,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "offset-guess",
+    visibility = ["//visibility:public"],
     src = "offset-guess.c",
     extra_flags = _NETWORK_FLAGS,
     deps = _COMMON_DEPS,
@@ -43,6 +45,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "tracer",
+    visibility = ["//visibility:public"],
     src = "//pkg/network/ebpf/c:tracer.c",
     core = False,
     extra_flags = _NETWORK_FLAGS,
@@ -51,6 +54,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "usm",
+    visibility = ["//visibility:public"],
     src = "usm.c",
     extra_flags = _NETWORK_FLAGS,
     deps = _COMMON_DEPS,
@@ -58,6 +62,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "usm_events_test",
+    visibility = ["//visibility:public"],
     src = "usm_events_test.c",
     extra_flags = _NETWORK_FLAGS,
     deps = _COMMON_DEPS,
@@ -65,6 +70,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "shared-libraries",
+    visibility = ["//visibility:public"],
     src = "shared-libraries.c",
     extra_flags = _NETWORK_FLAGS,
     deps = _COMMON_DEPS,
@@ -72,6 +78,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "conntrack",
+    visibility = ["//visibility:public"],
     src = "conntrack.c",
     extra_flags = _NETWORK_FLAGS,
     deps = _COMMON_DEPS,

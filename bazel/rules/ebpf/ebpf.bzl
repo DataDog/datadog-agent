@@ -213,10 +213,9 @@ _ebpf_prog = rule(
 )
 
 def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):
-    _unused = visibility  # eBPF outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     _ebpf_prog(
         name = name,
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         src = src,
         deps = deps,
         core = core,
@@ -227,7 +226,7 @@ def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags,
     )
     _stripped_ebpf(
         name = name + ".stripped",
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         src = ":" + name,
         target_compatible_with = ["@platforms//os:linux"],
     )
@@ -246,10 +245,9 @@ ebpf_prog = macro(
 )
 
 def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch):
-    _unused = visibility  # eBPF outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     _ebpf_prog(
         name = name,
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         src = src,
         deps = deps,
         core = core,
@@ -260,13 +258,13 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
     )
     _stripped_ebpf(
         name = name + ".stripped",
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         src = ":" + name,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _ebpf_prog(
         name = name + "-debug",
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         src = src,
         deps = deps,
         core = core,
@@ -277,7 +275,7 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
     )
     _stripped_ebpf(
         name = name + "-debug.stripped",
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         src = ":" + name + "-debug",
         target_compatible_with = ["@platforms//os:linux"],
     )

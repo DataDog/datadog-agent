@@ -9,6 +9,7 @@ exports_files([
 
 cgo_godefs(
     name = "tcp_queue_length_kern_types_godefs",
+    visibility = ["//visibility:public"],
     src = "tcp_queue_length_kern_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
 )

@@ -28,6 +28,7 @@ filegroup(
 # tracer.c is a CO-RE program (built from top-level c/ dir)
 ebpf_program_suite(
     name = "tracer",
+    visibility = ["//visibility:public"],
     src = "tracer.c",
     core = True,
     deps = [

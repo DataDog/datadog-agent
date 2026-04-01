@@ -17,6 +17,7 @@ filegroup(
 
 ebpf_program_suite(
     name = "usm",
+    visibility = ["//visibility:public"],
     src = "usm.c",
     core = True,
     deps = [
@@ -28,6 +29,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "shared-libraries",
+    visibility = ["//visibility:public"],
     src = "shared-libraries.c",
     core = True,
     deps = [
@@ -39,6 +41,7 @@ ebpf_program_suite(
 
 ebpf_program_suite(
     name = "conntrack",
+    visibility = ["//visibility:public"],
     src = "conntrack.c",
     core = True,
     deps = [

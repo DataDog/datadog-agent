@@ -18,6 +18,7 @@ filegroup(
 
 ebpf_prog(
     name = "lock_contention",
+    visibility = ["//visibility:public"],
     src = "lock_contention.c",
     core = True,
     deps = [":ebpf_c_headers"],
@@ -25,6 +26,7 @@ ebpf_prog(
 
 ebpf_prog(
     name = "ksyms_iter",
+    visibility = ["//visibility:public"],
     src = "ksyms_iter.c",
     core = True,
     deps = [":ebpf_c_headers"],

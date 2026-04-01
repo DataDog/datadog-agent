@@ -149,7 +149,6 @@ _STD_LINUX_DEPS = [
 ]
 
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
-    _unused = visibility  # Godefs outputs are unconditionally public (cross-package consumers).  # buildifier: disable=unused-variable
     all_deps = (_STD_LINUX_DEPS if platform == "linux" else []) + deps
 
     gen = name + "_gen"
@@ -174,7 +173,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
     )
     write_source_file(
         name = name,
-        visibility = ["//visibility:public"],
+        visibility = visibility,
         in_file = ":" + name + "_main_out",
         out_file = main_file,
         check_that_out_file_exists = False,
@@ -189,7 +188,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         )
         write_source_file(
             name = name + "_test_file",
-            visibility = ["//visibility:public"],
+            visibility = visibility,
             in_file = ":" + name + "_test_out",
             out_file = test_file,
             check_that_out_file_exists = False,
