@@ -21,11 +21,15 @@ tags:
     regex: "^(none|mig|mig-parent)$"
   gpu_type:
     regex: "^[a-z0-9_-]+$"
-  gpu_parent_gpu_uuid:
+  gpu_parent_uuid:
     regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
   pid:
     regex: '^\d+$'
   nspid:
+    regex: '^\d+$'
+  origin:
+    regex: "^(driver|hardware)$"
+  type:
     regex: '^\d+$'
   kube_container_name: {}
   memory_location:
@@ -45,7 +49,7 @@ tagsets:
       - gpu_architecture
       - gpu_slicing_mode
       - gpu_type
-      - gpu_parent_gpu_uuid
+      - gpu_parent_uuid
   process:
     tags:
       - pid

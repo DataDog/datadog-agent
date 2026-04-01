@@ -120,7 +120,10 @@ def render_tag_validation_results(site: str, failures: dict[str, dict[str, list[
         for metric_name, tags in failures.items():
             print(f"  {metric_name}:")
             for tag_name, values in tags.items():
-                print(f"    - {tag_name}: {', '.join(values)}")
+                if len(values) == 0:
+                    print(f"    - {tag_name} is missing")
+                else:
+                    print(f"    - {tag_name}: [{', '.join(values)}]")
     if errors:
         print("\nTag validation errors:")
         for err in errors:
