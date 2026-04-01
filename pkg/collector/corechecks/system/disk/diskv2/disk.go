@@ -453,17 +453,19 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	physicalPartitions, nonPhysicalPartitions, err := c.fetchClassifiedPartitions()
+	physicalPartitions, nonPhysicalPartitions, unclassifiedPartitions, err := c.fetchClassifiedPartitions()
 	if err != nil {
 		return err
 	}
 	rootDevices := c.resolveRootDevices()
-	c.processPartitions(sender, physicalPartitions, rootDevices, true)
-	c.processPartitions(sender, nonPhysicalPartitions, rootDevices, false)
+	isPhys, isNonPhys := true, false
+	c.processPartitions(sender, physicalPartitions, rootDevices, &isPhys)
+	c.processPartitions(sender, nonPhysicalPartitions, rootDevices, &isNonPhys)
+	c.processPartitions(sender, unclassifiedPartitions, rootDevices, nil)
 	return nil
 }
 
-func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical []gopsutil_disk.PartitionStat, err error) {
+func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical, unclassified []gopsutil_disk.PartitionStat, err error) {
 	needsClassification := c.instanceConfig.TagByPhysicalStorage || c.instanceConfig.CollectPhysicalMetrics
 
 	if !needsClassification {
@@ -471,21 +473,23 @@ func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical []gopsutil_di
 		if err != nil {
 			if len(partitions) == 0 {
 				log.Warnf("Unable to get disk partitions: %v", err)
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(partitions), err)
 		} else if len(partitions) == 0 {
 			log.Warn("No disk partitions found - this may indicate a configuration or access issue")
 		}
-		return partitions, nil, nil
+		return partitions, nil, nil, nil
 	}
 
+	physicalScanPartial := false
 	physical, err = c.getDiskPartitionsWithTimeout(false)
 	if err != nil {
 		if len(physical) == 0 {
 			log.Warnf("Unable to get disk partitions: %v", err)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
+		physicalScanPartial = true
 		log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(physical), err)
 	}
 
@@ -495,7 +499,7 @@ func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical []gopsutil_di
 			if len(allPartitions) == 0 {
 				if len(physical) == 0 {
 					log.Warnf("Unable to get disk partitions: %v", err)
-					return nil, nil, err
+					return nil, nil, nil, err
 				}
 				log.Warnf("Unable to get all disk partitions: %v", err)
 			} else {
@@ -516,13 +520,15 @@ func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical []gopsutil_di
 			}
 			if _, isPhys := physicalDevices[p.Device]; isPhys {
 				physical = append(physical, p)
+			} else if physicalScanPartial {
+				unclassified = append(unclassified, p)
 			} else {
 				nonPhysical = append(nonPhysical, p)
 			}
 		}
 	}
 
-	return physical, nonPhysical, nil
+	return physical, nonPhysical, unclassified, nil
 }
 
 func (c *Check) resolveRootDevices() map[string]string {
@@ -539,7 +545,7 @@ func (c *Check) resolveRootDevices() map[string]string {
 	return rootDevices
 }
 
-func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk bool) {
+func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk *bool) {
 	for _, partition := range partitions {
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
@@ -552,11 +558,11 @@ func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_di
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
 			tags := c.getPartitionTags(partition)
-			if c.instanceConfig.TagByPhysicalStorage {
-				tags = append(tags, fmt.Sprintf("is_physical_storage:%t", isPhysicalDisk))
+			if c.instanceConfig.TagByPhysicalStorage && isPhysicalDisk != nil {
+				tags = append(tags, fmt.Sprintf("is_physical_storage:%t", *isPhysicalDisk))
 			}
 			c.sendPartitionMetrics(sender, usage, tags)
-			if isPhysicalDisk && c.instanceConfig.CollectPhysicalMetrics {
+			if isPhysicalDisk != nil && *isPhysicalDisk && c.instanceConfig.CollectPhysicalMetrics {
 				c.sendPartitionPhysicalMetrics(sender, usage, tags)
 			}
 

@@ -1740,7 +1740,7 @@ tag_by_physical_storage: true
 	assert.Contains(t, err.Error(), "all-partitions enumeration failed")
 }
 
-func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallReturnsPartialResults_ThenAllPartitionsStillReported(t *testing.T) {
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallReturnsPartialResults_ThenUnclassifiedPartitionsHaveNoPhysicalTag(t *testing.T) {
 	setupDefaultMocks()
 	partialPhysical := []gopsutil_disk.PartitionStat{
 		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw", "relatime"}},
@@ -1762,8 +1762,15 @@ tag_by_physical_storage: true
 
 	assert.Nil(t, err)
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
 }
 
 func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenBindMountExistsForPhysicalDevice_ThenBindMountIsClassifiedAsPhysical(t *testing.T) {
