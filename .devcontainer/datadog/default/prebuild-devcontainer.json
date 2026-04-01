@@ -52,8 +52,5 @@
         }
     },
     "onCreateCommand": "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps",
-    "containerEnv": {
-        "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"
-    },
     "containerUser": "root"
 }
