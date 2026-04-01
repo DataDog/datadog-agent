@@ -445,12 +445,12 @@ some:
 	assert.Equal(t, "RC_value", config.GetString("some.setting"))
 
 	config.UnsetForSource("some.setting", model.SourceRC)
-	assert.Equal(t, "process_value", config.GetString("some.setting"))
-
-	config.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
 	assert.Equal(t, "runtime_value", config.GetString("some.setting"))
 
 	config.UnsetForSource("some.setting", model.SourceAgentRuntime)
+	assert.Equal(t, "process_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
 	assert.Equal(t, "file_value", config.GetString("some.setting"))
 
 	config.UnsetForSource("some.setting", model.SourceFile)
