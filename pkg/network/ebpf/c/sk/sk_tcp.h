@@ -46,7 +46,6 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     conn->conn_stats.timestamp = tp->tcp_mstamp * NSEC_PER_USEC;
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);
     // TODO conn->conn_stats.protocol_stack
-    // TODO this seems incorrect for determining assured state since we just have absolute counts
     // TODO conn->conn_stats.tls_tags
     // TODO conn->conn_stats.cert_id
 
@@ -54,21 +53,17 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
         conn->tcp_stats.failure_reason = sk_stats->failure_reason;
         conn->tcp_stats.state_transitions = sk_stats->state_transitions;
         conn->tcp_stats.tcp_event_stats = sk_stats->tcp_event_stats;
-        // TODO the following will be unset for connections we didn't see the start of
         conn->tup.pid = sk_stats->pid;
         conn->conn_stats.duration_ms = sk_stats->start_ms;
         conn->conn_stats.direction = sk_stats->direction;
-        //conn->conn_stats.cookie = sk_stats->cookie;
 
+        // offset absolute counters with initial values read
         conn->conn_stats.sent_bytes -= sk_stats->initial_sent_bytes;
         conn->conn_stats.recv_bytes -= sk_stats->initial_recv_bytes;
         conn->conn_stats.sent_packets -= sk_stats->initial_sent_packets;
         conn->conn_stats.recv_packets -= sk_stats->initial_recv_packets;
         conn->tcp_stats.retransmits -= sk_stats->initial_retransmits;
-    } else {
-        // TODO initialize with information we are sure of
     }
-
     return 1;
 }
 
@@ -81,37 +76,26 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
     }
     conn->tup.metadata |= CONN_TYPE_UDP;
 
-    if (sk_stats) {
-//        conn->tcp_stats.failure_reason = sk_stats->failure_reason;
-//        conn->tcp_stats.state_transitions = sk_stats->state_transitions;
-//        conn->tcp_stats.tcp_event_stats = sk_stats->tcp_event_stats;
-        // TODO the following will be unset for connections we didn't see the start of
-        conn->tup.pid = sk_stats->pid;
-        conn->conn_stats.duration = sk_stats->start_ns;
-        conn->conn_stats.direction = sk_stats->direction;
-        //conn->conn_stats.cookie = sk_stats->cookie;
-
-        conn->conn_stats.sent_bytes = sk_stats->sent_bytes;
-        conn->conn_stats.recv_bytes = sk_stats->recv_bytes;
-        conn->conn_stats.sent_packets = sk_stats->sent_packets;
-        conn->conn_stats.recv_packets = sk_stats->recv_packets;
-        conn->conn_stats.timestamp = sk_stats->timestamp_ns;
-        conn->conn_stats.flags = sk_stats->flags;
-    } else {
-        // TODO initialize with information we are sure of
-    }
-
 //    struct net *nt = sk->sk_net.net;
 //    conn->conn_stats.sent_packets = nt->mib.udp_statistics->mibs[UDP_MIB_OUTDATAGRAMS];
 //    conn->conn_stats.recv_packets = nt->mib.udp_statistics->mibs[UDP_MIB_INDATAGRAMS];
 
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);
     // TODO conn->conn_stats.protocol_stack
-    // TODO this seems incorrect for determining assured state since we just have absolute counts
-    // update_conn_state(&conn->tup, &conn->conn_stats, conn->conn_stats.sent_bytes, conn->conn_stats.recv_bytes);
     // TODO conn->conn_stats.tls_tags
     // TODO conn->conn_stats.cert_id
 
+    if (sk_stats) {
+        conn->tup.pid = sk_stats->pid;
+        conn->conn_stats.duration = sk_stats->start_ns;
+        conn->conn_stats.direction = sk_stats->direction;
+        conn->conn_stats.sent_bytes = sk_stats->sent_bytes;
+        conn->conn_stats.recv_bytes = sk_stats->recv_bytes;
+        conn->conn_stats.sent_packets = sk_stats->sent_packets;
+        conn->conn_stats.recv_packets = sk_stats->recv_packets;
+        conn->conn_stats.timestamp = sk_stats->timestamp_ns;
+        conn->conn_stats.flags = sk_stats->flags;
+    }
     return 1;
 }
 
@@ -137,9 +121,10 @@ static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_s
     sk_stats->initial_retransmits = tp->total_retrans;
 
     sk_stats->pid = task->tgid;
+    sk_stats->tup.netns = get_netns_from_sock(sk);
 
     port_binding_t pb = {};
-    pb.netns = get_netns_from_sock(sk);
+    pb.netns = sk_stats->tup.netns;
     pb.port = read_sport(sk);
     u32 *port_count = bpf_map_lookup_elem(&port_bindings, &pb);
     sk_stats->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
@@ -152,9 +137,10 @@ static __always_inline void initialize_udp_socket(struct sock *sk, struct task_s
     }
 
     sk_stats->pid = task->tgid;
+    sk_stats->tup.netns = get_netns_from_sock(sk);
 
     port_binding_t pb = {};
-    pb.netns = get_netns_from_sock(sk);
+    pb.netns = sk_stats->tup.netns;
     pb.port = read_sport(sk);
     u32 *port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
     sk_stats->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
@@ -173,7 +159,7 @@ int bpf_iter__task_file_port_bindings(struct bpf_iter__task_file *ctx) {
     }
     struct sock *sk = sock->sk;
 
-    if (sk->sk_protocol == IPPROTO_TCP) {
+    if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
         switch (sk->sk_family) {
         case AF_INET6:
             if (!is_tcpv6_enabled()) return 0;
@@ -229,7 +215,7 @@ int bpf_iter__task_file_initial_sockets(struct bpf_iter__task_file *ctx) {
     }
     struct sock *sk = sock->sk;
 
-    if (sk->sk_protocol == IPPROTO_TCP) {
+    if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
         switch (sk->sk_family) {
         case AF_INET6:
             if (!is_tcpv6_enabled()) return 0;
@@ -276,7 +262,7 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
     struct sock *sk = sock->sk;
 
     conn_t conn = {};
-    if (sk->sk_protocol == IPPROTO_TCP) {
+    if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
         switch (sk->sk_family) {
         case AF_INET6:
             if (!is_tcpv6_enabled()) return 0;
@@ -288,7 +274,7 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
             return 0;
         }
 
-        log_debug("iterate tcp: sk=%p pid=%d", sk, task->tgid);
+        log_debug("iterate tcp: sk=%pK pid=%d", sk, task->tgid);
         sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, 0);
         if (!create_tcp_conn(&conn, sk, sk_stats)) {
             return 0;
@@ -305,7 +291,7 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
             return 0;
         }
 
-        log_debug("iterate udp: sk=%p pid=%d", sk, task->tgid);
+        log_debug("iterate udp: sk=%pK pid=%d", sk, task->tgid);
         sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, 0);
         if (!create_udp_conn(&conn, sk, sk_stats)) {
             return 0;
@@ -355,7 +341,10 @@ static __always_inline bool handle_sk_tcp_failure(struct sock *sk, sk_tcp_stats_
     }
 
     int err = get_tcp_failure(sk);
-    log_debug("tcp failure: sk=%p err=%d", sk, err);
+    if (!err) {
+        return false;
+    }
+    log_debug("tcp failure: sk=%pK err=%d", sk, err);
     if (!is_tcp_failure_recognized(err)) {
         return false;
     }
@@ -364,7 +353,7 @@ static __always_inline bool handle_sk_tcp_failure(struct sock *sk, sk_tcp_stats_
 }
 
 static __always_inline void sockops_tcp_close(struct bpf_sock_ops *ctx, struct sock *sk, sk_tcp_stats_t *sk_stats) {
-    log_debug("sockops: sk=%p state=TCP_CLOSE", sk);
+    log_debug("sockops: sk=%pK state=TCP_CLOSE", sk);
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
 }
 
@@ -382,6 +371,7 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
         return 1;
     }
 
+    log_debug("sockops: sk=%pK op=%d", sk, ctx->op);
     switch (ctx->op) {
     case BPF_SOCK_OPS_TCP_CONNECT_CB:
         bpf_sock_ops_cb_flags_set(ctx, BPF_SOCK_OPS_STATE_CB_FLAG);
@@ -394,7 +384,7 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
         return 1;
     }
 
-    log_debug("sockops: sk=%p lport=%d rport=%d", sk, ctx->local_port, bpf_ntohl(ctx->remote_port));
+    log_debug("sockops: sk=%pK lport=%d rport=%d", sk, ctx->local_port, bpf_ntohl(ctx->remote_port));
 
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
@@ -436,7 +426,7 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
     if (ctx->op == BPF_SOCK_OPS_STATE_CB) {
         switch (ctx->state) {
         case BPF_TCP_ESTABLISHED:
-            log_debug("sockops: sk=%p state=TCP_ESTABLISHED", sk);
+            log_debug("sockops: sk=%pK state=TCP_ESTABLISHED", sk);
             sk_stats->state_transitions |= (1 << TCP_ESTABLISHED);
             break;
         case BPF_TCP_CLOSE:

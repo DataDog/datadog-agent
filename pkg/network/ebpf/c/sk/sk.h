@@ -36,6 +36,7 @@ static __always_inline void copy_conn_tuple(conn_tuple_t *t, conn_tuple_t *stats
     if (stats_tup->sport) t->sport = stats_tup->sport;
     if (stats_tup->dport) t->dport = stats_tup->dport;
     if (stats_tup->metadata) t->metadata |= stats_tup->metadata;
+    if (stats_tup->netns) t->netns = stats_tup->netns;
 }
 
 static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk) {
