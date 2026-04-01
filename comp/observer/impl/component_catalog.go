@@ -51,9 +51,10 @@ type componentEntry struct {
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
 type componentInstance struct {
-	entry    componentEntry
-	instance any
-	enabled  bool
+	entry        componentEntry
+	instance     any
+	enabled      bool
+	activeConfig any // config actually passed to factory (nil for parameterless components)
 }
 
 // ConfigReader provides read access to a key-value configuration source.
@@ -255,9 +256,10 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 
 		instance := entry.factory(cfg)
 		ci := &componentInstance{
-			entry:    entry,
-			instance: instance,
-			enabled:  enabled,
+			entry:        entry,
+			instance:     instance,
+			enabled:      enabled,
+			activeConfig: cfg,
 		}
 		components[entry.name] = ci
 

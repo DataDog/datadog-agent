@@ -26,6 +26,14 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
   const correlatorStats = state.correlatorStats;
 
   const [showRawData, setShowRawData] = useState(false);
+  const [expandedConfigs, setExpandedConfigs] = useState<Set<string>>(new Set());
+  const toggleConfigPanel = (name: string) => {
+    setExpandedConfigs(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
   const [tagFilterInput, setTagFilterInput] = useState('');
   const initializedScenarioRef = useRef<string | null>(null);
 
@@ -82,23 +90,46 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
           <div className="space-y-1">
             {correlatorComponents.map((comp) => {
               const stats = correlatorStats?.[comp.name];
+              const configEntries = comp.config ? Object.entries(comp.config) : [];
+              const isExpanded = expandedConfigs.has(comp.name);
               return (
-                <div key={comp.name} className="flex items-center gap-2 px-2 py-1.5">
-                  <button
-                    onClick={() => actions.toggleComponent(comp.name)}
-                    className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
-                      comp.enabled ? 'bg-purple-600' : 'bg-slate-600'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                        comp.enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                <div key={comp.name}>
+                  <div className="flex items-center gap-2 px-2 py-1.5">
+                    <button
+                      onClick={() => actions.toggleComponent(comp.name)}
+                      className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
+                        comp.enabled ? 'bg-purple-600' : 'bg-slate-600'
                       }`}
-                    />
-                  </button>
-                  <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
-                  {stats && (
-                    <StatsLabel stats={stats} />
+                    >
+                      <span
+                        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                          comp.enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                    {stats && (
+                      <StatsLabel stats={stats} />
+                    )}
+                    {configEntries.length > 0 && (
+                      <button
+                        onClick={() => toggleConfigPanel(comp.name)}
+                        title={isExpanded ? 'Hide config' : 'Show config'}
+                        className="text-slate-500 hover:text-slate-300 transition-colors text-xs leading-none"
+                      >
+                        {isExpanded ? '▴' : '▾'}
+                      </button>
+                    )}
+                  </div>
+                  {isExpanded && configEntries.length > 0 && (
+                    <div className="ml-6 mb-1 px-2 py-1.5 bg-slate-900/60 rounded border border-slate-700/50 font-mono text-xs space-y-0.5">
+                      {configEntries.map(([k, v]) => (
+                        <div key={k} className="flex gap-2">
+                          <span className="text-slate-500 shrink-0">{k}</span>
+                          <span className="text-slate-300">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               );
