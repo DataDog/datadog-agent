@@ -132,7 +132,7 @@ func (r *RemoteFlareProvider) provideRemoteConfig(ctx context.Context, fb flaret
 }
 
 func (r *RemoteFlareProvider) provideConfigDump(_ context.Context, fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                                            //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                      //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return common.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
 	return nil
 }
