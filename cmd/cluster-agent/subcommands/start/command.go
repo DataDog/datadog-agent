@@ -561,7 +561,7 @@ func start(log log.Component,
 
 	var sh admspot.Handler
 	if config.GetBool("autoscaling.cluster.spot.enabled") {
-		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, le.IsLeader, apiCl, wmeta); err == nil {
+		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, wmeta, apiCl, le.IsLeader); err == nil {
 			sh = scheduler
 		} else {
 			return fmt.Errorf("Error while starting spot scheduling: %w", err)
@@ -633,7 +633,7 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pp, sh, datadogConfig)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {

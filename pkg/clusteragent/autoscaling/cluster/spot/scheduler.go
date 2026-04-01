@@ -59,7 +59,7 @@ func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 		isLeader:    isLeader,
 		synced:      make(chan struct{}),
 	}
-	s.tracker = newPodTracker(clk, spotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
+	s.tracker = newPodTracker(clk, workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
 	return s
 }
 
@@ -209,10 +209,10 @@ func (s *Scheduler) PodDeleted(pod *corev1.Pod) {
 }
 
 // getSpotConfig returns the spot config for the given owner.
-func (s *Scheduler) getSpotConfig(owner podOwner) (spotConfig, bool) {
+func (s *Scheduler) getSpotConfig(owner podOwner) (workloadSpotConfig, bool) {
 	workload, ok := resolveOwnerWorkload(owner)
 	if !ok {
-		return spotConfig{}, false
+		return workloadSpotConfig{}, false
 	}
 	return s.configStore.getConfig(workload)
 }

@@ -26,7 +26,7 @@ type pendingSpotPod struct {
 
 // pods tracks spot and on-demand pods and in-flight admission counts for the same owner.
 type pods struct {
-	config     spotConfig
+	config     workloadSpotConfig
 	lastUpdate time.Time
 
 	spotUIDs               map[string]podInfo
@@ -41,11 +41,16 @@ type podInfo struct {
 	phase string
 }
 
-// podTracker keeps track of pods per owner.
+// podTracker keeps track of running pods and in-flight admissions per workload owner.
+// It is populated from two sources:
+//   - The admission webhook calls admitNewPod on every pod CREATE request and records
+//     the spot/on-demand decision before the pod is visible in Kubernetes.
+//   - The Kubernetes watch calls addedOrUpdated/deleted as pods appear
+//     converting in-flight admission counts into UID-keyed records.
 type podTracker struct {
 	clock         clock.Clock
-	defaultConfig spotConfig
-	configSource  func(podOwner) (spotConfig, bool)
+	defaultConfig workloadSpotConfig
+	configSource  func(podOwner) (workloadSpotConfig, bool)
 
 	mu sync.RWMutex
 	// podsPerOwner groups pods and in-flight admission counts by owner.
@@ -54,7 +59,7 @@ type podTracker struct {
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock, defaultConfig spotConfig, configSource func(podOwner) (spotConfig, bool)) *podTracker {
+func newPodTracker(clk clock.Clock, defaultConfig workloadSpotConfig, configSource func(podOwner) (workloadSpotConfig, bool)) *podTracker {
 	return &podTracker{
 		clock:           clk,
 		defaultConfig:   defaultConfig,

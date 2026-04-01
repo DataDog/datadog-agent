@@ -79,7 +79,7 @@ func NewControllerV1beta1(
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(wmeta, pp, sh, datadogConfig, demultiplexer)
+	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, demultiplexer, pp, sh)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

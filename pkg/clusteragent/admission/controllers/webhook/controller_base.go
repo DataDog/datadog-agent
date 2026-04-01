@@ -105,7 +105,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pp workload.PodPatcher, sh admspot.Handler, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh admspot.Handler) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -148,7 +148,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pp workl
 	webhooks = append(webhooks, autoscalingWebhook)
 
 	// Setup spot scheduling webhook.
-	spotWebhook := admspot.NewWebhook(sh, datadogConfig)
+	spotWebhook := admspot.NewWebhook(datadogConfig, sh)
 	webhooks = append(webhooks, spotWebhook)
 
 	// Setup appsec proxy webhook.

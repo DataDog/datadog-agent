@@ -19,6 +19,7 @@ import (
 
 // podEvictor evicts a pod by namespace and name.
 // If phase is non-empty, the pod is only evicted if its current phase matches.
+// It is used to evict Pending pods for on-demand fallback or pods in any phase for rebalancing.
 type podEvictor interface {
 	evictPod(ctx context.Context, namespace, name string, phase corev1.PodPhase) error
 }

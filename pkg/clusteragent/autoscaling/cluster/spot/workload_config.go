@@ -29,8 +29,8 @@ type workloadConfigStore interface {
 	run(ctx context.Context)
 	// waitSynced blocks until the store has completed its initial sync.
 	waitSynced()
-	// getConfig returns the spotConfig for the workload if present.
-	getConfig(key workload) (spotConfig, bool)
+	// getConfig returns the workloadSpotConfig for the workload if present.
+	getConfig(key workload) (workloadSpotConfig, bool)
 	// disable disables spot scheduling for workload.
 	// If already disabled returns existing timestamp and false,
 	// otherwise sets disabledUntil and returns the new timestamp and true.
@@ -49,22 +49,22 @@ var spotWorkloadResources = []workloadResource{
 
 // kubeWorkloadConfigStore is a workloadConfigStore backed by Kubernetes informers.
 // It watches Deployments and StatefulSets labeled with SpotEnabledLabelSelector and
-// maintains a map of objectKey → spotConfig updated on informer events.
+// maintains a map of objectKey → workloadSpotConfig updated on informer events.
 type kubeWorkloadConfigStore struct {
-	defaultConfig spotConfig
+	defaultConfig workloadSpotConfig
 
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	hasSynced       []cache.InformerSynced
 	synced          chan struct{}
 
 	mu      sync.RWMutex
-	configs map[workload]spotConfig
+	configs map[workload]workloadSpotConfig
 }
 
 func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig Config) *kubeWorkloadConfigStore {
 	s := &kubeWorkloadConfigStore{
-		defaultConfig: spotConfig{percentage: defaultConfig.Percentage, minOnDemand: defaultConfig.MinOnDemandReplicas},
-		configs:       make(map[workload]spotConfig),
+		defaultConfig: workloadSpotConfig{percentage: defaultConfig.Percentage, minOnDemand: defaultConfig.MinOnDemandReplicas},
+		configs:       make(map[workload]workloadSpotConfig),
 		synced:        make(chan struct{}),
 	}
 
@@ -115,7 +115,7 @@ func (s *kubeWorkloadConfigStore) waitSynced() {
 	<-s.synced
 }
 
-func (s *kubeWorkloadConfigStore) getConfig(key workload) (spotConfig, bool) {
+func (s *kubeWorkloadConfigStore) getConfig(key workload) (workloadSpotConfig, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cfg, ok := s.configs[key]
@@ -156,7 +156,7 @@ func (s *kubeWorkloadConfigStore) onUpdated(kind string, obj any) {
 	s.configs[key] = cfg
 	s.mu.Unlock()
 
-	log.Debugf("Spot workload config updated %s: %s", key, cfg)
+	log.Debugf("Spot workload config updated %s: %#v", key, cfg)
 }
 
 func (s *kubeWorkloadConfigStore) onDeleted(kind string, obj any) {

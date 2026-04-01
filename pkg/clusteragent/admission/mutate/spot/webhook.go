@@ -50,7 +50,7 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new spot-scheduling Webhook.
-func NewWebhook(handler Handler, datadogConfig config.Component) *Webhook {
+func NewWebhook(datadogConfig config.Component, handler Handler) *Webhook {
 	return &Webhook{
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("autoscaling.cluster.spot.enabled"),
@@ -114,23 +114,27 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
 		switch request.Operation {
 		case admissionregistrationv1.Create:
-			return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(),
-				func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-					return w.handler.PodCreated(pod)
-				}, request.DynamicClient))
+			return w.podCreated(request)
 		case admissionregistrationv1.Delete:
-			var pod corev1.Pod
-			if err := json.Unmarshal(request.OldObject, &pod); err != nil {
-				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
-			}
-			w.handler.PodDeleted(&pod)
-			return &admiv1.AdmissionResponse{
-				Allowed: true,
-			}
+			return w.podDeleted(request)
 		default:
-			return &admiv1.AdmissionResponse{
-				Allowed: true,
-			}
+			return &admiv1.AdmissionResponse{Allowed: true}
 		}
 	}
+}
+
+func (w *Webhook) podCreated(request *admission.Request) *admiv1.AdmissionResponse {
+	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(),
+		func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			return w.handler.PodCreated(pod)
+		}, request.DynamicClient))
+}
+
+func (w *Webhook) podDeleted(request *admission.Request) *admiv1.AdmissionResponse {
+	var pod corev1.Pod
+	if err := json.Unmarshal(request.OldObject, &pod); err != nil {
+		return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
+	}
+	w.handler.PodDeleted(&pod)
+	return &admiv1.AdmissionResponse{Allowed: true}
 }
