@@ -30,8 +30,12 @@ func Jump(code uint16, k uint32, jt, jf uint8) Instruction {
 	return Instruction{Code: code, Jt: jt, Jf: jf, K: k}
 }
 
-// Instruction classes
+// BPF opcodes and constants. Names use underscores to match the canonical
+// BPF definitions from pcap/bpf.h (e.g. BPF_LD, BPF_JMP, BPF_MEMWORDS).
+//
+//nolint:revive // BPF constant names intentionally match C pcap/bpf.h
 const (
+	// Instruction classes
 	BPF_LD   uint16 = 0x00
 	BPF_LDX  uint16 = 0x01
 	BPF_ST   uint16 = 0x02
@@ -40,27 +44,21 @@ const (
 	BPF_JMP  uint16 = 0x05
 	BPF_RET  uint16 = 0x06
 	BPF_MISC uint16 = 0x07
-)
 
-// ld/ldx sizes
-const (
+	// ld/ldx sizes
 	BPF_W uint16 = 0x00 // 32-bit word
 	BPF_H uint16 = 0x08 // 16-bit half-word
 	BPF_B uint16 = 0x10 // 8-bit byte
-)
 
-// ld/ldx modes
-const (
+	// ld/ldx modes
 	BPF_IMM uint16 = 0x00
 	BPF_ABS uint16 = 0x20
 	BPF_IND uint16 = 0x40
 	BPF_MEM uint16 = 0x60
 	BPF_LEN uint16 = 0x80
 	BPF_MSH uint16 = 0xa0
-)
 
-// alu/jmp operations
-const (
+	// alu/jmp operations
 	BPF_ADD uint16 = 0x00
 	BPF_SUB uint16 = 0x10
 	BPF_MUL uint16 = 0x20
@@ -72,35 +70,29 @@ const (
 	BPF_NEG uint16 = 0x80
 	BPF_MOD uint16 = 0x90
 	BPF_XOR uint16 = 0xa0
-)
 
-// jmp conditions
-const (
+	// jmp conditions
 	BPF_JA   uint16 = 0x00
 	BPF_JEQ  uint16 = 0x10
 	BPF_JGT  uint16 = 0x20
 	BPF_JGE  uint16 = 0x30
 	BPF_JSET uint16 = 0x40
-)
 
-// source operand
-const (
+	// source operand
 	BPF_K uint16 = 0x00
 	BPF_X uint16 = 0x08
-)
 
-// ret source
-const (
+	// ret source
 	BPF_A uint16 = 0x10
-)
 
-// misc operations
-const (
+	// misc operations
 	BPF_TAX uint16 = 0x00
 	BPF_TXA uint16 = 0x80
 )
 
 // BPF_MEMWORDS is the number of scratch memory words.
+//
+//nolint:revive // BPF constant name intentionally matches C pcap/bpf.h
 const BPF_MEMWORDS = 16
 
 // Class extracts the instruction class from an opcode.

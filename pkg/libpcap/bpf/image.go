@@ -5,7 +5,10 @@
 
 package bpf
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // Image returns a human-readable representation of a BPF instruction.
 // n is the instruction index (used to compute absolute jump targets).
@@ -76,7 +79,7 @@ func Image(p Instruction, n int) string {
 
 	case BPF_JMP | BPF_JA:
 		op = "ja"
-		operand = fmt.Sprintf("%d", n+1+int(p.K))
+		operand = strconv.Itoa(n + 1 + int(p.K))
 
 	case BPF_JMP | BPF_JGT | BPF_K:
 		op = "jgt"

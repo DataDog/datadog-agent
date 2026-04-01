@@ -7,6 +7,7 @@ package codegen
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/libpcap/bpf"
@@ -58,7 +59,7 @@ func GenHost(cs *CompilerState, addr, mask uint32, proto, dir, addrType int) *Bl
 		cs.SetError(fmt.Errorf("'%s' modifier applied to %s", protoName(proto), typestr))
 		return nil
 	case QIPv6:
-		cs.SetError(fmt.Errorf("'ip6' modifier applied to ip host"))
+		cs.SetError(errors.New("'ip6' modifier applied to ip host"))
 		return nil
 	case QICMPv6, QAH, QESP, QPIM, QVRRP, QCARP:
 		cs.SetError(fmt.Errorf("'%s' modifier applied to %s", protoName(proto), typestr))
@@ -99,10 +100,10 @@ func genHostop(cs *CompilerState, addr, mask uint32, dir int, llProto uint32, sr
 		}
 		return b1
 	case QAddr1, QAddr2, QAddr3, QAddr4:
-		cs.SetError(fmt.Errorf("'addr' qualifiers are only valid for 802.11 MAC addresses"))
+		cs.SetError(errors.New("'addr' qualifiers are only valid for 802.11 MAC addresses"))
 		return nil
 	case QRA, QTA:
-		cs.SetError(fmt.Errorf("'ra'/'ta' qualifiers are only valid for 802.11 MAC addresses"))
+		cs.SetError(errors.New("'ra'/'ta' qualifiers are only valid for 802.11 MAC addresses"))
 		return nil
 	default:
 		cs.SetError(fmt.Errorf("unknown direction %d", dir))
@@ -229,10 +230,10 @@ func GenEhostop(cs *CompilerState, eaddr []byte, dir int) *Block {
 		}
 		return b1
 	case QAddr1, QAddr2, QAddr3, QAddr4:
-		cs.SetError(fmt.Errorf("'addr' qualifiers are only supported on 802.11"))
+		cs.SetError(errors.New("'addr' qualifiers are only supported on 802.11"))
 		return nil
 	case QRA, QTA:
-		cs.SetError(fmt.Errorf("'ra'/'ta' qualifiers are only supported on 802.11"))
+		cs.SetError(errors.New("'ra'/'ta' qualifiers are only supported on 802.11"))
 		return nil
 	default:
 		cs.SetError(fmt.Errorf("unknown direction %d for Ethernet host", dir))

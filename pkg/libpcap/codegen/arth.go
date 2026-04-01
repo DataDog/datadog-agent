@@ -6,6 +6,7 @@
 package codegen
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/libpcap/bpf"
@@ -81,17 +82,17 @@ func GenArth(cs *CompilerState, code int, a0, a1 *Arth) *Arth {
 	// Check for constant division/modulus by zero and large shifts
 	if code == int(bpf.BPF_DIV) {
 		if a1.S != nil && a1.S.S.Code == int(bpf.BPF_LD|bpf.BPF_IMM) && a1.S.S.K == 0 {
-			cs.SetError(fmt.Errorf("division by zero"))
+			cs.SetError(errors.New("division by zero"))
 			return nil
 		}
 	} else if code == int(bpf.BPF_MOD) {
 		if a1.S != nil && a1.S.S.Code == int(bpf.BPF_LD|bpf.BPF_IMM) && a1.S.S.K == 0 {
-			cs.SetError(fmt.Errorf("modulus by zero"))
+			cs.SetError(errors.New("modulus by zero"))
 			return nil
 		}
 	} else if code == int(bpf.BPF_LSH) || code == int(bpf.BPF_RSH) {
 		if a1.S != nil && a1.S.S.Code == int(bpf.BPF_LD|bpf.BPF_IMM) && a1.S.S.K > 31 {
-			cs.SetError(fmt.Errorf("shift by more than 31 bits"))
+			cs.SetError(errors.New("shift by more than 31 bits"))
 			return nil
 		}
 	}
@@ -188,7 +189,7 @@ func GenLoad(cs *CompilerState, proto int, inst *Arth, size uint32) *Arth {
 	case 4:
 		sizeCode = bpf.BPF_W
 	default:
-		cs.SetError(fmt.Errorf("data size must be 1, 2, or 4"))
+		cs.SetError(errors.New("data size must be 1, 2, or 4"))
 		return nil
 	}
 
@@ -324,13 +325,13 @@ func GenBroadcast(cs *CompilerState, proto int) *Block {
 		case DLTEN10MB:
 			return GenEhostop(cs, ebroadcast, QDst)
 		default:
-			cs.SetError(fmt.Errorf("not a broadcast link"))
+			cs.SetError(errors.New("not a broadcast link"))
 			return nil
 		}
 
 	case QIP:
 		if cs.Netmask == 0xFFFFFFFF {
-			cs.SetError(fmt.Errorf("netmask not known, so 'ip broadcast' not supported"))
+			cs.SetError(errors.New("netmask not known, so 'ip broadcast' not supported"))
 			return nil
 		}
 		b0 := GenLinktype(cs, EthertypeIP)
@@ -343,7 +344,7 @@ func GenBroadcast(cs *CompilerState, proto int) *Block {
 		return b2
 
 	default:
-		cs.SetError(fmt.Errorf("only link-layer/IP broadcast filters supported"))
+		cs.SetError(errors.New("only link-layer/IP broadcast filters supported"))
 		return nil
 	}
 }
@@ -399,7 +400,7 @@ func GenByteop(cs *CompilerState, op int, idx int, val uint32) *Block {
 	case '&':
 		return GenMcmp(cs, OrLinkpl, uint32(idx), bpf.BPF_B, val, val)
 	case '|':
-		cs.SetError(fmt.Errorf("'byte' OR operation not supported"))
+		cs.SetError(errors.New("'byte' OR operation not supported"))
 		return nil
 	case '<':
 		return GenCmpLt(cs, OrLinkpl, uint32(idx), bpf.BPF_B, val)
@@ -416,12 +417,12 @@ func GenByteop(cs *CompilerState, op int, idx int, val uint32) *Block {
 // GenInbound generates code for inbound/outbound matching.
 // Port of gen_inbound() from gencode.c.
 func GenInbound(cs *CompilerState, dir int) *Block {
-	cs.SetError(fmt.Errorf("inbound/outbound not supported on this link type"))
+	cs.SetError(errors.New("inbound/outbound not supported on this link type"))
 	return nil
 }
 
 // GenIfindex generates code for interface index matching.
 func GenIfindex(cs *CompilerState, ifindex int) *Block {
-	cs.SetError(fmt.Errorf("ifindex not supported on this link type"))
+	cs.SetError(errors.New("ifindex not supported on this link type"))
 	return nil
 }

@@ -6,7 +6,7 @@
 package codegen
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/libpcap/bpf"
 )
@@ -43,7 +43,7 @@ func CountStmts(ic *ICode, p *Block) uint {
 // Port of icode_to_fcode() from optimize.c.
 func IcodeToFcode(ic *ICode, root *Block) ([]bpf.Instruction, error) {
 	if root == nil {
-		return nil, fmt.Errorf("empty filter program")
+		return nil, errors.New("empty filter program")
 	}
 
 	// Loop doing convertCode until no branches remain with too-large offsets.
@@ -53,7 +53,7 @@ func IcodeToFcode(ic *ICode, root *Block) ([]bpf.Instruction, error) {
 		ic.UnMarkAll()
 		n := CountStmts(ic, root)
 		if n == 0 {
-			return nil, fmt.Errorf("filter has no instructions")
+			return nil, errors.New("filter has no instructions")
 		}
 
 		fp := make([]bpf.Instruction, n)
@@ -66,7 +66,7 @@ func IcodeToFcode(ic *ICode, root *Block) ([]bpf.Instruction, error) {
 		}
 		// Some branch was too large — long jumps have been marked, retry
 	}
-	return nil, fmt.Errorf("linearization failed: too many iterations")
+	return nil, errors.New("linearization failed: too many iterations")
 }
 
 // convertCode recursively converts blocks to BPF instructions.

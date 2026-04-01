@@ -5,7 +5,7 @@
 
 package codegen
 
-import "fmt"
+import "errors"
 
 // Stmt is a single BPF statement in an instruction block.
 // Port of struct stmt from gencode.h.
@@ -242,7 +242,7 @@ func (cs *CompilerState) AllocReg() int {
 			return i
 		}
 	}
-	cs.SetError(fmt.Errorf("too many registers needed"))
+	cs.SetError(errors.New("too many registers needed"))
 	return -1
 }
 

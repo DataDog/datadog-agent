@@ -6,7 +6,7 @@
 package optimizer
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/libpcap/bpf"
 	"github.com/DataDog/datadog-agent/pkg/libpcap/codegen"
@@ -27,13 +27,13 @@ func (os *OptState) foldOp(s *codegen.Stmt, v0, v1 uint32) {
 		a *= b
 	case bpf.BPF_DIV:
 		if b == 0 {
-			os.Err = fmt.Errorf("division by zero")
+			os.Err = errors.New("division by zero")
 			return
 		}
 		a /= b
 	case bpf.BPF_MOD:
 		if b == 0 {
-			os.Err = fmt.Errorf("modulus by zero")
+			os.Err = errors.New("modulus by zero")
 			return
 		}
 		a %= b
@@ -137,11 +137,11 @@ func (os *OptState) OptStmt(s *codegen.Stmt, val []uint32, alter bool) {
 					return
 				}
 				if op == bpf.BPF_DIV {
-					os.Err = fmt.Errorf("division by zero")
+					os.Err = errors.New("division by zero")
 					return
 				}
 				if op == bpf.BPF_MOD {
-					os.Err = fmt.Errorf("modulus by zero")
+					os.Err = errors.New("modulus by zero")
 					return
 				}
 			}
@@ -172,7 +172,7 @@ func (os *OptState) OptStmt(s *codegen.Stmt, val []uint32, alter bool) {
 				s.Code = int(bpf.BPF_ALU | bpf.BPF_K | op)
 				s.K = os.ConstVal(val[XAtom])
 				if (op == bpf.BPF_LSH || op == bpf.BPF_RSH) && s.K > 31 {
-					os.Err = fmt.Errorf("shift by more than 31 bits")
+					os.Err = errors.New("shift by more than 31 bits")
 					return
 				}
 				os.NonBranchMovementPerformed = true

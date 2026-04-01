@@ -6,6 +6,7 @@
 package codegen
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/libpcap/bpf"
@@ -118,10 +119,10 @@ func GenProtoAbbrev(cs *CompilerState, proto int) *Block {
 		return GenLinktype(cs, LLCSAPNetbeui)
 
 	case QLink:
-		cs.SetError(fmt.Errorf("link layer applied in wrong context"))
+		cs.SetError(errors.New("link layer applied in wrong context"))
 		return nil
 	case QRadio:
-		cs.SetError(fmt.Errorf("'radio' is not a valid protocol type"))
+		cs.SetError(errors.New("'radio' is not a valid protocol type"))
 		return nil
 
 	default:
@@ -136,7 +137,7 @@ func GenProtoAbbrev(cs *CompilerState, proto int) *Block {
 // Port of gen_proto() from gencode.c.
 func genProto(cs *CompilerState, v uint32, proto int, dir int) *Block {
 	if dir != QDefault {
-		cs.SetError(fmt.Errorf("direction applied to 'proto'"))
+		cs.SetError(errors.New("direction applied to 'proto'"))
 		return nil
 	}
 
@@ -202,55 +203,55 @@ func genProto(cs *CompilerState, v uint32, proto int, dir int) *Block {
 		return b1
 
 	case QARP:
-		cs.SetError(fmt.Errorf("arp does not encapsulate another protocol"))
+		cs.SetError(errors.New("arp does not encapsulate another protocol"))
 		return nil
 	case QRARP:
-		cs.SetError(fmt.Errorf("rarp does not encapsulate another protocol"))
+		cs.SetError(errors.New("rarp does not encapsulate another protocol"))
 		return nil
 	case QSCTP:
-		cs.SetError(fmt.Errorf("'sctp proto' is bogus"))
+		cs.SetError(errors.New("'sctp proto' is bogus"))
 		return nil
 	case QTCP:
-		cs.SetError(fmt.Errorf("'tcp proto' is bogus"))
+		cs.SetError(errors.New("'tcp proto' is bogus"))
 		return nil
 	case QUDP:
-		cs.SetError(fmt.Errorf("'udp proto' is bogus"))
+		cs.SetError(errors.New("'udp proto' is bogus"))
 		return nil
 	case QICMP:
-		cs.SetError(fmt.Errorf("'icmp proto' is bogus"))
+		cs.SetError(errors.New("'icmp proto' is bogus"))
 		return nil
 	case QIGMP:
-		cs.SetError(fmt.Errorf("'igmp proto' is bogus"))
+		cs.SetError(errors.New("'igmp proto' is bogus"))
 		return nil
 	case QIGRP:
-		cs.SetError(fmt.Errorf("'igrp proto' is bogus"))
+		cs.SetError(errors.New("'igrp proto' is bogus"))
 		return nil
 	case QAtalk:
-		cs.SetError(fmt.Errorf("AppleTalk encapsulation is not specifiable"))
+		cs.SetError(errors.New("AppleTalk encapsulation is not specifiable"))
 		return nil
 	case QDecnet:
-		cs.SetError(fmt.Errorf("DECNET encapsulation is not specifiable"))
+		cs.SetError(errors.New("DECNET encapsulation is not specifiable"))
 		return nil
 	case QLat:
-		cs.SetError(fmt.Errorf("LAT does not encapsulate another protocol"))
+		cs.SetError(errors.New("LAT does not encapsulate another protocol"))
 		return nil
 	case QSCA:
-		cs.SetError(fmt.Errorf("SCA does not encapsulate another protocol"))
+		cs.SetError(errors.New("SCA does not encapsulate another protocol"))
 		return nil
 	case QMoprc:
-		cs.SetError(fmt.Errorf("MOPRC does not encapsulate another protocol"))
+		cs.SetError(errors.New("MOPRC does not encapsulate another protocol"))
 		return nil
 	case QMopdl:
-		cs.SetError(fmt.Errorf("MOPDL does not encapsulate another protocol"))
+		cs.SetError(errors.New("MOPDL does not encapsulate another protocol"))
 		return nil
 	case QICMPv6:
-		cs.SetError(fmt.Errorf("'icmp6 proto' is bogus"))
+		cs.SetError(errors.New("'icmp6 proto' is bogus"))
 		return nil
 	case QAH:
-		cs.SetError(fmt.Errorf("'ah proto' is bogus"))
+		cs.SetError(errors.New("'ah proto' is bogus"))
 		return nil
 	case QESP:
-		cs.SetError(fmt.Errorf("'esp proto' is bogus"))
+		cs.SetError(errors.New("'esp proto' is bogus"))
 		return nil
 	default:
 		cs.SetError(fmt.Errorf("unsupported protocol layer %d for 'proto'", proto))

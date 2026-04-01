@@ -7,6 +7,7 @@ package codegen
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -37,7 +38,7 @@ func GenScode(cs *CompilerState, name string, q Qual) *Block {
 		return genScodeProto(cs, name, proto, dir)
 
 	case QGateway:
-		cs.SetError(fmt.Errorf("'gateway' not supported"))
+		cs.SetError(errors.New("'gateway' not supported"))
 		return nil
 
 	default:
@@ -48,7 +49,7 @@ func GenScode(cs *CompilerState, name string, q Qual) *Block {
 
 func genScodeNet(cs *CompilerState, name string, proto, dir int) *Block {
 	if cs.Resolver == nil {
-		cs.SetError(fmt.Errorf("name resolution not available"))
+		cs.SetError(errors.New("name resolution not available"))
 		return nil
 	}
 	addr, mask, err := cs.Resolver.LookupNet(name)
@@ -65,7 +66,7 @@ func genScodeHost(cs *CompilerState, name string, proto, dir int, addrQual uint8
 	}
 
 	if cs.Resolver == nil {
-		cs.SetError(fmt.Errorf("name resolution not available"))
+		cs.SetError(errors.New("name resolution not available"))
 		return nil
 	}
 
@@ -116,7 +117,7 @@ func genScodeHost(cs *CompilerState, name string, proto, dir int, addrQual uint8
 
 func genScodeEtherHost(cs *CompilerState, name string, dir int) *Block {
 	if cs.Resolver == nil {
-		cs.SetError(fmt.Errorf("name resolution not available"))
+		cs.SetError(errors.New("name resolution not available"))
 		return nil
 	}
 	eaddr, err := cs.Resolver.LookupEther(name)
@@ -135,12 +136,12 @@ func genScodeEtherHost(cs *CompilerState, name string, dir int) *Block {
 
 func genScodePort(cs *CompilerState, name string, proto, dir int) *Block {
 	if proto != QDefault && proto != QUDP && proto != QTCP && proto != QSCTP {
-		cs.SetError(fmt.Errorf("illegal qualifier of 'port'"))
+		cs.SetError(errors.New("illegal qualifier of 'port'"))
 		return nil
 	}
 
 	if cs.Resolver == nil {
-		cs.SetError(fmt.Errorf("name resolution not available"))
+		cs.SetError(errors.New("name resolution not available"))
 		return nil
 	}
 
@@ -169,12 +170,12 @@ func genScodePort(cs *CompilerState, name string, proto, dir int) *Block {
 
 func genScodePortrange(cs *CompilerState, name string, proto, dir int) *Block {
 	if proto != QDefault && proto != QUDP && proto != QTCP && proto != QSCTP {
-		cs.SetError(fmt.Errorf("illegal qualifier of 'portrange'"))
+		cs.SetError(errors.New("illegal qualifier of 'portrange'"))
 		return nil
 	}
 
 	if cs.Resolver == nil {
-		cs.SetError(fmt.Errorf("name resolution not available"))
+		cs.SetError(errors.New("name resolution not available"))
 		return nil
 	}
 
@@ -203,7 +204,7 @@ func genScodePortrange(cs *CompilerState, name string, proto, dir int) *Block {
 
 func genScodeProto(cs *CompilerState, name string, proto, dir int) *Block {
 	if cs.Resolver == nil {
-		cs.SetError(fmt.Errorf("name resolution not available"))
+		cs.SetError(errors.New("name resolution not available"))
 		return nil
 	}
 	realProto, err := cs.Resolver.LookupProto(name)
@@ -235,7 +236,7 @@ func GenNcode(cs *CompilerState, s string, v uint32, q Qual) *Block {
 	switch q.Addr {
 	case QDefault, QHost, QNet:
 		if proto == QLink {
-			cs.SetError(fmt.Errorf("illegal link layer address"))
+			cs.SetError(errors.New("illegal link layer address"))
 			return nil
 		}
 		mask := uint32(0xffffffff)
@@ -255,7 +256,7 @@ func GenNcode(cs *CompilerState, s string, v uint32, q Qual) *Block {
 	case QPort:
 		ipProto := protoQualToIPProto(proto)
 		if proto != QDefault && proto != QUDP && proto != QTCP && proto != QSCTP {
-			cs.SetError(fmt.Errorf("illegal qualifier of 'port'"))
+			cs.SetError(errors.New("illegal qualifier of 'port'"))
 			return nil
 		}
 		if v > 65535 {
@@ -272,7 +273,7 @@ func GenNcode(cs *CompilerState, s string, v uint32, q Qual) *Block {
 	case QPortrange:
 		ipProto := protoQualToIPProto(proto)
 		if proto != QDefault && proto != QUDP && proto != QTCP && proto != QSCTP {
-			cs.SetError(fmt.Errorf("illegal qualifier of 'portrange'"))
+			cs.SetError(errors.New("illegal qualifier of 'portrange'"))
 			return nil
 		}
 		if v > 65535 {
@@ -290,7 +291,7 @@ func GenNcode(cs *CompilerState, s string, v uint32, q Qual) *Block {
 		return genProto(cs, v, proto, dir)
 
 	case QGateway:
-		cs.SetError(fmt.Errorf("'gateway' requires a name"))
+		cs.SetError(errors.New("'gateway' requires a name"))
 		return nil
 
 	default:
@@ -319,7 +320,7 @@ func GenMcode(cs *CompilerState, s1, s2 string, masklen uint32, q Qual) *Block {
 		m = mval << uint(32-mlen)
 	} else {
 		if masklen > 32 {
-			cs.SetError(fmt.Errorf("mask length must be <= 32"))
+			cs.SetError(errors.New("mask length must be <= 32"))
 			return nil
 		}
 		if masklen == 0 {
@@ -338,7 +339,7 @@ func GenMcode(cs *CompilerState, s1, s2 string, masklen uint32, q Qual) *Block {
 	case QNet:
 		return GenHost(cs, n, m, int(q.Proto), int(q.Dir), QNet)
 	default:
-		cs.SetError(fmt.Errorf("mask syntax for networks only"))
+		cs.SetError(errors.New("mask syntax for networks only"))
 		return nil
 	}
 }
@@ -377,7 +378,7 @@ func GenMcode6(cs *CompilerState, s string, masklen uint32, q Qual) *Block {
 	case QDefault, QHost, QNet:
 		return GenHost6(cs, addr, mask, int(q.Proto), int(q.Dir), int(q.Addr))
 	default:
-		cs.SetError(fmt.Errorf("invalid address qualifier for IPv6"))
+		cs.SetError(errors.New("invalid address qualifier for IPv6"))
 		return nil
 	}
 }
@@ -396,11 +397,11 @@ func GenEcode(cs *CompilerState, s string, q Qual) *Block {
 	}
 
 	if q.Addr != QDefault && q.Addr != QHost {
-		cs.SetError(fmt.Errorf("ethernet address used in non-host context"))
+		cs.SetError(errors.New("ethernet address used in non-host context"))
 		return nil
 	}
 	if q.Proto != QLink && q.Proto != QDefault {
-		cs.SetError(fmt.Errorf("ethernet address used with non-link protocol"))
+		cs.SetError(errors.New("ethernet address used with non-link protocol"))
 		return nil
 	}
 
@@ -416,7 +417,7 @@ func GenEcode(cs *CompilerState, s string, q Qual) *Block {
 // GenAcode generates code for an ARCnet address.
 // Port of gen_acode() from gencode.c.
 func GenAcode(cs *CompilerState, s string, q Qual) *Block {
-	cs.SetError(fmt.Errorf("ARCnet address matching not supported"))
+	cs.SetError(errors.New("ARCnet address matching not supported"))
 	return nil
 }
 
@@ -426,7 +427,7 @@ func GenAcode(cs *CompilerState, s string, q Qual) *Block {
 func parseIPv4Addr(s string) (int, uint32, error) {
 	parts := strings.Split(s, ".")
 	if len(parts) > 4 {
-		return 0, 0, fmt.Errorf("invalid IPv4 address")
+		return 0, 0, errors.New("invalid IPv4 address")
 	}
 
 	var v uint32
