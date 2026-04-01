@@ -639,6 +639,7 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 	}()
 	select {
 	case result := <-resultCh:
+		c.partitionEnumInFlight.Store(false)
 		return result.partitions, result.err
 	case <-ctx.Done():
 		return nil, fmt.Errorf("disk partition enumeration timed out after %s — this may indicate an inaccessible or orphaned volume on the system", timeout)
