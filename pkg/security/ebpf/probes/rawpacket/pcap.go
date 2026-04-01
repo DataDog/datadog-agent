@@ -26,13 +26,10 @@ const (
 	// progPrefix prefix used for raw packet filter programs
 	defaultProgPrefix = "raw_packet_filter_"
 
-	// packetCaptureSize see kernel definition
-	packetCaptureSize = 256
-
 	// raw packet data, see kernel definition
 	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
 	structRawPacketEventPidOffset      = 16
-	structRawPacketEventCgroupIdOffset = 80
+	structRawPacketEventCgroupIDOffset = 80
 	structRawPacketEventDataOffset     = 108
 
 	// payload size
@@ -57,7 +54,7 @@ type ProgOpts struct {
 	onMatchLabel          string
 	ctxSaveReg            asm.Register
 	tailCallMapFd         int
-	hasGetCurrentCgroupId bool
+	hasGetCurrentCgroupID bool
 }
 
 // DefaultProgOpts default options
@@ -90,8 +87,8 @@ func (opts *ProgOpts) WithProgPrefix(prefix string) *ProgOpts {
 }
 
 // WithGetCurrentCgroupID sets if the program should use the get_current_cgroup_id function
-func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupId bool) *ProgOpts {
-	opts.hasGetCurrentCgroupId = hasGetCurrentCgroupId
+func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupID bool) *ProgOpts {
+	opts.hasGetCurrentCgroupID = hasGetCurrentCgroupID
 	return opts
 }
 
@@ -150,7 +147,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// load the cgroup id from the packet
-			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventCgroupIdOffset, asm.DWord),
+			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventCgroupIDOffset, asm.DWord),
 
 			// printk the cgroup id
 			/*
