@@ -1713,6 +1713,30 @@ tag_by_physical_storage: true
 	assert.Contains(t, err.Error(), "permission denied")
 }
 
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallReturnsPartialResults_ThenClassificationIsSkipped(t *testing.T) {
+	setupDefaultMocks()
+	partialPhysical := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw", "relatime"}},
+	}
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return partitionsTrue, nil
+		}
+		return partialPhysical, errors.New("partial enumeration failure")
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+}
+
 func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenBindMountExistsForPhysicalDevice_ThenBindMountIsClassifiedAsPhysical(t *testing.T) {
 	setupDefaultMocks()
 	bindPartitionsAll := []gopsutil_disk.PartitionStat{

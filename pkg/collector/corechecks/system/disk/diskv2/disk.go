@@ -476,15 +476,17 @@ func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical []gopsutil_di
 	}
 
 	physical, err = c.getDiskPartitionsWithTimeout(false)
+	physicalScanPartial := false
 	if err != nil {
 		if len(physical) == 0 {
 			log.Warnf("Unable to get disk partitions: %v", err)
 			return nil, nil, err
 		}
 		log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(physical), err)
+		physicalScanPartial = true
 	}
 
-	if c.instanceConfig.IncludeAllDevices {
+	if c.instanceConfig.IncludeAllDevices && !physicalScanPartial {
 		allPartitions, err := c.getDiskPartitionsWithTimeout(true)
 		if err != nil {
 			if len(allPartitions) == 0 {
