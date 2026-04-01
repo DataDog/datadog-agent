@@ -81,10 +81,110 @@ func TestTagGroupByKey_AsMapAllFields(t *testing.T) {
 	}, c.AsMap())
 }
 
+// --- TaggedPatternClusterer tests ---
+
+func newTestTaggedClusterer() (*TaggedPatternClusterer, *TagGroupByKeyRegistry) {
+	reg := NewTagGroupByKeyRegistry()
+	tc := NewTaggedPatternClusterer(reg)
+	return tc, reg
+}
+
+func TestTaggedPatternClusterer_RoutesByTagGroup(t *testing.T) {
+	tc, _ := newTestTaggedClusterer()
+
+	tagsA := []string{"service:api", "env:prod"}
+	tagsB := []string{"service:worker", "env:prod"}
+
+	hashA, _, ok := tc.Process(tagsA, "error connecting to db")
+	require.True(t, ok)
+	hashB, _, ok := tc.Process(tagsB, "error connecting to db")
+	require.True(t, ok)
+
+	assert.NotEqual(t, hashA, hashB, "different tag groups must yield different hashes")
+	assert.Equal(t, 2, tc.NumSubClusterers())
+}
+
+func TestTaggedPatternClusterer_SameTagGroupSharesSubClusterer(t *testing.T) {
+	tc, _ := newTestTaggedClusterer()
+
+	tags := []string{"service:api", "env:prod"}
+	hash1, _, ok := tc.Process(tags, "error connecting to db")
+	require.True(t, ok)
+	hash2, _, ok := tc.Process(tags, "error reading from db")
+	require.True(t, ok)
+
+	assert.Equal(t, hash1, hash2)
+	assert.Equal(t, 1, tc.NumSubClusterers())
+}
+
+func TestTaggedPatternClusterer_GetClusterReturnsCorrectCluster(t *testing.T) {
+	tc, _ := newTestTaggedClusterer()
+
+	tags := []string{"service:api"}
+	groupHash, cluster, ok := tc.Process(tags, "timeout after 30s")
+	require.True(t, ok)
+
+	got, err := tc.GetCluster(groupHash, cluster.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, cluster.ID, got.ID)
+}
+
+func TestTaggedPatternClusterer_GetClusterUnknownGroupReturnsError(t *testing.T) {
+	tc, _ := newTestTaggedClusterer()
+	_, err := tc.GetCluster(0xdeadbeefcafe, 0)
+	assert.Error(t, err)
+}
+
+func TestTaggedPatternClusterer_ResetDropsSubClusterers(t *testing.T) {
+	tc, reg := newTestTaggedClusterer()
+
+	tags := []string{"service:api"}
+	groupHash, _, ok := tc.Process(tags, "error connecting to db")
+	require.True(t, ok)
+	require.Equal(t, 1, tc.NumSubClusterers())
+
+	tc.Reset()
+	assert.Equal(t, 0, tc.NumSubClusterers())
+
+	// Registry must still resolve the hash after reset.
+	group, found := reg.Lookup(groupHash)
+	require.True(t, found)
+	assert.Equal(t, "api", group.Service)
+}
+
+func TestTaggedPatternClusterer_GlobalClusterHashIsStable(t *testing.T) {
+	h1 := globalClusterHash(42, 7)
+	h2 := globalClusterHash(42, 7)
+	assert.Equal(t, h1, h2)
+
+	h3 := globalClusterHash(42, 8)
+	assert.NotEqual(t, h1, h3)
+
+	h4 := globalClusterHash(43, 7)
+	assert.NotEqual(t, h1, h4)
+}
+
+func TestExtractTagGroupByKey_PopulatesKnownKeys(t *testing.T) {
+	tags := []string{"source:dd-agent", "service:api", "env:prod", "host:h1", "version:1.2"}
+	g := extractTagGroupByKey(tags)
+	assert.Equal(t, TagGroupByKey{Source: "dd-agent", Service: "api", Env: "prod", Host: "h1"}, g)
+}
+
+func TestExtractTagGroupByKey_MissingKeysAreEmpty(t *testing.T) {
+	g := extractTagGroupByKey([]string{"service:api"})
+	assert.Equal(t, TagGroupByKey{Service: "api"}, g)
+}
+
+func TestExtractTagGroupByKey_MalformedTagsIgnored(t *testing.T) {
+	g := extractTagGroupByKey([]string{"nocolon", "service:api"})
+	assert.Equal(t, TagGroupByKey{Service: "api"}, g)
+}
+
 // --- LogPatternExtractor tests ---
 
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.MinPatternsBeforeEmit = 1
 
 	log := &mockLogView{
@@ -105,7 +205,7 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 }
 
 func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.MinPatternsBeforeEmit = 1
 
 	logA := &mockLogView{
@@ -137,7 +237,7 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 }
 
 func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.MinPatternsBeforeEmit = 1
 
 	log := &mockLogView{
@@ -159,7 +259,7 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 }
 
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 
 	out := e.ProcessLog(&mockLogView{
 		content: []byte("INFO: routine request completed"),
@@ -171,7 +271,7 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 }
 
 func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	status := "warn"
 	tags := []string{"service:api"}
 

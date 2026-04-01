@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -55,8 +56,8 @@ type patternMetricContext struct {
 	example string
 }
 
-// NewLogPatternExtractor creates a new LogPatternExtractor.
-func NewLogPatternExtractor() *LogPatternExtractor {
+// NewLogPatternExtractor creates a new LogPatternExtractor with the given config.
+func NewLogPatternExtractor(_ LogPatternExtractorConfig) *LogPatternExtractor {
 	return &LogPatternExtractor{
 		PatternClusterer: patterns.NewPatternClusterer(patterns.IDComputeInfo{
 			Offset: 0,
@@ -118,9 +119,10 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 	}
 }
 
-// TagGroupByKey holds the resolved values for the split tag dimensions.
+// TagGroupByKey holds the tags that are responsible for grouping logs into different clusters.
 // Absent tags (e.g. a log with no "env" tag) are represented by an empty string.
 type TagGroupByKey struct {
+	// Warning: Don't forget to update functions parsing tags when adding new fields
 	Source  string
 	Service string
 	Env     string
@@ -192,6 +194,97 @@ func (r *TagGroupByKeyRegistry) Lookup(hash uint64) (TagGroupByKey, bool) {
 	defer r.mu.RUnlock()
 	group, ok := r.byHash[hash]
 	return group, ok
+}
+
+// extractTagGroupByKey scans a flat "key:value" tag slice and extracts the
+// four fixed split dimensions (source, service, env, host).
+// Missing dimensions are left as empty strings.
+func extractTagGroupByKey(tags []string) TagGroupByKey {
+	var group TagGroupByKey
+	for _, tag := range tags {
+		idx := strings.IndexByte(tag, ':')
+		if idx < 0 {
+			continue
+		}
+		k, v := tag[:idx], tag[idx+1:]
+		switch k {
+		case "source":
+			group.Source = v
+		case "service":
+			group.Service = v
+		case "env":
+			group.Env = v
+		case "host":
+			group.Host = v
+		}
+	}
+	return group
+}
+
+// globalClusterHash produces a hex string that stably encodes a (groupHash,
+// clusterID) pair. It is used as the variable segment of the metric name so
+// that each (tag-group × pattern) combination gets a unique, stable name.
+func globalClusterHash(groupHash uint64, clusterID int64) string {
+	h := fnv.New64a()
+	_ = binary.Write(h, binary.LittleEndian, groupHash)
+	_ = binary.Write(h, binary.LittleEndian, clusterID)
+	return fmt.Sprintf("%x", h.Sum64())
+}
+
+// TaggedPatternClusterer wraps one *patterns.PatternClusterer per tag-group
+// hash so that each unique (source, service, env, host) combination is
+// clustered independently.
+type TaggedPatternClusterer struct {
+	registry      *TagGroupByKeyRegistry
+	subClusterers map[uint64]*patterns.PatternClusterer
+}
+
+// NewTaggedPatternClusterer creates a TaggedPatternClusterer that writes group
+// hashes into registry.
+func NewTaggedPatternClusterer(registry *TagGroupByKeyRegistry) *TaggedPatternClusterer {
+	return &TaggedPatternClusterer{
+		registry:      registry,
+		subClusterers: make(map[uint64]*patterns.PatternClusterer),
+	}
+}
+
+// Process extracts the tag group from tags, routes the message to the matching
+// sub-clusterer (created lazily), and returns the group hash plus the cluster.
+func (tc *TaggedPatternClusterer) Process(tags []string, message string) (uint64, *patterns.Cluster, bool) {
+	group := extractTagGroupByKey(tags)
+	groupHash := tc.registry.Register(group)
+
+	sub, ok := tc.subClusterers[groupHash]
+	if !ok {
+		sub = patterns.NewPatternClusterer(patterns.IDComputeInfo{Offset: 0, Stride: 1, Index: 0})
+		tc.subClusterers[groupHash] = sub
+	}
+
+	cluster, ok := sub.Process(message)
+	if !ok {
+		return 0, nil, false
+	}
+	return groupHash, cluster, true
+}
+
+// GetCluster retrieves a cluster by group hash and intra-clusterer ID.
+func (tc *TaggedPatternClusterer) GetCluster(groupHash uint64, clusterID int64) (*patterns.Cluster, error) {
+	sub, ok := tc.subClusterers[groupHash]
+	if !ok {
+		return nil, fmt.Errorf("no sub-clusterer for group hash %x", groupHash)
+	}
+	return sub.GetCluster(clusterID)
+}
+
+// Reset drops all sub-clusterers. The registry is intentionally kept so that
+// previously registered hashes remain resolvable after a reset.
+func (tc *TaggedPatternClusterer) Reset() {
+	tc.subClusterers = make(map[uint64]*patterns.PatternClusterer)
+}
+
+// NumSubClusterers returns the number of currently active sub-clusterers.
+func (tc *TaggedPatternClusterer) NumSubClusterers() int {
+	return len(tc.subClusterers)
 }
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
