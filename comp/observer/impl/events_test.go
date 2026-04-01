@@ -330,6 +330,13 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
+	// Second log in the same sub-clusterer so patterns merge and produce a wildcard.
+	_, _ = e.IngestLog("source-a", &logObs{
+		content:     []byte("GET /users/456 returned 500"),
+		status:      "warn",
+		tags:        []string{"service:api"},
+		timestampMs: 1_500,
+	})
 	_, _ = e.IngestLog("source-b", &logObs{
 		content:     []byte("GET /users/456 returned 500"),
 		status:      "warn",

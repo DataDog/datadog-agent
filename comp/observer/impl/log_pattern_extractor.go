@@ -23,11 +23,7 @@ const defaultMinClusterSizeBeforeEmitMetrics = 5
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
 	ClusterID int64
-}
-
-// NewPatternKeyInfo creates a PatternKeyInfo for the given cluster ID.
-func NewPatternKeyInfo(clusterID int64) PatternKeyInfo {
-	return PatternKeyInfo{ClusterID: clusterID}
+	GroupHash uint64
 }
 
 // LogPatternExtractorConfig holds configuration for the LogPatternExtractor.
@@ -41,8 +37,9 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
-	PatternClusterer *patterns.PatternClusterer
-	patternContext   map[string]patternMetricContext
+	taggedClusterer *TaggedPatternClusterer
+	registry        *TagGroupByKeyRegistry
+	patternContext  map[string]patternMetricContext
 	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
 	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
 	MinPatternsBeforeEmit int
@@ -58,8 +55,10 @@ type patternMetricContext struct {
 
 // NewLogPatternExtractor creates a new LogPatternExtractor with the given config.
 func NewLogPatternExtractor(_ LogPatternExtractorConfig) *LogPatternExtractor {
+	registry := NewTagGroupByKeyRegistry()
 	return &LogPatternExtractor{
-		PatternClusterer:      patterns.NewPatternClusterer(),
+		taggedClusterer:       NewTaggedPatternClusterer(registry),
+		registry:              registry,
 		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
 	}
 }
@@ -70,9 +69,10 @@ func (e *LogPatternExtractor) Name() string {
 }
 
 // Reset clears clustering and cached per-series context so reanalysis starts
-// from the currently observed logs.
+// from the currently observed logs. The registry is kept so that previously
+// registered hashes remain resolvable.
 func (e *LogPatternExtractor) Reset() {
-	e.PatternClusterer = patterns.NewPatternClusterer()
+	e.taggedClusterer.Reset()
 	e.patternContext = nil
 }
 
@@ -88,7 +88,7 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 	}
 
 	pattern := ""
-	cluster, err := e.PatternClusterer.GetCluster(entry.keyInfo.ClusterID)
+	cluster, err := e.taggedClusterer.GetCluster(entry.keyInfo.GroupHash, entry.keyInfo.ClusterID)
 	if err == nil && cluster != nil {
 		pattern = cluster.PatternString()
 	}
@@ -279,6 +279,35 @@ func (tc *TaggedPatternClusterer) NumSubClusterers() int {
 	return len(tc.subClusterers)
 }
 
+// TaggedClusterEntry pairs a cluster with its tag-group hash so callers can
+// compute the correct globalClusterHash.
+type TaggedClusterEntry struct {
+	GroupHash uint64
+	Cluster   *patterns.Cluster
+}
+
+// GetAllClusters returns every cluster across all sub-clusterers, each paired
+// with its group hash.
+func (tc *TaggedPatternClusterer) GetAllClusters() []TaggedClusterEntry {
+	var entries []TaggedClusterEntry
+	for groupHash, sub := range tc.subClusterers {
+		for _, c := range sub.GetClusters() {
+			entries = append(entries, TaggedClusterEntry{GroupHash: groupHash, Cluster: c})
+		}
+	}
+	return entries
+}
+
+// Classify returns the cluster that best matches message within the
+// sub-clusterer identified by groupHash, or nil if no match is found.
+func (tc *TaggedPatternClusterer) Classify(groupHash uint64, message string) *patterns.Cluster {
+	sub, ok := tc.subClusterers[groupHash]
+	if !ok {
+		return nil
+	}
+	return sub.Classify(message)
+}
+
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	if !logSeverityIsWarnPlus(log) {
@@ -286,7 +315,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	cluster, ok := e.PatternClusterer.Process(message)
+	groupHash, cluster, ok := e.taggedClusterer.Process(log.GetTags(), message)
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
@@ -298,16 +327,17 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 
-	patternKey := NewPatternKeyInfo(cluster.ID)
-	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), cluster.ID+1)
+	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
 	contextKey := metricContextKey(metricName, log.GetTags())
 
 	if e.patternContext == nil {
 		e.patternContext = make(map[string]patternMetricContext)
 	}
-	e.patternContext[contextKey] = patternMetricContext{
-		keyInfo: patternKey,
-		example: message,
+	if _, exists := e.patternContext[contextKey]; !exists {
+		e.patternContext[contextKey] = patternMetricContext{
+			keyInfo: PatternKeyInfo{ClusterID: cluster.ID, GroupHash: groupHash},
+			example: message,
+		}
 	}
 
 	return observerdef.LogMetricsExtractorOutput{

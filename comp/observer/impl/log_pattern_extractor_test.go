@@ -204,10 +204,11 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	assert.NotEmpty(t, ctx.Pattern)
 }
 
-func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
+func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.MinPatternsBeforeEmit = 1
 
+	// 1 pattern per service (same pattern strings but different IDs)
 	logA := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
 		status:  "warn",
@@ -218,12 +219,25 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 		status:  "warn",
 		tags:    []string{"service:worker"},
 	}
+	logC := &mockLogView{
+		content: []byte("GET /users/124 returned 500"),
+		status:  "warn",
+		tags:    []string{"service:api"},
+	}
+	logD := &mockLogView{
+		content: []byte("GET /users/457 returned 500"),
+		status:  "warn",
+		tags:    []string{"service:worker"},
+	}
 
 	resA := e.ProcessLog(logA)
 	resB := e.ProcessLog(logB)
+	e.ProcessLog(logC)
+	e.ProcessLog(logD)
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
-	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
+	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
 	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
 	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
