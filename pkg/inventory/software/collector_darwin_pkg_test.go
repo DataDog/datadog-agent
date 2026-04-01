@@ -8,6 +8,7 @@
 package software
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestBuildPkgSummaryFromLines_AppOnly(t *testing.T) {
 	assert.True(t, shouldSkipPkgFromSummary(summary), "app-only packages should be skipped")
 }
 
-func TestBuildPkgSummaryFromLines_MixedPayloadKept(t *testing.T) {
+func TestBuildPkgSummaryFromLines_MixedPayloadSkipped(t *testing.T) {
 	lines := []string{
 		"Applications/Datadog Agent.app/Contents/Info.plist",
 		"opt/datadog-agent/bin/agent",
@@ -130,6 +131,38 @@ func TestPkgFilesCacheGet_BoundedSizeEvictsOldest(t *testing.T) {
 	require.LessOrEqual(t, len(cache.cache), 2)
 	_, hasOne := cache.cache[makePkgCacheKey("pkg.one", "/")]
 	assert.False(t, hasOne, "oldest entry should be evicted once cache is full")
+}
+
+func TestCollectPkgEntriesSinglePass_DoesNotRefetchWhenCacheEvicts(t *testing.T) {
+	const totalReceipts = 6
+	// small cache capacity to force eviction
+	cache := &pkgFilesCache{
+		cache:      make(map[string]*pkgFilesCacheEntry),
+		ttl:        time.Hour,
+		maxEntries: 2,
+	}
+
+	var calls int
+	cache.fetchSummaryFn = func(pkgID, prefixPath string) pkgSummary {
+		calls++
+		return buildPkgSummaryFromLines([]string{fmt.Sprintf("opt/%s/bin/tool", pkgID)}, prefixPath)
+	}
+
+	// create 6 receipts with different package IDs
+	receipts := make([]pkgReceiptInfo, 0, totalReceipts)
+	for i := 0; i < totalReceipts; i++ {
+		receipts = append(receipts, pkgReceiptInfo{
+			packageID:   fmt.Sprintf("pkg.%d", i),
+			version:     "1.0.0",
+			installDate: "2026-01-01",
+			prefixPath:  "/",
+		})
+	}
+
+	entries := collectPkgEntriesSinglePass(receipts, cache, true, 3)
+
+	require.Len(t, entries, totalReceipts)
+	assert.Equal(t, totalReceipts, calls, "single-pass collection should call fetch once per unique receipt key")
 }
 
 func TestFilterGenericSystemPaths(t *testing.T) {

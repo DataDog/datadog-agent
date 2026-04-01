@@ -67,6 +67,20 @@ const (
 var (
 	globalPkgFilesCache *pkgFilesCache
 	globalCacheOnce     sync.Once
+
+	fileExtensions = []string{
+		".so", ".dylib", ".a", ".o", // Libraries
+		".py", ".pyc", ".pyo", ".pyd", // Python
+		".rb", ".pl", ".sh", ".bash", // Scripts
+		".json", ".yaml", ".yml", ".xml", ".plist", // Config
+		".txt", ".md", ".rst", ".html", ".css", ".js", // Text/Web
+		".png", ".jpg", ".jpeg", ".gif", ".ico", ".icns", // Images
+		".app", ".framework", ".bundle", ".kext", // macOS bundles
+		".pkg", ".dmg", ".zip", ".tar", ".gz", // Archives
+		".conf", ".cfg", ".ini", ".log", // Config/logs
+		".h", ".c", ".cpp", ".m", ".swift", // Source
+		".strings", ".nib", ".xib", ".storyboard", // macOS resources
+	}
 )
 
 // getGlobalPkgFilesCache returns the global singleton cache instance
@@ -171,42 +185,6 @@ func (c *pkgFilesCache) evictOldestLocked() {
 	if !first {
 		delete(c.cache, oldestKey)
 	}
-}
-
-// prefetch fetches pkgutil --files for multiple packages in parallel
-// Uses a worker pool to limit concurrent pkgutil processes
-func (c *pkgFilesCache) prefetch(receipts []pkgReceiptInfo) {
-	const maxWorkers = 10 // Limit concurrent pkgutil processes
-
-	if len(receipts) == 0 {
-		return
-	}
-
-	// Create a channel for work items
-	jobs := make(chan pkgReceiptInfo, len(receipts))
-	for _, receipt := range receipts {
-		jobs <- receipt
-	}
-	close(jobs)
-
-	// Start worker pool
-	var wg sync.WaitGroup
-	workerCount := maxWorkers
-	if len(receipts) < maxWorkers {
-		workerCount = len(receipts)
-	}
-
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for receipt := range jobs {
-				c.get(receipt.packageID, receipt.prefixPath) // This will fetch and cache if not already cached
-			}
-		}()
-	}
-
-	wg.Wait()
 }
 
 // isApplicationsAppPath reports whether a pkg file path belongs to an app bundle in Applications.
@@ -375,22 +353,6 @@ func shouldSkipPkgFromSummary(summary pkgSummary) bool {
 // isLikelyFile checks if a path looks like a file (not a directory).
 // Files typically have extensions or are in known executable locations.
 func isLikelyFile(path string) bool {
-	// Common file extensions
-	fileExtensions := []string{
-		".so", ".dylib", ".a", ".o", // Libraries
-		".py", ".pyc", ".pyo", ".pyd", // Python
-		".rb", ".pl", ".sh", ".bash", // Scripts
-		".json", ".yaml", ".yml", ".xml", ".plist", // Config
-		".txt", ".md", ".rst", ".html", ".css", ".js", // Text/Web
-		".png", ".jpg", ".jpeg", ".gif", ".ico", ".icns", // Images
-		".app", ".framework", ".bundle", ".kext", // macOS bundles
-		".pkg", ".dmg", ".zip", ".tar", ".gz", // Archives
-		".conf", ".cfg", ".ini", ".log", // Config/logs
-		".h", ".c", ".cpp", ".m", ".swift", // Source
-		".strings", ".nib", ".xib", ".storyboard", // macOS resources
-	}
-
-	// Check for file extension
 	for _, ext := range fileExtensions {
 		if strings.HasSuffix(path, ext) {
 			return true
@@ -440,6 +402,153 @@ type pkgReceiptInfo struct {
 	prefixPath  string
 }
 
+// pkgEntryResult carries the output of processing a single pkg receipt.
+type pkgEntryResult struct {
+	index int
+	entry *Entry
+}
+
+// processPkgReceipt builds a software entry for one receipt using cached/streamed summary data.
+// It returns nil entry when the receipt should be skipped by representation rules.
+func processPkgReceipt(receipt pkgReceiptInfo, cache *pkgFilesCache, is64Bit bool) pkgEntryResult {
+	summary := cache.get(receipt.packageID, receipt.prefixPath)
+
+	// Skip packages with Applications representation.
+	if shouldSkipPkgFromSummary(summary) {
+		return pkgEntryResult{}
+	}
+
+	// Determine install_path for backward compatibility
+	var installPath string
+	if receipt.prefixPath != "" && receipt.prefixPath != "/" {
+		if !strings.HasPrefix(receipt.prefixPath, "/") {
+			installPath = "/" + receipt.prefixPath
+		} else {
+			installPath = receipt.prefixPath
+		}
+	} else {
+		installPath = "N/A"
+	}
+
+	// Use summary top-level installation directories and filter generic system directories
+	installPaths := filterGenericSystemPaths(summary.TopLevelPaths)
+
+	// Determine which path field(s) to include
+	if installPath != "N/A" && len(installPaths) > 0 {
+		hasPathsOutside := false
+		installPathWithSlash := installPath + "/"
+		for _, p := range installPaths {
+			if !strings.HasPrefix(p, installPathWithSlash) && p != installPath {
+				hasPathsOutside = true
+				break
+			}
+		}
+		if !hasPathsOutside {
+			installPaths = nil
+		}
+	} else if installPath == "N/A" && len(installPaths) > 0 {
+		if len(installPaths) == 1 {
+			installPath = installPaths[0]
+			installPaths = nil
+		} else {
+			installPath = ""
+		}
+	}
+
+	// Check if the installation location still exists
+	status := statusInstalled
+	var brokenReason string
+	if installPath != "" && installPath != "N/A" {
+		if _, err := os.Stat(installPath); os.IsNotExist(err) {
+			status = statusBroken
+			brokenReason = "install path not found: " + installPath
+		}
+	} else if len(installPaths) > 0 {
+		for _, p := range installPaths {
+			if _, err := os.Stat(p); os.IsNotExist(err) {
+				status = statusBroken
+				brokenReason = "install path not found: " + p
+				break
+			}
+		}
+	}
+
+	entry := &Entry{
+		DisplayName:  receipt.packageID,
+		Version:      receipt.version,
+		InstallDate:  receipt.installDate,
+		Source:       softwareTypePkg,
+		ProductCode:  receipt.packageID,
+		Status:       status,
+		BrokenReason: brokenReason,
+		Is64Bit:      is64Bit,
+		InstallPath:  installPath,
+		InstallPaths: installPaths,
+	}
+	return pkgEntryResult{entry: entry}
+}
+
+// collectPkgEntriesSinglePass processes receipts with bounded concurrency and stable output ordering.
+func collectPkgEntriesSinglePass(receipts []pkgReceiptInfo, cache *pkgFilesCache, is64Bit bool, maxWorkers int) []*Entry {
+	var entries []*Entry
+
+	if len(receipts) == 0 {
+		return entries
+	}
+	if maxWorkers <= 0 {
+		maxWorkers = 1
+	}
+
+	type receiptJob struct {
+		index   int
+		receipt pkgReceiptInfo
+	}
+
+	workerCount := maxWorkers
+	if len(receipts) < maxWorkers {
+		workerCount = len(receipts)
+	}
+
+	jobs := make(chan receiptJob, len(receipts))
+	results := make(chan pkgEntryResult, len(receipts))
+	for i, receipt := range receipts {
+		jobs <- receiptJob{index: i, receipt: receipt}
+	}
+	close(jobs)
+
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				result := processPkgReceipt(job.receipt, cache, is64Bit)
+				result.index = job.index
+				results <- result
+			}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	ordered := make([]pkgEntryResult, len(receipts))
+	seen := make([]bool, len(receipts))
+	for result := range results {
+		ordered[result.index] = result
+		seen[result.index] = true
+	}
+
+	for i := range ordered {
+		if !seen[i] {
+			continue
+		}
+		if ordered[i].entry != nil {
+			entries = append(entries, ordered[i].entry)
+		}
+	}
+	return entries
+}
+
 // Collect reads PKG installer receipts from /var/db/receipts
 // It filters out:
 //   - Mac App Store receipts (ending in _MASReceipt) - these are handled by applicationsCollector
@@ -466,7 +575,7 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 		return nil, nil, err
 	}
 
-	// First pass: Read all receipt plists and collect package IDs
+	// Single pass: Read all receipt plists and collect package IDs
 	var receipts []pkgReceiptInfo
 
 	for _, dirEntry := range dirEntries {
@@ -507,93 +616,13 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 		})
 	}
 
-	// Prefetch all pkgutil --files summaries in parallel
-	// Use global cache that persists across collection runs
-	cache := getGlobalPkgFilesCache()
-	cache.prefetch(receipts)
-
 	// Determine architecture
 	is64Bit := runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
 
-	// Second pass: Process receipts using cached data
-	for _, receipt := range receipts {
-		summary := cache.get(receipt.packageID, receipt.prefixPath)
-
-		// Skip packages with Applications representation.
-		if shouldSkipPkgFromSummary(summary) {
-			continue
-		}
-
-		// Determine install_path for backward compatibility
-		var installPath string
-		if receipt.prefixPath != "" && receipt.prefixPath != "/" {
-			if !strings.HasPrefix(receipt.prefixPath, "/") {
-				installPath = "/" + receipt.prefixPath
-			} else {
-				installPath = receipt.prefixPath
-			}
-		} else {
-			installPath = "N/A"
-		}
-
-		// Use summary top-level installation directories and filter generic system directories
-		installPaths := filterGenericSystemPaths(summary.TopLevelPaths)
-
-		// Determine which path field(s) to include
-		if installPath != "N/A" && len(installPaths) > 0 {
-			hasPathsOutside := false
-			installPathWithSlash := installPath + "/"
-			for _, p := range installPaths {
-				if !strings.HasPrefix(p, installPathWithSlash) && p != installPath {
-					hasPathsOutside = true
-					break
-				}
-			}
-			if !hasPathsOutside {
-				installPaths = nil
-			}
-		} else if installPath == "N/A" && len(installPaths) > 0 {
-			if len(installPaths) == 1 {
-				installPath = installPaths[0]
-				installPaths = nil
-			} else {
-				installPath = ""
-			}
-		}
-
-		// Check if the installation location still exists
-		status := statusInstalled
-		var brokenReason string
-		if installPath != "" && installPath != "N/A" {
-			if _, err := os.Stat(installPath); os.IsNotExist(err) {
-				status = statusBroken
-				brokenReason = "install path not found: " + installPath
-			}
-		} else if len(installPaths) > 0 {
-			for _, p := range installPaths {
-				if _, err := os.Stat(p); os.IsNotExist(err) {
-					status = statusBroken
-					brokenReason = "install path not found: " + p
-					break
-				}
-			}
-		}
-
-		entry := &Entry{
-			DisplayName:  receipt.packageID,
-			Version:      receipt.version,
-			InstallDate:  receipt.installDate,
-			Source:       softwareTypePkg,
-			ProductCode:  receipt.packageID,
-			Status:       status,
-			BrokenReason: brokenReason,
-			Is64Bit:      is64Bit,
-			InstallPath:  installPath,
-			InstallPaths: installPaths,
-		}
-
-		entries = append(entries, entry)
-	}
-
+	// Single-pass processing with a worker pool: each receipt is looked up once via cache.get().
+	// This avoids prefetch + second-pass refetch churn when cache capacity is exceeded.
+	cache := getGlobalPkgFilesCache()
+	const maxWorkers = 10
+	entries = collectPkgEntriesSinglePass(receipts, cache, is64Bit, maxWorkers)
 	return entries, warnings, nil
 }
