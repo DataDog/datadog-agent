@@ -1,0 +1,18 @@
+# This file is generated. Do not hand edit.
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "libpcap",
+    files = {
+        "BUILD.bazel": "//deps/libpcap:overlay/overlay.BUILD.bazel",
+        "config.h": "//deps/libpcap:overlay/config.h",
+        "grammar.c": "//deps/libpcap:overlay/grammar.c",
+        "grammar.h": "//deps/libpcap:overlay/grammar.h",
+        "scanner.c": "//deps/libpcap:overlay/scanner.c",
+        "scanner.h": "//deps/libpcap:overlay/scanner.h",
+    },
+    sha256 = "84fa89ac6d303028c1c5b754abff77224f45eca0a94eb1a34ff0aa9ceece3925",
+    strip_prefix = "libpcap-1.10.5",
+    url = "https://www.tcpdump.org/release/libpcap-1.10.5.tar.xz",
+)

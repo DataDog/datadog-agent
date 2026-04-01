@@ -1,0 +1,20 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
+
+VERSION = "1.10.5"
+
+generate_module_bazel(
+    name = "module_bazel",
+    out = "libpcap.MODULE.bazel.new",
+    module = "libpcap",
+    sha256 = "84fa89ac6d303028c1c5b754abff77224f45eca0a94eb1a34ff0aa9ceece3925",
+    strip_prefix = "libpcap-%s" % VERSION,
+    tags = ["manual"],
+    url = "https://www.tcpdump.org/release/libpcap-%s.tar.xz" % VERSION,
+)
+
+write_source_file(
+    name = "module_consistency",
+    in_file = ":libpcap.MODULE.bazel.new",
+    out_file = "libpcap.MODULE.bazel",
+)
