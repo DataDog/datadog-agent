@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -63,6 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -143,6 +145,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		metricscompressionfx.Module(),
 		logscompressionfx.Module(),
 		filterlistfx.Module(),
+		fx.Provide(func() option.Option[healthplatformdef.Component] { return option.None[healthplatformdef.Component]() }),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
