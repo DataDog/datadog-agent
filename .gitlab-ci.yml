@@ -140,6 +140,9 @@ include:
       - when: never
 
 default:
+  id_tokens:
+    BUILDBARN_ID_TOKEN:
+      aud: buildbarn.us1.ddbuild.io
   retry:
     max: 1 # Retry everything once on failure
     when: always

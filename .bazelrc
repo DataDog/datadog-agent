@@ -32,9 +32,11 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_gro
 common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 
 # Linux config ---------------------------------------------------------------------------------------------------------
+common:linux --credential_helper=%workspace%/tools/credential-helper-wrapper.sh
 common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
+common:macos --credential_helper=%workspace%/tools/credential-helper-wrapper.sh
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed

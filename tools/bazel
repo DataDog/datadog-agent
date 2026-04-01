@@ -1,6 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Download the Tweag credential helper if not already present.
+# Verifies SHA-256 hash after download. Non-fatal on failure.
+ensure_credential_helper() {
+  local version="v0.0.9"
+  local platform arch cache_dir helper_bin expected_hash
+
+  case "$(uname -s)" in
+    Darwin) platform=darwin; cache_dir="$HOME/Library/Caches/bazel/credential-helper" ;;
+    Linux)  platform=linux;  cache_dir="${HOME}/.cache/bazel/credential-helper" ;;
+    *)      >&2 echo "Warning: unsupported OS for credential helper"; return 0 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64)       arch=amd64 ;;
+    aarch64|arm64) arch=arm64 ;;
+    *)            >&2 echo "Warning: unsupported architecture for credential helper"; return 0 ;;
+  esac
+
+  # SHA-256 hashes for tweag/credential-helper v0.0.9
+  case "${platform}_${arch}" in
+    darwin_amd64) expected_hash="efabf714b96ba5c9e20b74cb317aecf7ae006134561480946c40d98320df5ddc" ;;
+    darwin_arm64) expected_hash="f047aefaa842a23e2989829a67ec6a4145ed7cbf7ae3f11586c98e27bf5ffcdb" ;;
+    linux_amd64)  expected_hash="b0115168fce09e05fa1bfc195de0965ac9d3294a863eb4e461184358665560b0" ;;
+    linux_arm64)  expected_hash="852145e6da9dfb87c835fab03d19cc032e03d775ac8653533c7737f44f05f063" ;;
+  esac
+
+  helper_bin="$cache_dir/credential-helper"
+  if [[ -x "$helper_bin" ]]; then
+    return 0
+  fi
+  mkdir -p "$cache_dir"
+
+  local url="https://github.com/tweag/credential-helper/releases/download/${version}/credential_helper_${platform}_${arch}"
+  if ! curl -fsSL -o "$helper_bin" "$url"; then
+    >&2 echo "Warning: failed to download credential helper from $url"
+    rm -f "$helper_bin"
+    return 0
+  fi
+
+  local actual_hash
+  actual_hash=$(shasum -a 256 "$helper_bin" | awk '{print $1}')
+  if [[ "$actual_hash" != "$expected_hash" ]]; then
+    >&2 echo "Warning: credential helper hash mismatch (expected $expected_hash, got $actual_hash)"
+    rm -f "$helper_bin"
+    return 0
+  fi
+
+  chmod +x "$helper_bin"
+}
+ensure_credential_helper
+
 # Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
   >&2 cat "$(dirname "$0")/bazelisk.md"
