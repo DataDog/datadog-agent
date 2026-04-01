@@ -224,13 +224,13 @@ func configstreamFxOptions() fx.Option {
 		fx.Provide(func(c config.Component, deps struct {
 			fx.In
 			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
-		}) *configstreamconsumerimpl.Params {
+		}) configstreamconsumerimpl.Params {
 			host := c.GetString("cmd_host")
 			port := c.GetInt("cmd_port")
 			if port <= 0 {
 				port = 5001
 			}
-			return &configstreamconsumerimpl.Params{
+			return configstreamconsumerimpl.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
 				SessionIDProvider: deps.SessionProvider,

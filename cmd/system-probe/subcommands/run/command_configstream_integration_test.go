@@ -140,10 +140,7 @@ system_probe_config:
 	overrides := fx.Options(
 		fx.Replace(ipcComp),
 		fx.Replace(remoteagent.Component(&mockRAR{})),
-		fx.Decorate(func(p *configstreamconsumerimpl.Params) *configstreamconsumerimpl.Params {
-			if p == nil {
-				return nil
-			}
+		fx.Decorate(func(p configstreamconsumerimpl.Params) configstreamconsumerimpl.Params {
 			p.ReadyTimeout = 2 * time.Second
 			return p
 		}),
