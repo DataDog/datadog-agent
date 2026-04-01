@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -87,15 +87,11 @@ func (h *RunCommandHandler) Run(
 		}
 	}
 	var stdout, stderr bytes.Buffer
-	cmdOpt := interp.AllowAllCommands()
-	if len(inputs.AllowedCommands) > 0 {
-		cmdOpt = interp.AllowedCommands(inputs.AllowedCommands)
-	}
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.AllowedPaths(h.allowedPaths),
 		interp.ProcPath(resolveProcPath()),
-		cmdOpt,
+		interp.AllowedCommands(inputs.AllowedCommands),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
@@ -125,7 +121,7 @@ func (h *RunCommandHandler) Run(
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		hostProc := filepath.Join(containerizedPathPrefix, defaultProcPath)
+		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
 		if _, err := statFn(hostProc); err == nil {
 			return hostProc
 		}

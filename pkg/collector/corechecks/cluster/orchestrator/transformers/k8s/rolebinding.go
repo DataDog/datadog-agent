@@ -17,6 +17,8 @@ import (
 
 // ExtractRoleBinding returns the protobuf model corresponding to a Kubernetes
 // RoleBinding resource.
+//
+//nolint:revive
 func ExtractRoleBinding(ctx processors.ProcessorContext, rb *rbacv1.RoleBinding) *model.RoleBinding {
 	msg := &model.RoleBinding{
 		Metadata: extractMetadata(&rb.ObjectMeta),
@@ -24,9 +26,8 @@ func ExtractRoleBinding(ctx processors.ProcessorContext, rb *rbacv1.RoleBinding)
 		Subjects: extractSubjects(rb.Subjects),
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(rb.ObjectMeta.Labels)...)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(rb.ObjectMeta.Labels, rb.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveTeamTag(rb.ObjectMeta.Labels, rb.ObjectMeta.Annotations)...)
 
 	return msg
 }

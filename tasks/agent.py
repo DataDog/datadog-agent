@@ -14,17 +14,18 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import doc
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
     get_default_build_tags,
 )
-from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -322,8 +323,18 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
-        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
+        shutil.copytree(
+            "./cmd/agent/dist/checks/",
+            os.path.join(dist_folder, "checks"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
+        shutil.copytree(
+            "./cmd/agent/dist/utils/",
+            os.path.join(dist_folder, "utils"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
@@ -340,7 +351,12 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-        shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+        shutil.copytree(
+            f"./cmd/agent/dist/conf.d/{check}.d/",
+            check_dir,
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
@@ -349,7 +365,12 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-            shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+            shutil.copytree(
+                f"./cmd/agent/dist/conf.d/{check}.d/",
+                check_dir,
+                ignore=shutil.ignore_patterns("BUILD.bazel"),
+                dirs_exist_ok=True,
+            )
 
     if sys.platform == 'darwin':
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
@@ -358,9 +379,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree(
+        "./comp/core/gui/guiimpl/views/private",
+        os.path.join(dist_folder, "views"),
+        ignore=shutil.ignore_patterns("BUILD.bazel"),
+        dirs_exist_ok=True,
+    )
     if development:
-        shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
+        shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns("BUILD.bazel"), dirs_exist_ok=True)
 
 
 @task
@@ -449,7 +475,23 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 
-@task
+@task(
+    help={
+        "base_image": doc.base_image,
+        "target_image": doc.target_image,
+        "process_agent": doc.process_agent,
+        "trace_agent": doc.trace_agent,
+        "system_probe": doc.system_probe,
+        "security_agent": doc.security_agent,
+        "trace_loader": doc.trace_loader,
+        "privateactionrunner": doc.privateactionrunner,
+        "push": doc.push,
+        "race": doc.race,
+        "signed_pull": doc.signed_pull,
+        "arch": doc.arch,
+        "development": doc.development,
+    }
+)
 def hacky_dev_image_build(
     ctx,
     base_image=None,
@@ -466,6 +508,9 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
 ):
+    """
+    Builds the agent or cluster-agent Docker image.
+    """
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 

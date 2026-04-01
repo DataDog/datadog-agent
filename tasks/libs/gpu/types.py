@@ -20,7 +20,7 @@ class Support(BaseModel):
         invalid_modes = sorted(set(value.keys()) - allowed_modes)
         if invalid_modes:
             raise ValueError(
-                f"invalid device modes: {', '.join(invalid_modes)} " f"(expected {', '.join(sorted(allowed_modes))})"
+                f"invalid device modes: {', '.join(invalid_modes)} (expected {', '.join(sorted(allowed_modes))})"
             )
         return value
 
@@ -93,10 +93,10 @@ class ArchitecturesSpec(BaseModel):
 
 
 class GPUConfigValidationState(Enum):
-    UNKNOWN = "unknown"
-    MISSING = "missing"
-    FAIL = "fail"
-    OK = "ok"
+    FAIL = 0
+    OK = 1
+    UNKNOWN = 2
+    MISSING = 3
 
 
 @dataclass(slots=True)
@@ -120,15 +120,7 @@ class GPUConfigValidationResult:
         )
 
     def update(self, other: GPUConfigValidationResult) -> None:
-        status_precedence = {
-            GPUConfigValidationState.FAIL: 0,
-            GPUConfigValidationState.OK: 1,
-            GPUConfigValidationState.UNKNOWN: 2,
-            GPUConfigValidationState.MISSING: 3,
-        }
-        other_status = status_precedence[other.state]
-        self_status = status_precedence[self.state]
-        if other_status < self_status:
+        if other.state.value < self.state.value:
             self.state = other.state
 
         self.present_metrics.update(other.present_metrics)

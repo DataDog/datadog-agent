@@ -26,7 +26,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/pkg/sftp v1.13.9
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.83.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0
@@ -364,6 +364,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer

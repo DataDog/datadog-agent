@@ -61,7 +61,8 @@
         }
       ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "simple",
@@ -125,6 +126,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

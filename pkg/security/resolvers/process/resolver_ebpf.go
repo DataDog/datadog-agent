@@ -1409,17 +1409,12 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 		return fmt.Errorf("failed to read tracer metadata: %w", err)
 	}
 
-	tags := tmeta.GetTags()
-	if len(tags) == 0 {
-		return nil
-	}
-
 	p.Lock()
 	defer p.Unlock()
 
 	entry := p.entryCache[pid]
 	if entry != nil {
-		entry.TracerTags = tags
+		entry.TracerMetadata = tmeta
 	}
 
 	return nil
