@@ -209,7 +209,7 @@ func genSnap(cs *CompilerState, orgcode uint32, ptype uint32) *Block {
 // (used for encapsulated protocols like LANE-over-ATM).
 // For standard Ethernet, this returns nil.
 // Port of gen_prevlinkhdr_check() from gencode.c.
-func genPrevlinkhdrCheck(cs *CompilerState) *Block {
+func genPrevlinkhdrCheck(_ *CompilerState) *Block {
 	// For standard Ethernet, no previous link header check is needed
 	return nil
 }

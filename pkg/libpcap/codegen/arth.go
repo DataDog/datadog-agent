@@ -13,13 +13,13 @@ import (
 )
 
 // xferToX generates code to load a register value into the X register.
-func xferToX(cs *CompilerState, a *Arth) *SList {
+func xferToX(_ *CompilerState, a *Arth) *SList {
 	s := NewStmt(int(bpf.BPF_LDX|bpf.BPF_MEM), uint32(a.Regno))
 	return s
 }
 
 // xferToA generates code to load a register value into the A register.
-func xferToA(cs *CompilerState, a *Arth) *SList {
+func xferToA(_ *CompilerState, a *Arth) *SList {
 	s := NewStmt(int(bpf.BPF_LD|bpf.BPF_MEM), uint32(a.Regno))
 	return s
 }
@@ -416,13 +416,13 @@ func GenByteop(cs *CompilerState, op int, idx int, val uint32) *Block {
 
 // GenInbound generates code for inbound/outbound matching.
 // Port of gen_inbound() from gencode.c.
-func GenInbound(cs *CompilerState, dir int) *Block {
+func GenInbound(cs *CompilerState, _ int) *Block {
 	cs.SetError(errors.New("inbound/outbound not supported on this link type"))
 	return nil
 }
 
 // GenIfindex generates code for interface index matching.
-func GenIfindex(cs *CompilerState, ifindex int) *Block {
+func GenIfindex(cs *CompilerState, _ int) *Block {
 	cs.SetError(errors.New("ifindex not supported on this link type"))
 	return nil
 }

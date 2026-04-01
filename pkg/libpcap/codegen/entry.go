@@ -92,9 +92,7 @@ func genScodeHost(cs *CompilerState, name string, proto, dir int, addrQual uint8
 	// Try IPv6
 	addrs6, err6 := cs.Resolver.LookupHost6(name)
 	if err6 == nil {
-		if tproto6 == QARP || tproto6 == QIP || tproto6 == QRARP {
-			// Skip IPv6 for ARP/IP/RARP-specific queries
-		} else {
+		if tproto6 != QARP && tproto6 != QIP && tproto6 != QRARP {
 			var mask128 [16]byte
 			for i := range mask128 {
 				mask128[i] = 0xff
@@ -416,7 +414,7 @@ func GenEcode(cs *CompilerState, s string, q Qual) *Block {
 
 // GenAcode generates code for an ARCnet address.
 // Port of gen_acode() from gencode.c.
-func GenAcode(cs *CompilerState, s string, q Qual) *Block {
+func GenAcode(cs *CompilerState, _ string, _ Qual) *Block {
 	cs.SetError(errors.New("ARCnet address matching not supported"))
 	return nil
 }
@@ -467,17 +465,15 @@ var _ NameResolver = (*nameResolverCheck)(nil)
 
 type nameResolverCheck struct{}
 
-func (n *nameResolverCheck) LookupHost(name string) ([]uint32, error)       { return nil, nil }
-func (n *nameResolverCheck) LookupHost6(name string) ([][16]byte, error)    { return nil, nil }
-func (n *nameResolverCheck) LookupPort(name string, proto int) (int, error) { return 0, nil }
-func (n *nameResolverCheck) LookupProto(name string) (int, error)           { return 0, nil }
-func (n *nameResolverCheck) LookupEProto(name string) (int, error)          { return 0, nil }
-func (n *nameResolverCheck) LookupLLC(name string) (int, error)             { return 0, nil }
-func (n *nameResolverCheck) LookupNet(name string) (uint32, uint32, error)  { return 0, 0, nil }
-func (n *nameResolverCheck) LookupEther(name string) ([]byte, error)        { return nil, nil }
-func (n *nameResolverCheck) LookupPortRange(name string, proto int) (int, int, error) {
-	return 0, 0, nil
-}
+func (n *nameResolverCheck) LookupHost(_ string) ([]uint32, error)             { return nil, nil }
+func (n *nameResolverCheck) LookupHost6(_ string) ([][16]byte, error)          { return nil, nil }
+func (n *nameResolverCheck) LookupPort(_ string, _ int) (int, error)           { return 0, nil }
+func (n *nameResolverCheck) LookupProto(_ string) (int, error)                 { return 0, nil }
+func (n *nameResolverCheck) LookupEProto(_ string) (int, error)                { return 0, nil }
+func (n *nameResolverCheck) LookupLLC(_ string) (int, error)                   { return 0, nil }
+func (n *nameResolverCheck) LookupNet(_ string) (uint32, uint32, error)        { return 0, 0, nil }
+func (n *nameResolverCheck) LookupEther(_ string) ([]byte, error)              { return nil, nil }
+func (n *nameResolverCheck) LookupPortRange(_ string, _ int) (int, int, error) { return 0, 0, nil }
 
 // Ensure nameresolver.Resolver satisfies codegen.NameResolver.
 // This is verified at build time by the nameresolver package importing

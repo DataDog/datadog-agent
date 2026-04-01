@@ -13,6 +13,7 @@ func TestInstructionSize(t *testing.T) {
 	_ = insn.Jt
 	_ = insn.Jf
 	_ = insn.K
+	t.Log("Instruction type has expected fields")
 }
 
 func TestConstants(t *testing.T) {

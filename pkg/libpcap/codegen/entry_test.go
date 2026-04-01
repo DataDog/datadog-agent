@@ -30,7 +30,7 @@ func (m *mockResolver) LookupHost6(name string) ([][16]byte, error) {
 	return nil, &lookupError{name}
 }
 
-func (m *mockResolver) LookupPort(name string, proto int) (int, error) {
+func (m *mockResolver) LookupPort(name string, _ int) (int, error) {
 	switch name {
 	case "http", "80":
 		return 80, nil
@@ -58,7 +58,7 @@ func (m *mockResolver) LookupNet(name string) (uint32, uint32, error) {
 func (m *mockResolver) LookupEther(name string) ([]byte, error) {
 	return nil, &lookupError{name}
 }
-func (m *mockResolver) LookupPortRange(name string, proto int) (int, int, error) {
+func (m *mockResolver) LookupPortRange(name string, _ int) (int, int, error) {
 	return 0, 0, &lookupError{name}
 }
 
