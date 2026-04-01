@@ -84,6 +84,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "x={unavailable}, err={s: test error}"
+    "message": "x={unavailable}, err={s: test error}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

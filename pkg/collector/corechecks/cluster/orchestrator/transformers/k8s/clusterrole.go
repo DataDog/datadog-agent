@@ -17,6 +17,8 @@ import (
 
 // ExtractClusterRole returns the protobuf model corresponding to a
 // Kubernetes ClusterRole resource.
+//
+//nolint:revive
 func ExtractClusterRole(ctx processors.ProcessorContext, cr *rbacv1.ClusterRole) *model.ClusterRole {
 	clusterRole := &model.ClusterRole{
 		Metadata: extractMetadata(&cr.ObjectMeta),
@@ -28,9 +30,8 @@ func ExtractClusterRole(ctx processors.ProcessorContext, cr *rbacv1.ClusterRole)
 		}
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveUnifiedServiceTags(cr.ObjectMeta.Labels)...)
-	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveMetadataTags(cr.ObjectMeta.Labels, cr.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveTeamTag(cr.ObjectMeta.Labels, cr.ObjectMeta.Annotations)...)
 
 	return clusterRole
 }
