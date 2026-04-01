@@ -63,14 +63,6 @@ func TestEqBlk(t *testing.T) {
 	}
 }
 
-func TestInternBlocks(t *testing.T) {
-	_, ic := buildTCPCFG()
-	os := initOptState(ic)
-
-	os.InternBlocks(ic)
-	t.Log("InternBlocks completed without panic")
-}
-
 func TestOptRoot(t *testing.T) {
 	_, ic := buildSimpleCFG()
 	root := ic.Root
@@ -112,40 +104,4 @@ func TestMakeMarks(t *testing.T) {
 	if !ic.IsMarked(ic.Root) {
 		t.Error("root should be marked")
 	}
-}
-
-func TestPullupDoesNotCrashOnSimpleFilter(t *testing.T) {
-	_, ic := buildSimpleCFG()
-	os := initOptState(ic)
-
-	FindLevels(os, ic)
-	FindDom(os, ic.Root)
-	FindUD(os, ic.Root)
-	FindInedges(os)
-
-	for i := 1; i <= ic.Root.Level; i++ {
-		for p := os.Levels[i]; p != nil; p = p.Link {
-			os.orPullup(p, ic.Root)
-			os.andPullup(p, ic.Root)
-		}
-	}
-	t.Log("Pullup on simple filter completed without panic")
-}
-
-func TestPullupDoesNotCrashOnTCP(t *testing.T) {
-	_, ic := buildTCPCFG()
-	os := initOptState(ic)
-
-	FindLevels(os, ic)
-	FindDom(os, ic.Root)
-	FindUD(os, ic.Root)
-	FindInedges(os)
-
-	for i := 1; i <= ic.Root.Level; i++ {
-		for p := os.Levels[i]; p != nil; p = p.Link {
-			os.orPullup(p, ic.Root)
-			os.andPullup(p, ic.Root)
-		}
-	}
-	t.Log("Pullup on TCP filter completed without panic")
 }

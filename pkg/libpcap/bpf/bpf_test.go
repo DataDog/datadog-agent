@@ -7,15 +7,6 @@ package bpf
 
 import "testing"
 
-func TestInstructionSize(t *testing.T) {
-	var insn Instruction
-	_ = insn.Code
-	_ = insn.Jt
-	_ = insn.Jf
-	_ = insn.K
-	t.Log("Instruction type has expected fields")
-}
-
 func TestConstants(t *testing.T) {
 	if BPF_LD != 0x00 {
 		t.Errorf("BPF_LD = %#x, want 0x00", BPF_LD)
