@@ -1,25 +1,15 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
     name = "compiler",
     srcs = [
-        "code.go",
-        "doc.go",
-        "functions.go",
-        "generate.go",
-        "instructions.go",
         "opcode.go",
         "opcode_string.go",
-        "ops.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/compiler",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/ir",
-        "@com_github_datadog_datadog_agent_pkg_util_log//:log",
-        "@org_golang_x_time//rate",
-    ],
 )
 
 go_stringer(
@@ -28,20 +18,4 @@ go_stringer(
     output = "opcode_string.go",
     trimprefix = "Opcode",
     types = ["Opcode"],
-)
-
-go_test(
-    name = "compiler_test",
-    srcs = [
-        "generate_test.go",
-        "snapshot_test.go",
-    ],
-    data = glob(["testdata/**"]),
-    embed = [":compiler"],
-    deps = [
-        "//pkg/dyninst/ir",
-        "@com_github_datadog_datadog_agent_pkg_util_log//:log",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
 )
