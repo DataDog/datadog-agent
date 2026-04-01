@@ -88,10 +88,12 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 		pattern = cluster.PatternString()
 	}
 
+	group, _ := e.registry.Lookup(entry.keyInfo.GroupHash)
 	return observerdef.MetricContext{
-		Pattern: pattern,
-		Example: entry.example,
-		Source:  e.Name(),
+		Pattern:   pattern,
+		Example:   entry.example,
+		Source:    e.Name(),
+		SplitTags: group.AsMap(),
 	}, true
 }
 

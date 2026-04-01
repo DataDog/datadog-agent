@@ -67,8 +67,21 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 				pattern = strings.TrimSpace(a.Context.Pattern)
 			}
 			// If this metric is a log related one, find its pattern and create a custom message
-			// TODO(celian): When this will be split by tags, add tags to the description. Then be sure that we don't have twice (pattern, tags) tuples
+			// TODO(celian): Be sure that we don't have twice (pattern, tags) tuples
 			if a.Source.Namespace == "log_pattern_extractor" && pattern != "" {
+				var tagsPart string
+				if len(a.Context.SplitTags) > 0 {
+					keys := []string{"source", "service", "env", "host"}
+					var parts []string
+					for _, k := range keys {
+						if v, ok := a.Context.SplitTags[k]; ok {
+							parts = append(parts, k+"="+v)
+						}
+					}
+					if len(parts) > 0 {
+						tagsPart = "\t[" + strings.Join(parts, ", ") + "]"
+					}
+				}
 				var example string
 				if a.Context.Example != "" {
 					example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
@@ -79,7 +92,7 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 				} else {
 					ratePart = "\tcurrent rate: unknown"
 				}
-				logDescription := fmt.Sprintf("Log pattern change rate detected: %s%s%s", pattern, example, ratePart)
+				logDescription := fmt.Sprintf("Log pattern change rate detected: %s%s%s%s", pattern, example, ratePart, tagsPart)
 				logLines = append(logLines, "- "+logDescription)
 			} else {
 				metricLines = append(metricLines, "- "+a.Description)
@@ -268,6 +281,9 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{}
 			}
 			if a.Context.Example != "" {
 				ctx["example"] = a.Context.Example
+			}
+			if len(a.Context.SplitTags) > 0 {
+				ctx["split_tags"] = a.Context.SplitTags
 			}
 			if len(ctx) > 0 {
 				entry["context"] = ctx

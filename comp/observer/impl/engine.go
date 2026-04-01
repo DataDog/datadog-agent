@@ -103,8 +103,8 @@ type engine struct {
 	onAdvance      func(advanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
-	latePoints  atomic.Int64 // points ingested after their timestamp was already analyzed
-	droppedObs  atomic.Int64 // observations dropped due to full channel
+	latePoints atomic.Int64 // points ingested after their timestamp was already analyzed
+	droppedObs atomic.Int64 // observations dropped due to full channel
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -451,9 +451,10 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 		return
 	}
 	a.Context = &observerdef.MetricContext{
-		Pattern: ctx.Pattern,
-		Example: truncate(ctx.Example, 120),
-		Source:  ctx.Source,
+		Pattern:   ctx.Pattern,
+		Example:   truncate(ctx.Example, 120),
+		Source:    ctx.Source,
+		SplitTags: ctx.SplitTags,
 	}
 }
 
