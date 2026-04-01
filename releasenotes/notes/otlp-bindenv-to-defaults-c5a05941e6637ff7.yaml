@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTLP ingest configuration keys now register explicit default values matching
+    the upstream OpenTelemetry Collector defaults (receiver endpoints, gRPC/HTTP
+    settings, metrics batching, debug verbosity, etc.). Previously these keys were
+    bound without defaults, which caused ``agent config`` and similar introspection
+    commands to omit them. Runtime behavior is unchanged: only user-configured
+    values are forwarded to the OTel Collector pipeline, so unconfigured settings
+    continue to use the Collector's own built-in defaults.
