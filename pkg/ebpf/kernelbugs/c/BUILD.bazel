@@ -4,9 +4,9 @@ load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 # CO-RE program
 ebpf_prog(
     name = "uprobe-trigger",
-    visibility = ["//visibility:public"],
     src = "uprobe-trigger.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = ["//pkg/ebpf/c:ebpf_c_headers"],
 )
 

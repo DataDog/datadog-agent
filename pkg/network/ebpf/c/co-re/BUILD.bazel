@@ -2,13 +2,13 @@ load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
 ebpf_program_suite(
     name = "tracer-fentry",
-    visibility = ["//visibility:public"],
     src = "tracer-fentry.c",
     core = True,
     extra_flags = [
         "-Ipkg/network/ebpf/c/co-re",
         "-Ipkg/network/ebpf/c",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf/c:ebpf_c_headers",
         "//pkg/network/ebpf/c:ebpf_c_network",

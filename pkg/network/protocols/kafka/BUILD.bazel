@@ -9,7 +9,7 @@ exports_files([
 
 cgo_godefs(
     name = "types_godefs",
-    visibility = ["//visibility:public"],
     src = "types.go",
+    visibility = ["//visibility:public"],
     deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )

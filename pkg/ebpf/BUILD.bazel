@@ -22,8 +22,8 @@ exports_files([
 
 cgo_godefs(
     name = "types_godefs",
-    visibility = ["//visibility:public"],
     src = "types.go",
+    visibility = ["//visibility:public"],
 )
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
