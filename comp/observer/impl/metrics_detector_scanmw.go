@@ -86,7 +86,7 @@ func NewScanMWDetector() *ScanMWDetector {
 		MinPoints:             30,
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
-		MinDeviationMAD:       15.0,
+		MinDeviationMAD:       3.0,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -294,13 +294,14 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
+		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Aggregate: agg},
 		DetectorName: d.Name(),
 		Title:        "ScanMW changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
 			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
-		Timestamp: changePtTime,
-		Score:     &score,
+		Timestamp:           changePtTime,
+		Score:               &score,
+		SamplingIntervalSec: medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,

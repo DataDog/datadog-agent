@@ -339,10 +339,18 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
 // Uses explicit slices so the caller can snapshot them under a lock.
+//
+// Scan detectors (ScanMW, ScanWelch) emit anomalies with historical changepoint
+// timestamps that may be hundreds of seconds behind upTo. The correlator's
+// currentDataTime persists across calls at the previous upTo, so advancing
+// correlators to upTo after processing would evict just-formed clusters before
+// they can be accumulated. We accumulate correlations BEFORE advancing so
+// clusters are captured while still alive.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
+	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
 		// Use instrumented storage when digest recording is active.
 		storageForDetect := observerdef.StorageReader(e.storage)
@@ -382,12 +390,10 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
 			if !e.captureRawAnomaly(anomaly) {
-				continue // duplicate — skip correlators, events, and reporters
+				continue // duplicate
 			}
-			correlatorTelemetry := e.processAnomaly(anomaly)
+			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
-			allTelemetry = append(allTelemetry, correlatorTelemetry...)
-
 			e.emit(engineEvent{
 				kind:      eventAnomalyCreated,
 				timestamp: anomaly.Timestamp,
@@ -399,12 +405,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		allTelemetry = append(allTelemetry, result.Telemetry...)
 	}
 
-	// Advance correlators so they can update their internal state.
+	// Accumulate correlations before advancing — captures clusters formed from
+	// historical-timestamp anomalies before Advance(upTo) evicts them.
 	for _, correlator := range correlators {
-		advanceStart := time.Now()
-		correlator.Advance(upTo)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
+		correlator.Advance(upTo)
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
