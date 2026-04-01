@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -21,7 +21,7 @@ func TestStatus(t *testing.T) {
 	provider := statusProvider{
 		agent: &Agent{
 			opts: AgentOptions{
-				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressor(), &secretnooptypes.SecretNoop{}),
+				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressor(), secretsnoopimpl.NewComponent().Comp),
 			},
 		},
 	}

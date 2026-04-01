@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -38,7 +38,7 @@ func NewSyncDestination(
 	maxConcurrency := minConcurrency
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", &secretnooptypes.SecretNoop{}),
+		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", secretsnoopimpl.NewComponent().Comp),
 		senderDoneChan: senderDoneChan,
 	}
 }

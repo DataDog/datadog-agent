@@ -20,7 +20,7 @@ import (
 	"time"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -514,7 +514,7 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
-	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", &secretnooptypes.SecretNoop{})
+	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", secretsnoopimpl.NewComponent().Comp)
 
 	return ctx, destination
 }

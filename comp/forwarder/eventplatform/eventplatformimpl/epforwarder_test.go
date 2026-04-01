@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -139,7 +139,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 				nil,
 				0,
 				"test-hostname",
-				&secretnooptypes.SecretNoop{},
+				secretsnoopimpl.NewComponent().Comp,
 			)
 			suite.Require().NoError(err)
 			suite.Require().NotNil(pipeline)

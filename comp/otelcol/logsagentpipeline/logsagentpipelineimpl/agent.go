@@ -14,7 +14,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -219,7 +219,7 @@ func (a *Agent) SetupPipeline(
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
-		&secretnooptypes.SecretNoop{},
+		secretsnoopimpl.NewComponent().Comp,
 	)
 
 	a.destinationsCtx = destinationsCtx

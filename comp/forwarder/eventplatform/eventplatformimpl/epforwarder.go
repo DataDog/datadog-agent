@@ -20,7 +20,7 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -736,7 +736,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr, &secretnooptypes.SecretNoop{})
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

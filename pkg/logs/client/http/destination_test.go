@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -553,7 +554,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", &secretnooptypes.SecretNoop{})
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
