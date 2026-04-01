@@ -293,50 +293,11 @@ func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidati
 }
 
 func testCwsEnabled(t assert.TestingT, ts testSuite) {
-	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", ts.Hostname())
-	resp, err := ts.Client().TableQuery(query)
-	if !assert.NoErrorf(t, err, "ddsql query failed") {
+	enabled, err := ts.Client().IsProductEnabled(ts.Hostname(), "cws")
+	if !assert.NoErrorf(t, err, "fleet automation API request failed for host %s", ts.Hostname()) {
 		return
 	}
-	if !assert.Len(t, resp.Data, 1, "ddsql query didn't returned a single row") {
-		return
-	}
-	if !assert.Len(t, resp.Data[0].Attributes.Columns, 2, "ddsql query didn't returned two columns") {
-		return
-	}
-
-	columnChecks := []struct {
-		name          string
-		expectedValue interface{}
-	}{
-		{
-			name:          "hostname",
-			expectedValue: ts.Hostname(),
-		},
-		{
-			name:          "feature_cws_enabled",
-			expectedValue: true,
-		},
-	}
-
-	for _, columnCheck := range columnChecks {
-		result := false
-		for _, column := range resp.Data[0].Attributes.Columns {
-			if column.Name == columnCheck.name {
-				if !assert.Len(t, column.Values, 1, "column %s should have a single value", columnCheck.name) {
-					return
-				}
-				if !assert.Equal(t, columnCheck.expectedValue, column.Values[0], "column %s should be equal", columnCheck.name) {
-					return
-				}
-				result = true
-				break
-			}
-		}
-		if !assert.Truef(t, result, "column %s isn't present or has an unexpected value", columnCheck.name) {
-			return
-		}
-	}
+	assert.Truef(t, enabled, "cws should be enabled for host %s", ts.Hostname())
 }
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {

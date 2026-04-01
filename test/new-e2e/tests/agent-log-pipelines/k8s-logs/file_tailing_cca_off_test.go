@@ -77,7 +77,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
 			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
 			assert.NoError(c, err, "Error filtering logs")
-			if assert.NotEmpty(v.T(), filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
 				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
 			}
 		}

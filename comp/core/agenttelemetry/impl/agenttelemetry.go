@@ -405,8 +405,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	var mCfg *MetricConfig
 	var ok bool
 
-	// Check if the metric is included in the profile
-	if mCfg, ok = p.metricsMap[mfam.GetName()]; !ok {
+	// Check if the metric is included in the profile. Normalize "__" to "_"
+	// so that metrics registered with or without NoDoubleUnderscoreSep are matched.
+	normalizedName := strings.Replace(mfam.GetName(), "__", "_", 1)
+	if mCfg, ok = p.metricsMap[normalizedName]; !ok {
 		return nil
 	}
 

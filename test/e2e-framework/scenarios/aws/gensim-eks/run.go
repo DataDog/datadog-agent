@@ -44,7 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	eksscenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
-	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
 	pulumiKubernetes "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	batchv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/batch/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
