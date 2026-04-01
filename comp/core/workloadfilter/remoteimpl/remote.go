@@ -148,7 +148,7 @@ func (r *remoteFilterStore) start(_ context.Context) error {
 					return nil, err
 				}
 
-				port, err := strconv.Atoi(sPort)
+				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 				}
