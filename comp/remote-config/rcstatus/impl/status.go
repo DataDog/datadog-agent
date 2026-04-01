@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package rcstatusimpl //nolint:revive // TODO(RC) Fix revive linter
+// Package rcstatusimpl implements the rcstatus component.
+package rcstatusimpl
 
 import (
 	"embed"
@@ -13,39 +14,34 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"go.uber.org/fx"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
 
-type dependencies struct {
-	fx.In
+// Requires holds the dependencies for the rcstatus component.
+type Requires struct {
+	compdef.In
 
 	Config config.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides holds the outputs of the rcstatus component.
+type Provides struct {
+	compdef.Out
 
 	StatusProvider status.InformationProvider
-}
-
-// Module defines the fx options for the status component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatus))
 }
 
 type statusProvider struct {
 	Config config.Component
 }
 
-func newStatus(deps dependencies) provides {
-	return provides{
+// NewStatus creates a new rcstatus component.
+func NewStatus(deps Requires) Provides {
+	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
 		}),

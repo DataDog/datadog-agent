@@ -410,6 +410,7 @@ dependencies = [
  "tonic-reflection",
  "tower 0.4.13",
  "uuid",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

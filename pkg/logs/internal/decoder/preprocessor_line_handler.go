@@ -20,8 +20,8 @@ import (
 // The caller picks the Aggregator that determines the combining strategy; everything else
 // (tokenization, labeling, JSON aggregation, sampling) is wired identically.
 // Pass nil for labeler on paths that don't use auto multiline detection (regex, pass-through).
-func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler preprocessor.Labeler, sampler preprocessor.Sampler, outputChan chan *message.Message, jsonAggregator preprocessor.JSONAggregator, flushTimeout time.Duration) LineHandler {
-	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, outputChan, jsonAggregator, flushTimeout)
+func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler preprocessor.Labeler, sampler preprocessor.Sampler, outputChan chan *message.Message, jsonAggregator preprocessor.JSONAggregator, flushTimeout time.Duration, labelerMaxBytes int) LineHandler {
+	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, outputChan, jsonAggregator, flushTimeout, labelerMaxBytes)
 	return &preprocessorLineHandler{preprocessor: pp}
 }
 
