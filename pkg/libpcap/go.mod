@@ -1,29 +1,6 @@
-module github.com/DataDog/datadog-agent/comp/logs-library
+module github.com/DataDog/datadog-agent/pkg/libpcap
 
-go 1.25.0
-
-require (
-	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260211235139-a5361978c2b6
-	go.uber.org/fx v1.24.0
-)
-
-require gopkg.in/yaml.v3 v3.0.1 // indirect
-
-require (
-	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
-	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-)
+go 1.25.7
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -70,6 +47,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../comp/otelcol/collector-contrib/def
@@ -119,7 +97,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/libpcap => ../../pkg/libpcap
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../pkg/logs/message
