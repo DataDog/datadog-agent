@@ -38,9 +38,7 @@ type Requires struct {
 	IPC          ipc.Component
 	Telemetry    telemetry.Component
 	ConfigWriter model.Writer
-	// Params is optional; when nil the component is disabled (e.g. when RAR is not enabled).
-	// Binaries that do not need config streaming should not include this component at all.
-	Params *Params `optional:"true"`
+	Params       Params
 }
 
 // SessionIDProvider supplies the RAR session ID, typically after registration completes.
@@ -106,10 +104,7 @@ type consumer struct {
 
 // NewComponent creates a new configstreamconsumer component
 func NewComponent(reqs Requires) (Provides, error) {
-	if reqs.Params == nil {
-		return Provides{}, errors.New("configstreamconsumer: Params is required; binaries that do not need config streaming should not include this component")
-	}
-	p := *reqs.Params
+	p := reqs.Params
 	if p.ClientName == "" {
 		return Provides{}, errors.New("ClientName is required")
 	}
