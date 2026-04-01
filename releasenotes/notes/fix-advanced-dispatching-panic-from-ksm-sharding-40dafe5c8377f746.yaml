@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes panic when advanced dispatching is disabled when KSM Core is ran as a cluster check.
