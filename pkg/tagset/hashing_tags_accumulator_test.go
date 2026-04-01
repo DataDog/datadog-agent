@@ -111,12 +111,13 @@ func TestRemoveSorted(t *testing.T) {
 func TestRemoveSortedHashCollision(t *testing.T) {
 	const collisionHash = uint64(0xdeadbeef)
 
+	// h's tag is alphabetically before the colliding tag in o — no match, tag must be kept.
 	h := NewHashingTagsAccumulator()
 	h.data = []string{"tag:keep"}
 	h.hash = []uint64{collisionHash}
 
 	o := NewHashingTagsAccumulator()
-	o.data = []string{"tag:other"} // same hash, different string
+	o.data = []string{"tag:other"} // same hash, different string; "tag:other" > "tag:keep"
 	o.hash = []uint64{collisionHash}
 
 	done := make(chan struct{})
@@ -131,6 +132,23 @@ func TestRemoveSortedHashCollision(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("removeSorted hung: infinite loop on hash collision")
 	}
+}
+
+func TestRemoveSortedHashCollisionWithMatch(t *testing.T) {
+	const collisionHash = uint64(0xdeadbeef)
+
+	// h's tag is alphabetically AFTER the colliding tag in o, but o also contains h's tag — it must be removed.
+	// o sorted by (hash, string): ["tag:aaa"@collisionHash, "tag:zoo"@collisionHash]
+	h := NewHashingTagsAccumulator()
+	h.data = []string{"tag:zoo"}
+	h.hash = []uint64{collisionHash}
+
+	o := NewHashingTagsAccumulator()
+	o.data = []string{"tag:aaa", "tag:zoo"} // "tag:aaa" collides with same hash, comes before "tag:zoo"
+	o.hash = []uint64{collisionHash, collisionHash}
+
+	h.removeSorted(o)
+	assert.Empty(t, h.Get(), "tag:zoo must be removed since o contains it, despite hash collision with tag:aaa")
 }
 
 func testTagsMatchHash(t *testing.T, acc *HashingTagsAccumulator) {
