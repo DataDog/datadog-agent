@@ -30,6 +30,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{anotherInt: 42, anotherString: xyz}"
+    "message": "{anotherInt: 42, anotherString: xyz}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

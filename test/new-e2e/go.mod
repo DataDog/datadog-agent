@@ -2,10 +2,6 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 
 go 1.25.0
 
-// Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
-// The plugin versions NEED to be aligned.
-// TODO: Implement hard check in CI
-
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.184
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
@@ -30,7 +26,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.9 // indirect
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.83.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
 	github.com/pulumi/pulumi/sdk/v3 v3.190.0
@@ -352,7 +348,6 @@ require (
 	go.uber.org/zap v1.27.1 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
-	gopkg.in/ini.v1 v1.67.0 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
 )
