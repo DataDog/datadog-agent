@@ -500,12 +500,12 @@ _GAZELLE_BUILD_TAGS = [
 
 gazelle(
     name = "gazelle",
+    build_tags = _GAZELLE_BUILD_TAGS,
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
         "-strict",  # don't swallow syntax errors or unknown directives
     ],
-    build_tags = _GAZELLE_BUILD_TAGS,
     gazelle = ":gazelle_binary",
     prefix = "github.com/DataDog/datadog-agent",
 )
