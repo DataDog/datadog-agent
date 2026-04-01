@@ -14,7 +14,6 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
@@ -28,7 +27,6 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 		if errors.Is(err, os.ErrNotExist) {
 			// datadog.yaml not yet written (fresh install); the install script or a
 			// subsequent configure step is responsible for enabling otelcollector.
-			log.Warnf("datadog.yaml not found at %s, skipping otelcollector enablement — ensure it is configured before starting the agent", datadogYamlPath)
 			span.SetTag("datadog.yaml_found", false)
 			return nil
 		}
@@ -93,6 +91,7 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
 	if err == nil {
+		span.SetTag("datadog.yaml_found", true)
 		var cfg map[string]any
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
 			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
@@ -101,7 +100,7 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		site, _ = cfg["site"].(string)
 	} else {
 		// datadog.yaml not yet written (fresh install); fall back to environment variables
-		log.Warnf("datadog.yaml not found at %s, falling back to environment variables for OTel config", datadogYamlPath)
+		span.SetTag("datadog.yaml_found", false)
 		e := env.FromEnv()
 		apiKey = e.APIKey
 		site = e.Site
