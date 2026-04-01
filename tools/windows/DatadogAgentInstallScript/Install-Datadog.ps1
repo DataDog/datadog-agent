@@ -75,8 +75,13 @@ function Test-InstallerIntegrity($installer) {
    if ($signature.Status -ne "Valid") {
       throw "Installer signature is not valid: $($signature.StatusMessage)"
    }
-   if (-Not ($signature.SignerCertificate.Subject.Contains('CN="Datadog, Inc"'))) {
-      throw "Installer is not signed by CN=`"Datadog, Inc`": $($signature.SignerCertificate.Subject)"
+   if (
+      -Not (
+         $signature.SignerCertificate.Subject.Contains('CN="Datadog, Inc"')
+         -or $signature.SignerCertificate.Subject.Contains('CN="Datadog, Inc."')
+      )
+   ) {
+      throw "Installer is not signed by CN=`"Datadog, Inc`" or CN=`"Datadog, Inc.`"`": $($signature.SignerCertificate.Subject)"
    }
    return $true
 }
