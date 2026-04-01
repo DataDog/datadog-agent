@@ -16,7 +16,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/bazel/rules/go_build_tags",
     visibility = ["//visibility:public"],
     deps = [
+        "@gazelle//config",
+        "@gazelle//label",
         "@gazelle//language",
+        "@gazelle//repo",
+        "@gazelle//resolve",
         "@gazelle//rule",
     ],
 )
