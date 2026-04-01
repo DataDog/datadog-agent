@@ -132,6 +132,37 @@ func TestWithTelemetryWrapper_PanicCapturesErrorDetails(t *testing.T) {
 	assert.Equal(t, "panic: something went wrong", err.Error())
 }
 
+type customError struct{ msg string }
+
+func (e *customError) Error() string { return e.msg }
+
+func TestWithTelemetryWrapper_PanicWithErrorPreservesType(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	panicErr := &customError{msg: "runtime failure"}
+	th := &TelemetryHandler{
+		handlerName: "panicErrorHandler",
+		handler: func(_ http.ResponseWriter, _ *http.Request) {
+			panic(panicErr)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+
+	assert.Panics(t, func() {
+		th.handle(rec, req)
+	})
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	err, ok := span.Tag("error").(*customError)
+	require.True(t, ok, "error tag should preserve the original error type, got %T", span.Tag("error"))
+	assert.Equal(t, "runtime failure", err.Error())
+}
+
 func TestWithTelemetryWrapper_SetSpanError(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()

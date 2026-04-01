@@ -61,7 +61,13 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 			if !wrapper.wroteHeader {
 				wrapper.setSpanTags(http.StatusInternalServerError)
 			}
-			span.Finish(tracer.WithError(fmt.Errorf("panic: %v", p)))
+			var panicErr error
+			if e, ok := p.(error); ok {
+				panicErr = e
+			} else {
+				panicErr = fmt.Errorf("panic: %v", p)
+			}
+			span.Finish(tracer.WithError(panicErr))
 			panic(p)
 		}
 		if !wrapper.wroteHeader {
