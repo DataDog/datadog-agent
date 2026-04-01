@@ -87,10 +87,6 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
-# this version should be kept in sync with the one in the agent omnibus build
-LIBPCAP_VERSION = "1.10.5"
-
 TEST_HELPER_CBINS = ["cudasample"]
 
 RUST_BINARIES = [
@@ -257,43 +253,6 @@ def ninja_generate(
 
 
 @task
-def build_libpcap(ctx, env: dict, arch: Arch | None = None):
-    """Download and build libpcap as a static library in the agent dev directory.
-    The library is not rebuilt if it already exists.
-    """
-    embedded_path = get_embedded_path(ctx)
-    assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
-    if os.path.exists(target_file):
-        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
-        if version == LIBPCAP_VERSION:
-            ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
-            return
-
-    bazel(ctx, "run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
-    ctx.run(f"strip -g {target_file}")
-    return
-
-
-def get_libpcap_cgo_flags(ctx, install_path: str = None):
-    """Return a dictionary with the CGO flags needed to link against libpcap.
-    If install_path is provided, then we expect this path to contain libpcap as a shared library.
-    """
-    if install_path is not None:
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
-        }
-    else:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
-        }
-
-
-@task
 def build(
     ctx,
     race=False,
@@ -386,16 +345,6 @@ def build_sysprobe_binary(
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
-    if not is_windows and "pcap" in build_tags:
-        build_libpcap(ctx, arch=arch_obj, env=env)
-        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
-        # append libpcap cgo-related environment variables to any existing ones
-        for k, v in cgo_flags.items():
-            if k in env:
-                env[k] += f" {v}"
-            else:
-                env[k] = v
-
     if os.path.exists(binary):
         os.remove(binary)
 
@@ -425,7 +374,6 @@ def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
     # Some flags are not supported on KMT testing, so we remove them
     # until we have extra fixes (mainly coming from the unified build images)
     temporarily_unsupported_build_tags = [
-        "pcap",  # libpcap headers not supported yet, specially for cross-compilation
         "trivy",  # trivy introduces dependencies on a higher version of glibc
     ]
     for tag in temporarily_unsupported_build_tags:
