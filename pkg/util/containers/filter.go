@@ -55,11 +55,10 @@ func GetPauseContainerExcludeList() []string {
 	return legacy.GetPauseContainerExcludeList()
 }
 
-// GetPauseContainerFilter returns a filter only excluding pause containers.
-//
-// use comp/core/workloadfilter.Component instead.
-func GetPauseContainerFilter() (*Filter, error) {
-	return legacy.GetPauseContainerFilter()
+// GetPauseContainerFilter returns a filter that excludes pause containers when excludePause is true.
+// The excludePause value should come from the "exclude_pause_container" config key.
+func GetPauseContainerFilter(excludePause bool) (*Filter, error) {
+	return legacy.GetPauseContainerFilter(excludePause)
 }
 
 // IsExcludedByAnnotationInner checks if an entity is excluded by annotations.

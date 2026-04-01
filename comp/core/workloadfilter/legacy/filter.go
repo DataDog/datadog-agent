@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -197,13 +196,13 @@ func GetPauseContainerExcludeList() []string {
 	}
 }
 
-// GetPauseContainerFilter returns a filter only excluding pause containers
-func GetPauseContainerFilter() (*Filter, error) {
+// GetPauseContainerFilter returns a filter that excludes pause containers when excludePause is true.
+// The excludePause value should come from the "exclude_pause_container" config key, resolved by the caller.
+func GetPauseContainerFilter(excludePause bool) (*Filter, error) {
 	var excludeList []string
-	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
+	if excludePause {
 		excludeList = GetPauseContainerExcludeList()
 	}
-
 	return NewFilter(GlobalFilter, nil, excludeList)
 }
 
