@@ -358,7 +358,6 @@ def build_functional_tests(
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
-
     if static:
         build_tags.extend(["osusergo", "netgo"])
 
