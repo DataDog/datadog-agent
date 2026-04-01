@@ -33,7 +33,6 @@ from tasks.libs.common.utils import (
     bin_name,
     get_build_flags,
     get_common_test_args,
-    get_embedded_path,
     get_gobin,
     parse_kernel_version,
 )
