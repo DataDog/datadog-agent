@@ -392,7 +392,7 @@
         "usagesDigest": "CKsn1dtme4oztWA0td45Tt6oCZK6MZnpIocVVZK14sU=",
         "recordedInputs": [
           "FILE:@@//.bazelversion 59b003a1f3465ae6084432329f8265e860cbaac0bd4a92a4f3ea6b979a6eed66",
-          "FILE:@@//tools/bazel 6804bf06e2253629bf30d0a777fc8baf943b50529d230a059f1dc46296dbf4d6",
+          "FILE:@@//tools/bazel 596109207cc0eff308fc10454132bf9a8a1397c3f735edb44d17addfc474234d",
           "FILE:@@//tools/bazel.bat c2f0c08f179108517d08b1e34d19b3aabd80458d9e2575f9de08e640ba9b4ac3",
           "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
         ],
