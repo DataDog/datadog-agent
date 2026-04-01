@@ -8,7 +8,6 @@
 package software
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -18,8 +17,9 @@ import (
 
 func TestBuildPkgSummaryFromLines_AppOnly(t *testing.T) {
 	lines := []string{
-		"Applications/Google Chrome.app/Contents/Info.plist",
-		"Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"./Applications/Google Chrome.app",
+		"./Applications/Google Chrome.app/Contents",
+		"./Applications/Google Chrome.app/Contents/MacOS",
 	}
 
 	summary := buildPkgSummaryFromLines(lines, "/")
@@ -32,9 +32,11 @@ func TestBuildPkgSummaryFromLines_AppOnly(t *testing.T) {
 
 func TestBuildPkgSummaryFromLines_MixedPayloadSkipped(t *testing.T) {
 	lines := []string{
-		"Applications/Datadog Agent.app/Contents/Info.plist",
-		"opt/datadog-agent/bin/agent",
-		"opt/datadog-agent/etc/datadog.yaml",
+		"./Applications/Datadog Agent.app",
+		"./Applications/Datadog Agent.app/Contents",
+		"./opt/datadog-agent",
+		"./opt/datadog-agent/bin",
+		"./opt/datadog-agent/etc",
 	}
 
 	summary := buildPkgSummaryFromLines(lines, "/")
@@ -48,8 +50,9 @@ func TestBuildPkgSummaryFromLines_MixedPayloadSkipped(t *testing.T) {
 
 func TestBuildPkgSummaryFromLines_NonAppOnlyKept(t *testing.T) {
 	lines := []string{
-		"opt/example/bin/tool",
-		"usr/local/bin/example",
+		"./opt/example",
+		"./opt/example/bin",
+		"./usr/local/bin",
 	}
 
 	summary := buildPkgSummaryFromLines(lines, "/")
@@ -63,7 +66,8 @@ func TestBuildPkgSummaryFromLines_NonAppOnlyKept(t *testing.T) {
 
 func TestBuildPkgSummaryFromLines_PrefixApplicationsApp(t *testing.T) {
 	lines := []string{
-		"Pages.app/Contents/Info.plist",
+		"./Pages.app",
+		"./Pages.app/Contents",
 	}
 
 	summary := buildPkgSummaryFromLines(lines, "Applications")
@@ -74,95 +78,107 @@ func TestBuildPkgSummaryFromLines_PrefixApplicationsApp(t *testing.T) {
 	assert.True(t, shouldSkipPkgFromSummary(summary), "applications-prefix app-only package should be skipped")
 }
 
-func TestPkgFilesCacheGet_UsesCacheWithinTTL(t *testing.T) {
-	cache := &pkgFilesCache{
-		cache:      make(map[string]*pkgFilesCacheEntry),
+func TestBomCache_HitsWithinTTL(t *testing.T) {
+	c := &bomCache{
+		entries:    make(map[string]*bomCacheEntry),
 		ttl:        time.Hour,
-		maxEntries: 10,
+		maxEntries: 100,
 	}
 
-	var calls int
-	cache.fetchSummaryFn = func(_ string, prefixPath string) pkgSummary {
-		calls++
-		return buildPkgSummaryFromLines([]string{"opt/example/bin/tool"}, prefixPath)
+	// Seed cache manually
+	c.entries["/var/db/receipts/com.example.bom"] = &bomCacheEntry{
+		Lines:     []string{"./opt/example", "./opt/example/bin"},
+		Timestamp: time.Now(),
 	}
 
-	s1 := cache.get("com.example.pkg", "/")
-	s2 := cache.get("com.example.pkg", "/")
-
-	assert.Equal(t, 1, calls, "second call should hit cache")
-	assert.Equal(t, s1, s2)
+	result := c.getBomLines([]string{"/var/db/receipts/com.example.bom"})
+	require.Len(t, result["/var/db/receipts/com.example.bom"], 2)
+	assert.Equal(t, "./opt/example", result["/var/db/receipts/com.example.bom"][0])
 }
 
-func TestPkgFilesCacheGet_RefetchesAfterTTL(t *testing.T) {
-	cache := &pkgFilesCache{
-		cache:      make(map[string]*pkgFilesCacheEntry),
+func TestBomCache_ExpiredEntryRefetches(t *testing.T) {
+	c := &bomCache{
+		entries:    make(map[string]*bomCacheEntry),
 		ttl:        5 * time.Millisecond,
-		maxEntries: 10,
+		maxEntries: 100,
 	}
 
-	var calls int
-	cache.fetchSummaryFn = func(_ string, prefixPath string) pkgSummary {
-		calls++
-		return buildPkgSummaryFromLines([]string{"opt/example/bin/tool"}, prefixPath)
+	c.entries["/var/db/receipts/com.example.bom"] = &bomCacheEntry{
+		Lines:     []string{"./stale"},
+		Timestamp: time.Now().Add(-time.Second),
 	}
 
-	_ = cache.get("com.example.pkg", "/")
-	time.Sleep(20 * time.Millisecond)
-	_ = cache.get("com.example.pkg", "/")
-
-	assert.Equal(t, 2, calls, "expired cache entry should refetch")
+	// After TTL, getBomLines should call batchLsbom for the expired key.
+	// Since the BOM file doesn't exist, we'll get empty lines back.
+	result := c.getBomLines([]string{"/var/db/receipts/com.example.bom"})
+	lines := result["/var/db/receipts/com.example.bom"]
+	assert.NotContains(t, lines, "./stale", "expired entry should not return stale data")
 }
 
-func TestPkgFilesCacheGet_BoundedSizeEvictsOldest(t *testing.T) {
-	cache := &pkgFilesCache{
-		cache:      make(map[string]*pkgFilesCacheEntry),
-		ttl:        time.Hour,
-		maxEntries: 2,
-	}
-	cache.fetchSummaryFn = func(pkgID, prefixPath string) pkgSummary {
-		return buildPkgSummaryFromLines([]string{"opt/" + pkgID + "/bin/tool"}, prefixPath)
-	}
-
-	_ = cache.get("pkg.one", "/")
-	_ = cache.get("pkg.two", "/")
-	_ = cache.get("pkg.three", "/")
-
-	require.LessOrEqual(t, len(cache.cache), 2)
-	_, hasOne := cache.cache[makePkgCacheKey("pkg.one", "/")]
-	assert.False(t, hasOne, "oldest entry should be evicted once cache is full")
-}
-
-func TestCollectPkgEntriesSinglePass_DoesNotRefetchWhenCacheEvicts(t *testing.T) {
-	const totalReceipts = 6
-	// small cache capacity to force eviction
-	cache := &pkgFilesCache{
-		cache:      make(map[string]*pkgFilesCacheEntry),
+func TestBomCache_EvictsWhenFull(t *testing.T) {
+	c := &bomCache{
+		entries:    make(map[string]*bomCacheEntry),
 		ttl:        time.Hour,
 		maxEntries: 2,
 	}
 
-	var calls int
-	cache.fetchSummaryFn = func(pkgID, prefixPath string) pkgSummary {
-		calls++
-		return buildPkgSummaryFromLines([]string{fmt.Sprintf("opt/%s/bin/tool", pkgID)}, prefixPath)
+	oldest := time.Now().Add(-10 * time.Minute)
+	c.entries["/bom/a"] = &bomCacheEntry{Lines: []string{}, Timestamp: oldest}
+	c.entries["/bom/b"] = &bomCacheEntry{Lines: []string{}, Timestamp: time.Now()}
+
+	// Inserting a third should evict the oldest (/bom/a)
+	c.getBomLines([]string{"/bom/c"})
+
+	assert.LessOrEqual(t, len(c.entries), 2)
+	_, hasA := c.entries["/bom/a"]
+	assert.False(t, hasA, "oldest entry should be evicted")
+}
+
+func TestBatchLsbom_EmptyInput(t *testing.T) {
+	result := batchLsbom(nil)
+	assert.Nil(t, result)
+
+	result = batchLsbom([]string{})
+	assert.Nil(t, result)
+}
+
+func TestBuildEntryFromReceipt_SkipsAppPackage(t *testing.T) {
+	receipt := pkgReceiptInfo{
+		packageID:   "com.google.Chrome",
+		version:     "1.0",
+		installDate: "2026-01-01",
+		prefixPath:  "/",
+		bomPath:     "/var/db/receipts/com.google.Chrome.bom",
+	}
+	summary := pkgSummary{
+		HasApplicationsApp: true,
+		HasNonAppPayload:   false,
+		TopLevelPaths:      []string{"/Applications/Google Chrome.app"},
 	}
 
-	// create 6 receipts with different package IDs
-	receipts := make([]pkgReceiptInfo, 0, totalReceipts)
-	for i := 0; i < totalReceipts; i++ {
-		receipts = append(receipts, pkgReceiptInfo{
-			packageID:   fmt.Sprintf("pkg.%d", i),
-			version:     "1.0.0",
-			installDate: "2026-01-01",
-			prefixPath:  "/",
-		})
+	entry := buildEntryFromReceipt(receipt, summary, true)
+	assert.Nil(t, entry, "app packages should be skipped")
+}
+
+func TestBuildEntryFromReceipt_KeepsNonAppPackage(t *testing.T) {
+	receipt := pkgReceiptInfo{
+		packageID:   "com.example.tool",
+		version:     "2.0",
+		installDate: "2026-01-01",
+		prefixPath:  "/",
+		bomPath:     "/var/db/receipts/com.example.tool.bom",
+	}
+	summary := pkgSummary{
+		HasApplicationsApp: false,
+		HasNonAppPayload:   true,
+		TopLevelPaths:      []string{"/opt/example"},
 	}
 
-	entries := collectPkgEntriesSinglePass(receipts, cache, true, 3)
-
-	require.Len(t, entries, totalReceipts)
-	assert.Equal(t, totalReceipts, calls, "single-pass collection should call fetch once per unique receipt key")
+	entry := buildEntryFromReceipt(receipt, summary, true)
+	assert.NotNil(t, entry)
+	assert.Equal(t, "com.example.tool", entry.DisplayName)
+	assert.Equal(t, "2.0", entry.Version)
+	assert.Equal(t, softwareTypePkg, entry.Source)
 }
 
 func TestFilterGenericSystemPaths(t *testing.T) {
