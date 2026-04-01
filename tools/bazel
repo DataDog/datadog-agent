@@ -49,4 +49,12 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
+if [ -d /Users/ec2-user ]; then
+  _system_id=$(cat ~/.gitlab-runner/.runner_system_id)
+  >&2 echo system_id="$_system_id"
+  find /Users/ec2-user/cache/DataDog/datadog-agent -mindepth 1 -name 'omnibus-deps--agent_dmg*' -exec rm -rv {} + || true
+  find /Users/ec2-user/cache/DataDog/datadog-agent || true
+  sudo rm -fr "$XDG_CACHE_HOME/bazel"
+fi
+
 exec "$BAZEL_REAL" "$@"

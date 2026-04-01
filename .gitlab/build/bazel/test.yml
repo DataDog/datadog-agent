@@ -15,11 +15,13 @@ bazel:test:linux-arm64:
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
+  parallel: 50
   script:
     - bazel test //...
 
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
+  parallel: 50
   script:
     - bazel test //...
 
