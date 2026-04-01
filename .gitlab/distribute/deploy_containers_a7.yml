@@ -186,4 +186,4 @@ deploy_containers-host-profiler-preview:
       allow_failure: true
   # Update manually in branches that trigger preview image.
   variables:
-    PREVIEW_NUMBER: "0.1"
+    PREVIEW_NUMBER: ""
