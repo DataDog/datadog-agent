@@ -59,11 +59,7 @@ type patternMetricContext struct {
 // NewLogPatternExtractor creates a new LogPatternExtractor with the given config.
 func NewLogPatternExtractor(_ LogPatternExtractorConfig) *LogPatternExtractor {
 	return &LogPatternExtractor{
-		PatternClusterer: patterns.NewPatternClusterer(patterns.IDComputeInfo{
-			Offset: 0,
-			Stride: 1,
-			Index:  0,
-		}),
+		PatternClusterer:      patterns.NewPatternClusterer(),
 		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
 	}
 }
@@ -76,11 +72,7 @@ func (e *LogPatternExtractor) Name() string {
 // Reset clears clustering and cached per-series context so reanalysis starts
 // from the currently observed logs.
 func (e *LogPatternExtractor) Reset() {
-	e.PatternClusterer = patterns.NewPatternClusterer(patterns.IDComputeInfo{
-		Offset: 0,
-		Stride: 1,
-		Index:  0,
-	})
+	e.PatternClusterer = patterns.NewPatternClusterer()
 	e.patternContext = nil
 }
 
@@ -256,7 +248,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string) (uint64
 
 	sub, ok := tc.subClusterers[groupHash]
 	if !ok {
-		sub = patterns.NewPatternClusterer(patterns.IDComputeInfo{Offset: 0, Stride: 1, Index: 0})
+		sub = patterns.NewPatternClusterer()
 		tc.subClusterers[groupHash] = sub
 	}
 
