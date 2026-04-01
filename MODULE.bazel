@@ -44,10 +44,6 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-# This enables cross-compilation for macOS x86_64 on Apple Silicon.
-# Simply add --platforms=@apple_support//platforms:macos_x86_64
-# to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.3.0")
 bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
@@ -337,5 +333,10 @@ include("//deps/msodbcsql18:msodbcsql18.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps:go.MODULE.bazel")
+
+# This enables cross-compilation for macOS x86_64 on Apple Silicon.
+# Simply add --platforms=@apple_support//platforms:macos_x86_64
+# to the build command to enable it.
+bazel_dep(name = "apple_support", version = "2.3.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
