@@ -222,7 +222,6 @@ func (c *consumer) streamLoop() {
 			c.log.Warnf("Config stream error: %v, reconnecting...", err)
 			c.streamReconnectCount.Inc()
 
-			// Fixed delay before reconnection attempt
 			select {
 			case <-c.ctx.Done():
 				return
