@@ -33,6 +33,7 @@ import (
 	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -88,6 +89,7 @@ type dependencies struct {
 	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
 	OfflineReporter offlinereporter.Component
+	HealthPlatform  option.Option[storedef.Component]
 }
 
 // Provides defines the output of the dogstatsd server component.
@@ -173,6 +175,9 @@ type dsdServer struct {
 	wmeta           option.Option[workloadmeta.Component]
 	offlineReporter offlinereporter.Component
 
+	// healthPlatform is used to report UDP read errors inline
+	healthPlatform option.Option[storedef.Component]
+
 	// telemetry
 	telemetry               telemetry.Component
 	tlmProcessed            telemetry.Counter
@@ -207,6 +212,7 @@ func initTelemetry() {
 func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 	s.offlineReporter = deps.OfflineReporter
+	s.healthPlatform = deps.HealthPlatform
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -422,7 +428,8 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
+		hp, _ := s.healthPlatform.Get()
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry, hp)
 		if err != nil {
 			s.log.Errorf("%s", err.Error())
 		} else {

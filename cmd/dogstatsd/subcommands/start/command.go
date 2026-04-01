@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
@@ -58,6 +59,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -65,6 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -159,6 +162,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
+		fx.Provide(func() option.Option[storedef.Component] { return option.None[storedef.Component]() }),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerfx.Module(),
 		resourcesfx.Module(),

@@ -51,7 +51,7 @@ func TestNewUDPListener(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, map[string]interface{}{"dogstatsd_port": RandomPortName})
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
@@ -68,7 +68,7 @@ func TestUDPListenerTelemetry(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -111,7 +111,7 @@ func TestUDPReceive(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 	require.Nil(t, err)
 	require.NotNil(t, s)
 	mockConn := defaultMConn(s.conn.LocalAddr(), contents)
@@ -166,7 +166,7 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 }

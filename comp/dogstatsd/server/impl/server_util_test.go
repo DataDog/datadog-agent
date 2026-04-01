@@ -34,6 +34,7 @@ import (
 	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	offlinereportermock "github.com/DataDog/datadog-agent/comp/offlinereporter/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -96,6 +97,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
+		fx.Provide(func() option.Option[storedef.Component] { return option.None[storedef.Component]() }),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(server.Params{Serverless: false}),
@@ -117,6 +119,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlistmock.MockModule(),
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
+		fx.Provide(func() option.Option[storedef.Component] { return option.None[storedef.Component]() }),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(server.Params{Serverless: false}),

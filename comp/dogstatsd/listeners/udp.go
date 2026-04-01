@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	dogstatsdudpdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsd-udp-drops"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,10 +56,11 @@ type UDPListener struct {
 	trafficCapture  replay.Component // Currently ignored
 	listenWg        sync.WaitGroup
 	telemetryStore  *TelemetryStore
+	healthPlatform  storedef.Component // may be nil if health platform is not available
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, hp storedef.Component) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -103,6 +106,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		buffer:          buffer,
 		trafficCapture:  capture,
 		telemetryStore:  telemetryStore,
+		healthPlatform:  hp,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -140,8 +144,20 @@ func (l *UDPListener) listen() {
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
 			udpPacketReadingErrors.Add(1)
 			l.telemetryStore.tlmUDPPackets.Inc("error")
+			if l.healthPlatform != nil {
+				_ = l.healthPlatform.ReportIssue(storedef.IssueReport{
+					IssueID:   dogstatsdudpdrops.IssueID,
+					IssueType: dogstatsdudpdrops.IssueID,
+					Source:    "dogstatsd",
+					Context:   map[string]string{"error": err.Error()},
+					Tags:      []string{"dogstatsd", "udp"},
+				})
+			}
 		} else {
 			l.telemetryStore.tlmUDPPackets.Inc("ok")
+			if l.healthPlatform != nil {
+				l.healthPlatform.ResolveIssue(dogstatsdudpdrops.IssueID)
+			}
 
 			udpBytes.Add(int64(n))
 			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n), "agent")

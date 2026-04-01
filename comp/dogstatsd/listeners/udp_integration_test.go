@@ -26,7 +26,7 @@ func TestStartStopUDPListener(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 
 	assert.NoError(t, err)
 	require.NotNil(t, s)
@@ -59,7 +59,7 @@ func TestUDPNonLocal(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 	assert.NoError(t, err)
 	require.NotNil(t, s)
 
@@ -85,7 +85,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore, nil)
 	assert.NoError(t, err)
 	require.NotNil(t, s)
 

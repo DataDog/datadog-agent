@@ -26,10 +26,12 @@ import (
 	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type testDeps struct {
@@ -58,6 +60,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlist.MockModule(),
+		fx.Provide(func() option.Option[healthplatformdef.Component] { return option.None[healthplatformdef.Component]() }),
 	))
 
 	s := DsdStatsRuntimeSetting{
