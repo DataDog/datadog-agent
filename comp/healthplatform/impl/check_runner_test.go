@@ -203,7 +203,7 @@ func TestCheckRunnerReportsIssues(t *testing.T) {
 
 	checkFn := func() (*healthplatform.IssueReport, error) {
 		return &healthplatform.IssueReport{
-			IssueID: "check-execution-failure", // Use real issue ID from registry
+			IssueId: "check-execution-failure", // Use real issue ID from registry
 			Context: map[string]string{"checkName": "test-check", "error": "test error"},
 		}, nil
 	}
@@ -218,7 +218,7 @@ func TestCheckRunnerReportsIssues(t *testing.T) {
 	// Wait for issue to be reported
 	assert.Eventually(t, func() bool {
 		issue := comp.GetIssueForCheck("test-check")
-		return issue != nil && issue.ID == "check-execution-failure"
+		return issue != nil && issue.Id == "check-execution-failure"
 	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 
@@ -239,7 +239,7 @@ func TestCheckRunnerClearsIssueWhenNil(t *testing.T) {
 		count := atomic.AddInt32(&callCount, 1)
 		if count == 1 {
 			return &healthplatform.IssueReport{
-				IssueID: "check-execution-failure", // Use real issue ID from registry
+				IssueId: "check-execution-failure", // Use real issue ID from registry
 				Context: map[string]string{"checkName": "test-check", "error": "test error"},
 			}, nil
 		}

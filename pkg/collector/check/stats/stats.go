@@ -321,7 +321,7 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		string(cs.CheckID),
 		cs.CheckName,
 		&healthplatformdef.IssueReport{
-			IssueID: "check-execution-failure",
+			IssueId: "check-execution-failure",
 			Context: context,
 			Tags:    []string{cs.CheckName, cs.CheckLoader},
 		},

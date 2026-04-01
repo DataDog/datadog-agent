@@ -470,7 +470,7 @@ func getSharedFxOption() fx.Option {
 					"dogstatsd-tag-limit-config",
 					"DogStatsD Tag Count Limit",
 					&healthplatform.IssueReport{
-						IssueID: "dogstatsd-tag-limit-drop",
+						IssueId: "dogstatsd-tag-limit-drop",
 						Context: map[string]string{
 							"metricName": metricName,
 							"tagCount":   strconv.Itoa(tagCount),

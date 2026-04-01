@@ -43,7 +43,7 @@ func Check() (*healthplatformdef.IssueReport, error) {
 
 	if len(unreachableSockets) > 0 {
 		return &healthplatformdef.IssueReport{
-			IssueID: IssueID,
+			IssueId: IssueID,
 			Context: map[string]string{
 				"dockerDirs": strings.Join(unreachableSockets, ","),
 				"os":         runtime.GOOS,

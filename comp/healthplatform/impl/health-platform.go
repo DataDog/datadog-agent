@@ -351,14 +351,14 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	// Build the new issue (or nil if resolved)
 	var newIssue *healthplatform.Issue
 	if report != nil {
-		if report.IssueID == "" {
+		if report.IssueId == "" {
 			return errors.New("issue ID cannot be empty")
 		}
 
 		// Build complete issue from the registry using the issue ID and context
-		issue, err := h.issueRegistry.BuildIssue(report.IssueID, report.Context)
+		issue, err := h.issueRegistry.BuildIssue(report.IssueId, report.Context)
 		if err != nil {
-			return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
+			return fmt.Errorf("failed to build issue %s: %w", report.IssueId, err)
 		}
 
 		// Append any additional tags from the report
@@ -403,7 +403,7 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatformdef.
 	result := make(map[string]*healthplatformdef.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
-			result[checkID] = protoIssueToDefIssue(issue)
+			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
 			count++
 		} else {
 			result[checkID] = nil
@@ -423,60 +423,7 @@ func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatformdef
 	}
 
 	// Return a copy to avoid external modifications
-	return protoIssueToDefIssue(issue)
-}
-
-// protoIssueToDefIssue converts a proto Issue to the def.Issue plain Go struct.
-func protoIssueToDefIssue(issue *healthplatform.Issue) *healthplatformdef.Issue {
-	if issue == nil {
-		return nil
-	}
-	defIssue := &healthplatformdef.Issue{
-		ID:          issue.Id,
-		IssueName:   issue.IssueName,
-		Title:       issue.Title,
-		Description: issue.Description,
-		Category:    issue.Category,
-		Location:    issue.Location,
-		Severity:    issue.Severity,
-		DetectedAt:  issue.DetectedAt,
-		Source:      issue.Source,
-		Tags:        append([]string(nil), issue.Tags...),
-	}
-	if issue.Remediation != nil {
-		rem := &healthplatformdef.Remediation{
-			Summary: issue.Remediation.Summary,
-		}
-		for _, step := range issue.Remediation.Steps {
-			if step != nil {
-				rem.Steps = append(rem.Steps, &healthplatformdef.RemediationStep{
-					Order: step.Order,
-					Text:  step.Text,
-				})
-			}
-		}
-		defIssue.Remediation = rem
-	}
-	return defIssue
-}
-
-// getIssuesProto returns the raw internal proto issues map for the forwarder.
-// The forwarder uses the proto type directly to build the wire-format HealthReport.
-func (h *healthPlatformImpl) getIssuesProto() (int, map[string]*healthplatform.Issue) {
-	h.issuesMux.RLock()
-	defer h.issuesMux.RUnlock()
-
-	count := 0
-	result := make(map[string]*healthplatform.Issue)
-	for checkID, issue := range h.issues {
-		if issue != nil {
-			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
-			count++
-		} else {
-			result[checkID] = nil
-		}
-	}
-	return count, result
+	return proto.Clone(issue).(*healthplatform.Issue)
 }
 
 // ============================================================================
@@ -769,7 +716,7 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 
 // fillFlare adds health platform issues to the flare archive
 func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	count, issues := h.getIssuesProto()
+	count, issues := h.GetAllIssues()
 
 	// Only create the file if there are issues
 	if count == 0 {

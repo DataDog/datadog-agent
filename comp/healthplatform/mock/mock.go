@@ -40,7 +40,7 @@ func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, repor
 
 	// Create a basic issue from the report for testing purposes
 	issue := &healthplatform.Issue{
-		ID:          report.IssueID,
+		Id:          report.IssueId,
 		Title:       checkName,
 		Description: "Mock issue",
 		Category:    "test",
