@@ -12,6 +12,8 @@ package api
 import (
 	"net/http"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -92,10 +94,17 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		return false
 	}
 
+	span, _ := tracer.StartSpanFromContext(req.Context(), "cluster_agent.leader_proxy.forward",
+		tracer.Tag("handler.role", "follower"),
+	)
+
 	if lph.le == nil {
 		leaderEngine, err := leaderelection.GetLeaderEngine()
 		if err != nil {
 			log.Errorf("leader engine can't be retrieved: %v", err)
+			span.SetTag("forwarded", false)
+			span.SetTag("forward.failure_mode", "engine_unavailable")
+			span.Finish(tracer.WithError(err))
 			http.Error(rw, "leader engine can't be retrieved", http.StatusServiceUnavailable)
 			return true
 		}
@@ -103,12 +112,19 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 	}
 
 	if lph.le.IsLeader() {
+		span.SetTag("handler.role", "leader")
+		span.SetTag("forwarded", false)
+		span.SetTag("forward.failure_mode", "none")
+		span.Finish()
 		return false
 	}
 
 	ip, err := lph.le.GetLeaderIP()
 	if err != nil {
 		log.Errorf("failed to retrieve leader ip: %v", err)
+		span.SetTag("forwarded", false)
+		span.SetTag("forward.failure_mode", "leader_ip_unavailable")
+		span.Finish(tracer.WithError(err))
 		http.Error(rw, "failed to retrieve leader ip", http.StatusServiceUnavailable)
 		return true
 	}
@@ -116,6 +132,9 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 	// if the leader forwarder is not set, we can't forward the request
 	if lph.leaderForwarder == nil {
 		log.Errorf("leader forwarder is not available")
+		span.SetTag("forwarded", false)
+		span.SetTag("forward.failure_mode", "forwarder_unavailable")
+		span.Finish()
 		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
 		return true
 	}
@@ -123,6 +142,10 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		log.Infof("leader ip changed to %s", ip)
 		lph.leaderForwarder.SetLeaderIP(ip)
 	}
+	span.SetTag("forwarded", true)
+	span.SetTag("forward.leader_ip", ip)
+	span.SetTag("forward.failure_mode", "none")
+	span.Finish()
 	forwardedRequest.Inc(lph.handlerName)
 	lph.leaderForwarder.Forward(rw, req)
 	return true

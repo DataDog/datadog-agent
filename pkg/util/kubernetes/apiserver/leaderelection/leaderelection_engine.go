@@ -23,6 +23,8 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -45,8 +47,13 @@ func newReleaseLock(lockType string, ns string, name string, coreClient corev1.C
 }
 
 func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
+	span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.get_lease",
+		tracer.Tag("lock_type", "lease"),
+	)
+
 	lease, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
+		span.Finish(tracer.WithError(err))
 		return "", err
 	}
 
@@ -54,29 +61,39 @@ func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
 	leader := lease.Spec.HolderIdentity
 	if leader == nil {
 		log.Debugf("The lease/%s in the namespace %s doesn't have the field leader in its spec: no one is leading yet", le.LeaseName, le.LeaderNamespace)
+		span.Finish()
 		return "", nil
 	}
 
+	span.Finish()
 	return *leader, err
 
 }
 
 func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
+	span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.get_lease",
+		tracer.Tag("lock_type", "configmap"),
+	)
+
 	configMap, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
+		span.Finish(tracer.WithError(err))
 		return "", err
 	}
 
 	val, found := configMap.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
 		log.Debugf("The configmap/%s in the namespace %s doesn't have the annotation %q: no one is leading yet", le.LeaseName, le.LeaderNamespace, rl.LeaderElectionRecordAnnotationKey)
+		span.Finish()
 		return "", nil
 	}
 
 	electionRecord := rl.LeaderElectionRecord{}
 	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
+		span.Finish(tracer.WithError(err))
 		return "", err
 	}
+	span.Finish()
 	return electionRecord.HolderIdentity, err
 }
 
@@ -88,7 +105,16 @@ func (le *LeaderEngine) getCurrentLeader() (string, error) {
 	return le.getCurrentLeaderConfigMap()
 }
 
-func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
+func (le *LeaderEngine) createLeaderTokenIfNotExists() (retErr error) {
+	span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.create_token")
+	defer func() {
+		if retErr != nil {
+			span.Finish(tracer.WithError(retErr))
+		} else {
+			span.Finish()
+		}
+	}()
+
 	if le.lockType == rl.LeasesResourceLock {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 
@@ -149,11 +175,23 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	log.Debugf("Current registered leader is %q, building leader elector %q as candidate", currentLeader, le.HolderIdentity)
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
+			span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.event",
+				tracer.Tag("event_type", "new_leader"),
+				tracer.Tag("leader_identity", identity),
+			)
+			defer span.Finish()
+
 			le.updateLeaderIdentity(identity)
 			le.reportLeaderMetric(identity == le.HolderIdentity)
 			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(context.Context) {
+			span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.event",
+				tracer.Tag("event_type", "started_leading"),
+				tracer.Tag("leader_identity", le.HolderIdentity),
+			)
+			defer span.Finish()
+
 			le.updateLeaderIdentity(le.HolderIdentity)
 			le.reportLeaderMetric(true)
 			le.notify() // current process gained leadership
@@ -162,6 +200,12 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		// OnStoppedLeading shouldn't be called unless the election is lost. This could happen if
 		// we lose connection to the apiserver for the duration of the lease.
 		OnStoppedLeading: func() {
+			span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.event",
+				tracer.Tag("event_type", "stopped_leading"),
+				tracer.Tag("leader_identity", le.HolderIdentity),
+			)
+			defer span.Finish()
+
 			le.updateLeaderIdentity("")
 			le.reportLeaderMetric(false)
 			le.notify() // current process lost leadership
