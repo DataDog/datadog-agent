@@ -487,16 +487,28 @@ func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical []gopsutil_di
 	if c.instanceConfig.IncludeAllDevices {
 		allPartitions, err := c.getDiskPartitionsWithTimeout(true)
 		if err != nil {
-			log.Warnf("Unable to get all disk partitions: %v", err)
-		} else {
-			physicalSet := make(map[string]struct{}, len(physical))
-			for _, p := range physical {
-				physicalSet[p.Device] = struct{}{}
+			if len(allPartitions) == 0 {
+				log.Warnf("Unable to get all disk partitions: %v", err)
+			} else {
+				log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(allPartitions), err)
 			}
-			for _, p := range allPartitions {
-				if _, ok := physicalSet[p.Device]; !ok {
-					nonPhysical = append(nonPhysical, p)
-				}
+		}
+		physicalDevices := make(map[string]struct{}, len(physical))
+		for _, p := range physical {
+			physicalDevices[p.Device] = struct{}{}
+		}
+		seen := make(map[string]struct{}, len(physical))
+		for _, p := range physical {
+			seen[p.Device+"\x00"+p.Mountpoint] = struct{}{}
+		}
+		for _, p := range allPartitions {
+			if _, dup := seen[p.Device+"\x00"+p.Mountpoint]; dup {
+				continue
+			}
+			if _, isPhys := physicalDevices[p.Device]; isPhys {
+				physical = append(physical, p)
+			} else {
+				nonPhysical = append(nonPhysical, p)
 			}
 		}
 	}

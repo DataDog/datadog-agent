@@ -1643,7 +1643,7 @@ tag_by_physical_storage: true
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm"})
 }
 
-func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenAllPartitionsCallFails_ThenOnlyPhysicalPartitionsAreReported(t *testing.T) {
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenAllPartitionsCallFailsCompletely_ThenOnlyPhysicalPartitionsAreReported(t *testing.T) {
 	setupDefaultMocks()
 	callCount := 0
 	diskCheck := createDiskCheck(t)
@@ -1691,4 +1691,105 @@ tag_by_physical_storage: true
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallFailsCompletely_ThenCheckReturnsError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if !all {
+			return nil, errors.New("permission denied")
+		}
+		return partitionsTrue, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenBindMountExistsForPhysicalDevice_ThenBindMountIsClassifiedAsPhysical(t *testing.T) {
+	setupDefaultMocks()
+	bindPartitionsAll := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda2", Mountpoint: "/home", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda1", Mountpoint: "/mnt/bind", Fstype: "ext4", Opts: []string{"rw", "bind"}},
+		{Device: "tmpfs", Mountpoint: "/run", Fstype: "tmpfs", Opts: []string{"nosuid"}},
+	}
+	bindPartitionsPhysical := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda2", Mountpoint: "/home", Fstype: "ext4", Opts: []string{"rw"}},
+	}
+	bindUsage := map[string]*gopsutil_disk.UsageStat{
+		"/":         usageData["/"],
+		"/home":     usageData["/home"],
+		"/mnt/bind": {Path: "/mnt/bind", Fstype: "ext4", Total: 100000000000, Free: 30000000000, Used: 70000000000, UsedPercent: 70.0, InodesTotal: 1000000, InodesUsed: 500000, InodesFree: 500000, InodesUsedPercent: 50.0},
+		"/run":      usageData["/run"],
+	}
+
+	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}), func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return bindUsage[mountpoint], nil
+	}), func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return bindPartitionsAll, nil
+		}
+		return bindPartitionsPhysical, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+use_mount: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/home", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/mnt/bind", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/run", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenAllPartitionsCallReturnsPartialResults_ThenNonPhysicalPartitionsAreStillReported(t *testing.T) {
+	setupDefaultMocks()
+	partialAllPartitions := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda2", Mountpoint: "/home", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "tmpfs", Mountpoint: "/run", Fstype: "tmpfs", Opts: []string{"nosuid"}},
+	}
+
+	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}), func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}), func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return partialAllPartitions, errors.New("error enumerating some partitions")
+		}
+		return partitionsFalse, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
 }
