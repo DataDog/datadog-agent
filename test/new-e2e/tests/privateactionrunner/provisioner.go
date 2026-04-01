@@ -7,11 +7,15 @@ package privateactionrunner
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	localcmd "github.com/pulumi/pulumi-command/sdk/go/command/local"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -28,15 +32,10 @@ import (
 )
 
 const (
-	// fakeOpmsImage is the pre-built fake OPMS server image.
-	// TODO: replace with actual registry path once the CI image build step is added.
-	fakeOpmsImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/datadog/fakeopms:latest"
-
+	fakeOpmsImageTag  = "fakeopms:e2e"
 	fakeOpmsName      = "fake-opms"
 	fakeOpmsNamespace = "datadog"
 	fakeOpmsPort      = 8080
-
-	fakeOpmsDNS = "fake-opms.datadog.svc.cluster.local"
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled and pointing at the fake OPMS.
@@ -56,7 +55,7 @@ agents:
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
-//   - The fake OPMS server deployed as a K8s Deployment+Service
+//   - The fake OPMS server built locally and shipped to the EC2 VM
 //   - The Datadog Agent with PAR enabled, ddUrl pointing at fake OPMS
 func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner {
 	p := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("par-k8s",
@@ -67,7 +66,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("aws.NewEnvironment: %w", err)
 			}
 
-			// 1. Provision EC2 VM
+			// 1. Build fake OPMS Docker image locally, save as tar.
+			tarPath := filepath.Join(os.TempDir(), "fakeopms-e2e.tar")
+			buildCmd, saveCmd, err := buildFakeOpmsLocally(ctx, &awsEnv, tarPath)
+			if err != nil {
+				return fmt.Errorf("buildFakeOpmsLocally: %w", err)
+			}
+
+			// 2. Provision EC2 VM
 			host, err := ec2.NewVM(awsEnv, name)
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
@@ -78,10 +84,16 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("ec2.InstallECRCredentialsHelper: %w", err)
 			}
 
-			// 2. Create standard Kind cluster (no GPU)
+			// 3. Copy image tar to EC2 and load into Docker + Kind
+			kindReadyDeps, err := shipFakeOpmsToEC2(&awsEnv, host, tarPath, utils.PulumiDependsOn(saveCmd, installEcrCmd))
+			if err != nil {
+				return fmt.Errorf("shipFakeOpmsToEC2: %w", err)
+			}
+
+			// 4. Create standard Kind cluster (no GPU)
 			kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, name,
 				awsEnv.KubernetesVersion(),
-				utils.PulumiDependsOn(installEcrCmd),
+				utils.PulumiDependsOn(kindReadyDeps...),
 			)
 			if err != nil {
 				return fmt.Errorf("kubeComp.NewKindCluster: %w", err)
@@ -98,18 +110,24 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kubernetes.NewProvider: %w", err)
 			}
 
-			// 3. Pull fake OPMS image into Kind nodes
-			fakeOpmsCmds, err := pullImagesIntoKindNodes(&awsEnv, host, kindCluster, []string{fakeOpmsImage})
+			// 5. Load image into Kind nodes
+			kindLoadCmd, err := host.OS.Runner().Command(
+				awsEnv.CommonNamer().ResourceName("kind-load-fakeopms"),
+				&command.Args{
+					Create: pulumi.Sprintf("kind load docker-image %s --name %s", fakeOpmsImageTag, kindCluster.ClusterName),
+				},
+				utils.PulumiDependsOn(kindCluster),
+			)
 			if err != nil {
-				return fmt.Errorf("pullImagesIntoKindNodes: %w", err)
+				return fmt.Errorf("kind load docker-image: %w", err)
 			}
 
-			// 4. Deploy fake OPMS as K8s Deployment + ClusterIP Service
-			if err = deployFakeOpms(ctx, kubeProvider, utils.PulumiDependsOn(fakeOpmsCmds...)); err != nil {
+			// 6. Deploy fake OPMS as K8s Deployment + ClusterIP Service
+			if err = deployFakeOpms(ctx, kubeProvider, utils.PulumiDependsOn(kindLoadCmd)); err != nil {
 				return fmt.Errorf("deployFakeOpms: %w", err)
 			}
 
-			// 5. Deploy Datadog agent via Helm, PAR enabled
+			// 7. Deploy Datadog agent via Helm, PAR enabled
 			helmValues := fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithHelmValues(helmValues),
@@ -123,11 +141,59 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("agent.Export: %w", err)
 			}
 
+			_ = buildCmd // ensure the build step is tracked by Pulumi
 			return nil
 		}, nil)
 
 	p.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 	return p
+}
+
+// buildFakeOpmsLocally builds the fakeopms Docker image on the local machine and saves it
+// as a tar archive at tarPath. Returns the build and save Pulumi resources.
+func buildFakeOpmsLocally(ctx *pulumi.Context, e *aws.Environment, tarPath string) (pulumi.Resource, pulumi.Resource, error) {
+	fakeOpmsDir := getFakeOpmsDir()
+
+	buildCmd, err := localcmd.NewCommand(ctx, e.CommonNamer().ResourceName("build-fakeopms"), &localcmd.CommandArgs{
+		Create:  pulumi.Sprintf("docker build -t %s .", fakeOpmsImageTag),
+		Dir:     pulumi.String(fakeOpmsDir),
+		Triggers: pulumi.Array{pulumi.String(fakeOpmsDir)},
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("local docker build: %w", err)
+	}
+
+	saveCmd, err := localcmd.NewCommand(ctx, e.CommonNamer().ResourceName("save-fakeopms"), &localcmd.CommandArgs{
+		Create: pulumi.Sprintf("docker save %s -o %s", fakeOpmsImageTag, tarPath),
+	}, utils.PulumiDependsOn(buildCmd))
+	if err != nil {
+		return nil, nil, fmt.Errorf("local docker save: %w", err)
+	}
+
+	return buildCmd, saveCmd, nil
+}
+
+// shipFakeOpmsToEC2 copies the image tar to the EC2 VM and loads it into Docker.
+func shipFakeOpmsToEC2(e *aws.Environment, vm *componentsremote.Host, tarPath string, opts ...pulumi.ResourceOption) ([]pulumi.Resource, error) {
+	remoteTar := "/tmp/fakeopms-e2e.tar"
+
+	copyCmd, err := vm.OS.FileManager().CopyFile("fakeopms-tar", pulumi.String(tarPath), pulumi.String(remoteTar), opts...)
+	if err != nil {
+		return nil, fmt.Errorf("copy fakeopms tar: %w", err)
+	}
+
+	loadCmd, err := vm.OS.Runner().Command(
+		e.CommonNamer().ResourceName("docker-load-fakeopms"),
+		&command.Args{
+			Create: pulumi.Sprintf("docker load -i %s", remoteTar),
+		},
+		utils.PulumiDependsOn(copyCmd),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("docker load fakeopms: %w", err)
+	}
+
+	return []pulumi.Resource{loadCmd}, nil
 }
 
 // deployFakeOpms creates a K8s Deployment and ClusterIP Service for the fake OPMS.
@@ -148,7 +214,9 @@ func deployFakeOpms(ctx *pulumi.Context, kubeProvider *kubernetes.Provider, opts
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String(fakeOpmsName),
-							Image: pulumi.String(fakeOpmsImage),
+							Image: pulumi.String(fakeOpmsImageTag),
+							// Use image already loaded on the node; don't attempt to pull from registry.
+							ImagePullPolicy: pulumi.String("Never"),
 							Ports: corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{ContainerPort: pulumi.Int(fakeOpmsPort)},
 							},
@@ -174,26 +242,11 @@ func deployFakeOpms(ctx *pulumi.Context, kubeProvider *kubernetes.Provider, opts
 	return err
 }
 
-// pullImagesIntoKindNodes loads container images into Kind cluster nodes via crictl.
-func pullImagesIntoKindNodes(e *aws.Environment, vm *componentsremote.Host, kindCluster *kubeComp.Cluster, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
-	var cmds []pulumi.Resource
-	for i, image := range images {
-		retryPull := fmt.Sprintf(
-			"counter=0; while [ \\$counter -lt 3 ] && ! crictl pull %s ; do sleep 1; counter=\\$((counter+1)); done; [ \\$counter -lt 3 ]",
-			image,
-		)
-		cmd, err := vm.OS.Runner().Command(
-			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
-			&command.Args{
-				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} /bin/bash -c %q",
-					kindCluster.ClusterName, retryPull),
-			},
-			utils.PulumiDependsOn(dependsOn...),
-		)
-		if err != nil {
-			return nil, err
-		}
-		cmds = append(cmds, cmd)
-	}
-	return cmds, nil
+// getFakeOpmsDir returns the absolute path to the test/fakeopms/ directory.
+// Uses runtime.Caller to locate the source tree from this file's location.
+func getFakeOpmsDir() string {
+	// This file is at: test/new-e2e/tests/privateactionrunner/provisioner.go
+	// fakeopms is at:  test/fakeopms/
+	_, filename, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(filename), "..", "..", "..", "fakeopms")
 }
