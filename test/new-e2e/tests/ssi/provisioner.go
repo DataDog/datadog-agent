@@ -8,6 +8,8 @@ package ssi
 import (
 	"strings"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -23,7 +25,6 @@ import (
 	provlocal "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 // ProvisionerType represents the type of Kubernetes provisioner to use.
@@ -191,8 +192,9 @@ func aksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 		aksOpts = append(aksOpts, provaks.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
 	}
 	return provaks.AKSProvisioner(aksOpts...)
+}
 
-	// openShiftProvisioner returns an OpenShift VM provisioner on GCP.
+// openShiftProvisioner returns an OpenShift VM provisioner on GCP.
 func openShiftProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var openShiftOpts []provopenshift.ProvisionerOption
 
