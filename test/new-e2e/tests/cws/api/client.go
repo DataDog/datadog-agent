@@ -43,6 +43,7 @@ func NewClient() *Client {
 	)
 
 	cfg := datadog.NewConfiguration()
+	cfg.SetUnstableOperationEnabled("v2.ListFleetAgents", true)
 
 	return &Client{
 		api:    datadog.NewAPIClient(cfg),
