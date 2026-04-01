@@ -38,8 +38,8 @@ import (
 	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
