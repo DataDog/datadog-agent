@@ -93,14 +93,14 @@ run_phase_4() {
 run_phase_5() {
     echo "Phase 5..."
 
-    python ./analyzer.py \
+    python ./common_settings_analyzer.py \
       --source ../setup/common_settings.go \
       --outhints $workdir/phase5/hints.json
 
     python ./generate_declare_settings.py \
       --hints $workdir/phase5/hints.json \
       --schema $workdir/phase3/core_schema_enriched.yaml \
-      --outsource $workdir/phase5/declare_settings_diff.go
+      --outsource $workdir/phase5/generated_settings.go
 }
 
 

@@ -44,7 +44,7 @@ NOTE: The order of functions in common_settings.go doesn't match the order in wh
 are listed up-front, so the diff is messier than it needs to be.
 
 ```
-$> python analyzer.py 
+$> python common_settings_analyzer.py 
     --source ../setup/common_settings.go \
     --outhints hints.json \
 ```
@@ -52,7 +52,7 @@ $> python analyzer.py
 ```
 $> python generate_declare_settings.py --hints hints.json \
     --schema core_schema_enriched.yaml \
-    --outsource ../setup/declare_settings_diff.go
+    --outsource ../setup/generated_settings.go
 ```
 
 # TODO:

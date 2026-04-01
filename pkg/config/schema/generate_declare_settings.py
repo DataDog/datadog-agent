@@ -1,5 +1,5 @@
 import argparse
-import analyzer
+import common_settings_analyzer
 import json
 import re
 import yaml
@@ -38,7 +38,7 @@ package setup
 
 
 def run_generator(schema_file, hints_file, outsource_file):
-    func_names = analyzer.config_setup_func_names
+    func_names = common_settings_analyzer.config_setup_func_names
 
     with open(schema_file, "r") as f:
         schema = yaml.safe_load(f)
@@ -55,7 +55,8 @@ def run_generator(schema_file, hints_file, outsource_file):
             continue
         for row in my_hints:
             keyname = row[0]
-            output_single_setting(keyname, schema, sourcecode)
+            kind = row[1]
+            output_single_setting(keyname, kind, schema, sourcecode)
         output_func_footer(name, sourcecode)
 
     with open(outsource_file, "w") as f:
@@ -141,7 +142,7 @@ def retrieve_default_value(keypath, schema):
             return '[]map[string]interface{}%s' % (as_go_array(settingDefault),)
         return '[]%s%s' % (settingItemsType, as_go_array(settingDefault))
     elif settingType == 'boolean':
-        if settingDefault is True:
+        if settingDefault:
             return 'true'
         return 'false'
     elif settingType == 'number':
@@ -158,8 +159,7 @@ def retrieve_default_value(keypath, schema):
             textDefault = '%s' % settingDefault
             if '.' in textDefault:
                 return '%s' % settingDefault
-            else:
-                return 'float64(%s.0)' % settingDefault
+            return 'float64(%s.0)' % settingDefault
         if isinstance(settingDefault, int):
             return '%s' % settingDefault
     elif settingType == 'string':
@@ -179,11 +179,35 @@ def retrieve_default_value(keypath, schema):
     raise RuntimeError('setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s' % (keypath, settingType, settingDefault, type(settingDefault)))
 
 
-def output_single_setting(name, schema, sourcecode):
+def retrieve_envvars(keypath, schema):
+    curr = schema
+    for k in keypath:
+        curr = curr['properties']
+        curr = curr[k]
+    envvars = curr.get('env_vars')
+    return envvars
+
+
+def output_single_setting(name, kind, schema, sourcecode):
     settingname = '"%s"' % name
-    # TODO: incomplete, not adding env var
     defaultval = retrieve_default_value(name.split('.'), schema)
-    line = '\tconfig.BindEnvAndSetDefault(' + settingname + ', ' + defaultval + ')'
+    envsuffix = ''
+    envvars = retrieve_envvars(name.split('.'), schema)
+    if envvars is not None and len(envvars) > 0:
+        envvars = ['"%s"' % ev for ev in envvars]
+        envsuffix = ', ' + ', '.join(envvars)
+
+    line = ''
+    if kind == 'declare' or kind == 'declare_multiline':
+        line = '\tconfig.BindEnvAndSetDefault(' + settingname + ', ' + defaultval + envsuffix + ')'
+    elif kind == 'env':
+        line = '\tconfig.BindEnv(' + settingname + envsuffix + ')'
+    elif kind == 'known':
+        line = '\tconfig.SetKnown(' + settingname + ')'
+    elif kind == 'default':
+        line = '\tconfig.SetDefault(' + settingname + ', ' + defaultval + ')'
+    else:
+        raise RuntimeError('unknown kind: %s' % kind)
     sourcecode.append(line)
 
 
