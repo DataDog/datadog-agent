@@ -7,7 +7,9 @@ package observerimpl
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
+	"sync"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -114,6 +116,82 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 	default:
 		return false
 	}
+}
+
+// TagGroupByKey holds the resolved values for the split tag dimensions.
+// Absent tags (e.g. a log with no "env" tag) are represented by an empty string.
+type TagGroupByKey struct {
+	Source  string
+	Service string
+	Env     string
+	Host    string
+}
+
+// AsMap returns a map of non-empty tag key→value pairs for this group.
+func (c TagGroupByKey) AsMap() map[string]string {
+	m := make(map[string]string, 4)
+	if c.Source != "" {
+		m["source"] = c.Source
+	}
+	if c.Service != "" {
+		m["service"] = c.Service
+	}
+	if c.Env != "" {
+		m["env"] = c.Env
+	}
+	if c.Host != "" {
+		m["host"] = c.Host
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
+}
+
+// tagGroupByKeyHash computes a stable fnv64a hash for a TagGroupByKey.
+func tagGroupByKeyHash(c TagGroupByKey) uint64 {
+	h := fnv.New64a()
+	// Avoid allocating via Sprintf by writing directly to h
+	h.Write([]byte(c.Source))
+	h.Write([]byte{'|'})
+	h.Write([]byte(c.Service))
+	h.Write([]byte{'|'})
+	h.Write([]byte(c.Env))
+	h.Write([]byte{'|'})
+	h.Write([]byte(c.Host))
+	return h.Sum64()
+}
+
+// TagGroupByKeyRegistry is a bidirectional, append-only store between a uint64 hash
+// and a TagGroupByKey. It is safe for concurrent use.
+type TagGroupByKeyRegistry struct {
+	mu     sync.RWMutex
+	byHash map[uint64]TagGroupByKey
+}
+
+// NewTagGroupByKeyRegistry creates an empty TagGroupByKeyRegistry.
+func NewTagGroupByKeyRegistry() *TagGroupByKeyRegistry {
+	return &TagGroupByKeyRegistry{byHash: make(map[uint64]TagGroupByKey)}
+}
+
+// Register inserts (or confirms) a TagGroupByKey and returns its stable hash.
+// Calling Register twice with the same group returns the same hash.
+func (r *TagGroupByKeyRegistry) Register(group TagGroupByKey) uint64 {
+	hash := tagGroupByKeyHash(group)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.byHash[hash]; !exists {
+		r.byHash[hash] = group
+	}
+	return hash
+}
+
+// Lookup returns the TagGroupByKey for the given hash, and whether it was found.
+func (r *TagGroupByKeyRegistry) Lookup(hash uint64) (TagGroupByKey, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	group, ok := r.byHash[hash]
+	return group, ok
 }
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.

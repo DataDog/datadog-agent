@@ -13,6 +13,76 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// --- TagGroupByKeyRegistry tests ---
+
+func TestTagGroupByKeyRegistry_RegisterReturnsSameHashForSameCombo(t *testing.T) {
+	r := NewTagGroupByKeyRegistry()
+	c := TagGroupByKey{Source: "dd-agent", Service: "api", Env: "prod", Host: "host-1"}
+	h1 := r.Register(c)
+	h2 := r.Register(c)
+	assert.Equal(t, h1, h2)
+}
+
+func TestTagGroupByKeyRegistry_RegisterReturnsDifferentHashForDifferentCombo(t *testing.T) {
+	r := NewTagGroupByKeyRegistry()
+	h1 := r.Register(TagGroupByKey{Service: "api", Env: "prod"})
+	h2 := r.Register(TagGroupByKey{Service: "api", Env: "staging"})
+	assert.NotEqual(t, h1, h2)
+}
+
+func TestTagGroupByKeyRegistry_LookupReturnsRegisteredCombo(t *testing.T) {
+	r := NewTagGroupByKeyRegistry()
+	c := TagGroupByKey{Source: "dd-agent", Service: "worker", Env: "prod", Host: "host-2"}
+	hash := r.Register(c)
+	got, ok := r.Lookup(hash)
+	require.True(t, ok)
+	assert.Equal(t, c, got)
+}
+
+func TestTagGroupByKeyRegistry_LookupReturnsFalseForUnknownHash(t *testing.T) {
+	r := NewTagGroupByKeyRegistry()
+	_, ok := r.Lookup(0xdeadbeef)
+	assert.False(t, ok)
+}
+
+func TestTagGroupByKeyRegistry_EmptyCombosAreDistinct(t *testing.T) {
+	r := NewTagGroupByKeyRegistry()
+	// Two empty groups share the same hash (all fields absent).
+	h1 := r.Register(TagGroupByKey{})
+	h2 := r.Register(TagGroupByKey{})
+	assert.Equal(t, h1, h2)
+	got, ok := r.Lookup(h1)
+	require.True(t, ok)
+	assert.Equal(t, TagGroupByKey{}, got)
+}
+
+// --- TagGroupByKey.AsMap tests ---
+
+func TestTagGroupByKey_AsMapOmitsEmptyFields(t *testing.T) {
+	c := TagGroupByKey{Service: "api", Env: "prod"}
+	m := c.AsMap()
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod"}, m)
+	assert.NotContains(t, m, "source")
+	assert.NotContains(t, m, "host")
+}
+
+func TestTagGroupByKey_AsMapReturnsNilWhenAllEmpty(t *testing.T) {
+	c := TagGroupByKey{}
+	assert.Nil(t, c.AsMap())
+}
+
+func TestTagGroupByKey_AsMapAllFields(t *testing.T) {
+	c := TagGroupByKey{Source: "s", Service: "svc", Env: "e", Host: "h"}
+	assert.Equal(t, map[string]string{
+		"source":  "s",
+		"service": "svc",
+		"env":     "e",
+		"host":    "h",
+	}, c.AsMap())
+}
+
+// --- LogPatternExtractor tests ---
+
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	e := NewLogPatternExtractor()
 	e.MinPatternsBeforeEmit = 1
