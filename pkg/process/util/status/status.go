@@ -15,19 +15,31 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	procstatus "github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// HostMeta holds the hostname reported by the process agent.
+// We use a local struct here instead of hostMetadataUtils.Payload to avoid
+// pulling in a CGo dependency (hostMetadataUtils → pkg/collector/python → rtloader).
+// The template only consumes .core.metadata.meta.hostname, so this is sufficient.
+type HostMeta struct {
+	Hostname string `json:"hostname"`
+}
+
+// HostMetadata wraps HostMeta to match the JSON shape the template expects.
+type HostMetadata struct {
+	Meta *HostMeta `json:"meta"`
+}
+
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
-	AgentVersion string                    `json:"version"`
-	GoVersion    string                    `json:"go_version"`
-	Arch         string                    `json:"build_arch"`
-	Config       ConfigStatus              `json:"config"`
-	Metadata     hostMetadataUtils.Payload `json:"metadata"`
+	AgentVersion string       `json:"version"`
+	GoVersion    string       `json:"go_version"`
+	Arch         string       `json:"build_arch"`
+	Config       ConfigStatus `json:"config"`
+	Metadata     HostMetadata `json:"metadata"`
 }
 
 // ConfigStatus holds config settings from process-agent
@@ -113,7 +125,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) (s CoreStatus) {
+func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname string) (s CoreStatus) {
 	return CoreStatus{
 		AgentVersion: version.AgentVersion,
 		GoVersion:    runtime.Version(),
@@ -121,7 +133,7 @@ func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.
 		Config: ConfigStatus{
 			LogLevel: coreConfig.GetString("log_level"),
 		},
-		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig, hostname),
+		Metadata: HostMetadata{Meta: &HostMeta{Hostname: hostname}},
 	}
 }
 
@@ -144,9 +156,10 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 
 // GetInProcessStatus returns a Status object by reading process agent metrics
 // directly from internal state, without going through expvar or HTTP.
-// This is used by the RAR gRPC adapter so the process agent fully owns its status.
-func GetInProcessStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) *Status {
-	core := getCoreStatus(coreConfig, hostname)
+// Config and hostname are read from the values stored by InitExpvars at startup,
+// so the RAR gRPC adapter can call this as a pure bridge with no arguments.
+func GetInProcessStatus() *Status {
+	core := getCoreStatus(procstatus.GetConfig(), procstatus.GetHostname())
 	m := procstatus.GetMetrics()
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
@@ -186,7 +199,8 @@ func GetInProcessStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinter
 
 // GetStatus returns a Status object with runtime information about process-agent
 func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
-	coreStatus := getCoreStatus(coreConfig, hostname)
+	hn, _ := hostname.Get(context.Background())
+	coreStatus := getCoreStatus(coreConfig, hn)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {
 		return nil, err

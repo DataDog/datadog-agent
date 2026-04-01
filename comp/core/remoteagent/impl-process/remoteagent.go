@@ -12,7 +12,6 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
@@ -30,7 +29,6 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
-	Hostname  hostnameinterface.Component
 	Telemetry telemetry.Component
 }
 
@@ -58,7 +56,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 		ipc:               reqs.IPC,
 		cfg:               reqs.Config,
-		hostname:          reqs.Hostname,
 		telemetry:         reqs.Telemetry,
 		remoteAgentServer: remoteAgentServer,
 	}
@@ -77,7 +74,6 @@ type remoteagentImpl struct {
 	log       log.Component
 	ipc       ipc.Component
 	cfg       config.Component
-	hostname  hostnameinterface.Component
 	telemetry telemetry.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
@@ -103,7 +99,7 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 
 // GetStatusDetails returns the status details of the process agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	st := processStatus.GetInProcessStatus(r.cfg, r.hostname)
+	st := processStatus.GetInProcessStatus()
 	statusBytes, err := json.Marshal(st)
 	if err != nil {
 		return &pbcore.GetStatusDetailsResponse{}, nil

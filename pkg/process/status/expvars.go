@@ -55,6 +55,7 @@ var (
 	infoProcessModuleEnabled     bool
 	infoLanguageDetectionEnabled bool
 	infoConfig                   config.Component
+	infoHostname                 string
 )
 
 func publishUptime() interface{} {
@@ -253,6 +254,7 @@ func InitExpvars(cfg config.Component, hostname string, processModuleEnabled, la
 	infoProcessModuleEnabled = processModuleEnabled
 	infoLanguageDetectionEnabled = languageDetectionEnabled
 	infoConfig = cfg
+	infoHostname = hostname
 	infoOnce.Do(func() {
 		config := cfg
 		processExpvars := expvar.NewMap("process_agent")
@@ -314,6 +316,16 @@ type Metrics struct {
 	WlmExtractorStaleDiffs          int64
 	WlmExtractorDiffsDropped        int64
 	SubmissionErrorCount            int64
+}
+
+// GetConfig returns the stored process agent config set by InitExpvars.
+func GetConfig() config.Component {
+	return infoConfig
+}
+
+// GetHostname returns the stored process agent hostname set by InitExpvars.
+func GetHostname() string {
+	return infoHostname
 }
 
 // GetMetrics reads process agent runtime metrics directly from internal state,

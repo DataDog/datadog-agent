@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	procstatus "github.com/DataDog/datadog-agent/pkg/process/status"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -29,9 +29,11 @@ func TestGetStatusDetails(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("hostname", "test-host")
 
+	// Seed the package-level state that GetInProcessStatus reads.
+	procstatus.InitExpvars(cfg, "test-host", false, false, nil)
+
 	impl := &remoteagentImpl{
-		cfg:      cfg,
-		hostname: hostnameimpl.NewHostnameService(),
+		cfg: cfg,
 	}
 
 	resp, err := impl.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
