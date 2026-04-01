@@ -85,7 +85,7 @@ func (l *Loop) Run(parentCtx context.Context) {
 			l.publishFailure(ctx, task, err)
 			continue
 		}
-		unwrappedTask, err := l.runner.taskVerifier.UnwrapTaskFromSignedEnvelope(task.Data.Attributes.SignedEnvelope)
+		unwrappedTask, err := l.runner.taskVerifier.UnwrapTask(task)
 		if err != nil {
 			logger.Error("could not verify workflow task", log.ErrorField(err))
 			l.publishFailure(ctx, task, err)

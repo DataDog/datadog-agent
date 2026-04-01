@@ -190,6 +190,7 @@ use (
 	pkg/version
 	test/e2e-framework
 	test/fakeintake
+	test/fakeopms
 	test/new-e2e
 	test/otel
 	tools/build-ddot-byoc
