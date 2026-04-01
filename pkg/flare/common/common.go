@@ -27,6 +27,32 @@ import (
 // Match .yaml and .yml to ship configuration files in the flare.
 var cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
 
+// settingsWithoutSecrets is implemented by config implementations that can dump merged settings
+// without the secret-backend layer (see pkg/config/model.Reader.AllSettingsWithoutSecrets).
+type settingsWithoutSecrets interface {
+	AllSettingsWithoutSecrets() map[string]interface{}
+}
+
+// MarshalDatadogRuntimeConfigDumpYAML returns a YAML snapshot of the runtime Datadog config for flares.
+// When the config supports AllSettingsWithoutSecrets, resolved secret-backend values are omitted;
+// otherwise it falls back to AllSettings().
+func MarshalDatadogRuntimeConfigDumpYAML() ([]byte, error) {
+	cfg := pkgconfigsetup.Datadog()
+	if m, ok := cfg.(settingsWithoutSecrets); ok {
+		return yaml.Marshal(m.AllSettingsWithoutSecrets())
+	}
+	return yaml.Marshal(cfg.AllSettings())
+}
+
+// MarshalSystemProbeRuntimeConfigDumpYAML is like MarshalDatadogRuntimeConfigDumpYAML for system-probe config.
+func MarshalSystemProbeRuntimeConfigDumpYAML() ([]byte, error) {
+	cfg := pkgconfigsetup.SystemProbe()
+	if m, ok := cfg.(settingsWithoutSecrets); ok {
+		return yaml.Marshal(m.AllSettingsWithoutSecrets())
+	}
+	return yaml.Marshal(cfg.AllSettings())
+}
+
 // GetConfigFiles copies configuration files to the flare archive.
 func GetConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
 	for prefix, filePath := range confSearchPaths {
