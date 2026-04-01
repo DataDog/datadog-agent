@@ -48,11 +48,14 @@ func (c *Check) dataGuard() error {
 	}
 	var stats []dataguardStats
 	err = selectWrapper(c, &stats, `SELECT name,
-	EXTRACT(DAY FROM TO_DSINTERVAL(value)) * 86400 +
-	EXTRACT(HOUR FROM TO_DSINTERVAL(value)) * 3600 +
-	EXTRACT(MINUTE FROM TO_DSINTERVAL(value)) * 60 +
-	EXTRACT(SECOND FROM TO_DSINTERVAL(value)) AS value
-	FROM v$dataguard_stats WHERE name IN ('apply lag','transport lag')`)
+	EXTRACT(DAY FROM ival) * 86400 +
+	EXTRACT(HOUR FROM ival) * 3600 +
+	EXTRACT(MINUTE FROM ival) * 60 +
+	EXTRACT(SECOND FROM ival) AS value
+	FROM (
+		SELECT name, TO_DSINTERVAL(value) AS ival
+		FROM v$dataguard_stats WHERE name IN ('apply lag','transport lag')
+	)`)
 	if err != nil {
 		return fmt.Errorf("failed to query data guard statistics %w", err)
 	}
