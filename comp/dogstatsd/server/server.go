@@ -895,7 +895,7 @@ func getBuckets(cfg model.Reader, logger log.Component, option string) []float64
 
 func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfig, error) {
 	var mappings []mapper.MappingProfileConfig
-	if cfg.IsSet("dogstatsd_mapper_profiles") {
+	if cfg.IsConfigured("dogstatsd_mapper_profiles") {
 		err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &mappings)
 		if err != nil {
 			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)

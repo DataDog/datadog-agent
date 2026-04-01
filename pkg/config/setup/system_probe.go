@@ -67,7 +67,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
 
 	// statsd
-	cfg.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("bind_host", "")
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
 
 	// logging
@@ -348,7 +348,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
 	// Discovery config
-	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("discovery.enabled", false)
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
@@ -360,7 +360,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Fleet policies
-	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("fleet_policies_dir", "")
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)

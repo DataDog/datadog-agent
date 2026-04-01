@@ -387,8 +387,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-	if core.IsSet("bind_host") || core.IsSet("apm_config.apm_non_local_traffic") {
-		if core.IsSet("bind_host") {
+	if core.IsConfigured("bind_host") || core.IsSet("apm_config.apm_non_local_traffic") {
+		if core.IsConfigured("bind_host") {
 			host := core.GetString("bind_host")
 			c.StatsdHost = host
 			c.ReceiverHost = host
