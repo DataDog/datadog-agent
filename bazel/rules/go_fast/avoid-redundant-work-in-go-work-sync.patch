@@ -1,0 +1,27 @@
+diff --git a/src/cmd/go/internal/modload/buildlist.go b/src/cmd/go/internal/modload/buildlist.go
+--- src/cmd/go/internal/modload/buildlist.go
++++ src/cmd/go/internal/modload/buildlist.go
+@@ -307,2 +307,3 @@
+ 	buildList     []module.Version
++	checkPathsOnce sync.Once
+ }
+@@ -814,3 +815,7 @@
+ 	}
+-	return newRequirements(workspace, rs.rootModules, direct), nil
++	newRS := newRequirements(workspace, rs.rootModules, direct)
++	if cached := rs.graph.Load(); cached != nil {
++		newRS.graphOnce.Do(func() { newRS.graph.Store(cached) })
++	}
++	return newRS, nil
+ }
+diff --git a/src/cmd/go/internal/modload/load.go b/src/cmd/go/internal/modload/load.go
+--- src/cmd/go/internal/modload/load.go
++++ src/cmd/go/internal/modload/load.go
+@@ -2035,2 +2035,7 @@
+ 			mods = mg.BuildList()
++			var checkPaths bool
++			mg.checkPathsOnce.Do(func() { checkPaths = true })
++			if !checkPaths {
++				return
++			}
+ 		}

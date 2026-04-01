@@ -21,7 +21,7 @@ processors:
                 host.arch:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: false
 service:
@@ -35,4 +35,4 @@ service:
                 - resourcedetection
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

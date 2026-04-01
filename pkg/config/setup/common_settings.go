@@ -820,6 +820,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
+	// otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
+	// or connected mode (expects core agent for secrets and tagger)
+	config.BindEnvAndSetDefault("otel_standalone", false)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -1048,6 +1051,13 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Integrations excluded from these restrictions.
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
+
+	// Host Profiler config
+
+	// Individual debug options don't need to be registered here - the section is
+	// passed as-is to the OTel debug exporter which handles its own validation.
+	config.BindEnvAndSetDefault("hostprofiler.debug", map[string]any{})
+	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1761,6 +1771,19 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
+
+	// Adaptive sampler (experimental) rate-limits repetitive log patterns per source.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.enabled", false)
+	// Maximum number of distinct patterns the sampler tracks at once.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.max_patterns", 1000)
+	// Steady-state logs per second allowed for each matched pattern.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1)
+	// Maximum burst allowance per pattern, measured in accumulated credits/logs.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", 1000.0)
+	// Fraction of tokens that must match for two logs to be treated as the same pattern.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", 0.9)
+	// The sampler needs a larger tokenizer window than the auto-multiline labeler.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 2048)
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)

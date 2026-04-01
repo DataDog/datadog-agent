@@ -410,7 +410,6 @@ use_repo(
     "com_github_yusufpapurcu_wmi",
     "com_gitlab_gitlab_org_api_client_go",
     "in_gopkg_datadog_dd_trace_go_v1",
-    "in_gopkg_ini_v1",
     "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
@@ -521,6 +520,8 @@ use_repo(
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
 )
+
+use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
 use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")
 
