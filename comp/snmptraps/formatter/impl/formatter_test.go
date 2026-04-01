@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
@@ -218,7 +218,7 @@ var (
 var testOptions = fx.Options(
 	senderhelper.Opts,
 	oidresolverfx.MockModule(),
-	Module(),
+	fxutil.ProvideComponentConstructor(NewComponent),
 )
 
 func TestFormatPacketV1Generic(t *testing.T) {

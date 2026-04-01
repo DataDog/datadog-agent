@@ -13,19 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
-	awsEc2 "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
-	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
-	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
-	"github.com/pulumi/pulumi-eks/sdk/v3/go/eks"
+	awsEc2 "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
+	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
+	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
-	amazonLinux2023AMD64AmiType      = "AL2023_x86_64_STANDARD"
-	amazonLinux2023ARM64AmiType      = "AL2023_ARM_64_STANDARD"
-	amazonLinux2023NVIDIAGPUAmiType  = "AL2023_x86_64_NVIDIA"
-	bottlerocketAmiType              = "BOTTLEROCKET_x86_64"
-	windowsAmiType                   = "WINDOWS_CORE_2022_x86_64"
+	amazonLinux2023AMD64AmiType     = "AL2023_x86_64_STANDARD"
+	amazonLinux2023ARM64AmiType     = "AL2023_ARM_64_STANDARD"
+	amazonLinux2023NVIDIAGPUAmiType = "AL2023_x86_64_NVIDIA"
+	bottlerocketAmiType             = "BOTTLEROCKET_x86_64"
+	windowsAmiType                  = "WINDOWS_CORE_2022_x86_64"
 )
 
 func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
