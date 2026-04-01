@@ -97,6 +97,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[[1, 2], [3, 4]]"
+    "message": "[[1, 2], [3, 4]]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
