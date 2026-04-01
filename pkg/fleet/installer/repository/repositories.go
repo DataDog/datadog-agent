@@ -7,6 +7,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -124,13 +125,14 @@ func (r *Repositories) Cleanup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not load repositories: %w", err)
 	}
+	var errs []error
 	for _, repo := range repositories {
-		err := repo.Cleanup(ctx)
-		if err != nil {
+		if err := repo.Cleanup(ctx); err != nil {
 			log.Errorf("installer: could not clean up repository %s: %v", repo.rootPath, err)
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // MkdirTemp creates a temporary directory in the same partition as the root path.
