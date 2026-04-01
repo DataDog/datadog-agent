@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/e2e-framework
 
-go 1.25.0
+go 1.25.6
 
 require (
 	dario.cat/mergo v1.0.2
@@ -26,8 +26,8 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/pkg/sftp v1.13.9
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.83.1
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.23.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0
@@ -36,13 +36,13 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0
 	github.com/pulumi/pulumi-command/sdk v1.0.1
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.9.0
-	github.com/pulumi/pulumi-eks/sdk/v3 v3.7.0
+	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1
-	github.com/pulumi/pulumi/sdk/v3 v3.190.0
+	github.com/pulumi/pulumi/sdk/v3 v3.225.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.52.0
 	github.com/stretchr/testify v1.11.1
@@ -60,7 +60,6 @@ require (
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.184 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
@@ -134,7 +133,7 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
-	github.com/go-git/go-git/v5 v5.14.0 // indirect
+	github.com/go-git/go-git/v5 v5.16.5 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
@@ -161,9 +160,11 @@ require (
 	github.com/google/pprof v0.0.0-20260111202518-71be6bfdd440 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.23.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
@@ -211,10 +212,10 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.17.0 // indirect
+	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
@@ -235,13 +236,19 @@ require (
 	github.com/zclconf/go-cty v1.15.1 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/collector/featuregate v1.53.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.53.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.65.0 // indirect
 	go.opentelemetry.io/otel v1.42.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.40.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
@@ -251,6 +258,7 @@ require (
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
