@@ -80,6 +80,26 @@ func TestTagGroupByKey_AsMapAllFields(t *testing.T) {
 	}, c.AsMap())
 }
 
+func TestTagsForPatternGrouping_AppendsHostFromHostnameWhenMissing(t *testing.T) {
+	tags := []string{"service:api", "env:prod"}
+	got := tagsForPatternGrouping(tags, "host-a")
+	assert.Equal(t, []string{"service:api", "env:prod", "host:host-a"}, got)
+	assert.Equal(t, TagGroupByKey{Service: "api", Env: "prod", Host: "host-a"}, extractTagGroupByKey(got))
+}
+
+func TestTagsForPatternGrouping_ExplicitHostTagWins(t *testing.T) {
+	tags := []string{"service:api", "host:from-tag"}
+	got := tagsForPatternGrouping(tags, "from-gethostname")
+	assert.Equal(t, tags, got)
+	assert.Equal(t, TagGroupByKey{Service: "api", Host: "from-tag"}, extractTagGroupByKey(got))
+}
+
+func TestTagsForPatternGrouping_EmptyHostnameUnchanged(t *testing.T) {
+	tags := []string{"service:api"}
+	got := tagsForPatternGrouping(tags, "")
+	assert.Equal(t, tags, got)
+}
+
 // --- TaggedPatternClusterer tests ---
 
 func newTestTaggedClusterer() (*TaggedPatternClusterer, *TagGroupByKeyRegistry) {

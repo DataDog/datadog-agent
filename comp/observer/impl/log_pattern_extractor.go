@@ -107,7 +107,8 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	groupHash, cluster, ok := e.taggedClusterer.Process(log.GetTags(), message)
+	groupTags := tagsForPatternGrouping(log.GetTags(), log.GetHostname())
+	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message)
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}

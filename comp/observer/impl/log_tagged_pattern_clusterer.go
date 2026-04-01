@@ -115,6 +115,23 @@ func extractTagGroupByKey(tags []string) TagGroupByKey {
 	return group
 }
 
+// tagsForPatternGrouping returns a tag slice for TaggedPatternClusterer.Process.
+// When tags omit `host:` but hostname is non-empty (e.g. from LogView.GetHostname()),
+// a synthetic `host:<hostname>` entry is appended so grouping matches the host
+// split dimension. An explicit `host:` tag in tags always wins.
+func tagsForPatternGrouping(tags []string, hostname string) []string {
+	if hostname == "" {
+		return tags
+	}
+	if extractTagGroupByKey(tags).Host != "" {
+		return tags
+	}
+	out := make([]string, len(tags)+1)
+	copy(out, tags)
+	out[len(tags)] = "host:" + hostname
+	return out
+}
+
 // globalClusterHash produces a hex string that stably encodes a (groupHash,
 // clusterID) pair. It is used as the variable segment of the metric name so
 // that each (tag-group × pattern) combination gets a unique, stable name.
