@@ -68,6 +68,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "testInlinedBCB"
+    "message": "testInlinedBCB",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -134,7 +134,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/rm-infraattr-metrics/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-when-missing",
+			name:     "adds-profiling-when-missing",
 			provided: "no_agent/add-prof-missing/in.yaml",
 			expected: "no_agent/add-prof-missing/out.yaml",
 		},
@@ -144,7 +144,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-otlp-proto/out.yaml",
 		},
 		{
-			name:     "creates-default-hostprofiler",
+			name:     "creates-default-profiling",
 			provided: "no_agent/create-default-prof/in.yaml",
 			expected: "no_agent/create-default-prof/out.yaml",
 		},
@@ -169,7 +169,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-appkey/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-to-pipeline",
+			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",
 		},
@@ -179,9 +179,9 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/multi-symbol-ep/out.yaml",
 		},
 		{
-			name:     "multiple-hostprofiler-receivers",
-			provided: "no_agent/multi-hostprof-recv/in.yaml",
-			expected: "no_agent/multi-hostprof-recv/out.yaml",
+			name:     "multiple-profiling-receivers",
+			provided: "no_agent/multi-profiling-recv/in.yaml",
+			expected: "no_agent/multi-profiling-recv/out.yaml",
 		},
 		{
 			name:     "ensures-headers",
@@ -252,6 +252,26 @@ func TestConverterWithoutAgent(t *testing.T) {
 			name:     "preserve-user-evp-headers",
 			provided: "no_agent/preserve-evp-headers/in.yaml",
 			expected: "no_agent/preserve-evp-headers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-creates-pipeline-with-inferred-endpoint",
+			provided: "no_agent/int-metrics-infer-ep/in.yaml",
+			expected: "no_agent/int-metrics-infer-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-user-metrics-endpoint",
+			provided: "no_agent/int-metrics-existing-ep/in.yaml",
+			expected: "no_agent/int-metrics-existing-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-when-telemetry-level-none",
+			provided: "no_agent/int-metrics-level-none/in.yaml",
+			expected: "no_agent/int-metrics-level-none/out.yaml",
+		},
+		{
+			name:     "internal-metrics-only-includes-exporters-with-profiles-endpoint",
+			provided: "no_agent/int-metrics-mixed/in.yaml",
+			expected: "no_agent/int-metrics-mixed/out.yaml",
 		},
 	}
 

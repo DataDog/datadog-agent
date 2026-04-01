@@ -21,6 +21,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/seclwin/model",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/discovery/tracermetadata/model",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model/sharedconsts",
