@@ -61,43 +61,43 @@ type BOCPDConfig struct {
 	// WarmupPoints is the number of initial points used for baseline estimation.
 	// A longer warmup captures more of the metric's natural variability, reducing
 	// false positives from normal fluctuation. Default: 120 (~2 minutes at 1Hz).
-	WarmupPoints int
+	WarmupPoints int `json:"warmup_points"`
 
 	// Hazard is the constant changepoint hazard probability.
 	// Default: 0.05
-	Hazard float64
+	Hazard float64 `json:"hazard"`
 
 	// CPThreshold is the posterior P(changepoint at t) threshold to emit.
 	// Default: 0.6
-	CPThreshold float64
+	CPThreshold float64 `json:"cp_threshold"`
 
 	// ShortRunLength is the run-length horizon k for short-run posterior mass P(r_t <= k).
 	// Default: 5
-	ShortRunLength int
+	ShortRunLength int `json:"short_run_length"`
 
 	// CPMassThreshold is the threshold for short-run posterior mass P(r_t <= k).
 	// Default: 0.7
-	CPMassThreshold float64
+	CPMassThreshold float64 `json:"cp_mass_threshold"`
 
 	// MaxRunLength caps tracked run-length hypotheses for bounded compute.
 	// Default: 200
-	MaxRunLength int
+	MaxRunLength int `json:"max_run_length"`
 
 	// PriorVarianceScale controls prior variance over the mean relative to observed variance.
 	// Default: 10.0
-	PriorVarianceScale float64
+	PriorVarianceScale float64 `json:"prior_variance_scale"`
 
 	// MinVariance is the floor for observation variance. When warmup data has
 	// near-zero variance (e.g. constant series), this prevents pathologically
 	// sharp PDFs that would flag any tiny fluctuation as anomalous. Default: 1.0
-	MinVariance float64
+	MinVariance float64 `json:"min_variance"`
 
 	// RecoveryPoints is how many consecutive non-triggering points are needed
 	// to exit alert state. Default: 10
-	RecoveryPoints int
+	RecoveryPoints int `json:"recovery_points"`
 
 	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate
+	Aggregations []observer.Aggregate `json:"-"`
 }
 
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
