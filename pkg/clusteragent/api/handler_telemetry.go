@@ -6,6 +6,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -51,20 +52,31 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 		tracer.Tag("http.url", r.URL.Path))
 	wrapper.setSpanTags = func(statusCode int) {
 		span.SetTag("http.status_code", statusCode)
-		span.SetTag("error", statusCode >= 400)
+		if statusCode >= 400 {
+			span.SetTag("error", true)
+		}
 	}
 	defer func() {
 		if p := recover(); p != nil {
 			if !wrapper.wroteHeader {
 				wrapper.setSpanTags(http.StatusInternalServerError)
 			}
-			span.Finish()
+			var panicErr error
+			if e, ok := p.(error); ok {
+				panicErr = e
+			} else {
+				panicErr = fmt.Errorf("panic: %v", p)
+			}
+			span.Finish(tracer.WithError(panicErr))
 			panic(p)
 		}
 		if !wrapper.wroteHeader {
 			wrapper.setSpanTags(http.StatusOK)
 		}
-		span.Finish()
+		if wrapper.forwarded {
+			span.SetTag("forwarded", true)
+		}
+		span.Finish(tracer.WithError(wrapper.capturedErr))
 	}()
 	r = r.WithContext(ctx)
 	t.handler(wrapper, r)
@@ -76,7 +88,15 @@ type telemetryWriterWrapper struct {
 	handlerName string
 	startTime   time.Time
 	wroteHeader bool
+	forwarded   bool
+	capturedErr error
 	setSpanTags func(int)
+}
+
+// SetSpanError stores an error so the deferred span.Finish includes it via tracer.WithError,
+// which populates error.message, error.type, and error.stack on the span.
+func (w *telemetryWriterWrapper) SetSpanError(err error) {
+	w.capturedErr = err
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
@@ -88,6 +108,8 @@ func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
 	forwarded := w.Header().Get(respForwarded)
 	if forwarded == "" {
 		forwarded = "false"
+	} else {
+		w.forwarded = forwarded == "true"
 	}
 
 	apiElapsed.Observe(time.Since(w.startTime).Seconds(), w.handlerName, strconv.Itoa(statusCode), forwarded)
