@@ -353,8 +353,9 @@ func (v *ssiSuite) TestWorkloadSelection() {
 }
 
 func (v *ssiSuite) TestRegistryAllowList() {
-	// All three apps run in the same cluster with allow list = registry.datadoghq.com.
-	// - "allowed": default injector and library, both from registry.datadoghq.com — injection proceeds.
+	// All three apps run in the same cluster with allow list = gcr.io/datadoghq.
+	// The default container registry for injector and library images is gcr.io/datadoghq.
+	// - "allowed": default injector and library, both from gcr.io/datadoghq — injection proceeds.
 	// - "injector-blocked": injector image overridden to fake.registry.invalid — injection blocked.
 	// - "library-blocked": injector is allowed, but python-lib.custom-image points to
 	//   fake.registry.invalid — injection blocked by library registry check.
