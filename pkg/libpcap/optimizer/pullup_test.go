@@ -67,8 +67,8 @@ func TestInternBlocks(t *testing.T) {
 	_, ic := buildTCPCFG()
 	os := initOptState(ic)
 
-	// InternBlocks should not crash
 	os.InternBlocks(ic)
+	t.Log("InternBlocks completed without panic")
 }
 
 func TestOptRoot(t *testing.T) {
@@ -123,13 +123,13 @@ func TestPullupDoesNotCrashOnSimpleFilter(t *testing.T) {
 	FindUD(os, ic.Root)
 	FindInedges(os)
 
-	// Pullups should not crash even if there's nothing to pull
 	for i := 1; i <= ic.Root.Level; i++ {
 		for p := os.Levels[i]; p != nil; p = p.Link {
 			os.orPullup(p, ic.Root)
 			os.andPullup(p, ic.Root)
 		}
 	}
+	t.Log("Pullup on simple filter completed without panic")
 }
 
 func TestPullupDoesNotCrashOnTCP(t *testing.T) {
@@ -147,4 +147,5 @@ func TestPullupDoesNotCrashOnTCP(t *testing.T) {
 			os.andPullup(p, ic.Root)
 		}
 	}
+	t.Log("Pullup on TCP filter completed without panic")
 }

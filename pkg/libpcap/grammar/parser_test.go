@@ -44,13 +44,10 @@ func TestParseTCPCallsCodegen(t *testing.T) {
 }
 
 func TestParseAndOrNot(t *testing.T) {
-	// Test that the parser handles boolean operators without crashing
-	cs := codegen.NewCompilerState(1, 262144, 0, nil)
-	_ = Parse(cs, "tcp and udp")
-
-	cs = codegen.NewCompilerState(1, 262144, 0, nil)
-	_ = Parse(cs, "tcp or udp")
-
-	cs = codegen.NewCompilerState(1, 262144, 0, nil)
-	_ = Parse(cs, "not tcp")
+	for _, expr := range []string{"tcp and udp", "tcp or udp", "not tcp"} {
+		cs := codegen.NewCompilerState(1, 262144, 0, nil)
+		if err := Parse(cs, expr); err != nil {
+			t.Errorf("Parse(%q) = %v", expr, err)
+		}
+	}
 }

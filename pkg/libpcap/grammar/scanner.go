@@ -188,11 +188,9 @@ func (s *Scanner) scanWord(lval *yySymType) int {
 			}
 		}
 		extended := s.input[start:s.pos]
-		// Keep the extension only if it's a valid MAC or IPv6 address
-		if isMAC(extended) || isIPv6(extended) {
-			// Use extended word
-		} else {
-			// Not a MAC or IPv6 — revert to before the colon
+		// Keep the extension only if it's a valid MAC or IPv6 address.
+		// Otherwise revert to before the colon.
+		if !isMAC(extended) && !isIPv6(extended) {
 			s.pos = saved
 		}
 	}
