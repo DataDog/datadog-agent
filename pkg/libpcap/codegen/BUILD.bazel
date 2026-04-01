@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "codegen",
+    srcs = [
+        "arth.go",
+        "blocks.go",
+        "constants.go",
+        "entry.go",
+        "host.go",
+        "linearize.go",
+        "linklayer.go",
+        "port.go",
+        "primitives.go",
+        "proto.go",
+        "stubs.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/libpcap/codegen",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/libpcap/bpf"],
+)
+
+go_test(
+    name = "codegen_test",
+    srcs = [
+        "arth_test.go",
+        "blocks_test.go",
+        "codegen_test.go",
+        "entry_test.go",
+        "host_test.go",
+        "linearize_test.go",
+        "linklayer_test.go",
+        "port_test.go",
+        "primitives_test.go",
+        "proto_test.go",
+    ],
+    embed = [":codegen"],
+    deps = ["//pkg/libpcap/bpf"],
+)

@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "bpf",
+    srcs = [
+        "bpf.go",
+        "dump.go",
+        "filter.go",
+        "image.go",
+        "validate.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/libpcap/bpf",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "bpf_test",
+    srcs = [
+        "bpf_test.go",
+        "filter_test.go",
+        "image_test.go",
+        "validate_test.go",
+    ],
+    embed = [":bpf"],
+)
