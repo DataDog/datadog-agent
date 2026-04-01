@@ -393,6 +393,22 @@ func (cr *Resolver) GetCacheEntryByCgroupID(cgroupID containerutils.CGroupID) *c
 	return cacheEntry
 }
 
+// GetCacheEntryByPid returns the cache entry that contains the provided pid
+func (cr *Resolver) GetCacheEntryByPid(pid uint32) *cgroupModel.CacheEntry {
+	cr.Lock()
+	defer cr.Unlock()
+
+	var found *cgroupModel.CacheEntry
+	cr.iterateCacheEntries(func(entry *cgroupModel.CacheEntry) bool {
+		if entry.ContainsPID(pid) {
+			found = entry
+			return false
+		}
+		return true
+	})
+	return found
+}
+
 // GetCacheEntryByInode returns the cache entry referenced by the provided cgroup inode
 func (cr *Resolver) GetCacheEntryByInode(inode uint64) *cgroupModel.CacheEntry {
 	// simplelru.LRU.Get() is a mutating operation — it calls MoveToFront() to update the LRU ordering.

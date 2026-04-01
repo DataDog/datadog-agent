@@ -1152,9 +1152,7 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent) SysCtlEvent {
 	return copied
 }
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent) SyscallsEvent {
-	copied := SyscallsEvent{}
-	copied.EventReason = fieldToCopy.EventReason
-	return copied
+	return fieldToCopy
 }
 func deepCopyTracerMemfdSealEvent(fieldToCopy TracerMemfdSealEvent) TracerMemfdSealEvent {
 	copied := TracerMemfdSealEvent{}

@@ -330,8 +330,6 @@ type ProcessSerializer struct {
 	IsParentMissing bool `json:"is_parent_missing,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
-	// List of syscalls captured to generate the event
-	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
 	// Metadata from APM tracer instrumentation
@@ -577,24 +575,6 @@ type SecurityProfileContextSerializer struct {
 	EventTypeState string `json:"event_type_state"`
 }
 
-// SyscallSerializer serializes a syscall
-type SyscallSerializer struct {
-	// Name of the syscall
-	Name string `json:"name"`
-	// ID of the syscall in the host architecture
-	ID int `json:"id"`
-}
-
-// SyscallsEventSerializer serializes the syscalls from a syscalls event
-type SyscallsEventSerializer []SyscallSerializer
-
-// AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
-// easyjson:json
-type AnomalyDetectionSyscallEventSerializer struct {
-	// Name of the syscall that triggered the anomaly detection event
-	Syscall string `json:"syscall"`
-}
-
 // SyscallArgsSerializer args serializer
 // easyjson:json
 type SyscallArgsSerializer struct {
@@ -820,7 +800,6 @@ type EventSerializer struct {
 	*BindEventSerializer          `json:"bind,omitempty"`
 	*ConnectEventSerializer       `json:"connect,omitempty"`
 	*MountEventSerializer         `json:"mount,omitempty"`
-	*SyscallsEventSerializer      `json:"syscalls,omitempty"`
 	*UserContextSerializer        `json:"usr,omitempty"`
 	*SyscallContextSerializer     `json:"syscall,omitempty"`
 	*RawPacketSerializer          `json:"packet,omitempty"`
@@ -832,17 +811,6 @@ type EventSerializer struct {
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
-}
-
-func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
-	ses := SyscallsEventSerializer{}
-	for _, s := range e.Syscalls {
-		ses = append(ses, SyscallSerializer{
-			ID:   int(s),
-			Name: s.String(),
-		})
-	}
-	return &ses
 }
 
 // CapabilitiesEventSerializer serializes a capabilities usage event
@@ -1026,7 +994,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Tracer = &tmetaCopy
 		}
 
-		if len(ps.ContainerContext.ContainerID) != 0 {
+		if !ps.ContainerContext.IsNull() {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
 				Source:    ps.ContainerContext.ContainerSource.String(),
@@ -1034,7 +1002,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.CGroup.CGroupID) > 0 {
+		if !ps.CGroup.IsNull() {
 			psSerializer.CGroup = &CGroupContextSerializer{
 				ID:        string(ps.CGroup.CGroupID),
 				Source:    ps.CGroup.CGroupSource.String(),
@@ -1396,11 +1364,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 	}
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
-
-	// add the syscalls from the event only for the top level parent
-	if e.GetEventType() == model.SyscallsEventType {
-		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
-	}
 
 	ctx := eval.NewContext(e)
 
@@ -1860,8 +1823,6 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.ConnectEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
-	case model.SyscallsEventType:
-		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

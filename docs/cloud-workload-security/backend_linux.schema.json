@@ -1475,10 +1475,6 @@
           "type": "string",
           "description": "Process source"
         },
-        "syscalls": {
-          "$ref": "#/$defs/SyscallsEvent",
-          "description": "List of syscalls captured to generate the event"
-        },
         "aws_security_credentials": {
           "items": {
             "$ref": "#/$defs/AWSSecurityCredentials"
@@ -1657,10 +1653,6 @@
         "source": {
           "type": "string",
           "description": "Process source"
-        },
-        "syscalls": {
-          "$ref": "#/$defs/SyscallsEvent",
-          "description": "List of syscalls captured to generate the event"
         },
         "aws_security_credentials": {
           "items": {
@@ -2144,25 +2136,6 @@
       "type": "object",
       "description": "SysCtlEventSerializer defines a sysctl event serializer"
     },
-    "Syscall": {
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the syscall"
-        },
-        "id": {
-          "type": "integer",
-          "description": "ID of the syscall in the host architecture"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "id"
-      ],
-      "description": "SyscallSerializer serializes a syscall"
-    },
     "SyscallArgs": {
       "properties": {
         "path": {
@@ -2250,13 +2223,6 @@
       "additionalProperties": false,
       "type": "object",
       "description": "SyscallContextSerializer serializes syscall context"
-    },
-    "SyscallsEvent": {
-      "items": {
-        "$ref": "#/$defs/Syscall"
-      },
-      "type": "array",
-      "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
     },
     "TLSContext": {
       "properties": {
@@ -2483,9 +2449,6 @@
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"
-    },
-    "syscalls": {
-      "$ref": "#/$defs/SyscallsEvent"
     },
     "usr": {
       "$ref": "#/$defs/UserContext"

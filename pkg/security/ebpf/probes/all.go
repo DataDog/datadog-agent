@@ -147,8 +147,9 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
-		// Syscall table map
-		getSyscallTableMap(),
+		// Syscall monitor double-buffer maps
+		{Name: "fb_syscall_monitor"},
+		{Name: "bb_syscall_monitor"},
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
@@ -215,6 +216,7 @@ type MapSpecEditorOpts struct {
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
 	BasenameApproversSize         int
+	SyscallProcessMonitorEnabled  bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -269,10 +271,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: nsFlowToNetworkStats,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"secprofs_syscalls": {
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"span_tls": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
@@ -285,13 +283,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-	}
-
-	if opts.SecurityProfileSyscallAnomaly {
-		editors["security_profiles"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
-			EditorFlag: manager.EditMaxEntries,
-		}
 	}
 
 	if opts.EventSamplingOpenEnabled {
@@ -419,6 +410,17 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["basename_approvers"] = manager.MapSpecEditor{
 			MaxEntries: uint32(opts.BasenameApproversSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.SyscallProcessMonitorEnabled {
+		editors["fb_syscall_monitor"] = manager.MapSpecEditor{
+			MaxEntries: 40000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["bb_syscall_monitor"] = manager.MapSpecEditor{
+			MaxEntries: 40000,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

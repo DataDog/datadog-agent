@@ -263,9 +263,6 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
 	// When the limit is reached, the oldest dumps will be deleted first.
 	ActivityDumpLocalStorageMaxDumpsCount int
-	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
-	// process.
-	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
 	// ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should
@@ -394,6 +391,17 @@ type RuntimeSecurityConfig struct {
 	SysCtlSnapshotIgnoredBaseNames []string
 	// SysCtlSnapshotKernelCompilationFlags defines the list of kernel compilation flags that should be collected by the agent
 	SysCtlSnapshotKernelCompilationFlags map[string]uint8
+
+	// SyscallEventsEnabled defines if the syscall event monitor is enabled
+	SyscallEventsEnabled bool
+	// SyscallEventsRelatedEnabled defines if the default and related syscalls should be appended to syscall events
+	SyscallEventsRelatedEnabled bool
+	// SyscallEventsPeriod defines the period at which the syscall event monitor scans the eBPF map
+	SyscallEventsPeriod time.Duration
+	// SyscallsEventDedupCacheSize bounds the per-lineage syscalls dedup cache
+	SyscallsEventDedupCacheSize int
+	// SyscallsEventDedupCacheTTL defines how long a syscalls fingerprint remains valid for dedup
+	SyscallsEventDedupCacheTTL time.Duration
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -583,7 +591,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpLocalStorageDirectory:     pkgconfigsetup.SystemProbe().GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-		ActivityDumpSyscallMonitorPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
 		ActivityDumpMaxDumpCountPerWorkload:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 		ActivityDumpTagRulesEnabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 		ActivityDumpSilentWorkloadsDelay:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
@@ -621,6 +628,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
+		SyscallEventsEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.syscalls.events.enabled"),
+		SyscallEventsRelatedEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.syscalls.events.related_syscalls"),
+		SyscallEventsPeriod:                  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.syscalls.events.period"),
+		SyscallsEventDedupCacheSize:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.syscalls.events.dedup_cache_size"),
+		SyscallsEventDedupCacheTTL:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.syscalls.events.dedup_cache_ttl"),
 
 		// event sampling (per-type)
 		EventSamplingOpenEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),

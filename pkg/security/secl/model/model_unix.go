@@ -116,7 +116,7 @@ type Event struct {
 	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
 	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
 	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
-	Syscalls          SyscallsEvent      `field:"-"`
+	Syscalls          SyscallsEvent      `field:"-"`                                 // deprecated
 	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
 	PrCtl             PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
@@ -927,8 +927,7 @@ type VethPairEvent struct {
 
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	EventReason SyscallDriftEventReason
-	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	Syscalls []Syscall
 }
 
 // PathKey identifies an entry in the dentry cache

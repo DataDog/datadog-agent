@@ -12,14 +12,14 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -83,7 +83,7 @@ func (d *Monitor) Flush() error {
 }
 
 // NewSyscallsMonitor returns a new Monitor
-func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
+func NewSyscallsMonitor(mgr *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
@@ -94,14 +94,14 @@ func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInte
 		numCPU:       numCPU,
 	}
 
-	stats, err := managerhelper.Map(manager, "syscalls_stats")
+	stats, err := managerhelper.Map(mgr, "syscalls_stats")
 	if err != nil {
 		return nil, err
 	}
 	monitor.stats = stats
 
 	// kprobes & kretprobes should be now all installed
-	enabled, err := managerhelper.Map(manager, "syscalls_stats_enabled")
+	enabled, err := managerhelper.Map(mgr, "syscalls_stats_enabled")
 	if err != nil {
 		return nil, err
 	}

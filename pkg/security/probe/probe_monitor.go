@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -29,13 +30,14 @@ import (
 type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 
-	eventStreamMonitor *eventstream.Monitor
-	discarderMonitor   *discarder.Monitor
-	cgroupsMonitor     *cgroups.Monitor
-	approverMonitor    *approver.Monitor
-	syscallsMonitor    *syscalls.Monitor
-	dnsMonitor         *dns.Monitor
-	eventSampleMonitor *eventsample.Monitor
+	eventStreamMonitor    *eventstream.Monitor
+	discarderMonitor      *discarder.Monitor
+	cgroupsMonitor        *cgroups.Monitor
+	approverMonitor       *approver.Monitor
+	syscallsMonitor       *syscalls.Monitor
+	syscallCGroupMonitor *syscalls.CGroupMonitor
+	dnsMonitor            *dns.Monitor
+	eventSampleMonitor    *eventsample.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -68,7 +70,14 @@ func (m *EBPFMonitors) Init() error {
 	if p.opts.SyscallsMonitorEnabled {
 		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.statsdClient)
 		if err != nil {
-			return fmt.Errorf("couldn't create the approver monitor: %w", err)
+			return fmt.Errorf("couldn't create the syscalls monitor: %w", err)
+		}
+	}
+
+	if p.config.RuntimeSecurity.SyscallEventsEnabled {
+		m.syscallCGroupMonitor, err = syscalls.NewEBPFCGroupMonitor(p.config.RuntimeSecurity, p.Manager, p.Resolvers.CGroupResolver)
+		if err != nil {
+			return fmt.Errorf("couldn't create the syscall cgroup monitor: %w", err)
 		}
 	}
 
@@ -164,7 +173,24 @@ func (m *EBPFMonitors) SendStats() error {
 
 	if m.ebpfProbe.opts.SyscallsMonitorEnabled {
 		if err := m.syscallsMonitor.SendStats(); err != nil {
-			return fmt.Errorf("failed to send evaluation set stats: %w", err)
+			return fmt.Errorf("failed to send syscalls monitor stats: %w", err)
+		}
+	}
+
+	if m.ebpfProbe.config.RuntimeSecurity.SyscallEventsEnabled {
+		p := m.ebpfProbe
+
+		dispatchFnc := func(event events.EventMarshaler, containerID containerutils.ContainerID) {
+			tags := p.probe.GetEventTags(containerID)
+			rule := events.NewCustomRule(events.SyscallsEventRuleID, events.SyscallsEventRuleDesc, p.evalOpts())
+			p.probe.DispatchCustomEvent(
+				rule,
+				events.NewCustomEvent(model.CustomEventType, event, tags...),
+			)
+		}
+
+		if err := m.syscallCGroupMonitor.SendEvents(dispatchFnc); err != nil {
+			return fmt.Errorf("failed to send syscall cgroup events: %w", err)
 		}
 	}
 

@@ -44,6 +44,7 @@ var (
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 		FailedDNSRuleID:                 rate.Every(30 * time.Second),
 		RawPacketActionRuleID:           rate.Every(30 * time.Second),
+		SyscallsEventRuleID:             rate.Inf, // No limit on syscalls event
 	}
 )
 

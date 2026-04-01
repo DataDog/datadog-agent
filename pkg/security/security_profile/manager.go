@@ -190,16 +190,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		return nil, err
 	}
 
-	securityProfileMap, err := managerhelper.Map(ebpf, "security_profiles")
-	if err != nil {
-		return nil, err
-	}
-
-	securityProfileSyscallsMap, err := managerhelper.Map(ebpf, "secprofs_syscalls")
-	if err != nil {
-		return nil, err
-	}
-
 	minDumpTimeout := cfg.RuntimeSecurity.ActivityDumpLoadControlMinDumpTimeout
 	if minDumpTimeout < absoluteMinimumDumpTimeout {
 		minDumpTimeout = absoluteMinimumDumpTimeout
@@ -319,9 +309,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		secProfEventTypes:       secProfEventTypes,
 		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
-
-		securityProfileMap:         securityProfileMap,
-		securityProfileSyscallsMap: securityProfileSyscallsMap,
 
 		profiles: make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 

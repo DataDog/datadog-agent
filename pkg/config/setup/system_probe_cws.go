@@ -83,7 +83,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", getDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{"profile"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", "60s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.delay", "10s")
@@ -161,6 +160,13 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.kernel_compilation_flags", []string{})
+
+	// CWS - SyscallCgroupMonitor
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.events.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.events.related_syscalls", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.events.period", "60s")
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.events.dedup_cache_size", 100000)
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.events.dedup_cache_ttl", "1h")
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.ssh.enabled", true)

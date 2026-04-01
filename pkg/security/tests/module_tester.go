@@ -793,10 +793,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		runtimeSecurityEnabled = false
 	}
 
-	if opts.activityDumpSyscallMonitorPeriod == time.Duration(0) {
-		opts.activityDumpSyscallMonitorPeriod = 60 * time.Second
-	}
-
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                            cfgDir,
@@ -814,7 +810,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
-		"ActivityDumpSyscallMonitorPeriod":           opts.activityDumpSyscallMonitorPeriod,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
