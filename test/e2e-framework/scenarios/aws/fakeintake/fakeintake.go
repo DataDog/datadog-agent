@@ -22,10 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 
-	classicECS "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
-	clb "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/lb"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
-	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
+	classicECS "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ecs"
+	clb "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/lb"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ssm"
+	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/cenkalti/backoff/v5"

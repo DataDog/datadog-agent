@@ -465,6 +465,52 @@ var defaultProfiles = `
             - tag
             - bucket
             - outcome
+        - name: admission_webhooks.mutation_attempts
+          aggregate_tags:
+            - mutation_type
+            - status
+            - injected
+        - name: admission_webhooks.library_injection_attempts
+          aggregate_tags:
+            - language
+            - injected
+            - auto_detected
+            - injection_type
+        - name: admission_webhooks.library_injection_errors
+          aggregate_tags:
+            - language
+            - auto_detected
+            - injection_type
+        - name: admission_webhooks.patcher_errors
+        - name: admission_webhooks.rc_provider_configs
+        - name: admission_webhooks.rc_provider_configs_invalid
+        - name: autodiscovery.errors
+          aggregate_tags:
+            - provider
+        - name: autodiscovery.watched_resources
+          aggregate_tags:
+            - listener
+            - kind
+        - name: cluster_checks.configs_dispatched
+        - name: cluster_checks.configs_dangling
+        - name: cluster_checks.unscheduled_check
+          aggregate_tags:
+            - config_source
+        - name: language_detection_patcher.patches
+          aggregate_tags:
+            - owner_kind
+            - status
+        - name: workloadmeta.stored_entities
+          aggregate_tags:
+            - kind
+            - source
+        - name: tagger.stored_entities
+          aggregate_tags:
+            - source
+            - prefix
+        - name: workloadmeta.pull_errors
+          aggregate_tags:
+            - collector_id
     schedule:
       start_after: 30
       iterations: 0
@@ -552,10 +598,11 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Converts a Datadog metric name to a Prometheus metric name for quicker matching. Prometheus metrics
-	// (from the "telemetry" package) must be declared without setting Options.NoDoubleUnderscoreSep to true,
-	// ensuring the full metric name includes double underscores ("__"); otherwise, matching will fail.
-	promName := fmt.Sprintf("%s__%s", names[0], names[1])
+	// Converts a Datadog metric name to a Prometheus-style name for quicker matching.
+	// We store with a single "_" separator so the lookup site (transformMetricFamily)
+	// can normalize "__" to "_" and match metrics declared with or without
+	// Options.NoDoubleUnderscoreSep.
+	promName := fmt.Sprintf("%s_%s", names[0], names[1])
 	p.metricsMap[promName] = m
 
 	// Compile aggregate tags (optional)
