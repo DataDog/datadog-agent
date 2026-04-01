@@ -340,9 +340,9 @@ func TestSubscribeWithBuffer_NoDrops(t *testing.T) {
 	h := NewHook[int]("buf-test")
 	var received atomic.Int64
 
-	unsub := h.SubscribeWithBuffer("consumer", 4096, func(_ int) {
+	unsub := h.Subscribe("consumer", func(_ int) {
 		received.Add(1)
-	})
+	}, WithBufferSize[int](4096))
 	defer unsub()
 
 	for i := range 4096 {
@@ -377,15 +377,15 @@ func TestSubscribeWithBuffer_DropOnOverflow(t *testing.T) {
 	assert.Equal(t, bufSize, len(ch))
 }
 
-// TestSubscribeWithBuffer_DefaultOnInvalidSize verifies that a non-positive
-// buffer size falls back to the default of 100.
-func TestSubscribeWithBuffer_DefaultOnInvalidSize(t *testing.T) {
+// TestSubscribeWithBuffer_DefaultOnZeroSize verifies that a zero buffer size
+// falls back to the default of 100.
+func TestSubscribeWithBuffer_DefaultOnZeroSize(t *testing.T) {
 	h := NewHook[int]("buf-default")
 	var received atomic.Int64
 
-	unsub := h.SubscribeWithBuffer("consumer", -1, func(_ int) {
+	unsub := h.Subscribe("consumer", func(_ int) {
 		received.Add(1)
-	})
+	}, WithBufferSize[int](0))
 	defer unsub()
 
 	h.Publish("producer", 1)
