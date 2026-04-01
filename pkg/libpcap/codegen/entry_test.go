@@ -50,8 +50,8 @@ func (m *mockResolver) LookupProto(name string) (int, error) {
 	return 0, &lookupError{name}
 }
 
-func (m *mockResolver) LookupEProto(name string) (int, error)  { return 0, &lookupError{name} }
-func (m *mockResolver) LookupLLC(name string) (int, error)     { return 0, &lookupError{name} }
+func (m *mockResolver) LookupEProto(name string) (int, error) { return 0, &lookupError{name} }
+func (m *mockResolver) LookupLLC(name string) (int, error)    { return 0, &lookupError{name} }
 func (m *mockResolver) LookupNet(name string) (uint32, uint32, error) {
 	return 0, 0, &lookupError{name}
 }

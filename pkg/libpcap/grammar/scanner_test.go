@@ -37,21 +37,21 @@ func TestScannerWhitespace(t *testing.T) {
 
 func TestScannerProtocols(t *testing.T) {
 	tests := map[string]int{
-		"tcp":    TCP,
-		"udp":    UDP,
-		"icmp":   ICMP,
-		"arp":    ARP,
-		"rarp":   RARP,
-		"ip":     IP,
-		"ip6":    IPV6,
-		"sctp":   SCTP,
-		"igmp":   IGMP,
-		"pim":    PIM,
-		"icmp6":  ICMPV6,
-		"ah":     AH,
-		"esp":    ESP,
-		"vrrp":   VRRP,
-		"carp":   CARP,
+		"tcp":   TCP,
+		"udp":   UDP,
+		"icmp":  ICMP,
+		"arp":   ARP,
+		"rarp":  RARP,
+		"ip":    IP,
+		"ip6":   IPV6,
+		"sctp":  SCTP,
+		"igmp":  IGMP,
+		"pim":   PIM,
+		"icmp6": ICMPV6,
+		"ah":    AH,
+		"esp":   ESP,
+		"vrrp":  VRRP,
+		"carp":  CARP,
 	}
 	for word, want := range tests {
 		var lval yySymType

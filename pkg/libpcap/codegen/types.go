@@ -117,24 +117,24 @@ func (ic *ICode) MarkBlock(b *Block) { b.Mark = ic.CurMark }
 type OffsetRel int
 
 const (
-	OrPacket      OffsetRel = iota // absolute packet offset
-	OrLinkhdr                      // link-layer header
-	OrLinktype                     // link-type field
-	OrLinkpl                       // link-layer payload
-	OrLLC                          // 802.2 LLC header
-	OrPrevlinkhdr                  // previous link header (encapsulation)
-	OrPrevmplshdr                  // previous MPLS header
-	OrLinkplNosnap                 // link payload without SNAP
-	OrTranIPv4                     // transport layer (IPv4)
-	OrTranIPv6                     // transport layer (IPv6)
+	OrPacket       OffsetRel = iota // absolute packet offset
+	OrLinkhdr                       // link-layer header
+	OrLinktype                      // link-type field
+	OrLinkpl                        // link-layer payload
+	OrLLC                           // 802.2 LLC header
+	OrPrevlinkhdr                   // previous link header (encapsulation)
+	OrPrevmplshdr                   // previous MPLS header
+	OrLinkplNosnap                  // link payload without SNAP
+	OrTranIPv4                      // transport layer (IPv4)
+	OrTranIPv6                      // transport layer (IPv6)
 )
 
 // AbsOffset tracks an absolute offset in the packet, possibly with
 // a variable component stored in a BPF register.
 type AbsOffset struct {
-	ConstPart    int  // fixed byte offset
-	IsVariable   bool // true if there's a variable part
-	Reg          int  // BPF register holding variable part (if IsVariable)
+	ConstPart  int  // fixed byte offset
+	IsVariable bool // true if there's a variable part
+	Reg        int  // BPF register holding variable part (if IsVariable)
 }
 
 // CompilerState holds the entire state of a filter compilation.
@@ -146,23 +146,23 @@ type CompilerState struct {
 	Netmask  uint32
 
 	// Link-layer offset tracking
-	OffLinkhdr    AbsOffset
-	OffLinktype   AbsOffset
-	OffLinkpl     AbsOffset
-	OffNl         int // network layer offset from link payload
-	OffNlNosnap   int // same but without SNAP
-	OffLL         AbsOffset
+	OffLinkhdr     AbsOffset
+	OffLinktype    AbsOffset
+	OffLinkpl      AbsOffset
+	OffNl          int // network layer offset from link payload
+	OffNlNosnap    int // same but without SNAP
+	OffLL          AbsOffset
 	OffPrevlinkhdr AbsOffset
 
 	// Flags
-	IsGeneve    bool
-	LabelCount  int
+	IsGeneve       bool
+	LabelCount     int
 	VLANStackDepth int
 	MPLSStackDepth int
 
 	// Register allocation
-	RegUsed  [NAtoms]bool
-	CurrReg  int
+	RegUsed [NAtoms]bool
+	CurrReg int
 
 	// Block allocation
 	NextBlockID uint
@@ -199,14 +199,14 @@ func (cs *CompilerState) PeekQual() Qual {
 
 // NameResolver resolves symbolic names to addresses, ports, and protocols.
 type NameResolver interface {
-	LookupHost(name string) ([]uint32, error)       // IPv4 addresses
-	LookupHost6(name string) ([][16]byte, error)     // IPv6 addresses
-	LookupPort(name string, proto int) (int, error)  // service → port
-	LookupProto(name string) (int, error)            // protocol name → number
-	LookupEProto(name string) (int, error)           // ethernet protocol name → ethertype
-	LookupLLC(name string) (int, error)              // LLC name → SAP
-	LookupNet(name string) (uint32, uint32, error)   // network name → (addr, mask)
-	LookupEther(name string) ([]byte, error)         // hostname → MAC address
+	LookupHost(name string) ([]uint32, error)                 // IPv4 addresses
+	LookupHost6(name string) ([][16]byte, error)              // IPv6 addresses
+	LookupPort(name string, proto int) (int, error)           // service → port
+	LookupProto(name string) (int, error)                     // protocol name → number
+	LookupEProto(name string) (int, error)                    // ethernet protocol name → ethertype
+	LookupLLC(name string) (int, error)                       // LLC name → SAP
+	LookupNet(name string) (uint32, uint32, error)            // network name → (addr, mask)
+	LookupEther(name string) ([]byte, error)                  // hostname → MAC address
 	LookupPortRange(name string, proto int) (int, int, error) // port range
 }
 

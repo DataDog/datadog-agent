@@ -133,7 +133,7 @@ func TestGenLoadAPacket(t *testing.T) {
 func TestGenLoadALinkpl(t *testing.T) {
 	cs := NewCompilerState(1, 256, 0, nil)
 	cs.OffLinkpl = AbsOffset{ConstPart: 14} // Ethernet header
-	cs.OffNl = 0                             // IP starts at linkpl
+	cs.OffNl = 0                            // IP starts at linkpl
 
 	// Load byte at IP protocol field (offset 9 from network layer)
 	s := GenLoadA(cs, OrLinkpl, 9, bpf.BPF_B)

@@ -16,7 +16,7 @@ import (
 const (
 	AAtom  = bpf.BPF_MEMWORDS     // Accumulator register (index 16)
 	XAtom  = bpf.BPF_MEMWORDS + 1 // Index register (index 17)
-	AXAtom = codegen.NAtoms        // Both A and X (index 18, sentinel for use-def)
+	AXAtom = codegen.NAtoms       // Both A and X (index 18, sentinel for use-def)
 )
 
 // Modulus for value numbering hash table.

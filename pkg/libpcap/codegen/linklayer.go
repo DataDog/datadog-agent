@@ -13,14 +13,14 @@ import (
 
 // DLT constants (data link types) — only the ones we need.
 const (
-	DLTNull       = 0
-	DLTEN10MB     = 1 // Ethernet
-	DLTLoop       = 12
-	DLTRaw        = 12  // on OpenBSD
-	DLTLinuxSLL   = 113 // Linux cooked
-	DLTLinuxSLL2  = 276
-	DLTRawIPv4    = 228
-	DLTRawIPv6    = 229
+	DLTNull      = 0
+	DLTEN10MB    = 1 // Ethernet
+	DLTLoop      = 12
+	DLTRaw       = 12  // on OpenBSD
+	DLTLinuxSLL  = 113 // Linux cooked
+	DLTLinuxSLL2 = 276
+	DLTRawIPv4   = 228
+	DLTRawIPv6   = 229
 )
 
 // OffsetNotSet indicates an offset that has not been set.
@@ -42,10 +42,10 @@ func InitLinktype(cs *CompilerState) error {
 
 	switch cs.Linktype {
 	case DLTEN10MB: // Ethernet
-		cs.OffLinktype.ConstPart = 12   // Ethertype field at offset 12
-		cs.OffLinkpl.ConstPart = 14     // Link payload after 14-byte Ethernet header
-		cs.OffNl = 0                     // Network layer at start of link payload (Ethernet II)
-		cs.OffNlNosnap = 3              // For 802.3+802.2: 3 bytes of LLC header
+		cs.OffLinktype.ConstPart = 12 // Ethertype field at offset 12
+		cs.OffLinkpl.ConstPart = 14   // Link payload after 14-byte Ethernet header
+		cs.OffNl = 0                  // Network layer at start of link payload (Ethernet II)
+		cs.OffNlNosnap = 3            // For 802.3+802.2: 3 bytes of LLC header
 
 	case DLTNull, DLTLoop: // Loopback
 		cs.OffLinktype.ConstPart = 0
@@ -193,14 +193,14 @@ func genEtherLinktype(cs *CompilerState, llProto uint32) *Block {
 // Port of gen_snap() from gencode.c.
 func genSnap(cs *CompilerState, orgcode uint32, ptype uint32) *Block {
 	snapblock := [8]byte{
-		LLCSAPSnap,                     // DSAP = SNAP
-		LLCSAPSnap,                     // SSAP = SNAP
-		0x03,                           // control = UI
-		byte(orgcode >> 16),            // OUI byte 0
-		byte(orgcode >> 8),             // OUI byte 1
-		byte(orgcode),                  // OUI byte 2
-		byte(ptype >> 8),               // protocol type high
-		byte(ptype),                    // protocol type low
+		LLCSAPSnap,          // DSAP = SNAP
+		LLCSAPSnap,          // SSAP = SNAP
+		0x03,                // control = UI
+		byte(orgcode >> 16), // OUI byte 0
+		byte(orgcode >> 8),  // OUI byte 1
+		byte(orgcode),       // OUI byte 2
+		byte(ptype >> 8),    // protocol type high
+		byte(ptype),         // protocol type low
 	}
 	return GenBcmp(cs, OrLLC, 0, snapblock[:])
 }

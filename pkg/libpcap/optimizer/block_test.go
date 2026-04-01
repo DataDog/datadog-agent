@@ -96,8 +96,8 @@ func TestFoldEdge(t *testing.T) {
 	codegen.InitLinktype(cs)
 
 	child := cs.NewBlock(codegen.JmpCode(int(0x10)), 42) // JEQ #42
-	jt := cs.NewBlock(int(0x06), 65535)                   // ret accept
-	jf := cs.NewBlock(int(0x06), 0)                       // ret reject
+	jt := cs.NewBlock(int(0x06), 65535)                  // ret accept
+	jf := cs.NewBlock(int(0x06), 0)                      // ret reject
 	codegen.SetJT(child, jt)
 	codegen.SetJF(child, jf)
 

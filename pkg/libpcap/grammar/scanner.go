@@ -287,10 +287,10 @@ var keywords = map[string]int{
 	"vrrp": VRRP,
 	"carp": CARP,
 
-	"ip6":    IPV6,
-	"icmp6":  ICMPV6,
-	"ah":     AH,
-	"esp":    ESP,
+	"ip6":   IPV6,
+	"icmp6": ICMPV6,
+	"ah":    AH,
+	"esp":   ESP,
 
 	"atalk":  ATALK,
 	"aarp":   AARP,
@@ -300,21 +300,21 @@ var keywords = map[string]int{
 	"moprc":  MOPRC,
 	"mopdl":  MOPDL,
 
-	"iso":   ISO,
-	"esis":  ESIS,
-	"es-is": ESIS,
-	"isis":  ISIS,
-	"is-is": ISIS,
-	"l1":    L1,
-	"l2":    L2,
-	"iih":   IIH,
-	"lsp":   LSP,
-	"snp":   SNP,
-	"csnp":  CSNP,
-	"psnp":  PSNP,
-	"clnp":  CLNP,
-	"stp":   STP,
-	"ipx":   IPX,
+	"iso":     ISO,
+	"esis":    ESIS,
+	"es-is":   ESIS,
+	"isis":    ISIS,
+	"is-is":   ISIS,
+	"l1":      L1,
+	"l2":      L2,
+	"iih":     IIH,
+	"lsp":     LSP,
+	"snp":     SNP,
+	"csnp":    CSNP,
+	"psnp":    PSNP,
+	"clnp":    CLNP,
+	"stp":     STP,
+	"ipx":     IPX,
 	"netbeui": NETBEUI,
 
 	"broadcast": TK_BROADCAST,
@@ -397,27 +397,27 @@ var keywords = map[string]int{
 	"ta":        TA,
 
 	// ICMP type names → NUM
-	"icmptype":          NUM,
-	"icmpcode":          NUM,
-	"icmp-echoreply":    NUM,
-	"icmp-unreach":      NUM,
-	"icmp-sourcequench": NUM,
-	"icmp-redirect":     NUM,
-	"icmp-echo":         NUM,
-	"icmp-routeradvert": NUM,
+	"icmptype":           NUM,
+	"icmpcode":           NUM,
+	"icmp-echoreply":     NUM,
+	"icmp-unreach":       NUM,
+	"icmp-sourcequench":  NUM,
+	"icmp-redirect":      NUM,
+	"icmp-echo":          NUM,
+	"icmp-routeradvert":  NUM,
 	"icmp-routersolicit": NUM,
-	"icmp-timxceed":     NUM,
-	"icmp-paramprob":    NUM,
-	"icmp-tstamp":       NUM,
-	"icmp-tstampreply":  NUM,
-	"icmp-ireq":         NUM,
-	"icmp-ireqreply":    NUM,
-	"icmp-maskreq":      NUM,
-	"icmp-maskreply":    NUM,
+	"icmp-timxceed":      NUM,
+	"icmp-paramprob":     NUM,
+	"icmp-tstamp":        NUM,
+	"icmp-tstampreply":   NUM,
+	"icmp-ireq":          NUM,
+	"icmp-ireqreply":     NUM,
+	"icmp-maskreq":       NUM,
+	"icmp-maskreply":     NUM,
 
 	// ICMPv6 type names → NUM
-	"icmp6type": NUM,
-	"icmp6code": NUM,
+	"icmp6type":                       NUM,
+	"icmp6code":                       NUM,
 	"icmp6-destinationunreach":        NUM,
 	"icmp6-packettoobig":              NUM,
 	"icmp6-timeexceeded":              NUM,
@@ -475,7 +475,7 @@ var numericKeywords = map[string]uint32{
 	"icmp6-echo": 128, "icmp6-echoreply": 129,
 	"icmp6-multicastlistenerquery": 130, "icmp6-multicastlistenerreportv1": 131,
 	"icmp6-multicastlistenerdone": 132,
-	"icmp6-routersolicit": 133, "icmp6-routeradvert": 134,
+	"icmp6-routersolicit":         133, "icmp6-routeradvert": 134,
 	"icmp6-neighborsolicit": 135, "icmp6-neighboradvert": 136,
 	"icmp6-redirect": 137, "icmp6-routerrenum": 138,
 	"icmp6-nodeinformationquery": 139, "icmp6-nodeinformationresponse": 140,
@@ -484,11 +484,11 @@ var numericKeywords = map[string]uint32{
 	"icmp6-homeagentdiscoveryrequest": 144, "icmp6-homeagentdiscoveryreply": 145,
 	"icmp6-mobileprefixsolicit": 146, "icmp6-mobileprefixadvert": 147,
 	"icmp6-certpathsolicit": 148, "icmp6-certpathadvert": 149,
-	"icmp6-multicastrouteradvert": 151,
+	"icmp6-multicastrouteradvert":  151,
 	"icmp6-multicastroutersolicit": 152, "icmp6-multicastrouterterm": 153,
 
 	"tcpflags": 13,
-	"tcp-fin": 0x01, "tcp-syn": 0x02, "tcp-rst": 0x04, "tcp-push": 0x08,
+	"tcp-fin":  0x01, "tcp-syn": 0x02, "tcp-rst": 0x04, "tcp-push": 0x08,
 	"tcp-ack": 0x10, "tcp-urg": 0x20, "tcp-ece": 0x40, "tcp-cwr": 0x80,
 }
 
@@ -577,5 +577,7 @@ func isDigit(c byte) bool    { return c >= '0' && c <= '9' }
 func isAlpha(c byte) bool    { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') }
 func isAlphaNum(c byte) bool { return isAlpha(c) || isDigit(c) }
 func isHexDigit(c byte) bool { return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') }
-func isHexRune(c rune) bool  { return unicode.IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') }
-func isSpace(c byte) bool    { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }
+func isHexRune(c rune) bool {
+	return unicode.IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+func isSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }

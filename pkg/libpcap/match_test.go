@@ -24,10 +24,10 @@ func buildEthernetIPv4TCP(srcPort, dstPort uint16) []byte {
 	pkt[13] = 0x00
 
 	// IPv4 header (offset 14)
-	pkt[14] = 0x45          // version=4, IHL=5 (20 bytes)
-	pkt[16] = 0x00          // total length high
-	pkt[17] = 40            // total length = 40 (20 IP + 20 TCP)
-	pkt[23] = 6             // protocol = TCP
+	pkt[14] = 0x45 // version=4, IHL=5 (20 bytes)
+	pkt[16] = 0x00 // total length high
+	pkt[17] = 40   // total length = 40 (20 IP + 20 TCP)
+	pkt[23] = 6    // protocol = TCP
 	// src IP: 192.168.1.1
 	pkt[26] = 192
 	pkt[27] = 168

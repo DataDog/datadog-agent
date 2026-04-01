@@ -466,14 +466,14 @@ var _ NameResolver = (*nameResolverCheck)(nil)
 
 type nameResolverCheck struct{}
 
-func (n *nameResolverCheck) LookupHost(name string) ([]uint32, error)            { return nil, nil }
-func (n *nameResolverCheck) LookupHost6(name string) ([][16]byte, error)          { return nil, nil }
-func (n *nameResolverCheck) LookupPort(name string, proto int) (int, error)       { return 0, nil }
-func (n *nameResolverCheck) LookupProto(name string) (int, error)                 { return 0, nil }
-func (n *nameResolverCheck) LookupEProto(name string) (int, error)                { return 0, nil }
-func (n *nameResolverCheck) LookupLLC(name string) (int, error)                   { return 0, nil }
-func (n *nameResolverCheck) LookupNet(name string) (uint32, uint32, error)        { return 0, 0, nil }
-func (n *nameResolverCheck) LookupEther(name string) ([]byte, error)              { return nil, nil }
+func (n *nameResolverCheck) LookupHost(name string) ([]uint32, error)       { return nil, nil }
+func (n *nameResolverCheck) LookupHost6(name string) ([][16]byte, error)    { return nil, nil }
+func (n *nameResolverCheck) LookupPort(name string, proto int) (int, error) { return 0, nil }
+func (n *nameResolverCheck) LookupProto(name string) (int, error)           { return 0, nil }
+func (n *nameResolverCheck) LookupEProto(name string) (int, error)          { return 0, nil }
+func (n *nameResolverCheck) LookupLLC(name string) (int, error)             { return 0, nil }
+func (n *nameResolverCheck) LookupNet(name string) (uint32, uint32, error)  { return 0, 0, nil }
+func (n *nameResolverCheck) LookupEther(name string) ([]byte, error)        { return nil, nil }
 func (n *nameResolverCheck) LookupPortRange(name string, proto int) (int, int, error) {
 	return 0, 0, nil
 }
