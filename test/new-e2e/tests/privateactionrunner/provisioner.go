@@ -15,7 +15,6 @@ import (
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	localcmd "github.com/pulumi/pulumi-command/sdk/go/command/local"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -154,16 +153,21 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 func buildFakeOpmsLocally(ctx *pulumi.Context, e *aws.Environment, tarPath string) (pulumi.Resource, pulumi.Resource, error) {
 	fakeOpmsDir := getFakeOpmsDir()
 
-	buildCmd, err := localcmd.NewCommand(ctx, e.CommonNamer().ResourceName("build-fakeopms"), &localcmd.CommandArgs{
-		Create:  pulumi.Sprintf("docker build -t %s .", fakeOpmsImageTag),
-		Dir:     pulumi.String(fakeOpmsDir),
+	// Use the e2e framework's LocalRunner so that Pulumi uses an explicit provider,
+	// as default providers are disabled in the e2e framework.
+	localRunner := command.NewLocalRunner(e, command.LocalRunnerArgs{
+		OSCommand: command.NewUnixOSCommand(),
+	})
+
+	buildCmd, err := localRunner.Command("build-fakeopms", &command.Args{
+		Create:  pulumi.Sprintf("docker build -t %s %s", fakeOpmsImageTag, fakeOpmsDir),
 		Triggers: pulumi.Array{pulumi.String(fakeOpmsDir)},
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("local docker build: %w", err)
 	}
 
-	saveCmd, err := localcmd.NewCommand(ctx, e.CommonNamer().ResourceName("save-fakeopms"), &localcmd.CommandArgs{
+	saveCmd, err := localRunner.Command("save-fakeopms", &command.Args{
 		Create: pulumi.Sprintf("docker save %s -o %s", fakeOpmsImageTag, tarPath),
 	}, utils.PulumiDependsOn(buildCmd))
 	if err != nil {
