@@ -226,6 +226,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/hairyhenderson/go-codeowners v0.7.0
+	github.com/pulumi/pulumi-command/sdk v1.0.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -317,7 +318,6 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0 // indirect
-	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v3 v3.7.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
