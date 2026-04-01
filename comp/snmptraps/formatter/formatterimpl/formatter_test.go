@@ -15,8 +15,8 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
+	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
+	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -217,7 +217,7 @@ var (
 
 var testOptions = fx.Options(
 	senderhelper.Opts,
-	oidresolverimpl.MockModule(),
+	oidresolverfx.MockModule(),
 	Module(),
 )
 

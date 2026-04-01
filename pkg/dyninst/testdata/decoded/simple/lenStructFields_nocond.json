@@ -1,0 +1,266 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.lenStructFields",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.lenStructFields",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 455
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 135
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "lenStructFields_nocond",
+          "location": {
+            "method": "main.lenStructFields"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "main.lenFields",
+                "fields": {
+                  "S": {
+                    "type": "string",
+                    "value": "hello"
+                  },
+                  "Items": {
+                    "type": "[]int",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "int",
+                        "value": "1"
+                      },
+                      {
+                        "type": "int",
+                        "value": "2"
+                      },
+                      {
+                        "type": "int",
+                        "value": "3"
+                      }
+                    ]
+                  },
+                  "Dict": {
+                    "type": "map[string]int",
+                    "size": "2",
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "a"
+                        },
+                        {
+                          "type": "int",
+                          "value": "1"
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "b"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        }
+                      ]
+                    ]
+                  },
+                  "PtrStr": {
+                    "type": "*string",
+                    "address": "[addr]",
+                    "value": "hello"
+                  },
+                  "PtrSlice": {
+                    "type": "*[]int",
+                    "address": "[addr]",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "int",
+                        "value": "1"
+                      },
+                      {
+                        "type": "int",
+                        "value": "2"
+                      },
+                      {
+                        "type": "int",
+                        "value": "3"
+                      }
+                    ]
+                  },
+                  "pad": {
+                    "type": "[3]int16",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      }
+                    ]
+                  }
+                }
+              },
+              "tag": {
+                "type": "string",
+                "value": "match"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.lenStructFields",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.lenStructFields",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 452
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 139
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "lenStructFields_nocond",
+          "location": {
+            "method": "main.lenStructFields"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "main.lenFields",
+                "fields": {
+                  "S": {
+                    "type": "string",
+                    "value": ""
+                  },
+                  "Items": {
+                    "type": "[]int",
+                    "isNull": true
+                  },
+                  "Dict": {
+                    "type": "map[string]int",
+                    "isNull": true
+                  },
+                  "PtrStr": {
+                    "type": "*string",
+                    "address": "[addr]",
+                    "value": ""
+                  },
+                  "PtrSlice": {
+                    "type": "*[]int",
+                    "isNull": true
+                  },
+                  "pad": {
+                    "type": "[3]int16",
+                    "size": "3",
+                    "elements": [
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      },
+                      {
+                        "type": "int16",
+                        "value": "0"
+                      }
+                    ]
+                  }
+                }
+              },
+              "tag": {
+                "type": "string",
+                "value": "miss"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: maximum call count exceeded"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

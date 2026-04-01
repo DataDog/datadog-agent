@@ -18,7 +18,7 @@
           {
             "function": "main.intArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 123
+            "lineNumber": 162
           },
           {
             "function": "main.main",
@@ -56,6 +56,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
