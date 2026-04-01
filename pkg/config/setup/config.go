@@ -349,8 +349,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	initCommonWithServerless(config)
 
-	// Flight recorder: forwards signal data over Unix socket to the Rust flightrecorder sidecar
-	config.BindEnvAndSetDefault("flightrecorder.enabled", false)
+	// Flight recorder: forwards signal data over Unix socket to the Rust flightrecorder sidecar.
+	// Activates automatically when the sidecar socket is present.
 	config.BindEnvAndSetDefault("flightrecorder.socket_path", "/var/run/flightrecorder/pipeline.sock")
 	config.BindEnvAndSetDefault("flightrecorder.flush_interval", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("flightrecorder.point_buffer_capacity", 20000) // Compact metric points (32 bytes each)

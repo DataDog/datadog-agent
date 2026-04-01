@@ -6,6 +6,8 @@
 package flightrecorderimpl
 
 import (
+	"context"
+	"runtime/pprof"
 	"sync"
 	"time"
 )
@@ -120,7 +122,9 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		stopCh:       make(chan struct{}),
 	}
 	b.wg.Add(1)
-	go b.flushLoop()
+	go pprof.Do(context.Background(), pprof.Labels("component", "flightrecorder", "goroutine", "flush"), func(_ context.Context) {
+		b.flushLoop()
+	})
 	return b
 }
 
