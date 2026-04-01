@@ -317,9 +317,6 @@ include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/libpcap:libpcap.MODULE.bazel")
-
-# buildifier: leave-alone
 include("//deps/secret_connector:secret_connector.MODULE.bazel")
 
 # buildifier: leave-alone
