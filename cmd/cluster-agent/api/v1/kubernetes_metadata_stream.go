@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -91,8 +92,13 @@ func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 
 // StreamKubeMetadata streams pod-to-service mappings and namespace metadata to
 // the requesting node agent.
-func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStreamRequest, stream pb.AgentSecure_StreamKubeMetadataServer) error {
+func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStreamRequest, stream pb.AgentSecure_StreamKubeMetadataServer) (retErr error) {
 	nodeName := req.GetNodeName()
+
+	sessionSpan, ctx := tracer.StartSpanFromContext(stream.Context(), "cluster_agent.metadata_stream.session",
+		tracer.Tag("node_name", nodeName),
+	)
+	defer func() { sessionSpan.Finish(tracer.WithError(retErr)) }()
 
 	podServicesNotifyCh := srv.store.Subscribe(nodeName)
 	defer srv.store.Unsubscribe(nodeName, podServicesNotifyCh)
@@ -114,7 +120,6 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	ticker := time.NewTicker(keepAliveInterval)
 	defer ticker.Stop()
 
-	ctx := stream.Context()
 	for {
 		select {
 		case <-ctx.Done():
@@ -130,12 +135,17 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState: false,
 				Mappings:    podServiceMappingsDiff,
 			}
+			sendSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_diff",
+				tracer.Tag("event_type", "pod_services"),
+			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending pod-service metadata diff for node %s: %s", nodeName, err)
+				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			sendSpan.Finish()
 			lastSentPodServicesState = currentPodServiceMappingsState
 			ticker.Reset(keepAliveInterval)
 
@@ -149,23 +159,31 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState:       false,
 				NamespaceMetadata: namespacesDiff,
 			}
+			sendSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_diff",
+				tracer.Tag("event_type", "namespaces"),
+			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending namespace metadata diff for node %s: %s", nodeName, err)
+				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			sendSpan.Finish()
 			lastSentNamespacesState = currentNamespacesState
 			ticker.Reset(keepAliveInterval)
 
 		case <-ticker.C:
 			// Send empty keepalive
+			keepaliveSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_keepalive")
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(&pb.KubeMetadataStreamResponse{})
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending kube metadata keepalive for node %s: %s", nodeName, err)
+				keepaliveSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			keepaliveSpan.Finish()
 		}
 	}
 }
