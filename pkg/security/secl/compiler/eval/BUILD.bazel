@@ -5,9 +5,7 @@ go_library(
     srcs = [
         "cidr.go",
         "context.go",
-        "context_regular.go",
         "dns_linux.go",
-        "dns_others.go",
         "errors.go",
         "eval.go",
         "eval_operators.go",
@@ -28,7 +26,6 @@ go_library(
         "state.go",
         "strings.go",
         "strings_linux.go",
-        "strings_others.go",
         "utils.go",
         "variables.go",
     ],
@@ -54,6 +51,8 @@ go_library(
 go_test(
     name = "eval_test",
     srcs = [
+        "context_regular.go",
+        "dns_others.go",
         "eval_test.go",
         "glob_test.go",
         "model_test.go",
@@ -61,6 +60,7 @@ go_test(
         "oo_glob_cmp_test.go",
         "pattern_test.go",
         "strings_linux_test.go",
+        "strings_others.go",
         "strings_test.go",
     ],
     embed = [":eval"],

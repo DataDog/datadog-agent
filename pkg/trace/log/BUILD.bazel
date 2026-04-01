@@ -3,7 +3,6 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "log",
     srcs = [
-        "buflogger.go",
         "logger.go",
         "throttled.go",
     ],
@@ -14,7 +13,10 @@ go_library(
 
 go_test(
     name = "log_test",
-    srcs = ["throttled_test.go"],
+    srcs = [
+        "buflogger.go",
+        "throttled_test.go",
+    ],
     embed = [":log"],
     gotags = ["test"],  # keep
     deps = ["@com_github_stretchr_testify//assert"],

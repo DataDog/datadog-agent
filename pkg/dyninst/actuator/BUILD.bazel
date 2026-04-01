@@ -1,16 +1,30 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
     name = "actuator",
     srcs = [
+        "actuator.go",
+        "debug_info.go",
+        "dependencies.go",
         "doc.go",
+        "errors.go",
+        "process.go",
         "processstate_string.go",
+        "program.go",
         "programstate_string.go",
+        "queue.go",
+        "state.go",
         "state_enums.go",
+        "state_events.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/actuator",
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/ir",
+        "@com_github_datadog_datadog_agent_pkg_util_log//:log",
+        "@org_golang_x_time//rate",
+    ],
 )
 
 go_stringer(
@@ -27,4 +41,30 @@ go_stringer(
     output = "programstate_string.go",
     trimprefix = "programState",
     types = ["programState"],
+)
+
+go_test(
+    name = "actuator_test",
+    srcs = [
+        "debug_info_test.go",
+        "main_test.go",
+        "queue_test.go",
+        "state_effects_test.go",
+        "state_event_yaml_test.go",
+        "state_events_test.go",
+        "state_helpers_test.go",
+        "state_property_test.go",
+        "state_snapshot_test.go",
+        "state_validate_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":actuator"],
+    deps = [
+        "//pkg/dyninst/ir",
+        "//pkg/dyninst/rcjson",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@org_uber_go_goleak//:goleak",
+    ],
 )
