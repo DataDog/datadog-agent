@@ -36,10 +36,8 @@ from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
-    build_libpcap,
     check_for_ninja,
     copy_ebpf_and_related_files,
-    get_libpcap_cgo_flags,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -360,15 +358,6 @@ def build_functional_tests(
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
-        build_tags.append("pcap")
-        build_libpcap(ctx, env=env, arch=arch)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
-        # append libpcap cgo-related environment variables to any existing ones
-        for k, v in cgo_flags.items():
-            if k in env:
-                env[k] += f" {v}"
-            else:
-                env[k] = v
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
@@ -793,16 +782,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
 
     env = {"CGO_ENABLED": "1"}
 
-    build_libpcap(ctx, env=env)
-    cgo_flags = get_libpcap_cgo_flags(ctx)
-    # append libpcap cgo-related environment variables to any existing ones
-    for k, v in cgo_flags.items():
-        if k in env:
-            env[k] += f" {v}"
-        else:
-            env[k] = v
-
-    flags = '-tags ebpf_bindata,cgo,pcap'
+    flags = '-tags ebpf_bindata,cgo'
     if verbose:
         flags += " -test.v"
 
