@@ -111,11 +111,11 @@ func (c *fakeCluster) AddSpotNode(name string) {
 	c.nodes = append(c.nodes, &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: map[string]string{spot.KarpenterCapacityTypeLabel: spot.KarpenterCapacityTypeSpot},
+			Labels: map[string]string{spot.SpotNodeLabelKey: spot.SpotNodeLabelValue},
 		},
 		Spec: corev1.NodeSpec{
 			Taints: []corev1.Taint{
-				{Key: spot.KarpenterCapacityTypeLabel, Value: spot.KarpenterCapacityTypeSpot, Effect: corev1.TaintEffectNoSchedule},
+				{Key: spot.SpotNodeTaintKey, Value: spot.SpotNodeTaintValue, Effect: corev1.TaintEffectNoSchedule},
 			},
 		},
 	})

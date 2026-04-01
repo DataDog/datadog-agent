@@ -67,6 +67,14 @@ func (s *TestScheduler) IsSpotSchedulingDisabledForOwner(namespace, kind, name s
 	return cfg.isDisabled(s.clock.Now())
 }
 
+// Spot node selector and taint exported for tests.
+const (
+	SpotNodeLabelKey   = spotNodeLabelKey
+	SpotNodeLabelValue = spotNodeLabelValue
+	SpotNodeTaintKey   = spotNodeTaintKey
+	SpotNodeTaintValue = spotNodeTaintValue
+)
+
 // IsSpotAssigned reports whether the pod is assigned to a spot instance.
 func IsSpotAssigned(pod *workloadmeta.KubernetesPod) bool {
 	return isSpotAssigned(pod)

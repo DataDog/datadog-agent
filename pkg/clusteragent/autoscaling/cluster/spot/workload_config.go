@@ -73,7 +73,7 @@ func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig C
 		0, // no resync
 		metav1.NamespaceAll,
 		func(opts *metav1.ListOptions) {
-			opts.LabelSelector = SpotEnabledLabelSelector
+			opts.LabelSelector = SpotEnabledLabelKey + "=" + SpotEnabledLabelValue
 		},
 	)
 

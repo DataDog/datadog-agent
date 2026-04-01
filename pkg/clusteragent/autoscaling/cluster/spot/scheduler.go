@@ -237,15 +237,24 @@ func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	return ok
 }
 
+// Spot node label and taint.
+// Currently Karpenter-specific.
+const (
+	spotNodeLabelKey   = "karpenter.sh/capacity-type"
+	spotNodeLabelValue = "spot"
+	spotNodeTaintKey   = "karpenter.sh/capacity-type"
+	spotNodeTaintValue = "spot"
+)
+
 func assignToSpot(pod *corev1.Pod) {
 	if pod.Spec.NodeSelector == nil {
 		pod.Spec.NodeSelector = map[string]string{}
 	}
-	pod.Spec.NodeSelector[KarpenterCapacityTypeLabel] = KarpenterCapacityTypeSpot
+	pod.Spec.NodeSelector[spotNodeLabelKey] = spotNodeLabelValue
 	pod.Spec.Tolerations = append(pod.Spec.Tolerations, corev1.Toleration{
-		Key:      KarpenterCapacityTypeLabel,
+		Key:      spotNodeTaintKey,
 		Operator: corev1.TolerationOpEqual,
-		Value:    KarpenterCapacityTypeSpot,
+		Value:    spotNodeTaintValue,
 		Effect:   corev1.TaintEffectNoSchedule,
 	})
 
