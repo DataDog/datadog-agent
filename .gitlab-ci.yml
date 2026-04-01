@@ -1376,6 +1376,10 @@ workflow:
         - .gitlab-ci.yml
         - release.json
         - .gitlab/build/package_build/**/*
+        - MODULE.bazel
+        - deps/**/*
+        - bazel/**/*
+        - .bazelrc
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
