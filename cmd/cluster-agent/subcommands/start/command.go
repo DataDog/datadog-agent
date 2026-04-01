@@ -87,7 +87,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
-	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
@@ -559,7 +558,7 @@ func start(log log.Component,
 		}
 	}
 
-	var sh admspot.Handler
+	var sh clusterspot.PodHandler
 	if config.GetBool("autoscaling.cluster.spot.enabled") {
 		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, wmeta, apiCl, le.IsLeader); err == nil {
 			sh = scheduler

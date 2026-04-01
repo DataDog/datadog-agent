@@ -38,7 +38,7 @@ var defaultTestConfig = spot.Config{
 
 // runTestScheduler creates and starts a Scheduler for testing.
 // Returns the scheduler and a fake clock.
-func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.Scheduler, *clocktesting.FakeClock) {
+func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.TestScheduler, *clocktesting.FakeClock) {
 	clk := clocktesting.NewFakeClock(time.Now())
 
 	scheduler := spot.NewTestScheduler(defaultTestConfig, clk, cluster.WLM(), cluster.EvictPodByName, cluster.DynamicClient())

@@ -17,15 +17,19 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// StartSpotScheduling creates and starts the spot scheduler, returning it for use in the admission webhook.
-func StartSpotScheduling(ctx context.Context, wlm workloadmeta.Component, apiCl *apiserver.APIClient, isLeaderFunc func() bool) (*Scheduler, error) {
+// StartSpotScheduling creates and starts the spot scheduler, returning a PodHandler for use in the admission webhook.
+func StartSpotScheduling(ctx context.Context, wlm workloadmeta.Component, apiCl *apiserver.APIClient, isLeaderFunc func() bool) (PodHandler, error) {
 	if apiCl == nil {
 		return nil, errors.New("impossible to start spot scheduling without valid APIClient")
 	}
 
 	cfg := ReadConfig(pkgconfigsetup.Datadog())
-	scheduler := NewScheduler(cfg, clock.RealClock{}, wlm, apiCl.Cl, apiCl.DynamicInformerCl, isLeaderFunc)
-	scheduler.Start(ctx)
+	s := newScheduler(cfg, clock.RealClock{}, wlm,
+		newKubePodEvictor(apiCl.Cl),
+		newKubeWorkloadPatcher(apiCl.DynamicInformerCl),
+		apiCl.DynamicInformerCl,
+		isLeaderFunc)
+	s.Start(ctx)
 
-	return scheduler, nil
+	return s, nil
 }

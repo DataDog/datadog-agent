@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
-	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -25,8 +24,17 @@ const (
 	rebalanceInterval             = 10 * time.Second
 )
 
-// Scheduler schedules eligible pods onto spot instances.
-type Scheduler struct {
+// PodHandler handles pod admission events for spot scheduling.
+type PodHandler interface {
+	// PodCreated is called when a pod is created via admission webhook.
+	// It returns true if the pod was mutated to target a spot instance.
+	PodCreated(pod *corev1.Pod) (bool, error)
+	// PodDeleted is called when a pod is deleted via admission webhook.
+	PodDeleted(pod *corev1.Pod)
+}
+
+// scheduler schedules eligible pods onto spot instances.
+type scheduler struct {
 	config      Config
 	clock       clock.WithTicker
 	wlm         workloadmeta.Component
@@ -38,18 +46,8 @@ type Scheduler struct {
 	synced      chan struct{}
 }
 
-// NewScheduler creates a new spot Scheduler.
-func NewScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, client k8sclient.Interface, dynamicClient dynamic.Interface, isLeader func() bool) *Scheduler {
-	return newScheduler(
-		cfg, clk, wlm,
-		newKubePodEvictor(client),
-		newKubeWorkloadPatcher(dynamicClient),
-		dynamicClient,
-		isLeader)
-}
-
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, isLeader func() bool) *Scheduler {
-	s := &Scheduler{
+func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, isLeader func() bool) *scheduler {
+	s := &scheduler{
 		config:      cfg,
 		clock:       clk,
 		wlm:         wlm,
@@ -64,7 +62,7 @@ func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 }
 
 // Start launches goroutines to track pod updates and check for on-demand fallback and returns immediately.
-func (s *Scheduler) Start(ctx context.Context) {
+func (s *scheduler) Start(ctx context.Context) {
 	log.Infof("Starting spot scheduler: %s", s.config)
 
 	// Run in separate goroutines to not not delay pod updates processing.
@@ -75,7 +73,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 // trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
-func (s *Scheduler) trackPodUpdates(ctx context.Context) {
+func (s *scheduler) trackPodUpdates(ctx context.Context) {
 	// Wait for the config store to sync before subscribing to workloadmeta events.
 	// The WLM subscription delivers an initial event bundle for all existing pods filtered by spotEligibleFilter.
 	// If the config store is not yet synced, spotEligibleFilter returns false for all pods
@@ -113,7 +111,7 @@ func (s *Scheduler) trackPodUpdates(ctx context.Context) {
 }
 
 // checkOnDemandFallback periodically checks for pending spot pods and triggers on-demand fallback if needed.
-func (s *Scheduler) checkOnDemandFallback(ctx context.Context) {
+func (s *scheduler) checkOnDemandFallback(ctx context.Context) {
 	ticker := s.clock.NewTicker(checkOnDemandFallbackInterval)
 	defer ticker.Stop()
 
@@ -131,7 +129,7 @@ func (s *Scheduler) checkOnDemandFallback(ctx context.Context) {
 
 // rebalance periodically evicts pods that are over the desired spot/on-demand ratio,
 // allowing the owning controller to recreate them with the correct scheduling.
-func (s *Scheduler) rebalance(ctx context.Context) {
+func (s *scheduler) rebalance(ctx context.Context) {
 	ticker := s.clock.NewTicker(rebalanceInterval)
 	defer ticker.Stop()
 
@@ -160,7 +158,7 @@ func (s *Scheduler) rebalance(ctx context.Context) {
 // It decides whether a pod should be scheduled on spot and updates it accordingly.
 // On-demand pods are left unchanged for resilience: if the webhook is unavailable,
 // pods are still scheduled normally and no other component depend on modifications.
-func (s *Scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
+func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 	unchanged := func() (bool, error) {
 		return false, nil
 	}
@@ -192,7 +190,7 @@ func (s *Scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 
 // PodDeleted is called via admission webhook.
 // It stops tracking the pod.
-func (s *Scheduler) PodDeleted(pod *corev1.Pod) {
+func (s *scheduler) PodDeleted(pod *corev1.Pod) {
 	if !s.isSpotEligible(pod) {
 		return
 	}
@@ -209,7 +207,7 @@ func (s *Scheduler) PodDeleted(pod *corev1.Pod) {
 }
 
 // getSpotConfig returns the spot config for the given owner.
-func (s *Scheduler) getSpotConfig(owner podOwner) (workloadSpotConfig, bool) {
+func (s *scheduler) getSpotConfig(owner podOwner) (workloadSpotConfig, bool) {
 	workload, ok := resolveOwnerWorkload(owner)
 	if !ok {
 		return workloadSpotConfig{}, false
@@ -217,7 +215,7 @@ func (s *Scheduler) getSpotConfig(owner podOwner) (workloadSpotConfig, bool) {
 	return s.configStore.getConfig(workload)
 }
 
-func (s *Scheduler) isSpotEligible(pod *corev1.Pod) bool {
+func (s *scheduler) isSpotEligible(pod *corev1.Pod) bool {
 	owner, hasOwner := resolveCoreV1PodOwner(pod)
 	if !hasOwner {
 		return false
@@ -226,7 +224,7 @@ func (s *Scheduler) isSpotEligible(pod *corev1.Pod) bool {
 	return ok
 }
 
-func (s *Scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
+func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	pod, ok := entity.(*workloadmeta.KubernetesPod)
 	if !ok {
 		return false
@@ -258,7 +256,7 @@ func assignToSpot(pod *corev1.Pod) {
 }
 
 // checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and evicts pending pods for affected workloads.
-func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time) {
+func (s *scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time) {
 	pending := s.tracker.getPendingSpotPods(now.Add(-s.config.ScheduleTimeout))
 	if len(pending) == 0 {
 		return
@@ -310,7 +308,7 @@ func groupByWorkload(pods map[string]pendingSpotPod) (map[workload]map[string]pe
 }
 
 // disableSpotScheduling disables spot scheduling for the workload.
-func (s *Scheduler) disableSpotScheduling(ctx context.Context, workload workload, now time.Time) error {
+func (s *scheduler) disableSpotScheduling(ctx context.Context, workload workload, now time.Time) error {
 	disabledUntil, updated := s.configStore.disable(workload, now, now.Add(s.config.FallbackDuration))
 	if !updated {
 		return nil

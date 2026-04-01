@@ -22,16 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 )
-
-// Handler handles pod admission for spot scheduling.
-type Handler interface {
-	// PodCreated is called when a pod is created.
-	// It returns true if the pod was mutated to target a spot instance.
-	PodCreated(pod *corev1.Pod) (bool, error)
-	// PodDeleted is called when a pod is deleted.
-	PodDeleted(pod *corev1.Pod)
-}
 
 const (
 	webhookName     = "spot-scheduling"
@@ -46,11 +38,11 @@ type Webhook struct {
 	resources       map[string][]string
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	handler         Handler
+	handler         clusterspot.PodHandler
 }
 
 // NewWebhook returns a new spot-scheduling Webhook.
-func NewWebhook(datadogConfig config.Component, handler Handler) *Webhook {
+func NewWebhook(datadogConfig config.Component, handler clusterspot.PodHandler) *Webhook {
 	return &Webhook{
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("autoscaling.cluster.spot.enabled"),

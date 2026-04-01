@@ -18,8 +18,11 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// NewTestScheduler creates a Scheduler for testing.
-func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *Scheduler {
+// TestScheduler is an alias for the unexported scheduler type, exposed for testing.
+type TestScheduler = scheduler
+
+// NewTestScheduler creates a scheduler for testing.
+func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
 	isLeader := func() bool {
 		return true
 	}
@@ -33,7 +36,7 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 }
 
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given owner.
-func (s *Scheduler) TrackedCounts(namespace, kind, name string) (total, spot int) {
+func (s *TestScheduler) TrackedCounts(namespace, kind, name string) (total, spot int) {
 	s.tracker.mu.RLock()
 	defer s.tracker.mu.RUnlock()
 	owner := podOwner{Kind: kind, Namespace: namespace, Name: name}
@@ -44,18 +47,18 @@ func (s *Scheduler) TrackedCounts(namespace, kind, name string) (total, spot int
 }
 
 // WaitSynced blocks until the workload config store is synced and the scheduler has subscribed to workloadmeta events.
-func (s *Scheduler) WaitSynced() {
+func (s *TestScheduler) WaitSynced() {
 	<-s.synced
 }
 
 // Config returns the scheduler configuration.
-func (s *Scheduler) Config() Config {
+func (s *TestScheduler) Config() Config {
 	return s.config
 }
 
 // IsSpotSchedulingDisabledForOwner returns whether spot scheduling is currently disabled
 // for the workload that owns the given resource.
-func (s *Scheduler) IsSpotSchedulingDisabledForOwner(namespace, kind, name string) bool {
+func (s *TestScheduler) IsSpotSchedulingDisabledForOwner(namespace, kind, name string) bool {
 	owner := podOwner{Kind: kind, Namespace: namespace, Name: name}
 	cfg, ok := s.getSpotConfig(owner)
 	if !ok {

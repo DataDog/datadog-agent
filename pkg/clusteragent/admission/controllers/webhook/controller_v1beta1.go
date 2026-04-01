@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -59,7 +59,7 @@ func NewControllerV1beta1(
 	config Config,
 	wmeta workloadmeta.Component,
 	pp workload.PodPatcher,
-	sh admspot.Handler,
+	sh clusterspot.PodHandler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
 ) *ControllerV1beta1 {

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +61,7 @@ func NewController(
 	config Config,
 	wmeta workloadmeta.Component,
 	pp workload.PodPatcher,
-	sh admspot.Handler,
+	sh clusterspot.PodHandler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
 ) Controller {
@@ -105,7 +106,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh admspot.Handler) []Webhook {
+func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
