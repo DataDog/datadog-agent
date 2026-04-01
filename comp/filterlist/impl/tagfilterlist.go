@@ -69,6 +69,8 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 			tags = append(tags, murmur3.StringSum64(tag))
 		}
 
+		slices.Sort(tags)
+
 		var act action
 		switch v.Action {
 		case "include":
@@ -94,7 +96,7 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 
 // tagName extracts the tag name portion from the tag.
 func tagName(tag string) string {
-	tagNamePos := strings.Index(tag, ":")
+	tagNamePos := strings.IndexByte(tag, ':')
 	if tagNamePos < 0 {
 		tagNamePos = len(tag)
 	}
@@ -113,7 +115,8 @@ func (m tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, b
 
 	keepTag := func(tag string) bool {
 		hashedTag := murmur3.StringSum64(tagName(tag))
-		return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
+		_, found := slices.BinarySearch(tm.tags, hashedTag)
+		return found != bool(tm.action)
 	}
 
 	return keepTag, ok
