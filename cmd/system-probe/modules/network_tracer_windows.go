@@ -8,11 +8,18 @@
 package modules
 
 import (
+	"context"
+	"net/http"
 	"os"
+	"os/exec"
+	"strings"
+	"syscall"
 	"time"
 
+	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
@@ -26,6 +33,24 @@ var NetworkTracer = &module.Factory{
 	Fn:   createNetworkTracerModule,
 }
 
+func logIISSiteTimeouts() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command",
+		`Import-Module WebAdministration; Get-ChildItem IIS:\Sites | Select-Object name, @{n="ConnectionTimeout";e={$_.limits.connectionTimeout}} | Format-Table -AutoSize | Out-String`)
+	// Prevent a console window flash when system-probe is run interactively during development.
+	// No effect in production where the service runs in session 0.
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000} // CREATE_NO_WINDOW
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Debugf("failed to query IIS site timeouts: %v", err)
+		return
+	}
+	if result := strings.TrimSpace(string(out)); result != "" {
+		log.Infof("IIS site connection timeouts:\n%s", result)
+	}
+}
+
 func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 	if !nt.cfg.DirectSend {
 		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
@@ -35,5 +60,18 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 			os.Exit(1)
 		})
 	}
+
+	go logIISSiteTimeouts()
+
+	httpMux.HandleFunc("/iis_tags", func(w http.ResponseWriter, req *http.Request) {
+		cache := httpprotocol.GetIISTagsCache()
+		utils.WriteAsJSON(req, w, cache, utils.CompactOutput)
+	})
+
+	httpMux.HandleFunc("/process_cache_tags", func(w http.ResponseWriter, req *http.Request) {
+		tags := nt.tracer.GetProcessCacheTags()
+		utils.WriteAsJSON(req, w, tags, utils.CompactOutput)
+	})
+
 	return nil
 }
