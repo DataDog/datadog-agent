@@ -133,6 +133,7 @@ def submit_gensim_eks(
 
     # ── 2. Validate episode directories and pinned SHAs ───────────────────
     gensim_repo_path = _get_gensim_repo_path()
+    changed_episodes = []
     for ep_name, scen_name, pinned_sha in episode_pairs:
         ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
         chart_dir = ep_dir / "chart"
@@ -157,11 +158,31 @@ def submit_gensim_eks(
             else:
                 actual_sha = sha_buf.getvalue().strip()
                 if actual_sha != pinned_sha:
-                    tool.warn(
-                        f"Episode '{ep_name}' has changed since the manifest was pinned "
-                        f"(expected {pinned_sha[:12]}, got {actual_sha[:12]}). "
-                        f"Results may not be comparable to previous runs."
-                    )
+                    changed_episodes.append((ep_name, pinned_sha, actual_sha, rel_path))
+
+    if changed_episodes:
+        tool.warn("\nThe following episodes have changed since the manifest was pinned:")
+        for ep_name, pinned_sha, actual_sha, _ in changed_episodes:
+            tool.warn(f"\n  {ep_name}")
+            diff_buf = StringIO()
+            ctx.run(
+                f"git -C {gensim_repo_path} diff-tree -r {pinned_sha} {actual_sha}",
+                out_stream=diff_buf,
+                hide="out",
+                warn=True,
+            )
+            for line in diff_buf.getvalue().strip().splitlines():
+                # Format: :<old_mode> <new_mode> <old_sha> <new_sha> <status>\t<path>
+                parts = line.split("\t", 1)
+                if len(parts) == 2:
+                    tool.warn(f"    modified: {parts[1]}")
+        tool.warn(
+            "\nResults may not be comparable to previous runs. "
+            "Run `inv aws.eks.gensim.update-manifest-shas` after a successful run to re-pin."
+        )
+        answer = input("\nContinue anyway? [y/N]: ").strip().lower()
+        if answer != "y":
+            raise Exit("Aborted.")
 
     # ── 3. Capture gensim-episodes git SHA ────────────────────────────────
     sha_buf = StringIO()
@@ -468,6 +489,95 @@ def destroy_gensim_eks(
         inv aws.eks.gensim.destroy --stack-name=my-gensim
     """
     destroy(ctx, scenario_name=scenario_name, stack=stack_name, config_path=config_path)
+
+
+_EVAL_MANIFEST_PATH = Path(__file__).parent.parent.parent.parent / "q_branch" / "gensim-eval-scenarios.json"
+
+
+@task
+def update_manifest_shas_gensim_eks(ctx: Context) -> None:
+    """
+    Update pinned episode SHAs in the eval manifest to match the current gensim-episodes checkout.
+
+    Only updates entries whose SHA has changed. Leaves unchanged entries untouched.
+    Review and commit the result.
+
+    Example:
+        inv aws.eks.gensim.update-manifest-shas
+    """
+    if not _EVAL_MANIFEST_PATH.exists():
+        raise Exit(f"Eval manifest not found: {_EVAL_MANIFEST_PATH}")
+
+    try:
+        entries = json.loads(_EVAL_MANIFEST_PATH.read_text())
+    except json.JSONDecodeError as e:
+        raise Exit(f"Failed to parse manifest: {e}") from e
+    if not isinstance(entries, list):
+        raise Exit(f"Manifest must be a JSON array, got {type(entries).__name__}.")
+
+    gensim_repo_path = _get_gensim_repo_path()
+
+    # ── Check gensim-episodes checkout state ──────────────────────────────
+    branch_buf = StringIO()
+    ctx.run(
+        f"git -C {gensim_repo_path} rev-parse --abbrev-ref HEAD",
+        out_stream=branch_buf,
+        hide="out",
+    )
+    current_branch = branch_buf.getvalue().strip()
+
+    ctx.run(f"git -C {gensim_repo_path} fetch origin main", hide=True, warn=True)
+    behind_buf = StringIO()
+    ctx.run(
+        f"git -C {gensim_repo_path} rev-list --count HEAD..origin/main",
+        out_stream=behind_buf,
+        hide="out",
+        warn=True,
+    )
+    behind_count = int(behind_buf.getvalue().strip() or "0")
+
+    warnings = []
+    if current_branch != "main":
+        warnings.append(f"on '{current_branch}', not main")
+    if behind_count > 0:
+        warnings.append(f"behind origin/main by {behind_count} commit(s)")
+
+    if warnings:
+        tool.warn(f"Warning: gensim-episodes is {' and '.join(warnings)}.")
+        tool.warn("SHAs pinned from this state may not match what others have locally.")
+        answer = input("Continue anyway? [y/N]: ").strip().lower()
+        if answer != "y":
+            raise Exit("Aborted.")
+
+    updated = 0
+    for entry in entries:
+        ep_name = entry.get("episode", "").strip()
+        if not ep_name:
+            continue
+        ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
+        rel_path = ep_dir.relative_to(gensim_repo_path)
+        sha_buf = StringIO()
+        result = ctx.run(
+            f"git -C {gensim_repo_path} rev-parse HEAD:{rel_path}",
+            out_stream=sha_buf,
+            hide="out",
+            warn=True,
+        )
+        if not result.ok:
+            tool.warn(f"Could not resolve SHA for '{ep_name}'. Skipping.")
+            continue
+        actual_sha = sha_buf.getvalue().strip()
+        if actual_sha != entry["sha"]:
+            tool.info(f"Updated {ep_name}: {entry['sha'][:12]} -> {actual_sha[:12]}")
+            entry["sha"] = actual_sha
+            updated += 1
+
+    if updated == 0:
+        tool.info("All SHAs are already up to date.")
+        return
+
+    _EVAL_MANIFEST_PATH.write_text(json.dumps(entries, indent=2) + "\n")
+    tool.info(f"\nUpdated {updated} SHA(s) in {_EVAL_MANIFEST_PATH}. Review and commit the changes.")
 
 
 # -- Helpers -------------------------------------------------------------------
