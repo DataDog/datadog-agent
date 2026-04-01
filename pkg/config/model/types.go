@@ -65,8 +65,8 @@ var Sources = []Source{
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
-	SourceAgentRuntime,
 	SourceLocalConfigProcess,
+	SourceAgentRuntime,
 	SourceRC,
 	SourceCLI,
 }
@@ -81,8 +81,8 @@ var sourcesPriority = map[Source]int{
 	SourceFile:               3,
 	SourceEnvVar:             4,
 	SourceFleetPolicies:      5,
-	SourceAgentRuntime:       6,
-	SourceLocalConfigProcess: 7,
+	SourceLocalConfigProcess: 6,
+	SourceAgentRuntime:       7,
 	SourceRC:                 8,
 	SourceCLI:                9,
 }
