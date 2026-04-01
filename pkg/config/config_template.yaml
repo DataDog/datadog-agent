@@ -4929,16 +4929,13 @@ api_key:
 #
 #   self_enroll: true
 
-#   # @param actions_allowlist - list of strings - optional - default: {{ if eq .OS "windows" }}["com.datadoghq.script.runPredefinedPowershellScript"]{{ else }}["com.datadoghq.script.runPredefinedScript"]{{ end }}
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: {{ if eq .OS "windows" }}"com.datadoghq.script.runPredefinedPowershellScript"{{ else }}"com.datadoghq.script.runPredefinedScript"{{ end }}
+#   # @param actions_allowlist - list of strings - optional
+#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
 #   # List of actions that the Private Action Runner is allowed to execute.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
 #
 #   actions_allowlist:
-{{ if (eq .OS "windows") -}}
-#     - com.datadoghq.script.runPredefinedPowershellScript
-{{ else -}}
-#     - com.datadoghq.script.runPredefinedScript
-{{ end -}}
+#     - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
+#     - com.datadoghq.script.runPredefinedScript                       # on Linux and Darwin
 {{ end -}}
