@@ -30,6 +30,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "x={first: one, second: two, third: three, fourth: four, fifth: five, ...}}"
+    "message": "x={first: one, second: two, third: three, fourth: four, fifth: five, ...}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

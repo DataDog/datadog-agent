@@ -57,6 +57,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "testInlinedFuncFromOtherPackage"
+    "message": "testInlinedFuncFromOtherPackage",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -26,7 +26,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/pkg/sftp v1.13.9
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.83.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0

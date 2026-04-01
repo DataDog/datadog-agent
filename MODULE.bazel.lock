@@ -30,7 +30,6 @@
     "https://bcr.bazel.build/modules/apple_support/2.3.0/source.json": "d99b0a50918c4484856d773026b2fd60a694668c70fc0e19d592786dc7e5e469",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.31.2/MODULE.bazel": "7bee702b4862612f29333590f4b658a5832d433d6f8e4395f090e8f4e85d442f",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.38.0/MODULE.bazel": "6307fec451ba9962c1c969eb516ebfe1e46528f7fa92e1c9ac8646bef4cdaa3f",
-    "https://bcr.bazel.build/modules/aspect_bazel_lib/1.40.2/MODULE.bazel": "94faac347405327a3bb58382da0f8be7e0f266a4ab2ee094aa34aada2720a672",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.40.3/MODULE.bazel": "668e6bcb4d957fc0e284316dba546b705c8d43c857f87119619ee83c4555b859",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.14.0/MODULE.bazel": "2b31ffcc9bdc8295b2167e07a757dbbc9ac8906e7028e5170a3708cecaac119f",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.19.3/MODULE.bazel": "253d739ba126f62a5767d832765b12b59e9f8d2bc88cc1572f4a73e46eb298ca",
@@ -386,6 +385,19 @@
         }
       }
     },
+    "//bazel/tools:bazelisk_check.bzl%bazelisk_check": {
+      "general": {
+        "bzlTransitiveDigest": "vIQYQXzy/Q+owB/yz0XcUOwOyn9G0aQIpTxYlBfiCcQ=",
+        "usagesDigest": "CKsn1dtme4oztWA0td45Tt6oCZK6MZnpIocVVZK14sU=",
+        "recordedInputs": [
+          "FILE:@@//.bazelversion 59b003a1f3465ae6084432329f8265e860cbaac0bd4a92a4f3ea6b979a6eed66",
+          "FILE:@@//tools/bazel 6804bf06e2253629bf30d0a777fc8baf943b50529d230a059f1dc46296dbf4d6",
+          "FILE:@@//tools/bazel.bat c2f0c08f179108517d08b1e34d19b3aabd80458d9e2575f9de08e640ba9b4ac3",
+          "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
+        ],
+        "generatedRepoSpecs": {}
+      }
+    },
     "@@aspect_tools_telemetry+//:extension.bzl%telemetry": {
       "general": {
         "bzlTransitiveDigest": "dnnhvKMf9MIXMulhbhHBblZdDAfAkiSVjApIXpUz9Y8=",
@@ -439,7 +451,7 @@
                 "rules_rs": "0.0.27",
                 "rules_rust": "0.69.0",
                 "rules_rust_prost": "0.69.0",
-                "rules_shell": "0.6.1",
+                "rules_shell": "0.7.1",
                 "rules_testing": "0.9.0",
                 "stardoc": "0.7.2",
                 "supply-chain-go": "0.0.6",
