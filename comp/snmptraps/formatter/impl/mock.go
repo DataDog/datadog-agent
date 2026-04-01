@@ -11,22 +11,12 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule provides a dummy formatter that just hashes packets.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newDummy),
-	)
-}
-
-// newDummy creates a new dummy formatter.
-func newDummy() formatter.Component {
+// NewDummyFormatter creates a dummy formatter that just hashes packets, for use in tests.
+func NewDummyFormatter() formatter.Component {
 	return &dummyFormatter{}
 }
 
