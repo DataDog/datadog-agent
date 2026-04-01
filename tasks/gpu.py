@@ -18,6 +18,16 @@ def build_validator_binary(ctx) -> str:
     return VALIDATOR_BINARY
 
 
+def _select_orgs(org: str | None) -> list[tuple[str, str]]:
+    orgs_by_name = {
+        "prod": ("prod", "app.datadoghq.com"),
+        "staging": ("staging", "ddstaging.datadoghq.com"),
+    }
+    if org is not None:
+        return [orgs_by_name[org]]
+    return list(orgs_by_name.values())
+
+
 @task(
     name="validate-metrics",
     help={
@@ -32,15 +42,7 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
     from tasks.libs.gpu.render import render_results
     from tasks.libs.gpu.types import ValidationResults, validation_results_from_dict
 
-    orgs_by_name = {
-        "prod": ("prod", "app.datadoghq.com"),
-        "staging": ("staging", "ddstaging.datadoghq.com"),
-    }
-
-    if org is not None:
-        orgs = [orgs_by_name[org]]
-    else:
-        orgs = list(orgs_by_name.values())
+    orgs = _select_orgs(org)
 
     print("== Building validator binary ==")
     binary_path = build_validator_binary(ctx)
@@ -85,70 +87,30 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
 
 
 @task(
-    name="validate-tags-single-org",
+    name="validate-tags",
     help={
-        "site": "Datadog site (defaults to datadoghq.com)",
+        "window_seconds": "All-tags lookup window in seconds (defaults to 14400 / 4 hours)",
+        "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
         "metric_name_filter": "Only validate metrics whose full name contains this substring",
         "tag_name_filter": "Only validate spec tag names containing this substring",
-        "window_seconds": "All-tags lookup window in seconds (defaults to 14400 / 4 hours)",
         "filter_tags": "Optional all-tags endpoint filter[tags] expression",
     },
 )
-def validate_tags_single_org(
+def validate_tags(
     ctx,
-    site="datadoghq.com",
+    window_seconds=14400,
+    org: str | None = None,
     metric_name_filter=None,
     tag_name_filter=None,
-    window_seconds=14400,
     filter_tags=None,
 ):
     """
-    Validate GPU metric tag values against regexes from tags.yaml for one org.
+    Validate GPU metric tag values against regexes from tags.yaml for the selected Datadog org(s).
     """
     from tasks.libs.gpu.render import render_tag_validation_results
 
+    orgs = _select_orgs(org)
     binary_path = build_validator_binary(ctx)
-    command = [
-        shlex.quote(binary_path),
-        "--mode",
-        "tags",
-        "--site",
-        shlex.quote(site),
-        "--window-seconds",
-        str(int(window_seconds)),
-    ]
-    if metric_name_filter:
-        command.extend(["--metric-name-filter", shlex.quote(metric_name_filter)])
-    if tag_name_filter:
-        command.extend(["--tag-name-filter", shlex.quote(tag_name_filter)])
-    if filter_tags:
-        command.extend(["--filter-tags", shlex.quote(filter_tags)])
-
-    payload = json.loads(ctx.run(" ".join(command), hide=True).stdout)
-    failures = payload.get("failures", {})
-    errors = payload.get("errors", [])
-    render_tag_validation_results(site, failures, errors)
-    if failures or errors:
-        raise Exit(code=1)
-
-
-@task(
-    name="validate-tags-all-dd",
-    help={
-        "metric_name_filter": "Only validate metrics whose full name contains this substring",
-        "tag_name_filter": "Only validate spec tag names containing this substring",
-        "window_seconds": "All-tags lookup window in seconds (defaults to 14400 / 4 hours)",
-        "filter_tags": "Optional all-tags endpoint filter[tags] expression",
-    },
-)
-def validate_tags_all_dd(ctx, metric_name_filter=None, tag_name_filter=None, window_seconds=14400, filter_tags=None):
-    """
-    Validate GPU metric tag values against regexes from tags.yaml for Datadog prod and staging.
-    """
-    from tasks.libs.gpu.render import render_tag_validation_results
-
-    binary_path = build_validator_binary(ctx)
-    orgs = [("prod", "app.datadoghq.com"), ("staging", "ddstaging.datadoghq.com")]
 
     all_failures: dict[str, dict[str, list[str]]] = {}
     org_errors: list[str] = []
