@@ -60,7 +60,6 @@ ALL_TAGS = {
     "orchestrator",
     "osusergo",
     "otlp",
-    "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
@@ -220,7 +219,6 @@ SYSTEM_PROBE_TAGS = {
     "netcgo",
     "npm",
     "nvml",
-    "pcap",
     "zlib",
     "zstd",
     "seclmax",
@@ -267,7 +265,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {
@@ -284,7 +282,7 @@ DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "nvml", "cri", "crio"}
 UNIT_TEST_TAGS = {"test"}
 
 # List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
+UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf"}
 
 # Build type: maps flavor to build tags map
 build_tags = {
