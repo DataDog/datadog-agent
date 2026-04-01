@@ -76,7 +76,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/host-profiler/version
 # gazelle:exclude comp/languagedetection
 # gazelle:exclude comp/logonduration
-# gazelle:exclude comp/logs-library
 # gazelle:exclude comp/logs
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
@@ -194,7 +193,10 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/telemetry
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
-# gazelle:exclude pkg/aggregator
+# gazelle:exclude pkg/aggregator/internal
+# gazelle:exclude pkg/aggregator/mocksender
+# gazelle:exclude pkg/aggregator/sender
+# gazelle:exclude pkg/aggregator/internal
 # gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
