@@ -315,12 +315,27 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/process
 # gazelle:exclude pkg/procmgr
 # Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
-# into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
-# directories share the same go_package ("pkg/proto/pbgo/core"), making
-# per-directory go_proto_library targets impossible. Additionally, some directories
-# (remoteagent, privateactionrunner) contain multiple proto packages which
-# gazelle cannot handle at all.
-# gazelle:exclude pkg/proto/datadog
+# into pkg/proto/pbgo/. Most proto directories share bare (non-module-prefixed)
+# go_package values so Gazelle assigns wrong importpaths for go_proto_library
+# targets there; those targets are harmless duplicates. The exception is
+# pkg/proto/datadog/trace/idx whose go_package is fully qualified
+# ("github.com/DataDog/..."), which causes Gazelle to emit a go_library that
+# has the same importpath as //pkg/proto/pbgo/trace/idx.
+# Additionally, some directories (remoteagent, privateactionrunner) contain
+# multiple proto packages which gazelle cannot handle at all.
+# gazelle:exclude pkg/proto/datadog/api
+# gazelle:exclude pkg/proto/datadog/autodiscovery
+# gazelle:exclude pkg/proto/datadog/dogstatsdhttp
+# gazelle:exclude pkg/proto/datadog/kubemetadata
+# gazelle:exclude pkg/proto/datadog/languagedetection
+# gazelle:exclude pkg/proto/datadog/model
+# gazelle:exclude pkg/proto/datadog/privateactionrunner
+# gazelle:exclude pkg/proto/datadog/process
+# gazelle:exclude pkg/proto/datadog/remoteagent
+# gazelle:exclude pkg/proto/datadog/remoteconfig
+# gazelle:exclude pkg/proto/datadog/sbom
+# gazelle:exclude pkg/proto/datadog/workloadfilter
+# gazelle:exclude pkg/proto/datadog/workloadmeta
 # Vendored proto definitions used only for protoc code-gen, not Bazel builds.
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/redact
@@ -459,6 +474,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
+
+# TODO(agent-build): consider removing below `gazelle:resolve` directives by removing generated pb.go files from source
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
 gazelle(
     name = "gazelle",
     build_tags = ALL_BUILD_TAGS,

@@ -1,4 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules:proto.bzl", "update_proto_pb_go")
+
+update_proto_pb_go(
+    name = "update_pb_go",
+    srcs = [
+        "span.pb.go",
+        "tracer_payload.pb.go",
+    ],
+    go_proto_library = "//pkg/proto/datadog/trace/idx:idx_go_proto",
+)
 
 go_library(
     name = "idx",

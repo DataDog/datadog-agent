@@ -17,6 +17,7 @@ common --@rules_python//python/config_settings:bootstrap_impl=script # https://g
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
 common --experimental_disk_cache_gc_max_size=5G # Cap applied whenever --disk_cache is also set, no-op otherwise
+common --experimental_proto_descriptor_sets_include_source_info # Preserve comments in generated pb.go
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_strict_action_env # Do not leak local environment variables into the build context
