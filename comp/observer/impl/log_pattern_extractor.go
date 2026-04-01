@@ -21,14 +21,6 @@ type PatternKeyInfo struct {
 	GroupHash uint64
 }
 
-// LogPatternExtractorConfig holds configuration for the LogPatternExtractor.
-type LogPatternExtractorConfig struct{}
-
-// DefaultLogPatternExtractorConfig returns a LogPatternExtractorConfig with default values.
-func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
-	return LogPatternExtractorConfig{}
-}
-
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
@@ -48,8 +40,8 @@ type patternMetricContext struct {
 	example string
 }
 
-// NewLogPatternExtractor creates a new LogPatternExtractor with the given config.
-func NewLogPatternExtractor(_ LogPatternExtractorConfig) *LogPatternExtractor {
+// NewLogPatternExtractor creates a new LogPatternExtractor.
+func NewLogPatternExtractor() *LogPatternExtractor {
 	registry := NewTagGroupByKeyRegistry()
 	return &LogPatternExtractor{
 		taggedClusterer:       NewTaggedPatternClusterer(registry),

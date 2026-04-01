@@ -113,8 +113,7 @@ func defaultCatalog() *componentCatalog {
 				name:           "log_pattern_extractor",
 				displayName:    "Log Pattern Extractor",
 				kind:           componentExtractor,
-				defaultConfig:  DefaultLogPatternExtractorConfig(),
-				factory:        func(cfg any) any { return NewLogPatternExtractor(cfg.(LogPatternExtractorConfig)) },
+				factory:        func(any) any { return NewLogPatternExtractor() },
 				defaultEnabled: true,
 			},
 			// ---- Detectors ----

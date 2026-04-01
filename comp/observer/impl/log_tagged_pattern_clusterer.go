@@ -10,10 +10,14 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
+
+// splitTagKeyOrder is the canonical ordered list of tag dimensions used to split
+// log clusters. The order governs how split-tag summaries are rendered in event
+// messages. Add new fields here AND in TagGroupByKey / extractTagGroupByKey.
+var splitTagKeyOrder = []string{"source", "service", "env", "host"}
 
 // TagGroupByKey holds the tags that are responsible for grouping logs into different clusters.
 // Absent tags (e.g. a log with no "env" tag) are represented by an empty string.
@@ -60,9 +64,8 @@ func tagGroupByKeyHash(c TagGroupByKey) uint64 {
 }
 
 // TagGroupByKeyRegistry is a bidirectional, append-only store between a uint64 hash
-// and a TagGroupByKey. It is safe for concurrent use.
+// and a TagGroupByKey. It is NOT thread-safe; access must be confined to a single goroutine.
 type TagGroupByKeyRegistry struct {
-	mu     sync.RWMutex
 	byHash map[uint64]TagGroupByKey
 }
 
@@ -75,8 +78,6 @@ func NewTagGroupByKeyRegistry() *TagGroupByKeyRegistry {
 // Calling Register twice with the same group returns the same hash.
 func (r *TagGroupByKeyRegistry) Register(group TagGroupByKey) uint64 {
 	hash := tagGroupByKeyHash(group)
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	if _, exists := r.byHash[hash]; !exists {
 		r.byHash[hash] = group
 	}
@@ -85,8 +86,6 @@ func (r *TagGroupByKeyRegistry) Register(group TagGroupByKey) uint64 {
 
 // Lookup returns the TagGroupByKey for the given hash, and whether it was found.
 func (r *TagGroupByKeyRegistry) Lookup(hash uint64) (TagGroupByKey, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 	group, ok := r.byHash[hash]
 	return group, ok
 }
@@ -129,6 +128,8 @@ func globalClusterHash(groupHash uint64, clusterID int64) string {
 // TaggedPatternClusterer wraps one *patterns.PatternClusterer per tag-group
 // hash so that each unique (source, service, env, host) combination is
 // clustered independently.
+//
+// NOT thread-safe: all calls must be made from the same goroutine.
 type TaggedPatternClusterer struct {
 	registry      *TagGroupByKeyRegistry
 	subClusterers map[uint64]*patterns.PatternClusterer
@@ -149,8 +150,8 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string) (uint64
 	group := extractTagGroupByKey(tags)
 	groupHash := tc.registry.Register(group)
 
-	sub, ok := tc.subClusterers[groupHash]
-	if !ok {
+	sub, exists := tc.subClusterers[groupHash]
+	if !exists {
 		sub = patterns.NewPatternClusterer()
 		tc.subClusterers[groupHash] = sub
 	}

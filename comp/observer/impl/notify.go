@@ -71,9 +71,8 @@ func correlationMessage(c observerdef.ActiveCorrelation) string {
 			if a.Source.Namespace == "log_pattern_extractor" && pattern != "" {
 				var tagsPart string
 				if len(a.Context.SplitTags) > 0 {
-					keys := []string{"source", "service", "env", "host"}
 					var parts []string
-					for _, k := range keys {
+					for _, k := range splitTagKeyOrder {
 						if v, ok := a.Context.SplitTags[k]; ok {
 							parts = append(parts, k+"="+v)
 						}
