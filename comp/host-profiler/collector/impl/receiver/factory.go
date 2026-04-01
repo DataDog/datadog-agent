@@ -15,7 +15,8 @@ import (
 	"go.opentelemetry.io/collector/consumer/xconsumer"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/xreceiver"
-	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
+
+	ebpfcollector "github.com/DataDog/datadog-agent/comp/host-profiler/ebpfprofiler/collector"
 )
 
 // NewFactory creates a factory for the receiver.

@@ -109,6 +109,13 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`exporters.otlphttp`**: Datadog profiling intake endpoint configuration
 - **`extensions.ddprofiling`**: Datadog profiling extension (Agent mode only)
 
+### Tracer Support
+
+The host-profiler runtime does not link the local Go interpreter tracer. Go binaries are symbolized through executable reporting and remote symbolization instead, so requesting `go` as a tracer is ignored by the forked runtime.
+
+Go-specific note:
+The host-profiler binary does not link the eBPF Go interpreter loader. Go symbolization is handled remotely through executable reporting and symbol upload, so setting `receivers.hostprofiler.tracers: go` does not enable local Go unwinding.
+
 ### Configuration Inference
 
 Configuration inference is enabled by default in bundled mode when symbol_endpoints and otlphttp exporters are not explicitly configured.
@@ -134,5 +141,3 @@ This inference will create as many symbol endpoints and otlphttp exporters as th
 
 - `--sync-timeout` - Timeout for config sync requests (default: 3s)
 - `--sync-on-init-timeout` - How long config sync should retry at initialization before failing (default: 0, disabled)
-
-

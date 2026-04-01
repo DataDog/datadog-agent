@@ -14,11 +14,11 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
-	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
-	ebpfconfig "go.opentelemetry.io/ebpf-profiler/collector/config"
-	"go.opentelemetry.io/ebpf-profiler/tracer/types"
 
+	ebpfcollector "github.com/DataDog/datadog-agent/comp/host-profiler/ebpfprofiler/collector"
+	ebpfconfig "github.com/DataDog/datadog-agent/comp/host-profiler/ebpfprofiler/collector/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/tracertypes"
 )
 
 // Config is the configuration for the profiles receiver.
@@ -52,11 +52,11 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if c.CollectContext {
-		includeTracers, err := types.Parse(c.EbpfCollectorConfig.Tracers)
+		includeTracers, err := tracertypes.Parse(c.EbpfCollectorConfig.Tracers)
 		if err != nil {
 			return err
 		}
-		includeTracers.Enable(types.Labels)
+		includeTracers.Enable(tracertypes.Labels)
 		c.EbpfCollectorConfig.Tracers = includeTracers.String()
 	}
 
@@ -101,13 +101,13 @@ func defaultConfig() component.Config {
 }
 
 func getDefaultTracersString() string {
-	tracers := types.AllTracers()
+	tracers := tracertypes.AllTracers()
 
 	// Disable Go interpreter by default because we are doing Go symbolization remotely.
-	tracers.Disable(types.GoTracer)
+	tracers.Disable(tracertypes.GoTracer)
 
 	// Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
-	tracers.Disable(types.Labels)
+	tracers.Disable(tracertypes.Labels)
 
 	return tracers.String()
 }

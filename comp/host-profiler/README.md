@@ -94,3 +94,6 @@ Files:
 - **[`factory.go`](collector/impl/receiver/factory.go)** - Creates the factory for the custom `hostprofiler` receiver, which builds the eBPF-based profiles receiver.
 - **[`config.go`](collector/impl/receiver/config.go)** - Defines configuration structures for the receiver including eBPF collector settings, symbol uploader options, and validation logic.
 - **[`executable_reporter.go`](collector/impl/receiver/executable_reporter.go)** - Implements the executable reporter that uploads debug symbols to Datadog for native code symbolization.
+
+Go-specific note:
+Host-profiler does not link the local Go interpreter loader. Go frames are symbolicated remotely through the symbol uploader path, so enabling the `go` tracer does not enable local Go unwinding in this binary.
