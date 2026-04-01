@@ -125,6 +125,107 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 }
 
+// TestInstallDDOTExtensionWithoutDatadogYAML verifies that when the datadog-agent package is
+// installed via the package manager with DD_OTELCOLLECTOR_ENABLED=true, the postinst hook installs
+// the DDOT extension and postInstallDDOTExtension falls back to DD_API_KEY / DD_SITE env vars to write
+// otel-config.yaml since datadog.yaml is never created.
+//
+// The repo setup mirrors what install_script_agent7.sh does when TESTING_APT_URL,
+// TESTING_KEYS_URL, TESTING_YUM_URL, and TESTING_YUM_VERSION_PATH are set.
+func (s *packageDDOTSuite) TestInstallDDOTExtensionWithoutDatadogYAML() {
+	testAPIKey := GetAPIKey()
+	testSite := "datadoghq.com"
+	defer s.Purge()
+
+	env := InstallScriptEnvWithPackages(s.arch, PackagesConfig)
+	env["DD_OTELCOLLECTOR_ENABLED"] = "true"
+	env["DD_API_KEY"] = testAPIKey
+	env["DD_SITE"] = testSite
+
+	keysURL := env["TESTING_KEYS_URL"]
+
+	switch s.host.GetPkgManager() {
+	case "apt":
+		aptURL := env["TESTING_APT_URL"]
+		aptRepoVersion := env["TESTING_APT_REPO_VERSION"]
+		keyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
+
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			`sudo touch %s && sudo chmod a+r %s`, keyring, keyring))
+		for _, key := range []string{
+			"DATADOG_APT_KEY_CURRENT.public",
+			"DATADOG_APT_KEY_F14F620E.public",
+			"DATADOG_APT_KEY_382E94DE.public",
+		} {
+			s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+				`sudo curl --retry 5 -o /tmp/%s "https://%s/%s" && `+
+					`cat /tmp/%s | sudo gpg --import --batch --no-default-keyring --keyring %s`,
+				key, keysURL, key, key, keyring))
+		}
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			`echo "deb [signed-by=%s] https://%s/ %s" | sudo tee /etc/apt/sources.list.d/datadog.list`,
+			keyring, aptURL, aptRepoVersion))
+		s.Env().RemoteHost.MustExecute(
+			`sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/datadog.list" ` +
+				`-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"`)
+		s.Env().RemoteHost.MustExecute(`sudo -E apt-get install -y datadog-agent`, client.WithEnvVariables(env))
+
+	case "yum":
+		yumURL := env["TESTING_YUM_URL"]
+		yumVersionPath := env["TESTING_YUM_VERSION_PATH"]
+		archi := "x86_64"
+		if s.arch == e2eos.ARM64Arch {
+			archi = "aarch64"
+		}
+		for _, key := range []string{
+			"DATADOG_RPM_KEY_CURRENT.public",
+			"DATADOG_RPM_KEY_E09422B3.public",
+			"DATADOG_RPM_KEY_FD4BF915.public",
+		} {
+			s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+				`sudo rpm --import "https://%s/%s"`, keysURL, key))
+		}
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			`sudo sh -c 'printf "[datadog]\nname = Datadog, Inc.\nbaseurl = https://%s/%s/%s/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\npriority=1\ngpgkey=https://%s/DATADOG_RPM_KEY_CURRENT.public\n       https://%s/DATADOG_RPM_KEY_E09422B3.public\n       https://%s/DATADOG_RPM_KEY_FD4BF915.public\n" > /etc/yum.repos.d/datadog.repo'`,
+			yumURL, yumVersionPath, archi, keysURL, keysURL, keysURL))
+		s.Env().RemoteHost.MustExecute(`sudo yum -y clean metadata`)
+		s.Env().RemoteHost.MustExecute(`sudo -E yum install -y datadog-agent`, client.WithEnvVariables(env))
+
+	case "zypper":
+		yumURL := env["TESTING_YUM_URL"]
+		yumVersionPath := env["TESTING_YUM_VERSION_PATH"]
+		archi := "x86_64"
+		if s.arch == e2eos.ARM64Arch {
+			archi = "aarch64"
+		}
+		for _, key := range []string{
+			"DATADOG_RPM_KEY_CURRENT.public",
+			"DATADOG_RPM_KEY_E09422B3.public",
+			"DATADOG_RPM_KEY_FD4BF915.public",
+		} {
+			s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+				`sudo rpm --import "https://%s/%s"`, keysURL, key))
+		}
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			`sudo sh -c 'printf "[datadog]\nname=datadog\nenabled=1\nbaseurl=https://%s/suse/%s/%s\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=https://%s/DATADOG_RPM_KEY_CURRENT.public\n       https://%s/DATADOG_RPM_KEY_E09422B3.public\n       https://%s/DATADOG_RPM_KEY_FD4BF915.public\n" > /etc/zypp/repos.d/datadog.repo'`,
+			yumURL, yumVersionPath, archi, keysURL, keysURL, keysURL))
+		s.Env().RemoteHost.MustExecute(`sudo zypper --non-interactive --no-gpg-checks refresh datadog`)
+		s.Env().RemoteHost.MustExecute(`sudo -E zypper --non-interactive install datadog-agent`, client.WithEnvVariables(env))
+
+	default:
+		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
+	}
+
+	state := s.host.State()
+
+	// otel-config.yaml must exist with correct permissions and contain
+	// the api_key and site sourced from env vars (datadog.yaml was never written).
+	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
+	s.host.Run(fmt.Sprintf("sudo grep -q '%s' /etc/datadog-agent/otel-config.yaml", testAPIKey))
+	s.host.Run(fmt.Sprintf("sudo grep -q '%s' /etc/datadog-agent/otel-config.yaml", testSite))
+	state.AssertPathDoesNotExist("/etc/datadog-agent/datadog.yaml")
+}
+
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
