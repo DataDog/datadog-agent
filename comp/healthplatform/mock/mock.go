@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
@@ -67,8 +69,7 @@ func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatform.Iss
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range m.issues {
 		if issue != nil {
-			issueCopy := *issue
-			result[checkID] = &issueCopy
+			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
 			count++
 		} else {
 			result[checkID] = nil
@@ -83,8 +84,7 @@ func (m *mockHealthPlatform) GetIssueForCheck(checkID string) *healthplatform.Is
 	if issue == nil {
 		return nil
 	}
-	issueCopy := *issue
-	return &issueCopy
+	return proto.Clone(issue).(*healthplatform.Issue)
 }
 
 // ClearIssuesForCheck clears issues for a specific check
