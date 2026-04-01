@@ -24,6 +24,7 @@
         files: [ .go-version, .python-version ]
       paths:
         - .cache/bazel/*/cache
+        - .cache/bazel/disk-cache
         - .cache/go
         - .cache/ms-go
         - .cache/pip

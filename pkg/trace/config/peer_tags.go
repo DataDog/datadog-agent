@@ -6,35 +6,43 @@
 package config
 
 import (
-	_ "embed" //nolint:revive
 	"sort"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/ini.v1"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 )
 
-//go:embed peer_tags.ini
-var peerTagFile []byte
+// peerTagConcepts is the ordered list of semantic concepts whose source keys are
+// collected as peer tag precursors for stats aggregation.
+var peerTagConcepts = []semantics.Concept{
+	semantics.ConceptDDBaseService,
+	semantics.ConceptPeerService,
+	semantics.ConceptPeerHostname,
+	semantics.ConceptPeerDBName,
+	semantics.ConceptPeerDBSystem,
+	semantics.ConceptPeerCassandraContactPts,
+	semantics.ConceptPeerCouchbaseSeedNodes,
+	semantics.ConceptPeerMessagingDestination,
+	semantics.ConceptPeerMessagingSystem,
+	semantics.ConceptPeerKafkaBootstrapSrvs,
+	semantics.ConceptPeerRPCService,
+	semantics.ConceptPeerRPCSystem,
+	semantics.ConceptPeerAWSS3Bucket,
+	semantics.ConceptPeerAWSSQSQueue,
+	semantics.ConceptPeerAWSDynamoDBTable,
+	semantics.ConceptPeerAWSKinesisStream,
+}
 
 // basePeerTags is the base set of peer tag precursors (tags from which peer tags
 // are derived) we aggregate on when peer tag aggregation is enabled.
 var basePeerTags = func() []string {
-	var precursors = []string{"_dd.base_service"}
-
-	cfg, err := ini.Load(peerTagFile)
-	if err != nil {
-		log.Error("Error loading file for peer tags: ", err)
-		return precursors
-	}
-	peerTags := cfg.Section("dd.apm.peer.tags").Keys()
-
-	for _, t := range peerTags {
-		ps := strings.Split(t.Value(), ",")
-		precursors = append(precursors, ps...)
+	r := semantics.DefaultRegistry()
+	var precursors []string
+	for _, concept := range peerTagConcepts {
+		for _, info := range r.GetAttributePrecedence(concept) {
+			precursors = append(precursors, info.Name)
+		}
 	}
 	sort.Strings(precursors)
-
 	return precursors
 }()
 

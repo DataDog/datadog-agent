@@ -1301,24 +1301,16 @@ api_key:
 #   # Set to 0 to disable the HTTP receiver.
 #
 #   receiver_port: 8126
-{{ if (eq .OS "windows") }}
-#   # @param receiver_socket - string - optional - default: ""
-#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
-#   # Please note that UDS receiver is not available in Windows.
-#   # Enabling this setting may result in unexpected behavior.
-#   #
-#   # Accept traces through Unix Domain Sockets.
-#   # Set to "" to disable the UDS receiver.
-#
-#   receiver_socket: ""
-{{- else -}}
+
 #   # @param receiver_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
+#   #
+#   # Please note that UDS receiver is not available in Windows.
+#   # Enabling this setting may result in unexpected behavior.
 #
 #   receiver_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
-{{- end }}
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
 #   # @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -2278,7 +2270,6 @@ api_key:
 #   enabled: false
 
 #   # @param host - custom object - optional
-#   # uncomment the sections below to enable where the vulnerability scanning is done
 #
 #   host:
 
@@ -2328,24 +2319,16 @@ api_key:
 #
 # bind_host: localhost
 
-{{ if (eq .OS "windows") -}}
-## @param dogstatsd_socket - string - optional - default: ""
-## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
-## Please note that UDS receiver is not available in Windows.
-## Enabling this setting may result in unexpected behavior.
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
-## Set to "" to disable this feature.
-#
-# dogstatsd_socket: ""
-{{- else -}}
 ## @param dogstatsd_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
 ## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
+##
+## Please note that UDS receiver is not available in Windows.
+## Enabling this setting may result in unexpected behavior.
 #
 # dogstatsd_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
-{{- end }}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -4345,7 +4328,7 @@ api_key:
 #             - match_field: index
 #               match_value: '2'
 #               disabled: true
-
+#
 #         # @param ping - custom object - optional
 #         # Configure ICMP pings for all hosts in SNMP autodiscovery
 #         # Devices will be pinged with these settings each time the SNMP

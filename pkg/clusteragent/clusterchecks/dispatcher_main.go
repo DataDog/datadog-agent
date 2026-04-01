@@ -110,6 +110,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
+		d.ksmSharding = newKSMShardingManager(false)
 		return d
 	}
 
