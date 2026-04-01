@@ -439,6 +439,11 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		}
 	}()
 
+	err = t.initializeSocketCounters()
+	if err != nil {
+		return fmt.Errorf("error initializing TCP socket counters: %s", err)
+	}
+
 	err = t.initializePortBindingMaps()
 	if err != nil {
 		return fmt.Errorf("error initializing port binding maps: %s", err)
@@ -456,12 +461,6 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 			t.closeConsumer.Stop()
 			return fmt.Errorf("could not start sslProgram: %w", err)
 		}
-	}
-
-	// this must come after the manager starts
-	err = t.initializeSocketCounters()
-	if err != nil {
-		return fmt.Errorf("error initializing TCP socket counters: %s", err)
 	}
 
 	ddebpf.AddProbeFDMappings(t.m.Manager)
@@ -860,6 +859,14 @@ func (t *ebpfTracer) initializeSocketCounters() error {
 		return nil
 	}
 	// TODO cleanup port binding maps and detach iterators?
+
+	// we manually attach so we collect this data before any other ebpf programs are running
+	if err := t.initialPortBindingIter.Attach(); err != nil {
+		return err
+	}
+	if err := t.initialSocketIter.Attach(); err != nil {
+		return err
+	}
 
 	// read port bindings first
 	pbIter, err := t.initialPortBindingIter.Iterator()
