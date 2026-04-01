@@ -818,12 +818,14 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
 	})
-	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-	_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
-	assert.Nil(t, err)
+	if sbomscanner.GetGlobalScanner() == nil {
+		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+			core.MockBundle(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+		assert.NoError(t, err)
+	}
 
 	makeBundle := func(events ...workloadmeta.Event) workloadmeta.EventBundle {
 		return workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})}

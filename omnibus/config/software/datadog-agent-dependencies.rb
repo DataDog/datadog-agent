@@ -30,7 +30,7 @@ dependency 'pympler'
 dependency 'datadog-agent-integrations-py3'
 
 build do
-    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
 end
 
 build do

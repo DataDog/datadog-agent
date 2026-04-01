@@ -25,10 +25,10 @@ relative_path "openssl-#{version}"
 build do
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 
-  command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
+  command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @openssl//:install --destdir=#{install_dir}"
 
   unless windows?
-    command_on_repo_root "bazelisk run -- @zlib//:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @zlib//:install --destdir=#{install_dir}"
     # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
     # This messes up openssl's internal paths. So we have to use another variable
     # so that replace_prefix and fix_openssl_paths set path correctly inside of the
@@ -47,19 +47,19 @@ build do
 
     files_to_patch = files_to_patch.map { |path| "#{install_dir}/embedded/#{path}" }
 
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded #{files_to_patch.join(' ')}"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded #{files_to_patch.join(' ')}"
 
-    command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
       " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
   end
   if fips_mode?
-    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @openssl_fips//:install --destdir=#{install_dir}"
     if windows?
-      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=\"#{install_dir}/embedded3\" --embedded_ssl_dir=\"C:/Program Files/Datadog/Datadog Agent/embedded3/ssl\""
+      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @openssl_fips//:configure_fips --destdir=\"#{install_dir}/embedded3\" --embedded_ssl_dir=\"C:/Program Files/Datadog/Datadog Agent/embedded3/ssl\""
     else
-      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}/embedded"
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @openssl_fips//:configure_fips --destdir=#{install_dir}/embedded"
+      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
         " #{install_dir}/embedded/lib/ossl-modules/fips.so"
     end
   end

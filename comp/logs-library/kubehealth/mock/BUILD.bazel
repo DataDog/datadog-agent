@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["kubehealth_mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/kubehealth/def",
+        "//pkg/status/health",
+        "@org_uber_go_fx//:fx",
+    ],
+)
