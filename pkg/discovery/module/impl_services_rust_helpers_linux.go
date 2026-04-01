@@ -8,7 +8,7 @@
 // outside of the CGo translation unit, avoiding toolchain-specific CGo
 // type-resolution failures.
 
-//go:build dd_discovery_rust && linux
+//go:build linux_bpf
 
 package module
 

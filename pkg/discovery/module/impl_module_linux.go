@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -28,14 +27,9 @@ var _ module.Module = &discovery{}
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
-	core core.Discovery
-
 	config *core.DiscoveryConfig
 
 	mux *sync.RWMutex
-
-	// privilegedDetector is used to detect the language of a process.
-	privilegedDetector privileged.LanguageDetector
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -43,12 +37,8 @@ func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) 
 	cfg := core.NewConfig()
 
 	d := &discovery{
-		core: core.Discovery{
-			Config: cfg,
-		},
-		config:             cfg,
-		mux:                &sync.RWMutex{},
-		privilegedDetector: privileged.NewLanguageDetector(),
+		config: cfg,
+		mux:    &sync.RWMutex{},
 	}
 
 	return d, nil
@@ -72,8 +62,6 @@ func (s *discovery) Register(httpMux *module.Router) error {
 func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-
-	s.core.Close()
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.

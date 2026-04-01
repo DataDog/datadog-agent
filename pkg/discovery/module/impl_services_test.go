@@ -39,6 +39,10 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+// maxNumberOfPorts is the maximum number of listening ports which we report per
+// service.
+const maxNumberOfPorts = 50
+
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
 func (s *discoveryTestSuite) TestServicesBasic() {
 	t := s.T()

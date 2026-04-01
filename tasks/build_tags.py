@@ -41,7 +41,6 @@ ALL_TAGS = {
     "crio",
     # Opt out of the ASM build requirements of dd-trace-go
     "datadog.no_waf",
-    "dd_discovery_rust",  # used to enable the Rust-backed libdd_discovery implementation in system-probe
     "docker",
     "ec2",
     "etcd",

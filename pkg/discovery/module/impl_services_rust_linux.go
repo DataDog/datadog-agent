@@ -5,7 +5,7 @@
 
 // Rust-backed getServices implementation using the libdd_discovery shared library.
 
-//go:build dd_discovery_rust && cgo
+//go:build linux_bpf && cgo
 
 package module
 

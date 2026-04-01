@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	gorillamux "github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -35,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	spclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -43,27 +40,6 @@ import (
 type testDiscoveryModule struct {
 	url    string
 	client *http.Client
-}
-
-func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
-	t.Helper()
-	mux := gorillamux.NewRouter()
-
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
-	require.NoError(t, err)
-	discovery := mod.(*discovery)
-
-	err = discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
-	require.NoError(t, err)
-	t.Cleanup(discovery.Close)
-
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-
-	return &testDiscoveryModule{
-		url:    srv.URL,
-		client: http.DefaultClient,
-	}
 }
 
 func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
@@ -167,14 +143,6 @@ type discoveryTestSuite struct {
 
 func (s *discoveryTestSuite) SetupTest() {
 	s.discovery = s.setupModule(s.T())
-}
-
-func newDiscovery() *discovery {
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
-	if err != nil {
-		panic(err)
-	}
-	return mod.(*discovery)
 }
 
 func makeAlias(t *testing.T, alias string, serverBin string) string {

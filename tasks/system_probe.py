@@ -404,7 +404,6 @@ def build_sysprobe_binary(
 
     if not is_windows and not is_macos and not static:
         build_rust_libs(ctx, arch=arch_obj)
-        build_tags.append("dd_discovery_rust")
 
     if os.path.exists(binary):
         os.remove(binary)
@@ -441,9 +440,6 @@ def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
     for tag in temporarily_unsupported_build_tags:
         if tag in build_tags:
             build_tags.remove(tag)
-
-    if not is_windows and not is_macos:
-        build_tags.append("dd_discovery_rust")
 
     build_tags.extend(UNIT_TEST_TAGS)
 
