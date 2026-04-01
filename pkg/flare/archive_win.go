@@ -317,13 +317,13 @@ func getIISData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 }
 
 func getWindowsData(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	getTypeperfData(ctx, fb)     //nolint:errcheck
-	getLodctrOutput(ctx, fb)     //nolint:errcheck
-	getCounterStrings(fb)        //nolint:errcheck
-	getWindowsEventLogs(fb)      //nolint:errcheck
-	getServiceStatus(fb)         //nolint:errcheck
-	getDatadogRegistry(ctx, fb)  //nolint:errcheck
-	getEventLogConfig(ctx, fb)   //nolint:errcheck
-	getIISData(ctx, fb)          //nolint:errcheck
+	getTypeperfData(ctx, fb)    //nolint:errcheck
+	getLodctrOutput(ctx, fb)    //nolint:errcheck
+	getCounterStrings(fb)       //nolint:errcheck
+	getWindowsEventLogs(fb)     //nolint:errcheck
+	getServiceStatus(fb)        //nolint:errcheck
+	getDatadogRegistry(ctx, fb) //nolint:errcheck
+	getEventLogConfig(ctx, fb)  //nolint:errcheck
+	getIISData(ctx, fb)         //nolint:errcheck
 	return nil
 }
