@@ -19,7 +19,8 @@ import (
 
 	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
+	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
@@ -105,7 +106,8 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 			Status:    stat,
 		}),
 		configfx.Module(),
-		formatterimpl.Module(),
+		fxutil.ProvideComponentConstructor(formatterimpl.NewComponent),
+		fxutil.ProvideOptional[formatter.Component](),
 		forwarderimpl.Module(),
 		listenerimpl.Module(),
 		oidresolverfx.Module(),
