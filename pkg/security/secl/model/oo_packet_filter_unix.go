@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build unix && pcap && cgo
+//go:build unix
 
 // Package model holds model related files
 package model
@@ -11,9 +11,7 @@ package model
 import (
 	"fmt"
 
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
-
+	"github.com/DataDog/datadog-agent/pkg/libpcap"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -21,7 +19,7 @@ func newPacketFilterEvaluator(field string, value string, state *eval.State) (*e
 	switch field {
 	case "packet.filter":
 		captureLength := 256 // sizeof(struct raw_packet_t.data)
-		filter, err := pcap.NewBPF(layers.LinkTypeEthernet, captureLength, value)
+		filter, err := libpcap.NewBPF(libpcap.LinkTypeEthernet, captureLength, value)
 		if err != nil {
 			return nil, fmt.Errorf("failed to compile packet filter `%s` on field `%s`: %v", value, field, err)
 		}
@@ -34,8 +32,11 @@ func newPacketFilterEvaluator(field string, value string, state *eval.State) (*e
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				ev.RawPacket.CaptureInfo.Timestamp = ev.ResolveEventTime()
-				return filter.Matches(ev.RawPacket.CaptureInfo, ev.RawPacket.Data)
+				ci := libpcap.CaptureInfo{
+					Length:        int(ev.RawPacket.NetworkContext.Size),
+					CaptureLength: len(ev.RawPacket.Data),
+				}
+				return filter.Matches(ci, ev.RawPacket.Data)
 			},
 		}, nil
 	}
