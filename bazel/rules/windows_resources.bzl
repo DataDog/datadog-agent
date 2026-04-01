@@ -12,6 +12,7 @@ We still resolve the CC toolchain to get the correct PATH for gcc itself.
 load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
 load("@rules_cc//cc:defs.bzl", "cc_common")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
+load("//bazel/rules:version_info.bzl", "agent_version_defines")
 load("//bazel/toolchains/mingw:paths.bzl", "MINGW_PATH")
 
 def _cc_env(ctx):
@@ -29,6 +30,8 @@ def _cc_env(ctx):
         variables = cc_common.empty_variables(),
     )
     return env, cc_toolchain
+
+# --- win_messagetable ---------------------------------------------------------
 
 def _win_messagetable_impl(ctx):
     src = ctx.file.src
@@ -75,7 +78,7 @@ def _win_messagetable_impl(ctx):
 
     return [DefaultInfo(files = depset([syso_out, h_out]))]
 
-win_messagetable = rule(
+_win_messagetable = rule(
     implementation = _win_messagetable_impl,
     doc = "Compiles a .mc message file into a .syso resource and .h header via windmc + windres.",
     attrs = {
@@ -84,6 +87,24 @@ win_messagetable = rule(
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],
 )
+
+def _win_messagetable_macro_impl(name, visibility, **kwargs):
+    _win_messagetable(
+        name = name,
+        visibility = visibility,
+        **kwargs
+    )
+
+win_messagetable = macro(
+    doc = "Compiles a .mc message file into a .syso resource and .h header via windmc + windres.",
+    inherit_attrs = _win_messagetable,
+    attrs = {
+        "target_compatible_with": attr.label_list(default = ["@platforms//os:windows"]),
+    },
+    implementation = _win_messagetable_macro_impl,
+)
+
+# --- win_resource -------------------------------------------------------------
 
 def _win_resource_impl(ctx):
     src = ctx.file.src
@@ -119,7 +140,7 @@ def _win_resource_impl(ctx):
 
     return [DefaultInfo(files = depset([syso_out]))]
 
-win_resource = rule(
+_win_resource = rule(
     implementation = _win_resource_impl,
     doc = "Compiles a .rc resource file into a .syso object via windres.",
     attrs = {
@@ -129,4 +150,21 @@ win_resource = rule(
     } | CC_TOOLCHAIN_ATTRS,
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],
+)
+
+def _win_resource_macro_impl(name, visibility, **kwargs):
+    _win_resource(
+        name = name,
+        visibility = visibility,
+        **kwargs
+    )
+
+win_resource = macro(
+    doc = "Compiles a .rc resource file into a .syso object via windres.",
+    inherit_attrs = _win_resource,
+    attrs = {
+        "target_compatible_with": attr.label_list(default = ["@platforms//os:windows"]),
+        "defines": attr.string_dict(default = agent_version_defines()),
+    },
+    implementation = _win_resource_macro_impl,
 )

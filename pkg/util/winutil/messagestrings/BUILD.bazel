@@ -3,6 +3,5 @@ load("//bazel/rules:windows_resources.bzl", "win_messagetable")
 win_messagetable(
     name = "messagetable",
     src = "messagestrings.mc",
-    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
