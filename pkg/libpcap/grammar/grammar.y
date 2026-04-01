@@ -266,8 +266,6 @@ head:	  pqual dqual aqual
 	;
 rterm:	  head id
 	{
-		cs := yylex.(*parserLex).cs
-		cs.PopQual()
 		$$ = $2
 	}
 	| paren expr ')'	{ $$.b = $2.b; $$.q = $1.q }

@@ -310,7 +310,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyInitialStackSize = 16
 
-//line grammar.y:797
+//line grammar.y:795
 
 //line yacctab:1
 var yyExca = [...]int16{
@@ -1235,20 +1235,18 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line grammar.y:268
 		{
-			cs := yylex.(*parserLex).cs
-			cs.PopQual()
 			yyVAL.blk = yyDollar[2].blk
 		}
 	case 39:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:273
+//line grammar.y:271
 		{
 			yyVAL.blk.b = yyDollar[2].blk.b
 			yyVAL.blk.q = yyDollar[1].blk.q
 		}
 	case 40:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:275
+//line grammar.y:273
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenProtoAbbrev(cs, yyDollar[1].i)
@@ -1259,7 +1257,7 @@ yydefault:
 		}
 	case 41:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:282
+//line grammar.y:280
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenRelation(cs, yyDollar[2].i, yyDollar[1].a, yyDollar[3].a, 0)
@@ -1270,7 +1268,7 @@ yydefault:
 		}
 	case 42:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:289
+//line grammar.y:287
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenRelation(cs, yyDollar[2].i, yyDollar[1].a, yyDollar[3].a, 1)
@@ -1281,14 +1279,14 @@ yydefault:
 		}
 	case 43:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:296
+//line grammar.y:294
 		{
 			yyVAL.blk.b = yyDollar[1].rblk
 			yyVAL.blk.q = codegen.Qual{Addr: codegen.QUndef, Proto: codegen.QUndef, Dir: codegen.QUndef}
 		}
 	case 44:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:301
+//line grammar.y:299
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenAtmtypeAbbrev(cs, yyDollar[1].i)
@@ -1299,7 +1297,7 @@ yydefault:
 		}
 	case 45:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:308
+//line grammar.y:306
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenAtmmultiAbbrev(cs, yyDollar[1].i)
@@ -1310,14 +1308,14 @@ yydefault:
 		}
 	case 46:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:314
+//line grammar.y:312
 		{
 			yyVAL.blk.b = yyDollar[2].blk.b
 			yyVAL.blk.q = codegen.Qual{Addr: codegen.QUndef, Proto: codegen.QUndef, Dir: codegen.QUndef}
 		}
 	case 47:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:316
+//line grammar.y:314
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenMtp2typeAbbrev(cs, yyDollar[1].i)
@@ -1328,356 +1326,356 @@ yydefault:
 		}
 	case 48:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:322
+//line grammar.y:320
 		{
 			yyVAL.blk.b = yyDollar[2].blk.b
 			yyVAL.blk.q = codegen.Qual{Addr: codegen.QUndef, Proto: codegen.QUndef, Dir: codegen.QUndef}
 		}
 	case 50:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line grammar.y:325
+//line grammar.y:323
 		{
 			yyVAL.i = codegen.QDefault
 		}
 	case 51:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:327
+//line grammar.y:325
 		{
 			yyVAL.i = codegen.QSrc
 		}
 	case 52:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:328
+//line grammar.y:326
 		{
 			yyVAL.i = codegen.QDst
 		}
 	case 53:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:329
+//line grammar.y:327
 		{
 			yyVAL.i = codegen.QOr
 		}
 	case 54:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:330
+//line grammar.y:328
 		{
 			yyVAL.i = codegen.QOr
 		}
 	case 55:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:331
+//line grammar.y:329
 		{
 			yyVAL.i = codegen.QAnd
 		}
 	case 56:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:332
+//line grammar.y:330
 		{
 			yyVAL.i = codegen.QAnd
 		}
 	case 57:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:333
+//line grammar.y:331
 		{
 			yyVAL.i = codegen.QAddr1
 		}
 	case 58:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:334
+//line grammar.y:332
 		{
 			yyVAL.i = codegen.QAddr2
 		}
 	case 59:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:335
+//line grammar.y:333
 		{
 			yyVAL.i = codegen.QAddr3
 		}
 	case 60:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:336
+//line grammar.y:334
 		{
 			yyVAL.i = codegen.QAddr4
 		}
 	case 61:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:337
+//line grammar.y:335
 		{
 			yyVAL.i = codegen.QRA
 		}
 	case 62:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:338
+//line grammar.y:336
 		{
 			yyVAL.i = codegen.QTA
 		}
 	case 63:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:340
+//line grammar.y:338
 		{
 			yyVAL.i = codegen.QHost
 		}
 	case 64:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:341
+//line grammar.y:339
 		{
 			yyVAL.i = codegen.QNet
 		}
 	case 65:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:342
+//line grammar.y:340
 		{
 			yyVAL.i = codegen.QPort
 		}
 	case 66:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:343
+//line grammar.y:341
 		{
 			yyVAL.i = codegen.QPortrange
 		}
 	case 67:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:345
+//line grammar.y:343
 		{
 			yyVAL.i = codegen.QGateway
 		}
 	case 68:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:347
+//line grammar.y:345
 		{
 			yyVAL.i = codegen.QLink
 		}
 	case 69:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:348
+//line grammar.y:346
 		{
 			yyVAL.i = codegen.QIP
 		}
 	case 70:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:349
+//line grammar.y:347
 		{
 			yyVAL.i = codegen.QARP
 		}
 	case 71:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:350
+//line grammar.y:348
 		{
 			yyVAL.i = codegen.QRARP
 		}
 	case 72:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:351
+//line grammar.y:349
 		{
 			yyVAL.i = codegen.QSCTP
 		}
 	case 73:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:352
+//line grammar.y:350
 		{
 			yyVAL.i = codegen.QTCP
 		}
 	case 74:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:353
+//line grammar.y:351
 		{
 			yyVAL.i = codegen.QUDP
 		}
 	case 75:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:354
+//line grammar.y:352
 		{
 			yyVAL.i = codegen.QICMP
 		}
 	case 76:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:355
+//line grammar.y:353
 		{
 			yyVAL.i = codegen.QIGMP
 		}
 	case 77:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:356
+//line grammar.y:354
 		{
 			yyVAL.i = codegen.QIGRP
 		}
 	case 78:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:357
+//line grammar.y:355
 		{
 			yyVAL.i = codegen.QPIM
 		}
 	case 79:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:358
+//line grammar.y:356
 		{
 			yyVAL.i = codegen.QVRRP
 		}
 	case 80:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:359
+//line grammar.y:357
 		{
 			yyVAL.i = codegen.QCARP
 		}
 	case 81:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:360
+//line grammar.y:358
 		{
 			yyVAL.i = codegen.QAtalk
 		}
 	case 82:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:361
+//line grammar.y:359
 		{
 			yyVAL.i = codegen.QAARP
 		}
 	case 83:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:362
+//line grammar.y:360
 		{
 			yyVAL.i = codegen.QDecnet
 		}
 	case 84:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:363
+//line grammar.y:361
 		{
 			yyVAL.i = codegen.QLat
 		}
 	case 85:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:364
+//line grammar.y:362
 		{
 			yyVAL.i = codegen.QSCA
 		}
 	case 86:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:365
+//line grammar.y:363
 		{
 			yyVAL.i = codegen.QMopdl
 		}
 	case 87:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:366
+//line grammar.y:364
 		{
 			yyVAL.i = codegen.QMoprc
 		}
 	case 88:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:367
+//line grammar.y:365
 		{
 			yyVAL.i = codegen.QIPv6
 		}
 	case 89:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:368
+//line grammar.y:366
 		{
 			yyVAL.i = codegen.QICMPv6
 		}
 	case 90:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:369
+//line grammar.y:367
 		{
 			yyVAL.i = codegen.QAH
 		}
 	case 91:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:370
+//line grammar.y:368
 		{
 			yyVAL.i = codegen.QESP
 		}
 	case 92:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:371
+//line grammar.y:369
 		{
 			yyVAL.i = codegen.QISO
 		}
 	case 93:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:372
+//line grammar.y:370
 		{
 			yyVAL.i = codegen.QESIS
 		}
 	case 94:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:373
+//line grammar.y:371
 		{
 			yyVAL.i = codegen.QISIS
 		}
 	case 95:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:374
+//line grammar.y:372
 		{
 			yyVAL.i = codegen.QISISL1
 		}
 	case 96:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:375
+//line grammar.y:373
 		{
 			yyVAL.i = codegen.QISISL2
 		}
 	case 97:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:376
+//line grammar.y:374
 		{
 			yyVAL.i = codegen.QISISIIH
 		}
 	case 98:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:377
+//line grammar.y:375
 		{
 			yyVAL.i = codegen.QISISLSP
 		}
 	case 99:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:378
+//line grammar.y:376
 		{
 			yyVAL.i = codegen.QISISSNP
 		}
 	case 100:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:379
+//line grammar.y:377
 		{
 			yyVAL.i = codegen.QISISPSNP
 		}
 	case 101:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:380
+//line grammar.y:378
 		{
 			yyVAL.i = codegen.QISISCSNP
 		}
 	case 102:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:381
+//line grammar.y:379
 		{
 			yyVAL.i = codegen.QCLNP
 		}
 	case 103:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:382
+//line grammar.y:380
 		{
 			yyVAL.i = codegen.QSTP
 		}
 	case 104:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:383
+//line grammar.y:381
 		{
 			yyVAL.i = codegen.QIPX
 		}
 	case 105:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:384
+//line grammar.y:382
 		{
 			yyVAL.i = codegen.QNetbeui
 		}
 	case 106:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:385
+//line grammar.y:383
 		{
 			yyVAL.i = codegen.QRadio
 		}
 	case 107:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:388
+//line grammar.y:386
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenBroadcast(cs, yyDollar[1].i)
@@ -1687,7 +1685,7 @@ yydefault:
 		}
 	case 108:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:394
+//line grammar.y:392
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenMulticast(cs, yyDollar[1].i)
@@ -1697,7 +1695,7 @@ yydefault:
 		}
 	case 109:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:400
+//line grammar.y:398
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenLess(cs, int(yyDollar[2].h))
@@ -1707,7 +1705,7 @@ yydefault:
 		}
 	case 110:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:406
+//line grammar.y:404
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenGreater(cs, int(yyDollar[2].h))
@@ -1717,7 +1715,7 @@ yydefault:
 		}
 	case 111:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line grammar.y:412
+//line grammar.y:410
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenByteop(cs, yyDollar[3].i, int(yyDollar[2].h), yyDollar[4].h)
@@ -1727,7 +1725,7 @@ yydefault:
 		}
 	case 112:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:418
+//line grammar.y:416
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenInbound(cs, 0)
@@ -1737,7 +1735,7 @@ yydefault:
 		}
 	case 113:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:424
+//line grammar.y:422
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenInbound(cs, 1)
@@ -1747,7 +1745,7 @@ yydefault:
 		}
 	case 114:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:430
+//line grammar.y:428
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenIfindex(cs, int(yyDollar[2].h))
@@ -1757,7 +1755,7 @@ yydefault:
 		}
 	case 115:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:436
+//line grammar.y:434
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenVlan(cs, yyDollar[2].h, 1)
@@ -1767,7 +1765,7 @@ yydefault:
 		}
 	case 116:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:442
+//line grammar.y:440
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenVlan(cs, 0, 0)
@@ -1777,7 +1775,7 @@ yydefault:
 		}
 	case 117:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:448
+//line grammar.y:446
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenMpls(cs, yyDollar[2].h, 1)
@@ -1787,7 +1785,7 @@ yydefault:
 		}
 	case 118:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:454
+//line grammar.y:452
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenMpls(cs, 0, 0)
@@ -1797,7 +1795,7 @@ yydefault:
 		}
 	case 119:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:460
+//line grammar.y:458
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPppoed(cs)
@@ -1807,7 +1805,7 @@ yydefault:
 		}
 	case 120:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:466
+//line grammar.y:464
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPppoes(cs, yyDollar[2].h, 1)
@@ -1817,7 +1815,7 @@ yydefault:
 		}
 	case 121:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:472
+//line grammar.y:470
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPppoes(cs, 0, 0)
@@ -1827,7 +1825,7 @@ yydefault:
 		}
 	case 122:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:478
+//line grammar.y:476
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenGeneve(cs, yyDollar[2].h, 1)
@@ -1837,7 +1835,7 @@ yydefault:
 		}
 	case 123:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:484
+//line grammar.y:482
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenGeneve(cs, 0, 0)
@@ -1847,25 +1845,25 @@ yydefault:
 		}
 	case 124:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:489
+//line grammar.y:487
 		{
 			yyVAL.rblk = yyDollar[1].rblk
 		}
 	case 125:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:490
+//line grammar.y:488
 		{
 			yyVAL.rblk = yyDollar[2].rblk
 		}
 	case 126:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:491
+//line grammar.y:489
 		{
 			yyVAL.rblk = yyDollar[1].rblk
 		}
 	case 127:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:494
+//line grammar.y:492
 		{
 			cs := yylex.(*parserLex).cs
 			if yyDollar[2].s == "" {
@@ -1878,7 +1876,7 @@ yydefault:
 		}
 	case 128:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:501
+//line grammar.y:499
 		{
 			cs := yylex.(*parserLex).cs
 			if yyDollar[2].s == "" {
@@ -1891,7 +1889,7 @@ yydefault:
 		}
 	case 129:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:508
+//line grammar.y:506
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPfRnr(cs, int(yyDollar[2].h))
@@ -1901,7 +1899,7 @@ yydefault:
 		}
 	case 130:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:514
+//line grammar.y:512
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPfSrnr(cs, int(yyDollar[2].h))
@@ -1911,7 +1909,7 @@ yydefault:
 		}
 	case 131:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:520
+//line grammar.y:518
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPfReason(cs, yyDollar[2].i)
@@ -1921,7 +1919,7 @@ yydefault:
 		}
 	case 132:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:526
+//line grammar.y:524
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenPfAction(cs, yyDollar[2].i)
@@ -1931,7 +1929,7 @@ yydefault:
 		}
 	case 133:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line grammar.y:533
+//line grammar.y:531
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenP80211Type(cs, uint32(yyDollar[2].i|yyDollar[4].i), 0x0c|0xf0)
@@ -1941,7 +1939,7 @@ yydefault:
 		}
 	case 134:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:539
+//line grammar.y:537
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenP80211Type(cs, uint32(yyDollar[2].i), 0x0c)
@@ -1951,7 +1949,7 @@ yydefault:
 		}
 	case 135:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:545
+//line grammar.y:543
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenP80211Type(cs, uint32(yyDollar[2].i), 0x0c|0xf0)
@@ -1961,7 +1959,7 @@ yydefault:
 		}
 	case 136:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:551
+//line grammar.y:549
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenP80211Fcdir(cs, uint32(yyDollar[2].i))
@@ -1971,37 +1969,37 @@ yydefault:
 		}
 	case 137:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:557
+//line grammar.y:555
 		{
 			yyVAL.i = int(yyDollar[1].h)
 		}
 	case 138:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:558
+//line grammar.y:556
 		{
 			yyVAL.i = 0 /* simplified: str2tok lookup */
 		}
 	case 139:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:560
+//line grammar.y:558
 		{
 			yyVAL.i = int(yyDollar[1].h)
 		}
 	case 140:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:561
+//line grammar.y:559
 		{
 			yyVAL.i = 0 /* simplified */
 		}
 	case 141:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:563
+//line grammar.y:561
 		{
 			yyVAL.i = 0 /* simplified */
 		}
 	case 142:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:566
+//line grammar.y:564
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenLLC(cs)
@@ -2011,7 +2009,7 @@ yydefault:
 		}
 	case 143:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:572
+//line grammar.y:570
 		{
 			cs := yylex.(*parserLex).cs
 			if yyDollar[2].s == "" {
@@ -2033,7 +2031,7 @@ yydefault:
 		}
 	case 144:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:588
+//line grammar.y:586
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.rblk = codegen.GenLLCSSubtype(cs, 0x05) /* LLC_RNR */
@@ -2043,73 +2041,73 @@ yydefault:
 		}
 	case 145:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:594
+//line grammar.y:592
 		{
 			yyVAL.i = int(yyDollar[1].h)
 		}
 	case 146:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:595
+//line grammar.y:593
 		{
 			yyVAL.i = 0 /* simplified: nods/tods/fromds/dstods lookup */
 		}
 	case 147:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:597
+//line grammar.y:595
 		{
 			yyVAL.i = int(yyDollar[1].h)
 		}
 	case 148:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:598
+//line grammar.y:596
 		{
 			yyVAL.i = 0 /* simplified: pfreason_to_num lookup */
 		}
 	case 149:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:600
+//line grammar.y:598
 		{
 			yyVAL.i = 0 /* simplified: pfaction_to_num lookup */
 		}
 	case 150:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:602
+//line grammar.y:600
 		{
 			yyVAL.i = int(bpf.BPF_JGT)
 		}
 	case 151:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:603
+//line grammar.y:601
 		{
 			yyVAL.i = int(bpf.BPF_JGE)
 		}
 	case 152:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:604
+//line grammar.y:602
 		{
 			yyVAL.i = int(bpf.BPF_JEQ)
 		}
 	case 153:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:606
+//line grammar.y:604
 		{
 			yyVAL.i = int(bpf.BPF_JGT)
 		}
 	case 154:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:607
+//line grammar.y:605
 		{
 			yyVAL.i = int(bpf.BPF_JGE)
 		}
 	case 155:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:608
+//line grammar.y:606
 		{
 			yyVAL.i = int(bpf.BPF_JEQ)
 		}
 	case 156:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:611
+//line grammar.y:609
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenLoadi(cs, yyDollar[1].h)
@@ -2119,7 +2117,7 @@ yydefault:
 		}
 	case 158:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line grammar.y:619
+//line grammar.y:617
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenLoad(cs, yyDollar[1].i, yyDollar[3].a, 1)
@@ -2129,7 +2127,7 @@ yydefault:
 		}
 	case 159:
 		yyDollar = yyS[yypt-6 : yypt+1]
-//line grammar.y:625
+//line grammar.y:623
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenLoad(cs, yyDollar[1].i, yyDollar[3].a, yyDollar[5].h)
@@ -2139,7 +2137,7 @@ yydefault:
 		}
 	case 160:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:631
+//line grammar.y:629
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_ADD), yyDollar[1].a, yyDollar[3].a)
@@ -2149,7 +2147,7 @@ yydefault:
 		}
 	case 161:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:637
+//line grammar.y:635
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_SUB), yyDollar[1].a, yyDollar[3].a)
@@ -2159,7 +2157,7 @@ yydefault:
 		}
 	case 162:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:643
+//line grammar.y:641
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_MUL), yyDollar[1].a, yyDollar[3].a)
@@ -2169,7 +2167,7 @@ yydefault:
 		}
 	case 163:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:649
+//line grammar.y:647
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_DIV), yyDollar[1].a, yyDollar[3].a)
@@ -2179,7 +2177,7 @@ yydefault:
 		}
 	case 164:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:655
+//line grammar.y:653
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_MOD), yyDollar[1].a, yyDollar[3].a)
@@ -2189,7 +2187,7 @@ yydefault:
 		}
 	case 165:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:661
+//line grammar.y:659
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_AND), yyDollar[1].a, yyDollar[3].a)
@@ -2199,7 +2197,7 @@ yydefault:
 		}
 	case 166:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:667
+//line grammar.y:665
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_OR), yyDollar[1].a, yyDollar[3].a)
@@ -2209,7 +2207,7 @@ yydefault:
 		}
 	case 167:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:673
+//line grammar.y:671
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_XOR), yyDollar[1].a, yyDollar[3].a)
@@ -2219,7 +2217,7 @@ yydefault:
 		}
 	case 168:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:679
+//line grammar.y:677
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_LSH), yyDollar[1].a, yyDollar[3].a)
@@ -2229,7 +2227,7 @@ yydefault:
 		}
 	case 169:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:685
+//line grammar.y:683
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenArth(cs, int(bpf.BPF_RSH), yyDollar[1].a, yyDollar[3].a)
@@ -2239,7 +2237,7 @@ yydefault:
 		}
 	case 170:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:691
+//line grammar.y:689
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenNeg(cs, yyDollar[2].a)
@@ -2249,13 +2247,13 @@ yydefault:
 		}
 	case 171:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:696
+//line grammar.y:694
 		{
 			yyVAL.a = yyDollar[2].a
 		}
 	case 172:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:698
+//line grammar.y:696
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.a = codegen.GenLoadlen(cs)
@@ -2265,121 +2263,121 @@ yydefault:
 		}
 	case 173:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:704
+//line grammar.y:702
 		{
 			yyVAL.i = '&'
 		}
 	case 174:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:705
+//line grammar.y:703
 		{
 			yyVAL.i = '|'
 		}
 	case 175:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:706
+//line grammar.y:704
 		{
 			yyVAL.i = '<'
 		}
 	case 176:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:707
+//line grammar.y:705
 		{
 			yyVAL.i = '>'
 		}
 	case 177:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:708
+//line grammar.y:706
 		{
 			yyVAL.i = '='
 		}
 	case 179:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:711
+//line grammar.y:709
 		{
 			yyVAL.h = yyDollar[2].h
 		}
 	case 180:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:713
+//line grammar.y:711
 		{
 			yyVAL.i = codegen.ALane
 		}
 	case 181:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:714
+//line grammar.y:712
 		{
 			yyVAL.i = codegen.AMetac
 		}
 	case 182:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:715
+//line grammar.y:713
 		{
 			yyVAL.i = codegen.ABCC
 		}
 	case 183:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:716
+//line grammar.y:714
 		{
 			yyVAL.i = codegen.AOAMF4EC
 		}
 	case 184:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:717
+//line grammar.y:715
 		{
 			yyVAL.i = codegen.AOAMF4SC
 		}
 	case 185:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:718
+//line grammar.y:716
 		{
 			yyVAL.i = codegen.ASC
 		}
 	case 186:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:719
+//line grammar.y:717
 		{
 			yyVAL.i = codegen.AILMIC
 		}
 	case 187:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:721
+//line grammar.y:719
 		{
 			yyVAL.i = codegen.AOAM
 		}
 	case 188:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:722
+//line grammar.y:720
 		{
 			yyVAL.i = codegen.AOAMF4
 		}
 	case 189:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:723
+//line grammar.y:721
 		{
 			yyVAL.i = codegen.AConnectmsg
 		}
 	case 190:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:724
+//line grammar.y:722
 		{
 			yyVAL.i = codegen.AMetaconnect
 		}
 	case 191:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:726
+//line grammar.y:724
 		{
 			yyVAL.blk.atmfieldtype = codegen.AVPI
 		}
 	case 192:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:727
+//line grammar.y:725
 		{
 			yyVAL.blk.atmfieldtype = codegen.AVCI
 		}
 	case 194:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:731
+//line grammar.y:729
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenAtmfieldCode(cs, yyDollar[0].blk.atmfieldtype, yyDollar[2].h, yyDollar[1].i, 0)
@@ -2389,7 +2387,7 @@ yydefault:
 		}
 	case 195:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:737
+//line grammar.y:735
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenAtmfieldCode(cs, yyDollar[0].blk.atmfieldtype, yyDollar[2].h, yyDollar[1].i, 1)
@@ -2399,13 +2397,13 @@ yydefault:
 		}
 	case 196:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:742
+//line grammar.y:740
 		{
 			yyVAL.blk.b = yyDollar[2].blk.b
 		}
 	case 197:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:745
+//line grammar.y:743
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.atmfieldtype = yyDollar[0].blk.atmfieldtype
@@ -2416,98 +2414,98 @@ yydefault:
 		}
 	case 199:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:753
+//line grammar.y:751
 		{
 			codegen.GenOr(yyDollar[1].blk.b, yyDollar[3].blk.b)
 			yyVAL.blk = yyDollar[3].blk
 		}
 	case 200:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:755
+//line grammar.y:753
 		{
 			yyVAL.i = codegen.MFISU
 		}
 	case 201:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:756
+//line grammar.y:754
 		{
 			yyVAL.i = codegen.MLSSU
 		}
 	case 202:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:757
+//line grammar.y:755
 		{
 			yyVAL.i = codegen.MMSU
 		}
 	case 203:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:758
+//line grammar.y:756
 		{
 			yyVAL.i = codegen.MHFISU
 		}
 	case 204:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:759
+//line grammar.y:757
 		{
 			yyVAL.i = codegen.MHLSSU
 		}
 	case 205:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:760
+//line grammar.y:758
 		{
 			yyVAL.i = codegen.MHMSU
 		}
 	case 206:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:762
+//line grammar.y:760
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MSIO
 		}
 	case 207:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:763
+//line grammar.y:761
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MOPC
 		}
 	case 208:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:764
+//line grammar.y:762
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MDPC
 		}
 	case 209:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:765
+//line grammar.y:763
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MSLS
 		}
 	case 210:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:766
+//line grammar.y:764
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MHSIO
 		}
 	case 211:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:767
+//line grammar.y:765
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MHOPC
 		}
 	case 212:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:768
+//line grammar.y:766
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MHDPC
 		}
 	case 213:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:769
+//line grammar.y:767
 		{
 			yyVAL.blk.mtp3fieldtype = codegen.MHSLS
 		}
 	case 215:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:773
+//line grammar.y:771
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenMtp3fieldCode(cs, yyDollar[0].blk.mtp3fieldtype, yyDollar[2].h, yyDollar[1].i, 0)
@@ -2517,7 +2515,7 @@ yydefault:
 		}
 	case 216:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line grammar.y:779
+//line grammar.y:777
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.b = codegen.GenMtp3fieldCode(cs, yyDollar[0].blk.mtp3fieldtype, yyDollar[2].h, yyDollar[1].i, 1)
@@ -2527,13 +2525,13 @@ yydefault:
 		}
 	case 217:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:784
+//line grammar.y:782
 		{
 			yyVAL.blk.b = yyDollar[2].blk.b
 		}
 	case 218:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line grammar.y:787
+//line grammar.y:785
 		{
 			cs := yylex.(*parserLex).cs
 			yyVAL.blk.mtp3fieldtype = yyDollar[0].blk.mtp3fieldtype
@@ -2544,7 +2542,7 @@ yydefault:
 		}
 	case 220:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line grammar.y:795
+//line grammar.y:793
 		{
 			codegen.GenOr(yyDollar[1].blk.b, yyDollar[3].blk.b)
 			yyVAL.blk = yyDollar[3].blk
