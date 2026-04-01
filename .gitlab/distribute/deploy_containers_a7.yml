@@ -174,6 +174,7 @@ deploy_containers-a7-fips_internal:
   stage: deploy_containers
   dependencies: []
   before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION=$(sed -n 's/.*"7": "\([^"]*\)".*/\1/p' release.json | head -1); fi
     - export IMG_SOURCES="${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64"
     - export IMG_DESTINATIONS="ddot-ebpf:${VERSION}-preview-host-profiler-${PREVIEW_NUMBER}"
 
@@ -185,5 +186,4 @@ deploy_containers-host-profiler-preview:
       allow_failure: true
   # Update manually in branches that trigger preview image.
   variables:
-    VERSION: ""
     PREVIEW_NUMBER: ""
