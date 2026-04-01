@@ -207,15 +207,6 @@ const (
 	// RancherService is the tag for the Rancher service
 	RancherService = "rancher_service"
 
-	// EUDM (End User Device Monitoring) host tags
-
-	// HostOS is the host-level tag for the operating system name
-	HostOS = "os"
-	// HostOSVersion is the host-level tag for the operating system version
-	HostOSVersion = "os_version"
-	// DeviceModel is the host-level tag for the device model name
-	DeviceModel = "device_model"
-
 	// GitCommitSha is the tag for the Git commit SHA
 	GitCommitSha = "git.commit.sha"
 	// GitRepository is the tag for the Git repository URL
