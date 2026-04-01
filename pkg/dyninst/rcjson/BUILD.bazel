@@ -1,15 +1,17 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
     name = "rcjson",
     srcs = [
         "doc.go",
+        "rcjson.go",
         "type.go",
         "type_string.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/rcjson",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/dyninst/ir"],
 )
 
 go_stringer(
@@ -19,4 +21,14 @@ go_stringer(
     linecomment = True,
     output = "type_string.go",
     types = ["Type"],
+)
+
+go_test(
+    name = "rcjson_test",
+    srcs = ["rcjson_test.go"],
+    embed = [":rcjson"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
