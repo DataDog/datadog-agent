@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && pcap && cgo
+//go:build linux
 
 // Package rawpacket holds rawpacket related files
 package rawpacket
@@ -15,11 +15,10 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cloudflare/cbpfc"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/bpf"
 
+	"github.com/DataDog/datadog-agent/pkg/libpcap"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
@@ -98,7 +97,7 @@ func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupId bool) *ProgOp
 
 // FilterToInsts compile a bpf filter expression
 func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, error) {
-	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter.BPFFilter)
+	pcapBPF, err := libpcap.CompileBPFFilter(libpcap.LinkTypeEthernet, 256, filter.BPFFilter)
 	if err != nil {
 		return nil, err
 	}
