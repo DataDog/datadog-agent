@@ -17,7 +17,7 @@
         }
     },
     "forwardPorts": [22],
-    "remoteUser": "datadog",
+    "remoteUser": "dog",
     "mounts": [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
         "source=${localEnv:HOME}/.ssh,target=/home/datadog/.ssh,type=bind"
@@ -51,6 +51,5 @@
             ]
         }
     },
-    "onCreateCommand": "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps",
     "containerUser": "root"
 }
