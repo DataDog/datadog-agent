@@ -48,6 +48,12 @@ import (
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
+// TagLimitIssueReporter is a callback invoked when a metric's tag count exceeds
+// maxTagsCount. Pass nil to disable reporting. This allows callers to wire in
+// health-platform reporting without importing comp/healthplatform/def in the
+// dogstatsd server package (which would increase the dogstatsd binary size).
+type TagLimitIssueReporter func(metricName string, tagCount int)
+
 var (
 	dogstatsdExpvars                  = expvar.NewMap("dogstatsd")
 	dogstatsdServiceCheckParseErrors  = expvar.Int{}
@@ -76,16 +82,17 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log        log.Component
-	Config     configComponent.Component
-	Debug      serverdebug.Component
-	Replay     replay.Component
-	PidMap     pidmap.Component
-	Params     Params
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
-	Hostname   hostnameinterface.Component
-	FilterList filterlist.Component
+	Log              log.Component
+	Config           configComponent.Component
+	Debug            serverdebug.Component
+	Replay           replay.Component
+	PidMap           pidmap.Component
+	Params           Params
+	WMeta            option.Option[workloadmeta.Component]
+	Telemetry        telemetry.Component
+	Hostname         hostnameinterface.Component
+	FilterList       filterlist.Component
+	TagLimitReporter TagLimitIssueReporter `optional:"true"`
 }
 
 type provides struct {
@@ -162,6 +169,12 @@ type server struct {
 	ServerlessMode bool
 	udpLocalAddr   string
 
+	// tagLimitReporter is called when a metric's tags are truncated due to exceeding the limit.
+	// It is nil when health-platform reporting is not configured.
+	tagLimitReporter TagLimitIssueReporter
+	// maxTagsCount is the maximum number of tags allowed per metric (0 = no limit)
+	maxTagsCount int
+
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
@@ -200,7 +213,7 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList, deps.TagLimitReporter)
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -216,7 +229,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component, reporter TagLimitIssueReporter) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -316,6 +329,8 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
 		filterList:              filterList,
+		tagLimitReporter:        reporter,
+		maxTagsCount:            cfg.GetInt("dogstatsd_max_tags_count"),
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
@@ -837,6 +852,12 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
 			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+
+			// Enforce the max tags limit if configured
+			if s.maxTagsCount > 0 && len(metricSamples[idx].Tags) > s.maxTagsCount {
+				s.reportTagLimitExceeded(metricSamples[idx].Name, len(metricSamples[idx].Tags))
+				metricSamples[idx].Tags = metricSamples[idx].Tags[:s.maxTagsCount]
+			}
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
@@ -850,6 +871,14 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		okCnt.Inc()
 	}
 	return metricSamples, nil
+}
+
+// reportTagLimitExceeded invokes the tag-limit reporter callback if one is configured.
+// It is called when a metric's tags are truncated due to exceeding the configured limit.
+func (s *server) reportTagLimitExceeded(metricName string, tagCount int) {
+	if s.tagLimitReporter != nil {
+		s.tagLimitReporter(metricName, tagCount)
+	}
 }
 
 func (s *server) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {

@@ -37,7 +37,7 @@ func newMockIssueProvider() *mockIssueProvider {
 	}
 }
 
-func (m *mockIssueProvider) GetAllIssues() (int, map[string]*healthplatform.Issue) {
+func (m *mockIssueProvider) getIssuesProto() (int, map[string]*healthplatform.Issue) {
 	count := 0
 	for _, issue := range m.issues {
 		if issue != nil {

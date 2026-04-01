@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -139,8 +137,8 @@ func TestReportIssue(t *testing.T) {
 	err = comp.ReportIssue(
 		"logs-docker-file-permissions",
 		"Docker File Tailing Permissions",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -158,7 +156,7 @@ func TestReportIssue(t *testing.T) {
 	// Test GetIssueForCheck
 	issueForCheck := comp.GetIssueForCheck("logs-docker-file-permissions")
 	assert.NotNil(t, issueForCheck)
-	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.Id)
+	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.ID)
 
 	// Test GetIssueForCheck with non-existent check
 	nonExistentIssue := comp.GetIssueForCheck("non-existent")
@@ -186,8 +184,8 @@ func TestIssueResolution(t *testing.T) {
 	err = comp.ReportIssue(
 		"test-check-1",
 		"Test Check",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -229,8 +227,8 @@ func TestClearMethods(t *testing.T) {
 	err = comp.ReportIssue(
 		"check-1",
 		"Check 1",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -242,8 +240,8 @@ func TestClearMethods(t *testing.T) {
 	err = comp.ReportIssue(
 		"check-2",
 		"Check 2",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -277,22 +275,22 @@ func TestReportIssueErrors(t *testing.T) {
 	comp := provides.Comp
 
 	// Test empty check ID
-	err = comp.ReportIssue("", "Test", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = comp.ReportIssue("", "Test", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check ID cannot be empty")
 
 	// Test empty issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
-		IssueId: "",
+	err = comp.ReportIssue("check-1", "Test", &healthplatform.IssueReport{
+		IssueID: "",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "issue ID cannot be empty")
 
 	// Test unknown issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
-		IssueId: "unknown-issue",
+	err = comp.ReportIssue("check-1", "Test", &healthplatform.IssueReport{
+		IssueID: "unknown-issue",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to build issue")
@@ -318,8 +316,8 @@ func TestConcurrentReporting(t *testing.T) {
 			_ = comp.ReportIssue(
 				checkID,
 				"Concurrent Check",
-				&healthplatformpayload.IssueReport{
-					IssueId: "docker-file-tailing-disabled",
+				&healthplatform.IssueReport{
+					IssueID: "docker-file-tailing-disabled",
 					Context: map[string]string{
 						"dockerDir": "/var/lib/docker",
 						"os":        "linux",
@@ -359,8 +357,8 @@ func TestLifecycle(t *testing.T) {
 	err = comp.ReportIssue(
 		"lifecycle-check-1",
 		"Lifecycle Check",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -391,8 +389,8 @@ func TestIssueTimestamp(t *testing.T) {
 	err = comp.ReportIssue(
 		"timestamp-check-1",
 		"Timestamp Check",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -439,8 +437,8 @@ func TestComponentDisabled(t *testing.T) {
 	assert.True(t, ok, "Expected noopHealthPlatform when disabled")
 
 	// Verify all methods work but do nothing
-	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker"},
 	})
 	assert.NoError(t, err)
@@ -487,8 +485,8 @@ func TestGetIssuesHandlerEmpty(t *testing.T) {
 
 	// Parse the response
 	var response struct {
-		Count  int                                     `json:"count"`
-		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+		Count  int                              `json:"count"`
+		Issues map[string]*healthplatform.Issue `json:"issues"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	require.NoError(t, err)
@@ -517,8 +515,8 @@ func TestGetIssuesHandlerWithIssues(t *testing.T) {
 	err = provides.Comp.ReportIssue(
 		"check-1",
 		"Check 1",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -530,8 +528,8 @@ func TestGetIssuesHandlerWithIssues(t *testing.T) {
 	err = provides.Comp.ReportIssue(
 		"check-2",
 		"Check 2",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "windows",
@@ -556,8 +554,8 @@ func TestGetIssuesHandlerWithIssues(t *testing.T) {
 
 	// Parse the response
 	var response struct {
-		Count  int                                     `json:"count"`
-		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+		Count  int                              `json:"count"`
+		Issues map[string]*healthplatform.Issue `json:"issues"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	require.NoError(t, err)
@@ -569,7 +567,7 @@ func TestGetIssuesHandlerWithIssues(t *testing.T) {
 
 	// Verify issue details
 	issue1 := response.Issues["check-1"]
-	assert.Equal(t, "docker-file-tailing-disabled", issue1.Id)
+	assert.Equal(t, "docker-file-tailing-disabled", issue1.ID)
 	assert.NotEmpty(t, issue1.Title)
 	assert.NotEmpty(t, issue1.DetectedAt)
 
@@ -601,8 +599,8 @@ func TestPersistenceStateTransitions(t *testing.T) {
 	require.NoError(t, err)
 
 	// 1. Report a new issue -> state should be "new"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
@@ -614,8 +612,8 @@ func TestPersistenceStateTransitions(t *testing.T) {
 	firstSeen := persisted.FirstSeen
 
 	// 2. Report same issue again -> state should be "ongoing"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
@@ -633,8 +631,8 @@ func TestPersistenceStateTransitions(t *testing.T) {
 	assert.NotEmpty(t, persisted.ResolvedAt)
 
 	// 4. Issue reoccurs -> state should be "new" again (not ongoing)
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
@@ -644,15 +642,15 @@ func TestPersistenceStateTransitions(t *testing.T) {
 	assert.Empty(t, persisted.ResolvedAt) // resolved_at should be cleared
 
 	// 5. Different issue ID for same check -> state should be "new"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, IssueStateOngoing, impl.persistedIssues["check-1"].State) // now ongoing
 
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "check-execution-failure", // different issue ID
+	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatform.IssueReport{
+		IssueID: "check-execution-failure", // different issue ID
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
@@ -684,21 +682,21 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	require.NoError(t, err)
 
 	// Report issue 1 and issue 2
-	err = provides1.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides1.Comp.ReportIssue("check-1", "Check 1", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
 
-	err = provides1.Comp.ReportIssue("check-2", "Check 2", &healthplatformpayload.IssueReport{
-		IssueId: "check-execution-failure",
+	err = provides1.Comp.ReportIssue("check-2", "Check 2", &healthplatform.IssueReport{
+		IssueID: "check-execution-failure",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
 
 	// Report issue 3
-	err = provides1.Comp.ReportIssue("check-3", "Check 3", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides1.Comp.ReportIssue("check-3", "Check 3", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)
@@ -733,8 +731,8 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate: issue 3 is still present
-	err = provides2.Comp.ReportIssue("check-3", "Check 3", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err = provides2.Comp.ReportIssue("check-3", "Check 3", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
 	})
 	require.NoError(t, err)

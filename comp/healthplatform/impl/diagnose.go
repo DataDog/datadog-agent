@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
@@ -55,7 +54,7 @@ func Diagnose(healthplatformComp healthplatformdef.Component, diagCfg diagnose.C
 }
 
 // formatRemediation formats a Remediation struct into a readable string
-func formatRemediation(r *healthplatformpayload.Remediation) string {
+func formatRemediation(r *healthplatformdef.Remediation) string {
 	if r == nil {
 		return ""
 	}

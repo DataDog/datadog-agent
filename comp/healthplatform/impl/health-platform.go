@@ -34,6 +34,7 @@ import (
 	// Import issue modules to trigger their init() registration
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dogstatsd-tag-limit"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -337,7 +338,7 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // This is the preferred way for integrations to report issues as it keeps all issue knowledge
 // centralized in the health platform registry
 // If report is nil, it clears any existing issue (issue resolution)
-func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
+func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatformdef.IssueReport) error {
 	if checkID == "" {
 		return errors.New("check ID cannot be empty")
 	}
@@ -350,14 +351,14 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	// Build the new issue (or nil if resolved)
 	var newIssue *healthplatform.Issue
 	if report != nil {
-		if report.IssueId == "" {
+		if report.IssueID == "" {
 			return errors.New("issue ID cannot be empty")
 		}
 
 		// Build complete issue from the registry using the issue ID and context
-		issue, err := h.issueRegistry.BuildIssue(report.IssueId, report.Context)
+		issue, err := h.issueRegistry.BuildIssue(report.IssueID, report.Context)
 		if err != nil {
-			return fmt.Errorf("failed to build issue %s: %w", report.IssueId, err)
+			return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
 		}
 
 		// Append any additional tags from the report
@@ -393,11 +394,78 @@ func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, che
 // ============================================================================
 
 // GetAllIssues returns the count and all issues from all checks (indexed by check ID)
-func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Issue) {
+func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatformdef.Issue) {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 
 	// Create a copy to avoid external modifications and count issues
+	count := 0
+	result := make(map[string]*healthplatformdef.Issue)
+	for checkID, issue := range h.issues {
+		if issue != nil {
+			result[checkID] = protoIssueToDefIssue(issue)
+			count++
+		} else {
+			result[checkID] = nil
+		}
+	}
+	return count, result
+}
+
+// GetIssueForCheck returns the issue for a specific check (nil if no issue)
+func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatformdef.Issue {
+	h.issuesMux.RLock()
+	defer h.issuesMux.RUnlock()
+
+	issue := h.issues[checkID]
+	if issue == nil {
+		return nil
+	}
+
+	// Return a copy to avoid external modifications
+	return protoIssueToDefIssue(issue)
+}
+
+// protoIssueToDefIssue converts a proto Issue to the def.Issue plain Go struct.
+func protoIssueToDefIssue(issue *healthplatform.Issue) *healthplatformdef.Issue {
+	if issue == nil {
+		return nil
+	}
+	defIssue := &healthplatformdef.Issue{
+		ID:          issue.Id,
+		IssueName:   issue.IssueName,
+		Title:       issue.Title,
+		Description: issue.Description,
+		Category:    issue.Category,
+		Location:    issue.Location,
+		Severity:    issue.Severity,
+		DetectedAt:  issue.DetectedAt,
+		Source:      issue.Source,
+		Tags:        append([]string(nil), issue.Tags...),
+	}
+	if issue.Remediation != nil {
+		rem := &healthplatformdef.Remediation{
+			Summary: issue.Remediation.Summary,
+		}
+		for _, step := range issue.Remediation.Steps {
+			if step != nil {
+				rem.Steps = append(rem.Steps, &healthplatformdef.RemediationStep{
+					Order: step.Order,
+					Text:  step.Text,
+				})
+			}
+		}
+		defIssue.Remediation = rem
+	}
+	return defIssue
+}
+
+// getIssuesProto returns the raw internal proto issues map for the forwarder.
+// The forwarder uses the proto type directly to build the wire-format HealthReport.
+func (h *healthPlatformImpl) getIssuesProto() (int, map[string]*healthplatform.Issue) {
+	h.issuesMux.RLock()
+	defer h.issuesMux.RUnlock()
+
 	count := 0
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
@@ -409,20 +477,6 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 		}
 	}
 	return count, result
-}
-
-// GetIssueForCheck returns the issue for a specific check (nil if no issue)
-func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Issue {
-	h.issuesMux.RLock()
-	defer h.issuesMux.RUnlock()
-
-	issue := h.issues[checkID]
-	if issue == nil {
-		return nil
-	}
-
-	// Return a copy to avoid external modifications
-	return proto.Clone(issue).(*healthplatform.Issue)
 }
 
 // ============================================================================
@@ -690,8 +744,8 @@ func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 	count, issues := h.GetAllIssues()
 
 	response := struct {
-		Count  int                              `json:"count"`
-		Issues map[string]*healthplatform.Issue `json:"issues"`
+		Count  int                                 `json:"count"`
+		Issues map[string]*healthplatformdef.Issue `json:"issues"`
 	}{
 		Count:  count,
 		Issues: issues,
@@ -715,7 +769,7 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 
 // fillFlare adds health platform issues to the flare archive
 func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	count, issues := h.GetAllIssues()
+	count, issues := h.getIssuesProto()
 
 	// Only create the file if there are issues
 	if count == 0 {

@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -463,6 +464,22 @@ func getSharedFxOption() fx.Option {
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
+		fx.Provide(func(hp healthplatform.Component) dogstatsdServer.TagLimitIssueReporter {
+			return func(metricName string, tagCount int) {
+				_ = hp.ReportIssue(
+					"dogstatsd-tag-limit-config",
+					"DogStatsD Tag Count Limit",
+					&healthplatform.IssueReport{
+						IssueID: "dogstatsd-tag-limit-drop",
+						Context: map[string]string{
+							"metricName": metricName,
+							"tagCount":   strconv.Itoa(tagCount),
+						},
+						Tags: []string{"dogstatsd", "tag-limit"},
+					},
+				)
+			}
+		}),
 		dogstatsdhttpfx.Module(),
 		fx.Provide(func(logsagent option.Option[logsAgent.Component]) option.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {

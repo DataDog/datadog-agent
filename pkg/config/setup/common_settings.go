@@ -1586,6 +1586,10 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
+	// Maximum number of tags allowed per DogStatsD metric. Metrics exceeding this limit
+	// will have their tags truncated to the first dogstatsd_max_tags_count tags.
+	// Default is 0 (no limit). Set to a positive value to enforce a limit.
+	config.BindEnvAndSetDefault("dogstatsd_max_tags_count", 0)
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
 	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags

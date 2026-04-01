@@ -13,21 +13,57 @@ package healthplatform
 
 import (
 	"time"
-
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// HealthCheckFunc is a function that checks for health issues
-// Returns an IssueReport if an issue is detected, nil if healthy
-// The function should be idempotent and safe to call repeatedly
-type HealthCheckFunc func() (*healthplatformpayload.IssueReport, error)
+// RemediationStep is a single step in a remediation guide.
+type RemediationStep struct {
+	Order int32
+	Text  string
+}
+
+// Remediation describes how to fix an issue.
+type Remediation struct {
+	Summary string
+	Steps   []*RemediationStep
+}
+
+// Issue represents a detected health issue.
+type Issue struct {
+	ID          string
+	IssueName   string
+	Title       string
+	Description string
+	Category    string
+	Location    string
+	Severity    string
+	DetectedAt  string
+	Source      string
+	Tags        []string
+	Remediation *Remediation
+}
+
+// IssueReport is the input to ReportIssue; it identifies the issue and
+// provides runtime context used to fill in the issue template.
+type IssueReport struct {
+	// IssueID is the identifier of the issue template to use.
+	IssueID string
+	// Context is a map of key-value pairs used to render the issue template.
+	Context map[string]string
+	// Tags are additional tags to attach to the issue.
+	Tags []string
+}
+
+// HealthCheckFunc is a function that checks for health issues.
+// Returns an IssueReport if an issue is detected, nil if healthy.
+// The function should be idempotent and safe to call repeatedly.
+type HealthCheckFunc func() (*IssueReport, error)
 
 // Component is the health platform component interface
 type Component interface {
 	// ReportIssue reports an issue with context, and the health platform fills in remediation
 	// This is the main way for integrations to report issues
 	// If report is nil, it clears any existing issue (issue resolution)
-	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
+	ReportIssue(checkID string, checkName string, report *IssueReport) error
 
 	// RegisterCheck registers a function to be called periodically to check for issues
 	// Use this when you need the health platform to run your check at regular intervals
@@ -40,11 +76,11 @@ type Component interface {
 
 	// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
 	// Returns the total number of issues and a map of issues (nil for checks with no issues)
-	GetAllIssues() (int, map[string]*healthplatformpayload.Issue)
+	GetAllIssues() (int, map[string]*Issue)
 
 	// GetIssueForCheck returns the issue for a specific check
 	// Returns nil if no issue
-	GetIssueForCheck(checkID string) *healthplatformpayload.Issue
+	GetIssueForCheck(checkID string) *Issue
 
 	// =========================================================================
 	// Clear Methods

@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
 // mockIssueTemplate is a test implementation of IssueTemplate
@@ -47,7 +49,7 @@ func (m *mockModuleWithCheck) BuiltInCheck() *BuiltInCheck {
 	return &BuiltInCheck{
 		ID:       "check-" + m.id,
 		Name:     "Check for " + m.id,
-		CheckFn:  func() (*healthplatform.IssueReport, error) { return nil, nil },
+		CheckFn:  func() (*healthplatformdef.IssueReport, error) { return nil, nil },
 		Interval: 5 * time.Minute,
 	}
 }

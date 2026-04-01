@@ -13,8 +13,6 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -322,8 +320,8 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 	reportErr := cs.healthPlatform.ReportIssue(
 		string(cs.CheckID),
 		cs.CheckName,
-		&healthplatform.IssueReport{
-			IssueId: "check-execution-failure",
+		&healthplatformdef.IssueReport{
+			IssueID: "check-execution-failure",
 			Context: context,
 			Tags:    []string{cs.CheckName, cs.CheckLoader},
 		},

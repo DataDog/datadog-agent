@@ -42,9 +42,11 @@ const (
 	eventType = "agent-health-issues"
 )
 
-// issueProvider defines the interface for retrieving health issues
+// issueProvider defines the interface for retrieving health issues.
+// It uses the internal proto type so the forwarder can map issues directly
+// to the wire-format HealthReport proto without an extra conversion round-trip.
 type issueProvider interface {
-	GetAllIssues() (int, map[string]*healthplatform.Issue)
+	getIssuesProto() (int, map[string]*healthplatform.Issue)
 }
 
 // forwarder handles periodic sending of health reports to the Datadog intake
@@ -133,7 +135,7 @@ func (f *forwarder) run() {
 
 // sendHealthReport collects issues and sends them to the intake endpoint
 func (f *forwarder) sendHealthReport() {
-	count, issues := f.provider.GetAllIssues()
+	count, issues := f.provider.getIssuesProto()
 
 	if count == 0 {
 		f.log.Info("No health issues to report")
