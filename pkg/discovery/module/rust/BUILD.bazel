@@ -250,3 +250,11 @@ pkg_install(
     name = "install_libs",
     srcs = [":libdd_discovery_files"],
 )
+
+pkg_install(
+    name = "install_all",
+    srcs = [
+        ":all_files",
+        ":libdd_discovery_files",
+    ],
+)

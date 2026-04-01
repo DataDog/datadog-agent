@@ -403,7 +403,7 @@ def build_sysprobe_binary(
                 env[k] = v
 
     if not is_windows and not is_macos and not static:
-        build_rust_libs(ctx, arch=arch_obj)
+        build_rust_artifacts(ctx, arch=arch_obj)
 
     if os.path.exists(binary):
         os.remove(binary)
@@ -480,8 +480,7 @@ def test(
 
         if not is_windows and not is_macos:
             arch = Arch.from_str(CURRENT_ARCH)
-            build_rust_libs(ctx, arch=arch)
-            build_rust_binaries(ctx, arch=arch)
+            build_rust_artifacts(ctx, arch=arch)
 
     build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
@@ -1323,7 +1322,7 @@ def build_object_files(
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
-    build_rust_binaries(ctx, arch=arch_obj)
+    build_rust_artifacts(ctx, arch=arch_obj)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"
@@ -1377,7 +1376,15 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+        bazel(
+            ctx,
+            "run",
+            "--config=release",
+            *platform_flags,
+            "--",
+            f"@//{source_path}:install",
+            f"--destdir={install_dest}",
+        )
 
 
 def build_rust_libs(ctx: Context, arch: Arch):
@@ -1401,6 +1408,31 @@ def build_rust_libs(ctx: Context, arch: Arch):
             *platform_flags,
             "--",
             f"@//{source_path}:install_libs",
+            f"--destdir={Path(source_path)}",
+        )
+
+
+def build_rust_artifacts(ctx: Context, arch: Arch):
+    if is_windows or is_macos:
+        return
+
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
+
+    platform_flags = []
+    if arch.kmt_arch in platform_map:
+        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
+
+    for source_path in RUST_BINARIES:
+        bazel(
+            ctx,
+            "run",
+            "--config=release",
+            *platform_flags,
+            "--",
+            f"@//{source_path}:install_all",
             f"--destdir={Path(source_path)}",
         )
 
