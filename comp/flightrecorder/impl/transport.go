@@ -10,10 +10,8 @@ import (
 	"context"
 	"encoding/binary"
 	"net"
+	"runtime/pprof"
 	"sync"
-	"time"
-
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Transport abstracts the wire protocol so the Unix-socket implementation can be
@@ -22,15 +20,14 @@ type Transport interface {
 	// Send writes b to the transport. If the connection is not established it
 	// returns an error immediately without blocking.
 	Send(b []byte) error
-	// Close shuts down the transport and cancels the reconnect loop.
+	// Close shuts down the transport.
 	Close() error
 }
 
-const (
-	reconnectInitial = 100 * time.Millisecond
-	reconnectMax     = 30 * time.Second
-)
-
+// unixTransport is a single-use Unix socket transport. It connects to the
+// socket path once and serves until the connection is lost. On disconnect,
+// it calls onDisconnect and exits. A new transport is created for each
+// activation cycle by the discovery loop.
 type unixTransport struct {
 	socketPath string
 
@@ -41,78 +38,65 @@ type unixTransport struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	// reconnectStats is called after each reconnect attempt (used in tests).
-	reconnectStats func(attempt int, delay time.Duration)
-	// onReconnect is called whenever a successful connection is made (increments Reconnects counter).
-	onReconnect func()
+	// onDisconnect is called when the connection is lost. Set by the caller
+	// after creation. Must be safe to call from any goroutine.
+	onDisconnect func()
 }
 
-// newUnixTransport creates a unixTransport and starts the background reconnect loop.
-func newUnixTransport(socketPath string, onReconnect func()) *unixTransport {
-	ctx, cancel := context.WithCancel(context.Background())
+// newUnixTransport creates a unixTransport and starts the background serve loop.
+// The transport connects to the socket immediately (the discovery loop already
+// verified the socket is reachable).
+func newUnixTransport(parentCtx context.Context, socketPath string) *unixTransport {
+	ctx, cancel := context.WithCancel(parentCtx)
 	t := &unixTransport{
-		socketPath:  socketPath,
-		cancel:      cancel,
-		onReconnect: onReconnect,
+		socketPath:   socketPath,
+		disconnected: make(chan struct{}),
+		cancel:       cancel,
 	}
 	t.wg.Add(1)
-	go t.reconnectLoop(ctx)
+	go pprof.Do(ctx, pprof.Labels("component", "flightrecorder", "goroutine", "transport"), func(ctx context.Context) {
+		t.serveLoop(ctx)
+	})
 	return t
 }
 
-func (t *unixTransport) reconnectLoop(ctx context.Context) {
+// serveLoop connects to the socket and blocks until the connection is lost
+// or the context is cancelled. On disconnect, it calls onDisconnect.
+func (t *unixTransport) serveLoop(ctx context.Context) {
 	defer t.wg.Done()
-	delay := reconnectInitial
-	attempt := 0
-	for {
-		// Wait before attempting (first attempt also waits so the caller has time
-		// to set up the server in tests).
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(delay):
-		}
+	defer t.cancel() // release child context resources
 
-		conn, err := net.DialTimeout("unix", t.socketPath, 5*time.Second)
-		if err != nil {
-			attempt++
-			if t.reconnectStats != nil {
-				t.reconnectStats(attempt, delay)
-			}
-			delay *= 2
-			if delay > reconnectMax {
-				delay = reconnectMax
-			}
-			continue
+	conn, err := net.DialTimeout("unix", t.socketPath, 5*secondDuration)
+	if err != nil {
+		// Socket disappeared between discovery probe and connect — trigger teardown.
+		if t.onDisconnect != nil {
+			t.onDisconnect()
 		}
+		return
+	}
 
-		// Connected.
-		pkglog.Infof("flightrecorder: connected to %s", t.socketPath)
-		if t.onReconnect != nil {
-			t.onReconnect()
-		}
-		disconnected := make(chan struct{})
+	t.mu.Lock()
+	t.conn = conn
+	t.mu.Unlock()
+
+	// Block until the connection is lost or the context is cancelled.
+	select {
+	case <-ctx.Done():
+		conn.Close() //nolint:errcheck
 		t.mu.Lock()
-		t.conn = conn
-		t.disconnected = disconnected
+		t.conn = nil
 		t.mu.Unlock()
-
-		// Block until the connection is closed (detected by a failed send) or
-		// the context is cancelled.
-		select {
-		case <-ctx.Done():
-			conn.Close() //nolint:errcheck
-			t.mu.Lock()
-			t.conn = nil
-			t.mu.Unlock()
-			return
-		case <-disconnected:
-			// Send detected a broken connection; loop back to reconnect.
-			delay = reconnectInitial
-			attempt = 0
+		return
+	case <-t.disconnected:
+		// Send detected a broken connection — trigger teardown.
+		if t.onDisconnect != nil {
+			t.onDisconnect()
 		}
 	}
 }
+
+// secondDuration avoids importing time in the const declaration.
+const secondDuration = 1_000_000_000 // time.Second
 
 // Send writes b to the Unix socket. It returns an error immediately if not connected.
 func (t *unixTransport) Send(b []byte) error {
@@ -131,14 +115,16 @@ func (t *unixTransport) Send(b []byte) error {
 	bufs := net.Buffers{prefix[:], b}
 	_, err := bufs.WriteTo(conn)
 	if err != nil {
-		// Mark connection as dead and signal the reconnect loop.
+		// Mark connection as dead and signal the serve loop.
 		t.mu.Lock()
 		if t.conn == conn {
 			t.conn = nil
 			conn.Close() //nolint:errcheck
-			if t.disconnected != nil {
+			select {
+			case <-t.disconnected:
+				// Already closed.
+			default:
 				close(t.disconnected)
-				t.disconnected = nil
 			}
 		}
 		t.mu.Unlock()
@@ -146,7 +132,7 @@ func (t *unixTransport) Send(b []byte) error {
 	return err
 }
 
-// Close cancels the reconnect loop and closes any open connection.
+// Close cancels the serve loop and closes any open connection.
 func (t *unixTransport) Close() error {
 	t.cancel()
 	t.wg.Wait()
