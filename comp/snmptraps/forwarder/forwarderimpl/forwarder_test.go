@@ -19,8 +19,8 @@ import (
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
+	listenerfx "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -43,7 +43,7 @@ func setUp(t *testing.T) *services {
 		configfx.MockModule(),
 		senderhelper.Opts,
 		formatterfx.MockModule(),
-		listenerimpl.MockModule(),
+		listenerfx.MockModule(),
 		Module(),
 	)
 	return &s
