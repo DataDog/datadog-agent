@@ -21,7 +21,7 @@ processors:
     infraattributes/default:
         allow_hostname_override: true
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
@@ -44,4 +44,4 @@ service:
             processors:
                 - infraattributes/default
             receivers:
-                - hostprofiler
+                - profiling
