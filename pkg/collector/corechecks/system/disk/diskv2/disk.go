@@ -218,6 +218,11 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 	if err != nil {
 		return err
 	}
+	if c.goos != "linux" && (c.instanceConfig.TagByPhysicalStorage || c.instanceConfig.CollectPhysicalMetrics) {
+		log.Warnf("tag_by_physical_storage and collect_physical_metrics are only supported on Linux (current platform: %s); ignoring", c.goos)
+		c.instanceConfig.TagByPhysicalStorage = false
+		c.instanceConfig.CollectPhysicalMetrics = false
+	}
 	err = c.configureExcludeDevice()
 	if err != nil {
 		return err
@@ -633,13 +638,12 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
-		defer c.partitionEnumInFlight.Store(false)
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
 	select {
 	case result := <-resultCh:
-		c.partitionEnumInFlight.Store(false)
 		return result.partitions, result.err
 	case <-ctx.Done():
 		return nil, fmt.Errorf("disk partition enumeration timed out after %s — this may indicate an inaccessible or orphaned volume on the system", timeout)
