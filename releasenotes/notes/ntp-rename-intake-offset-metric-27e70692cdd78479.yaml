@@ -6,21 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+fixes:
   - |
-    The NTP check reverts ``ntp.offset`` to its pre-7.77.0 behavior: it is
-    submitted without any ``source`` tag, as a single untagged series.
-
-    Two changes introduced in 7.77.0 are rolled back or replaced:
-
-    - The ``source:ntp`` tag on ``ntp.offset`` has been removed.
-    - The ``ntp.offset{source:intake}`` metric has been replaced by a new
-      dedicated metric ``ntp.intake_offset`` (no tags).
-
-    If you have monitors or dashboards querying ``ntp.offset{source:intake}``,
-    update them to use ``ntp.intake_offset`` instead.
-    Queries on ``ntp.offset{source:ntp}`` should be updated to ``ntp.offset``.
-
-    This change was made because tagging ``ntp.offset`` with ``source`` caused
-    monitors on the untagged metric to aggregate over two series, skewing values
-    and triggering false alerts.
+    NTP: renames ``ntp.offset`` with the tag ``source:intake`` to ``ntp.intake_offset``
+    and removes the ``source:ntp`` tag from ``ntp.offset``, restoring it to its
+    pre-7.77.0 single-series behavior. This fixes false alerts on existing monitors
+    querying ``ntp.offset`` without a tag filter.
