@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test && darwin
+//go:build darwin
 
 package connectionscheckimpl
 
@@ -34,7 +34,7 @@ func TestConnectionsCheckDisabledOnDarwin(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-		fx.Provide(NewCheck),
+		fxutil.ProvideComponentConstructor(NewCheck),
 	))
 
 	assert.False(t, c.Object().IsEnabled())
