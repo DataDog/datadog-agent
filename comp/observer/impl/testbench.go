@@ -148,10 +148,11 @@ type ScenarioInfo struct {
 
 // ComponentInfo describes a registered component.
 type ComponentInfo struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Category    string `json:"category"` // "detector", "correlator", "processing"
-	Enabled     bool   `json:"enabled"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"displayName"`
+	Category    string         `json:"category"` // "detector", "correlator", "processing"
+	Enabled     bool           `json:"enabled"`
+	Config      map[string]any `json:"config,omitempty"` // active hyperparameter values (nil for parameterless components)
 }
 
 // StatusResponse is the response for /api/status.
@@ -861,11 +862,20 @@ func (tb *TestBench) GetComponents() []ComponentInfo {
 		if entry.kind == componentCorrelator {
 			category = "correlator"
 		}
+
+		var cfgMap map[string]any
+		if ci.activeConfig != nil {
+			if data, err := json.Marshal(ci.activeConfig); err == nil {
+				_ = json.Unmarshal(data, &cfgMap)
+			}
+		}
+
 		components = append(components, ComponentInfo{
 			Name:        entry.name,
 			DisplayName: entry.displayName,
 			Category:    category,
 			Enabled:     ci.enabled,
+			Config:      cfgMap,
 		})
 	}
 

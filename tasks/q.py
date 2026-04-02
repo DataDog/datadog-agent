@@ -427,6 +427,7 @@ def launch_testbench(
     open_pprof: bool = False,
     verbose: bool = False,
     profile_path: str = "",
+    config: str = "",
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -443,6 +444,8 @@ def launch_testbench(
     flags = ""
     if verbose:
         flags += " --verbose"
+    if config:
+        flags += f" --config {config}"
 
     if headless_scenario:
         if not headless_output:
