@@ -248,7 +248,6 @@ static __always_inline int fexit_open_handler(void* ctx, u64 mask, const char *p
 }
 
 SEC("fexit/__x64_sys_openat2")
-//int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, int dirfd, const char *pathname, openat2_open_how *how, long ret) {
 int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs *regs, long ret) {
     const char *pathname;
     openat2_open_how* how;
@@ -272,7 +271,6 @@ int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs *regs, long
 }
 
 SEC("fexit/__x64_sys_openat")
-//int BPF_BYPASSABLE_PROG(__x64_sys_openat_exit, int dirfd, const char *pathname, int flags, int mode, long ret) {
 int BPF_BYPASSABLE_PROG(__x64_sys_openat_exit, const struct pt_regs* regs, long ret) {
     const char* pathname;
     int flags;
@@ -290,7 +288,6 @@ int BPF_BYPASSABLE_PROG(__x64_sys_openat_exit, const struct pt_regs* regs, long 
 }
 
 SEC("fexit/__x64_sys_open")
-//int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const char *pathname, int flags, int mode, long ret) {
 int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long ret) {
     const char* pathname;
     int flags;
