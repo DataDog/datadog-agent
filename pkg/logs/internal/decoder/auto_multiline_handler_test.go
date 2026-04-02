@@ -31,7 +31,7 @@ func newCombiningHandler(outputChan chan *message.Message, maxContentSize int, f
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewCombiningAggregator(maxContentSize, false, false, tailerInfo)
 	jsonAgg := preprocessor.NewJSONAggregator(false, maxContentSize)
-	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout)
+	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout, 0)
 }
 
 // newDetectingHandler creates an auto multiline handler in detection-only mode.
@@ -42,7 +42,7 @@ func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout t
 	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewDetectingAggregator(tailerInfo)
-	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
+	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, 0)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
@@ -182,7 +182,7 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewCombiningAggregator(1000, false, false, tailerInfo)
-	handler := newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), 10*time.Second)
+	handler := newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), 10*time.Second, 0)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))

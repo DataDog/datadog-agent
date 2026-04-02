@@ -1,7 +1,7 @@
 # Global build settings
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
@@ -76,7 +76,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/host-profiler/version
 # gazelle:exclude comp/languagedetection
 # gazelle:exclude comp/logonduration
-# gazelle:exclude comp/logs-library
 # gazelle:exclude comp/logs
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
@@ -103,6 +102,8 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/otelcol/ddflareextension/impl
 # gazelle:exclude comp/otelcol/ddprofilingextension/fx
 # gazelle:exclude comp/otelcol/ddprofilingextension/impl
+# gazelle:exclude comp/otelcol/dogtelextension/fx
+# gazelle:exclude comp/otelcol/dogtelextension/impl
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp
 # gazelle:exclude comp/otelcol/status/fx
@@ -192,7 +193,10 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/telemetry
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
-# gazelle:exclude pkg/aggregator
+# gazelle:exclude pkg/aggregator/internal
+# gazelle:exclude pkg/aggregator/mocksender
+# gazelle:exclude pkg/aggregator/sender
+# gazelle:exclude pkg/aggregator/internal
 # gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
@@ -233,7 +237,16 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
-# gazelle:exclude pkg/discovery
+# gazelle:exclude pkg/discovery/apm
+# gazelle:exclude pkg/discovery/core
+# gazelle:exclude pkg/discovery/envs
+# gazelle:exclude pkg/discovery/language
+# gazelle:exclude pkg/discovery/model
+# gazelle:exclude pkg/discovery/module
+# gazelle:exclude pkg/discovery/module
+# gazelle:exclude pkg/discovery/testdata
+# gazelle:exclude pkg/discovery/tracermetadata/language
+# gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
 # gazelle:exclude pkg/dyninst/dispatcher
 # gazelle:exclude pkg/dyninst/dwarf
@@ -445,7 +458,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes
 # gazelle:exclude pkg/util/kubernetes/apiserver/common/namespace
-# gazelle:exclude pkg/util/log
 # gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps
@@ -467,7 +479,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/sync
 # gazelle:exclude pkg/util/system
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/util/testutil
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
@@ -509,7 +520,7 @@ gazelle_binary(
 # bazel run //:go -- ...
 alias(
     name = "go",
-    actual = "@rules_go//go",
+    actual = "@go_fast",  #TODO(agent-build): move back to "@rules_go//go" when golang/go#77889 is addressed
 )
 
 # bazel run //:go_mod_tidy_all -- -x
@@ -630,4 +641,20 @@ string_flag(
     name = "output_config_dir",
     build_setting_default = "/tmp",
     make_variable = "OUTPUT_CONFIG_DIR",
+)
+
+# Use this configuration setting to select options that should be applied for
+# to a non-developer version of the product. It does not mean this is a delivery
+# pipeline. This is set for most CI runs, so that size and performance tests
+# are accurate.
+bool_flag(
+    name = "release",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_release",
+    flag_values = {
+        "//:release": "True",
+    },
 )

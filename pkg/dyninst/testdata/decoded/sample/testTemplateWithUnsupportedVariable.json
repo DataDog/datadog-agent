@@ -74,6 +74,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "Executed main.testMultipleNamedReturn, it took [duration]ms"
+    "message": "Executed main.testMultipleNamedReturn, it took [duration]ms",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
