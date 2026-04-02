@@ -1102,6 +1102,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/dyninst/ebpf:dyninst_event-debug",
     "//pkg/ebpf/testdata/c:logdebug-test",
     "//pkg/ebpf/testdata/c:error_telemetry",
+    "//pkg/ebpf/testdata/c:sleepable",
     "//pkg/ebpf/testdata/c:uprobe_attacher-test",
     "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
 ]

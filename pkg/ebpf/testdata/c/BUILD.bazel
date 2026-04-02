@@ -24,6 +24,14 @@ ebpf_prog(
 )
 
 ebpf_prog(
+    name = "sleepable",
+    src = "sleepable.c",
+    core = True,
+    extra_flags = _TEST_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_prog(
     name = "uprobe_attacher-test",
     src = "uprobe_attacher-test.c",
     core = True,
