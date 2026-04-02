@@ -103,12 +103,14 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Try JSON preprocessing - if message extracted, use it for pattern matching
 	contentStr := string(content)
 
-	var jsonContext []byte
 	var messageKey string
+	var jsonContextSchema string
+	var jsonContextValues []string
 	if results := processor.PreprocessJSON(content); results.Message != "" {
 		contentStr = results.Message
-		jsonContext = results.JSONContext
 		messageKey = results.MessageKey
+		jsonContextSchema = results.JSONContextSchema
+		jsonContextValues = results.JSONContextValues
 	}
 
 	// Tokenize the message content (either json extracted message or full content)
@@ -171,6 +173,27 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		}
 	}
 
+	// Encode JSON context schema as dict entry (keys repeat across logs from same source)
+	var jsonContextSchemaID uint64
+	var jsonContextValuesDV []*statefulpb.DynamicValue
+	if jsonContextSchema != "" {
+		var schemaIsNew bool
+		jsonContextSchemaID, schemaIsNew = mt.tagManager.AddString(jsonContextSchema)
+		if schemaIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, jsonContextSchemaID, jsonContextSchema)
+		}
+
+		// Encode each JSON context value as a DynamicValue (int64 or dict-encoded)
+		jsonContextValuesDV = make([]*statefulpb.DynamicValue, len(jsonContextValues))
+		for i, val := range jsonContextValues {
+			encoded, valDictID, valIsNew := mt.encodeDynamicValue(val)
+			jsonContextValuesDV[i] = encoded
+			if valIsNew {
+				mt.sendDictEntryDefine(outputChan, msg, valDictID, val)
+			}
+		}
+	}
+
 	// Build complete tag list and encode as TagSet
 	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
 	if isNew {
@@ -179,7 +202,7 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, jsonContext, messageKeyDV)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
@@ -297,8 +320,8 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte, messageKey *statefulpb.DynamicValue) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, jsonContext, msg.MessageMetadata.DualSendUUID, messageKey)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, messageKey, jsonContextSchemaID, jsonContextValues)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -399,15 +422,16 @@ func buildRawLog(content string, timestamp time.Time, tagSet *statefulpb.TagSet,
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte, uuid string, messageKey *statefulpb.DynamicValue) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
 	log := &statefulpb.Log{
 		Timestamp: timestamp,
 		Content: &statefulpb.Log_Structured{
 			Structured: &statefulpb.StructuredLog{
-				PatternId:      patternID,
-				DynamicValues:  dynamicValues,
-				JsonContext:    jsonContext,
-				JsonMessageKey: messageKey,
+				PatternId:           patternID,
+				DynamicValues:       dynamicValues,
+				JsonMessageKey:      messageKey,
+				JsonContextSchemaId: jsonContextSchemaID,
+				JsonContextValues:   jsonContextValues,
 			},
 		},
 		Tags: tagSet,

@@ -47,7 +47,7 @@ func TestBuildTagSetExcludesDualSendUUID(t *testing.T) {
 }
 
 func TestBuildStructuredLogSetsUUID(t *testing.T) {
-	datum := buildStructuredLog(123, 456, nil, nil, nil, "uuid-123", nil)
+	datum := buildStructuredLog(123, 456, nil, nil, "uuid-123", nil, 0, nil)
 
 	require.NotNil(t, datum.GetLogs())
 	assert.Equal(t, "uuid-123", datum.GetLogs().GetUuid())

@@ -61,10 +61,10 @@ type batchStrategy struct {
 	grpcDatums []*statefulpb.Datum
 
 	// Delta encoding state - tracks previous values within current batch
-	lastTimestamp           int64  // milliseconds since epoch
-	lastPatternID           uint64 // pattern identifier
-	lastTagsDictIndex       uint64 // dictionary index of tag string
-	lastMessageKeyDictIndex uint64 // dictionary index of json_message_key
+	lastTimestamp              int64  // milliseconds since epoch
+	lastPatternID              uint64 // pattern identifier
+	lastTagsDictIndex          uint64 // dictionary index of tag string
+	lastMessageKeyDictIndex    uint64 // dictionary index of json_message_key
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -218,6 +218,7 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 				}
 			}
 		}
+
 	}
 
 	// Tag delta encoding (extract dict index from TagSet)

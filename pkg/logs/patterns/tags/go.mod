@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/patterns/tags
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.190
+	github.com/DataDog/agent-payload/v5 v5.0.191
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
