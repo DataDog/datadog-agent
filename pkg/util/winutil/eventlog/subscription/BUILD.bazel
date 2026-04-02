@@ -25,6 +25,7 @@ go_test(
         "subscription_test.go",
     ],
     embed = [":subscription"],
+    gotags = ["test"], 
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
