@@ -199,7 +199,7 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set.
 func ContainerRegistry(datadogConfig config.Component, specificConfigOpt string) string {
-	if datadogConfig.IsSet(specificConfigOpt) {
+	if datadogConfig.IsConfigured(specificConfigOpt) {
 		return datadogConfig.GetString(specificConfigOpt)
 	}
 
