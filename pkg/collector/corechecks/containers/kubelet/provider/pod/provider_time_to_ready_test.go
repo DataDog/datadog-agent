@@ -284,8 +284,8 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 
 		provider.generatePodStartupMetrics(mockSender, pod)
 
-		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", 14.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-normal", "cluster:test"})
-		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-normal", "cluster:test"})
+		mockSender.AssertMetric(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", 14.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-normal", "cluster:test"})
+		mockSender.AssertMetric(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-normal", "cluster:test"})
 	})
 
 	t.Run("skips pod with container restarts", func(t *testing.T) {
@@ -295,8 +295,8 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 
 		provider.generatePodStartupMetrics(mockSender, pod)
 
-		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
-		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
+		mockSender.AssertNotCalled(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
+		mockSender.AssertNotCalled(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
 	})
 
 	t.Run("skips time_to_ready but emits time_to_running when ready time exceeds maxReadyLag", func(t *testing.T) {
@@ -307,8 +307,8 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 
 		provider.generatePodStartupMetrics(mockSender, pod)
 
-		mockSender.AssertMetricNotTaggedWith(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", []string{"pod_name:test-pod-flaky"})
-		mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-flaky", "cluster:test"})
+		mockSender.AssertMetricNotTaggedWith(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", []string{"pod_name:test-pod-flaky"})
+		mockSender.AssertMetric(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", 10.0, "", []string{"kube_namespace:default", "kube_deployment:test-deployment", "pod_name:test-pod-flaky", "cluster:test"})
 	})
 
 	t.Run("skips pod that is not ready", func(t *testing.T) {
@@ -318,8 +318,8 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 
 		provider.generatePodStartupMetrics(mockSender, pod)
 
-		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
-		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
+		mockSender.AssertNotCalled(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
+		mockSender.AssertNotCalled(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
 	})
 
 	t.Run("skips metrics exceeding max duration", func(t *testing.T) {
@@ -332,7 +332,7 @@ func TestGeneratePodStartupMetrics(t *testing.T) {
 
 		provider.generatePodStartupMetrics(mockSender, pod)
 
-		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
-		mockSender.AssertNotCalled(t, "Gauge", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
+		mockSender.AssertNotCalled(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready")
+		mockSender.AssertNotCalled(t, "GaugeNoIndex", common.KubeletMetricsPrefix+"pod.scheduled_time_to_running")
 	})
 }

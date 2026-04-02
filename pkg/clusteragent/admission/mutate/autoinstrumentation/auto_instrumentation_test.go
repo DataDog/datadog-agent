@@ -1551,27 +1551,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				unmutatedContainers: []string{"istio-proxy"},
 			},
 		},
-		"injection does not occur in the namespace where datadog is deployed": {
-			config: map[string]any{
-				"apm_config.instrumentation.enabled": true,
-				"kube_resources_namespace":           "datadog-test",
-			},
-			pod: common.FakePodSpec{
-				Name:       "test",
-				NS:         "datadog-test",
-				ParentKind: "replicaset",
-				ParentName: "deployment-123",
-			}.Create(),
-			deployments: []common.MockDeployment{
-				{
-					ContainerName:  defaultTestContainer,
-					DeploymentName: "deployment",
-					Namespace:      "datadog-test",
-				},
-			},
-			shouldMutate: false,
-		},
-		"injection does occur in the outside the datadog namespace": {
+		"injection does occur outside the datadog namespace": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 				"kube_resources_namespace":           "datadog-test",

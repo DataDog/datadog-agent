@@ -157,7 +157,7 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -470,7 +470,7 @@ func getSharedFxOption() fx.Option {
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
 		rctelemetryreporterfx.Module(),
-		rcserviceimpl.Module(),
+		rcservicefx.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),

@@ -166,13 +166,13 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 
 	seclog.Infof("using socket family '%s' and path '%s' to connect to security agent", family, socketPath)
 	if family == "vsock" {
-		cmdPort, err := strconv.Atoi(socketPath)
+		cmdPort, err := strconv.ParseUint(socketPath, 10, 16)
 		if err != nil {
 			return nil, err
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%s' for vsock", cfg.SocketPath)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		socketPath = "passthrough:target"

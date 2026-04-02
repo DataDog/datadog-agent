@@ -159,11 +159,13 @@ func (p *Provider) generatePodStartupMetrics(s sender.Sender, pod *workloadmeta.
 	tagList, _ := p.tagger.Tag(entityID, types.OrchestratorCardinality)
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
+	// Using GaugeNoIndex writes metric_type_agent_hidden into the metric origin, so that it is not indexed by the backend
+	// https://github.com/DataDog/dd-source/blob/56e80f74a5cd7cab793ad52f0071a7c5c5189209/domains/metrics/shared/libs/proto/origin/origin.proto#L145-L148
 	if timings.timeToReady > 0 {
-		s.Gauge(common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", timings.timeToReady.Seconds(), "", tagList)
+		s.GaugeNoIndex(common.KubeletMetricsPrefix+"pod.scheduled_time_to_ready", timings.timeToReady.Seconds(), "", tagList)
 	}
 
 	if timings.timeToRunning > 0 {
-		s.Gauge(common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", timings.timeToRunning.Seconds(), "", tagList)
+		s.GaugeNoIndex(common.KubeletMetricsPrefix+"pod.scheduled_time_to_running", timings.timeToRunning.Seconds(), "", tagList)
 	}
 }

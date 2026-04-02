@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    NTP: renames ``ntp.offset`` with the tag ``source:intake`` to ``ntp.intake_offset``
+    and removes the ``source:ntp`` tag from ``ntp.offset``, restoring it to its
+    pre-7.77.0 single-series behavior. This fixes false alerts on existing monitors
+    querying ``ntp.offset`` without a tag filter.

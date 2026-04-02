@@ -128,6 +128,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		Ports:         nil, // Not available
 		Runtime:       workloadmeta.ContainerRuntimeContainerd,
 		RuntimeFlavor: runtimeFlavor,
+		SandboxID:     info.SandboxID,
 		State: workloadmeta.ContainerState{
 			Running:    status == containerd.Running,
 			Status:     extractStatus(status),

@@ -235,6 +235,7 @@ func convertToEvent(container *podman.Container, rootDir string) workloadmeta.Co
 			PID:        container.State.PID,
 			Ports:      ports,
 			Runtime:    workloadmeta.ContainerRuntimePodman,
+			SandboxID:  "", // not supported https://github.com/containers/podman/issues/28291
 			State: workloadmeta.ContainerState{
 				Running:    container.State.State == podman.ContainerStateRunning,
 				Status:     status(container.State.State),

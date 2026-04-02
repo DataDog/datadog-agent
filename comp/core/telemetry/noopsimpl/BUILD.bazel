@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "noopsimpl",
+    srcs = [
+        "counter.go",
+        "gauge.go",
+        "histogram.go",
+        "simple_noop_counter.go",
+        "simple_noop_gauge.go",
+        "simple_noop_histogram.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
