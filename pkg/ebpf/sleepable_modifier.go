@@ -24,6 +24,7 @@ type SleepableProgramModifier struct {
 var _ ModifierBeforeInit = &SleepableProgramModifier{}
 
 const (
+	//nolint:revive
 	BPF_F_SLEEPABLE = 1 << 4
 )
 
