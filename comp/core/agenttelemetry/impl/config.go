@@ -251,6 +251,9 @@ var defaultProfiles = `
           aggregate_tags:
             - truncated
             - line_type
+        - name: logs.auto_multi_line_default_total_lines
+        - name: logs.auto_multi_line_default_would_combine
+        - name: logs.auto_multi_line_default_would_truncate
         - name: logs_destination.destination_workers
         - name: point.sent
         - name: point.dropped

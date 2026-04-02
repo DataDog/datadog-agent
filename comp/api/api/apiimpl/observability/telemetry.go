@@ -47,9 +47,17 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 			var duration time.Duration
 			next = timeHandler(th.clock, &duration)(next)
 
+			// Plant a route capture in the context so that CaptureRouteTemplateMiddleware
+			// (registered inside the gorilla/mux router) can fill it with the matched route
+			// template. This avoids high-cardinality tags from user-provided path values such
+			// as /{component}/status where {component} varies per request.
+			r, capture := withRouteCapture(r)
 			next.ServeHTTP(w, r)
 
-			path := extractPath(r)
+			path := capture.template
+			if path == "" {
+				path = "unknown"
+			}
 
 			durationSeconds := duration.Seconds()
 

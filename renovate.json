@@ -57,11 +57,20 @@
         "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
       },
       {
+        "matchManagers": ["cargo"],
+        "matchDepNames": ["prost", "prost-types", "prost-build", "tonic", "tonic-build", "tonic-reflection", "protoc-gen-prost", "protoc-gen-tonic"],
+        "groupName": "prost/tonic protobuf stack"
+      },
+      {
         "matchManagers": ["npm"],
         "enabled": false
       },
       {
         "matchManagers": ["gomod"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["pyenv"],
         "enabled": false
       },
       {
@@ -75,8 +84,18 @@
         "enabled": false
       },
       {
-        "matchManagers": ["gomod", "dockerfile", "docker-compose"],
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["go"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["dockerfile", "docker-compose"],
         "matchDepNames": ["golang"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepTypes": ["git_override"],
         "enabled": false
       }
     ],
@@ -141,7 +160,8 @@
         "currentValueTemplate": "master",
         "depNameTemplate": "integrations-core",
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
-        "datasourceTemplate": "git-refs"
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
       }
     ],
     "customDatasources": {

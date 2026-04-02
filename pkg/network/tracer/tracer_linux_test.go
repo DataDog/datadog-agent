@@ -3685,9 +3685,10 @@ func runNetemCongestionTest(
 	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal. Delay creates
-// enough in-flight packets on loopback for SACK to detect gaps; moderate loss
-// triggers fast recovery rather than full RTO timeout.
+// TestTCPRecoveryCount validates the recovery_count signal.
+// Strategy: calibrate with low loss so SACK is active and the kernel
+// has enough in-flight data, then spike loss so SACK detects gaps and
+// triggers fast recovery. Delay stays low to avoid RTO.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
@@ -3698,10 +3699,42 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 
 	tr := setupTracer(t, cfg)
 
-	runNetemCongestionTest(t, tr, []string{"delay", "50ms", "loss", "20%", "50%"}, nil,
-		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0 with moderate packet loss")
-		})
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	// Dial on a clean link, then apply low loss so SACK is active and
+	// the kernel builds up enough in-flight segments.
+	c := env.dialInNs(t)
+	defer c.Close()
+	env.addNetem(t, "delay", "5ms", "loss", "5%")
+
+	// Send calibration packets so the kernel has in-flight data and
+	// SACK state established.
+	for i := 0; i < 10; i++ {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	}
+
+	// Spike loss — delay stays low so RTO doesn't fire, but frequent
+	// correlated drops trigger SACK-based fast recovery.
+	env.changeNetem(t, "delay", "5ms", "loss", "30%", "50%")
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0")
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
 // TestTCPReordSeen validates the reord_seen signal by introducing packet

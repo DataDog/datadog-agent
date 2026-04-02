@@ -92,6 +92,85 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     Ok(sock)
 }
 
+/// Drops all Linux capabilities except CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH
+/// from every capability set.
+///
+/// Both capabilities are required for full service discovery:
+/// - CAP_SYS_PTRACE: open /proc/<pid>/root and /proc/<pid>/{fd,maps,exe,environ}
+/// - CAP_DAC_READ_SEARCH: traverse restricted directories (e.g. mode-750 home dirs,
+///   container app directories) when reading files through /proc/<pid>/root/
+///
+/// Must be called after socket setup (which needs CAP_CHOWN for chown).
+/// Failure is non-fatal: SPL logs a warning and continues with inherited capabilities
+/// rather than refusing to start.
+///
+/// Sets modified:
+/// - Effective:    {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset if not in permitted)
+/// - Permitted:    {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset)
+/// - Inheritable:  {} (empty — exec'd children get nothing)
+/// - Ambient:      {} (empty — requires kernel ≥ 4.3, silently skipped otherwise)
+/// - Bounding:     {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (prevents future escalation)
+fn drop_capabilities() {
+    match try_drop_capabilities() {
+        Ok(true) => info!("Capabilities restricted to {{CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH}}"),
+        Ok(false) => {
+            warn!("Not all required capabilities were available; service discovery may be impaired")
+        }
+        Err(e) => {
+            warn!("Failed to restrict capabilities: {e}; continuing with inherited capabilities")
+        }
+    }
+}
+
+fn try_drop_capabilities() -> Result<bool> {
+    use caps::{CapSet, Capability};
+
+    let current_permitted = caps::read(None, CapSet::Permitted)?;
+
+    // CAP_SYS_PTRACE: needed to follow /proc/<pid>/root and open /proc/<pid>/ files.
+    // CAP_DAC_READ_SEARCH: needed to traverse restricted directories inside process
+    // root filesystems (e.g. mode-750 home dirs on Ubuntu 22.04+, container app dirs).
+    let has_ptrace = current_permitted.contains(&Capability::CAP_SYS_PTRACE);
+    let has_dac = current_permitted.contains(&Capability::CAP_DAC_READ_SEARCH);
+
+    let mut keep = caps::CapsHashSet::new();
+    if has_ptrace {
+        keep.insert(Capability::CAP_SYS_PTRACE);
+    } else {
+        warn!(
+            "CAP_SYS_PTRACE is not in the permitted set; /proc access for other processes will fail"
+        );
+    }
+    if has_dac {
+        keep.insert(Capability::CAP_DAC_READ_SEARCH);
+    } else {
+        warn!(
+            "CAP_DAC_READ_SEARCH is not in the permitted set; reading files in restricted directories may fail"
+        );
+    }
+
+    // Clear inheritable set (children cannot inherit capabilities).
+    caps::clear(None, CapSet::Inheritable)?;
+
+    // Clear ambient set (kernel ≥ 4.3; older kernels return EINVAL, which we ignore).
+    let _ = caps::clear(None, CapSet::Ambient);
+
+    // Lower the bounding set BEFORE restricting effective/permitted, because
+    // CAP_SETPCAP (needed for bounding set drops) must still be in the effective
+    // set at this point. Ignores errors for capabilities absent from the bounding set.
+    for cap in caps::all() {
+        if !keep.contains(&cap) {
+            let _ = caps::drop(None, CapSet::Bounding, cap);
+        }
+    }
+
+    // Restrict effective and permitted to {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset).
+    caps::set(None, CapSet::Effective, &keep)?;
+    caps::set(None, CapSet::Permitted, &keep)?;
+
+    Ok(has_ptrace && has_dac)
+}
+
 async fn handle_services<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
 where
     B: hyper::body::Body<Data = Bytes>,
@@ -277,6 +356,8 @@ where
 async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
     let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
+
+    drop_capabilities();
 
     // Setup signal handlers
     let mut sigterm = signal(SignalKind::terminate()).context("Failed to setup SIGTERM handler")?;

@@ -55,12 +55,13 @@ const (
 // SNMPListener implements SNMP discovery
 type SNMPListener struct {
 	sync.RWMutex
-	newService    chan<- Service
-	delService    chan<- Service
-	stop          chan bool
-	config        snmp.ListenerConfig
-	services      map[string]*SNMPService
-	deviceDeduper devicededuper.DeviceDeduper
+	newService     chan<- Service
+	delService     chan<- Service
+	stop           chan bool
+	config         snmp.ListenerConfig
+	services       map[string]*SNMPService
+	deviceDeduper  devicededuper.DeviceDeduper
+	sessionFactory snmpSessionFactory
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -105,10 +106,11 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 		return nil, err
 	}
 	return &SNMPListener{
-		services:      map[string]*SNMPService{},
-		stop:          make(chan bool),
-		config:        snmpConfig,
-		deviceDeduper: devicededuper.NewDeviceDeduper(snmpConfig),
+		services:       map[string]*SNMPService{},
+		stop:           make(chan bool),
+		config:         snmpConfig,
+		deviceDeduper:  devicededuper.NewDeviceDeduper(snmpConfig),
+		sessionFactory: newGosnmpSession,
 	}, nil
 }
 
@@ -230,22 +232,22 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 }
 
 func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, port uint16, deviceIP string) bool {
-	params, err := authentication.BuildSNMPParams(deviceIP, port)
+	sess, err := l.sessionFactory(authentication, deviceIP, port)
 	if err != nil {
 		log.Errorf("Error building params for device %s: %v", deviceIP, err)
 		return false
 	}
 
-	if err := params.Connect(); err != nil {
+	if err := sess.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
 		return false
 	}
 
-	defer params.Conn.Close()
+	defer sess.Close()
 
 	// Since `params<GoSNMP>.ContextEngineID` is empty
 	// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
-	value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
+	value, err := sess.GetNext([]string{snmp.DeviceReachableGetNextOid})
 	if err != nil {
 		log.Debugf("SNMP get to %s error: %v", deviceIP, err)
 		return false
@@ -265,19 +267,19 @@ func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port 
 		return devicededuper.DeviceInfo{}
 	}
 
-	params, err := authentication.BuildSNMPParams(deviceIP, port)
+	sess, err := l.sessionFactory(authentication, deviceIP, port)
 	if err != nil {
 		log.Errorf("Error building params for device %s: %v", deviceIP, err)
 		return devicededuper.DeviceInfo{}
 	}
 
-	if err := params.Connect(); err != nil {
+	if err := sess.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
 		return devicededuper.DeviceInfo{}
 	}
 
-	defer params.Conn.Close()
-	value, err := params.Get([]string{snmp.DeviceSysNameOid, snmp.DeviceSysDescrOid, snmp.DeviceSysUptimeOid, snmp.DeviceSysObjectIDOid})
+	defer sess.Close()
+	value, err := sess.Get([]string{snmp.DeviceSysNameOid, snmp.DeviceSysDescrOid, snmp.DeviceSysUptimeOid, snmp.DeviceSysObjectIDOid})
 	if err != nil {
 		return devicededuper.DeviceInfo{}
 	}

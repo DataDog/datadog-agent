@@ -53,7 +53,7 @@ func eksHttpbinEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFu
 		}
 
 		// install docker.io
-		manager, err := docker.NewManager(&awsEnv, httpbinHost)
+		manager, err := docker.NewAWSManager(&awsEnv, httpbinHost)
 		if err != nil {
 			return err
 		}

@@ -82,6 +82,7 @@ func (s *dockerTestSuite) TestProcessDiscoveryCheck() {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", pulumi.StringPtr("true")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_DISCOVERY_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}
 

@@ -2300,17 +2300,22 @@ func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 // Stop the probe
 func (p *EBPFProbe) Stop() {
 	_ = p.Manager.StopReaders(manager.CleanAll)
+
+	// Cancel the context and wait for all goroutines to exit before proceeding.
+	// This must happen before event consumers are stopped
+	// and reporter channels are closed, to avoid sending on a closed channel.
+	p.cancelFnc()
+	// wait for the following goroutines to exit:
+	// - the perfmap reorderer (if used/enabled)
+	// - the perfmap reorderer monitor (if used/enabled)
+	// - the security profile manager
+	// - the process killer goroutine
+	// - the startSysCtlSnapshotLoop goroutine
+	p.wg.Wait()
 }
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
-	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
-	// perf map reader are ignored
-	p.cancelFnc()
-
-	// we wait until both the reorderer and the monitor are stopped
-	p.wg.Wait()
-
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
 	}

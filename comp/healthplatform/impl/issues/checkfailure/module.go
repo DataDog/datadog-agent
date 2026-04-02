@@ -9,6 +9,7 @@
 package checkfailure
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
 )
 
@@ -27,7 +28,7 @@ type checkFailureModule struct {
 }
 
 // NewModule creates a new check failure issue module
-func NewModule() issues.Module {
+func NewModule(config.Component) issues.Module {
 	return &checkFailureModule{
 		template: NewCheckFailureIssue(),
 	}
