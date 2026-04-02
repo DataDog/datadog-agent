@@ -247,7 +247,7 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
 		{"user_group_policy", "User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
 		{"user_session_winlogon_start", "User Session Winlogon Start", tl.UserWinlogonStart, 0},
-		{"user_logon", "User Logon", tl.LogonStart, durationBetween(tl.LogonStart, tl.LogonStop)},
+		{"user_logon", "User Logon", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
 		{"profile_loaded", "Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
 		{"profile_created", "Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
 		{"execute_shell_commands", "Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
@@ -299,8 +299,8 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 		haveBoot = true
 	}
 
-	if !tl.LogonStart.IsZero() && !tl.DesktopVisibleStart.IsZero() {
-		logonMs = getDurationMilliseconds(tl.LogonStart, tl.DesktopVisibleStart)
+	if !tl.SessionLogon.IsZero() && !tl.DesktopVisibleStart.IsZero() {
+		logonMs = getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
 		durations["logon_duration_ms"] = logonMs
 		haveLogon = true
 	}

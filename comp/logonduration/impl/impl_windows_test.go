@@ -39,8 +39,7 @@ func fullBootTimeline(boot time.Time) BootTimeline {
 		UserGPStart:                  boot.Add(32 * time.Second),
 		UserGPEnd:                    boot.Add(38 * time.Second),
 		UserWinlogonStart:            boot.Add(25 * time.Second),
-		LogonStart:                   boot.Add(30 * time.Second),
-		LogonStop:                    boot.Add(35 * time.Second),
+		SessionLogon:                 boot.Add(29 * time.Second),
 		ProfileLoadStart:             boot.Add(31 * time.Second),
 		ProfileLoadEnd:               boot.Add(34 * time.Second),
 		ProfileCreationStart:         boot.Add(33 * time.Second),
@@ -148,7 +147,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 			{"Computer Group Policy", 12000},
 			{"User Group Policy", 32000},
 			{"User Session Winlogon Start", 25000},
-			{"User Logon", 30000},
+			{"User Logon", 29000},
 			{"Profile Loaded", 31000},
 			{"Profile Created", 33000},
 			{"Execute Shell Commands", 40000},
@@ -174,7 +173,7 @@ func TestBuildCustomPayload(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:           boot,
 			LoginUIStart:        boot.Add(10 * time.Second),
-			LogonStart:          boot.Add(30 * time.Second),
+			SessionLogon:        boot.Add(30 * time.Second),
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		}
 
@@ -205,7 +204,7 @@ func TestBuildCustomPayload(t *testing.T) {
 	t.Run("includes logon duration", func(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:           boot,
-			LogonStart:          boot.Add(30 * time.Second),
+			SessionLogon:        boot.Add(30 * time.Second),
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		}
 
@@ -230,8 +229,8 @@ func TestBuildCustomPayload(t *testing.T) {
 
 	t.Run("omits durations when end timestamp is zero", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:  boot,
-			LogonStart: boot.Add(30 * time.Second),
+			BootStart:    boot,
+			SessionLogon: boot.Add(30 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
@@ -279,7 +278,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 	result := &AnalysisResult{
 		Timeline: BootTimeline{
 			BootStart:           boot,
-			LogonStart:          boot.Add(30 * time.Second),
+			SessionLogon:        boot.Add(30 * time.Second),
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		},
 	}
@@ -338,7 +337,7 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 		Timeline: BootTimeline{
 			BootStart:           boot,
 			LoginUIStart:        boot.Add(10 * time.Second),
-			LogonStart:          boot.Add(30 * time.Second),
+			SessionLogon:        boot.Add(30 * time.Second),
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		},
 	}
