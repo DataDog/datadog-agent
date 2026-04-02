@@ -54,7 +54,14 @@
   - cmd/systray/**/*
   - cmd/otel-agent/**/*
 
-# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
+# Bazel build system paths - single source of truth for all Bazel-related change detection.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+.bazel_paths: &bazel_paths
+  - "*.bazel*"
+  - deps/**/*
+  - bazel/**/*
+
+# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
 .windows_path_2: &windows_path_2
   # Windows-specific comp/ components
   - comp/systray/**/*
@@ -73,13 +80,9 @@
   - tools/windows/**/*
 
   # Build/packaging
-  - .bazel*
-  - MODULE.bazel*
   - omnibus/**/*
   - packages/**/*
-  - deps/**/*
   - rtloader/**/*
-  - bazel/**/*
 
   # Windows containers
   - Dockerfiles/agent/windows/**/*
@@ -135,6 +138,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *bazel_paths
           compare_to: main
       - when: never
 
@@ -454,7 +460,7 @@ variables:
 # Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
 # Used to conditionally skip expensive tests like SMP when only non-artifact files change
 # like documentation, CI config, e2e tests.
-.artifacts_build_impacting_paths: &artifacts_build_impacting_paths
+.on_smp_trigger_paths: &on_smp_trigger_paths
   paths:
     # agent source code
     - go.mod
@@ -466,13 +472,7 @@ variables:
     - rtloader/**/*
     # Build system
     - tasks/**/*.py
-    - deps/**/*
     - omnibus/**/*
-    - .bazelrc
-    - .bazelversion
-    - bazel/**/*
-    - BUILD.bazel
-    - MODULE.bazel
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
@@ -519,6 +519,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *bazel_paths
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
@@ -657,13 +662,21 @@ workflow:
 .on_dev_branches_with_artifact_changes:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_dev_branches_with_artifact_changes_manual:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
@@ -1368,7 +1381,7 @@ workflow:
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
-.on_packaging_change:
+.on_macos_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
@@ -1376,10 +1389,9 @@ workflow:
         - .gitlab-ci.yml
         - release.json
         - .gitlab/build/package_build/**/*
-        - MODULE.bazel
-        - deps/**/*
-        - bazel/**/*
-        - .bazelrc
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
