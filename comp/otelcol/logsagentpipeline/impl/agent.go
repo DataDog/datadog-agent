@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package logsagentpipelineimpl contains the implementation of the logs agent pipeline component.
 package logsagentpipelineimpl
 
 import (
@@ -62,13 +63,20 @@ type Agent struct {
 	pipelineProvider pipeline.Provider
 }
 
+// Provides defines the output of NewLogsAgentComponent for fx dependency injection.
+type Provides struct {
+	compdef.Out
+
+	Comp option.Option[logsagentpipeline.Component]
+}
+
 // NewLogsAgentComponent returns a new instance of Agent as a Component
-func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
+func NewLogsAgentComponent(deps Dependencies) Provides {
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
-		return option.None[logsagentpipeline.Component]()
+		return Provides{Comp: option.None[logsagentpipeline.Component]()}
 	}
-	return option.New[logsagentpipeline.Component](logsAgent)
+	return Provides{Comp: option.New[logsagentpipeline.Component](logsAgent)}
 }
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
