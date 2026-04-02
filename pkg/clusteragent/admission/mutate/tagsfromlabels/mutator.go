@@ -120,7 +120,7 @@ func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool
 }
 
 func ownerCacheTTL(datadogConfig config.Component) time.Duration {
-	if datadogConfig.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
+	if datadogConfig.IsConfigured("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
 		return datadogConfig.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
 	}
 

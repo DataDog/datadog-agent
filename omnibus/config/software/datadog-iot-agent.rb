@@ -60,7 +60,6 @@ build do
     if windows_target?
       # just builds the trace-agent, this should be moved to a separate package as it's not related to the iot agent
 
-      platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
       mkdir "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
