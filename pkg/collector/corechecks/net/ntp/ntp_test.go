@@ -98,15 +98,15 @@ func TestNTPOK(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
-	// Intake offset may or may not be submitted depending on whether it's been set
+	// ntp.intake_offset may or may not be submitted depending on whether it's been set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -119,7 +119,7 @@ func TestNTPOK(t *testing.T) {
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 1 NTP offset + 0 or 1 intake offset
+	// 1 ntp.offset + 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -155,15 +155,15 @@ func TestNTPCritical(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
-	// Intake offset may or may not be submitted depending on whether it's been set
+	// ntp.intake_offset may or may not be submitted depending on whether it's been set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -177,7 +177,7 @@ func TestNTPCritical(t *testing.T) {
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 1 NTP offset + 0 or 1 intake offset
+	// 1 ntp.offset + 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -202,12 +202,12 @@ func TestNTPError(t *testing.T) {
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
-	// Intake offset may or may not be submitted depending on whether expvar is set
+	// ntp.intake_offset may or may not be submitted depending on whether expvar is set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -220,7 +220,7 @@ func TestNTPError(t *testing.T) {
 	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 0 NTP offset (NTP failed), 0 or 1 intake offset
+	// 0 ntp.offset (NTP failed), 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -246,12 +246,12 @@ func TestNTPInvalid(t *testing.T) {
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
-	// Intake offset may or may not be submitted depending on whether expvar is set
+	// ntp.intake_offset may or may not be submitted depending on whether expvar is set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -264,7 +264,7 @@ func TestNTPInvalid(t *testing.T) {
 	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 0 NTP offset (invalid stratum), 0 or 1 intake offset
+	// 0 ntp.offset (invalid stratum), 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -296,15 +296,15 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
-	// Intake offset may or may not be submitted depending on whether it's been set
+	// ntp.intake_offset may or may not be submitted depending on whether it's been set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -318,7 +318,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 1 NTP offset + 0 or 1 intake offset
+	// 1 ntp.offset + 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -361,15 +361,15 @@ hosts:
 			"ntp.offset",
 			float64(2),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
-	// Intake offset may or may not be submitted depending on whether it's been set
+	// ntp.intake_offset may or may not be submitted depending on whether it's been set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -382,7 +382,7 @@ hosts:
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 1 NTP offset + 0 or 1 intake offset
+	// 1 ntp.offset + 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -426,15 +426,15 @@ hosts:
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
-	// Intake offset may or may not be submitted depending on whether it's been set
+	// ntp.intake_offset may or may not be submitted depending on whether it's been set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
@@ -448,7 +448,7 @@ hosts:
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	// 1 NTP offset + 0 or 1 intake offset
+	// 1 ntp.offset + 0 or 1 ntp.intake_offset
 	gaugeCalls := 0
 	for _, c := range mockSender.Calls {
 		if c.Method == "GaugeWithTimestamp" {
@@ -669,19 +669,19 @@ func TestNTPUsesResponseTimestamp(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.MatchedBy(func(ts float64) bool {
 				actualTS = ts
 				return true
 			}),
 		).Return().Once()
 
-	// Intake offset may or may not be submitted depending on whether it's been set
+	// ntp.intake_offset may or may not be submitted depending on whether it's been set
 	mockSender.On("GaugeWithTimestamp",
-		"ntp.offset",
+		"ntp.intake_offset",
 		mock.AnythingOfType("float64"),
 		"",
-		[]string{"source:intake"},
+		[]string(nil),
 		mock.AnythingOfType("float64")).Return().Maybe()
 
 	mockSender.
