@@ -826,8 +826,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
             )
 
-    ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
-
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
@@ -874,6 +872,12 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                         f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
                     )
                     gate_state["blocking"] = exception_checker.get() is None
+
+    # Recompute final_state now that all post-processing is done (bypass logic and per-PR threshold
+    # can both change gate states after the initial gate execution loop).
+    if any(gs["state"] is False for gs in gate_states):
+        final_state = "failure"
+    ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
