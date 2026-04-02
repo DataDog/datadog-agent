@@ -275,21 +275,23 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 		return
 	}
 
+	kubeCapEntity := &workloadmeta.KubeCapabilities{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubeCapabilities,
+			ID:   workloadmeta.KubeCapabilitiesID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: workloadmeta.KubeCapabilitiesName,
+		},
+		Version:      versionInfo,
+		FeatureGates: wlmFeatureGates,
+	}
+	kubeCapEntity.InternStrings()
 	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceKubeAPIServer,
-			Entity: &workloadmeta.KubeCapabilities{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubeCapabilities,
-					ID:   workloadmeta.KubeCapabilitiesID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: workloadmeta.KubeCapabilitiesName,
-				},
-				Version:      versionInfo,
-				FeatureGates: wlmFeatureGates,
-			},
+			Entity: kubeCapEntity,
 		},
 	})
 }

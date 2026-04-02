@@ -240,6 +240,7 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 			continue
 		}
 
+		imgMetadata.InternStrings()
 		event := workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeSet,
@@ -561,6 +562,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 			return fmt.Errorf("could not get image metadata for image %q: %w", event.ImageID, err)
 		}
 
+		imgMetadata.InternStrings()
 		workloadmetaEvent := workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeSet,

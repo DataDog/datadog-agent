@@ -142,17 +142,19 @@ func (c *collector) processScanResult(result sbom.ScanResult) {
 
 // notifyStoreWithSBOMForImage notifies the store about the SBOM for a given image.
 func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.CompressedSBOM) {
+	imageEntity := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   imageID,
+		},
+		SBOM: sbom,
+	}
+	imageEntity.InternStrings()
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceTrivy,
-			Entity: &workloadmeta.ContainerImageMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainerImageMetadata,
-					ID:   imageID,
-				},
-				SBOM: sbom,
-			},
+			Entity: imageEntity,
 		},
 	})
 }

@@ -317,7 +317,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		containersList = append(containersList, c)
 	}
 
-	return &workloadmeta.KubernetesPod{
+	entity := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   string(pod.UID),
@@ -339,6 +339,8 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
 	}
+	entity.InternStrings()
+	return entity
 }
 
 func newPodStore(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {

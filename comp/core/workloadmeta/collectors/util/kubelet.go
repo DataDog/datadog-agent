@@ -160,6 +160,7 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
 		events = append(events, ephemeralContainerEvents...)
+		entity.InternStrings()
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
@@ -278,32 +279,34 @@ func parsePodContainers(
 		}
 
 		podContainers = append(podContainers, podContainer)
+		containerEntity := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   containerID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: container.Name,
+				Labels: map[string]string{
+					kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
+				},
+			},
+			Image:                      image,
+			EnvVars:                    env,
+			SecurityContext:            containerSecurityContext,
+			ReadinessProbe:             readinessProbe,
+			Ports:                      ports,
+			Runtime:                    workloadmeta.ContainerRuntime(runtime),
+			State:                      containerState,
+			Owner:                      parent,
+			Resources:                  resources,
+			ResizePolicy:               resizePolicy,
+			ResolvedAllocatedResources: allocatedResources,
+		}
+		containerEntity.InternStrings()
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   containerID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: container.Name,
-					Labels: map[string]string{
-						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
-					},
-				},
-				Image:                      image,
-				EnvVars:                    env,
-				SecurityContext:            containerSecurityContext,
-				ReadinessProbe:             readinessProbe,
-				Ports:                      ports,
-				Runtime:                    workloadmeta.ContainerRuntime(runtime),
-				State:                      containerState,
-				Owner:                      parent,
-				Resources:                  resources,
-				ResizePolicy:               resizePolicy,
-				ResolvedAllocatedResources: allocatedResources,
-			},
+			Entity: containerEntity,
 		})
 	}
 

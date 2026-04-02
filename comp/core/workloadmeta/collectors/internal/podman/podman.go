@@ -214,36 +214,40 @@ func convertToEvent(container *podman.Container, rootDir string) workloadmeta.Co
 		eventType = workloadmeta.EventTypeUnset
 	}
 
+	entity := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        container.Config.Name,
+			Namespace:   container.Config.Namespace,
+			Annotations: annotations,
+			Labels:      container.Config.Labels,
+		},
+		EnvVars:    envs,
+		Hostname:   hostname(container),
+		Image:      image,
+		NetworkIPs: networkIPs(container),
+		PID:        container.State.PID,
+		Ports:      ports,
+		Runtime:    workloadmeta.ContainerRuntimePodman,
+		State: workloadmeta.ContainerState{
+			Running:    container.State.State == podman.ContainerStateRunning,
+			Status:     status(container.State.State),
+			StartedAt:  container.State.StartedTime,
+			CreatedAt:  container.State.StartedTime, // CreatedAt not available
+			FinishedAt: container.State.FinishedTime,
+		},
+		RestartCount: int(container.State.RestartCount),
+	}
+	if eventType == workloadmeta.EventTypeSet {
+		entity.InternStrings()
+	}
 	return workloadmeta.CollectorEvent{
 		Type:   eventType,
 		Source: workloadmeta.SourceRuntime,
-		Entity: &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   containerID,
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:        container.Config.Name,
-				Namespace:   container.Config.Namespace,
-				Annotations: annotations,
-				Labels:      container.Config.Labels,
-			},
-			EnvVars:    envs,
-			Hostname:   hostname(container),
-			Image:      image,
-			NetworkIPs: networkIPs(container),
-			PID:        container.State.PID,
-			Ports:      ports,
-			Runtime:    workloadmeta.ContainerRuntimePodman,
-			State: workloadmeta.ContainerState{
-				Running:    container.State.State == podman.ContainerStateRunning,
-				Status:     status(container.State.State),
-				StartedAt:  container.State.StartedTime,
-				CreatedAt:  container.State.StartedTime, // CreatedAt not available
-				FinishedAt: container.State.FinishedTime,
-			},
-			RestartCount: int(container.State.RestartCount),
-		},
+		Entity: entity,
 	}
 }
 

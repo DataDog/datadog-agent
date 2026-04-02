@@ -37,7 +37,7 @@ func (p crdParser) Parse(obj interface{}) workloadmeta.Entity {
 		version = crd.Spec.Versions[0].Name
 	}
 
-	return &workloadmeta.CRD{
+	entity := &workloadmeta.CRD{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindCRD,
 			ID:   crd.Name, // CRD names are unique cluster-wide
@@ -53,4 +53,6 @@ func (p crdParser) Parse(obj interface{}) workloadmeta.Entity {
 		Kind:    crd.Spec.Names.Kind,
 		Version: version,
 	}
+	entity.InternStrings()
+	return entity
 }

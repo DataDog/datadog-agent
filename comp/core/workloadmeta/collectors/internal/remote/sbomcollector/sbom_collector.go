@@ -159,15 +159,17 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	}
 
 	// Return event to update the ContainerImageMetadata entity
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.ContainerImageMetadata{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainerImageMetadata,
-				ID:   imageID,
-			},
-			SBOM: finalCompressedSBOM,
+	imageEntity := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   imageID,
 		},
+		SBOM: finalCompressedSBOM,
+	}
+	imageEntity.InternStrings()
+	return workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: imageEntity,
 	}, nil
 }
 
