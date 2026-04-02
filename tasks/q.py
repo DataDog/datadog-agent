@@ -582,14 +582,20 @@ def _update_run_status(ctx, kube_ctx, run_id, image, episodes, started_at=None, 
     if completed_at:
         status["completedAt"] = completed_at
 
-    status_json = json.dumps(status).replace('"', '\\"')
-    ctx.run(
-        f'kubectl --context {kube_ctx} create configmap gensim-run-status '
-        f'--from-literal=status="{status_json}" '
-        f'--dry-run=client -o yaml | kubectl --context {kube_ctx} apply -f -',
-        hide=True,
-        warn=True,
-    )
+    # Write JSON to a temp file to avoid shell-escaping issues with --from-literal.
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as sf:
+        json.dump(status, sf)
+        status_path = sf.name
+    try:
+        ctx.run(
+            f"kubectl --context {kube_ctx} create configmap gensim-run-status "
+            f"--from-file=status={status_path} "
+            f"--dry-run=client -o yaml | kubectl --context {kube_ctx} apply -f -",
+            hide=True,
+            warn=True,
+        )
+    finally:
+        os.unlink(status_path)
 
 
 def _ensure_kind_cluster(ctx, cluster_name):
@@ -804,6 +810,66 @@ def run_local_episode(
         _build_and_load_episode_images(ctx, episode_dir, cluster_name)
     _load_agent_image(ctx, image, cluster_name)
 
+    # Wrap phases 3-7 in try/finally so helm releases and secrets are cleaned up on failure.
+    try:
+        _run_episode_phases(
+            ctx,
+            kube_ctx,
+            release_name,
+            namespace,
+            dd_env,
+            api_key,
+            app_key,
+            episode_dir,
+            scenario,
+            image,
+            mode,
+            cluster_name,
+            output_dir,
+            run_id,
+            ep_status,
+            started_at,
+            _set_phase,
+            skip_teardown,
+        )
+    except Exception:
+        if not skip_teardown:
+            print(color_message("\nCleaning up after failure...", Color.RED))
+            ctx.run(
+                f"helm --kube-context {kube_ctx} uninstall {release_name} --wait 2>/dev/null || true",
+                warn=True,
+                hide=True,
+            )
+            ctx.run(
+                f"helm --kube-context {kube_ctx} uninstall datadog-agent --wait 2>/dev/null || true",
+                warn=True,
+                hide=True,
+            )
+        raise
+
+
+def _run_episode_phases(
+    ctx,
+    kube_ctx,
+    release_name,
+    namespace,
+    dd_env,
+    api_key,
+    app_key,
+    episode_dir,
+    scenario,
+    image,
+    mode,
+    cluster_name,
+    output_dir,
+    run_id,
+    ep_status,
+    started_at,
+    _set_phase,
+    skip_teardown,
+):
+    """Inner function for phases 3-7, wrapped in try/finally by the caller."""
+
     # Phase 3: Create secrets
     print(color_message("\n[Phase 3/7] Creating K8s secrets...", Color.BLUE))
     ctx.run(
@@ -821,15 +887,21 @@ def run_local_episode(
     print(color_message("\n[Phase 4/7] Installing episode chart...", Color.BLUE))
     chart_dir = os.path.join(episode_dir, "chart")
     ctx.run(f"helm --kube-context {kube_ctx} uninstall {release_name} --wait 2>/dev/null || true", warn=True, hide=True)
-    ctx.run(
-        f"helm --kube-context {kube_ctx} install {release_name} {chart_dir} "
-        f"--set agent.enabled=false "
-        f"--set namespace={namespace} "
-        f"--set datadog.env={dd_env} "
-        f"--set datadog.apiKey={api_key} "
-        f"--set datadog.appKey={app_key} "
-        f"--timeout 5m --wait"
-    )
+    # Use a temp values file for credentials to avoid leaking keys in process list.
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as ef:
+        ef.write(
+            f"agent:\n  enabled: false\n"
+            f"namespace: {namespace}\n"
+            f"datadog:\n  env: {dd_env}\n  apiKey: {api_key}\n  appKey: {app_key}\n"
+        )
+        episode_values_path = ef.name
+    try:
+        ctx.run(
+            f"helm --kube-context {kube_ctx} install {release_name} {chart_dir} "
+            f"-f {episode_values_path} --timeout 5m --wait"
+        )
+    finally:
+        os.unlink(episode_values_path)
 
     # Phase 5: Install Datadog Agent
     _set_phase("running", "agent-install")
@@ -874,13 +946,15 @@ def run_local_episode(
     }
 
     # Pre-flight: verify API credentials work before starting the long episode.
+    # Use env vars for the curl headers to avoid leaking keys in the process list.
     print(color_message("  Validating Datadog API credentials...", Color.BLUE))
     preflight = ctx.run(
-        f'curl -s -o /dev/null -w "%{{http_code}}" '
-        f'-X GET "https://api.datadoghq.com/api/v1/validate" '
-        f'-H "DD-API-KEY: {api_key}" '
-        f'-H "DD-APPLICATION-KEY: {app_key}"',
+        'curl -s -o /dev/null -w "%{http_code}" '
+        '-X GET "https://api.datadoghq.com/api/v1/validate" '
+        '-H "DD-API-KEY: ${DD_API_KEY}" '
+        '-H "DD-APPLICATION-KEY: ${DD_APP_KEY}"',
         hide=True,
+        env=episode_env,
     )
     if preflight.stdout.strip() != "200":
         raise RuntimeError(
@@ -924,6 +998,8 @@ def run_local_episode(
         ctx.run(
             f"helm --kube-context {kube_ctx} uninstall datadog-agent --wait 2>/dev/null || true", warn=True, hide=True
         )
+
+    import datetime as _dt
 
     ep_status[0]["parquetFiles"] = len(glob.glob(os.path.join(output_dir, "*.parquet")))
     _set_phase("done", "")

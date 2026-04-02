@@ -811,14 +811,16 @@ class GensimStatusApp(App):
 
     async def action_refresh(self) -> None:
         """Manual refresh all data sources."""
-        await asyncio.gather(
-            self._poll_pulumi(),
+        pollers = [
             self._poll_configmap(),
             self._poll_logs(),
             self._poll_infra_kube(),
             self._poll_pods(),
-            self._poll_eks(),
-        )
+        ]
+        if not LOCAL_MODE:
+            pollers.append(self._poll_pulumi())
+            pollers.append(self._poll_eks())
+        await asyncio.gather(*pollers)
 
     async def _poll_pulumi(self) -> None:
         self._pulumi_data = await fetch_pulumi_state()
