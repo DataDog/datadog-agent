@@ -8,3 +8,13 @@
 // See impl/agent.go for the implementation.
 // See fx/fx.go for the fx module.
 package logsagentpipeline
+
+import defpkg "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
+
+// Component is the component type.
+// Deprecated: Use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def.Component instead.
+type Component = defpkg.Component
+
+// LogsAgent is a compat version of component for non fx usage.
+// Deprecated: Use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def.LogsAgent instead.
+type LogsAgent = defpkg.LogsAgent
