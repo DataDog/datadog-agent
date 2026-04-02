@@ -147,7 +147,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/client v1.53.0 // indirect
+	go.opentelemetry.io/collector/client v1.54.0 // indirect
 	go.opentelemetry.io/collector/component/componenttest v0.148.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v1.53.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.53.0 // indirect
@@ -169,7 +169,7 @@ require (
 	go.opentelemetry.io/collector/extension/xextension v0.147.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.54.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.148.0 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.147.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.148.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.54.0 // indirect
 	go.opentelemetry.io/collector/receiver v1.54.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.148.0 // indirect

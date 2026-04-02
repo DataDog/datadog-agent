@@ -33,7 +33,7 @@ require (
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20251226215517-609e4778396f // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.147.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.148.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 )
 
@@ -205,7 +205,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/client v1.53.0 // indirect
+	go.opentelemetry.io/collector/client v1.54.0 // indirect
 	go.opentelemetry.io/collector/component v1.54.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v1.53.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.53.0 // indirect

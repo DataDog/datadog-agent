@@ -418,7 +418,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.6 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.147.0 // indirect
-	go.opentelemetry.io/collector/client v1.53.0 // indirect
+	go.opentelemetry.io/collector/client v1.54.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v1.53.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.53.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.147.0 // indirect
@@ -452,7 +452,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.54.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.148.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.148.0 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.147.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.148.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.54.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.147.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper v0.147.0 // indirect

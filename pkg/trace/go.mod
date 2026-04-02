@@ -125,6 +125,7 @@ require (
 	go.opentelemetry.io/collector/consumer/consumertest v0.148.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.148.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.148.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.148.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.54.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.148.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.42.0 // indirect

@@ -20,7 +20,7 @@ require (
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.147.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.148.0 // indirect
 )
 
 require (
