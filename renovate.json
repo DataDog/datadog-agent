@@ -57,6 +57,11 @@
         "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
       },
       {
+        "matchManagers": ["cargo"],
+        "matchDepNames": ["prost", "prost-types", "prost-build", "tonic", "tonic-build", "tonic-reflection", "protoc-gen-prost", "protoc-gen-tonic"],
+        "groupName": "prost/tonic protobuf stack"
+      },
+      {
         "matchManagers": ["npm"],
         "enabled": false
       },
@@ -141,7 +146,8 @@
         "currentValueTemplate": "master",
         "depNameTemplate": "integrations-core",
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
-        "datasourceTemplate": "git-refs"
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
       }
     ],
     "customDatasources": {

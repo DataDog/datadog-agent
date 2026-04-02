@@ -693,7 +693,12 @@ def get_impacted_packages(ctx, build_tags=None):
     base_branch = _get_release_json_value("base_branch")
     files = get_modified_files(ctx, base_branch=base_branch)
     print(f"Detected the following modified files: {files}")
-    modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
+    # Only .go files directly identify their containing directory as a Go package.
+    # Non-Go files (fixtures, Cargo.toml, etc.) are resolved to the nearest
+    # ancestor Go package by the walk-up loop below.
+    modified_packages = {
+        f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files if file.endswith(".go")
+    }
 
     # Modification to go.mod and go.sum should force the tests of the whole module to run
     for file in files:
@@ -704,7 +709,8 @@ def get_impacted_packages(ctx, build_tags=None):
                 ).stdout.splitlines()
                 modified_packages.update(set(all_packages))
 
-    # Modification to fixture folders count as modification to their parent package
+    # Modification to non-Go files (fixtures, testdata, etc.) count as
+    # modification to the nearest ancestor package that contains Go sources.
     for file in files:
         if not file.endswith(".go"):
             formatted_path = Path(os.path.dirname(file)).as_posix()
