@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && ebpf_bindata && pcap && cgo
+//go:build linux && ebpf_bindata
 
 // Package tests holds tests related files
 package tests

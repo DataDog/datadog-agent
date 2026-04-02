@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && pcap && cgo
+//go:build linux
 
 // Package rawpacket holds rawpacket related files
 package rawpacket
@@ -15,11 +15,10 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cloudflare/cbpfc"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/bpf"
 
+	"github.com/DataDog/datadog-agent/pkg/libpcap"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
@@ -27,13 +26,10 @@ const (
 	// progPrefix prefix used for raw packet filter programs
 	defaultProgPrefix = "raw_packet_filter_"
 
-	// packetCaptureSize see kernel definition
-	packetCaptureSize = 256
-
 	// raw packet data, see kernel definition
 	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
 	structRawPacketEventPidOffset      = 16
-	structRawPacketEventCgroupIdOffset = 80
+	structRawPacketEventCgroupIDOffset = 80
 	structRawPacketEventDataOffset     = 108
 
 	// payload size
@@ -58,7 +54,7 @@ type ProgOpts struct {
 	onMatchLabel          string
 	ctxSaveReg            asm.Register
 	tailCallMapFd         int
-	hasGetCurrentCgroupId bool
+	hasGetCurrentCgroupID bool
 }
 
 // DefaultProgOpts default options
@@ -91,14 +87,14 @@ func (opts *ProgOpts) WithProgPrefix(prefix string) *ProgOpts {
 }
 
 // WithGetCurrentCgroupID sets if the program should use the get_current_cgroup_id function
-func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupId bool) *ProgOpts {
-	opts.hasGetCurrentCgroupId = hasGetCurrentCgroupId
+func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupID bool) *ProgOpts {
+	opts.hasGetCurrentCgroupID = hasGetCurrentCgroupID
 	return opts
 }
 
 // FilterToInsts compile a bpf filter expression
 func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, error) {
-	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter.BPFFilter)
+	pcapBPF, err := libpcap.CompileBPFFilter(libpcap.LinkTypeEthernet, 256, filter.BPFFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +147,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// load the cgroup id from the packet
-			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventCgroupIdOffset, asm.DWord),
+			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventCgroupIDOffset, asm.DWord),
 
 			// printk the cgroup id
 			/*

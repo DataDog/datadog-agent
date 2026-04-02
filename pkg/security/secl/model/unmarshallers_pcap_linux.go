@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && pcap
+//go:build linux
 
 // Package model holds model related files
 package model
@@ -15,8 +15,9 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // UnmarshalBinary unmarshals a binary representation of itself

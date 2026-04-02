@@ -214,6 +214,7 @@ modules:
     used_by_otel: true
   pkg/gohai:
     used_by_otel: true
+  pkg/libpcap: default
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:
