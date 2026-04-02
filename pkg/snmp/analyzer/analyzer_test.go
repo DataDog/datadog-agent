@@ -11,7 +11,7 @@ func TestFindSysOID_Found(t *testing.T) {
 
 	pdus := []gosnmp.SnmpPDU{
 		{Name: "1.3.6.1.2.1.1.1.0", Value: "some other value"},
-		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.9.1.1208"},
+		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.9.1.1208"},
 	}
 
 	got := FindSysOID(pdus)
@@ -47,7 +47,7 @@ func TestFindSysOID_NonStringValue(t *testing.T) {
 func TestProfileFound(t *testing.T) {
 	//Profile for dell
 	pdus := []gosnmp.SnmpPDU{
-		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.674.1"},
+		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.674.1"},
 	}
 
 	sysOID := FindSysOID(pdus)
@@ -63,7 +63,7 @@ func TestProfileFound(t *testing.T) {
 
 func TestProfileNotFound(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
-		{Name: _cached_sys_obj_id, Value: "1.1.1.1.4.1.14.1"},
+		{Name: SysObjectOID(), Value: "1.1.1.1.4.1.14.1"},
 	}
 
 	sysOID := FindSysOID(pdus)
@@ -80,7 +80,7 @@ func TestProfileNotFound(t *testing.T) {
 func TestAnalyze(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
 		// Required for profile detection
-		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.674.1"},
+		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.674.1"},
 
 		// Standard MIB-2 system OIDs (Dell profile typically includes these)
 		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Dell iDRAC SNMP Agent"}, // sysDescr
@@ -116,7 +116,7 @@ func TestAnalyze(t *testing.T) {
 
 func TestFormatReport(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
-		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.674.1"},
+		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.674.1"},
 		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Dell iDRAC SNMP Agent"},
 		{Name: ".1.3.6.1.2.1.1.5.0", Value: "dell-pdu-01"},
 		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},
@@ -146,5 +146,44 @@ func TestFormatReport(t *testing.T) {
 	}
 	if !strings.Contains(report, "1.3.6.1.2.1.1.1.0") && !strings.Contains(report, "Dell iDRAC") {
 		t.Error("report should contain at least one analyzed OID or value from the walk")
+	}
+}
+
+func TestInterfaceID(t *testing.T) {
+	pdus := []gosnmp.SnmpPDU{
+		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Test Device"},
+		{Name: ".1.3.6.1.2.1.1.5.0", Value: "router-01"},
+		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},
+
+		// ifTable columns defined in _generic-if metrics.symbols
+		{Name: ".1.3.6.1.2.1.2.2.1.14.12", Value: uint32(1000)},
+		{Name: ".1.3.6.1.2.1.2.2.1.14.23", Value: uint32(2000)},
+		{Name: ".1.3.6.1.2.1.2.2.1.13.11", Value: uint32(3000)},
+		{Name: ".1.3.6.1.2.1.2.2.1.13.24", Value: uint32(4000)},
+	}
+	sysOID := "1.3.6.1.4.1.3375.2.1.3.4.1"
+
+	found, _, _, _, err := Analyze(pdus, sysOID)
+	if err != nil {
+		t.Skipf("profile lookup not available: %v", err)
+	}
+
+	expected := map[string]bool{
+		"12": false,
+		"23": false,
+		"11": false,
+		"24": false,
+	}
+
+	for _, m := range found {
+		if _, ok := expected[m.InterfaceID]; ok {
+			expected[m.InterfaceID] = true
+		}
+	}
+
+	for id, seen := range expected {
+		if !seen {
+			t.Fatalf("expected interfaceID %s to be found", id)
+		}
 	}
 }

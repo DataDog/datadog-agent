@@ -123,6 +123,10 @@ func oidMap(profileDefs []profiledefinition.ProfileDefinition) (profileByOID, na
 	sort.Slice(columnBases, func(i, j int) bool { return len(columnBases[i].OID) > len(columnBases[j].OID) })
 	return profileByOID, nameByOID, columnBases
 }
+func isInterfaceIndex(oid string) bool {
+	return strings.HasPrefix(oid, "1.3.6.1.2.1.2.") ||
+		strings.HasPrefix(oid, "1.3.6.1.2.1.31.")
+}
 
 // Analyze runs analysis on the walk results (pdus) using the given sysObjectID to resolve the device profile.
 // It returns matched metrics, unmatched metrics (OIDs not in any profile), the resolved profile name, extended profile names, and an error if profile lookup fails.
@@ -134,7 +138,7 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 	err error,
 ) {
 	// Resolve the profile definition for this device from sysObjectID.
-	profileDef, err := FindProfile(sysOID)
+	profileDef, err := FindProfile(normalizeOID(sysOID))
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
@@ -174,13 +178,11 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 				if strings.HasPrefix(normalizedOID, base.OID+".") {
 					matchedProfile = base.Profile
 					symbolName = base.Name
-					interfaceID = normalizedOID[len(base.OID)+1:] // suffix after "base."
+					if isInterfaceIndex(base.OID) {
+						oidSegments := strings.Split(normalizedOID, ".")
+						interfaceID = oidSegments[len(oidSegments)-1]
+					}
 					break
-				}
-			}
-			if matchedProfile == "" {
-				if dotIdx := strings.LastIndex(normalizedOID, "."); dotIdx >= 0 {
-					interfaceID = normalizedOID[dotIdx+1:]
 				}
 			}
 		}
@@ -229,28 +231,25 @@ func FormatReport(found, notFound []MetricProfile, profileName string, extendedP
 		}
 		iface := m.InterfaceID
 		if iface == "" {
-			iface = "0"
+			iface = ""
 		}
 		b.WriteString("│ " + padRight(truncate(m.OID, 35), 35) + " │ " + padRight(truncate(m.SymbolName, 16), 16) + " │ " + padRight(iface, 10) + " │ " + padRight(valStr, 23) + " │ " + padRight(truncate(m.Profile, 17), 17) + " │\n")
 	}
 	b.WriteString("└" + strings.Repeat("─", 37) + "┴" + strings.Repeat("─", 18) + "┴" + strings.Repeat("─", 12) + "┴" + strings.Repeat("─", 25) + "┴" + strings.Repeat("─", 19) + "┘\n\n")
 
-	// Unmatched table
+	// Unmatched table: OID and value only (no interface column).
+	const unmatchedOIDW, unmatchedValW = 61, 41
 	b.WriteString("┌─ Unmatched OIDs " + strings.Repeat("─", reportWidth-20) + "┐\n")
-	b.WriteString("│ OID" + strings.Repeat(" ", 48) + "│ Interface  │ Value" + strings.Repeat(" ", 38) + "│\n")
-	b.WriteString("├" + strings.Repeat("─", 50) + "┼" + strings.Repeat("─", 12) + "┼" + strings.Repeat("─", 43) + "┤\n")
+	b.WriteString("│ " + padRight("OID", unmatchedOIDW) + " │ " + padRight("Value", unmatchedValW) + " │\n")
+	b.WriteString("├" + strings.Repeat("─", unmatchedOIDW) + "┼" + strings.Repeat("─", unmatchedValW) + "┤\n")
 	for _, m := range notFound {
 		valStr := fmt.Sprintf("%v", m.Value)
 		if len(valStr) > 40 {
 			valStr = valStr[:37] + "..."
 		}
-		iface := m.InterfaceID
-		if iface == "" {
-			iface = "0"
-		}
-		b.WriteString("│ " + padRight(truncate(m.OID, 48), 48) + " │ " + padRight(iface, 10) + " │ " + padRight(valStr, 41) + " │\n")
+		b.WriteString("│ " + padRight(truncate(m.OID, unmatchedOIDW), unmatchedOIDW) + " │ " + padRight(valStr, unmatchedValW) + " │\n")
 	}
-	b.WriteString("└" + strings.Repeat("─", 50) + "┴" + strings.Repeat("─", 12) + "┴" + strings.Repeat("─", 43) + "┘\n")
+	b.WriteString("└" + strings.Repeat("─", unmatchedOIDW) + "┴" + strings.Repeat("─", unmatchedValW) + "┘\n")
 	return b.String()
 }
 
