@@ -14,7 +14,6 @@ from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
-
 # Maps short scenario names to episode names used in runs.jsonl
 SCENARIO_EPISODE_NAMES = {
     "213_pagerduty": "213_PagerDuty_June_2014_Outage",
@@ -30,6 +29,14 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations).
 DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
 CORRELATORS = ["cross_signal", "time_cluster"]
+
+# Log metrics extractors (component_catalog extractors). Not part of the random
+# ablation grid: eval_combinations always enables all of them unless force-disabled.
+EXTRACTORS = [
+    "log_metrics_extractor",
+    "connection_error_extractor",
+    "log_pattern_extractor",
+]
 
 
 # --- Build ---
@@ -406,18 +413,28 @@ def random_component_combinations(
     return combos
 
 
-def _combo_to_config(detectors: list, correlators: list) -> dict:
+def _combo_to_config(
+    detectors: list,
+    correlators: list,
+    force_disable: list | None = None,
+) -> dict:
     """
     Build a testbench JSON params config enabling exactly the listed detectors
-    and correlators, explicitly disabling all others.
+    and correlators, explicitly disabling all other detectors/correlators.
+
+    All EXTRACTORS are enabled unless listed in force_disable (explicit
+    ``{"enabled": false}`` so ablation stays stable if catalog defaults change).
 
     The config follows the TestbenchParamsFile format consumed by --config:
         {"components": {"bocpd": {"enabled": true}, "rrcf": {"enabled": false}, ...}}
     """
+    force_disable_set = set(force_disable or [])
     enabled_set = set(detectors + correlators)
     components = {}
     for name in DETECTORS + CORRELATORS:
         components[name] = {"enabled": name in enabled_set}
+    for name in EXTRACTORS:
+        components[name] = {"enabled": name not in force_disable_set}
     return {"components": components}
 
 
@@ -437,7 +454,8 @@ def eval_combinations(
     Run Gaussian F1 eval on n random component combinations and rank them.
 
     Each combination contains at least 1 detector and 1 correlator chosen
-    randomly from DETECTORS and CORRELATORS. A JSON config file is written for
+    randomly from DETECTORS and CORRELATORS. All EXTRACTORS are enabled in each
+    combo unless named in --force-disable. A JSON config file is written for
     each combination so enabled/disabled state is precise (no auto-add side
     effects from --only).
 
@@ -454,7 +472,9 @@ def eval_combinations(
         seed: Random seed for reproducibility (default: None = random).
         build: Whether to build observer-testbench and observer-scorer first.
         force_enable: Comma-separated components always present in every combination.
-        force_disable: Comma-separated components never included in any combination.
+        force_disable: Comma-separated components never included in any combination
+            (detectors/correlators removed from the random pool; extractors in
+            EXTRACTORS are disabled in the written config when listed here).
 
     Examples:
         dda inv q.eval-combinations --n 20 --seed 42
@@ -489,7 +509,7 @@ def eval_combinations(
         combo_dir = os.path.join(output_dir, combo_label)
         os.makedirs(combo_dir, exist_ok=True)
 
-        config_data = _combo_to_config(combo["detectors"], combo["correlators"])
+        config_data = _combo_to_config(combo["detectors"], combo["correlators"], force_disable=force_disable_list)
         config_path = os.path.join(combo_dir, "config.json")
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
@@ -498,6 +518,8 @@ def eval_combinations(
         print(color_message(f"  [{i + 1}/{len(combos)}] {combo_label}", Color.BLUE))
         print(color_message(f"  detectors:   {', '.join(combo['detectors'])}", Color.BLUE))
         print(color_message(f"  correlators: {', '.join(combo['correlators'])}", Color.BLUE))
+        ext_on = [e for e in EXTRACTORS if e not in force_disable_list]
+        print(color_message(f"  extractors:  {', '.join(ext_on)}", Color.BLUE))
         print(color_message(f"{'=' * 60}", Color.BLUE))
 
         scenario_output_dir = os.path.join(combo_dir, "scenarios")
