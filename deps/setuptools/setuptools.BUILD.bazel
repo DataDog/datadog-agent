@@ -1,0 +1,31 @@
+# Install setuptools into the embedded Python's site-packages.
+#
+# Mirrors the logic in omnibus/config/software/setuptools3.rb:
+#   python -m pip install .
+#
+# <Usage:
+#   bazel run --//:install_dir=/tmp/os @setuptools//:install
+#   ... except it does not work.
+
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@cpython//:version.bzl", "PYTHON_VERSION")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+sh_binary(
+    name = "pip_install_sh",
+    srcs = ["pip_install.sh"],
+)
+
+run_binary(
+    name = "install",
+    tool = ":pip_install_sh",
+    env = {
+        "INSTALL_DIR": "/opt/datadog-agent",
+    },
+    args = select({
+        "@platforms//os:windows": ["$(INSTALL_DIR)\\embedded3\\bin\\python.exe"],
+        "//conditions:default": ["/tmp/os/embedded/bin/python"],
+    }),
+    # it
+    out_dirs = ["$(INSTALL_DIR)/embedded/lib/python3.13/site-packages/setuptools"],
+)
