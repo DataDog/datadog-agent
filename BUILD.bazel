@@ -436,7 +436,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
 # gazelle:exclude pkg/util/os
-# gazelle:exclude pkg/util/otel
 # gazelle:exclude pkg/util/pdhutil
 # gazelle:exclude pkg/util/podman
 # gazelle:exclude pkg/util/port
@@ -456,7 +455,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
 # gazelle:exclude pkg/util/uuid
-# gazelle:exclude pkg/util/winutil
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
 # gazelle:exclude pkg/windowsdriver
