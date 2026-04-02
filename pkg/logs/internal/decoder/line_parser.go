@@ -192,7 +192,7 @@ func (p *MultiLineParser) sendLine() {
 	if len(content) > 0 || p.rawDataLen > 0 {
 		p.bufferedMsg.RawDataLen = p.rawDataLen
 		p.bufferedMsg.SetContent(content)
-		p.bufferedMsg.ParsingExtra.IsTruncated = p.isBufferTruncated
+		p.bufferedMsg.ParsingExtra.IsTruncated = p.bufferedMsg.ParsingExtra.IsTruncated || p.isBufferTruncated
 		p.lineHandler.process(p.bufferedMsg)
 	}
 }
