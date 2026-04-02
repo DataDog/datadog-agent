@@ -501,7 +501,7 @@ func (a *Agent) Process(p *api.Payload) {
 			if a.SpanModifier != nil {
 				a.SpanModifier.ModifySpan(chunk, span)
 			}
-			a.obfuscateSpanInternal(&obfuscateSpanV0{span: span})
+			a.ObfuscateSpan(span)
 			a.Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
