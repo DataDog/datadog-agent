@@ -29,11 +29,11 @@ type Provides struct {
 
 // Milestone represents a single event in the boot/logon timeline.
 type Milestone struct {
-	Id        string  `json:"id"`
-	Name      string  `json:"name"`
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
 	OffsetMs   float64 `json:"offset_ms"`
 	DurationMs float64 `json:"duration_ms"`
-	Timestamp string  `json:"timestamp"`
+	Timestamp  string  `json:"timestamp"`
 }
 
 // eventInput holds the data needed to build and send a logon duration event.

@@ -272,7 +272,7 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 			offset = float64(c.ts.Sub(boot).Milliseconds())
 		}
 		milestones = append(milestones, Milestone{
-			Id:         c.id,
+			ID:         c.id,
 			Name:       c.name,
 			OffsetMs:   offset,
 			Timestamp:  c.ts.UTC().Format(tsFmt),
@@ -313,7 +313,7 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 
 	for _, milestone := range milestones {
 		if milestone.DurationMs > 0 {
-			durations[milestone.Id] = milestone.DurationMs
+			durations[milestone.ID] = milestone.DurationMs
 		}
 	}
 
@@ -350,4 +350,3 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		Custom:    custom,
 	})
 }
-

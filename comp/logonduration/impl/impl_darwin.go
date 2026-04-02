@@ -315,4 +315,3 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 		Custom:    custom,
 	})
 }
-

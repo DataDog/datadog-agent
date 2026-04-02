@@ -387,4 +387,3 @@ func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
 	attrs := data["attributes"].(map[string]interface{})
 	assert.Equal(t, "Total boot duration analysis after reboot", attrs["message"])
 }
-
