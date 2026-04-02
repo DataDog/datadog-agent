@@ -41,6 +41,6 @@ func newMock(conf *config.NetflowConfig, logger log.Component) (configimpl.Provi
 // Defaults will always be populated.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock),
+		fxutil.ProvideComponentConstructor(newMock),
 		fx.Supply(&config.NetflowConfig{}))
 }
