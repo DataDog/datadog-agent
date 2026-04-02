@@ -163,12 +163,9 @@ func (s *kubeWorkloadConfigStore) onUpdated(kind string, obj any) {
 	log.Debugf("Spot workload config updated %s: %#v", key, cfg)
 
 	// Enqueue a pod backfill when a workload opts in for the first time.
-	// Pods created before the workload config key appeared were not delivered by WLM
-	// (the filter rejected them); backfilling ensures the rebalancer can act on them.
-	if !existed && s.podFetcher != nil {
-		matchLabels, _, _ := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
-		if len(matchLabels) > 0 {
-			s.podFetcher.enqueue(key, labels.SelectorFromSet(labels.Set(matchLabels)))
+	if !existed {
+		if selector, ok := getPodSelector(kind, u.Object); ok {
+			s.podFetcher.enqueue(key, selector)
 		}
 	}
 }
@@ -188,4 +185,17 @@ func (s *kubeWorkloadConfigStore) onDeleted(kind string, obj any) {
 	s.mu.Unlock()
 
 	log.Debugf("Spot workload config deleted %s", key)
+}
+
+// getPodSelector returns the label selector string for a workload object based on its kind.
+// Returns the selector and true if the selector can be determined, or empty string and false otherwise.
+func getPodSelector(kind string, obj map[string]any) (string, bool) {
+	switch kind {
+	case kubernetes.DeploymentKind, kubernetes.StatefulSetKind:
+		matchLabels, _, _ := unstructured.NestedStringMap(obj, "spec", "selector", "matchLabels")
+		if len(matchLabels) > 0 {
+			return labels.SelectorFromSet(labels.Set(matchLabels)).String(), true
+		}
+	}
+	return "", false
 }

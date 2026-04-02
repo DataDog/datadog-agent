@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
 
@@ -54,8 +53,8 @@ func newPodFetcher(lister podLister, tracker *podTracker) *podFetcher {
 
 // enqueue schedules a pod fetch request for workload.
 // Requests are deduplicated by the work queue.
-func (f *podFetcher) enqueue(workload workload, selector labels.Selector) {
-	f.queue.Add(fetchRequest{workload: workload, selector: selector.String()})
+func (f *podFetcher) enqueue(workload workload, selector string) {
+	f.queue.Add(fetchRequest{workload: workload, selector: selector})
 }
 
 // start processes fetch requests until ctx is cancelled.
