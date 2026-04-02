@@ -162,7 +162,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/syntheticstestscheduler
 # gazelle:exclude comp/systray
 # gazelle:exclude comp/trace-telemetry
-# gazelle:exclude comp/trace/agent
+# gazelle:exclude comp/trace/agent/fx
+# gazelle:exclude comp/trace/agent/fx-mock
+# gazelle:exclude comp/trace/agent/impl
 # gazelle:exclude comp/trace/compression/fx-gzip
 # gazelle:exclude comp/trace/compression/fx-zstd
 # gazelle:exclude comp/trace/config
