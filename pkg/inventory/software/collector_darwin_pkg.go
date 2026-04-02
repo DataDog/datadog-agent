@@ -41,6 +41,7 @@ const (
 	defaultBomCacheTTL        = 1 * time.Hour
 	defaultBomCacheMaxEntries = 512
 	lsbomBatchTimeout         = 60 * time.Second
+	lsbomSingleTimeout        = 30 * time.Second
 	lsbomScannerMaxTokenSize  = 2 * 1024 * 1024
 	maxTopLevelPathsPerPkg    = 128
 	bomDelimiterPrefix        = "===BOM:"
@@ -144,9 +145,45 @@ func (c *bomCache) evictOldestLocked() {
 	}
 }
 
-// batchLsbom runs a single shell subprocess that invokes lsbom -sd for every BOM file,
-// producing delimited output. Returns a map from BOM path to its raw directory lines.
-func batchLsbom(bomPaths []string) map[string][]string {
+// shellUnsafeChars contains characters that could enable command injection inside
+// single-quoted shell strings. BOM paths containing any of these are handled via
+// a dedicated exec.Command instead of the batched shell script.
+const shellUnsafeChars = "'\"`$;|&(){}!\\#~<>?\n\r\x00"
+
+// isSafeForShell reports whether a path can be safely embedded in a single-quoted
+// shell argument without risk of command injection.
+func isSafeForShell(path string) bool {
+	return !strings.ContainsAny(path, shellUnsafeChars)
+}
+
+// singleLsbom runs lsbom -sd for one BOM file using exec.Command directly,
+// bypassing the shell. This is injection-safe for any filename.
+func singleLsbom(bomPath string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), lsbomSingleTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "lsbom", "-sd", bomPath)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return []string{}
+	}
+	if err := cmd.Start(); err != nil {
+		return []string{}
+	}
+
+	var lines []string
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), lsbomScannerMaxTokenSize)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	_ = cmd.Wait()
+	return lines
+}
+
+// batchLsbomShell runs a single shell subprocess that invokes lsbom -sd for multiple
+// BOM files, producing delimited output. Only safe paths should be passed here.
+func batchLsbomShell(bomPaths []string) map[string][]string {
 	if len(bomPaths) == 0 {
 		return nil
 	}
@@ -187,6 +224,33 @@ func batchLsbom(bomPaths []string) map[string][]string {
 	}
 
 	_ = cmd.Wait()
+	return result
+}
+
+// batchLsbom fetches lsbom -sd output for all given BOM paths.
+// Safe paths are batched into a single shell subprocess for performance.
+// Paths with shell metacharacters are handled via individual exec.Command calls.
+func batchLsbom(bomPaths []string) map[string][]string {
+	if len(bomPaths) == 0 {
+		return nil
+	}
+
+	var safePaths, unsafePaths []string
+	for _, bp := range bomPaths {
+		if isSafeForShell(bp) {
+			safePaths = append(safePaths, bp)
+		} else {
+			unsafePaths = append(unsafePaths, bp)
+		}
+	}
+
+	result := batchLsbomShell(safePaths)
+	if result == nil {
+		result = make(map[string][]string, len(unsafePaths))
+	}
+	for _, bp := range unsafePaths {
+		result[bp] = singleLsbom(bp)
+	}
 	return result
 }
 
