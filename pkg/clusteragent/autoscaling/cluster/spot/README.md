@@ -102,6 +102,8 @@ Rebalancing handles the following cases:
   Labels to add:
   - `autoscaling.datadoghq.com/spot-assigned` (pod label) — identifies pods scheduled on spot instances
   - `autoscaling.datadoghq.com/spot-enabled` (workload label) — identifies spot-enabled workloads
+- [ ] Rebalancing after opt-out. Currently when workload label is removed, the agent cleans up tracked state and
+  leaves workload intact. To move workload pod to on-demand nodes one needs to rollout restart it.
 
 ## Spot scheduling configuration
 

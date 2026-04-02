@@ -14,78 +14,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sclient "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/util/workqueue"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // podLister lists pods for a workload by namespace and label selector.
 type podLister interface {
 	listPods(ctx context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error)
-}
-
-// podFetcher processes pod fetch requests.
-// It fetches the workload's existing pods by label selector and
-// feeds them into the tracker so it has accurate state.
-type podFetcher struct {
-	queue   workqueue.TypedRateLimitingInterface[fetchRequest]
-	lister  podLister
-	tracker *podTracker
-}
-
-// fetchRequest is an item in the podFetcher work queue.
-type fetchRequest struct {
-	workload workload
-	selector string
-}
-
-func newPodFetcher(lister podLister, tracker *podTracker) *podFetcher {
-	return &podFetcher{
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedItemBasedRateLimiter[fetchRequest](),
-			workqueue.TypedRateLimitingQueueConfig[fetchRequest]{Name: "spot-pod-fetcher"},
-		),
-		lister:  lister,
-		tracker: tracker,
-	}
-}
-
-// enqueue schedules a pod fetch request for workload.
-// Requests are deduplicated by the work queue.
-func (f *podFetcher) enqueue(workload workload, selector string) {
-	f.queue.Add(fetchRequest{workload: workload, selector: selector})
-}
-
-// start processes fetch requests until ctx is cancelled.
-func (f *podFetcher) start(ctx context.Context) {
-	stop := context.AfterFunc(ctx, f.queue.ShutDown)
-	defer stop()
-
-	for f.processNext(ctx) {
-	}
-}
-
-func (f *podFetcher) processNext(ctx context.Context) bool {
-	req, shutdown := f.queue.Get()
-	if shutdown {
-		return false
-	}
-	defer f.queue.Done(req)
-
-	pods, err := f.lister.listPods(ctx, req.workload.Namespace, req.selector)
-	if err != nil {
-		log.Errorf("spot pod fetcher: listing pods for %s: %v", req.workload, err)
-		f.queue.AddRateLimited(req)
-		return true
-	}
-
-	f.queue.Forget(req)
-	for _, pod := range pods {
-		f.tracker.addedOrUpdated(pod)
-	}
-	log.Debugf("spot pod fetcher: fetched %d pods for %s", len(pods), req.workload)
-	return true
 }
 
 // kubePodLister implements podLister using the Kubernetes API.

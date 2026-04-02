@@ -72,6 +72,20 @@ func (s *TestScheduler) IsSpotSchedulingDisabled(kind, namespace, name string) b
 	return cfg.isDisabled(s.clock.Now())
 }
 
+// HasConfig reports whether the workload has an entry in the config store.
+func (s *TestScheduler) HasConfig(kind, namespace, name string) bool {
+	_, ok := s.getSpotConfig(workload{Kind: kind, Namespace: namespace, Name: name})
+	return ok
+}
+
+// HasTrackedPods reports whether the workload has any pods tracked in the pod tracker.
+func (s *TestScheduler) HasTrackedPods(kind, namespace, name string) bool {
+	s.tracker.mu.RLock()
+	defer s.tracker.mu.RUnlock()
+	_, ok := s.tracker.podGroups[workload{Kind: kind, Namespace: namespace, Name: name}]
+	return ok
+}
+
 // Spot node selector and taint exported for tests.
 const (
 	SpotNodeLabelKey   = spotNodeLabelKey

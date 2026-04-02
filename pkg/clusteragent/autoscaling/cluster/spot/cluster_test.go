@@ -385,6 +385,29 @@ func (d *fakeDeployment) UpdateMetadata(newLabels, newAnnotations map[string]str
 	require.NoError(d.cluster.t, err)
 }
 
+// RemoveLabels removes the given label keys from the Deployment without creating new pods.
+func (d *fakeDeployment) RemoveLabels(keys ...string) {
+	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(context.Background(), d.name, metav1.GetOptions{})
+	require.NoError(d.cluster.t, err)
+	lbl := u.GetLabels()
+	for _, k := range keys {
+		delete(lbl, k)
+	}
+	u.SetLabels(lbl)
+
+	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(context.Background(), u, metav1.UpdateOptions{})
+	require.NoError(d.cluster.t, err)
+}
+
+// Delete deletes the Deployment and all its pods.
+func (d *fakeDeployment) Delete() {
+	if d.existingReplicaSet != "" {
+		d.cluster.DeleteOwnerPods(kubernetes.ReplicaSetKind, d.namespace, d.existingReplicaSet)
+	}
+	err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Delete(context.Background(), d.name, metav1.DeleteOptions{})
+	require.NoError(d.cluster.t, err)
+}
+
 func (d *fakeDeployment) rolloutWithDelay(replicas int) string {
 	// TODO: fixme
 	// Let workload config store pick up the change so test do not rely on rebalancing.

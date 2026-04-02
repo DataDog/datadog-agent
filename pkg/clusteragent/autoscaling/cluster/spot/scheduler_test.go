@@ -450,6 +450,72 @@ func TestScenarios(t *testing.T) {
 		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(replicas-expectedSpot))
 	})
 
+	t.Run("Opt-out via label removal clears config store and pod tracker", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, _ := runTestScheduler(t.Context(), cluster)
+
+		const replicas = 5
+		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 1), replicas)
+		rs := d.ReplicaSet()
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+
+		require.Eventually(t, func() bool {
+			return s.HasConfig(kubernetes.DeploymentKind, d.namespace, d.name)
+		}, 1*time.Second, 10*time.Millisecond)
+		require.Eventually(t, func() bool {
+			total, _ := s.TrackedCounts(kubernetes.DeploymentKind, d.namespace, d.name)
+			return total == replicas
+		}, 1*time.Second, 10*time.Millisecond)
+
+		// When: remove the spot label (opt-out)
+		d.RemoveLabels(spot.SpotEnabledLabelKey)
+
+		// Then: config store and pod tracker are cleared
+		require.Eventually(t, func() bool {
+			return !s.HasConfig(kubernetes.DeploymentKind, d.namespace, d.name)
+		}, 1*time.Second, 10*time.Millisecond)
+		require.Eventually(t, func() bool {
+			return !s.HasTrackedPods(kubernetes.DeploymentKind, d.namespace, d.name)
+		}, 1*time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("Opt-out via deployment deletion clears config store and pod tracker", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, _ := runTestScheduler(t.Context(), cluster)
+
+		const replicas = 5
+		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 1), replicas)
+		rs := d.ReplicaSet()
+		cluster.AssertOwnerPods(kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
+
+		require.Eventually(t, func() bool {
+			return s.HasConfig(kubernetes.DeploymentKind, d.namespace, d.name)
+		}, 1*time.Second, 10*time.Millisecond)
+		require.Eventually(t, func() bool {
+			total, _ := s.TrackedCounts(kubernetes.DeploymentKind, d.namespace, d.name)
+			return total == replicas
+		}, 1*time.Second, 10*time.Millisecond)
+
+		// When: delete the deployment and its pods
+		d.Delete()
+
+		// Then: config store and pod tracker are cleared
+		require.Eventually(t, func() bool {
+			return !s.HasConfig(kubernetes.DeploymentKind, d.namespace, d.name)
+		}, 1*time.Second, 10*time.Millisecond)
+		require.Eventually(t, func() bool {
+			return !s.HasTrackedPods(kubernetes.DeploymentKind, d.namespace, d.name)
+		}, 1*time.Second, 10*time.Millisecond)
+	})
+
 	t.Run("Pods not eligible for spot are not tracked", func(t *testing.T) {
 		// Given
 		cluster := newFakeCluster(t)

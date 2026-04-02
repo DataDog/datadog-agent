@@ -251,6 +251,19 @@ func (t *podTracker) deletePendingSpotPod(uid string) {
 	delete(t.pendingSpotPods, uid)
 }
 
+// untrack removes all tracking state for the given workload.
+func (t *podTracker) untrack(w workload) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	delete(t.podGroups, w)
+	for uid, p := range t.pendingSpotPods {
+		if p.workload == w {
+			delete(t.pendingSpotPods, uid)
+		}
+	}
+}
+
 func (t *podTracker) newPods() *pods {
 	return &pods{
 		config:       t.defaultConfig,

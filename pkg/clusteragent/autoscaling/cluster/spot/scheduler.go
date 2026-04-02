@@ -43,7 +43,7 @@ type scheduler struct {
 	configStore workloadConfigStore
 	isLeader    func() bool
 	tracker     *podTracker
-	fetcher     *podFetcher
+	controller  *workloadController
 	synced      chan struct{}
 }
 
@@ -57,9 +57,11 @@ func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 		isLeader: isLeader,
 		synced:   make(chan struct{}),
 	}
-	s.tracker = newPodTracker(clk, workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}, s.getSpotConfig)
-	s.fetcher = newPodFetcher(lister, s.tracker)
-	s.configStore = newKubeWorkloadConfigStore(dynamicClient, cfg, s.fetcher)
+	defaultConfig := workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}
+	s.tracker = newPodTracker(clk, defaultConfig, s.getSpotConfig)
+	store := newSpotConfigStore()
+	s.configStore = store
+	s.controller = newWorkloadController(dynamicClient, defaultConfig, store, lister, s.tracker)
 	return s
 }
 
@@ -68,8 +70,7 @@ func (s *scheduler) Start(ctx context.Context) {
 	log.Infof("Starting spot scheduler: %s", s.config)
 
 	// Run in separate goroutines to not not delay pod updates processing.
-	go s.configStore.start(ctx)
-	go s.fetcher.start(ctx)
+	go s.controller.start(ctx)
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)
 	go s.rebalance(ctx)
@@ -77,11 +78,11 @@ func (s *scheduler) Start(ctx context.Context) {
 
 // trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
 func (s *scheduler) trackPodUpdates(ctx context.Context) {
-	// Wait for the config store to sync before subscribing to workloadmeta events.
+	// Wait for the workload controller to sync before subscribing to workloadmeta events.
 	// The WLM subscription delivers an initial event bundle for all existing pods filtered by spotEligibleFilter.
-	// If the config store is not yet synced, spotEligibleFilter returns false for all pods
+	// If the controller is not yet synced, spotEligibleFilter returns false for all pods
 	// and existing spot-eligible pods would be missed.
-	s.configStore.waitSynced()
+	s.controller.waitSynced()
 
 	filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(workloadmeta.KindKubernetesPod, s.spotEligibleFilter).Build()
 	ch := s.wlm.Subscribe("spot-scheduler", workloadmeta.NormalPriority, filter)
