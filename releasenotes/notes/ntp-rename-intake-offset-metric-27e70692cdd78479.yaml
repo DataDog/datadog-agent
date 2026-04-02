@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The NTP check no longer submits ``ntp.offset`` with the tag ``source:intake``.
+    The intake-derived clock offset is now reported as a separate metric,
+    ``ntp.intake_offset``, with no source tag.
+
+    If you have monitors or dashboards querying ``ntp.offset{source:intake}``,
+    update them to use ``ntp.intake_offset`` instead.
+
+    This change was made because emitting both ``ntp.offset{source:ntp}`` and
+    ``ntp.offset{source:intake}`` caused monitors on the untagged ``ntp.offset``
+    metric to aggregate over two series, skewing values and triggering false alerts.
