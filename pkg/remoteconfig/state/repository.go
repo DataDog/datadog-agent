@@ -199,6 +199,18 @@ func (r *Repository) Update(update Update) ([]string, error) {
 			return nil, fmt.Errorf("missing config file in TUF targets - %s", path)
 		}
 
+		// DEBUG: log the custom field status
+		if targetFileMetadata.Custom == nil {
+			log.Printf("[RC-DEBUG] path=%s Custom is NIL; TUFTargets len=%d, tufVerificationEnabled=%v", path, len(update.TUFTargets), r.tufVerificationEnabled)
+			end := len(update.TUFTargets)
+			if end > 500 {
+				end = 500
+			}
+			log.Printf("[RC-DEBUG] raw TUFTargets (first 500 bytes): %s", string(update.TUFTargets[:end]))
+		} else {
+			log.Printf("[RC-DEBUG] path=%s Custom=%s", path, string(*targetFileMetadata.Custom))
+		}
+
 		// 3.a: Extract the product and ID from the path
 		parsedPath, err := parseConfigPath(path)
 		if err != nil {
